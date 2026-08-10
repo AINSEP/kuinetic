@@ -1,0 +1,125 @@
+import { CHANNEL } from '../../core/types.js'
+import type { Preset, Primitive } from '../../core/types.js'
+import type { Registry } from '../../core/registry.js'
+import { cssPrimitive } from './shared.js'
+
+const drift = {
+  duration: { type: 'time', default: '10s', cssProperty: '--dsg-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--dsg-ease' },
+} as const
+
+const float = {
+  duration: { type: 'time', default: '4s', cssProperty: '--dsg-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--dsg-ease' },
+  distance: { type: 'length', default: '14px', cssProperty: '--dsg-distance' },
+} as const
+
+const pulse = {
+  duration: { type: 'time', default: '2.2s', cssProperty: '--dsg-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--dsg-ease' },
+} as const
+
+/**
+ * Continuous ambient motion never shortens to 1ms under reduced motion — a 1ms aurora is
+ * meaningless, so every primitive here declares `reducedMotion: 'disable'` and starts on
+ * `load` rather than waiting on a scroll-triggered `enter`.
+ */
+export const AMBIENT_PRIMITIVES: Primitive[] = [
+  cssPrimitive('ambient-gradient', [CHANNEL.background], {
+    parameters: drift,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
+  cssPrimitive('ambient-float', [CHANNEL.translate], {
+    parameters: float,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
+  cssPrimitive('ambient-pulse', [CHANNEL.scale, CHANNEL.opacity], {
+    parameters: pulse,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
+]
+
+export const AMBIENT_PRESETS: Preset[] = [
+  { name: 'gradient-mesh', primitive: 'ambient-gradient', keyframes: 'dsg-gradient-mesh' },
+  { name: 'aurora', primitive: 'ambient-gradient', keyframes: 'dsg-aurora' },
+  {
+    name: 'gradient-rotate-border',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-gradient-rotate-border',
+    params: { duration: '6s', ease: 'linear' },
+  },
+  {
+    name: 'noise-overlay',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-noise-overlay',
+    params: { duration: '650ms', ease: 'steps(6)' },
+  },
+  {
+    name: 'scanline',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-scanline',
+    params: { duration: '3.5s', ease: 'linear' },
+  },
+  {
+    name: 'dot-grid-drift',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-dot-grid-drift',
+    params: { duration: '16s', ease: 'linear' },
+  },
+  {
+    name: 'line-grid-drift',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-line-grid-drift',
+    params: { duration: '16s', ease: 'linear' },
+  },
+  {
+    name: 'starfield',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-starfield',
+    params: { duration: '40s', ease: 'linear' },
+  },
+  {
+    name: 'spotlight-follow',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-spotlight-follow',
+    params: { duration: '9s' },
+  },
+  {
+    name: 'wave-blob',
+    primitive: 'ambient-gradient',
+    keyframes: 'dsg-wave-blob',
+    params: { duration: '12s' },
+  },
+  { name: 'float', primitive: 'ambient-float', keyframes: 'dsg-float' },
+  {
+    name: 'bob',
+    primitive: 'ambient-float',
+    keyframes: 'dsg-bob',
+    params: { duration: '2s', distance: '8px' },
+  },
+  {
+    name: 'floating-shapes',
+    primitive: 'ambient-float',
+    keyframes: 'dsg-floating-shapes',
+    params: { duration: '6s', distance: '10px' },
+  },
+  { name: 'glow-pulse', primitive: 'ambient-pulse', keyframes: 'dsg-glow-pulse' },
+]
+
+/**
+ * Register catalog section J (ambient backgrounds) into a registry.
+ *
+ * @param registry - Registry to populate.
+ * @returns The same registry, for chaining.
+ * @complexity O(n) time in registered primitives and presets; O(1) extra space.
+ * @overallScore 100
+ */
+export function registerAmbient(registry: Registry): Registry {
+  return registry.registerPrimitives(AMBIENT_PRIMITIVES).registerPresets(AMBIENT_PRESETS)
+}

@@ -1,0 +1,306 @@
+/*
+ * Ambient background effects (catalog section J).
+ *
+ * Every preset here loops forever, so each carries `animation-iteration-count: infinite` as a
+ * static declaration (the runtime never writes iteration-count — see `docs/build-phase2-packet.md`
+ * conventions). Reduced motion is handled entirely by the primitive's declared
+ * `reducedMotion: 'disable'` plus the generic `[data-dsg-rm='disable']` policy in `base.css`; no
+ * effect here needs its own media query.
+ */
+@layer dsg.effects {
+  /* --- gradient-mesh / aurora / wave-blob / spotlight-follow: soft multi-stop gradient drift,
+     all channel `background` so they compose safely with translate/scale/opacity effects --- */
+
+  [data-dsg-fx~='gradient-mesh'] {
+    background-image:
+      radial-gradient(at 15% 20%, color-mix(in srgb, var(--dsg-c1, #7c3aed) 55%, transparent), transparent 55%),
+      radial-gradient(at 85% 15%, color-mix(in srgb, var(--dsg-c2, #06b6d4) 50%, transparent), transparent 55%),
+      radial-gradient(at 50% 85%, color-mix(in srgb, var(--dsg-c3, #f97316) 45%, transparent), transparent 55%);
+    background-size: 200% 200%;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-gradient-mesh {
+    0%,
+    100% {
+      background-position: 0% 0%, 100% 0%, 50% 100%;
+    }
+    50% {
+      background-position: 25% 35%, 75% 30%, 35% 70%;
+    }
+  }
+
+  [data-dsg-fx~='aurora'] {
+    background-image:
+      linear-gradient(120deg, color-mix(in srgb, var(--dsg-c1, #34d399) 45%, transparent), transparent 45%),
+      linear-gradient(240deg, color-mix(in srgb, var(--dsg-c2, #60a5fa) 45%, transparent), transparent 45%),
+      linear-gradient(0deg, color-mix(in srgb, var(--dsg-c3, #c084fc) 40%, transparent), transparent 50%);
+    background-size: 260% 260%;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-aurora {
+    0%,
+    100% {
+      background-position: 0% 50%, 100% 50%, 50% 0%;
+    }
+    50% {
+      background-position: 60% 30%, 40% 70%, 55% 60%;
+    }
+  }
+
+  [data-dsg-fx~='wave-blob'] {
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--dsg-c1, #22d3ee) 50%, transparent),
+      transparent 60%
+    );
+    background-size: 140% 140%;
+    background-repeat: no-repeat;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-wave-blob {
+    0%,
+    100% {
+      background-position: 20% 30%;
+      background-size: 140% 140%;
+    }
+    33% {
+      background-position: 70% 20%;
+      background-size: 160% 160%;
+    }
+    66% {
+      background-position: 50% 75%;
+      background-size: 120% 120%;
+    }
+  }
+
+  [data-dsg-fx~='spotlight-follow'] {
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--dsg-c1, #fde68a) 65%, transparent),
+      transparent 65%
+    );
+    background-size: 55% 55%;
+    background-repeat: no-repeat;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-spotlight-follow {
+    0%,
+    100% {
+      background-position: 10% 15%;
+    }
+    25% {
+      background-position: 85% 20%;
+    }
+    50% {
+      background-position: 80% 80%;
+    }
+    75% {
+      background-position: 15% 75%;
+    }
+  }
+
+  /* --- gradient-rotate-border: a flowing linear gradient masked down to a ring, so the
+     "rotation" reads as light travelling around an edge rather than the box literally spinning
+     (spinning the whole box would rotate its content, too) --- */
+
+  [data-dsg-fx~='gradient-rotate-border'] {
+    position: relative;
+    background-image: linear-gradient(
+      90deg,
+      var(--dsg-c1, #f472b6),
+      var(--dsg-c2, #60a5fa),
+      var(--dsg-c3, #34d399),
+      var(--dsg-c4, #fbbf24),
+      var(--dsg-c1, #f472b6)
+    );
+    background-size: 300% 100%;
+    padding: 3px;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-gradient-rotate-border {
+    from {
+      background-position: 0% 50%;
+    }
+    to {
+      background-position: 300% 50%;
+    }
+  }
+
+  /* --- noise-overlay / scanline: fine repeating patterns, drifted rather than tiled-and-static --- */
+
+  [data-dsg-fx~='noise-overlay'] {
+    background-image: repeating-radial-gradient(
+      circle at 0 0,
+      color-mix(in srgb, var(--dsg-c1, #ffffff) 12%, transparent) 0,
+      transparent 1.4px,
+      transparent 3px
+    );
+    background-size: 5px 5px;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-noise-overlay {
+    0% {
+      background-position: 0 0;
+    }
+    20% {
+      background-position: -3px 1px;
+    }
+    40% {
+      background-position: 2px -2px;
+    }
+    60% {
+      background-position: -1px 3px;
+    }
+    80% {
+      background-position: 3px 2px;
+    }
+    100% {
+      background-position: 0 0;
+    }
+  }
+
+  [data-dsg-fx~='scanline'] {
+    background-image: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--dsg-c1, #ffffff) 18%, transparent) 50%,
+      transparent
+    );
+    background-size: 100% 220%;
+    background-repeat: no-repeat;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-scanline {
+    from {
+      background-position: 0 -120%;
+    }
+    to {
+      background-position: 0 120%;
+    }
+  }
+
+  /* --- dot-grid-drift / line-grid-drift / starfield: repeating patterns panning diagonally --- */
+
+  [data-dsg-fx~='dot-grid-drift'] {
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--dsg-c1, #ffffff) 28%, transparent) 1.5px,
+      transparent 1.5px
+    );
+    background-size: 22px 22px;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-dot-grid-drift {
+    from {
+      background-position: 0 0;
+    }
+    to {
+      background-position: 22px 22px;
+    }
+  }
+
+  [data-dsg-fx~='line-grid-drift'] {
+    background-image: repeating-linear-gradient(
+        0deg,
+        color-mix(in srgb, var(--dsg-c1, #ffffff) 14%, transparent) 0 1px,
+        transparent 1px 26px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--dsg-c1, #ffffff) 14%, transparent) 0 1px,
+        transparent 1px 26px
+      );
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-line-grid-drift {
+    from {
+      background-position: 0 0, 0 0;
+    }
+    to {
+      background-position: 0 26px, 26px 0;
+    }
+  }
+
+  [data-dsg-fx~='starfield'] {
+    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--dsg-c1, #ffffff) 90%, transparent), transparent),
+      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--dsg-c1, #ffffff) 70%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--dsg-c1, #ffffff) 85%, transparent), transparent),
+      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--dsg-c1, #ffffff) 60%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--dsg-c1, #ffffff) 80%, transparent), transparent);
+    background-size: 220px 220px;
+    background-repeat: repeat;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-starfield {
+    from {
+      background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+    }
+    to {
+      background-position: 220px 90px, -160px 220px, 90px -140px, -220px -90px, 140px 160px;
+    }
+  }
+
+  /* --- float / bob / floating-shapes: one primitive, three amplitudes/timings --- */
+
+  [data-dsg-fx~='float'] {
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 calc(var(--dsg-distance, 14px) * -1);
+    }
+  }
+
+  [data-dsg-fx~='bob'] {
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-bob {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 calc(var(--dsg-distance, 8px) * -1);
+    }
+  }
+
+  [data-dsg-fx~='floating-shapes'] {
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-floating-shapes {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    33% {
+      translate: calc(var(--dsg-distance, 10px) * 0.6) calc(var(--dsg-distance, 10px) * -1);
+    }
+    66% {
+      translate: calc(var(--dsg-distance, 10px) * -0.6) calc(var(--dsg-distance, 10px) * -0.4);
+    }
+  }
+
+  /* --- glow-pulse: scale + opacity breathing --- */
+
+  [data-dsg-fx~='glow-pulse'] {
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-glow-pulse {
+    0%,
+    100% {
+      scale: 1;
+      opacity: 0.6;
+    }
+    50% {
+      scale: 1.15;
+      opacity: 1;
+    }
+  }
+}
