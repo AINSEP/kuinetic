@@ -281,19 +281,33 @@ are separate entry points (SSR, hydration, tests, multiple versions).
 ## 11. Programmatic API
 
 ```js
-const run = animator.play('.card', fadeUp, { duration: 800, stagger: 60 })
+const anim = designimation({ observe: true }).start()
+const run = anim.play('.card', 'fade-up', { duration: 800, stagger: 60 })
 await run.finished
-run.cancel(); run.finish(); run.reverse()
+run.cancel()
+run.finish()
 ```
 
-Must define: whether `finished` waits for all elements; cancel = resolve or reject; behavior for
-infinite/hover/scroll-linked; second `play()` = replace/queue/concurrent; whether `stop()`
-restores inline styles and DOM; empty-selector behavior; live vs snapshotted collections.
+`play()` accepts a selector, an `Element`, or any iterable of elements — always `Element`, not
+`HTMLElement`, since SVG is in scope. Options compile into the same attribute string an author
+would write by hand, so the declarative and programmatic surfaces share one execution path
+instead of drifting apart.
 
-Use `Element`, not `HTMLElement` — SVG is in scope.
+The returned `PlaybackHandle` is a handle, not a bare promise, because "every element finished"
+and "the run is cancellable" are different concerns: `elements` (the resolved target list),
+`finished` (a promise resolving once every selected element's animation finishes — resolves,
+never rejects, if `cancel()` is called instead), `cancel()`, and `finish()`.
 
-Instance-scoped (`createAnimator({ root, effects, reducedMotion, assetBase })`), not a
-process-wide registry — makes ShadowRoots, iframes, testing, and SSR tractable.
+Calling `play()` again on an element that's still mid-run works as a genuine replay, not a
+silent no-op: it resets the element's compiled state before reapplying the new configuration
+(a compiled effect that hasn't changed would otherwise be treated as already-satisfied and
+skipped). An element authored with its own `on:hover`/`on:click`/`on:load` trigger keeps that
+trigger after a programmatic `play()` — e.g. the showcase's replay-all button — rather than being
+permanently pinned to manual activation; `play()` still fires the effect immediately regardless.
+
+Instance-scoped: `designimation({ observe, reporter, ...AnimatorOptions })` returns an `Animator`
+bound to its own root, not a process-wide registry — the same shape works for a `ShadowRoot`,
+an iframe, a test harness, or an SSR-hydrated subtree.
 
 ---
 
