@@ -150,6 +150,10 @@ export function recognise(
     origin = sampleOf(event)
     samples = [origin]
     active = false
+    // Without this, resistance (elastic-pull) or inertia/axis-locking (throwable, drag-x) can
+    // move the element out from under the real cursor; native hit-testing would then deliver the
+    // eventual pointerup to whatever is now underneath instead of this element.
+    el.setPointerCapture?.(event.pointerId)
     if (longPressMs > 0) {
       longPressTimer = deps.setTimer(() => handlers.onLongPress?.(origin!), longPressMs)
     }
@@ -173,6 +177,7 @@ export function recognise(
 
   function onUp(event: PointerEvent): void {
     clearLongPress()
+    el.releasePointerCapture?.(event.pointerId)
     if (!origin) return
     const sample = sampleOf(event)
     samples.push(sample)

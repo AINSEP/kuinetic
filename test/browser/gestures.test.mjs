@@ -16,16 +16,17 @@ import { burstSample, createChecker, createFrameRecorder } from '../../scripts/b
  * throughout the drag or whether the spring return actually moved smoothly toward the origin
  * instead of, say, sitting frozen. Both are burst-sampled at several points instead.
  *
- * The `elastic-pull` and `swipe` checks are defect-finding, not regression guards, and are
- * expected to fail: `src/core/gesture.ts`'s `recognise()` never calls `setPointerCapture`, so once
- * an element's rendered position diverges from the real cursor position — which rubber-band
+ * The `elastic-pull` and `swipe` checks are regression guards for a defect that used to reproduce
+ * here: `src/core/gesture.ts`'s `recognise()` did not call `setPointerCapture`, so once an
+ * element's rendered position diverged from the real cursor position — which rubber-band
  * resistance causes by design, and which `swipeable` causes always, since it never repositions the
- * element — the browser's native hit-testing delivers `pointerup` to whatever is now under the
- * cursor instead of the gesture's target, and the recognizer's listeners never see it. See
- * `docs/browser-findings.md`. `src/` is out of scope for this dispatch, so it is reported here, not
- * patched. A synthetic `dispatchEvent(new PointerEvent('pointerup'))` on the target element — the
- * shortcut this suite deliberately avoids — bypasses hit-testing entirely and cannot reproduce
- * this; that is exactly why the dispatch asked for genuine `page.mouse` interaction.
+ * element — the browser's native hit-testing delivered `pointerup` to whatever was now under the
+ * cursor instead of the gesture's target, and the recognizer's listeners never saw it. Fixed by
+ * capturing the pointer on `pointerdown` and releasing it on `pointerup`/`pointercancel`; see
+ * `docs/browser-findings.md` for the original defect-finding write-up. A synthetic
+ * `dispatchEvent(new PointerEvent('pointerup'))` on the target element — the shortcut this suite
+ * deliberately avoids — bypasses hit-testing entirely and cannot reproduce this; that is exactly
+ * why the dispatch asked for genuine `page.mouse` interaction.
  */
 export const name = 'gestures'
 
@@ -182,8 +183,7 @@ async function checkElasticPull(page, check, snap) {
   check(
     'elastic-pull clears data-dsg-dragging after pointerup (pointer capture)',
     released.dragging === 'false',
-    `dragging=${released.dragging} — release landed outside the element once resistance made ` +
-      'its rendered position lag the real cursor; see docs/browser-findings.md',
+    `dragging=${released.dragging}`,
   )
 
   const { samples: returnSamples } = await burstSample({
@@ -228,8 +228,7 @@ async function checkSwipe(page, check, snap) {
   check(
     'a fast real-pointer flick is recognised as a rightward swipe',
     direction === 'right',
-    `data-dsg-swipe=${direction} — swipeable never repositions its element, so the cursor always ` +
-      'ends the gesture outside it; see docs/browser-findings.md',
+    `data-dsg-swipe=${direction}`,
   )
   await snap(page, 'swipe-detected')
 }
