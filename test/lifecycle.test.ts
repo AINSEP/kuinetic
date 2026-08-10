@@ -38,7 +38,7 @@ const idleScheduler: ScrollScheduler = {
 
 const fakeRoot: ScrollRoot = {
   key: 'fake',
-  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 800, viewportHeight: 600 }),
+  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 800, viewportHeight: 600, viewportTop: 0, viewportLeft: 0 }),
   onScroll: () => () => {},
   onResize: () => () => {},
 }

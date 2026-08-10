@@ -64,24 +64,29 @@ export function trackProgress(
   const measure = options.measure ?? domGeometry
   let scrollTop = 0
 
+  let scrollportTop = 0
+
   /*
-   * Cache the element's *document*-relative offset, not its viewport-relative one.
+   * Cache the element's offset within the scroller's *content*, not its viewport-relative one.
    *
-   * The epoch only advances on resize, so caching `rect.top` — the one number that changes on
-   * every scroll — freezes progress at whatever it was on the first frame. Document offset is
-   * genuinely epoch-stable, and subtracting the live scroll position restores the viewport
-   * offset for free. This is what keeps one layout read per resize rather than one per frame.
+   * Two things are going on. First, the epoch only advances on resize, so caching `rect.top` —
+   * the one number that changes on every scroll — would freeze progress at its first-frame value.
+   * Content offset is genuinely epoch-stable. Second, `measure` is viewport-relative while
+   * `scrollTop` is local to the resolved root, so subtracting the scrollport's own viewport
+   * offset converts between the two; without it, every nested `overflow: auto` container is wrong
+   * by exactly the scroller's position on screen.
    */
   const geometry = createMeasureCache(() => {
     const box = measure(el)
-    return { documentTop: box.top + scrollTop, height: box.height }
+    return { contentTop: box.top - scrollportTop + scrollTop, height: box.height }
   })
 
   return ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {
     scrollTop = frame.metrics.scrollTop
+    scrollportTop = frame.metrics.viewportTop
     const box = geometry.read(frame.epoch)
     const span = resolveDistance(options.distance, { top: 0, height: box.height }, frame)
-    onProgress(progressFrom(box.documentTop - scrollTop, span), frame)
+    onProgress(progressFrom(box.contentTop - scrollTop, span), frame)
   })
 }
 

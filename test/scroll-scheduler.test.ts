@@ -42,7 +42,7 @@ function fakeFrames() {
 function fakeRoot(key = 'test') {
   const scrollHandlers = new Set<() => void>()
   const resizeHandlers = new Set<() => void>()
-  const metrics = { scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800 }
+  const metrics = { scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 }
   let reads = 0
 
   const root: ScrollRoot = {

@@ -45,7 +45,7 @@ function fakeScheduler(): FakeScheduler {
     emit(scrollTop, epoch = 0) {
       for (const subscriber of [...subscribers]) {
         subscriber({
-          metrics: { scrollTop, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800 },
+          metrics: { scrollTop, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 },
           epoch,
         })
       }
@@ -56,7 +56,7 @@ function fakeScheduler(): FakeScheduler {
 
 const fakeRoot: ScrollRoot = {
   key: 'fake',
-  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800 }),
+  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 }),
   onScroll: () => () => {},
   onResize: () => () => {},
 }

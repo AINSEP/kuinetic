@@ -21,6 +21,16 @@ export interface ScrollMetrics {
   /** Visible size of the root's scrollport. */
   viewportWidth: number
   viewportHeight: number
+  /**
+   * Position of the scrollport itself in the viewport. Zero for the window.
+   *
+   * Without this, a subscriber measuring an element with `getBoundingClientRect` — which is
+   * viewport-relative — and subtracting a nested scroller's `scrollTop` — which is local to that
+   * scroller — mixes two coordinate systems, and every nested progress value is wrong by the
+   * scroller's own offset.
+   */
+  viewportTop: number
+  viewportLeft: number
 }
 
 /**
@@ -72,6 +82,8 @@ interface RootEntry {
   root: ScrollRoot
   subscribers: Set<ScrollSubscriber>
   detach: Cleanup[]
+  /** Only dirtied roots are measured and notified; one scroller must not wake the others. */
+  dirty: boolean
 }
 
 /**
@@ -107,22 +119,22 @@ export function createScrollScheduler(deps: SchedulerDeps = defaultDeps()): Scro
   const entries = new Map<string, RootEntry>()
   let epoch = 0
   let pending: number | null = null
-  let dirty = false
 
-  function schedule(): void {
-    dirty = true
+  function schedule(entry?: RootEntry): void {
+    if (entry) entry.dirty = true
+    else for (const other of entries.values()) other.dirty = true
+
     if (pending !== null) return
     pending = deps.requestFrame(runFrame)
   }
 
   function runFrame(): void {
     pending = null
-    if (!dirty) return
-    dirty = false
     // Metrics are read once per root and then shared, so N subscribers cost one layout read
     // rather than N. Subscriber writes therefore cannot interleave with this module's reads.
     for (const entry of entries.values()) {
-      if (entry.subscribers.size === 0) continue
+      if (!entry.dirty || entry.subscribers.size === 0) continue
+      entry.dirty = false
       const frame: ScrollFrame = { metrics: entry.root.metrics(), epoch }
       for (const subscriber of [...entry.subscribers]) subscriber(frame)
     }
@@ -131,10 +143,11 @@ export function createScrollScheduler(deps: SchedulerDeps = defaultDeps()): Scro
   function attach(root: ScrollRoot): RootEntry {
     const existing = entries.get(root.key)
     if (existing) return existing
-    const entry: RootEntry = { root, subscribers: new Set(), detach: [] }
-    entry.detach.push(root.onScroll(schedule))
+    const entry: RootEntry = { root, subscribers: new Set(), detach: [], dirty: false }
+    entry.detach.push(root.onScroll(() => schedule(entry)))
     entry.detach.push(
       root.onResize(() => {
+        // A resize invalidates cached geometry everywhere, not only in the resized scroller.
         epoch++
         schedule()
       }),
@@ -153,7 +166,7 @@ export function createScrollScheduler(deps: SchedulerDeps = defaultDeps()): Scro
     subscribe(root, onFrame) {
       const entry = attach(root)
       entry.subscribers.add(onFrame)
-      schedule()
+      schedule(entry)
       return () => {
         entry.subscribers.delete(onFrame)
         release(entry)
@@ -170,7 +183,6 @@ export function createScrollScheduler(deps: SchedulerDeps = defaultDeps()): Scro
     destroy() {
       if (pending !== null) deps.cancelFrame(pending)
       pending = null
-      dirty = false
       for (const entry of entries.values()) {
         entry.subscribers.clear()
         for (const detach of entry.detach) detach()
@@ -195,6 +207,8 @@ export function windowScrollRoot(win: Window): ScrollRoot {
       scrollLeft: win.scrollX,
       viewportWidth: win.innerWidth,
       viewportHeight: win.innerHeight,
+      viewportTop: 0,
+      viewportLeft: 0,
     }),
     onScroll: (handler) => listen(win, 'scroll', handler),
     onResize: (handler) => listen(win, 'resize', handler),
@@ -216,20 +230,45 @@ export function windowScrollRoot(win: Window): ScrollRoot {
 export function elementScrollRoot(el: Element, win: Window): ScrollRoot {
   return {
     key: `el:${rootId(el)}`,
-    metrics: () => ({
-      scrollTop: el.scrollTop,
-      scrollLeft: el.scrollLeft,
-      viewportWidth: el.clientWidth,
-      viewportHeight: el.clientHeight,
-    }),
+    metrics: () => {
+      const rect = el.getBoundingClientRect()
+      return {
+        scrollTop: el.scrollTop,
+        scrollLeft: el.scrollLeft,
+        viewportWidth: el.clientWidth,
+        viewportHeight: el.clientHeight,
+        viewportTop: rect.top,
+        viewportLeft: rect.left,
+      }
+    },
     onScroll: (handler) => listen(el, 'scroll', handler),
-    onResize: (handler) => listen(win, 'resize', handler),
+    // Window resize alone misses the cases that actually invalidate a nested scroller: images
+    // loading, fonts swapping, a container changing size, or content being inserted.
+    onResize: (handler) => observeSize(el, win, handler),
   }
 }
 
 function listen(target: EventTarget, type: string, handler: () => void): Cleanup {
   target.addEventListener(type, handler, { passive: true })
   return () => target.removeEventListener(type, handler)
+}
+
+/**
+ * Observe an element's own size as well as the window's.
+ *
+ * @complexity O(1) to install; callback cost is the caller's.
+ * @overallScore 100
+ */
+function observeSize(el: Element, win: Window, handler: () => void): Cleanup {
+  const stopWindow = listen(win, 'resize', handler)
+  if (typeof ResizeObserver === 'undefined') return stopWindow
+
+  const observer = new ResizeObserver(handler)
+  observer.observe(el)
+  return () => {
+    stopWindow()
+    observer.disconnect()
+  }
 }
 
 let nextRootId = 0
@@ -273,10 +312,21 @@ export function createRootResolver(options: RootResolverOptions): (el: Element) 
 
 const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll', 'overlay'])
 
+/**
+ * An ancestor counts as a scroll root only if it *can* scroll.
+ *
+ * `overflow: auto` on a box whose content fits scrolls nothing, so treating it as the root would
+ * hand every descendant a scroller that never moves.
+ *
+ * @complexity O(1) time per call, but reads computed style and scroll size.
+ * @overallScore 100
+ */
 function defaultIsScrollable(win: Window): (el: Element) => boolean {
   return (el) => {
     const style = win.getComputedStyle(el)
-    return SCROLLABLE_OVERFLOW.has(style.overflowY) || SCROLLABLE_OVERFLOW.has(style.overflowX)
+    const vertical = SCROLLABLE_OVERFLOW.has(style.overflowY) && el.scrollHeight > el.clientHeight
+    const horizontal = SCROLLABLE_OVERFLOW.has(style.overflowX) && el.scrollWidth > el.clientWidth
+    return vertical || horizontal
   }
 }
 
