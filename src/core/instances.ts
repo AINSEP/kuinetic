@@ -14,6 +14,22 @@ function animationsOf(el: Element): Animation[] {
 }
 
 /**
+ * Select only CSS animation handles emitted by the compiled Designimation plan.
+ *
+ * @param el - Element carrying both library and possibly consumer animations.
+ * @param names - Exact keyframe names emitted by the compiler.
+ * @returns Owned CSS animation handles, excluding transitions and consumer animations.
+ * @complexity O(a) time in animations affecting the element; O(a) space.
+ * @overallScore 100
+ */
+function ownedAnimationsOf(el: Element, names: ReadonlySet<string>): Animation[] {
+  return animationsOf(el).filter((animation) => {
+    const name = (animation as Animation & { animationName?: unknown }).animationName
+    return typeof name === 'string' && names.has(name)
+  })
+}
+
+/**
  * Read the computed `animation-name`, forcing a synchronous style recalc as a side effect.
  *
  * A call site that only cares about the flush still has to consume a call's return value to
@@ -71,11 +87,17 @@ function restartCssAnimation(el: Element, ledger: StyleLedger): void {
  *
  * @param el - Element carrying the compiled animation.
  * @param ledger - Ledger owning the play-state write.
- * @returns A lifecycle handle over the element's CSS animations.
+ * @param animationNames - Exact keyframe names emitted by the compiled plan.
+ * @returns A lifecycle handle over the element's owned CSS animations.
  * @complexity O(a) per call in the number of running animations; O(1) space.
  * @overallScore 100
  */
-export function createCssInstance(el: Element, ledger: StyleLedger): EffectInstance {
+export function createCssInstance(
+  el: Element,
+  ledger: StyleLedger,
+  animationNames: readonly string[],
+): EffectInstance {
+  const ownedNames = new Set(animationNames)
   let settle: (() => void) | undefined
   let finished = new Promise<void>((resolve) => {
     settle = resolve
@@ -108,11 +130,11 @@ export function createCssInstance(el: Element, ledger: StyleLedger): EffectInsta
       // reapplies it once. The restart only re-triggers the animation itself — the compiled
       // declaration still starts `animation-play-state: paused` (the gate), so this still needs
       // its own explicit running write, same as the plain no-stale case below.
-      let animations = animationsOf(el)
+      let animations = ownedAnimationsOf(el, ownedNames)
       if (!activatedBefore) {
         restartCssAnimation(el, ledger)
         ledger.set('animation-play-state', 'running')
-        animations = animationsOf(el)
+        animations = ownedAnimationsOf(el, ownedNames)
       } else {
         const stale = animations.filter((a) => a.playState === 'finished')
         if (stale.length > 0) {
@@ -125,11 +147,11 @@ export function createCssInstance(el: Element, ledger: StyleLedger): EffectInsta
       watch(animations)
     },
     cancel() {
-      for (const animation of animationsOf(el)) animation.cancel()
+      for (const animation of ownedAnimationsOf(el, ownedNames)) animation.cancel()
       settle?.()
     },
     finish() {
-      for (const animation of animationsOf(el)) animation.finish()
+      for (const animation of ownedAnimationsOf(el, ownedNames)) animation.finish()
       settle?.()
     },
     get finished() {

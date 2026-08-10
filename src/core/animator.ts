@@ -255,7 +255,11 @@ export class Animator {
     this.states.set(el, state)
 
     if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
-      state.instances.push(createCssInstance(el, ledger))
+      const animationNames = (plan.declarations['animation-name'] ?? '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean)
+      state.instances.push(createCssInstance(el, ledger, animationNames))
     }
     state.instances.push(
       ...this.jsEffectPreparer.prepare({ el, plan, signal: controller.signal, ledger }),
