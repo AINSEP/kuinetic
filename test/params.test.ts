@@ -28,6 +28,15 @@ describe('validate', () => {
     expect(validate('calc(var(--gap) * 2)', length).ok).toBe(true)
   })
 
+  it('rejects adversarial calc input in bounded time', () => {
+    const value = `calc(${'var(--a)'.repeat(24)}!)`
+    expect(value).toHaveLength(199)
+
+    const started = performance.now()
+    expect(validate(value, length).ok).toBe(false)
+    expect(performance.now() - started).toBeLessThan(100)
+  })
+
   it('falls back to the default when invalid', () => {
     expect(validate('nonsense', length).value).toBe('24px')
   })

@@ -33,10 +33,9 @@ const COLOR_KEYWORD = /^[a-z]+$/i
 const EASING_KEYWORD = /^(?:linear|ease|step-start|step-end|spring|[a-z]+-(?:in|out|in-out))$/i
 const EASING_FUNCTION = /^(?:cubic-bezier|steps|linear)\([^()]*\)$/i
 
-/** `calc()` is allowed for numeric types, restricted to arithmetic and var() references. */
-const CALC = /^calc\((?:[\d.\s+\-*/%a-z(),]|var\(--[\w-]+\))*\)$/i
-
 const CALC_TYPES = new Set<ParamSpec['type']>(['length', 'percentage', 'number'])
+const CALC_CHARACTER = /^[\d.\s+\-*/%a-z,]$/i
+const CUSTOM_PROPERTY_NAME = /^--[\w-]+$/
 
 export interface ValidationResult {
   value: string
@@ -96,7 +95,7 @@ function isAcceptable(value: string, type: ParamSpec['type']): boolean {
   const pattern = PATTERNS[type]
   if (!pattern) return false
   if (pattern.test(value)) return true
-  return CALC_TYPES.has(type) && CALC.test(value) && isWellFormedCalc(value)
+  return CALC_TYPES.has(type) && isSafeCalc(value) && isWellFormedCalc(value)
 }
 
 function isColor(value: string): boolean {
@@ -113,13 +112,65 @@ function reject(spec: ParamSpec, reason: string): ValidationResult {
 }
 
 /**
+ * Tokenize the deliberately small supported `calc()` grammar without regex backtracking.
+ *
+ * @param value - Candidate numeric value.
+ * @returns Whether it contains only arithmetic text and exact `var(--name)` references.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function isSafeCalc(value: string): boolean {
+  if (!value.startsWith('calc(') || !value.endsWith(')')) return false
+
+  const end = value.length - 1
+  let index = 'calc('.length
+  while (index < end) {
+    index = nextCalcToken(value, index, end)
+    if (index < 0) return false
+  }
+  return true
+}
+
+/**
+ * Advance over one calc character or variable token.
+ *
+ * @param value - Whole `calc()` candidate.
+ * @param index - Current body index.
+ * @param end - Exclusive end of the calc body.
+ * @returns The next index, or `-1` when the token is unsupported.
+ * @complexity O(n) time for a variable token; O(1) space.
+ * @overallScore 100
+ */
+function nextCalcToken(value: string, index: number, end: number): number {
+  if (value.startsWith('var(', index)) return consumeVar(value, index, end)
+  return CALC_CHARACTER.test(value[index] ?? '') ? index + 1 : -1
+}
+
+/**
+ * Consume one `var(--name)` token.
+ *
+ * @param value - Whole `calc()` candidate.
+ * @param start - Index of the `v` in `var(`.
+ * @param end - Exclusive end of the calc body.
+ * @returns The first index after the token, or `-1` when malformed.
+ * @complexity O(n) time in token length; O(1) space.
+ * @overallScore 100
+ */
+function consumeVar(value: string, start: number, end: number): number {
+  const close = value.indexOf(')', start + 'var('.length)
+  if (close < 0 || close >= end) return -1
+  const name = value.slice(start + 'var('.length, close)
+  return CUSTOM_PROPERTY_NAME.test(name) ? close + 1 : -1
+}
+
+/**
  * Structural check on a `calc()` body.
  *
  * The character-class pattern cannot tell `calc(100% - 20px)` from `calc(100% -)`. A malformed
  * calc is not a security problem — CSS drops it at computed-value time — but accepting it
  * silently means the author sees no animation and no warning, which is the worst outcome.
  *
- * @param value - A string already matched by `CALC`.
+ * @param value - A string already accepted by the safe calc tokenizer.
  * @returns Whether parentheses balance and no operator is left dangling.
  * @complexity O(n) time in value length; O(1) space.
  * @overallScore 100
