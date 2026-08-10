@@ -1,4 +1,4 @@
-# Code review request: `designimation` — deep adversarial sweep, architecture + security
+# Code review request: `designimation` — architecture and defensive security audit
 
 You reviewed the design of this library before any code existed, then reviewed the v1+v2
 implementation at commit `3d2db58` (before v3, before the lifecycle refactor). **Neither of your
@@ -44,11 +44,12 @@ properties plus a compiled `animation` declaration. JS-tier effects (gestures, s
 morph, scroll orchestration) go through an `EffectInstance` lifecycle. Not published yet —
 `0.0.0`, no consumers, so anything found now is free to fix.
 
-## What I actually want: an adversarial sweep, not a design-fidelity check
+## What I actually want: an architecture and security review, not a design-fidelity check
 
 Your last two reviews asked "did the design survive contact with implementation." This one is
-different. **Assume the code is hostile input's first line of defense, not a trusted internal
-module, and try to break it.** Two lenses, both mandatory:
+different: it adds a rigorous input-validation and defense-in-depth pass on top of the usual
+architecture lens, since the library's whole job is turning HTML-attribute strings into CSS/DOM
+writes and that boundary has never been reviewed. Two lenses, both mandatory:
 
 ### 1. Architecture flaws
 
@@ -67,54 +68,55 @@ module, and try to break it.** Two lenses, both mandatory:
   (`css`, `js`), or is it a third thing wearing the `js` tier's clothes in a way that will cause
   friction for the next 20 gesture-family effects?
 
-### 2. Security issues — this is the part your prior reviews never asked for
+### 2. Input-validation and defense-in-depth review
 
-This library's entire input surface is: (a) author-authored `data-dsg` attribute strings on HTML
+This library's entire input surface is: (a) author-written `data-dsg` attribute strings on HTML
 elements, (b) programmatic calls to `createAnimator()`/`anim.play()`, (c) pointer/scroll/DOM
-events. In most consuming applications, at least one of these categories can end up influenced by
-data the site owner does not fully control (CMS-authored HTML, user-generated content rendered
-into a template, a query-string-driven landing page builder, etc.) — so treat `data-dsg` values
-as **attacker-influenced input**, not developer-authored config, and hunt accordingly:
+events. In many real deployments, at least one of these categories can end up influenced by data
+the site owner doesn't fully control (CMS-authored HTML, user-generated content rendered into a
+template, a query-string-driven landing page builder, etc.), so the standard practice for a
+library at this trust boundary is to validate `data-dsg` values as untrusted input rather than
+assume they're always developer-authored. Please check systematically:
 
-- **Injection into CSS/DOM.** `src/core/parse.ts`, `src/core/params.ts`, `src/core/js-params.ts`,
+- **CSS/DOM output validation.** `src/core/parse.ts`, `src/core/params.ts`, `src/core/js-params.ts`,
   `src/core/compile.ts` turn attribute strings into CSS custom property values and, for some
-  param types, direct DOM/attribute writes. Is there any path where an attacker-controlled string
-  reaches `element.style.setProperty`, a generated stylesheet rule, or an attribute write without
-  going through the parameter schema's validation? Check every param `type` (`keyword`, `number`,
+  param types, direct DOM/attribute writes. Is there any path where an unvalidated string reaches
+  `element.style.setProperty`, a generated stylesheet rule, or an attribute write without going
+  through the parameter schema's validation? Check every param `type` (`keyword`, `number`,
   `time`, `text`, whatever else exists) for whether its validator can actually be bypassed —
   and specifically the `text` param type, which the codebase's own history flags as added because
   "selectors and URL patterns... must never reach a stylesheet."
-- **ReDoS.** Any regex in the parser/grammar (`parse.ts`, `splitTopLevel`, attribute grammar)
-  that isn't provably linear against adversarial input (nested quantifiers, catastrophic
-  backtracking on malformed `data-dsg` strings)?
-- **Selector injection.** Anywhere a `text`-typed param or raw string flows into
+- **Regex complexity (ReDoS).** Any regex in the parser/grammar (`parse.ts`, `splitTopLevel`,
+  attribute grammar) that isn't provably linear-time on malformed or adversarially-crafted
+  `data-dsg` strings (nested quantifiers, catastrophic backtracking)?
+- **Selector-string safety.** Anywhere a `text`-typed param or raw string flows into
   `querySelector`/`querySelectorAll`/`closest` — can a crafted string escape the intended
-  selector scope or throw in a way that's exploitable (not just a crash)?
-- **Prototype pollution / object injection.** Anywhere attribute-derived keys get used to index
-  into a plain object, `Object.assign` target, or similar, without a safe-key check.
+  selector scope, or throw in a way an attacker could rely on rather than just a benign crash?
+- **Prototype pollution / unsafe object-key use.** Anywhere attribute-derived keys get used to
+  index into a plain object, `Object.assign` target, or similar, without a safe-key check.
 - **DOM clobbering.** Does anything trust `window.<name>` or a global that a page's own HTML
   (`<img name="...">`, `<form id="...">`) could clobber?
-- **ReDoS/DoS via the scroll/mutation observers.** `src/core/scroll-scheduler.ts`,
-  `src/core/dom-watcher.ts` — can a pathological DOM (huge fanout, rapid mutation) be used to
-  force unbounded work per frame, defeating the coalescing the code claims to do? (Note:
+- **Unbounded work via scroll/mutation observers (availability).** `src/core/scroll-scheduler.ts`,
+  `src/core/dom-watcher.ts` — can a pathological DOM (huge fanout, rapid mutation) cause unbounded
+  work per frame, defeating the coalescing the code claims to do? (Note:
   `scroll-nested.test.mjs` already tests bounded reads for one specific pattern — is there a
   pattern it doesn't cover that still blows the budget?)
-- **Memory/listener leaks as DoS.** Every `prepare()` returns a `Cleanup`/`EffectInstance` that's
-  supposed to fully tear down. Audit for a leaked listener, observer, or spring runner on any
-  code path — repeated create/destroy cycles (e.g. a SPA repeatedly mounting/unmounting the same
-  component) are a realistic attack surface for gradual memory exhaustion, not just a tidiness
-  issue.
+- **Memory/listener leaks (availability over time).** Every `prepare()` returns a
+  `Cleanup`/`EffectInstance` that's supposed to fully tear down. Audit for a leaked listener,
+  observer, or spring runner on any code path — repeated create/destroy cycles (e.g. a SPA
+  repeatedly mounting/unmounting the same component) would gradually exhaust memory, which is a
+  real availability concern, not just a tidiness issue.
 - **Information disclosure via the reporter.** `consoleReporter`/`collectingReporter` — does
   anything log attribute values, DOM content, or internal state in a way that could leak
   sensitive page data to the console/telemetry in production if a consumer wires
   `collectingReporter` to an analytics sink?
-- **Supply chain / eval-adjacent patterns.** Any `new Function`, `eval`, or dynamic
-  `import()` of a string built from external input, anywhere in `src/`?
+- **Dynamic-code patterns.** Any `new Function`, `eval`, or dynamic `import()` of a string built
+  from external input, anywhere in `src/`?
 
-For every security finding: show the exact file/line, the concrete attacker-controlled input that
-reaches it, and a minimal reproduction (an HTML snippet or attribute string), not just "this
-looks unsafe." If you looked for a category above and found nothing, say so explicitly — a
-reviewed-and-clean result is a real finding too, not silence.
+For every finding in this section: show the exact file/line, describe the concrete untrusted
+input that reaches it, and give a concrete example (an HTML snippet or attribute string) rather
+than just "this looks unsafe." If you checked a category above and found nothing, say so
+explicitly — a reviewed-and-clean result is a real finding too, not silence.
 
 ### 3. Correctness / bugs
 
