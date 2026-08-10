@@ -38,6 +38,5 @@ export const GESTURE_PRESETS: Preset[] = [
  * @overallScore 100
  */
 export function registerGestures(registry: Registry): Registry {
-  for (const primitive of GESTURE_PRIMITIVES) registry.registerPrimitive(primitive)
-  return registry.registerPresets(GESTURE_PRESETS)
+  return registry.registerPrimitives(GESTURE_PRIMITIVES).registerPresets(GESTURE_PRESETS)
 }

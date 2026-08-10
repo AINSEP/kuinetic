@@ -16,6 +16,5 @@ export type { ElementGeometry, Measurer, TrackOptions } from './tracker.js'
  * @overallScore 100
  */
 export function registerScrollMechanics(registry: Registry): Registry {
-  for (const primitive of SCROLL_PRIMITIVES) registry.registerPrimitive(primitive)
-  return registry.registerPresets(SCROLL_PRESETS)
+  return registry.registerPrimitives(SCROLL_PRIMITIVES).registerPresets(SCROLL_PRESETS)
 }

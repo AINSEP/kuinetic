@@ -79,6 +79,5 @@ export const THREE_D_PRESETS: Preset[] = [
  * @overallScore 100
  */
 export function registerThreeD(registry: Registry): Registry {
-  for (const primitive of THREE_D_PRIMITIVES) registry.registerPrimitive(primitive)
-  return registry.registerPresets(THREE_D_PRESETS)
+  return registry.registerPrimitives(THREE_D_PRIMITIVES).registerPresets(THREE_D_PRESETS)
 }

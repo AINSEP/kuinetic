@@ -17,8 +17,7 @@ export { registerThreeD } from './three-d/index.js'
 
 /** The v1 catalog: entrance/exit, scroll reveal, and parallax. All CSS-rendered. */
 export function registerCore(registry: Registry): Registry {
-  for (const primitive of PRIMITIVES) registry.registerPrimitive(primitive)
-  registry.registerPresets(PRESETS)
+  registry.registerPrimitives(PRIMITIVES).registerPresets(PRESETS)
   for (const [names, preset] of COMBOS) registry.registerCombo(names, preset)
   return registry
 }

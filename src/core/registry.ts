@@ -44,6 +44,11 @@ export class Registry {
     return this
   }
 
+  registerPrimitives(primitives: Primitive[]): this {
+    for (const primitive of primitives) this.registerPrimitive(primitive)
+    return this
+  }
+
   /**
    * Declare that a set of effect names has a purpose-built single-keyframe implementation.
    * Checked before channel conflict analysis, so `fade-up` + `blur-in` can resolve to the

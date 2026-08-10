@@ -14,6 +14,5 @@ export { LAYOUT_PRESETS } from './presets.js'
  * @overallScore 100
  */
 export function registerLayout(registry: Registry): Registry {
-  for (const primitive of LAYOUT_PRIMITIVES) registry.registerPrimitive(primitive)
-  return registry.registerPresets(LAYOUT_PRESETS)
+  return registry.registerPrimitives(LAYOUT_PRIMITIVES).registerPresets(LAYOUT_PRESETS)
 }

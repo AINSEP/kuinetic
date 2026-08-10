@@ -103,6 +103,5 @@ export const SVG_PRESETS: Preset[] = [
  * @overallScore 100
  */
 export function registerSvg(registry: Registry): Registry {
-  for (const primitive of SVG_PRIMITIVES) registry.registerPrimitive(primitive)
-  return registry.registerPresets(SVG_PRESETS)
+  return registry.registerPrimitives(SVG_PRIMITIVES).registerPresets(SVG_PRESETS)
 }
