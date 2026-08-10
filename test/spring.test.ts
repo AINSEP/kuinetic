@@ -183,4 +183,41 @@ describe('createSpringRunner', () => {
     runner.stop()
     expect(deps.cancelFrame).toHaveBeenCalled()
   })
+
+  it('falls back from an invalid config instead of scheduling forever', () => {
+    const { deps, tick, pending } = fakeDeps()
+    deps.warn = vi.fn()
+    const runner = createSpringRunner({ ...CONFIG, stiffness: 0 }, () => {}, deps)
+    runner.set(100)
+    runner.to(0)
+    tick(400)
+    expect(deps.warn).toHaveBeenCalledWith('invalid spring configuration; using defaults')
+    expect(pending()).toBe(0)
+  })
+
+  it('aborts and reports a non-finite state', () => {
+    const { deps, tick, pending } = fakeDeps()
+    deps.warn = vi.fn()
+    const runner = createSpringRunner(CONFIG, () => {}, deps)
+    runner.set(Number.POSITIVE_INFINITY)
+    runner.to(0)
+    tick(1)
+    expect(deps.warn).toHaveBeenCalledWith('spring produced non-finite state')
+    expect(pending()).toBe(0)
+  })
+
+  it('stops a valid but non-settling run at the settle budget', () => {
+    const { deps, tick, pending } = fakeDeps()
+    deps.warn = vi.fn()
+    const runner = createSpringRunner(
+      { ...CONFIG, stiffness: 0.000001, damping: 0.000001 },
+      () => {},
+      deps,
+    )
+    runner.set(100)
+    runner.to(0)
+    tick(700)
+    expect(deps.warn).toHaveBeenCalledWith('spring exceeded 10000ms settle budget')
+    expect(pending()).toBe(0)
+  })
 })

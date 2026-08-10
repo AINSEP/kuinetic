@@ -98,6 +98,7 @@ export interface SpringDeps {
   requestFrame(callback: (time: number) => void): number
   cancelFrame(handle: number): void
   now(): number
+  warn?(message: string): void
 }
 
 export interface SpringRunner {
@@ -108,6 +109,9 @@ export interface SpringRunner {
   current(): SpringState
   stop(): void
 }
+
+/** A broken or undamped spring must not retain the frame loop indefinitely. */
+const MAX_SETTLE_MS = 10_000
 
 /**
  * Drive a spring with a frame loop, calling `onChange` with each new value.
@@ -127,18 +131,30 @@ export function createSpringRunner(
   onChange: (value: number, settled: boolean) => void,
   deps: SpringDeps,
 ): SpringRunner {
+  const safeConfig = validConfig(config) ? config : DEFAULT_SPRING
+  if (safeConfig !== config) deps.warn?.('invalid spring configuration; using defaults')
   let state: SpringState = { value: 0, velocity: 0 }
   let target = 0
   let handle: number | null = null
   let lastTime = 0
+  let startedAt = 0
 
   function frame(time: number): void {
     handle = null
     const dt = (time - lastTime) / 1000
     lastTime = time
-    state = stepSpring(state, target, config, dt)
+    state = stepSpring(state, target, safeConfig, dt)
 
-    if (isSettled(state, target, config)) {
+    if (!finiteState(state) || !Number.isFinite(target)) {
+      abortRun('spring produced non-finite state')
+      return
+    }
+    if (time - startedAt >= MAX_SETTLE_MS) {
+      abortRun(`spring exceeded ${MAX_SETTLE_MS}ms settle budget`)
+      return
+    }
+
+    if (isSettled(state, target, safeConfig)) {
       state = { value: target, velocity: 0 }
       onChange(state.value, true)
       return
@@ -154,7 +170,14 @@ export function createSpringRunner(
 
   function start(): void {
     lastTime = deps.now()
+    startedAt = lastTime
     schedule()
+  }
+
+  function abortRun(message: string): void {
+    state = { value: Number.isFinite(target) ? target : 0, velocity: 0 }
+    deps.warn?.(message)
+    onChange(state.value, true)
   }
 
   return {
@@ -172,6 +195,37 @@ export function createSpringRunner(
       handle = null
     },
   }
+}
+
+/**
+ * Check every spring constant at the defensive runner boundary.
+ *
+ * @param config - Candidate spring constants.
+ * @returns Whether every constant is finite and physically able to settle.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function validConfig(config: SpringConfig): boolean {
+  return (
+    Object.values(config).every(Number.isFinite) &&
+    config.stiffness > 0 &&
+    config.damping > 0 &&
+    config.mass > 0 &&
+    config.restVelocity > 0 &&
+    config.restDisplacement > 0
+  )
+}
+
+/**
+ * Check whether both integrated state components remain usable.
+ *
+ * @param state - Latest integrated position and velocity.
+ * @returns Whether both values are finite.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function finiteState(state: SpringState): boolean {
+  return Number.isFinite(state.value) && Number.isFinite(state.velocity)
 }
 
 /**

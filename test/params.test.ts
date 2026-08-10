@@ -71,6 +71,21 @@ describe('validate', () => {
     expect(validate(`${'1'.repeat(300)}px`, length).reason).toContain('200 characters')
   })
 
+  it('enforces finite numeric schema bounds', () => {
+    const constrained: ParamSpec = {
+      type: 'number',
+      default: '180',
+      cssProperty: '--spring',
+      finite: true,
+      minimum: 1,
+      maximum: 10_000,
+    }
+    expect(validate('0', constrained).ok).toBe(false)
+    expect(validate('9'.repeat(200), constrained).ok).toBe(false)
+    expect(validate('10001', constrained).ok).toBe(false)
+    expect(validate('180', constrained).ok).toBe(true)
+  })
+
   it('rejects empty values', () => {
     expect(validate('   ', length).ok).toBe(false)
   })

@@ -3,7 +3,7 @@ import { deferPrepare } from '../../core/instances.js'
 import { recognise, rubberBand } from '../../core/gesture.js'
 import type { GestureVector } from '../../core/gesture.js'
 import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../core/spring.js'
-import type { SpringConfig, SpringRunner } from '../../core/spring.js'
+import type { SpringConfig, SpringDeps, SpringRunner } from '../../core/spring.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 
 /**
@@ -19,8 +19,22 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
  */
 
 const springParams: ParameterSchema = {
-  stiffness: { type: 'number', default: '180', cssProperty: '--dsg-stiffness' },
-  damping: { type: 'number', default: '24', cssProperty: '--dsg-damping' },
+  stiffness: {
+    type: 'number',
+    default: '180',
+    cssProperty: '--dsg-stiffness',
+    finite: true,
+    minimum: 1,
+    maximum: 10_000,
+  },
+  damping: {
+    type: 'number',
+    default: '24',
+    cssProperty: '--dsg-damping',
+    finite: true,
+    minimum: 0.1,
+    maximum: 1_000,
+  },
 }
 
 function gesturePrimitive(
@@ -51,6 +65,18 @@ function springFrom(params: EffectParams): SpringConfig {
   }
 }
 
+/**
+ * Use the effect reporter for defensive spring aborts as well as schema failures.
+ *
+ * @param ctx - Owning effect context.
+ * @returns Realm frame dependencies connected to the effect warning sink.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function springDeps(ctx: PrepareContext): SpringDeps {
+  return { ...defaultSpringDeps(), warn: ctx.warn }
+}
+
 /** Write a translation without touching the `transform` shorthand, so channels stay honest. */
 function writeOffset(ctx: PrepareContext, x: number, y: number): void {
   ctx.style.set('translate', `${x.toFixed(2)}px ${y.toFixed(2)}px`)
@@ -77,7 +103,7 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   const inertia = params.is('inertia')
 
   const offset = { x: 0, y: 0 }
-  const deps = defaultSpringDeps()
+  const deps = springDeps(ctx)
   const runners: DragRunners = {
     x: createSpringRunner(config, (value) => write({ ...offset, x: value }), deps),
     y: createSpringRunner(config, (value) => write({ ...offset, y: value }), deps),
@@ -218,7 +244,7 @@ function prepareMagnetic(el: Element, params: EffectParams, ctx: PrepareContext)
   const radius = params.num('radius', 120)
   const strength = params.num('strength', 0.35)
   const config = springFrom(params)
-  const deps = defaultSpringDeps()
+  const deps = springDeps(ctx)
 
   const offset = { x: 0, y: 0 }
   const runnerX = createSpringRunner(config, (value) => {

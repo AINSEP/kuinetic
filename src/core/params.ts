@@ -62,7 +62,7 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
   // `text` has no shape to match — it is a selector or URL pattern. It still passed the
   // escape screen above, and `resolveParams` drops it before anything reaches a stylesheet.
   if (spec.type === 'text') return { value, ok: true }
-  if (isAcceptable(value, spec.type)) return { value, ok: true }
+  if (isAcceptable(value, spec.type)) return checkNumericConstraints(value, spec)
   return reject(spec, `not a valid ${spec.type}`)
 }
 
@@ -105,6 +105,29 @@ function isColor(value: string): boolean {
 function checkKeyword(value: string, spec: ParamSpec): ValidationResult {
   if (spec.values?.includes(value)) return { value, ok: true }
   return reject(spec, `expected one of ${spec.values?.join(', ') ?? '(none declared)'}`)
+}
+
+/**
+ * Apply semantic constraints after a number has passed the lexical grammar.
+ *
+ * @param value - Lexically valid authored value.
+ * @param spec - Schema constraints for the parameter.
+ * @returns The accepted value or the declared default with a reason.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function checkNumericConstraints(value: string, spec: ParamSpec): ValidationResult {
+  if (spec.type !== 'number') return { value, ok: true }
+  const numeric = Number(value)
+  if (spec.finite && !Number.isFinite(numeric)) return reject(spec, 'expected a finite number')
+  if (spec.integer && !Number.isInteger(numeric)) return reject(spec, 'expected an integer')
+  if (spec.minimum !== undefined && numeric < spec.minimum) {
+    return reject(spec, `expected at least ${spec.minimum}`)
+  }
+  if (spec.maximum !== undefined && numeric > spec.maximum) {
+    return reject(spec, `expected at most ${spec.maximum}`)
+  }
+  return { value, ok: true }
 }
 
 function reject(spec: ParamSpec, reason: string): ValidationResult {

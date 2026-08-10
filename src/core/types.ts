@@ -92,6 +92,14 @@ export interface ParamSpec {
   cssProperty: string
   /** For `keyword` params. */
   values?: readonly string[]
+  /** Require a numeric parameter to convert to a finite JavaScript number. */
+  finite?: boolean
+  /** Inclusive lower bound for numeric parameters. */
+  minimum?: number
+  /** Inclusive upper bound for numeric parameters. */
+  maximum?: number
+  /** Require a numeric parameter to have no fractional part. */
+  integer?: boolean
 }
 
 export type ParameterSchema = Record<string, ParamSpec>
