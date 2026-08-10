@@ -254,6 +254,8 @@
         <a href="./scroll.html">Scroll</a>
         <a href="./interactive.html">Interactive</a>
         <a href="./text.html">Text</a>
+        <a href="./data-hover.html">Data &amp; Hover</a>
+        <a href="./ambient-feedback.html">Ambient &amp; Feedback</a>
         <a href="./nav-forms.html" aria-current="page">Nav &amp; Forms</a>
       </nav>
     </header>
@@ -289,8 +291,7 @@
             <div
               class="panel"
               style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: none"
-              data-dsg="menu-fullscreen"
-              data-dsg-on="manual"
+              data-dsg="menu-fullscreen on:manual"
             >
               Fullscreen menu content, clipped to the demo box.
             </div>
@@ -318,7 +319,7 @@
           <div class="demo-box">
             <span class="panel-trigger" data-dsg-hover-panel>
               <button type="button">Account</button>
-              <span class="panel" data-dsg="dropdown-open 350ms" data-dsg-on="manual">
+              <span class="panel" data-dsg="dropdown-open 350ms on:manual">
                 Profile<br />Settings<br />Sign out
               </span>
             </span>
@@ -330,7 +331,7 @@
           <div class="demo-box">
             <span class="panel-trigger" data-dsg-hover-panel>
               <button type="button">Products</button>
-              <span class="panel mega-panel" data-dsg="mega-menu-drop" data-dsg-on="manual">
+              <span class="panel mega-panel" data-dsg="mega-menu-drop on:manual">
                 <span>Animation</span><span>Scroll</span><span>Gestures</span><span>3D</span>
               </span>
             </span>
@@ -341,9 +342,9 @@
         <div class="demo-block">
           <div class="demo-box drawer-box">
             <button type="button" data-dsg-drawer-open>Open drawer</button>
-            <div class="drawer" data-dsg="drawer-slide" data-dsg-on="click" tabindex="0">Drawer content — click me to slide back out</div>
+            <div class="drawer" data-dsg="drawer-slide on:click" tabindex="0">Drawer content — click me to slide back out</div>
           </div>
-          <p class="tag">data-dsg="drawer-slide" data-dsg-on="click" — click the drawer to slide it</p>
+          <p class="tag">data-dsg="drawer-slide on:click" — click the drawer to slide it</p>
         </div>
 
         <div class="demo-block">
@@ -394,22 +395,21 @@
             <input
               id="ff-shake"
               placeholder="Invalid value"
-              data-dsg="validate-shake 400ms"
-              data-dsg-on="click"
+              data-dsg="validate-shake 400ms on:click"
               style="border-color: #c94f4f"
             />
           </div>
-          <p class="tag">data-dsg="validate-shake 400ms" data-dsg-on="click" — click the field</p>
+          <p class="tag">data-dsg="validate-shake 400ms on:click" — click the field</p>
         </div>
 
         <div class="demo-block">
           <div class="demo-box" style="min-height: 60px; display: flex; align-items: center">
-            <svg viewBox="0 0 24 24" data-dsg="validate-check 500ms" data-dsg-on="click" tabindex="0">
+            <svg viewBox="0 0 24 24" data-dsg="validate-check 500ms on:click" tabindex="0">
               <path d="M4 12l5 5L20 6" />
             </svg>
             <span style="margin-left: 0.75rem; color: var(--dim)">Click the box to draw the check</span>
           </div>
-          <p class="tag">data-dsg="validate-check 500ms" data-dsg-on="click"</p>
+          <p class="tag">data-dsg="validate-check 500ms on:click"</p>
         </div>
 
         <div class="demo-block">
@@ -503,6 +503,7 @@
     </script>
     <script src="./theme.js"></script>
     <script src="./docs-nav.js"></script>
+    <script src="./show-code.js"></script>
     <script src="./replay.js"></script>
   </body>
 </html>

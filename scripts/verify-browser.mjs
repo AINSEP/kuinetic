@@ -220,15 +220,16 @@ async function run() {
 
   // --- showcase replay FAB ---------------------------------------------------------------
   // The replay page itself matters here: calling `play()` in isolation would not prove the
-  // shared FAB is wired through the public reset/replay path. Held as an element handle, not
-  // re-queried by selector — `play()` correctly rewrites `data-dsg-on` from `load` to `manual`
-  // once it runs, so a selector keyed on the original value would stop matching after the very
-  // click being tested.
+  // shared FAB is wired through the public reset/replay path. Selected by id rather than by
+  // trigger, because `play()` stamps `data-dsg-on="manual"` on any element that lacks the
+  // longhand attribute — which is every element on the page now that triggers are authored
+  // inline as `on:load`. A selector keyed on the trigger would be unstable across the very
+  // click being tested; an id is not.
   const showcase = await context.newPage()
   await showcase.goto(SHOWCASE_URL)
   await showcase.waitForFunction(() => window.__dsg !== undefined)
   await showcase.waitForTimeout(800)
-  const loadEffect = await showcase.$('[data-dsg-on="load"]')
+  const loadEffect = await showcase.$('#load-fade')
   const readEffect = () =>
     loadEffect.evaluate((el) => {
       const a = el.getAnimations()[0]

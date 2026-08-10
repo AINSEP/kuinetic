@@ -82,6 +82,9 @@
         <a href="./scroll.html">Scroll</a>
         <a href="./interactive.html">Interactive</a>
         <a href="./text.html" aria-current="page">Text</a>
+        <a href="./data-hover.html">Data &amp; Hover</a>
+        <a href="./ambient-feedback.html">Ambient &amp; Feedback</a>
+        <a href="./nav-forms.html">Nav &amp; Forms</a>
       </nav>
     </header>
 
@@ -135,12 +138,12 @@
       <p class="note">Runs the moment the page loads, and never stops — <code>on:load</code>.</p>
       <div class="text-grid">
         <div class="text-demo">
-          <p class="stage" data-dsg="text-wave" data-dsg-on="load">This sentence never sits still.</p>
-          <p class="tag">data-dsg="text-wave" data-dsg-on="load"</p>
+          <p class="stage" data-dsg="text-wave on:load">This sentence never sits still.</p>
+          <p class="tag">data-dsg="text-wave on:load"</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="text-jitter" data-dsg-on="load">A nervous little tremor, per letter.</p>
-          <p class="tag">data-dsg="text-jitter" data-dsg-on="load"</p>
+          <p class="stage" data-dsg="text-jitter on:load">A nervous little tremor, per letter.</p>
+          <p class="tag">data-dsg="text-jitter on:load"</p>
         </div>
       </div>
 
@@ -151,8 +154,8 @@
           <p class="tag">data-dsg="typewriter"</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="typewriter-loop" data-dsg-on="load">Typed, deleted, retyped, forever.</p>
-          <p class="tag">data-dsg="typewriter-loop" data-dsg-on="load"</p>
+          <p class="stage" data-dsg="typewriter-loop on:load">Typed, deleted, retyped, forever.</p>
+          <p class="tag">data-dsg="typewriter-loop on:load"</p>
         </div>
       </div>
 
@@ -176,26 +179,26 @@
       <h2>Color &amp; line</h2>
       <div class="text-grid">
         <div class="text-demo">
-          <p class="stage" data-dsg="gradient-shimmer" data-dsg-on="load">A sheen that never stops sweeping.</p>
-          <p class="tag">data-dsg="gradient-shimmer" data-dsg-on="load"</p>
+          <p class="stage" data-dsg="gradient-shimmer on:load">A sheen that never stops sweeping.</p>
+          <p class="tag">data-dsg="gradient-shimmer on:load"</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="gradient-sweep 900ms" data-dsg-on="hover" tabindex="0">
+          <p class="stage" data-dsg="gradient-sweep 900ms on:hover" tabindex="0">
             Hover to sweep a gradient across me.
           </p>
-          <p class="tag">data-dsg="gradient-sweep 900ms" data-dsg-on="hover" — point at me</p>
+          <p class="tag">data-dsg="gradient-sweep 900ms on:hover" — point at me</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="highlight-sweep 500ms" data-dsg-on="hover" tabindex="0">
+          <p class="stage" data-dsg="highlight-sweep 500ms on:hover" tabindex="0">
             Hover for a highlighter to sweep behind me.
           </p>
-          <p class="tag">data-dsg="highlight-sweep 500ms" data-dsg-on="hover" — point at me</p>
+          <p class="tag">data-dsg="highlight-sweep 500ms on:hover" — point at me</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="underline-draw 500ms" data-dsg-on="hover" tabindex="0" style="display: inline-block">
+          <p class="stage" data-dsg="underline-draw 500ms on:hover" tabindex="0" style="display: inline-block">
             Hover to draw my underline.
           </p>
-          <p class="tag">data-dsg="underline-draw 500ms" data-dsg-on="hover" — point at me</p>
+          <p class="tag">data-dsg="underline-draw 500ms on:hover" — point at me</p>
         </div>
         <div class="text-demo">
           <p class="stage" data-dsg="text-outline-fill 700ms">Outline first, then fills solid.</p>
@@ -210,16 +213,16 @@
       </p>
       <div class="text-grid">
         <div class="text-demo">
-          <p class="stage" data-dsg="var-weight 700ms" data-dsg-on="hover" tabindex="0">Weight, thin to bold.</p>
-          <p class="tag">data-dsg="var-weight 700ms" data-dsg-on="hover" — point at me</p>
+          <p class="stage" data-dsg="var-weight 700ms on:hover" tabindex="0">Weight, thin to bold.</p>
+          <p class="tag">data-dsg="var-weight 700ms on:hover" — point at me</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="var-width 700ms" data-dsg-on="hover" tabindex="0">Width, condensed to wide.</p>
-          <p class="tag">data-dsg="var-width 700ms" data-dsg-on="hover" — point at me</p>
+          <p class="stage" data-dsg="var-width 700ms on:hover" tabindex="0">Width, condensed to wide.</p>
+          <p class="tag">data-dsg="var-width 700ms on:hover" — point at me</p>
         </div>
         <div class="text-demo">
-          <p class="stage" data-dsg="var-slant 2000ms" data-dsg-on="hover" tabindex="0">Slant, upright to oblique.</p>
-          <p class="tag">data-dsg="var-slant 2000ms" data-dsg-on="hover" — point at me</p>
+          <p class="stage" data-dsg="var-slant 2000ms on:hover" tabindex="0">Slant, upright to oblique.</p>
+          <p class="tag">data-dsg="var-slant 2000ms on:hover" — point at me</p>
         </div>
       </div>
 
@@ -228,8 +231,7 @@
         <div class="text-demo">
           <p
             class="stage"
-            data-dsg="word-cycler words:designers|developers|storytellers|dreamers interval:1800ms"
-            data-dsg-on="load"
+            data-dsg="word-cycler words:designers|developers|storytellers|dreamers interval:1800ms on:load"
           >
             designers
           </p>
@@ -240,7 +242,7 @@
 
         <div class="text-demo">
           <div class="marquee-viewport">
-            <div class="stage" data-dsg="marquee 14s" data-dsg-on="load">
+            <div class="stage" data-dsg="marquee 14s on:load">
               <span>DESIGNIMATION&nbsp;·&nbsp;DECLARATIVE ANIMATION&nbsp;·&nbsp;NATIVE CSS FIRST&nbsp;·&nbsp;</span>
               <span aria-hidden="true"
                 >DESIGNIMATION&nbsp;·&nbsp;DECLARATIVE ANIMATION&nbsp;·&nbsp;NATIVE CSS FIRST&nbsp;·&nbsp;</span
@@ -252,12 +254,12 @@
 
         <div class="text-demo">
           <div class="marquee-viewport">
-            <div class="stage" data-dsg="marquee-scroll-linked" data-dsg-timeline="scroll">
+            <div class="stage" data-dsg="marquee-scroll-linked timeline:scroll">
               <span>SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
               <span aria-hidden="true">SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
             </div>
           </div>
-          <p class="tag">data-dsg="marquee-scroll-linked" data-dsg-timeline="scroll"</p>
+          <p class="tag">data-dsg="marquee-scroll-linked timeline:scroll"</p>
         </div>
 
         <div class="text-demo">
