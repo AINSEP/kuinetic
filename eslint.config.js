@@ -35,5 +35,11 @@ export default tseslint.config(
     files: ['test/**/*.ts'],
     rules: { 'sonarjs/no-duplicate-string': 'off' },
   },
-  { ignores: ['node_modules', 'dist'] },
+  {
+    // Plain Node scripts driving Playwright, not library source. Same footing as `scripts/`,
+    // which the `lint` command does not target at all — `test/browser/` sits under `test/`, so it
+    // needs an explicit ignore instead. `projectService` requires TS-project membership, which
+    // these `.mjs` files intentionally have none of (they run under plain Node, not the bundler).
+    ignores: ['node_modules', 'dist', 'test/browser/**/*.mjs'],
+  },
 )

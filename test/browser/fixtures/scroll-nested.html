@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — nested horizontal-scroll fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #14110f;
+        color: #f5efe8;
+      }
+      /* Lets the window itself scroll, independently of the nested scroller, so the test can
+         prove the tracker's progress does not leak the window's own scroll position. */
+      .window-spacer {
+        height: 1000px;
+        display: grid;
+        place-items: center;
+        color: #8a7f76;
+      }
+      #scroller {
+        width: 400px;
+        height: 300px;
+        margin: 0 auto;
+        overflow: auto;
+        background: #1c1712;
+      }
+      .above,
+      .below {
+        height: 200px;
+      }
+      .below {
+        height: 600px;
+      }
+      #track {
+        display: flex;
+        width: 300px;
+      }
+      .panel {
+        flex: 0 0 300px;
+        height: 150px;
+        display: grid;
+        place-items: center;
+        font-size: 2rem;
+      }
+      .panel:nth-child(1) {
+        background: #d2691e;
+      }
+      .panel:nth-child(2) {
+        background: #8b3a1a;
+      }
+      .panel:nth-child(3) {
+        background: #b1592c;
+      }
+      .panel:nth-child(4) {
+        background: #6f2c12;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="window-spacer">scroll the window — the nested scroller below is independent</div>
+
+    <div id="scroller">
+      <div class="above"></div>
+      <div id="track" data-dsg="horizontal-scroll distance:300px">
+        <div class="panel">1</div>
+        <div class="panel">2</div>
+        <div class="panel">3</div>
+        <div class="panel">4</div>
+      </div>
+      <div class="below"></div>
+    </div>
+
+    <div class="window-spacer">end</div>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
