@@ -1,5 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferredInstance } from '../../core/instances.js'
+import { deferPrepare } from '../../core/instances.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
@@ -85,7 +85,7 @@ export const SVG_PRIMITIVES: Primitive[] = [
     defaultActivation: 'load',
     perfClass: 'paint',
     reducedMotion: 'disable',
-    prepare: (el, params, ctx) => deferredInstance(() => prepareMorph(el, params, ctx)),
+    prepare: deferPrepare(prepareMorph),
   },
 ]
 

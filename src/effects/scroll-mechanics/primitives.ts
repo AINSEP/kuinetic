@@ -1,5 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferredInstance } from '../../core/instances.js'
+import { deferPrepare } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
@@ -297,7 +297,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         values: ['true', 'false'],
       },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => preparePin(el, params, ctx)),
+    prepare: deferPrepare(preparePin),
     perfClass: 'layout',
   }),
 
@@ -308,7 +308,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       steps: { type: 'number', default: '0', cssProperty: '--dsg-steps' },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => prepareProgress(el, params, ctx)),
+    prepare: deferPrepare(prepareProgress),
   }),
 
   scrollPrimitive({
@@ -318,7 +318,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       travel: { type: 'text', default: 'auto', cssProperty: '--dsg-travel' },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => prepareHorizontal(el, params, ctx)),
+    prepare: deferPrepare(prepareHorizontal),
   }),
 
   scrollPrimitive({
@@ -329,7 +329,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       frames: { type: 'number', default: '1', cssProperty: '--dsg-frames' },
       src: { type: 'text', default: '', cssProperty: '--dsg-src' },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => prepareMediaScrub(el, params, ctx)),
+    prepare: deferPrepare(prepareMediaScrub),
     perfClass: 'paint',
   }),
 
@@ -340,7 +340,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       target: { type: 'text', default: '', cssProperty: '--dsg-target' },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => prepareScrollSpy(el, params, ctx)),
+    prepare: deferPrepare(prepareScrollSpy),
   }),
 
   scrollPrimitive({
@@ -361,7 +361,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         values: ['start', 'center', 'end'],
       },
     },
-    prepare: (el, params, ctx) => deferredInstance(() => prepareSnap(el, params, ctx)),
+    prepare: deferPrepare(prepareSnap),
     perfClass: 'layout',
   }),
 ]

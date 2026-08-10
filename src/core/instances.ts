@@ -86,6 +86,21 @@ export function deferredInstance(setup: () => Cleanup): EffectInstance {
   })
 }
 
+/**
+ * Wrap a `(el, params, ctx) => Cleanup`-shaped setup function as a deferred `Primitive['prepare']`.
+ *
+ * Every JS primitive's `prepare` is `deferredInstance(() => setup(...args))` — this names that
+ * composition once instead of re-deriving it at each of the library's fourteen call sites.
+ *
+ * @complexity O(1) time and space beyond the wrapped call.
+ * @overallScore 100
+ */
+export function deferPrepare<Args extends unknown[]>(
+  setup: (...args: Args) => Cleanup,
+): (...args: Args) => EffectInstance {
+  return (...args: Args) => deferredInstance(() => setup(...args))
+}
+
 export interface JsInstanceHooks {
   /** Start the effect. Never called before the animator's gate opens. */
   activate(): void

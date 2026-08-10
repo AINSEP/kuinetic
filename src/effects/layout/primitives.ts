@@ -1,5 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferredInstance } from '../../core/instances.js'
+import { deferPrepare } from '../../core/instances.js'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 
@@ -175,14 +175,14 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
         values: ['true', 'false'],
       },
     },
-    (el, params) => deferredInstance(() => prepareFlipContainer(el, params)),
+    deferPrepare(prepareFlipContainer),
   ),
 
   layoutPrimitive(
     'auto-height',
     ['layout'],
     { attribute: { type: 'text', default: 'data-open', cssProperty: '--dsg-attribute' } },
-    (el, params, ctx) => deferredInstance(() => prepareAutoHeight(el, params, ctx)),
+    deferPrepare(prepareAutoHeight),
   ),
 
   layoutPrimitive(
@@ -192,6 +192,6 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       follow: { type: 'text', default: '', cssProperty: '--dsg-follow' },
       attribute: { type: 'text', default: 'aria-selected', cssProperty: '--dsg-attribute' },
     },
-    (el, params, ctx) => deferredInstance(() => prepareIndicator(el, params, ctx)),
+    deferPrepare(prepareIndicator),
   ),
 ]

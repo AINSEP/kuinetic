@@ -1,5 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferredInstance } from '../../core/instances.js'
+import { deferPrepare } from '../../core/instances.js'
 import { recognise, rubberBand } from '../../core/gesture.js'
 import type { GestureVector } from '../../core/gesture.js'
 import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../core/spring.js'
@@ -269,7 +269,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
         values: ['true', 'false'],
       },
     },
-    (el, params, ctx) => deferredInstance(() => prepareDraggable(el, params, ctx)),
+    deferPrepare(prepareDraggable),
   ),
 
   gesturePrimitive(
@@ -279,14 +279,14 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
       axis: { type: 'keyword', default: 'both', cssProperty: '--dsg-axis', values: ['x', 'y', 'both'] },
       velocity: { type: 'number', default: '300', cssProperty: '--dsg-velocity' },
     },
-    (el, params) => deferredInstance(() => prepareSwipeable(el, params)),
+    deferPrepare(prepareSwipeable),
   ),
 
   gesturePrimitive(
     'pressable',
     ['state'],
     { duration: { type: 'time', default: '500ms', cssProperty: '--dsg-duration' } },
-    (el, params) => deferredInstance(() => preparePressable(el, params)),
+    deferPrepare(preparePressable),
   ),
 
   gesturePrimitive(
@@ -297,6 +297,6 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
       radius: { type: 'number', default: '120', cssProperty: '--dsg-radius' },
       strength: { type: 'number', default: '0.35', cssProperty: '--dsg-strength' },
     },
-    (el, params, ctx) => deferredInstance(() => prepareMagnetic(el, params, ctx)),
+    deferPrepare(prepareMagnetic),
   ),
 ]
