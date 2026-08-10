@@ -95,6 +95,40 @@ synthetic events.
   button) has no fingerprint to collide with, so it always "works" — that's the only case the FAB
   build likely spot-checked.
 
+### D5 continued — `reset()` + reinstall still doesn't visually restart a CSS-tier animation
+
+`d229b39` fixed the surface symptom (`replay.js` now calls `anim.reset(el)` before `play()`; it
+turns out `src/core/play.ts`'s internal `play()` already did this — `animator.reset(el)` /
+`el.setAttribute(ATTR.on, 'manual')` / `animator.process(el)` / `animator.activate(el)` are all
+pre-existing). **That was necessary but not sufficient.** Live-tested with real Chromium,
+multi-point sampling (not a single check) on `demo/showcase/reveals.html`'s
+`data-dsg="fade-in 600ms" data-dsg-on="load"` element:
+
+- Before click: `getAnimations()` → `{playState: 'finished', currentTime: 600}`.
+- At t = 10/30/60/100/200/400/700ms after clicking `.dsg-replay-fab`: **identical** —
+  `{playState: 'finished', currentTime: 600}` at every single sample. No page errors, no console
+  warnings. `data-dsg-on` correctly flips `load → manual` (proves `play()` did run), but the
+  element's `style` attribute is **byte-identical** before and after, including
+  `animation-play-state: running` (which was already `running` even while `data-dsg-state` read
+  `finished` — that combination alone doesn't restart anything; it only prevents a *pause*).
+- **Root cause:** `reset()`'s `release()` destroys the old `CssInstance` object and clears
+  `this.states`, and `process()`/`activate()` build a genuinely new one — but CSS animations are
+  not tied to JS object identity. Writing the *same* `animation-name`/duration/etc. values to an
+  element that already has that exact declaration in a finished state is a no-op at the browser
+  level, regardless of which JS object wrote it or how many times. This is the same underlying
+  class of bug D2 fixed (`instances.ts`'s repeat-activation handling), but D2's fix
+  (`Animation.reverse()` when `playState === 'finished'`) is specific to the toggle case — it
+  goes backward. A "replay from the start, forward" case (this one) needs a different mechanism:
+  the standard fix is forcing the browser to recognize a genuinely new animation instance —
+  either the reflow trick (`animation-name: none` → force layout read → restore the real value)
+  or driving it through the Web Animations API (`getAnimations()` → `.cancel()` the stale one,
+  then let the fresh instance's own animation start cleanly) rather than relying on identical
+  declarative CSS properties to self-restart.
+- **Not yet fixed.** `d229b39`'s `replay.js` change is still correct/worth keeping (it's the
+  right call site), it's just not sufficient on its own — the real fix belongs in
+  `src/core/instances.ts` (`createCssInstance`, same file D2 already touched) or wherever CSS-tier
+  install/activate actually applies the animation properties.
+
 ## Feature requests (not defects)
 
 ### F1. "Replay all" FAB on showcase pages
