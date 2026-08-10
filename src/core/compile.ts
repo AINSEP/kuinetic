@@ -1,8 +1,9 @@
 import { describeConflicts, findConflicts } from './channels.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
-import { suggest } from './registry.js'
+import { suggest, timingProperty } from './registry.js'
 import type {
+  Activation,
   EffectSpec,
   ParsedValue,
   ReducedMotionPolicy,
@@ -41,6 +42,10 @@ export interface CompiledPlan {
   unknown: string[]
   /** Strictest reduced-motion policy among the composed effects. */
   reducedMotion: ReducedMotionPolicy
+  /** Activation preferred by the composed primitives when the author named none. */
+  defaultActivation?: Activation
+  /** Activations every composed primitive supports, for enforcement by the animator. */
+  supportedActivations: Activation[]
   warnings: string[]
 }
 
@@ -82,6 +87,7 @@ function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {
     jsEffects: [],
     unknown,
     reducedMotion: 'shorten',
+    supportedActivations: [],
     warnings,
   }
 }
@@ -132,21 +138,16 @@ function resolveEntries(
 function resolveComposition(entries: Entry[], registry: Registry, warnings: string[]): Entry[] {
   if (entries.length <= 1) return entries
 
-  const combo = registry.findCombo(entries.map((e) => e.spec.name))
-  if (combo) {
-    const first = entries[0]!.spec
-    return [{ spec: { ...first, name: combo.preset.name }, resolved: combo }]
-  }
-
   const conflicts = findConflicts(
     entries.map((e) => ({ name: e.spec.name, channels: e.resolved.primitive.channels })),
   )
   if (conflicts.length === 0) return entries
 
-  warnings.push(
-    `cannot compose: ${describeConflicts(conflicts)}. ` +
-      `Register a combo preset, or apply them to nested elements.`,
-  )
+  const combo = registry.findCombo(entries.map((e) => e.spec.name))
+  const remedy = combo
+    ? `Use the "${combo.preset.name}" effect instead.`
+    : 'Apply them to nested elements, or register a combined effect.'
+  warnings.push(`cannot compose: ${describeConflicts(conflicts)}. ${remedy}`)
   return [entries[0]!]
 }
 
@@ -169,6 +170,10 @@ function buildPlan(
     const { preset, primitive } = entry.resolved
     plan.fxNames.push(preset.name)
     plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
+    plan.defaultActivation ??= primitive.defaultActivation
+    plan.supportedActivations = plan.supportedActivations.length
+      ? plan.supportedActivations.filter((a) => primitive.supportedActivations.includes(a))
+      : [...primitive.supportedActivations]
     warnUnsupportedTimeline(preset.name, primitive.supportedTimelines, timeline, warnings)
 
     const authored = { ...preset.params, ...entry.spec.params }
@@ -200,10 +205,13 @@ interface AnimationTracks {
  */
 function pushTrack(tracks: AnimationTracks, entry: Entry): void {
   const { spec, resolved } = entry
+  const id = resolved.primitive.id
   tracks.names.push(resolved.preset.keyframes ?? `dsg-${resolved.preset.name}`)
-  tracks.durations.push(spec.duration ?? 'var(--dsg-duration, 600ms)')
-  tracks.delays.push(staggerDelay(spec.delay))
-  tracks.easings.push(easingValue(spec.easing))
+  // Each track reads its *own* primitive's timing property. Sharing one `--dsg-duration` across
+  // tracks meant a composed effect inherited its neighbour's timing.
+  tracks.durations.push(spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`)
+  tracks.delays.push(staggerDelay(spec.delay, id))
+  tracks.easings.push(easingValue(spec.easing, id))
 }
 
 function declarationsFor(tracks: AnimationTracks): Record<string, string> {
@@ -240,13 +248,13 @@ function warnUnsupportedTimeline(
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function staggerDelay(delay: string | undefined): string {
-  const base = delay ?? 'var(--dsg-delay, 0ms)'
+function staggerDelay(delay: string | undefined, primitiveId: string): string {
+  const base = delay ?? `var(${timingProperty(primitiveId, 'delay')}, 0ms)`
   return `calc(${base} + var(--dsg-i, 0) * var(--dsg-stagger, 0ms))`
 }
 
-function easingValue(easing: string | undefined): string {
-  if (!easing) return 'var(--dsg-ease, ease-out)'
+function easingValue(easing: string | undefined, primitiveId: string): string {
+  if (!easing) return `var(${timingProperty(primitiveId, 'ease')}, ease-out)`
   if (NATIVE_EASINGS.has(easing)) return easing
   if (easing.includes('(')) return easing
   return `var(--dsg-ease-${easing}, ease-out)`

@@ -7,7 +7,7 @@ import { compile } from './compile.js'
 import type { CompiledPlan } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
 import { readAttributes, resolveConfig } from './element-config.js'
-import type { ElementConfig } from './element-config.js'
+import type { ElementAttributes, ElementConfig } from './element-config.js'
 import { readEffectParams } from './js-params.js'
 import { parse } from './parse.js'
 import { createRootResolver, createScrollScheduler } from './scroll-scheduler.js'
@@ -17,16 +17,36 @@ import type { PlaybackHandle, PlayOptions, Target } from './play.js'
 import { Registry } from './registry.js'
 import { silentReporter } from './reporter.js'
 import type { Reporter } from './reporter.js'
+import { createCssInstance } from './instances.js'
+import { createAttributeLedger, createStyleLedger } from './owned-styles.js'
 import { applyStagger } from './stagger.js'
 import { applyStylePlan, planStyles } from './style-plan.js'
-import type { InstanceState, ParsedValue } from './types.js'
+import type { StylePlan } from './style-plan.js'
+import type { Activation, EffectInstance, InstanceState, ParsedValue } from './types.js'
+
+/** Longest a stalled initialisation may keep an opt-in cloak in place. */
+const CLOAK_WATCHDOG_MS = 3000
+
+/** Configuration identity: every attribute that changes what gets compiled. */
+function fingerprintOf(attributes: ElementAttributes): string {
+  return [attributes.source, attributes.on, attributes.timeline, attributes.threshold].join('\u0000')
+}
 
 export { ATTR }
+
+/** Everything `openGate` needs, grouped so the call site reads as one request. */
+interface GateRequest {
+  el: Element
+  state: InstanceState
+  stylePlan: StylePlan
+  config: ElementConfig
+  plan: CompiledPlan
+}
 
 /** Everything `install` needs, grouped so the call site reads as one request. */
 interface InstallRequest {
   el: Element
-  source: string
+  fingerprint: string
   parsed: ParsedValue
   config: ElementConfig
   plan: CompiledPlan
@@ -98,9 +118,16 @@ export class Animator {
   start(): this {
     if (this.started) return this
     this.started = true
-    this.scan(this.root)
-    if (this.shouldObserve) this.watch()
-    this.uncloak()
+    // The watchdog is armed before scanning, not after: if scanning throws or hangs, the page
+    // must still become readable. Uncloaking only on the happy path is not fail-open.
+    const watchdog = globalThis.setTimeout(() => this.uncloak(), CLOAK_WATCHDOG_MS)
+    try {
+      this.scan(this.root)
+      if (this.shouldObserve) this.watch()
+    } finally {
+      globalThis.clearTimeout(watchdog)
+      this.uncloak()
+    }
     return this
   }
 
@@ -132,14 +159,19 @@ export class Animator {
    */
   process(el: Element): void {
     const attributes = readAttributes(el)
+    // The whole configuration, not just `data-dsg`. Keying on the source alone meant a change to
+    // `data-dsg-on`, `data-dsg-timeline`, or `data-dsg-threshold` was ignored permanently — even
+    // when `process()` was called again by hand.
+    const fingerprint = fingerprintOf(attributes)
     const existing = this.states.get(el)
-    if (existing?.source === attributes.source) return
+    if (existing?.fingerprint === fingerprint) return
     if (existing) this.release(el)
 
     const parsed = parse(attributes.source)
     const config = resolveConfig(attributes, parsed)
     const plan = compile(parsed, this.registry, config.timeline)
 
+    config.activation = this.resolveActivation(el, config, plan)
     for (const warning of plan.warnings) this.reporter.warn(warning, el)
 
     if (plan.fxNames.length === 0) {
@@ -149,7 +181,7 @@ export class Animator {
       return
     }
 
-    this.install({ el, source: attributes.source, parsed, config, plan })
+    this.install({ el, fingerprint, parsed, config, plan })
   }
 
   /**
@@ -158,34 +190,96 @@ export class Animator {
    * @complexity O(e) time in composed effects; O(e) space for retained cleanups.
    * @overallScore 100
    */
+  /**
+   * Choose the activation, letting a primitive's preference fill in only when the author named
+   * none, and warning when an authored activation is not one the effect supports.
+   *
+   * Declared capability metadata was previously never checked anywhere, which made
+   * `supportedActivations` documentation rather than a contract.
+   *
+   * @complexity O(a) time in supported activations; O(1) space.
+   * @overallScore 100
+   */
+  private resolveActivation(el: Element, config: ElementConfig, plan: CompiledPlan): Activation {
+    if (!config.activationAuthored) return plan.defaultActivation ?? config.activation
+    const supported = plan.supportedActivations
+    if (supported.length > 0 && !supported.includes(config.activation)) {
+      this.reporter.warn(
+        `activation "${config.activation}" is not supported by this effect ` +
+          `(supports: ${supported.join(', ')})`,
+        el,
+      )
+    }
+    return config.activation
+  }
+
   private install(request: InstallRequest): void {
-    const { el, source, parsed, config, plan } = request
+    const { el, fingerprint, parsed, config, plan } = request
     const stylePlan = planStyles({
       plan,
       config,
       capabilities: this.capabilities,
       respectReducedMotion: this.respectReducedMotion,
     })
-    applyStylePlan(el, stylePlan)
+
+    const ledger = createStyleLedger(el)
+    const attributes = createAttributeLedger(el)
+    const controller = new AbortController()
+    applyStylePlan({ el, plan: stylePlan, ledger, attributes })
 
     const state: InstanceState = {
-      source,
+      fingerprint,
       specs: parsed.specs,
       activation: config.activation,
       timeline: config.timeline,
-      cleanups: [],
+      instances: [],
+      ledger,
+      attributes,
+      controller,
       status: 'ready',
     }
     this.states.set(el, state)
 
-    state.cleanups.push(...this.prepareJsEffects(el, plan))
-
-    if (stylePlan.gate === 'immediate') this.activate(el)
-    if (stylePlan.activation) {
-      state.cleanups.push(
-        this.binder.bind(el, stylePlan.activation, config.threshold, () => this.activate(el)),
-      )
+    if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
+      state.instances.push(createCssInstance(el, ledger))
     }
+    state.instances.push(...this.prepareJsEffects(el, plan, controller.signal))
+
+    this.openGate({ el, state, stylePlan, config, plan })
+  }
+
+  /**
+   * Decide whether, and when, the effects on this element are allowed to start.
+   *
+   * The single place any effect begins. Routing both renderers through it is what makes
+   * `on:enter`, `on:click`, `manual`, and `reducedMotion: 'disable'` mean the same thing for a
+   * pinned section as for a fade — previously JS effects started during `prepare` and honoured
+   * none of them.
+   *
+   * @complexity O(n) time in the number of instances; O(1) space.
+   * @overallScore 100
+   */
+  private openGate(request: GateRequest): void {
+    const { el, state, stylePlan, config, plan } = request
+    const reduce = this.respectReducedMotion && this.capabilities.reducedMotion
+    if (reduce && plan.reducedMotion === 'disable') {
+      // Nothing is activated. A CSS effect is left at its final state by the policy layer; a JS
+      // effect simply never runs, which is the only way "disable" can bind a JS renderer at all.
+      state.status = 'finished'
+      state.attributes.set(ATTR.state, 'finished')
+      return
+    }
+
+    if (stylePlan.gate !== 'deferred') {
+      this.activate(el)
+      return
+    }
+    state.controller.signal.addEventListener(
+      'abort',
+      this.binder.bind(el, stylePlan.activation ?? config.activation, config.threshold, () =>
+        this.activate(el),
+      ),
+    )
   }
 
   /**
@@ -196,11 +290,15 @@ export class Animator {
    * @complexity O(e) time in JS-rendered effects; O(e) space.
    * @overallScore 100
    */
-  private prepareJsEffects(el: Element, plan: CompiledPlan): Array<() => void> {
-    const cleanups: Array<() => void> = []
-    if (plan.jsEffects.length === 0) return cleanups
+  private prepareJsEffects(
+    el: Element,
+    plan: CompiledPlan,
+    signal: AbortSignal,
+  ): EffectInstance[] {
+    const instances: EffectInstance[] = []
+    if (plan.jsEffects.length === 0) return instances
 
-    const ctx = this.contextFor(el)
+    const ctx = this.contextFor(el, signal)
 
     for (const { spec, resolved } of plan.jsEffects) {
       const prepare = resolved.primitive.prepare
@@ -214,12 +312,12 @@ export class Animator {
         (message) => this.reporter.warn(message, el),
       )
       try {
-        cleanups.push(prepare(el, params, ctx))
+        instances.push(prepare(el, params, ctx))
       } catch (error) {
         this.reporter.warn(`"${spec.name}" failed to initialise: ${String(error)}`, el)
       }
     }
-    return cleanups
+    return instances
   }
 
   /**
@@ -228,7 +326,7 @@ export class Animator {
    * @complexity O(1) time, O(1) space.
    * @overallScore 100
    */
-  private contextFor(el: Element): PrepareContext {
+  private contextFor(el: Element, signal: AbortSignal): PrepareContext {
     const doc = el.ownerDocument
     return {
       doc,
@@ -238,6 +336,8 @@ export class Animator {
       capabilities: this.capabilities,
       invalidate: () => this.scheduler.invalidate(),
       warn: (message: string) => this.reporter.warn(message, el),
+      reducedMotion: this.respectReducedMotion && this.capabilities.reducedMotion,
+      signal,
     }
   }
 
@@ -248,10 +348,19 @@ export class Animator {
    * @overallScore 100
    */
   activate(el: Element): void {
-    ;(el as HTMLElement).style.setProperty('animation-play-state', 'running')
-    el.setAttribute(ATTR.state, 'running')
     const state = this.states.get(el)
-    if (state) state.status = 'running'
+    if (!state || state.status === 'running') return
+    state.status = 'running'
+    state.attributes.set(ATTR.state, 'running')
+    for (const instance of state.instances) instance.activate()
+
+    // The reported state has to become truthful eventually, or `data-dsg-state` codifies a lie
+    // that tests then assert against.
+    void Promise.all(state.instances.map((instance) => instance.finished)).then(() => {
+      if (this.states.get(el) !== state || state.status !== 'running') return
+      state.status = 'finished'
+      state.attributes.set(ATTR.state, 'finished')
+    })
   }
 
   /**
@@ -289,9 +398,13 @@ export class Animator {
   private release(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
-    for (const cleanup of state.cleanups) runQuietly(cleanup)
+    // Order matters: abort first so bindings detach, then destroy instances, then restore. A
+    // primitive's teardown may itself write styles the ledger has to unwind.
+    state.controller.abort()
+    for (const instance of state.instances) runQuietly(() => instance.destroy())
     this.states.delete(el)
-    for (const attribute of [ATTR.normalized, ATTR.state, ATTR.rm]) el.removeAttribute(attribute)
+    state.ledger.restore()
+    state.attributes.restore()
   }
 
   private releaseTree(node: ParentNode): void {
@@ -316,7 +429,7 @@ export class Animator {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: [ATTR.source],
+      attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold],
     })
   }
 

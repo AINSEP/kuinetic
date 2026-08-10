@@ -1,6 +1,8 @@
 import type { PrepareContext } from '../../core/effect-context.js'
+import { deferredInstance } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
+import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { trackProgress } from './tracker.js'
 
 /**
@@ -38,6 +40,7 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
     parameters,
     supportedTimelines: ['time', 'view', 'scroll'],
     supportedActivations: ['manual', 'load', 'enter'],
+    defaultActivation: 'load',
     perfClass,
     reducedMotion: 'disable',
     prepare,
@@ -153,9 +156,13 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
  */
 function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
+  const authored = params.text('travel', 'auto')
+  // Measured once per geometry epoch, not per frame. Reading `scrollWidth` inside the frame
+  // callback forces a layout on every scroll tick — the same class of defect as the frozen cache.
+  const travel = createMeasureCache(() => trackTravel(node, authored, node.ownerDocument))
+
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress, frame) => {
-    const travel = trackTravel(node, params.text('travel'), frame.metrics.viewportWidth)
-    node.style.translate = `${-progress * travel}px 0`
+    node.style.translate = `${-progress * travel.read(frame.epoch)}px 0`
     writeProgress(el, progress)
   })
 
@@ -172,9 +179,12 @@ function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContex
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function trackTravel(node: HTMLElement, authored: string | undefined, viewportWidth: number): number {
+function trackTravel(node: HTMLElement, authored: string, doc: Document): number {
   if (authored && authored !== 'auto') return toPixels(authored, ABSOLUTE_BASIS, 0)
-  return Math.max(0, node.scrollWidth - viewportWidth)
+  // `auto` is the default, so the overflow branch is the one that normally runs. It previously
+  // could not: the schema defaulted to `0px`, which is truthy, so the override branch always won
+  // and the track moved zero pixels.
+  return Math.max(0, node.scrollWidth - (node.clientWidth || doc.documentElement.clientWidth))
 }
 
 /**
@@ -288,7 +298,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         values: ['true', 'false'],
       },
     },
-    prepare: preparePin,
+    prepare: (el, params, ctx) => deferredInstance(() => preparePin(el, params, ctx)),
     perfClass: 'layout',
   }),
 
@@ -299,7 +309,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       steps: { type: 'number', default: '0', cssProperty: '--dsg-steps' },
     },
-    prepare: prepareProgress,
+    prepare: (el, params, ctx) => deferredInstance(() => prepareProgress(el, params, ctx)),
   }),
 
   scrollPrimitive({
@@ -307,9 +317,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['translate', 'progress'],
     parameters: {
       ...distanceParam,
-      travel: { type: 'length', default: '0px', cssProperty: '--dsg-travel' },
+      travel: { type: 'text', default: 'auto', cssProperty: '--dsg-travel' },
     },
-    prepare: prepareHorizontal,
+    prepare: (el, params, ctx) => deferredInstance(() => prepareHorizontal(el, params, ctx)),
   }),
 
   scrollPrimitive({
@@ -320,7 +330,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       frames: { type: 'number', default: '1', cssProperty: '--dsg-frames' },
       src: { type: 'text', default: '', cssProperty: '--dsg-src' },
     },
-    prepare: prepareMediaScrub,
+    prepare: (el, params, ctx) => deferredInstance(() => prepareMediaScrub(el, params, ctx)),
     perfClass: 'paint',
   }),
 
@@ -331,7 +341,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       target: { type: 'text', default: '', cssProperty: '--dsg-target' },
     },
-    prepare: prepareScrollSpy,
+    prepare: (el, params, ctx) => deferredInstance(() => prepareScrollSpy(el, params, ctx)),
   }),
 
   scrollPrimitive({
@@ -352,7 +362,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         values: ['start', 'center', 'end'],
       },
     },
-    prepare: (el: Element, params: EffectParams) => prepareSnap(el, params),
+    prepare: (el: Element, params: EffectParams) => deferredInstance(() => prepareSnap(el, params)),
     perfClass: 'layout',
   }),
 ]

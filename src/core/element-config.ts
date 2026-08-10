@@ -11,6 +11,8 @@ export interface ElementAttributes {
 
 export interface ElementConfig {
   activation: Activation
+  /** Whether the author named an activation, so a primitive default may fill in when not. */
+  activationAuthored: boolean
   timeline: Timeline
   /** Trailing tokens of `data-dsg-timeline`, e.g. `entry 0% cover 60%`. */
   range: string
@@ -57,19 +59,21 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
   const rawTimeline = parsed.timeline ?? attributes.timeline ?? 'time'
   const [head = 'time', ...rest] = rawTimeline.trim().split(/\s+/)
 
+  const authored = parsed.activation ?? readActivation(attributes.on)
   return {
-    activation: pickActivation(parsed.activation, attributes.on),
+    activation: authored ?? 'enter',
+    activationAuthored: authored !== undefined,
     timeline: TIMELINES.has(head as Timeline) ? (head as Timeline) : 'time',
     range: rest.join(' '),
     threshold: parsed.threshold ?? attributes.threshold ?? '0%',
   }
 }
 
-/** Inline value wins, then the longhand attribute, then the `enter` default. */
-function pickActivation(inline: Activation | undefined, attribute: string | null): Activation {
-  if (inline) return inline
-  if (attribute && ACTIVATIONS.has(attribute as Activation)) return attribute as Activation
-  return 'enter'
+/** The longhand attribute, when it names a known activation. */
+function readActivation(attribute: string | null): Activation | undefined {
+  return attribute && ACTIVATIONS.has(attribute as Activation)
+    ? (attribute as Activation)
+    : undefined
 }
 
 /**

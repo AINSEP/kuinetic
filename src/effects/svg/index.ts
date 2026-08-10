@@ -1,4 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
+import { deferredInstance } from '../../core/instances.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
@@ -79,10 +80,12 @@ export const SVG_PRIMITIVES: Primitive[] = [
       duration: { type: 'time', default: '300ms', cssProperty: '--dsg-duration' },
     },
     supportedTimelines: ['time'],
-    supportedActivations: ['hover', 'focus', 'manual'],
+    supportedActivations: ['hover', 'focus', 'manual', 'load'],
+    // The morph attaches its own hover listeners, so it must be wired up on load, not on enter.
+    defaultActivation: 'load',
     perfClass: 'paint',
     reducedMotion: 'disable',
-    prepare: prepareMorph,
+    prepare: (el, params, ctx) => deferredInstance(() => prepareMorph(el, params, ctx)),
   },
 ]
 

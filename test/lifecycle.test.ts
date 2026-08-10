@@ -1,0 +1,342 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createActivationBinder } from '../src/core/activation.js'
+import type { ActivationBinder } from '../src/core/activation.js'
+import { Animator } from '../src/core/animator.js'
+import { ATTR } from '../src/core/attrs.js'
+import type { Capabilities } from '../src/core/capabilities.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
+import { Registry } from '../src/core/registry.js'
+import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
+import { createRegistry } from '../src/effects/index.js'
+import type { Activation, EffectInstance, Primitive } from '../src/core/types.js'
+
+/**
+ * Regression tests for the lifecycle defects found in the second external review.
+ *
+ * Each of these previously passed silently: JS effects started during `prepare`, so no declared
+ * activation or reduced-motion policy applied to them, and teardown removed three attributes
+ * while leaving every inline property it had written.
+ */
+
+const CAPS: Capabilities = {
+  viewTimeline: false,
+  scrollTimeline: false,
+  animationRange: false,
+  individualTransforms: true,
+  scrollTimelineName: false,
+  viewTransitions: false,
+  intersectionObserver: true,
+  reducedMotion: false,
+}
+
+const idleScheduler: ScrollScheduler = {
+  subscribe: () => () => {},
+  invalidate: () => {},
+  rootCount: () => 0,
+  destroy: () => {},
+}
+
+const fakeRoot: ScrollRoot = {
+  key: 'fake',
+  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 800, viewportHeight: 600 }),
+  onScroll: () => () => {},
+  onResize: () => () => {},
+}
+
+interface Spy {
+  activated: number
+  destroyed: number
+}
+
+/** A JS primitive that records exactly when the animator starts and stops it. */
+function spyRegistry(spy: Spy, reducedMotion: Primitive['reducedMotion'] = 'shorten'): Registry {
+  const primitive: Primitive = {
+    id: 'spy',
+    renderer: 'javascript',
+    channels: ['spy'],
+    parameters: {},
+    supportedTimelines: ['time'],
+    supportedActivations: ['load', 'enter', 'click', 'manual'],
+    perfClass: 'continuous',
+    reducedMotion,
+    prepare(): EffectInstance {
+      return {
+        activate: () => {
+          spy.activated++
+        },
+        cancel: () => {},
+        finish: () => {},
+        finished: new Promise<void>(() => {}),
+        destroy: () => {
+          spy.destroyed++
+        },
+      }
+    },
+  }
+  return new Registry().registerPrimitive(primitive).registerPresets([
+    { name: 'spy-effect', primitive: 'spy' },
+  ])
+}
+
+interface CapturingBinder extends ActivationBinder {
+  bound: Array<{ activation: Activation }>
+  fire(): void
+}
+
+function capturingBinder(): CapturingBinder {
+  const bound: Array<{ activation: Activation }> = []
+  let trigger: (() => void) | undefined
+  return {
+    bound,
+    bind(_el, activation, _threshold, onActivate) {
+      bound.push({ activation })
+      trigger = onActivate
+      return () => {
+        trigger = undefined
+      }
+    },
+    fire: () => trigger?.(),
+    destroy: () => {},
+  }
+}
+
+function build(html: string, options: Partial<ConstructorParameters<typeof Animator>[0]> = {}) {
+  document.body.innerHTML = html
+  return new Animator({
+    root: document.body,
+    registry: createRegistry(),
+    capabilities: CAPS,
+    binder: createActivationBinder({ createObserver: undefined }),
+    scheduler: idleScheduler,
+    rootResolver: () => fakeRoot,
+    ...options,
+  })
+}
+
+const el = (): HTMLElement => document.body.querySelector('[data-dsg]') as HTMLElement
+
+beforeEach(() => {
+  document.body.innerHTML = ''
+})
+
+describe('JS effects obey their activation', () => {
+  it('does not start a JS effect until its activation fires', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const binder = capturingBinder()
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="click"></div>', {
+      registry: spyRegistry(spy),
+      binder,
+    })
+    animator.start()
+
+    // Previously `prepare()` both wired up AND started, so this was 1 before any interaction.
+    expect(spy.activated).toBe(0)
+    expect(binder.bound[0]?.activation).toBe('click')
+
+    binder.fire()
+    expect(spy.activated).toBe(1)
+  })
+
+  it('starts a JS effect immediately for on:load', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="load"></div>', {
+      registry: spyRegistry(spy),
+    })
+    animator.start()
+    expect(spy.activated).toBe(1)
+  })
+
+  it('never starts a JS effect declared manual', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="manual"></div>', {
+      registry: spyRegistry(spy),
+      binder: capturingBinder(),
+    })
+    animator.start()
+    expect(spy.activated).toBe(0)
+  })
+
+  it('activates only once even if the binding fires repeatedly', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const binder = capturingBinder()
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="click"></div>', {
+      registry: spyRegistry(spy),
+      binder,
+    })
+    animator.start()
+    binder.fire()
+    binder.fire()
+    expect(spy.activated).toBe(1)
+  })
+})
+
+describe('reduced motion reaches JS effects', () => {
+  it("never activates an effect whose policy is 'disable'", () => {
+    // A CSS media rule cannot stop JavaScript. Before the instance protocol, `disable` was inert
+    // for pinning, FLIP, scrubbing, morphing, and every gesture.
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="load"></div>', {
+      registry: spyRegistry(spy, 'disable'),
+      capabilities: { ...CAPS, reducedMotion: true },
+    })
+    animator.start()
+
+    expect(spy.activated).toBe(0)
+    expect(el().getAttribute(ATTR.state)).toBe('finished')
+  })
+
+  it("still activates an effect whose policy is 'shorten'", () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="load"></div>', {
+      registry: spyRegistry(spy, 'shorten'),
+      capabilities: { ...CAPS, reducedMotion: true },
+    })
+    animator.start()
+    expect(spy.activated).toBe(1)
+  })
+
+  it('honours reducedMotion: ignore', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="load"></div>', {
+      registry: spyRegistry(spy, 'disable'),
+      capabilities: { ...CAPS, reducedMotion: true },
+      reducedMotion: 'ignore',
+    })
+    animator.start()
+    expect(spy.activated).toBe(1)
+  })
+})
+
+describe('teardown restores what it wrote', () => {
+  it('removes custom properties written for the previous effect on recompile', () => {
+    const animator = build('<div data-dsg="fade-up distance:80px"></div>')
+    animator.start()
+    expect(el().style.getPropertyValue('--dsg-distance')).toBe('80px')
+
+    el().setAttribute(ATTR.source, 'zoom-in')
+    animator.process(el())
+    expect(el().style.getPropertyValue('--dsg-distance')).toBe('')
+  })
+
+  it('removes animation declarations on destroy', () => {
+    const animator = build('<div data-dsg="fade-up"></div>')
+    animator.start()
+    expect(el().style.getPropertyValue('animation-name')).toBe('dsg-in-up')
+
+    animator.destroy()
+    expect(el().style.getPropertyValue('animation-name')).toBe('')
+    expect(el().style.getPropertyValue('animation-play-state')).toBe('')
+  })
+
+  it("restores a consumer's own inline value instead of deleting it", () => {
+    document.body.innerHTML = '<div data-dsg="fade-up" style="animation-name: mine"></div>'
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: createActivationBinder({ createObserver: undefined }),
+      scheduler: idleScheduler,
+      rootResolver: () => fakeRoot,
+    })
+    animator.start()
+    animator.destroy()
+    expect(el().style.getPropertyValue('animation-name')).toBe('mine')
+  })
+
+  it('destroys every JS instance on release', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect"></div>', { registry: spyRegistry(spy) })
+    animator.start()
+    animator.destroy()
+    expect(spy.destroyed).toBe(1)
+  })
+})
+
+describe('configuration identity', () => {
+  it('recompiles when only data-dsg-on changes', () => {
+    // Keying on `data-dsg` alone meant a change to activation, timeline, or threshold was
+    // ignored permanently — even when process() was called again by hand.
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const binder = capturingBinder()
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="click"></div>', {
+      registry: spyRegistry(spy),
+      binder,
+    })
+    animator.start()
+    expect(binder.bound.at(-1)?.activation).toBe('click')
+
+    el().setAttribute(ATTR.on, 'focus')
+    animator.process(el())
+    expect(binder.bound.at(-1)?.activation).toBe('focus')
+  })
+
+  it('skips work when nothing in the configuration changed', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect" data-dsg-on="manual"></div>', {
+      registry: spyRegistry(spy),
+    })
+    animator.start()
+    animator.process(el())
+    expect(spy.destroyed).toBe(0)
+  })
+})
+
+describe('createStyleLedger', () => {
+  it('removes properties that were not previously set', () => {
+    const node = document.createElement('div')
+    const ledger = createStyleLedger(node)
+    ledger.set('--x', '1px')
+    ledger.restore()
+    expect(node.style.getPropertyValue('--x')).toBe('')
+  })
+
+  it('restores the prior value rather than removing it', () => {
+    const node = document.createElement('div')
+    node.style.setProperty('--x', 'original')
+    const ledger = createStyleLedger(node)
+    ledger.set('--x', 'library')
+    ledger.restore()
+    expect(node.style.getPropertyValue('--x')).toBe('original')
+  })
+
+  it('remembers only the first value it replaced, across repeated writes', () => {
+    const node = document.createElement('div')
+    node.style.setProperty('--x', 'original')
+    const ledger = createStyleLedger(node)
+    for (const value of ['a', 'b']) ledger.set('--x', value)
+    expect(node.style.getPropertyValue('--x')).toBe('b')
+    ledger.restore()
+    expect(node.style.getPropertyValue('--x')).toBe('original')
+  })
+
+  it('can claim a property it has not written yet', () => {
+    const node = document.createElement('div')
+    const ledger = createStyleLedger(node)
+    ledger.claim('--x')
+    node.style.setProperty('--x', 'later')
+    ledger.restore()
+    expect(node.style.getPropertyValue('--x')).toBe('')
+  })
+
+  it('reports what it owns', () => {
+    const node = document.createElement('div')
+    const ledger = createStyleLedger(node)
+    ledger.set('--a', '1')
+    ledger.set('--b', '2')
+    expect(ledger.owned().sort((a, b) => a.localeCompare(b))).toEqual(['--a', '--b'])
+  })
+})
+
+describe('fail-open cloaking', () => {
+  it('uncloaks even when scanning throws', () => {
+    document.documentElement.setAttribute(ATTR.cloak, '')
+    const animator = build('<div data-dsg="fade-up"></div>')
+    vi.spyOn(animator, 'process').mockImplementation(() => {
+      throw new Error('boom')
+    })
+
+    expect(() => animator.start()).toThrow('boom')
+    // Uncloaking only on the happy path is not fail-open: a thrown scan would hide the page.
+    expect(document.documentElement.hasAttribute(ATTR.cloak)).toBe(false)
+  })
+})

@@ -1,4 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
+import { deferredInstance } from '../../core/instances.js'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 
@@ -31,6 +32,7 @@ function layoutPrimitive(
     parameters: { ...timing, ...parameters },
     supportedTimelines: ['time'],
     supportedActivations: ['load', 'manual', 'click'],
+    defaultActivation: 'load',
     perfClass: 'layout',
     // A layout transition that is merely faster is still a layout transition; under reduced
     // motion the correct behaviour is for elements to appear in place.
@@ -174,14 +176,14 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
         values: ['true', 'false'],
       },
     },
-    (el, params) => prepareFlipContainer(el, params),
+    (el, params) => deferredInstance(() => prepareFlipContainer(el, params)),
   ),
 
   layoutPrimitive(
     'auto-height',
     ['layout'],
     { attribute: { type: 'text', default: 'data-open', cssProperty: '--dsg-attribute' } },
-    prepareAutoHeight,
+    (el, params, ctx) => deferredInstance(() => prepareAutoHeight(el, params, ctx)),
   ),
 
   layoutPrimitive(
@@ -191,6 +193,6 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       follow: { type: 'text', default: '', cssProperty: '--dsg-follow' },
       attribute: { type: 'text', default: 'aria-selected', cssProperty: '--dsg-attribute' },
     },
-    prepareIndicator,
+    (el, params, ctx) => deferredInstance(() => prepareIndicator(el, params, ctx)),
   ),
 ]

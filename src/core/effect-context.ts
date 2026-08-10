@@ -27,4 +27,15 @@ export interface PrepareContext {
    */
   invalidate(): void
   warn(message: string): void
+  /**
+   * Whether the user has asked for reduced motion.
+   *
+   * The animator refuses to activate any effect whose declared policy is `'disable'` when this is
+   * true, so a primitive never has to enforce that itself. It is exposed because effects that
+   * remain interactive under reduced motion — a drag still has to follow the finger — need to
+   * skip only their decorative parts.
+   */
+  reducedMotion: boolean
+  /** Aborted on teardown, so a primitive can pass it straight to `addEventListener`. */
+  signal: AbortSignal
 }

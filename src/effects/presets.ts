@@ -106,8 +106,9 @@ const SCROLL: Preset[] = [
   p('scroll-fade', 'scroll-fade', 'dsg-scroll-fade'),
   p('scroll-progress-bar', 'progress', 'dsg-progress-x'),
   p('scroll-progress-ring', 'progress-stroke', 'dsg-progress-ring'),
+  // `reveal-repeat` was removed: it was byte-identical to `reveal-once`, and the activation
+  // binder unobserves after first entry, so a repeating reveal is not implementable yet.
   p('reveal-once', 'reveal', 'dsg-in-up'),
-  p('reveal-repeat', 'reveal', 'dsg-in-up'),
 ]
 
 export const PRESETS: Preset[] = [

@@ -7,10 +7,37 @@
  * therefore unproven by that suite. This script drives a private headless Chromium and asserts
  * against real computed styles and real `getAnimations()` output.
  *
- * Chromium comes from Tovu's playwright-core install; no browser of the user's is touched.
+ * Chromium is launched privately from the repo's own playwright-core; no browser of the
+ * user's is touched.
  */
-import { chromium } from '/Users/la/Programming/Tovu/node_modules/playwright-core/index.mjs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+
+/**
+ * Resolve Playwright without hardcoding a path outside the repository.
+ *
+ * Preference order: an installed `playwright-core`, then `playwright`, then an explicit
+ * `PLAYWRIGHT_MODULE` override. Hardcoding an absolute path made this harness unrunnable on any
+ * machine but one, which is not a usable quality gate for a public library.
+ */
+async function loadChromium() {
+  const require = createRequire(import.meta.url)
+  const candidates = [process.env.PLAYWRIGHT_MODULE, 'playwright-core', 'playwright'].filter(Boolean)
+
+  for (const candidate of candidates) {
+    try {
+      const resolved = candidate.startsWith('/') ? candidate : require.resolve(candidate)
+      const mod = await import(candidate.startsWith('/') ? `file://${resolved}` : candidate)
+      if (mod.chromium) return mod.chromium
+    } catch {
+      // try the next candidate
+    }
+  }
+  throw new Error(
+    'Playwright not found. Install `playwright-core` and its Chromium, or set PLAYWRIGHT_MODULE ' +
+      'to an absolute path to a Playwright entry point.',
+  )
+}
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
 
@@ -27,6 +54,7 @@ const animationsOf = (page, id) =>
   page.$eval(id, (el) => el.getAnimations().map((a) => a.animationName ?? a.constructor.name))
 
 async function run() {
+  const chromium = await loadChromium()
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage({ viewport: { width: 900, height: 700 } })
   const consoleErrors = []
@@ -66,9 +94,11 @@ async function run() {
   await page.waitForTimeout(700)
   const revealAfter = await opacityOf(page, '#reveal')
   check('reveal animates to visible after entering view', revealAfter === 1, `opacity=${revealAfter}`)
+  // The state machine must become truthful, not merely change once. Asserting "running" after
+  // the animation had already ended previously codified the broken state as correct.
   check(
-    'reveal is marked running',
-    (await page.$eval('#reveal', (el) => el.getAttribute('data-dsg-state'))) === 'running',
+    'reveal reports finished once its animation ends',
+    (await page.$eval('#reveal', (el) => el.getAttribute('data-dsg-state'))) === 'finished',
   )
 
   // --- composition actually produces two parallel animations ---------------------------
@@ -80,11 +110,11 @@ async function run() {
   )
   check('composed element is fully visible', (await opacityOf(page, '#composed')) === 1)
 
-  // --- combo preset collapses a colliding pair to one animation ------------------------
+  // --- both effects survive; neither is silently replaced by a combo -------------------
   const combo = await animationsOf(page, '#combo')
   check(
-    'colliding pair resolves to the single combo keyframe',
-    combo.length === 1 && combo[0] === 'dsg-fade-blur-up',
+    'a composable pair keeps both animations instead of being substituted',
+    combo.includes('dsg-in-up') && combo.includes('dsg-blur-in'),
     combo.join(', '),
   )
 
@@ -109,12 +139,18 @@ async function run() {
   )
 
   // --- hover activation ------------------------------------------------------------------
-  check('hover effect is paused before interaction', (await opacityOf(page, '#hoverable')) >= 0)
+  check(
+    'hover effect is held at its from-state before interaction',
+    (await page.$eval('#hoverable', (el) => getComputedStyle(el).animationPlayState)) === 'paused' &&
+      (await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))) === 'ready',
+  )
   await page.hover('#hoverable')
   await page.waitForTimeout(300)
+  const hoverState = await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))
   check(
-    'hover starts the animation',
-    (await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))) === 'running',
+    'hover leaves the gate and the animation completes',
+    hoverState === 'running' || hoverState === 'finished',
+    `state=${hoverState}`,
   )
 
   // --- v2: pinning ------------------------------------------------------------------------
@@ -184,6 +220,9 @@ async function run() {
     reducedOpacity === 1,
     `opacity=${reducedOpacity}`,
   )
+
+  check('no page errors after scroll, FLIP, and SVG interaction', consoleErrors.length === 0,
+    consoleErrors.join(' | '))
 
   await browser.close()
 

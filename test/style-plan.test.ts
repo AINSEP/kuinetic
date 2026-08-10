@@ -68,16 +68,33 @@ describe('planStyles — gates', () => {
     )
   })
 
-  it('passes the authored animation-range through', () => {
-    expect(plan('parallax-y', { timeline: 'view 10% 90%' }).properties['--dsg-range']).toBe(
+  it('writes the authored animation-range directly', () => {
+    expect(plan('parallax-y', { timeline: 'view 10% 90%' }).properties['animation-range']).toBe(
       '10% 90%',
+    )
+  })
+
+  it('writes a default range even for an inline timeline, which sets no attribute', () => {
+    // The default previously lived in a CSS rule keyed on [data-dsg-timeline], so an inline
+    // `timeline:view` silently got a different animation than the longhand form.
+    expect(plan('parallax-y timeline:view').properties['animation-range']).toBe(
+      'entry 0% cover 60%',
     )
   })
 
   it('omits animation-range when the browser lacks support', () => {
     const result = plan('parallax-y', { timeline: 'view 10% 90%' }, { animationRange: false })
-    expect(result.properties['--dsg-range']).toBeUndefined()
+    expect(result.properties['animation-range']).toBeUndefined()
     expect(result.properties['animation-timeline']).toBe('view()')
+  })
+
+  it('gates scroll timelines on scroll support, not view support', () => {
+    // These ship separately. Gating both on viewTimeline degraded working browsers and emitted
+    // view() for a scroll request on browsers that had both.
+    const degraded = plan('parallax-y', { timeline: 'scroll' }, { scrollTimeline: false })
+    expect(degraded.gate).toBe('deferred')
+    const native = plan('parallax-y', { timeline: 'scroll' }, { viewTimeline: false })
+    expect(native.properties['animation-timeline']).toBe('scroll()')
   })
 })
 

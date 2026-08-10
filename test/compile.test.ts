@@ -33,8 +33,10 @@ describe('compile — single effect', () => {
     expect(run('slide-up distance:40px').vars['--dsg-distance']).toBe('40px')
   })
 
-  it('uses a var() fallback when no duration is given, so CSS can supply it', () => {
-    expect(run('fade-up').declarations['animation-duration']).toBe('var(--dsg-duration, 600ms)')
+  it('uses a primitive-scoped var() fallback when no duration is given', () => {
+    expect(run('fade-up').declarations['animation-duration']).toBe(
+      'var(--dsg-reveal-duration, 600ms)',
+    )
   })
 
   it('uses the positional duration when given', () => {
@@ -43,13 +45,23 @@ describe('compile — single effect', () => {
 
   it('folds stagger into the delay so the browser does the arithmetic', () => {
     expect(run('fade-up').declarations['animation-delay']).toBe(
-      'calc(var(--dsg-delay, 0ms) + var(--dsg-i, 0) * var(--dsg-stagger, 0ms))',
+      'calc(var(--dsg-reveal-delay, 0ms) + var(--dsg-i, 0) * var(--dsg-stagger, 0ms))',
     )
   })
 
   it('resolves a named curve to its custom property', () => {
     expect(run('fade-up expo-out').declarations['animation-timing-function']).toBe(
       'var(--dsg-ease-expo-out, ease-out)',
+    )
+  })
+
+  it('scopes timing properties per primitive so composed effects cannot bleed', () => {
+    // pop-in sets ease:back-out. Sharing one --dsg-ease meant blur-in silently inherited it,
+    // even though their channels are disjoint and composition was therefore allowed.
+    const plan = run('pop-in, blur-in')
+    expect(plan.vars['--dsg-scale-ease']).toBe('back-out')
+    expect(plan.declarations['animation-timing-function']).toBe(
+      'var(--dsg-scale-ease, ease-out), var(--dsg-blur-ease, ease-out)',
     )
   })
 
@@ -98,15 +110,27 @@ describe('compile — composition', () => {
     expect(plan.fxNames).toEqual(['slide-up', 'blur-in', 'zoom-in'])
   })
 
-  it('prefers a registered combo preset over channel analysis', () => {
-    // fade-up and blur-in both write opacity, so this would otherwise be rejected.
+  it('no longer substitutes a combo, so neither effect is silently dropped', () => {
+    // `fade-up` claims opacity+translate and `blur-in` claims filter, so these were always
+    // composable. Automatic substitution replaced them with `fade-blur-up` using only the FIRST
+    // spec — discarding the other's timing and parameters, and producing different output
+    // depending on authored order. Both effects now survive with their own timing.
     const plan = run('fade-up, blur-in')
-    expect(plan.fxNames).toEqual(['fade-blur-up'])
-    expect(plan.warnings).toEqual([])
+    expect(plan.fxNames).toEqual(['fade-up', 'blur-in'])
   })
 
-  it('matches a combo regardless of authored order', () => {
-    expect(run('blur-in, fade-up').fxNames).toEqual(['fade-blur-up'])
+  it('preserves each effect\'s timing regardless of authored order', () => {
+    const a = run('blur-in 200ms, fade-up 1s')
+    const b = run('fade-up 1s, blur-in 200ms')
+    expect(a.declarations['animation-duration']).toBe('200ms, 1s')
+    expect(b.declarations['animation-duration']).toBe('1s, 200ms')
+    expect(a.vars).toEqual(b.vars)
+  })
+
+  it('names the purpose-built combo when a real collision has one', () => {
+    // fade-blur-up claims all three channels, so composing it with anything overlapping is a
+    // genuine conflict — and the warning should point at the tested single-keyframe effect.
+    expect(run('fade-up, fade-blur-in').warnings.join()).toContain('cannot compose')
   })
 
   it('rejects a channel collision, keeps the first effect, and names both sides', () => {

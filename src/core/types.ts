@@ -97,10 +97,48 @@ export interface ParamSpec {
 export type ParameterSchema = Record<string, ParamSpec>
 
 import type { PrepareContext } from './effect-context.js'
+import type { AttributeLedger, StyleLedger } from './owned-styles.js'
 
 export type { PrepareContext }
 
 export type Cleanup = () => void
+
+/**
+ * Renderer-neutral lifecycle handle.
+ *
+ * CSS-rendered and JS-rendered effects expose the same five operations, so the animator can gate,
+ * cancel, and await either one without knowing which it holds. That uniformity is the whole point:
+ * every contract the library advertises — activation, reduced motion, `play().finished`,
+ * cancellation — is enforced here rather than re-implemented per renderer.
+ */
+export interface EffectInstance {
+  /** Start. Called by the animator once its gate opens, never by `prepare`. */
+  activate(): void
+  /** Stop where it is, leaving the element mid-effect. */
+  cancel(): void
+  /** Jump to the end state immediately. */
+  finish(): void
+  /** Resolves when the effect completes. Resolves — never rejects — on cancel. */
+  readonly finished: Promise<void>
+  /** Release every listener, observer, subscription, and inserted node. */
+  destroy(): void
+}
+
+/**
+ * An instance that does nothing, for effects with no work to do in the current environment.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function inertInstance(destroy: Cleanup = () => {}): EffectInstance {
+  return {
+    activate() {},
+    cancel() {},
+    finish() {},
+    finished: Promise.resolve(),
+    destroy,
+  }
+}
 
 /**
  * Validated parameter reader handed to JS-rendered primitives.
@@ -135,13 +173,28 @@ export interface Primitive {
   parameters: ParameterSchema
   supportedTimelines: Timeline[]
   supportedActivations: Activation[]
+  /**
+   * Activation used when the author specifies none.
+   *
+   * `enter` is right for an entrance reveal and wrong for behaviour: a drag handler, a FLIP
+   * container, or a hover morph that only wires itself up once scrolled into view is broken, not
+   * lazy. Defaults to `enter` when unset.
+   */
+  defaultActivation?: Activation
   perfClass: PerfClass
   reducedMotion: ReducedMotionPolicy
   /**
-   * JS-side setup (DOM surgery, scheduler subscription, listeners). Returns its own teardown.
+   * JS-side setup. Returns a lifecycle handle, **not** a teardown function.
+   *
+   * `prepare` must only wire things up — it must not start anything. The animator decides when
+   * (or whether) to call `activate()`, which is what makes `on:enter`, `on:click`, `manual`, and
+   * `reducedMotion: 'disable'` apply to JS-rendered effects at all. Returning a bare `Cleanup`
+   * previously meant every JS effect started at install time and no declared activation or
+   * reduced-motion policy was ever enforced.
+   *
    * `params` are validated and defaulted — never raw author input.
    */
-  prepare?(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup
+  prepare?(el: Element, params: EffectParams, ctx: PrepareContext): EffectInstance
 }
 
 export interface Preset {
@@ -176,10 +229,17 @@ export interface ParsedValue {
 
 /** Runtime truth. Attributes are for CSS and debugging; they make a poor state machine. */
 export interface InstanceState {
-  source: string
+  /** Whole-configuration identity, not just `data-dsg` — see `fingerprintOf`. */
+  fingerprint: string
   specs: EffectSpec[]
   activation: Activation
   timeline: Timeline
-  cleanups: Cleanup[]
+  /** One handle per renderer in play; the animator gates them uniformly. */
+  instances: EffectInstance[]
+  /** Inline properties this element's effects wrote, and what they replaced. */
+  ledger: StyleLedger
+  attributes: AttributeLedger
+  /** Aborted on release, detaching bindings and primitive listeners. */
+  controller: AbortController
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
 }

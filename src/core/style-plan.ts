@@ -2,7 +2,8 @@ import { ATTR } from './attrs.js'
 import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'
 import type { ElementConfig } from './element-config.js'
-import type { Activation } from './types.js'
+import type { AttributeLedger, StyleLedger } from './owned-styles.js'
+import type { Activation, Timeline } from './types.js'
 
 /**
  * How the animation is started.
@@ -46,19 +47,21 @@ export interface StylePlanInput {
 export function planStyles(input: StylePlanInput): StylePlan {
   const { plan, config, capabilities, respectReducedMotion } = input
   const reduce = respectReducedMotion && capabilities.reducedMotion
-  const useNativeTimeline = config.timeline !== 'time' && capabilities.viewTimeline
+  const useNativeTimeline = supportsTimeline(config.timeline, capabilities)
 
   const properties: Record<string, string> = { ...plan.vars, ...plan.declarations }
   Object.assign(properties, timelineProperties(config, capabilities, useNativeTimeline))
 
+  const hasCssAnimation = Object.keys(plan.declarations).length > 0
   const gate = resolveGate({
     useNativeTimeline,
     reduce,
     activation: config.activation,
-    // A purely JS-rendered effect emits no `animation` declaration, so there is nothing to hold
-    // paused. Gating it would set a play-state on an element that has no animation and, worse,
-    // bind an activation that can never visibly do anything.
-    hasCssAnimation: Object.keys(plan.declarations).length > 0,
+    // JS effects are gated too. They emit no `animation` declaration, so only the play-state
+    // write is skipped — the activation itself still has to be bound, or `on:enter` and
+    // `on:click` would silently do nothing for every pinned, dragged, or morphing element.
+    hasWork: hasCssAnimation || plan.jsEffects.length > 0,
+    hasCssAnimation,
   })
   if (gate === 'deferred') properties['animation-play-state'] = 'paused'
 
@@ -89,7 +92,12 @@ function timelineProperties(
   const properties: Record<string, string> = {
     'animation-timeline': config.timeline === 'scroll' ? 'scroll()' : 'view()',
   }
-  if (config.range && capabilities.animationRange) properties['--dsg-range'] = config.range
+  if (capabilities.animationRange) {
+    // Written unconditionally, not only when a range was authored: the default range previously
+    // lived in a CSS rule keyed on `data-dsg-timeline`, which an inline `timeline:view` never
+    // sets — so the inline and longhand grammars produced different animations.
+    properties['animation-range'] = config.range || 'entry 0% cover 60%'
+  }
   return properties
 }
 
@@ -106,12 +114,30 @@ function resolveGate(input: {
   useNativeTimeline: boolean
   reduce: boolean
   activation: Activation
+  hasWork: boolean
   hasCssAnimation: boolean
 }): Gate {
   if (input.useNativeTimeline) return 'native-timeline'
-  if (!input.hasCssAnimation) return 'immediate'
+  if (!input.hasWork) return 'immediate'
   if (input.reduce || input.activation === 'load') return 'immediate'
   return 'deferred'
+}
+
+/**
+ * Whether the environment can drive this timeline natively.
+ *
+ * Per-timeline rather than one `viewTimeline` check for all of them: `animation-timeline: scroll()`
+ * and `view()` ship separately, so gating a scroll timeline on view support silently degrades
+ * working browsers and, worse, emits `view()` for a `scroll` request on browsers that have both.
+ * `pointer` has no native timeline at all and always degrades.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function supportsTimeline(timeline: Timeline, capabilities: Capabilities): boolean {
+  if (timeline === 'view') return capabilities.viewTimeline
+  if (timeline === 'scroll') return capabilities.scrollTimeline
+  return false
 }
 
 /**
@@ -135,12 +161,16 @@ function effectiveActivation(config: ElementConfig): Activation {
  * @complexity O(n) time in the number of properties and attributes; O(1) extra space.
  * @overallScore 100
  */
-export function applyStylePlan(el: Element, plan: StylePlan): void {
-  const style = (el as HTMLElement).style
-  for (const [property, value] of Object.entries(plan.properties)) {
-    style.setProperty(property, value)
-  }
-  for (const [attribute, value] of Object.entries(plan.attributes)) {
-    el.setAttribute(attribute, value)
-  }
+export function applyStylePlan(request: {
+  el: Element
+  plan: StylePlan
+  ledger: StyleLedger
+  attributes: AttributeLedger
+}): void {
+  const { plan, ledger, attributes } = request
+  for (const [property, value] of Object.entries(plan.properties)) ledger.set(property, value)
+  for (const [attribute, value] of Object.entries(plan.attributes)) attributes.set(attribute, value)
+  // Claimed but not written: the CSS instance sets it on activation, and teardown must remove it
+  // whether or not the effect ever ran.
+  ledger.claim('animation-play-state')
 }

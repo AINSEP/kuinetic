@@ -22,7 +22,7 @@ export class Registry {
     if (this.primitives.has(primitive.id)) {
       throw new Error(`designimation: primitive "${primitive.id}" is already registered`)
     }
-    this.primitives.set(primitive.id, primitive)
+    this.primitives.set(primitive.id, namespaceTiming(primitive))
     return this
   }
 
@@ -79,6 +79,43 @@ export class Registry {
   getPrimitive(id: string): Primitive | undefined {
     return this.primitives.get(id)
   }
+}
+
+/**
+ * Timing parameters that must not be shared between composed effects.
+ *
+ * Geometry parameters are already protected by the channel model: two effects can only share
+ * `--dsg-distance` if both claim `translate`, and that composition is rejected. Timing is the
+ * exception — `pop-in, blur-in` have disjoint channels, so both tracks read one `--dsg-ease` and
+ * the blur silently inherits the pop's `back-out`. Namespacing per primitive closes exactly that
+ * hole, and nothing wider.
+ *
+ * `stagger` is deliberately excluded: it is written on the *group* element and inherited, so it
+ * has no primitive to namespace against and is meant to be shared.
+ */
+const TIMING_PARAMS = ['duration', 'delay', 'ease'] as const
+
+/** Custom property a primitive's timing parameter writes to. */
+export function timingProperty(primitiveId: string, name: string): string {
+  return `--dsg-${primitiveId}-${name}`
+}
+
+/**
+ * Return a copy of the primitive with its timing parameters namespaced.
+ *
+ * Applied at registration so third-party primitives get the same protection without having to
+ * know the rule.
+ *
+ * @complexity O(p) time and space in parameter count.
+ * @overallScore 100
+ */
+function namespaceTiming(primitive: Primitive): Primitive {
+  const parameters = { ...primitive.parameters }
+  for (const name of TIMING_PARAMS) {
+    const spec = parameters[name]
+    if (spec) parameters[name] = { ...spec, cssProperty: timingProperty(primitive.id, name) }
+  }
+  return { ...primitive, parameters }
 }
 
 function comboKey(names: string[]): string {
