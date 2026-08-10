@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — data &amp; hover</title>
+    <script>
+      /* Resolve the theme synchronously, before any stylesheet paints — see theme.js for the
+         toggle-button mounting logic that runs later, once dataset.theme is already correct. */
+      ;(function () {
+        var KEY = 'designimation-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          } catch (e) {
+            theme = 'dark'
+          }
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
+    <link rel="stylesheet" href="../designimation.css" />
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      .stat-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 1.25rem;
+        margin-top: 1.5rem;
+      }
+      .stat-card {
+        padding: 1.4rem 1.5rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+      }
+      .stat-card b {
+        display: block;
+        font-size: 2.1rem;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+      }
+      /*
+       * Direct-child combinator, not a descendant selector: a descendant `.stat-card span` would
+       * also match the counter's own internal accessible-layer spans (`.dsg-count-decorative`,
+       * `.dsg-sr-only`, and the odometer's column/strip spans) nested inside the `<b>` — and,
+       * being unlayered page CSS, would silently beat their `@layer dsg.effects` display rules
+       * regardless of specificity, which is exactly what broke the odometer's column layout.
+       */
+      .stat-card > span {
+        display: block;
+        margin-top: 0.3rem;
+        font-size: 0.78rem;
+        color: var(--dim);
+        font-family: ui-monospace, Menlo, monospace;
+      }
+
+      .meter-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+        align-items: start;
+      }
+      .meter-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 1.2rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        text-align: center;
+      }
+      .meter-card svg {
+        overflow: visible;
+      }
+      .meter-ring circle,
+      .meter-donut circle,
+      .meter-gauge path {
+        fill: none;
+        stroke-linecap: round;
+      }
+      .meter-track {
+        stroke: var(--line);
+      }
+      .meter-value {
+        stroke: var(--accent);
+      }
+      .meter-spark path.track {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 2;
+      }
+      .meter-spark path.line {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 2;
+      }
+      .meter-bar-track {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .meter-bar-fill {
+        height: 100%;
+        width: 100%;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+      .meter-segments-track {
+        display: flex;
+        gap: 5px;
+        width: 100%;
+      }
+      .meter-segments-track > i {
+        flex: 1;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--accent);
+        font-style: normal;
+      }
+      .star-rating {
+        position: relative;
+        font-size: 1.6rem;
+        letter-spacing: 0.15em;
+        line-height: 1;
+      }
+      .star-rating .empty {
+        color: var(--line);
+      }
+      .star-rating .filled {
+        position: absolute;
+        inset: 0;
+        color: var(--accent);
+        --dsg-fill: 70%;
+      }
+
+      .fx-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 1.25rem;
+        margin-top: 1.5rem;
+      }
+      .fx-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        min-height: 96px;
+        padding: 1.2rem;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-align: center;
+      }
+      .fx-card span.hint {
+        font-size: 0.76rem;
+        color: var(--dim);
+        font-family: ui-monospace, Menlo, monospace;
+      }
+      .icon-btn {
+        font-size: 1.6rem;
+        width: 3.2rem;
+        height: 3.2rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+      }
+
+      .link-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2.5rem;
+        margin-top: 1.5rem;
+      }
+      .link-row a {
+        font-size: 1.1rem;
+      }
+
+      .tilt-card {
+        width: 220px;
+        height: 150px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        display: grid;
+        place-items: center;
+        position: relative;
+      }
+      .tilt-card b {
+        pointer-events: none;
+      }
+      .tilt-parallax-card [data-depth] {
+        position: absolute;
+        pointer-events: none;
+      }
+      .tilt-parallax-card [data-depth='6'] {
+        font-size: 0.75rem;
+        color: var(--dim);
+        bottom: 14px;
+      }
+      .tilt-parallax-card [data-depth='24'] {
+        font-size: 1.3rem;
+        font-weight: 600;
+      }
+
+      .cursor-zone {
+        display: grid;
+        place-items: center;
+        height: 150px;
+        border-radius: 14px;
+        border: 1px dashed var(--line);
+        background: var(--panel);
+        color: var(--dim);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <strong>designimation</strong>
+      <nav>
+        <a href="./reveals.html">Reveals</a>
+        <a href="./scroll.html">Scroll</a>
+        <a href="./interactive.html">Interactive</a>
+        <a href="./text.html">Text</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1 data-dsg="fade-up 900ms">Numbers and hover.</h1>
+        <p class="lede" data-dsg="fade-up 900ms 120ms">
+          Section F counts, sweeps, and fills; section I answers a hover or a keyboard focus. Every
+          card below is one <code>data-dsg</code> attribute.
+        </p>
+      </section>
+
+      <h2>Counters</h2>
+      <p class="note">Scroll each card into view to trigger its count.</p>
+      <div class="stat-row" data-dsg-stagger="80ms">
+        <div class="stat-card">
+          <b data-dsg="count-up 1800ms to:2450">0</b>
+          <span>count-up · to:2450</span>
+        </div>
+        <div class="stat-card">
+          <b data-dsg="count-down 1800ms from:500 to:0">0</b>
+          <span>count-down · from:500 to:0</span>
+        </div>
+        <div class="stat-card">
+          <b data-dsg="count-currency 1800ms to:4820 decimals:0">0</b>
+          <span>count-currency · to:4820</span>
+        </div>
+        <div class="stat-card">
+          <b data-dsg="count-percent 1800ms to:0.94">0</b>
+          <span>count-percent · to:0.94</span>
+        </div>
+        <div class="stat-card">
+          <b data-dsg="count-compact 1800ms to:128400">0</b>
+          <span>count-compact · to:128400</span>
+        </div>
+        <div class="stat-card">
+          <b data-dsg="odometer-roll 2000ms to:4820">0</b>
+          <span>odometer-roll · to:4820</span>
+        </div>
+      </div>
+
+      <h2>Rings, gauges, and sweeps</h2>
+      <p class="note">
+        Author-supplied SVG geometry: <code>stroke-dasharray</code> and <code>--dsg-path-length</code>
+        match the shape's own circumference or arc length, the same convention
+        <code>scroll-progress-ring</code> uses.
+      </p>
+      <div class="meter-row" data-dsg-stagger="100ms">
+        <div class="meter-card">
+          <svg class="meter-ring" width="110" height="110" viewBox="0 0 100 100">
+            <circle class="meter-track" cx="50" cy="50" r="42" stroke-width="10" />
+            <circle
+              class="meter-value"
+              cx="50"
+              cy="50"
+              r="42"
+              stroke-width="10"
+              transform="rotate(-90 50 50)"
+              style="--dsg-path-length: 264"
+              data-dsg="progress-ring 1400ms"
+            />
+          </svg>
+          <span>progress-ring</span>
+        </div>
+        <div class="meter-card">
+          <svg class="meter-gauge" width="110" height="70" viewBox="0 0 100 60">
+            <path class="meter-track" d="M10,50 A40,40 0 0 1 90,50" stroke-width="10" />
+            <path
+              class="meter-value"
+              d="M10,50 A40,40 0 0 1 90,50"
+              stroke-width="10"
+              style="--dsg-path-length: 130"
+              data-dsg="gauge-sweep 1400ms"
+            />
+          </svg>
+          <span>gauge-sweep</span>
+        </div>
+        <div class="meter-card">
+          <svg class="meter-donut" width="110" height="110" viewBox="0 0 100 100">
+            <circle class="meter-track" cx="50" cy="50" r="38" stroke-width="18" />
+            <circle
+              class="meter-value"
+              cx="50"
+              cy="50"
+              r="38"
+              stroke-width="18"
+              transform="rotate(-90 50 50)"
+              style="--dsg-path-length: 240"
+              data-dsg="donut-sweep 1400ms"
+            />
+          </svg>
+          <span>donut-sweep</span>
+        </div>
+        <div class="meter-card">
+          <svg class="meter-spark" width="140" height="60" viewBox="0 0 100 40">
+            <path class="track" d="M0,30 L20,10 L40,25 L60,5 L80,20 L100,8" />
+            <path
+              class="line"
+              d="M0,30 L20,10 L40,25 L60,5 L80,20 L100,8"
+              style="--dsg-path-length: 140"
+              data-dsg="sparkline-draw 1400ms"
+            />
+          </svg>
+          <span>sparkline-draw</span>
+        </div>
+      </div>
+
+      <h2>Bars, segments, and ratings</h2>
+      <div class="meter-row" data-dsg-stagger="100ms">
+        <div class="meter-card">
+          <div class="meter-bar-track">
+            <div class="meter-bar-fill" data-dsg="progress-bar 1200ms"></div>
+          </div>
+          <span>progress-bar</span>
+        </div>
+        <div class="meter-card">
+          <div class="meter-segments-track" data-dsg-stagger="90ms">
+            <i data-dsg="progress-segments 350ms"></i>
+            <i data-dsg="progress-segments 350ms"></i>
+            <i data-dsg="progress-segments 350ms"></i>
+            <i data-dsg="progress-segments 350ms"></i>
+            <i data-dsg="progress-segments 350ms"></i>
+          </div>
+          <span>progress-segments (staggered)</span>
+        </div>
+        <div class="meter-card">
+          <div class="star-rating" aria-label="3.5 out of 5 stars">
+            <span class="empty" aria-hidden="true">★★★★★</span>
+            <span class="filled" aria-hidden="true" data-dsg="star-rating-fill 900ms">★★★★★</span>
+          </div>
+          <span>star-rating-fill · --dsg-fill:70%</span>
+        </div>
+      </div>
+
+      <h2>Buttons</h2>
+      <div class="fx-row">
+        <button class="fx-card" data-dsg="lift">
+          Lift
+          <span class="hint">lift — hover or Tab</span>
+        </button>
+        <button class="fx-card" data-dsg="lift-shadow">
+          Lift + shadow
+          <span class="hint">lift-shadow</span>
+        </button>
+        <button class="fx-card" data-dsg="shine-sweep">
+          Shine sweep
+          <span class="hint">shine-sweep</span>
+        </button>
+        <button class="fx-card" data-dsg="split-flap">
+          Split flap
+          <span class="hint">split-flap</span>
+        </button>
+      </div>
+
+      <h2>Borders</h2>
+      <div class="fx-row">
+        <button class="fx-card" data-dsg="border-draw">
+          Border draw
+          <span class="hint">border-draw</span>
+        </button>
+        <button class="fx-card" data-dsg="border-glow">
+          Border glow
+          <span class="hint">border-glow</span>
+        </button>
+        <button class="fx-card" data-dsg="beam-border">
+          Beam border
+          <span class="hint">beam-border</span>
+        </button>
+      </div>
+
+      <h2>Links</h2>
+      <div class="link-row">
+        <a href="#" data-dsg="underline-slide">underline-slide</a>
+        <a href="#" data-dsg="underline-center">underline-center</a>
+      </div>
+
+      <h2>Icons</h2>
+      <div class="fx-row">
+        <button class="fx-card icon-btn" data-dsg="icon-wiggle" aria-label="icon-wiggle">⚑</button>
+        <button class="fx-card icon-btn" data-dsg="icon-spin" aria-label="icon-spin">⚙</button>
+        <button class="fx-card icon-btn" data-dsg="icon-bounce" aria-label="icon-bounce">▲</button>
+      </div>
+
+      <h2>Card tilt</h2>
+      <p class="note">Move the pointer over each card, or Tab to it.</p>
+      <div class="fx-row">
+        <div class="tilt-card" data-dsg="tilt-3d" tabindex="0">
+          <b>tilt-3d</b>
+        </div>
+        <div class="tilt-card tilt-parallax-card" data-dsg="tilt-parallax" tabindex="0">
+          <b data-depth="24">tilt-parallax</b>
+          <small data-depth="6">layers move at different depths</small>
+        </div>
+      </div>
+
+      <h2>Cursor</h2>
+      <p class="note">Each zone spawns its own follower — move the pointer across, or Tab in.</p>
+      <div class="fx-row">
+        <div class="cursor-zone" data-dsg="cursor-follow" tabindex="0">cursor-follow</div>
+        <div class="cursor-zone" data-dsg="cursor-lag" tabindex="0">cursor-lag</div>
+        <div class="cursor-zone" data-dsg="cursor-label" tabindex="0">cursor-label</div>
+        <div class="cursor-zone" data-dsg="cursor-spotlight" tabindex="0">cursor-spotlight</div>
+        <div class="cursor-zone" data-dsg="cursor-invert" tabindex="0">cursor-invert</div>
+      </div>
+
+      <div class="tall"></div>
+    </main>
+
+    <script src="../designimation.js"></script>
+    <script>
+      window.__dsg = designimation
+        .designimation({ observe: true, reporter: designimation.consoleReporter() })
+        .start()
+    </script>
+    <script src="./theme.js"></script>
+    <script src="./docs-nav.js"></script>
+    <script src="./show-code.js"></script>
+    <script src="./replay.js"></script>
+  </body>
+</html>

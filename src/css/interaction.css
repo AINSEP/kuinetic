@@ -234,16 +234,22 @@
     transform-style: preserve-3d;
   }
 
+  /*
+   * A fixed white glow reads well on a dark panel but is nearly invisible on a light one — the
+   * host site's own `--accent` (falling back to a plain orange when a consumer defines neither)
+   * keeps contrast in both themes instead of hardcoding one.
+   */
   [data-dsg-fx~='cursor-spotlight']::before {
     content: '';
     position: absolute;
     inset: 0;
+    border-radius: inherit;
     pointer-events: none;
     opacity: var(--dsg-spotlight-opacity, 0);
     transition: opacity 200ms ease-out;
     background: radial-gradient(
       circle 160px at var(--dsg-x, 50%) var(--dsg-y, 50%),
-      rgb(255 255 255 / 0.22),
+      color-mix(in srgb, var(--accent, #d2691e) 30%, transparent),
       transparent 70%
     );
   }
