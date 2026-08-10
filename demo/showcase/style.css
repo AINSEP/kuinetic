@@ -427,10 +427,16 @@ figure .dsg-show-code-toggle {
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
 }
 
+.dsg-code-modal-header {
+  display: flex;
+  justify-content: flex-end;
+  /* negative margin pulls the button back into the dialog's own padding, so it sits in the
+     same snug corner it occupied when it was absolutely positioned, instead of a full 1.5rem
+     inset that reads like an empty row. */
+  margin: -0.9rem -0.9rem 0.6rem 0;
+}
+
 .dsg-code-modal-close {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
   width: 2rem;
   height: 2rem;
   display: grid;
@@ -458,7 +464,8 @@ figure .dsg-show-code-toggle {
   font-size: 0.85rem;
   line-height: 1.6;
   color: var(--ink);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   background: none;
   border: none;
   padding: 0;

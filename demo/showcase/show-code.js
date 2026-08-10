@@ -54,11 +54,15 @@
     closeBtn.setAttribute('aria-label', 'Close')
     closeBtn.textContent = '×'
 
+    const header = document.createElement('div')
+    header.className = 'dsg-code-modal-header'
+    header.appendChild(closeBtn)
+
     const pre = document.createElement('pre')
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    dialog.append(closeBtn, pre)
+    dialog.append(header, pre)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
 
