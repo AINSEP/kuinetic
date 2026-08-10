@@ -94,7 +94,7 @@ This session covered **three prior phases already handed off** (refactor audit +
 | `src/core/instances.ts` | Heaviest-churned file this session — D2, D5, and review findings #4/#5 all landed here. Read current state before touching again. |
 | `src/core/flip.ts` | D6's fix (`mutationWatcher`). |
 | `demo/showcase/*.html`, `replay.js`, `style.css` | Showcase pages; all three now have the working replay FAB and (per `3db3758`) a light-mode toggle. |
-| A local static server was running on `http://localhost:8934` (serving `demo/`) for live browser testing — likely dead now that the session ended; restart with `cd demo && python3 -m http.server 8934` if resuming live visual verification. `file://` doesn't work with the Playwright MCP (blocks the protocol); it does work with the project's own pinned `playwright-core` scripts. |
+| A local static server was running on `http://localhost:8934` (serving the repo root, via `npm run showcase`) for live browser testing — likely dead now that the session ended; restart with `npm run showcase` **from the repo root** (not `cd demo &&` — the showcase nav's Docs dropdown links to `/docs/*.md`, which only resolves when the server root is the repo root) if resuming live visual verification. `file://` doesn't work with the Playwright MCP (blocks the protocol); it does work with the project's own pinned `playwright-core` scripts. |
 
 ## Decisions And Constraints
 

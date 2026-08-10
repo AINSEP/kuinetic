@@ -23,7 +23,8 @@
     "test:browser": "npm run demo && node scripts/run-browser-tests.mjs",
     "generate:css": "node scripts/generate-preset-css.mjs",
     "record": "npm run demo && node scripts/verify-browser.mjs --record",
-    "check:showcase": "npm run demo && node scripts/check-showcase.mjs"
+    "check:showcase": "npm run demo && node scripts/check-showcase.mjs",
+    "showcase": "python3 -m http.server 8934"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
