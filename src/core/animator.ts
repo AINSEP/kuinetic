@@ -103,6 +103,8 @@ export class Animator {
   private readonly shouldObserve: boolean
   /** Runtime truth. Attributes are for CSS and debugging; they make a poor state machine. */
   private readonly states = new WeakMap<Element, InstanceState>()
+  /** Iterable lifecycle index; the WeakMap remains the fast state lookup. */
+  private readonly liveElements = new Set<Element>()
   /** Built lazily by `watch()` when not injected, so nothing observes until `start()` needs it. */
   private domWatcher: DomWatcher | undefined
   private started = false
@@ -253,6 +255,7 @@ export class Animator {
       status: 'ready',
     }
     this.states.set(el, state)
+    this.liveElements.add(el)
 
     if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
       const animationNames = (plan.declarations['animation-name'] ?? '')
@@ -377,20 +380,22 @@ export class Animator {
     state.controller.abort()
     for (const instance of state.instances) runQuietly(() => instance.destroy())
     this.states.delete(el)
+    this.liveElements.delete(el)
     state.ledger.restore()
     state.attributes.restore()
   }
 
   private releaseTree(node: ParentNode): void {
-    if (node instanceof Element) this.release(node)
-    for (const el of node.querySelectorAll(`[${ATTR.normalized}]`)) this.release(el)
+    for (const el of [...this.liveElements]) {
+      if (node === el || (node as Node).contains?.(el)) this.release(el)
+    }
   }
 
   destroy(): void {
     this.domWatcher?.destroy()
+    for (const el of [...this.liveElements]) this.release(el)
     this.binder.destroy()
     this.scheduler.destroy()
-    if (this.root) this.releaseTree(this.root)
     this.started = false
   }
 

@@ -250,6 +250,53 @@ describe('teardown restores what it wrote', () => {
     animator.destroy()
     expect(spy.destroyed).toBe(1)
   })
+
+  it('destroys a live instance even after its diagnostic attribute is removed', () => {
+    const spy: Spy = { activated: 0, destroyed: 0 }
+    const animator = build('<div data-dsg="spy-effect"></div>', { registry: spyRegistry(spy) })
+    animator.start()
+    el().removeAttribute(ATTR.normalized)
+
+    animator.destroy()
+    expect(spy.destroyed).toBe(1)
+  })
+
+  it('runs primitive cleanup before destroying its shared scheduler', () => {
+    const events: string[] = []
+    const scheduler: ScrollScheduler = {
+      ...idleScheduler,
+      invalidate: () => events.push('cleanup invalidate'),
+      destroy: () => events.push('scheduler destroy'),
+    }
+    const primitive: Primitive = {
+      id: 'cleanup-order',
+      renderer: 'javascript',
+      channels: ['state'],
+      parameters: {},
+      supportedTimelines: ['time'],
+      supportedActivations: ['load'],
+      defaultActivation: 'load',
+      perfClass: 'continuous',
+      reducedMotion: 'shorten',
+      prepare(_el, _params, ctx) {
+        return {
+          activate: () => {},
+          cancel: () => {},
+          finish: () => {},
+          finished: Promise.resolve(),
+          destroy: () => ctx.invalidate(),
+        }
+      },
+    }
+    const registry = new Registry().registerPrimitive(primitive).registerPresets([
+      { name: 'cleanup-order', primitive: 'cleanup-order' },
+    ])
+    const animator = build('<div data-dsg="cleanup-order"></div>', { registry, scheduler })
+    animator.start()
+
+    animator.destroy()
+    expect(events).toEqual(['cleanup invalidate', 'scheduler destroy'])
+  })
 })
 
 describe('configuration identity', () => {
