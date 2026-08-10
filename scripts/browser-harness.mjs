@@ -3,7 +3,7 @@
  * `test/browser/`. Centralised so both get the same Chromium resolution and the same frame-naming
  * scheme, instead of two scripts drifting apart on how evidence is captured.
  */
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 
 /**
  * Resolve Playwright without hardcoding a path outside the repository.
@@ -79,12 +79,17 @@ export function createChecker() {
  * suites each get their own instance and their own subdirectory rather than racing over shared
  * numbering.
  *
- * @param dir - Directory frames are written to; created if missing.
+ * The directory is wiped and recreated on construction, so a rerun's frames are never mixed with
+ * a stale set left over from a previous run under different numbering — a rerunnable regression
+ * suite is only trustworthy if its evidence directory reflects the run that just happened.
+ *
+ * @param dir - Directory frames are written to; cleared and recreated.
  * @returns A `snap(page, name)` function resolving to the written file's basename.
  * @complexity O(1) time and space to construct; each `snap` call costs one screenshot.
  * @overallScore 100
  */
 export function createFrameRecorder(dir) {
+  rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
   let count = 0
 
@@ -94,4 +99,38 @@ export function createFrameRecorder(dir) {
     await page.screenshot({ path: `${dir}/${file}` })
     return file
   }
+}
+
+/**
+ * Sample a continuous motion at several points across its duration, capturing a named frame at
+ * each and returning what `read` observed there.
+ *
+ * A single before/after frame pair proves endpoints, not the motion between them — it cannot show
+ * a wrong overshoot, dropped frames, or geometry that briefly goes somewhere it should never go.
+ * FLIP, spring physics, and gesture drags are exactly the effects where "it reached the right
+ * place" is not the same claim as "it got there correctly", so this burst-samples instead of
+ * checking two static states.
+ *
+ * @param page - Page to sample from.
+ * @param snap - Frame recorder from `createFrameRecorder`.
+ * @param label - Prefix for each sample's frame name.
+ * @param durationMs - Total span the fractions are measured against.
+ * @param fractions - Points in `[0, 1]` of `durationMs` to sample at, in ascending order.
+ * @param read - Called on `page` at each sample point; its return value is collected.
+ * @returns `{ samples, elapsed }` — one `read()` result per fraction, and total time spent waiting
+ *   (so a caller can subtract it from a subsequent "wait past the end" step).
+ * @complexity O(f) browser round trips in `fractions.length`; O(f) space for the collected samples.
+ * @overallScore 100
+ */
+export async function burstSample({ page, snap, label, durationMs, fractions, read }) {
+  let elapsed = 0
+  const samples = []
+  for (const [index, fraction] of fractions.entries()) {
+    const target = durationMs * fraction
+    await page.waitForTimeout(Math.max(0, target - elapsed))
+    elapsed = Math.max(elapsed, target)
+    samples.push(await read(page))
+    await snap(page, `${label}-${index + 1}-of-${fractions.length}-at-${Math.round(fraction * 100)}pct`)
+  }
+  return { samples, elapsed }
 }
