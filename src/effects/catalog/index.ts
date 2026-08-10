@@ -1,7 +1,9 @@
 import type { Registry } from '../../core/registry.js'
 import { MEDIA_PRESETS, MEDIA_PRIMITIVES } from './media.js'
+import { TEXT_PRESETS, TEXT_PRIMITIVES } from './text.js'
 
 export { MEDIA_PRESETS, MEDIA_PRIMITIVES } from './media.js'
+export { TEXT_PRESETS, TEXT_PRIMITIVES } from './text.js'
 
 /**
  * Register the CSS-oriented catalog sections.
@@ -12,5 +14,9 @@ export { MEDIA_PRESETS, MEDIA_PRIMITIVES } from './media.js'
  * @overallScore 100
  */
 export function registerCatalog(registry: Registry): Registry {
-  return registry.registerPrimitives(MEDIA_PRIMITIVES).registerPresets(MEDIA_PRESETS)
+  return registry
+    .registerPrimitives(MEDIA_PRIMITIVES)
+    .registerPresets(MEDIA_PRESETS)
+    .registerPrimitives(TEXT_PRIMITIVES)
+    .registerPresets(TEXT_PRESETS)
 }
