@@ -1,0 +1,299 @@
+/*
+ * Feedback & status effects (catalog section K).
+ *
+ * Loading indicators (shimmer, spin, dot-pulse, progress-track) loop forever and carry
+ * `animation-iteration-count: infinite` as a static declaration, matching `ambient.css` — the
+ * runtime never writes iteration-count. Reduced motion is handled entirely by each primitive's
+ * declared policy plus the generic `[data-dsg-rm]` rules in `base.css`; nothing here needs its
+ * own media query.
+ */
+@layer dsg.effects {
+  /* --- skeleton-shimmer / skeleton-to-content --- */
+
+  [data-dsg-fx~='skeleton-shimmer'] {
+    background-color: var(--dsg-skeleton-base, #2a2422);
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in srgb, var(--dsg-skeleton-highlight, #ffffff) 18%, transparent) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-skeleton-shimmer {
+    from {
+      background-position: 150% 0;
+    }
+    to {
+      background-position: -50% 0;
+    }
+  }
+
+  @keyframes dsg-skeleton-to-content {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* --- spinner / spinner-ring: same rotation, different static ring styling --- */
+
+  [data-dsg-fx~='spinner'] {
+    display: inline-block;
+    width: var(--dsg-spinner-size, 28px);
+    height: var(--dsg-spinner-size, 28px);
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, currentColor 20%, transparent);
+    border-top-color: currentColor;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-spinner-spin {
+    to {
+      rotate: 360deg;
+    }
+  }
+
+  [data-dsg-fx~='spinner-ring'] {
+    display: inline-block;
+    width: var(--dsg-spinner-size, 28px);
+    height: var(--dsg-spinner-size, 28px);
+    border-radius: 50%;
+    border: 3px dashed color-mix(in srgb, currentColor 55%, transparent);
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-spinner-ring-spin {
+    to {
+      rotate: 360deg;
+    }
+  }
+
+  /* --- spinner-dots: one element, two box-shadow "dots" riding the same scale/opacity pulse --- */
+
+  [data-dsg-fx~='spinner-dots'] {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: -16px 0 currentColor, 16px 0 currentColor;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-spinner-dots {
+    0%,
+    80%,
+    100% {
+      scale: 0.7;
+      opacity: 0.5;
+    }
+    40% {
+      scale: 1.15;
+      opacity: 1;
+    }
+  }
+
+  /* --- progress-indeterminate: a bar growing/shrinking as it crosses its track --- */
+
+  [data-dsg-fx~='progress-indeterminate'] {
+    transform-origin: 0% 50%;
+    background: currentColor;
+    border-radius: inherit;
+    animation-iteration-count: infinite;
+  }
+  @keyframes dsg-progress-indeterminate {
+    0% {
+      translate: -100% 0;
+      scale: 0.4 1;
+    }
+    50% {
+      scale: 1 1;
+    }
+    100% {
+      translate: 100% 0;
+      scale: 0.4 1;
+    }
+  }
+
+  /* --- toast-slide-in / toast-slide-out --- */
+
+  @keyframes dsg-toast-slide-in {
+    from {
+      opacity: 0;
+      translate: 0 var(--dsg-distance, 24px);
+    }
+  }
+  @keyframes dsg-toast-slide-out {
+    to {
+      opacity: 0;
+      translate: 0 var(--dsg-distance, 24px);
+    }
+  }
+
+  /* --- shake-error / wobble --- */
+
+  @keyframes dsg-shake-error {
+    10%,
+    90% {
+      translate: -1px 0;
+    }
+    20%,
+    80% {
+      translate: 2px 0;
+    }
+    30%,
+    50%,
+    70% {
+      translate: -4px 0;
+    }
+    40%,
+    60% {
+      translate: 4px 0;
+    }
+  }
+
+  @keyframes dsg-wobble {
+    0% {
+      translate: 0 0;
+      rotate: 0deg;
+    }
+    15% {
+      translate: -6px 0;
+      rotate: -6deg;
+    }
+    30% {
+      translate: 4px 0;
+      rotate: 4deg;
+    }
+    45% {
+      translate: -3px 0;
+      rotate: -3deg;
+    }
+    60% {
+      translate: 2px 0;
+      rotate: 2deg;
+    }
+    75% {
+      translate: -1px 0;
+      rotate: -1deg;
+    }
+    100% {
+      translate: 0 0;
+      rotate: 0deg;
+    }
+  }
+
+  /* --- ripple --- */
+
+  [data-dsg-fx~='ripple'] {
+    border-radius: 50%;
+    background: currentColor;
+    transform-origin: center;
+  }
+  @keyframes dsg-ripple {
+    from {
+      scale: 0.2;
+      opacity: 0.6;
+    }
+    to {
+      scale: var(--dsg-ripple-scale, 4);
+      opacity: 0;
+    }
+  }
+
+  /* --- badge-pop / count-bump: same overshoot-scale family --- */
+
+  @keyframes dsg-badge-pop {
+    0% {
+      scale: 0.4;
+    }
+    60% {
+      scale: 1.18;
+    }
+    100% {
+      scale: 1;
+    }
+  }
+
+  @keyframes dsg-count-bump {
+    0%,
+    100% {
+      scale: 1;
+    }
+    50% {
+      scale: 1.3;
+    }
+  }
+
+  /* --- heart-burst / confetti-burst --- */
+
+  [data-dsg-fx~='heart-burst'] {
+    color: var(--dsg-heart-color, #f43f5e);
+  }
+  @keyframes dsg-heart-burst {
+    0% {
+      scale: 1;
+    }
+    30% {
+      scale: 1.4;
+    }
+    55% {
+      scale: 0.9;
+    }
+    100% {
+      scale: 1;
+    }
+  }
+
+  [data-dsg-fx~='confetti-burst'] {
+    background-image: radial-gradient(circle at 20% 20%, #f43f5e 0 3px, transparent 3px),
+      radial-gradient(circle at 75% 15%, #fbbf24 0 3px, transparent 3px),
+      radial-gradient(circle at 50% 75%, #34d399 0 3px, transparent 3px),
+      radial-gradient(circle at 85% 65%, #60a5fa 0 3px, transparent 3px),
+      radial-gradient(circle at 15% 65%, #c084fc 0 3px, transparent 3px);
+    background-repeat: no-repeat;
+  }
+  @keyframes dsg-confetti-burst {
+    0% {
+      scale: 0.6;
+      opacity: 0;
+    }
+    40% {
+      scale: 1.15;
+      opacity: 1;
+    }
+    100% {
+      scale: 1;
+      opacity: 1;
+    }
+  }
+
+  /* --- copy-confirm: fade in, hold, fade out — one keyframe, no JS timer needed --- */
+
+  @keyframes dsg-copy-confirm {
+    0% {
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* --- pull-to-refresh --- */
+
+  @keyframes dsg-pull-to-refresh {
+    0% {
+      translate: 0 0;
+    }
+    45% {
+      translate: 0 36px;
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
+}
