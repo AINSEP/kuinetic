@@ -95,7 +95,11 @@ export function play(request: PlayRequest, options: PlayOptions = {}): PlaybackH
     // Replay: `process()` short-circuits on an unchanged configuration, so playing the same
     // effect twice was a silent no-op without an explicit reset.
     animator.reset(el)
-    el.setAttribute(ATTR.on, 'manual')
+    // Only default to `manual` when the element never declared a trigger of its own — an
+    // element authored `on:hover`/`on:click`/`on:load` keeps that activation across a
+    // programmatic `play()` (e.g. the replay-all FAB), so a natural hover/click still works
+    // afterward. `activate()` below still fires it immediately either way.
+    if (!el.hasAttribute(ATTR.on)) el.setAttribute(ATTR.on, 'manual')
     el.setAttribute(ATTR.source, source)
     animator.process(el)
     animator.activate(el)
