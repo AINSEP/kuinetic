@@ -18,6 +18,50 @@ Standalone, MIT, npm + CDN `<script>`, framework-agnostic. No product or CMS cou
 
 ---
 
+## 1a. Why not just GSAP?
+
+Worth asking directly, because the honest answer is nuanced: **GSAP can build almost everything
+in this catalog.** As of GSAP 3.13 (April 2025, following Webflow's acquisition of GreenSock),
+every plugin that used to require a paid Club GreenSock membership — `SplitText`, `MorphSVGPlugin`,
+`DrawSVGPlugin`, `ScrambleTextPlugin`, `Draggable`/`InertiaPlugin`, `Flip` — is free, including for
+commercial use. Combined with `ScrollTrigger` and GSAP's core tween/timeline engine, that covers
+nearly this entire catalog either as a named, dedicated feature or as a well-documented recipe:
+scroll reveals, staggering, parallax, pinned sections, horizontal-scroll-inside-vertical-scroll
+(`ScrollTrigger`'s `containerAnimation`), scroll-snap, text splitting, scramble text, SVG stroke
+draws and shape morphing, FLIP layout transitions, draggable/inertia physics.
+
+More pointedly: two of the hardest bugs found and fixed in this project's live-testing pass — a
+parallax effect freezing mid-scroll, and a horizontal-scroll track that never visually moved — are
+exactly the problem class `ScrollTrigger`'s `pin` and `containerAnimation` already solved, in
+production, for years. Section C of this catalog (scroll mechanics) is its own admittedly hardest
+tier, roughly 40% of total engineering effort. A meaningful chunk of that effort is this project
+re-solving, and re-debugging, something GSAP ships working today, for free.
+
+So why does this project still exist? Three reasons, and none of them is "GSAP is less capable":
+
+1. **Zero JS runtime dependency.** These are real CSS `@keyframes` / `animation-timeline`
+   animations. They keep running if a script is slow, blocked, or fails to load, and there is no
+   library payload to download and execute first. GSAP is a JS engine you ship and run — core
+   plus `ScrollTrigger` plus `SplitText` plus `MorphSVGPlugin` adds up fast, and every animation on
+   the page depends on that JS having successfully loaded and executed.
+2. **Declarative HTML authoring, not an imperative API.** `<h1 data-dsg="fade-up 900ms">` is the
+   whole configuration. No JS file to write, own, or debug. GSAP is fundamentally a JavaScript API
+   — even the simplest GSAP animation is a `.js` file someone writes and maintains.
+3. **A catalog, not an engine.** GSAP gives you the primitives to build any of these effects; it
+   does not ship ~237 ready-made, ready-to-drop-onto-an-element named animations. Even on a GSAP
+   project, someone still designs and hand-writes the equivalent of this catalog, in JS, per
+   project. This project's bet is that a maintained, pre-built catalog behind a stable attribute
+   grammar is worth more than direct access to a more general engine — for the specific slice of
+   "the common 80% of web motion" this project targets, not for bespoke, hand-choreographed
+   sequences, which is GSAP's actual strength and explicitly out of scope here (see above).
+
+If a project needs hand-choreographed, JS-driven sequences, or already ships a JS-heavy stack where
+an extra dependency is free, GSAP is very likely the better tool. This project is for the common
+case where the animation should be inert without JS, authored without writing JS, and picked from a
+catalog rather than composed by hand.
+
+---
+
 ## 2. Naming (decide before any code)
 
 `data-anim` and `--anim-*` are too generic for a public library — guaranteed collisions with
