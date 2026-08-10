@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — SVG multi-subpath morph fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #14110f;
+        padding: 2rem;
+      }
+      svg {
+        background: #1c1712;
+      }
+      path {
+        fill: #d2691e;
+        fill-rule: evenodd;
+        stroke: #f5efe8;
+        stroke-width: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      A square with a square hole (two subpaths, `evenodd` fill), morphing to a differently sized
+      square-with-hole. Both subpaths are closed with an explicit `Z`. Multi-subpath geometry with
+      a hole is exactly the case docs/review-2-gpt-5.6-sol.md named: "the current model serializes
+      one initial M and never emits Z, so separate subpaths ... are not preserved."
+    -->
+    <svg id="stage" width="200" height="200" viewBox="0 0 100 100">
+      <path
+        id="morph"
+        data-dsg='icon-morph 300ms to:"M15,15 L85,15 L85,85 L15,85 Z M40,40 L60,40 L60,60 L40,60 Z"'
+        d="M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z"
+      />
+    </svg>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
