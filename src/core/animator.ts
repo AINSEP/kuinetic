@@ -19,6 +19,7 @@ import { silentReporter } from './reporter.js'
 import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createAttributeLedger, createStyleLedger } from './owned-styles.js'
+import type { StyleLedger } from './owned-styles.js'
 import { applyStagger } from './stagger.js'
 import { applyStylePlan, planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
@@ -243,7 +244,7 @@ export class Animator {
     if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
       state.instances.push(createCssInstance(el, ledger))
     }
-    state.instances.push(...this.prepareJsEffects(el, plan, controller.signal))
+    state.instances.push(...this.prepareJsEffects({ el, plan, signal: controller.signal, ledger }))
 
     this.openGate({ el, state, stylePlan, config, plan })
   }
@@ -290,15 +291,17 @@ export class Animator {
    * @complexity O(e) time in JS-rendered effects; O(e) space.
    * @overallScore 100
    */
-  private prepareJsEffects(
-    el: Element,
-    plan: CompiledPlan,
-    signal: AbortSignal,
-  ): EffectInstance[] {
+  private prepareJsEffects(request: {
+    el: Element
+    plan: CompiledPlan
+    signal: AbortSignal
+    ledger: StyleLedger
+  }): EffectInstance[] {
+    const { el, plan, signal, ledger } = request
     const instances: EffectInstance[] = []
     if (plan.jsEffects.length === 0) return instances
 
-    const ctx = this.contextFor(el, signal)
+    const ctx = this.contextFor(el, signal, ledger)
 
     for (const { spec, resolved } of plan.jsEffects) {
       const prepare = resolved.primitive.prepare
@@ -326,7 +329,7 @@ export class Animator {
    * @complexity O(1) time, O(1) space.
    * @overallScore 100
    */
-  private contextFor(el: Element, signal: AbortSignal): PrepareContext {
+  private contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger): PrepareContext {
     const doc = el.ownerDocument
     return {
       doc,
@@ -338,6 +341,7 @@ export class Animator {
       warn: (message: string) => this.reporter.warn(message, el),
       reducedMotion: this.respectReducedMotion && this.capabilities.reducedMotion,
       signal,
+      style: ledger,
     }
   }
 
@@ -387,6 +391,19 @@ export class Animator {
 
   stateOf(el: Element): InstanceState | undefined {
     return this.states.get(el)
+  }
+
+  /**
+   * Tear an element's effects down so the next `process()` reinstalls from scratch.
+   *
+   * Needed for replay: `process()` short-circuits when the configuration fingerprint is
+   * unchanged, so playing the same effect twice was previously a no-op.
+   *
+   * @complexity O(c) time in retained instances; O(1) space.
+   * @overallScore 100
+   */
+  reset(el: Element): void {
+    this.release(el)
   }
 
   /**

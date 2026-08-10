@@ -2,6 +2,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferredInstance } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
+import { createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { trackProgress } from './tracker.js'
 
@@ -48,8 +49,8 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
 }
 
 /** Write progress as a custom property so CSS can consume it without another JS hop. */
-function writeProgress(el: Element, progress: number): void {
-  ;(el as HTMLElement).style.setProperty(PROGRESS_VAR, progress.toFixed(4))
+function writeProgress(ctx: PrepareContext, progress: number): void {
+  ctx.style.set(PROGRESS_VAR, progress.toFixed(4))
 }
 
 /**
@@ -64,9 +65,8 @@ function writeProgress(el: Element, progress: number): void {
  */
 function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
-  const previous = { position: node.style.position, top: node.style.top }
-  node.style.position = 'sticky'
-  node.style.top = params.text('offset', '0px')
+  ctx.style.set('position', 'sticky')
+  ctx.style.set('top', params.text('offset', '0px'))
 
   const removeSpacer = params.is('spacer') ? insertSpacer(node, params.text('distance'), ctx) : null
 
@@ -80,17 +80,16 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
   const tracked = node.parentElement ?? el
 
   const untrack = trackProgress(tracked, ctx, { distance: params.text('distance') }, (progress) => {
-    writeProgress(el, progress)
+    writeProgress(ctx, progress)
     el.setAttribute('data-dsg-pinned', progress > 0 && progress < 1 ? 'true' : 'false')
   })
 
+  // Inline styles are restored by the animator's ledger, so teardown only undoes what the
+  // ledger cannot see: the inserted spacer and the state attribute.
   return () => {
     untrack()
     removeSpacer?.()
-    node.style.position = previous.position
-    node.style.top = previous.top
     el.removeAttribute('data-dsg-pinned')
-    node.style.removeProperty(PROGRESS_VAR)
   }
 }
 
@@ -132,7 +131,7 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
   const steps = Math.max(0, Math.round(params.num('steps', 0)))
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
-    writeProgress(el, progress)
+    writeProgress(ctx, progress)
     if (steps > 0) {
       const index = Math.min(steps - 1, Math.floor(progress * steps))
       el.setAttribute('data-dsg-step', String(index))
@@ -142,7 +141,6 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
   return () => {
     untrack()
     el.removeAttribute('data-dsg-step')
-    ;(el as HTMLElement).style.removeProperty(PROGRESS_VAR)
   }
 }
 
@@ -162,15 +160,11 @@ function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContex
   const travel = createMeasureCache(() => trackTravel(node, authored, node.ownerDocument))
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress, frame) => {
-    node.style.translate = `${-progress * travel.read(frame.epoch)}px 0`
-    writeProgress(el, progress)
+    ctx.style.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
+    writeProgress(ctx, progress)
   })
 
-  return () => {
-    untrack()
-    node.style.removeProperty('translate')
-    node.style.removeProperty(PROGRESS_VAR)
-  }
+  return untrack
 }
 
 /**
@@ -202,17 +196,14 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
   let lastIndex = -1
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
-    writeProgress(el, progress)
+    writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
     if (index === lastIndex) return
     lastIndex = index
     applyFrame(media, { index, frames, progress, pattern })
   })
 
-  return () => {
-    untrack()
-    ;(el as HTMLElement).style.removeProperty(PROGRESS_VAR)
-  }
+  return untrack
 }
 
 interface FrameWrite {
@@ -249,9 +240,11 @@ function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext
     if (selector) markLinks(ctx.doc, selector, active)
   })
 
+  // External link state is written outside this element, so it must be undone explicitly.
   return () => {
     untrack()
     el.removeAttribute('data-dsg-active')
+    if (selector) clearLinks(ctx.doc, selector)
   }
 }
 
@@ -259,6 +252,10 @@ function markLinks(doc: Document, selector: string, active: boolean): void {
   for (const link of doc.querySelectorAll(selector)) {
     link.setAttribute('data-dsg-active', String(active))
   }
+}
+
+function clearLinks(doc: Document, selector: string): void {
+  for (const link of doc.querySelectorAll(selector)) link.removeAttribute('data-dsg-active')
 }
 
 /**
@@ -270,17 +267,19 @@ function markLinks(doc: Document, selector: string, active: boolean): void {
  * @complexity O(n) time in the number of children; O(1) space.
  * @overallScore 100
  */
-function prepareSnap(el: Element, params: EffectParams): Cleanup {
-  const node = el as HTMLElement
-  const previous = node.style.scrollSnapType
-  node.style.scrollSnapType = `${params.is('axis', 'x') ? 'x' : 'y'} ${params.text('strictness', 'mandatory')}`
+function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  ctx.style.set(
+    'scroll-snap-type',
+    `${params.is('axis', 'x') ? 'x' : 'y'} ${params.text('strictness', 'mandatory')}`,
+  )
 
-  const children = [...node.children] as HTMLElement[]
-  for (const child of children) child.style.scrollSnapAlign = params.text('align', 'start')
+  // Children are outside this element's ledger, so they get their own. Blind removal previously
+  // deleted a `scroll-snap-align` the consumer had authored.
+  const childLedgers = [...el.children].map((child) => createStyleLedger(child))
+  for (const ledger of childLedgers) ledger.set('scroll-snap-align', params.text('align', 'start'))
 
   return () => {
-    node.style.scrollSnapType = previous
-    for (const child of children) child.style.removeProperty('scroll-snap-align')
+    for (const ledger of childLedgers) ledger.restore()
   }
 }
 
@@ -362,7 +361,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         values: ['start', 'center', 'end'],
       },
     },
-    prepare: (el: Element, params: EffectParams) => deferredInstance(() => prepareSnap(el, params)),
+    prepare: (el, params, ctx) => deferredInstance(() => prepareSnap(el, params, ctx)),
     perfClass: 'layout',
   }),
 ]

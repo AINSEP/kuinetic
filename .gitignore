@@ -5,3 +5,4 @@ coverage/
 .DS_Store
 demo/designimation.js
 demo/designimation.css
+.artifacts/

@@ -176,8 +176,13 @@ function buildPlan(
       : [...primitive.supportedActivations]
     warnUnsupportedTimeline(preset.name, primitive.supportedTimelines, timeline, warnings)
 
-    const authored = { ...preset.params, ...entry.spec.params }
-    Object.assign(plan.vars, resolveParams(authored, primitive.parameters, (m) => warnings.push(m)))
+    // Only the author's own overrides go inline. Preset defaults are emitted as cascade rules by
+    // `scripts/generate-preset-css.mjs`; writing them to element.style made them unoverridable by
+    // any consumer stylesheet, which contradicts the library's whole cascade promise.
+    Object.assign(
+      plan.vars,
+      resolveParams(entry.spec.params, primitive.parameters, (m) => warnings.push(m)),
+    )
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry)
     else plan.jsEffects.push(entry)

@@ -52,8 +52,8 @@ function springFrom(params: EffectParams): SpringConfig {
 }
 
 /** Write a translation without touching the `transform` shorthand, so channels stay honest. */
-function writeOffset(node: HTMLElement, x: number, y: number): void {
-  node.style.translate = `${x.toFixed(2)}px ${y.toFixed(2)}px`
+function writeOffset(ctx: PrepareContext, x: number, y: number): void {
+  ctx.style.set('translate', `${x.toFixed(2)}px ${y.toFixed(2)}px`)
 }
 
 interface DragRunners {
@@ -71,7 +71,6 @@ interface DragRunners {
  * @overallScore 100
  */
 function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const node = el as HTMLElement
   const config = springFrom(params)
   const bounds = params.num('bounds', 0)
   const returns = params.is('return')
@@ -87,7 +86,7 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   function write(next: { x: number; y: number }): void {
     offset.x = next.x
     offset.y = next.y
-    writeOffset(node, offset.x, offset.y)
+    writeOffset(ctx, offset.x, offset.y)
   }
 
   const stopRecognising = recognise(
@@ -115,7 +114,6 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
     stopRecognising()
     runners.x.stop()
     runners.y.stop()
-    node.style.removeProperty('translate')
     el.removeAttribute('data-dsg-dragging')
   }
 }
@@ -225,11 +223,11 @@ function prepareMagnetic(el: Element, params: EffectParams, ctx: PrepareContext)
   const offset = { x: 0, y: 0 }
   const runnerX = createSpringRunner(config, (value) => {
     offset.x = value
-    writeOffset(node, offset.x, offset.y)
+    writeOffset(ctx, offset.x, offset.y)
   }, deps)
   const runnerY = createSpringRunner(config, (value) => {
     offset.y = value
-    writeOffset(node, offset.x, offset.y)
+    writeOffset(ctx, offset.x, offset.y)
   }, deps)
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -247,7 +245,6 @@ function prepareMagnetic(el: Element, params: EffectParams, ctx: PrepareContext)
     ctx.win.removeEventListener('pointermove', onPointerMove as EventListener)
     runnerX.stop()
     runnerY.stop()
-    node.style.removeProperty('translate')
   }
 }
 

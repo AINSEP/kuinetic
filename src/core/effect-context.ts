@@ -1,4 +1,5 @@
 import type { Capabilities } from './capabilities.js'
+import type { StyleLedger } from './owned-styles.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
 
 /**
@@ -38,4 +39,12 @@ export interface PrepareContext {
   reducedMotion: boolean
   /** Aborted on teardown, so a primitive can pass it straight to `addEventListener`. */
   signal: AbortSignal
+  /**
+   * Ledger for this element's inline style.
+   *
+   * Primitives must write through it rather than touching `element.style` directly. Several were
+   * previously *removing* properties on teardown — `translate`, `scroll-snap-align` — that the
+   * consumer had set themselves and the library never owned.
+   */
+  style: StyleLedger
 }

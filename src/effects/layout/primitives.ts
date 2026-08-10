@@ -73,8 +73,7 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
  */
 function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
-  const previousOverflow = node.style.overflow
-  node.style.overflow = 'hidden'
+  ctx.style.set('overflow', 'hidden')
 
   const duration = params.ms('duration', 400)
   let animation: Animation | null = null
@@ -89,8 +88,6 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
   return () => {
     observer()
     animation?.cancel()
-    node.style.overflow = previousOverflow
-    node.style.removeProperty('height')
   }
 }
 
@@ -124,6 +121,7 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
   const node = el as HTMLElement
   const engine = createFlipEngine()
   const selector = params.text('follow')
+  let currentShift = 0
 
   const move = (): void => {
     if (!selector) return
@@ -132,8 +130,13 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
 
     const before = engine.snapshot([node])
     const box = target.getBoundingClientRect()
-    node.style.width = `${box.width}px`
-    node.style.translate = `${box.left}px 0`
+    const current = node.getBoundingClientRect()
+    // Translate by the *delta*, not the target's viewport x. Writing an absolute coordinate as a
+    // relative transform overshot by the indicator's own starting offset.
+    const shift = box.left - current.left + currentShift
+    currentShift = shift
+    ctx.style.set('width', `${box.width}px`)
+    ctx.style.set('translate', `${shift}px 0`)
     engine.play(before, [node], {
       durationMs: params.ms('duration', 400),
       easing: params.text('ease'),
@@ -144,11 +147,7 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
   const stop = watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
   move()
 
-  return () => {
-    stop()
-    node.style.removeProperty('width')
-    node.style.removeProperty('translate')
-  }
+  return stop
 }
 
 /**

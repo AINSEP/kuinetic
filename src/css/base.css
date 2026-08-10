@@ -4,7 +4,7 @@
  * Cascade layers mean a consuming site's own CSS wins without `!important` wars. Keep every
  * library rule inside `dsg.*`; never emit a bare top-level rule.
  */
-@layer dsg.tokens, dsg.effects, dsg.policy;
+@layer dsg.tokens, dsg.presets, dsg.effects, dsg.policy;
 
 @layer dsg.tokens {
   :root {
@@ -34,12 +34,14 @@
 
 @layer dsg.policy {
   /*
-   * Opt-in cloak. Applies ONLY while the root carries `data-dsg-cloak`, which the runtime
-   * removes on start and a watchdog removes on failure. If the script never loads, the
-   * attribute has to have been authored by hand — so the default path is fail-open and the
-   * page is always readable.
+   * Opt-in cloak, twice over: the root must carry `data-dsg-cloak` AND the element must be
+   * marked `data-dsg-reveal`. Cloaking every effect hid tilt targets, counters, pinned sections,
+   * and drag handles — none of which have a from-state worth hiding.
+   *
+   * The runtime removes the root attribute on start, and a watchdog removes it if start stalls,
+   * so a failed or slow initialisation cannot leave a page blank.
    */
-  html[data-dsg-cloak] [data-dsg]:not([data-dsg-state]) {
+  html[data-dsg-cloak] [data-dsg][data-dsg-reveal]:not([data-dsg-state]) {
     opacity: 0 !important;
   }
 
@@ -71,7 +73,8 @@
   }
 
   @media print {
-    [data-dsg-fx] {
+    [data-dsg-fx],
+    [data-dsg-reveal] {
       animation: none !important;
       opacity: 1 !important;
       translate: none !important;

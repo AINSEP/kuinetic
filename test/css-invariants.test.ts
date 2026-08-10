@@ -123,7 +123,9 @@ describe('CSS keyframes', () => {
 
 describe('CSS layering', () => {
   it('declares the cascade layers so consumer CSS wins without !important', () => {
-    expect(SOURCES.get('base.css')).toContain('@layer dsg.tokens, dsg.effects, dsg.policy;')
+    expect(SOURCES.get('base.css')).toContain(
+      '@layer dsg.tokens, dsg.presets, dsg.effects, dsg.policy;',
+    )
   })
 
   it.each(EFFECT_FILES)('keeps every rule in %s inside the effects layer', (file) => {

@@ -10,6 +10,7 @@
  * Chromium is launched privately from the repo's own playwright-core; no browser of the
  * user's is touched.
  */
+import { mkdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
@@ -40,6 +41,9 @@ async function loadChromium() {
 }
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
+const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
+/** `--record` also captures video and a filmstrip so the animations can be watched, not inferred. */
+const RECORD = process.argv.includes('--record')
 
 const results = []
 function check(name, passed, detail = '') {
@@ -56,7 +60,17 @@ const animationsOf = (page, id) =>
 async function run() {
   const chromium = await loadChromium()
   const browser = await chromium.launch({ headless: true })
-  const page = await browser.newPage({ viewport: { width: 900, height: 700 } })
+
+  if (RECORD) {
+    rmSync(ARTIFACT_DIR, { recursive: true, force: true })
+    mkdirSync(ARTIFACT_DIR, { recursive: true })
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 900, height: 700 },
+    ...(RECORD ? { recordVideo: { dir: `${ARTIFACT_DIR}/video`, size: { width: 900, height: 700 } } } : {}),
+  })
+  const page = await context.newPage()
   const consoleErrors = []
   page.on('pageerror', (e) => consoleErrors.push(String(e)))
 
@@ -224,7 +238,11 @@ async function run() {
   check('no page errors after scroll, FLIP, and SVG interaction', consoleErrors.length === 0,
     consoleErrors.join(' | '))
 
+  await context.close()
   await browser.close()
+  if (RECORD) {
+    console.log(`\nvideo: ${ARTIFACT_DIR}/video/*.webm`)
+  }
 
   const failed = results.filter((r) => !r.passed)
   console.log(`\n${results.length - failed.length}/${results.length} browser checks passed`)

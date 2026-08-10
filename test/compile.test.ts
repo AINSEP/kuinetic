@@ -25,8 +25,10 @@ describe('compile — single effect', () => {
     expect(run('fade-up').declarations['animation-name']).toBe('dsg-in-up')
   })
 
-  it('carries preset defaults into custom properties', () => {
-    expect(run('slide-up').vars).toMatchObject({ '--dsg-distance': '100px' })
+  it('does NOT inline preset defaults, so consumer CSS can override them', () => {
+    // Preset defaults are emitted as cascade rules by scripts/generate-preset-css.mjs. Writing
+    // them to element.style made them beat every consumer stylesheet.
+    expect(run('slide-up').vars).toEqual({})
   })
 
   it('lets an author override a preset default', () => {
@@ -58,7 +60,7 @@ describe('compile — single effect', () => {
   it('scopes timing properties per primitive so composed effects cannot bleed', () => {
     // pop-in sets ease:back-out. Sharing one --dsg-ease meant blur-in silently inherited it,
     // even though their channels are disjoint and composition was therefore allowed.
-    const plan = run('pop-in, blur-in')
+    const plan = run('pop-in ease:back-out, blur-in')
     expect(plan.vars['--dsg-scale-ease']).toBe('back-out')
     expect(plan.declarations['animation-timing-function']).toBe(
       'var(--dsg-scale-ease, ease-out), var(--dsg-blur-ease, ease-out)',

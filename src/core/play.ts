@@ -35,17 +35,29 @@ function time(value: string | number | undefined): string | undefined {
   return typeof value === 'number' ? `${value}ms` : value
 }
 
+/** Values containing whitespace must be quoted or the tokenizer splits them into garbage. */
+function quoteIfNeeded(value: string): string {
+  return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value
+}
+
 /** Options object → the same attribute string an author would write. One execution path. */
 export function toAttributeValue(effect: string, options: PlayOptions = {}): string {
   const { duration, delay, ease, ...rest } = options
+  // `stagger` is element-scoped and applied as a custom property; leaving it in `rest` emitted
+  // it as a bogus effect parameter and warned.
+  delete rest.stagger
+
   const parts = [effect]
-  const d = time(duration)
-  const dl = time(delay)
-  if (d) parts.push(d)
-  if (dl) parts.push(dl)
+  const resolvedDelay = time(delay)
+  // Positional times are ordered duration-then-delay, so a delay with no duration must still
+  // emit a duration token — otherwise the parser reads the delay AS the duration.
+  const resolvedDuration = time(duration) ?? (resolvedDelay ? '0ms' : undefined)
+  if (resolvedDuration) parts.push(resolvedDuration)
+  if (resolvedDelay) parts.push(resolvedDelay)
   if (ease) parts.push(ease)
+
   for (const [key, value] of Object.entries(rest)) {
-    if (value !== undefined) parts.push(`${key}:${value}`)
+    if (value !== undefined) parts.push(`${key}:${quoteIfNeeded(String(value))}`)
   }
   return parts.join(' ')
 }
@@ -73,57 +85,38 @@ export function play(request: PlayRequest, options: PlayOptions = {}): PlaybackH
   const { animator, root, target, effect } = request
   const elements = resolveTargets(target, root)
   const stagger = time(options.stagger)
+  const source = toAttributeValue(effect, options)
 
   for (const [index, el] of elements.entries()) {
     if (stagger) {
       ;(el as HTMLElement).style.setProperty('--dsg-stagger', stagger)
       ;(el as HTMLElement).style.setProperty('--dsg-i', String(index))
     }
+    // Replay: `process()` short-circuits on an unchanged configuration, so playing the same
+    // effect twice was a silent no-op without an explicit reset.
+    animator.reset(el)
     el.setAttribute(ATTR.on, 'manual')
-    el.setAttribute(ATTR.source, toAttributeValue(effect, options))
+    el.setAttribute(ATTR.source, source)
     animator.process(el)
     animator.activate(el)
   }
 
-  let settled = false
-  const finished = Promise.all(elements.map(waitForAnimations)).then(() => {
-    settled = true
-  })
+  // Every renderer exposes the same lifecycle handle, so a JS-driven effect is awaited and
+  // cancelled exactly like a CSS one. Reading `getAnimations()` returned [] for JS effects, so
+  // `finished` resolved immediately and `cancel()` did nothing.
+  const instancesOf = (el: Element) => animator.stateOf(el)?.instances ?? []
+  const finished = Promise.all(
+    elements.flatMap((el) => instancesOf(el).map((instance) => instance.finished)),
+  ).then(() => undefined)
 
   return {
     elements,
     finished,
     cancel() {
-      if (settled) return
-      for (const el of elements) {
-        for (const animation of getAnimations(el)) animation.cancel()
-        el.setAttribute(ATTR.state, 'finished')
-      }
+      for (const el of elements) for (const instance of instancesOf(el)) instance.cancel()
     },
     finish() {
-      if (settled) return
-      for (const el of elements) {
-        for (const animation of getAnimations(el)) animation.finish()
-        el.setAttribute(ATTR.state, 'finished')
-      }
+      for (const el of elements) for (const instance of instancesOf(el)) instance.finish()
     },
   }
-}
-
-function getAnimations(el: Element): Animation[] {
-  const fn = (el as Element & { getAnimations?: () => Animation[] }).getAnimations
-  return typeof fn === 'function' ? fn.call(el) : []
-}
-
-/**
- * `animationend` is not a correctness mechanism — it does not fire after cancel, removal, or
- * some reduced-motion paths. Await the WAAPI promises instead, and treat cancellation as
- * resolution rather than rejection so callers are not forced into try/catch.
- */
-function waitForAnimations(el: Element): Promise<void> {
-  const animations = getAnimations(el)
-  if (animations.length === 0) return Promise.resolve()
-  return Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => {
-    el.setAttribute(ATTR.state, 'finished')
-  })
 }
