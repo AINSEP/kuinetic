@@ -101,19 +101,22 @@ the failing assertion, by attaching a capturing `document`-level `pointerup` lis
 
 **Reproduction:** `test/browser/gestures.test.mjs`, `checkElasticPull` and `checkSwipe`.
 
-- `elastic-pull`: mid-drag `translate=55.56px` (correctly resisted from a raw 150px pointer
-  delta — the primitive's own math is fine). After a real `page.mouse.up()`:
-  `data-dsg-dragging` stays `"true"` forever; `translate` never moves toward `0` even after an
-  800ms wait for the spring return that should have started.
+- `elastic-pull`: resistance grows correctly throughout the drag (burst-sampled at four points —
+  `38.1px` → `51.61px` → `56.11px` → `56.11px` against raw pointer deltas of `40/80/115/150px` —
+  the primitive's own math is fine). After a real `page.mouse.up()`: `data-dsg-dragging` stays
+  `"true"` forever, and an 8-point burst sample across the full 800ms spring-settle window shows
+  `translate.x` magnitude **frozen at exactly `56.1px` for all eight samples** — not merely "didn't
+  reach 0 yet", but provably never moved at all, because the spring's `.to(0)` call that should
+  have started it never ran.
 - `swipe`: after a fast real flick (4 moves × 30px over ~60ms, ≈2000px/s, well above the 300px/s
   `swipeVelocity` default), `data-dsg-swipe` stays `null`.
 
 **Frames:**
-`.artifacts/frames/gestures/04-elastic-mid-resisted.png` (correct resistance, mid-drag),
-`.artifacts/frames/gestures/05-elastic-settled-at-origin.png` (proves it did *not* settle — the
-chip is still displaced, not back at its start position),
-`.artifacts/frames/gestures/06-swipe-detected.png` (no visual change; the swipe was never
-recognised).
+`.artifacts/frames/gestures/07..10-elastic-resisted-*-of-4-*.png` (correct resistance, growing
+across the drag), `.artifacts/frames/gestures/11..18-elastic-spring-return-*-of-8-at-*pct.png` (the
+full 800ms burst — a static chip across all eight frames proves it did *not* settle, not just that
+the last one looked wrong), `.artifacts/frames/gestures/19-swipe-detected.png` (no visual change;
+the swipe was never recognised).
 
 **Likely fix shape (not implemented here):** call `el.setPointerCapture(event.pointerId)` in
 `onDown`, and `el.releasePointerCapture(event.pointerId)` (guarded, since capture can already be
