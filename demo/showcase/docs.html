@@ -55,7 +55,9 @@
 
         var body = document.getElementById('doc-body')
         try {
-          var res = await fetch('/docs/' + doc + '.md')
+          // no-store: this fetches whatever's on disk right now. Docs get edited independently of
+          // any page reload the browser considers "fresh enough" to skip revalidating.
+          var res = await fetch('/docs/' + doc + '.md', { cache: 'no-store' })
           if (!res.ok) throw new Error('HTTP ' + res.status)
           var text = await res.text()
           body.innerHTML = window.renderMarkdown(text)
