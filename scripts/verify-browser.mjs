@@ -10,39 +10,19 @@
  * Chromium is launched privately from the repo's own playwright-core; no browser of the
  * user's is touched.
  */
-import { mkdirSync, rmSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-
-/**
- * Resolve Playwright without hardcoding a path outside the repository.
- *
- * Preference order: an installed `playwright-core`, then `playwright`, then an explicit
- * `PLAYWRIGHT_MODULE` override. Hardcoding an absolute path made this harness unrunnable on any
- * machine but one, which is not a usable quality gate for a public library.
- */
-async function loadChromium() {
-  const require = createRequire(import.meta.url)
-  const candidates = [process.env.PLAYWRIGHT_MODULE, 'playwright-core', 'playwright'].filter(Boolean)
-
-  for (const candidate of candidates) {
-    try {
-      const resolved = candidate.startsWith('/') ? candidate : require.resolve(candidate)
-      const mod = await import(candidate.startsWith('/') ? `file://${resolved}` : candidate)
-      if (mod.chromium) return mod.chromium
-    } catch {
-      // try the next candidate
-    }
-  }
-  throw new Error(
-    'Playwright not found. Install `playwright-core` and its Chromium, or set PLAYWRIGHT_MODULE ' +
-      'to an absolute path to a Playwright entry point.',
-  )
-}
+import { createFrameRecorder, loadChromium } from './browser-harness.mjs'
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
 const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
-/** `--record` also captures video and a filmstrip so the animations can be watched, not inferred. */
+/**
+ * `--record` captures two forms of evidence: a continuous `.webm` video of the whole run (via
+ * Playwright's `recordVideo`) and a named PNG filmstrip, one frame per check, in
+ * `.artifacts/frames/verify-browser/`. The video is for a human to watch; the frames are for an
+ * agent to `Read` directly — a video file cannot be opened as an image, so without the frames the
+ * "watched, not inferred" claim only held for humans.
+ */
 const RECORD = process.argv.includes('--record')
 
 const results = []
@@ -50,6 +30,9 @@ function check(name, passed, detail = '') {
   results.push({ name, passed, detail })
   console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
 }
+
+/** No-op recorder for a normal (non-`--record`) run, so call sites never branch on `RECORD`. */
+const noopSnap = async () => undefined
 
 const opacityOf = (page, id) =>
   page.$eval(id, (el) => Number.parseFloat(getComputedStyle(el).opacity))
@@ -63,7 +46,6 @@ async function run() {
 
   if (RECORD) {
     rmSync(ARTIFACT_DIR, { recursive: true, force: true })
-    mkdirSync(ARTIFACT_DIR, { recursive: true })
   }
 
   const context = await browser.newContext({
@@ -73,6 +55,7 @@ async function run() {
   const page = await context.newPage()
   const consoleErrors = []
   page.on('pageerror', (e) => consoleErrors.push(String(e)))
+  const snap = RECORD ? createFrameRecorder(`${ARTIFACT_DIR}/frames/verify-browser`) : noopSnap
 
   await page.goto(PAGE_URL)
   await page.waitForFunction(() => window.__dsg !== undefined)
@@ -81,6 +64,7 @@ async function run() {
   const caps = await page.evaluate(() => window.__caps)
   console.log(`\nchromium capabilities: ${JSON.stringify(caps)}\n`)
   check('no page errors on boot', consoleErrors.length === 0, consoleErrors.join(' | '))
+  await snap(page, 'boot')
 
   // --- on:load runs without any trigger ------------------------------------------------
   await page.waitForTimeout(400)
@@ -89,6 +73,7 @@ async function run() {
     'on:load produced a real CSS animation',
     (await animationsOf(page, '#onload')).includes('dsg-zoom-in'),
   )
+  await snap(page, 'onload-final-state')
 
   // --- the from-state is genuinely held before activation ------------------------------
   // This is the claim jsdom cannot test at all: paused + fill-mode both == invisible.
@@ -102,6 +87,7 @@ async function run() {
     'off-screen reveal is marked ready',
     (await page.$eval('#reveal', (el) => el.getAttribute('data-dsg-state'))) === 'ready',
   )
+  await snap(page, 'reveal-held-before-activation')
 
   // --- scrolling into view starts it ----------------------------------------------------
   await page.$eval('#stage', (el) => el.scrollIntoView())
@@ -114,6 +100,7 @@ async function run() {
     'reveal reports finished once its animation ends',
     (await page.$eval('#reveal', (el) => el.getAttribute('data-dsg-state'))) === 'finished',
   )
+  await snap(page, 'reveal-after-scroll-into-view')
 
   // --- composition actually produces two parallel animations ---------------------------
   const composed = await animationsOf(page, '#composed')
@@ -123,6 +110,7 @@ async function run() {
     composed.join(', '),
   )
   check('composed element is fully visible', (await opacityOf(page, '#composed')) === 1)
+  await snap(page, 'composed-channels')
 
   // --- both effects survive; neither is silently replaced by a combo -------------------
   const combo = await animationsOf(page, '#combo')
@@ -131,6 +119,7 @@ async function run() {
     combo.includes('dsg-in-up') && combo.includes('dsg-blur-in'),
     combo.join(', '),
   )
+  await snap(page, 'combo-not-substituted')
 
   // --- parameters reach CSS, and dangerous ones do not ----------------------------------
   check(
@@ -141,6 +130,7 @@ async function run() {
     'rejected parameter is never written to the element',
     (await page.$eval('#rejected', (el) => el.style.getPropertyValue('--dsg-distance'))) === '',
   )
+  await snap(page, 'parameter-override-and-rejection')
 
   // --- stagger produces genuinely different computed delays ----------------------------
   const delays = await page.$$eval('#stagger li', (items) =>
@@ -151,6 +141,7 @@ async function run() {
     delays[0] === '0s' && delays[1] === '0.08s' && delays[2] === '0.16s',
     delays.join(', '),
   )
+  await snap(page, 'stagger-delays')
 
   // --- hover activation ------------------------------------------------------------------
   check(
@@ -158,6 +149,7 @@ async function run() {
     (await page.$eval('#hoverable', (el) => getComputedStyle(el).animationPlayState)) === 'paused' &&
       (await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))) === 'ready',
   )
+  await snap(page, 'hover-before-interaction')
   await page.hover('#hoverable')
   await page.waitForTimeout(300)
   const hoverState = await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))
@@ -166,6 +158,7 @@ async function run() {
     hoverState === 'running' || hoverState === 'finished',
     `state=${hoverState}`,
   )
+  await snap(page, 'hover-after-interaction')
 
   // --- v2: pinning ------------------------------------------------------------------------
   check(
@@ -177,6 +170,7 @@ async function run() {
     (await page.$eval('#pin-host [data-dsg-spacer]', (el) => el.getAttribute('aria-hidden'))) ===
       'true',
   )
+  await snap(page, 'pin-sticky-and-spacer')
 
   // scrollIntoView lands the container exactly at the top, which is progress 0 by definition —
   // the pin has to be scrolled *past* before it reports anything.
@@ -187,6 +181,7 @@ async function run() {
     Number.parseFloat(el.style.getPropertyValue('--dsg-progress')),
   )
   check('pin publishes real scroll progress', pinProgress > 0, `progress=${pinProgress}`)
+  await snap(page, 'pin-progress-after-scroll')
 
   // --- v2: scrollytelling -------------------------------------------------------------------
   await page.$eval('#story-host', (el) => el.scrollIntoView())
@@ -195,9 +190,11 @@ async function run() {
   await page.waitForTimeout(300)
   const step = await page.$eval('#story', (el) => el.getAttribute('data-dsg-step'))
   check('scrollytelling advances its step index', Number(step) > 0, `step=${step}`)
+  await snap(page, 'scrollytelling-step')
 
   // --- v2: FLIP ------------------------------------------------------------------------------
   // Reorder the list, then confirm a moved child is actually running an animation.
+  await snap(page, 'flip-before-reorder')
   const flipAnimations = await page.evaluate(async () => {
     const list = document.querySelector('#flip-list')
     list.prepend(document.querySelector('#card-c'))
@@ -205,6 +202,7 @@ async function run() {
     return document.querySelector('#card-a').getAnimations().length
   })
   check('FLIP animates a child displaced by a reorder', flipAnimations > 0, `${flipAnimations}`)
+  await snap(page, 'flip-after-reorder')
 
   // --- v2: SVG morph --------------------------------------------------------------------------
   const morphed = await page.evaluate(async () => {
@@ -219,6 +217,7 @@ async function run() {
     morphed.after !== morphed.before && morphed.after.startsWith('M'),
     `${morphed.before} -> ${morphed.after}`,
   )
+  await snap(page, 'svg-morph-after-hover')
 
   // --- reduced motion lands on the final state, never the from-state --------------------
   const reduced = await browser.newPage({ viewport: { width: 900, height: 700 } })
@@ -234,6 +233,7 @@ async function run() {
     reducedOpacity === 1,
     `opacity=${reducedOpacity}`,
   )
+  await snap(reduced, 'reduced-motion-final-state')
 
   check('no page errors after scroll, FLIP, and SVG interaction', consoleErrors.length === 0,
     consoleErrors.join(' | '))
@@ -242,6 +242,7 @@ async function run() {
   await browser.close()
   if (RECORD) {
     console.log(`\nvideo: ${ARTIFACT_DIR}/video/*.webm`)
+    console.log(`frames: ${ARTIFACT_DIR}/frames/verify-browser/*.png`)
   }
 
   const failed = results.filter((r) => !r.passed)
