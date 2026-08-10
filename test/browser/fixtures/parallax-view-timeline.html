@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — parallax view()-timeline fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      .spacer-above {
+        height: 900px;
+      }
+      /*
+       * `overflow: clip`, not `hidden` — that is the whole fix under test. A `hidden` frame here
+       * would become the view-timeline's scroll-container ancestor instead of the document, and
+       * since the frame itself never scrolls, the timeline would freeze at whatever it computed on
+       * the first frame. See src/css/scroll.css's header comment and docs/live-testing-backlog.md D3.
+       */
+      .frame {
+        height: 400px;
+        width: 300px;
+        overflow: clip;
+        margin: 0 auto;
+        display: grid;
+        place-items: center;
+      }
+      .frame div {
+        width: 200px;
+        height: 200px;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+      }
+      .spacer-below {
+        height: 1600px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spacer-above"></div>
+    <div class="frame">
+      <div id="parallax" data-dsg="parallax-y distance:100px" data-dsg-timeline="view"></div>
+    </div>
+    <div class="spacer-below"></div>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>

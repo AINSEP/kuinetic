@@ -41,7 +41,13 @@
       .parallax-frame {
         position: relative;
         height: 70vh;
-        overflow: hidden;
+        /* Not `hidden`: any overflow value other than `visible`/`clip` makes this the nearest
+           scroll-container ancestor, which is what an `animation-timeline: view()` child measures
+           against. This frame never itself scrolls, so that reading would be a frozen constant
+           instead of the page's real scroll position. `clip` still clips the enlarged image but
+           does not establish a scroll container, so the timeline correctly falls through to the
+           document. See docs/live-testing-backlog.md D3. */
+        overflow: clip;
         border-radius: 14px;
         border: 1px solid var(--line);
         margin-top: 1.5rem;

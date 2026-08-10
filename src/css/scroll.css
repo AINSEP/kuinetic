@@ -4,6 +4,14 @@
  * These are driven by `animation-timeline`, not by a clock. Progress maps continuously to scroll
  * position, so they REVERSE as the user scrolls back — that is the defining difference from an
  * `on:enter` reveal and the reason the two are separate axes. See docs/design.md §5.
+ *
+ * TRAP: `animation-timeline: view()` resolves against the element's *nearest scroll-container
+ * ancestor* — any wrapper with `overflow: hidden`/`auto`/`scroll` qualifies, even one that never
+ * itself scrolls. Wrapping a parallax target in an `overflow: hidden` frame (a common pattern for
+ * clipping an enlarged image) makes that motionless frame the timeline's source instead of the
+ * document, so progress computes once and freezes. `overflow: clip` clips identically but does not
+ * establish a scroll container, so the timeline correctly falls through to the real scroller. See
+ * docs/live-testing-backlog.md D3.
  */
 @layer dsg.effects {
   @keyframes dsg-parallax-y {
