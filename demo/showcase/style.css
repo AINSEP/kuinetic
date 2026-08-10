@@ -54,9 +54,12 @@ header.site strong {
   text-transform: uppercase;
 }
 
+/* Wraps because the nav lists every showcase page — seven links plus the Docs dropdown overflow
+   a single row well before the viewport gets genuinely narrow. */
 header.site nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
   font-size: 0.9rem;
 }
 
