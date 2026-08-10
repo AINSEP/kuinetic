@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — demo</title>
+    <link rel="stylesheet" href="./designimation.css" />
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #14110f;
+        color: #f5efe8;
+      }
+      section {
+        padding: 3rem 2rem;
+      }
+      .spacer {
+        height: 130vh;
+        display: grid;
+        place-items: center;
+        color: #8a7f76;
+      }
+      .box {
+        width: 140px;
+        height: 90px;
+        margin: 1rem 0;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+        display: grid;
+        place-items: center;
+        font-size: 0.8rem;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        gap: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="spacer">scroll down</section>
+
+    <section id="stage">
+      <div id="onload" class="box" data-dsg="zoom-in 200ms on:load">on:load</div>
+      <div id="reveal" class="box" data-dsg="fade-up 400ms">fade-up</div>
+      <div id="composed" class="box" data-dsg="slide-up 400ms, blur-in 300ms">composed</div>
+      <div id="combo" class="box" data-dsg="fade-up 400ms, blur-in 300ms">combo preset</div>
+      <div id="override" class="box" data-dsg="fade-up 400ms distance:80px">override</div>
+      <div id="rejected" class="box" data-dsg="fade-up 400ms distance:url(http://evil.test)">
+        rejected param
+      </div>
+      <ul id="stagger" data-dsg-stagger="80ms">
+        <li class="box" data-dsg="fade-up 300ms">1</li>
+        <li class="box" data-dsg="fade-up 300ms">2</li>
+        <li class="box" data-dsg="fade-up 300ms">3</li>
+      </ul>
+      <div id="hoverable" class="box" data-dsg="zoom-in 200ms on:hover">on:hover</div>
+    </section>
+
+    <section class="spacer">end</section>
+
+    <script src="./designimation.js"></script>
+    <script>
+      window.__dsg = designimation
+        .designimation({ reporter: designimation.consoleReporter() })
+        .start()
+      window.__caps = designimation.detect()
+    </script>
+  </body>
+</html>

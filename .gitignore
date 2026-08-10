@@ -3,3 +3,5 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+demo/designimation.js
+demo/designimation.css
