@@ -19,6 +19,12 @@ function animationsOf(el: Element): Animation[] {
  * Gating is `animation-play-state` rather than a class toggle: `animation-fill-mode: both`
  * already holds the from-state, so there is no flash between compilation and activation.
  *
+ * A second `activate()` on an already-finished animation reverses playback instead of repeating
+ * the play-state write. The property write only matters on the paused-to-running edge, so writing
+ * the same value again is a no-op the browser silently ignores — which is what made click-gated
+ * two-state effects like a card flip look permanently stuck after their first activation. `.reverse()`
+ * toggles direction on top of whatever the CSS declared, so a third activation reverses again.
+ *
  * @param el - Element carrying the compiled animation.
  * @param ledger - Ledger owning the play-state write.
  * @returns A lifecycle handle over the element's CSS animations.
@@ -27,23 +33,32 @@ function animationsOf(el: Element): Animation[] {
  */
 export function createCssInstance(el: Element, ledger: StyleLedger): EffectInstance {
   let settle: (() => void) | undefined
-  const finished = new Promise<void>((resolve) => {
+  let finished = new Promise<void>((resolve) => {
     settle = resolve
   })
 
+  function watch(animations: Animation[]): void {
+    if (animations.length === 0) {
+      settle?.()
+      return
+    }
+    // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
+    // ordinary case of an effect being torn down.
+    void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle?.())
+  }
+
   return {
     activate() {
-      ledger.set('animation-play-state', 'running')
+      finished = new Promise((resolve) => {
+        settle = resolve
+      })
       const animations = animationsOf(el)
-      if (animations.length === 0) {
-        settle?.()
-        return
+      if (animations.some((a) => a.playState === 'finished')) {
+        for (const animation of animations) animation.reverse()
+      } else {
+        ledger.set('animation-play-state', 'running')
       }
-      // Cancellation resolves rather than rejects, so callers are not forced into try/catch for
-      // the ordinary case of an effect being torn down.
-      void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() =>
-        settle?.(),
-      )
+      watch(animations)
     },
     cancel() {
       for (const animation of animationsOf(el)) animation.cancel()
@@ -53,7 +68,9 @@ export function createCssInstance(el: Element, ledger: StyleLedger): EffectInsta
       for (const animation of animationsOf(el)) animation.finish()
       settle?.()
     },
-    finished,
+    get finished() {
+      return finished
+    },
     destroy() {
       settle?.()
     },
