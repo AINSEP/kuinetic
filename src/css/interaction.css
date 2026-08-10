@@ -1,0 +1,300 @@
+/*
+ * Hover and pointer effects (catalog section I).
+ *
+ * The button/border/link/icon families are ordinary native `:hover`/`:focus-visible` CSS —
+ * fully reversible for free, unlike the library's own `on:hover` activation (see
+ * `interaction.ts`'s file comment). Every `:hover` rule is scoped to
+ * `@media (hover: hover) and (pointer: fine)` so a tap on a touchscreen never leaves an element
+ * stuck "hovered" with no pointer to leave it; the matching `:focus-visible` rule is never scoped
+ * that way, so keyboard users reach the same state on every pointer type.
+ */
+@layer dsg.effects {
+  @property --dsg-border-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+  @property --dsg-border-pct {
+    syntax: '<percentage>';
+    inherits: false;
+    initial-value: 0%;
+  }
+
+  /* --- button family --- */
+
+  [data-dsg-fx~='lift'] {
+    transition: translate var(--dsg-lift-duration, 220ms) var(--dsg-lift-ease, ease-out);
+  }
+  [data-dsg-fx~='lift']:focus-visible {
+    translate: 0 -6px;
+  }
+
+  [data-dsg-fx~='lift-shadow'] {
+    transition:
+      translate var(--dsg-lift-shadow-duration, 220ms) var(--dsg-lift-shadow-ease, ease-out),
+      box-shadow var(--dsg-lift-shadow-duration, 220ms) var(--dsg-lift-shadow-ease, ease-out);
+  }
+  [data-dsg-fx~='lift-shadow']:focus-visible {
+    translate: 0 -6px;
+    box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
+  }
+
+  [data-dsg-fx~='shine-sweep'] {
+    position: relative;
+    overflow: hidden;
+  }
+  [data-dsg-fx~='shine-sweep']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.35) 50%, transparent 60%);
+    background-size: 220% 100%;
+    background-position: 120% 0;
+    pointer-events: none;
+  }
+  [data-dsg-fx~='shine-sweep']:focus-visible::after {
+    animation: dsg-shine-sweep var(--dsg-shine-sweep-duration, 700ms) var(--dsg-shine-sweep-ease, ease-out);
+  }
+  @keyframes dsg-shine-sweep {
+    from { background-position: 120% 0; }
+    to { background-position: -20% 0; }
+  }
+
+  /*
+   * A `transition` settling at 180deg would leave the face permanently edge-on/hidden by
+   * `backface-visibility: hidden` for as long as `:hover` matches — a full 360deg one-shot
+   * animation instead passes through that hidden midpoint and lands back face-front, reading as a
+   * single flap-and-return rather than a button that vanishes while hovered.
+   */
+  [data-dsg-fx~='split-flap'] {
+    display: inline-block;
+    perspective: 600px;
+    backface-visibility: hidden;
+  }
+  [data-dsg-fx~='split-flap']:focus-visible {
+    animation: dsg-split-flap var(--dsg-split-flap-duration, 600ms) var(--dsg-split-flap-ease, ease-in-out);
+  }
+  @keyframes dsg-split-flap {
+    from { rotate: x 0deg; }
+    to { rotate: x 360deg; }
+  }
+
+  /* --- border family --- */
+
+  [data-dsg-fx~='border-draw'] {
+    border: 2px solid transparent;
+    border-image-slice: 1;
+    border-image-source: conic-gradient(
+      from -90deg,
+      var(--dsg-border-draw-color, var(--accent, #d2691e)) 0 var(--dsg-border-pct, 0%),
+      transparent 0
+    );
+    transition: --dsg-border-pct var(--dsg-border-draw-duration, 500ms) var(--dsg-border-draw-ease, ease-out);
+  }
+  [data-dsg-fx~='border-draw']:focus-visible {
+    --dsg-border-pct: 100%;
+  }
+
+  [data-dsg-fx~='border-glow'] {
+    transition: box-shadow var(--dsg-border-glow-duration, 260ms) var(--dsg-border-glow-ease, ease-out);
+  }
+  [data-dsg-fx~='border-glow']:focus-visible {
+    box-shadow: 0 0 0 3px var(--dsg-border-glow-color, var(--accent, #d2691e));
+  }
+
+  [data-dsg-fx~='beam-border'] {
+    border: 2px solid transparent;
+    border-image-slice: 1;
+    border-image-source: conic-gradient(
+      from var(--dsg-border-angle, 0deg),
+      transparent 0% 70%,
+      var(--dsg-beam-border-color, var(--accent, #d2691e)) 85%,
+      transparent 100%
+    );
+  }
+  [data-dsg-fx~='beam-border']:focus-visible {
+    animation: dsg-beam-rotate var(--dsg-beam-border-duration, 1400ms) linear infinite;
+  }
+  @keyframes dsg-beam-rotate {
+    from { --dsg-border-angle: 0deg; }
+    to { --dsg-border-angle: 360deg; }
+  }
+
+  /* --- link family --- */
+
+  [data-dsg-fx~='underline-slide'] {
+    position: relative;
+    text-decoration: none;
+  }
+  [data-dsg-fx~='underline-slide']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.15em;
+    height: 0.08em;
+    background: currentcolor;
+    scale: 0 1;
+    transform-origin: left center;
+    transition: scale var(--dsg-underline-slide-duration, 260ms) var(--dsg-underline-slide-ease, ease-out);
+  }
+  [data-dsg-fx~='underline-slide']:focus-visible::after {
+    scale: 1 1;
+  }
+
+  [data-dsg-fx~='underline-center'] {
+    position: relative;
+    text-decoration: none;
+  }
+  [data-dsg-fx~='underline-center']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.15em;
+    height: 0.08em;
+    background: currentcolor;
+    scale: 0 1;
+    transform-origin: center;
+    transition: scale var(--dsg-underline-center-duration, 260ms) var(--dsg-underline-center-ease, ease-out);
+  }
+  [data-dsg-fx~='underline-center']:focus-visible::after {
+    scale: 1 1;
+  }
+
+  /* --- icon family --- */
+
+  [data-dsg-fx~='icon-wiggle']:focus-visible {
+    animation: dsg-icon-wiggle var(--dsg-icon-wiggle-duration, 500ms) var(--dsg-icon-wiggle-ease, ease-in-out);
+  }
+  @keyframes dsg-icon-wiggle {
+    0%, 100% { rotate: 0deg; }
+    20% { rotate: -12deg; }
+    40% { rotate: 10deg; }
+    60% { rotate: -6deg; }
+    80% { rotate: 4deg; }
+  }
+
+  [data-dsg-fx~='icon-spin']:focus-visible {
+    animation: dsg-icon-spin var(--dsg-icon-spin-duration, 700ms) linear;
+  }
+  @keyframes dsg-icon-spin {
+    from { rotate: 0deg; }
+    to { rotate: 360deg; }
+  }
+
+  [data-dsg-fx~='icon-bounce']:focus-visible {
+    animation: dsg-icon-bounce var(--dsg-icon-bounce-duration, 500ms) var(--dsg-icon-bounce-ease, ease-out);
+  }
+  @keyframes dsg-icon-bounce {
+    0%, 100% { translate: 0 0; }
+    30% { translate: 0 -7px; }
+    55% { translate: 0 1px; }
+    75% { translate: 0 -3px; }
+  }
+
+  /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
+     reach the identical state — grouped in one block so the two never drift apart. */
+  @media (hover: hover) and (pointer: fine) {
+    [data-dsg-fx~='lift']:hover { translate: 0 -6px; }
+    [data-dsg-fx~='lift-shadow']:hover {
+      translate: 0 -6px;
+      box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
+    }
+    [data-dsg-fx~='shine-sweep']:hover::after {
+      animation: dsg-shine-sweep var(--dsg-shine-sweep-duration, 700ms) var(--dsg-shine-sweep-ease, ease-out);
+    }
+    [data-dsg-fx~='split-flap']:hover {
+      animation: dsg-split-flap var(--dsg-split-flap-duration, 600ms) var(--dsg-split-flap-ease, ease-in-out);
+    }
+    [data-dsg-fx~='border-draw']:hover { --dsg-border-pct: 100%; }
+    [data-dsg-fx~='border-glow']:hover {
+      box-shadow: 0 0 0 3px var(--dsg-border-glow-color, var(--accent, #d2691e));
+    }
+    [data-dsg-fx~='beam-border']:hover {
+      animation: dsg-beam-rotate var(--dsg-beam-border-duration, 1400ms) linear infinite;
+    }
+    [data-dsg-fx~='underline-slide']:hover::after { scale: 1 1; }
+    [data-dsg-fx~='underline-center']:hover::after { scale: 1 1; }
+    [data-dsg-fx~='icon-wiggle']:hover {
+      animation: dsg-icon-wiggle var(--dsg-icon-wiggle-duration, 500ms) var(--dsg-icon-wiggle-ease, ease-in-out);
+    }
+    [data-dsg-fx~='icon-spin']:hover {
+      animation: dsg-icon-spin var(--dsg-icon-spin-duration, 700ms) linear;
+    }
+    [data-dsg-fx~='icon-bounce']:hover {
+      animation: dsg-icon-bounce var(--dsg-icon-bounce-duration, 500ms) var(--dsg-icon-bounce-ease, ease-out);
+    }
+  }
+
+  /* --- pointer-tracking family: JS writes the motion; this is presentation only --- */
+
+  [data-dsg-fx~='tilt-3d'],
+  [data-dsg-fx~='tilt-parallax'] {
+    transform-style: preserve-3d;
+  }
+
+  [data-dsg-fx~='cursor-spotlight']::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: var(--dsg-spotlight-opacity, 0);
+    transition: opacity 200ms ease-out;
+    background: radial-gradient(
+      circle 160px at var(--dsg-x, 50%) var(--dsg-y, 50%),
+      rgb(255 255 255 / 0.22),
+      transparent 70%
+    );
+  }
+
+  .dsg-cursor-dot {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 160ms ease-out;
+  }
+  .dsg-cursor-dot-active {
+    opacity: 1;
+  }
+
+  .dsg-cursor-dot-follow,
+  .dsg-cursor-dot-lag,
+  .dsg-cursor-dot-invert {
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: var(--accent, #d2691e);
+  }
+
+  .dsg-cursor-dot-invert {
+    background: #fff;
+    mix-blend-mode: difference;
+  }
+
+  .dsg-cursor-dot-label {
+    margin: -1.4em 0 0 -1.4em;
+    padding: 0.4em 0.8em;
+    border-radius: 999px;
+    background: var(--accent, #d2691e);
+    color: #fff;
+    font-size: 0.75rem;
+    font-family: ui-monospace, Menlo, monospace;
+    white-space: nowrap;
+  }
+
+  /* Coarse-pointer fallback for the JS-tier family: `prepare` itself no-ops on a coarse pointer
+     (see `supportsFineHover`), so nothing here ever activates on a touchscreen — this rule exists
+     only as a second, CSS-level guarantee that a dot can never be left painted on screen. */
+  @media (pointer: coarse) {
+    .dsg-cursor-dot {
+      display: none;
+    }
+  }
+}
