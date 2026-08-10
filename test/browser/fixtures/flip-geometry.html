@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — FLIP geometry fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #14110f;
+        color: #f5efe8;
+        padding: 2rem;
+      }
+      #list {
+        display: flex;
+        gap: 20px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .box {
+        width: 100px;
+        height: 60px;
+        display: grid;
+        place-items: center;
+        font-size: 1.5rem;
+        border-radius: 8px;
+      }
+      #a {
+        background: #d2691e;
+      }
+      #b {
+        background: #8b3a1a;
+      }
+      #c {
+        background: #b1592c;
+      }
+    </style>
+  </head>
+  <body>
+    <ul id="list" data-dsg="flip-reorder 400ms">
+      <li id="a" class="box">A</li>
+      <li id="b" class="box">B</li>
+      <li id="c" class="box">C</li>
+    </ul>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
