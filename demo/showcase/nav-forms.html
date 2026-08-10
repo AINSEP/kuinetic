@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — nav &amp; forms</title>
+    <script>
+      /* Resolve the theme synchronously, before any stylesheet paints — see theme.js for the
+         toggle-button mounting logic that runs later, once dataset.theme is already correct. */
+      ;(function () {
+        var KEY = 'designimation-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          } catch (e) {
+            theme = 'dark'
+          }
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
+    <link rel="stylesheet" href="../designimation.css" />
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      .demo-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        margin-top: 1.5rem;
+      }
+
+      .demo-block {
+        padding: 2rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .demo-block .tag {
+        margin-top: 0.7rem;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 0.78rem;
+        color: var(--dim);
+      }
+
+      .demo-box {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        padding: 1.25rem;
+        min-height: 90px;
+      }
+
+      .scroll-box {
+        height: 160px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        position: relative;
+      }
+
+      .scroll-box .filler {
+        padding: 0 1rem;
+        height: 500px;
+        color: var(--dim);
+        font-size: 0.85rem;
+      }
+
+      .mini-header {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding-block: 1.4rem;
+        padding-inline: 1rem;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        font-weight: 700;
+      }
+
+      /* --- navigation demo chrome --- */
+      .dsg-demo-menu {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .dsg-demo-menu li {
+        padding: 0.6rem 0.9rem;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .panel-trigger {
+        position: relative;
+        display: inline-block;
+      }
+
+      .panel {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        left: 0;
+        min-width: 200px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.75rem;
+        box-shadow: 0 12px 28px rgb(0 0 0 / 0.2);
+      }
+
+      .mega-panel {
+        min-width: 320px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+
+      .drawer-box {
+        height: 140px;
+        overflow: hidden;
+      }
+
+      .drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 55%;
+        background: var(--bg);
+        border-left: 1px solid var(--line);
+        padding: 1rem;
+      }
+
+      /* --- form demo chrome --- */
+      .field {
+        position: relative;
+        max-width: 280px;
+      }
+
+      .field input {
+        width: 100%;
+        font: inherit;
+        color: var(--ink);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.85rem 0.75rem 0.35rem;
+      }
+
+      .field input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .field label {
+        position: absolute;
+        left: 0.8rem;
+        top: 0.6rem;
+        color: var(--dim);
+        pointer-events: none;
+      }
+
+      .underline-field input {
+        border: none;
+        border-bottom: 2px solid var(--line);
+        border-radius: 0;
+        padding: 0.5rem 0.1rem;
+        background: none;
+      }
+
+      .dsg-underline {
+        margin-top: -2px;
+      }
+
+      .ring-field input {
+        border-radius: 8px;
+      }
+
+      .checkbox-row,
+      .radio-row,
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .checkbox-row svg {
+        width: 20px;
+        height: 20px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        stroke: var(--accent);
+        stroke-width: 2.5;
+        fill: none;
+      }
+
+      .radio-row .dsg-dot-frame {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        display: grid;
+        place-items: center;
+      }
+
+      .meter-field .dsg-meter {
+        display: flex;
+        gap: 4px;
+        margin-top: 0.5rem;
+      }
+
+      .meter-field .dsg-meter > * {
+        height: 5px;
+        flex: 1;
+        border-radius: 999px;
+      }
+
+      .steps-row {
+        display: flex;
+        gap: 0.5rem;
+        max-width: 260px;
+      }
+
+      .steps-row > * {
+        height: 6px;
+        flex: 1;
+        border-radius: 999px;
+      }
+
+      .submit-btn {
+        min-width: 130px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <strong>designimation</strong>
+      <nav>
+        <a href="./reveals.html">Reveals</a>
+        <a href="./scroll.html">Scroll</a>
+        <a href="./interactive.html">Interactive</a>
+        <a href="./text.html">Text</a>
+        <a href="./nav-forms.html" aria-current="page">Nav &amp; Forms</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1 data-dsg="fade-up 900ms">Chrome that moves with intent.</h1>
+        <p class="lede" data-dsg="fade-up 900ms 120ms">
+          Catalog sections M (navigation, 8 names) and O (forms &amp; inputs, 12 names). Both
+          respect the same boundary: this library animates the chrome you already control — it
+          never owns <code>aria-expanded</code>, focus trapping, or keyboard handling.
+        </p>
+      </section>
+
+      <h2>Navigation</h2>
+
+      <div class="demo-grid">
+        <div class="demo-block">
+          <div class="demo-box">
+            <ul class="dsg-demo-menu" data-dsg-stagger="90ms">
+              <li data-dsg="menu-stagger-open">Home</li>
+              <li data-dsg="menu-stagger-open">Products</li>
+              <li data-dsg="menu-stagger-open">Docs</li>
+              <li data-dsg="menu-stagger-open">Contact</li>
+            </ul>
+          </div>
+          <p class="tag">data-dsg="menu-stagger-open" on a data-dsg-stagger group — scroll to trigger</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="demo-box" style="min-height: 140px; display: flex; align-items: center">
+            <button type="button" data-dsg-menu-open>Open menu</button>
+            <div
+              class="panel"
+              style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: none"
+              data-dsg="menu-fullscreen"
+              data-dsg-on="manual"
+            >
+              Fullscreen menu content, clipped to the demo box.
+            </div>
+          </div>
+          <p class="tag">data-dsg="menu-fullscreen" — click "Open menu"</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="scroll-box">
+            <div class="mini-header" data-dsg="header-shrink offset:80">Mini header — scroll me</div>
+            <div class="filler">Scroll this box down. The header padding and type size shrink smoothly as you pass the first 80px, driven by a published `--dsg-shrink` progress value.</div>
+          </div>
+          <p class="tag">data-dsg="header-shrink offset:80" — scroll the box</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="scroll-box">
+            <div class="mini-header" data-dsg="header-hide-on-scroll">Mini header — scroll me</div>
+            <div class="filler">Scroll down to hide this header, scroll back up to bring it back. Direction, not just position, drives it.</div>
+          </div>
+          <p class="tag">data-dsg="header-hide-on-scroll" — scroll the box, then scroll back up</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="demo-box">
+            <span class="panel-trigger" data-dsg-hover-panel>
+              <button type="button">Account</button>
+              <span class="panel" data-dsg="dropdown-open 350ms" data-dsg-on="manual">
+                Profile<br />Settings<br />Sign out
+              </span>
+            </span>
+          </div>
+          <p class="tag">data-dsg="dropdown-open 350ms" — point at Account</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="demo-box">
+            <span class="panel-trigger" data-dsg-hover-panel>
+              <button type="button">Products</button>
+              <span class="panel mega-panel" data-dsg="mega-menu-drop" data-dsg-on="manual">
+                <span>Animation</span><span>Scroll</span><span>Gestures</span><span>3D</span>
+              </span>
+            </span>
+          </div>
+          <p class="tag">data-dsg="mega-menu-drop" — point at Products</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="demo-box drawer-box">
+            <button type="button" data-dsg-drawer-open>Open drawer</button>
+            <div class="drawer" data-dsg="drawer-slide" data-dsg-on="click" tabindex="0">Drawer content — click me to slide back out</div>
+          </div>
+          <p class="tag">data-dsg="drawer-slide" data-dsg-on="click" — click the drawer to slide it</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="scroll-box">
+            <div class="filler">Scroll this box down to reveal the "back to top" control in the corner.</div>
+            <div class="filler">Keep scrolling.</div>
+            <button
+              type="button"
+              class="dsg-replay-fab"
+              style="position: absolute; right: 0.75rem; bottom: 0.75rem; width: 40px; height: 40px"
+              data-dsg="back-to-top-fade offset:120"
+            >
+              ↑
+            </button>
+          </div>
+          <p class="tag">data-dsg="back-to-top-fade offset:120" — scroll the box</p>
+        </div>
+      </div>
+
+      <h2>Forms &amp; inputs</h2>
+
+      <div class="demo-grid">
+        <div class="demo-block">
+          <div class="field">
+            <input id="ff-name" placeholder=" " data-dsg="label-float" />
+            <label for="ff-name">Full name</label>
+          </div>
+          <p class="tag">data-dsg="label-float" — click into the field</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="field underline-field">
+            <input id="ff-email" placeholder="Email" data-dsg="input-underline-grow" />
+            <span class="dsg-underline"></span>
+          </div>
+          <p class="tag">data-dsg="input-underline-grow" — click into the field</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="field ring-field">
+            <input id="ff-focus" placeholder="Focus me" data-dsg="focus-ring-grow 350ms" />
+          </div>
+          <p class="tag">data-dsg="focus-ring-grow 350ms" — click into the field</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="field">
+            <input
+              id="ff-shake"
+              placeholder="Invalid value"
+              data-dsg="validate-shake 400ms"
+              data-dsg-on="click"
+              style="border-color: #c94f4f"
+            />
+          </div>
+          <p class="tag">data-dsg="validate-shake 400ms" data-dsg-on="click" — click the field</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="demo-box" style="min-height: 60px; display: flex; align-items: center">
+            <svg viewBox="0 0 24 24" data-dsg="validate-check 500ms" data-dsg-on="click" tabindex="0">
+              <path d="M4 12l5 5L20 6" />
+            </svg>
+            <span style="margin-left: 0.75rem; color: var(--dim)">Click the box to draw the check</span>
+          </div>
+          <p class="tag">data-dsg="validate-check 500ms" data-dsg-on="click"</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="field meter-field">
+            <input id="ff-strength" type="password" placeholder="Password" data-dsg="strength-meter" />
+            <div class="dsg-meter"><span></span><span></span><span></span><span></span></div>
+          </div>
+          <p class="tag">data-dsg="strength-meter" — type a password</p>
+        </div>
+
+        <div class="demo-block">
+          <label class="toggle-row">
+            <input type="checkbox" data-dsg="toggle-morph" />
+            <span class="dsg-track"><span class="dsg-thumb"></span></span>
+            Notifications
+          </label>
+          <p class="tag">data-dsg="toggle-morph" — click the switch</p>
+        </div>
+
+        <div class="demo-block">
+          <label class="checkbox-row">
+            <input type="checkbox" data-dsg="checkbox-draw" />
+            <svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6" /></svg>
+            Agree to terms
+          </label>
+          <p class="tag">data-dsg="checkbox-draw" — click the checkbox</p>
+        </div>
+
+        <div class="demo-block">
+          <div style="display: flex; gap: 1.5rem">
+            <label class="radio-row">
+              <input type="radio" name="dsg-radio-demo" data-dsg="radio-fill" />
+              <span class="dsg-dot-frame"><span class="dsg-dot"></span></span>
+              Monthly
+            </label>
+            <label class="radio-row">
+              <input type="radio" name="dsg-radio-demo" data-dsg="radio-fill" />
+              <span class="dsg-dot-frame"><span class="dsg-dot"></span></span>
+              Yearly
+            </label>
+          </div>
+          <p class="tag">data-dsg="radio-fill" — pick one</p>
+        </div>
+
+        <div class="demo-block">
+          <input type="range" min="0" max="100" value="40" data-dsg="range-fill" style="max-width: 260px" />
+          <p class="tag">data-dsg="range-fill" — drag the slider</p>
+        </div>
+
+        <div class="demo-block">
+          <button type="button" class="submit-btn" data-dsg="submit-to-spinner-to-check load:900ms hold:1200ms">
+            <span class="dsg-stage-idle">Submit</span>
+            <span class="dsg-stage-loading"><span class="dsg-spinner"></span> Sending…</span>
+            <span class="dsg-stage-done">✓ Done</span>
+          </button>
+          <p class="tag">data-dsg="submit-to-spinner-to-check load:900ms hold:1200ms" — click to submit</p>
+        </div>
+
+        <div class="demo-block">
+          <div class="steps-row" data-dsg="step-progress steps:4">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <p class="tag">data-dsg="step-progress steps:4" — click the bar to advance</p>
+        </div>
+      </div>
+
+      <div class="tall"></div>
+    </main>
+
+    <script src="../designimation.js"></script>
+    <script>
+      window.__dsg = designimation
+        .designimation({ observe: true, reporter: designimation.consoleReporter() })
+        .start()
+      document.querySelector('[data-dsg-drawer-open]')?.addEventListener('click', () => {
+        window.__dsg.play(document.querySelector('[data-dsg="drawer-slide"]'), 'drawer-slide')
+      })
+      document.querySelector('[data-dsg-menu-open]')?.addEventListener('click', () => {
+        window.__dsg.play(document.querySelector('[data-dsg="menu-fullscreen"]'), 'menu-fullscreen')
+      })
+      // dropdown-open / mega-menu-drop: `on:hover` binds pointerenter on the *same* element, but
+      // the panel sits outside the trigger button's own box (it drops down below it), so the
+      // button never sees the panel's hover state. Play it explicitly from the wrapper instead —
+      // the same `.play()` the "Programmatic API" section of interactive.html demonstrates.
+      for (const wrapper of document.querySelectorAll('[data-dsg-hover-panel]')) {
+        const panel = wrapper.querySelector('[data-dsg]')
+        wrapper.addEventListener('mouseenter', () => {
+          window.__dsg.play(panel, panel.getAttribute('data-dsg'))
+        })
+      }
+    </script>
+    <script src="./theme.js"></script>
+    <script src="./docs-nav.js"></script>
+    <script src="./replay.js"></script>
+  </body>
+</html>

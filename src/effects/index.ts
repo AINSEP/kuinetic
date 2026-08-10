@@ -1,7 +1,9 @@
 import { Registry } from '../core/registry.js'
 import { registerCatalog } from './catalog/index.js'
+import { registerForms } from './forms/index.js'
 import { registerGestures } from './gestures/index.js'
 import { registerLayout } from './layout/index.js'
+import { registerNavigation } from './navigation/index.js'
 import { registerScrollMechanics } from './scroll-mechanics/index.js'
 import { registerSvg } from './svg/index.js'
 import { registerThreeD } from './three-d/index.js'
@@ -43,5 +45,7 @@ export function createRegistry(): Registry {
   registerGestures(registry)
   registerThreeD(registry)
   registerCatalog(registry)
+  registerNavigation(registry)
+  registerForms(registry)
   return registry
 }

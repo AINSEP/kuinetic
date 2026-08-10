@@ -1,0 +1,213 @@
+/*
+ * Form and input effects (catalog section O).
+ *
+ * The native-state group (label-float, input-underline-grow, toggle-morph, checkbox-draw,
+ * radio-fill) assumes one DOM shape: the `data-dsg` form control, immediately followed by the
+ * element it drives, as a sibling. That is the whole contract — `:focus`/`:checked`/
+ * `:not(:placeholder-shown)` on the control plus a general sibling combinator, no JS at all.
+ */
+@layer dsg.effects {
+  /* --- label-float: input immediately followed by its <label> --- */
+  [data-dsg-fx~='label-float'] ~ label {
+    transition: translate 180ms ease-out, scale 180ms ease-out;
+    transform-origin: left center;
+  }
+
+  [data-dsg-fx~='label-float']:focus ~ label,
+  [data-dsg-fx~='label-float']:not(:placeholder-shown) ~ label {
+    translate: 0 -1.35rem;
+    scale: 0.82;
+  }
+
+  /* --- input-underline-grow: input immediately followed by a `.dsg-underline` span --- */
+  [data-dsg-fx~='input-underline-grow'] ~ .dsg-underline {
+    display: block;
+    height: 2px;
+    background: currentColor;
+    scale: 0 1;
+    transform-origin: left center;
+    transition: scale 220ms ease-out;
+  }
+
+  [data-dsg-fx~='input-underline-grow']:focus ~ .dsg-underline {
+    scale: 1 1;
+  }
+
+  /* --- focus-ring-grow: css-keyframes, triggered by the library's own on:focus activation --- */
+  @keyframes dsg-focus-ring-grow {
+    from {
+      box-shadow: 0 0 0 0 var(--dsg-ring-color, rgb(210 105 30 / 0.55));
+    }
+    to {
+      box-shadow: 0 0 0 5px var(--dsg-ring-color, rgb(210 105 30 / 0.55));
+    }
+  }
+
+  /* --- validate-shake / validate-check: css-keyframes, author-triggered on validation --- */
+  @keyframes dsg-validate-shake {
+    10%,
+    90% {
+      translate: -1px 0;
+    }
+    20%,
+    80% {
+      translate: 2px 0;
+    }
+    30%,
+    50%,
+    70% {
+      translate: -4px 0;
+    }
+    40%,
+    60% {
+      translate: 4px 0;
+    }
+  }
+
+  [data-dsg-fx~='validate-check'] {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+  }
+
+  @keyframes dsg-validate-check {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* --- strength-meter: input immediately followed by a `.dsg-meter` of segment children --- */
+  [data-dsg-fx~='strength-meter'] ~ .dsg-meter > * {
+    background: var(--dsg-meter-off, currentColor);
+    opacity: 0.2;
+    transition: opacity 200ms ease-out, background-color 200ms ease-out;
+  }
+
+  [data-dsg-fx~='strength-meter'][data-dsg-strength-level='1'] ~ .dsg-meter > *:nth-child(-n + 1),
+  [data-dsg-fx~='strength-meter'][data-dsg-strength-level='2'] ~ .dsg-meter > *:nth-child(-n + 2),
+  [data-dsg-fx~='strength-meter'][data-dsg-strength-level='3'] ~ .dsg-meter > *:nth-child(-n + 3),
+  [data-dsg-fx~='strength-meter'][data-dsg-strength-level='4'] ~ .dsg-meter > *:nth-child(-n + 4) {
+    opacity: 1;
+    background: var(--dsg-meter-on, #2e9e5b);
+  }
+
+  /* --- toggle-morph: checkbox immediately followed by a `.dsg-track` containing a `.dsg-thumb` --- */
+  [data-dsg-fx~='toggle-morph'] ~ .dsg-track {
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--dim, #9a8d80);
+    transition: background-color 200ms ease-out;
+    position: relative;
+  }
+
+  [data-dsg-fx~='toggle-morph'] ~ .dsg-track .dsg-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    translate: 0 0;
+    transition: translate 200ms ease-out;
+  }
+
+  [data-dsg-fx~='toggle-morph']:checked ~ .dsg-track {
+    background: var(--accent, #d2691e);
+  }
+
+  [data-dsg-fx~='toggle-morph']:checked ~ .dsg-track .dsg-thumb {
+    translate: 18px 0;
+  }
+
+  /* --- checkbox-draw: checkbox immediately followed by an inline <svg><path> checkmark --- */
+  [data-dsg-fx~='checkbox-draw'] ~ svg path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    transition: stroke-dashoffset 220ms ease-out;
+  }
+
+  [data-dsg-fx~='checkbox-draw']:checked ~ svg path {
+    stroke-dashoffset: 0;
+  }
+
+  /* --- radio-fill: radio immediately followed by a `.dsg-dot` --- */
+  [data-dsg-fx~='radio-fill'] ~ .dsg-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent, #d2691e);
+    scale: 0;
+    transition: scale 180ms ease-out;
+  }
+
+  [data-dsg-fx~='radio-fill']:checked ~ .dsg-dot {
+    scale: 1;
+  }
+
+  /* --- range-fill: filled track on the range input itself, via a self-painted gradient --- */
+  [data-dsg-fx~='range-fill'] {
+    --dsg-fill: 0%;
+    accent-color: var(--accent, #d2691e);
+    background: linear-gradient(
+      to right,
+      var(--accent, #d2691e) var(--dsg-fill, 0%),
+      var(--line, #2a2422) var(--dsg-fill, 0%)
+    );
+    height: 4px;
+    border-radius: 999px;
+    appearance: none;
+    outline: none;
+  }
+
+  /* --- submit-to-spinner-to-check: button with three inner states swapped by data-dsg-stage --- */
+  [data-dsg-fx~='submit-to-spinner-to-check'] .dsg-stage-idle,
+  [data-dsg-fx~='submit-to-spinner-to-check'] .dsg-stage-loading,
+  [data-dsg-fx~='submit-to-spinner-to-check'] .dsg-stage-done {
+    display: none;
+  }
+
+  [data-dsg-fx~='submit-to-spinner-to-check'][data-dsg-stage='idle'] .dsg-stage-idle,
+  [data-dsg-fx~='submit-to-spinner-to-check'][data-dsg-stage='loading'] .dsg-stage-loading,
+  [data-dsg-fx~='submit-to-spinner-to-check'][data-dsg-stage='done'] .dsg-stage-done {
+    display: inline-flex;
+  }
+
+  [data-dsg-fx~='submit-to-spinner-to-check'] .dsg-spinner {
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: dsg-spin 700ms linear infinite;
+  }
+
+  @keyframes dsg-spin {
+    to {
+      rotate: 360deg;
+    }
+  }
+
+  /* --- step-progress: container with N segment children, filled up to data-dsg-step --- */
+  [data-dsg-fx~='step-progress'] {
+    cursor: pointer;
+  }
+
+  [data-dsg-fx~='step-progress'] > * {
+    background: var(--dim, #9a8d80);
+    opacity: 0.35;
+    transition: opacity 200ms ease-out, background-color 200ms ease-out;
+  }
+
+  [data-dsg-fx~='step-progress'][data-dsg-step='0'] > *:nth-child(-n + 1),
+  [data-dsg-fx~='step-progress'][data-dsg-step='1'] > *:nth-child(-n + 2),
+  [data-dsg-fx~='step-progress'][data-dsg-step='2'] > *:nth-child(-n + 3),
+  [data-dsg-fx~='step-progress'][data-dsg-step='3'] > *:nth-child(-n + 4),
+  [data-dsg-fx~='step-progress'][data-dsg-step='4'] > *:nth-child(-n + 5),
+  [data-dsg-fx~='step-progress'][data-dsg-step='5'] > *:nth-child(-n + 6) {
+    opacity: 1;
+    background: var(--accent, #d2691e);
+  }
+}
