@@ -29,6 +29,11 @@
     <style>
       .text-grid {
         display: grid;
+        /* minmax(0, 1fr), not the implicit auto column: a grid item's automatic minimum size is
+           its content's max-content size unless overridden, so the marquee's intentionally
+           overwide (width: max-content) track was blowing this column — and the whole page —
+           out past the viewport instead of being clipped by .marquee-viewport's overflow:hidden. */
+        grid-template-columns: minmax(0, 1fr);
         gap: 0;
         margin-top: 1.5rem;
       }

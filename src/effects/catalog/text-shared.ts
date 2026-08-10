@@ -30,7 +30,11 @@ export interface SplitLayers {
  * @overallScore 100
  */
 export function installSplitLayers(el: Element, doc: Document): SplitLayers {
-  const originalText = el.textContent ?? ''
+  // Trimmed: authored HTML source formatting (indentation, line breaks around the text) lands in
+  // `textContent` as literal leading/trailing whitespace, which is insignificant to a reader but
+  // was not insignificant to `appendLineSpans` — a leading whitespace text node with no preceding
+  // element produced its own empty line bucket, rendered as a stray empty line.
+  const originalText = (el.textContent ?? '').trim()
   const decorative = doc.createElement('span')
   decorative.setAttribute('aria-hidden', 'true')
   decorative.className = DECORATIVE_CLASS
@@ -109,20 +113,32 @@ export function applyStaggerVars(el: HTMLElement, params: EffectParams): void {
 }
 
 /**
- * Split text into one span per grapheme cluster.
+ * Split text into one span per grapheme cluster, leaving whitespace graphemes as plain text nodes.
+ *
+ * A `display: inline-block` span whose only content is a single space renders at zero width — the
+ * lone space is both the first and last "character" of that box's own formatting context, so CSS
+ * whitespace collapsing trims it away entirely. Every word ran together until this skipped
+ * wrapping the space itself, the same way `appendWordSpans` already leaves inter-word whitespace
+ * unwrapped.
  *
  * @complexity O(n) time and space in grapheme count.
  * @overallScore 100
  */
 export function appendCharSpans(container: Element, doc: Document, text: string): HTMLElement[] {
   const spans: HTMLElement[] = []
-  segmentGraphemes(text).forEach((grapheme, index) => {
+  let index = 0
+  for (const grapheme of segmentGraphemes(text)) {
+    if (grapheme.trim() === '') {
+      container.append(doc.createTextNode(grapheme))
+      continue
+    }
     const span = doc.createElement('span')
     markItem(span, index)
     span.textContent = grapheme
     container.append(span)
     spans.push(span)
-  })
+    index++
+  }
   return spans
 }
 

@@ -55,9 +55,15 @@
     animation-name: dsg-split-reveal-down;
   }
 
+  /*
+   * No `overflow: hidden` here — `clip-path` already clips this element's own painted content
+   * without it, and per spec, `overflow` other than `visible` on an inline-block moves its
+   * baseline to its bottom margin edge instead of its text baseline. That shifted every word
+   * span down relative to any plain-text sibling (trailing punctuation, inter-word spaces)
+   * still using the real baseline — visible as a stray, oddly-placed period after "view.".
+   */
   [data-dsg-split-fx='mask'] .dsg-split-item {
     animation-name: dsg-split-reveal-mask;
-    overflow: hidden;
   }
 
   @keyframes dsg-split-reveal-fade {
