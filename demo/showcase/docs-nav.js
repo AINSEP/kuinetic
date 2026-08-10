@@ -11,12 +11,27 @@
  * client-side via markdown.js (a raw .md URL has no stylesheet, so a browser just dumps unstyled
  * plain text). Both the root-relative link and docs.html's own fetch() of docs/*.md require the
  * whole repo served from its root (`npm run showcase`, not `cd demo && python3 -m http.server`).
+ *
+ * On pointer/hover-capable devices the menu also opens/closes on hover; a click "pins" whatever
+ * state it produces so hover can't immediately reverse it — see the `pinned` comment inside
+ * `buildDropdown()`. Every dropdown (this one and the three in section-nav.js) registers into the
+ * shared `window.__dsgNavDropdowns` so opening any one of them closes all the others.
  */
 ;(function () {
   const LINKS = [
     { label: 'Catalog', href: '/demo/showcase/docs.html?doc=catalog' },
     { label: 'Architecture', href: '/demo/showcase/docs.html?doc=design' },
   ]
+
+  // Shared with section-nav.js — every showcase page loads both, and only one dropdown should
+  // ever be open at once. Each dropdown registers its own `close` here, so opening one can
+  // force-close every other regardless of which file built it.
+  window.__dsgNavDropdowns = window.__dsgNavDropdowns || []
+
+  // Hover open/close is desktop-only. Wiring it unconditionally would hit the classic touchscreen
+  // trap: first tap only fires the synthesized `:hover`/mouseenter, second tap is needed for the
+  // click.
+  const CAN_HOVER = window.matchMedia('(hover: hover) and (pointer: fine)').matches
 
   function buildDropdown() {
     const wrap = document.createElement('div')
@@ -42,18 +57,39 @@
       menu.appendChild(a)
     }
 
+    // Once a click has set the open/closed state explicitly, hover stops driving the menu until
+    // an outside click, Escape, or another trigger click changes it again. Without this, clicking
+    // the trigger and then moving the mouse into the menu (or away from it) would immediately
+    // flip the state right back via the hover handlers below.
+    let pinned = false
+
     function close() {
+      pinned = false
       menu.style.display = 'none'
       trigger.setAttribute('aria-expanded', 'false')
     }
     function open() {
+      for (const closeOther of window.__dsgNavDropdowns) {
+        if (closeOther !== close) closeOther()
+      }
       menu.style.display = 'flex'
       trigger.setAttribute('aria-expanded', 'true')
     }
+    window.__dsgNavDropdowns.push(close)
+
     trigger.addEventListener('click', (event) => {
       event.stopPropagation()
-      if (menu.style.display === 'none') open()
-      else close()
+      // Keyed off `pinned`, not raw `display` — a real mouse click is preceded by a real mouse
+      // move, which fires `mouseenter` and hover-opens the menu *before* the click event itself
+      // arrives. Toggling on `display` alone would see "already open" on that first click and
+      // immediately close what hover had just opened. Only a click on an already-pinned-open menu
+      // should close it; a click on a closed-or-merely-hovered menu should open and pin it.
+      if (pinned && menu.style.display !== 'none') {
+        close()
+      } else {
+        open()
+        pinned = true
+      }
     })
     document.addEventListener('click', (event) => {
       if (!wrap.contains(event.target)) close()
@@ -61,6 +97,14 @@
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') close()
     })
+    if (CAN_HOVER) {
+      wrap.addEventListener('mouseenter', () => {
+        if (!pinned) open()
+      })
+      wrap.addEventListener('mouseleave', () => {
+        if (!pinned) close()
+      })
+    }
 
     wrap.append(trigger, menu)
     return wrap

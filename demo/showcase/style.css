@@ -54,8 +54,10 @@ header.site strong {
   text-transform: uppercase;
 }
 
-/* Wraps because the nav lists every showcase page — seven links plus the Docs dropdown overflow
-   a single row well before the viewport gets genuinely narrow. */
+/* Four dropdown triggers (Docs + the 3 demo-page groups from section-nav.js) in a row; flex-wrap
+   is a safety net for in-between widths above the hamburger breakpoint below. Below that
+   breakpoint section-nav.js switches this to an absolutely-positioned panel and owns its
+   `display` entirely via inline style — see the toggle rules further down. */
 header.site nav {
   display: flex;
   flex-wrap: wrap;
@@ -101,6 +103,13 @@ header.site nav a:hover {
   color: var(--ink);
 }
 
+/* Marks the group containing the current page — set by section-nav.js alongside `aria-current`
+   on the matching link inside the menu. */
+.dsg-nav-dropdown-trigger.is-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .dsg-nav-dropdown-menu {
   position: absolute;
   top: calc(100% + 0.7rem);
@@ -127,6 +136,70 @@ header.site nav .dsg-nav-dropdown-menu a:hover,
 header.site nav .dsg-nav-dropdown-menu a:focus-visible {
   color: var(--ink);
   background: var(--bg);
+}
+
+/* Same specificity as `header.site nav a[aria-current='page']` above, but declared later — needs
+   its own class-qualified selector so it isn't silently lost to the color:dim rule right above,
+   which shares that same specificity and would otherwise win on source order. */
+header.site nav .dsg-nav-dropdown-menu a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.dsg-nav-toggle {
+  display: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  color: var(--dim);
+  background: none;
+  border: none;
+}
+
+.dsg-nav-toggle:hover,
+.dsg-nav-toggle[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+@media (max-width: 768px) {
+  .dsg-nav-toggle {
+    display: grid;
+    place-items: center;
+  }
+
+  /* Taken out of the header's flex row entirely — positioned relative to `header.site`, the
+     nearest positioned ancestor (`position: sticky` still establishes one). Only layout
+     properties live here; `display` stays exclusively JS-owned, see section-nav.js. */
+  header.site nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 1rem 1.5rem 1.5rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 16px 32px rgb(0 0 0 / 0.25);
+  }
+
+  header.site nav .dsg-nav-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  header.site nav .dsg-nav-dropdown-menu {
+    position: static;
+    box-shadow: none;
+    margin-top: 0.2rem;
+  }
+
+  header.site nav .dsg-nav-dropdown-menu a {
+    min-height: 44px;
+  }
 }
 
 main {
@@ -451,6 +524,62 @@ figure .dsg-show-code-toggle {
 
 .dsg-code-modal-close:hover {
   color: var(--ink);
+}
+
+.dsg-code-tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dsg-code-tryit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.dsg-code-tryit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dsg-code-tryit-copy,
+.dsg-code-tryit-apply,
+.dsg-code-tryit-reset {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.dsg-code-tryit-copy {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem;
+  color: var(--dim);
+}
+
+.dsg-code-tryit-copy.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.dsg-code-tryit-copy:hover,
+.dsg-code-tryit-apply:hover,
+.dsg-code-tryit-reset:hover {
+  color: var(--ink);
+  border-color: var(--accent);
 }
 
 .dsg-code-modal pre {
