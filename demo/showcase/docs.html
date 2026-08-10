@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — docs</title>
+    <script>
+      /* Resolve the theme synchronously, before any stylesheet paints — see theme.js for the
+         toggle-button mounting logic that runs later, once dataset.theme is already correct. */
+      ;(function () {
+        var KEY = 'designimation-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          } catch (e) {
+            theme = 'dark'
+          }
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
+    <link rel="stylesheet" href="../designimation.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="site">
+      <strong>designimation</strong>
+      <nav>
+        <a href="./reveals.html">Reveals</a>
+        <a href="./scroll.html">Scroll</a>
+        <a href="./interactive.html">Interactive</a>
+      </nav>
+    </header>
+
+    <main class="doc-main">
+      <nav class="doc-switch">
+        <a data-doc="catalog" href="?doc=catalog">Catalog</a>
+        <a data-doc="design" href="?doc=design">Architecture</a>
+      </nav>
+      <article id="doc-body" class="doc-body">Loading…</article>
+    </main>
+
+    <script src="./markdown.js"></script>
+    <script src="./theme.js"></script>
+    <script>
+      ;(async function () {
+        var params = new URLSearchParams(location.search)
+        var doc = params.get('doc') === 'design' ? 'design' : 'catalog'
+
+        document.querySelectorAll('.doc-switch a').forEach(function (a) {
+          if (a.dataset.doc === doc) a.setAttribute('aria-current', 'page')
+        })
+        document.title = 'designimation — ' + (doc === 'design' ? 'architecture' : 'catalog')
+
+        var body = document.getElementById('doc-body')
+        try {
+          var res = await fetch('/docs/' + doc + '.md')
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          var text = await res.text()
+          body.innerHTML = window.renderMarkdown(text)
+        } catch (err) {
+          body.textContent = 'Could not load docs/' + doc + '.md (' + err.message + ')'
+        }
+      })()
+    </script>
+    <script src="./docs-nav.js"></script>
+  </body>
+</html>

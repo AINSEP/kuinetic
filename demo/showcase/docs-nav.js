@@ -5,14 +5,17 @@
  * item. `demo/index.html` carries no showcase chrome at all (no header, no style.css), so there
  * it mounts a minimal standalone bar instead — see `mount()`.
  *
- * Links are root-relative (`/docs/...`) because they only resolve when the whole repo is served
- * from its root (`npm run showcase`, not `cd demo && python3 -m http.server`) — `demo/` alone has
- * no `docs/` subtree to serve.
+ * Links are root-relative (`/demo/showcase/docs.html`) because this script is shared by pages at
+ * two different depths (demo/showcase/*.html and demo/index.html) — a relative `./docs.html`
+ * would resolve differently depending on which page loaded it. docs.html renders docs/*.md
+ * client-side via markdown.js (a raw .md URL has no stylesheet, so a browser just dumps unstyled
+ * plain text). Both the root-relative link and docs.html's own fetch() of docs/*.md require the
+ * whole repo served from its root (`npm run showcase`, not `cd demo && python3 -m http.server`).
  */
 ;(function () {
   const LINKS = [
-    { label: 'Catalog', href: '/docs/catalog.md' },
-    { label: 'Architecture', href: '/docs/design.md' },
+    { label: 'Catalog', href: '/demo/showcase/docs.html?doc=catalog' },
+    { label: 'Architecture', href: '/demo/showcase/docs.html?doc=design' },
   ]
 
   function buildDropdown() {
