@@ -1,27 +1,20 @@
-# Build request: `designimation` — comprehensive catalog build-out + showcase + one bug fix
+# Build request: `designimation` — comprehensive catalog build-out + showcase + carousel
 
 This is a **build task**, not a review — you have full read/write access to this repo (`-C`
-points at `/Users/la/Programming/designimation`, git, branch `main`, currently clean). Commit
-incrementally as you go; only committed work survives. One logical unit of work per commit (e.g.
-one catalog section, or the bug fix, or the carousel) — don't batch unrelated changes into one
-commit.
+points at `/Users/la/Programming/designimation`, git, branch `main`, currently clean at whatever
+commit you observe — a separate fix is landing concurrently in `src/core/instances.ts` for an
+unrelated replay-animation bug, so `git pull`/re-check `git log` if you started before it landed;
+it won't conflict with anything below). Commit incrementally as you go; only committed work
+survives. One logical unit of work per commit (e.g. one catalog section, or the carousel) — don't
+batch unrelated changes into one commit.
 
 **Do NOT read `AGENTS.md`, `CLAUDE.md`, or `CONTEXT.md` anywhere on disk.**
 
-## Fix this first (small, unblocks nothing else, but do it before the big work)
-
-**D5 — the replay FAB doesn't work.** `demo/showcase/replay.js`'s `replayEveryEffect()` calls
-`anim.play(el, el.getAttribute('data-dsg'))` directly. `Animator.process()`
-(`src/core/animator.ts:181`) has a config-identity short-circuit —
-`if (existing?.fingerprint === fingerprint) return` — so replaying an already-installed effect
-with the same attribute value is a silent no-op. There is a dedicated method for this exact case,
-`Animator.reset(el)` (`src/core/animator.ts:352`), whose own doc comment says *"Needed for
-replay... playing the same effect twice was previously a no-op."* Fix `replayEveryEffect()` to
-call the reset/replay path before `play()` for each element (check whether `reset` is exposed on
-the public handle returned by `designimation()`/`createAnimator()` — if not, that's part of the
-fix too, since a demo page should only need the public API). Verify by actually clicking the FAB
-in a real browser (headless Chromium via the repo's own `playwright-core` is fine) and confirming
-an already-fired `on:load` effect visibly re-runs, not just that no error is thrown.
+**The replay-FAB bug (D5) is already being fixed by a separate, dedicated agent — it is NOT your
+job.** Don't touch `demo/showcase/replay.js`'s reset/replay logic or `src/core/instances.ts`'s
+CSS-animation-restart mechanism. If your showcase work needs the FAB present on new pages, just
+add the same `<script src="./replay.js"></script>` tag the existing pages use — the underlying
+mechanism being fixed elsewhere will apply to your new pages automatically once that lands.
 
 ## The main task
 
