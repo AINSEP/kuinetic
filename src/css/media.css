@@ -1,0 +1,59 @@
+/* Media and image effects (catalog section G). */
+@layer dsg.effects {
+  @keyframes dsg-wipe-up { from { clip-path: inset(100% 0 0); } }
+  @keyframes dsg-wipe-down { from { clip-path: inset(0 0 100%); } }
+  @keyframes dsg-wipe-left { from { clip-path: inset(0 100% 0 0); } }
+  @keyframes dsg-wipe-right { from { clip-path: inset(0 0 0 100%); } }
+  @keyframes dsg-wipe-circle { from { clip-path: circle(0 at 50% 50%); } }
+  @keyframes dsg-wipe-diagonal {
+    from { clip-path: polygon(0 0, 0 0, 0 0); }
+    to { clip-path: polygon(0 0, 200% 0, 0 200%); }
+  }
+  @keyframes dsg-curtain-reveal { from { clip-path: inset(0 50%); } }
+  @keyframes dsg-before-after-wipe { from { clip-path: inset(0 100% 0 0); } }
+
+  @keyframes dsg-mask-reveal {
+    from { mask-position: 100% 0; }
+    to { mask-position: 0 0; }
+  }
+
+  [data-dsg-fx~='mask-reveal'] {
+    mask-image: linear-gradient(90deg, #000 0 45%, transparent 55% 100%);
+    mask-size: 220% 100%;
+  }
+
+  @keyframes dsg-ken-burns {
+    from { scale: 1; translate: 0 0; }
+    to { scale: var(--dsg-to-scale, 1.12); translate: var(--dsg-distance, 24px) calc(var(--dsg-distance, 24px) * -0.5); }
+  }
+  @keyframes dsg-ken-burns-out {
+    from { scale: var(--dsg-to-scale, 1.12); translate: calc(var(--dsg-distance, 24px) * -1) 0; }
+    to { scale: 1; translate: 0 0; }
+  }
+  @keyframes dsg-blur-up {
+    from { translate: 0 var(--dsg-distance, 24px); filter: blur(16px); }
+    to { translate: 0 0; filter: blur(0); }
+  }
+  @keyframes dsg-duotone-hover {
+    from { filter: grayscale(1) sepia(0.7) hue-rotate(330deg) saturate(2); }
+    to { filter: none; }
+  }
+  @keyframes dsg-grayscale-hover { from { filter: grayscale(1); } to { filter: grayscale(0); } }
+  @keyframes dsg-saturate-hover { from { filter: saturate(0.45); } to { filter: saturate(1.35); } }
+  @keyframes dsg-image-parallax-frame {
+    from { translate: 0 calc(var(--dsg-distance, 24px) * -1); }
+    to { translate: 0 var(--dsg-distance, 24px); }
+  }
+  @keyframes dsg-lightbox-open {
+    from { opacity: 0; scale: 0.92; }
+    to { opacity: 1; scale: 1; }
+  }
+
+  @media (pointer: coarse) {
+    [data-dsg-fx~='duotone-hover']:active,
+    [data-dsg-fx~='grayscale-hover']:active,
+    [data-dsg-fx~='saturate-hover']:active {
+      filter: none;
+    }
+  }
+}
