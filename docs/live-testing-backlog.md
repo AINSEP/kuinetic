@@ -129,6 +129,20 @@ multi-point sampling (not a single check) on `demo/showcase/reveals.html`'s
   `src/core/instances.ts` (`createCssInstance`, same file D2 already touched) or wherever CSS-tier
   install/activate actually applies the animation properties.
 
+### D6. `flip-filter` never animates — `mutationWatcher` missing `subtree`
+
+- **Found by:** owner ("I dont think the FLIP layout transitions are working correctly. theres
+  no animation"), root-caused and fixed live.
+- **Source:** `src/core/flip.ts:227`, `mutationWatcher()`.
+- **Root cause:** the observer's `attributes`/`attributeFilter: ['hidden']` config was correct,
+  but `observer.observe(container, {...})` was missing `subtree: true` — without it, that half of
+  the config only applies to the container's own attributes, not descendants'. The filter demo
+  toggles `hidden` on each child `<figure>`, never on `#gallery` itself, so the observer's
+  callback never fired and no FLIP measure/animate cycle ran. `flip-reorder` worked already
+  because `childList` without `subtree` still catches direct children being added/removed.
+- **Fixed.** `f518391`. Verified live: 8 animations running mid-transition, figures genuinely
+  interpolating through intermediate positions rather than snapping straight to final.
+
 ## Feature requests (not defects)
 
 ### F1. "Replay all" FAB on showcase pages
@@ -161,6 +175,10 @@ A row of divs that cycles automatically on a timer, with a frosted/faded-white m
 (edge content fades toward white rather than hard-clipping). Likely composable from existing
 primitives — `mask-reveal` or a CSS gradient-mask for the frosted edges, `flip-filter`-style FLIP
 or a scroll/translate loop for the cycling — but needs design/build, not yet started.
+
+### F4. Light/dark mode toggle in the nav
+
+Top-right of the showcase nav, switches the whole page to a light color scheme. Not started.
 
 ## Not yet investigated live
 
