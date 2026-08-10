@@ -1,140 +1,159 @@
-# Handoff: designimation — defect-fix sprint done, review-fixes partway, catalog build-out barely started
+# Handoff: catalog build-out surged from 106/237 to 214/237, session restarting — pick up here
 
-Generated: 2026-08-10T17:39:44Z
-Source agent/session: Claude Sonnet 5, Claude Code, AI Dev Shop framework active (Coordinator, extensive direct + peer-dispatched work)
-Target: Claude Code, fresh session
+Generated: 2026-08-10T19:40:00Z
+Source: Claude Sonnet 5 (Claude Code), coordinating 3-4 concurrent subagents across this session
+Target: a fresh Claude Code session (this one is restarting due to context size)
 
 ## Next-Agent Prompt
 
-> Read `AI-Dev-Shop/AGENTS.md` first, then `/Users/la/Programming/designimation/docs/HANDOFF.md`.
-> The project is `/Users/la/Programming/designimation` — **one folder, branch `main`, no worktrees, never create a second folder.**
-> Before anything else, run the four gates and confirm they are green: `npm test`, `npx eslint src test`, `npx tsc --noEmit`, `npm run verify:browser`. They were green as of HEAD `627f9b1` with some additional uncommitted work also passing (see Current State).
-> Then read `docs/live-testing-backlog.md` (6 defects found + fixed, 4 feature requests, one still unbuilt) and `docs/review-3-gpt-5.6-sol.md` (16 external-review findings, 6 fixed, 10 remaining) before deciding what to do next.
+> Read `AI-Dev-Shop/AGENTS.md` first, then this file in full.
+> The project is `/Users/la/Programming/designimation` — **one folder, branch `main`, no worktrees.**
+> Before anything else, run the four gates and confirm green: `npm test`, `npx eslint src test`, `npx tsc --noEmit`, `npm run verify:browser`. All were green as of HEAD `30b6883` (see Current State).
+> Then read the **Owner's Next-Session Requests** section below — two concrete, owner-requested changes are queued and have NOT been started yet. Do those first, before resuming catalog breadth work.
+
+---
+
+## Owner's Next-Session Requests (do these first, not done yet)
+
+### 1. Sweep `data-dsg-on` → inline `on:` syntax across every showcase page
+
+The owner wants every `data-dsg="effect 500ms" data-dsg-on="hover"` pair simplified to the single-attribute form `data-dsg="effect 500ms on:hover"`. **This already works today, confirmed live** — `src/core/parse.ts` has a dedicated hoist table (`on`, `timeline`, `threshold` are element-scoped keys pulled out of the per-effect grammar) and `src/core/element-config.ts`'s `resolveConfig()` doc comment says outright: *"values written inline (`on:enter`) are a convenience that takes precedence over the longhand attribute."* Verified side-by-side in a throwaway test page: both forms produce identical `paused → running` behavior on hover, zero console warnings.
+
+**What to do:** grep every `demo/showcase/*.html` for `data-dsg-on=` and `data-dsg-timeline=`/`data-dsg-threshold=` if present, and fold each into the adjacent `data-dsg="..."` string as an inline `on:`/`timeline:`/`threshold:` token instead. The **caption `<p class="tag">` text** on each demo (which usually echoes the attribute back, e.g. `data-dsg="zoom-in 400ms" data-dsg-on="hover"`) needs the same edit so the displayed code matches the real markup. The **"Show code" modal** (`demo/showcase/show-code.js`) will automatically show whatever's actually in the DOM, so no changes needed there. One cosmetic note: after this sweep, `data-dsg-on` will no longer appear in the DOM at all for these elements (nothing writes it back) — that's expected and fine, not a regression.
+
+Do this as its own commit (or a few, split by page), verify a couple of pages live afterward (hover still fires, click still fires) before moving on.
+
+### 2. Rewrite `docs/catalog.md` and `docs/design.md` for a general audience — human AND LLM readers, not the owner, not this session
+
+The owner's exact words: *"we're not writing docs for me, for the rest of the world... don't assume the person who's reading the docs knows anything"* and separately: *"we also want the LLMs and AIs to be able to read the docs and know how this works... You wrote it for me with stuff like [gpt-]5.6-sol, which is ridiculous. Take all that stuff out."*
+
+Concretely, remove:
+- `docs/catalog.md` lines 277–293: the `## Coverage of the original 33-item wishlist` and `## Build-order recommendation` sections. Both are internal build-planning artifacts (what order to build things in, coverage against an owner-specific wishlist) — irrelevant to someone trying to understand what the library does or how to use it.
+- `docs/design.md` line 351's near-duplicate `### Coverage of the original 33-item wishlist` section (worded slightly differently — "30 of 33 ship in v1" — from an earlier v1-only framing). Same reasoning; evaluate whether anything in it is worth folding into legitimate scope-boundary documentation (the WebGL/canvas exclusion, for instance, **is** genuinely useful for a reader to know) versus just deleted as planning noise.
+- `docs/design.md` line 3's `Revised after the \`gpt-5.6-sol\` design review (2026-08-09). Supersedes v1.` — an internal reviewer/session reference, exactly the kind of thing the owner called out by name. Search both `docs/catalog.md` and `docs/design.md` for any other mentions of `gpt-5.6-sol`, specific session dates, or "Codename `kin`"-style internal-decision framing, and rewrite in neutral, timeless, third-person documentation voice — the kind a stranger (or another LLM agent with zero session context) could land on cold and understand.
+- More broadly: read both files fully with fresh eyes and ask "does a first-time reader need this sentence to understand the library, or does it only make sense to someone who was in the room for a planning conversation?" Cut or rewrite anything in the second category. This is a genuine editing pass, not just a find-and-delete of the specific strings named above.
+
+**Do not** touch `docs/build-phase2-packet.md`, `docs/live-testing-backlog.md`, `docs/review-3-gpt-5.6-sol.md`, or this handoff file itself for this pass — those are explicitly internal/process documents and are supposed to read that way. Only `catalog.md` and `design.md` are meant to be public-facing (they're what the live site's "Docs" nav dropdown links to — see `demo/showcase/docs-nav.js` and `demo/showcase/docs.html`).
 
 ---
 
 ## Current State
 
-- Repo `/Users/la/Programming/designimation`, branch `main`, HEAD **`627f9b1`**, exactly one worktree.
-- **Two `codex exec` (gpt-5.6-sol) background processes were killed mid-run by explicit owner instruction** ("We should be done with Codex"). Do not restart Codex dispatches without the owner asking again — they were productive but the owner wants to pause and reassess via this handoff first.
-- **Working tree is NOT clean** — one small, coherent, uncommitted slice of Phase 2 work survived the kill:
-  - `src/effects/catalog/{index,media,shared}.ts` (new, untracked, 127 lines) — the first catalog category (`media-*` names: wipe, mask, ken-burns, filter, blur-up, parallax-frame) from the ~134-name build-out, following the project's existing primitive/preset conventions.
-  - `src/css/media.css` (new, untracked, 59 lines) — matching keyframes.
-  - `test/catalog-media.test.ts` (new, untracked, 3 tests, passing).
-  - `src/effects/index.ts`, `src/css/index.css` (modified, +4 lines) — wiring the new catalog module in.
-  - **Verified**: `npx tsc --noEmit` and `npx eslint src test` and `npm test` (340/340, including the 3 new tests) all pass with this uncommitted work included. It was not verified against `npm run verify:browser` or `npm run test:browser` before the session ended — do that first.
-  - This is a genuine, safe starting point, not corrupted mid-write — but it is a tiny fraction (3 of ~134 names) of the full catalog build-out scope. Commit it (or extend it) as the next agent sees fit; nothing about it looked broken.
-- `.gitignore`, `.claude/`, `ADS-memory/` also show as modified/untracked — pre-existing session scaffolding (AI-Dev-Shop framework bootstrap), not part of any feature work. Safe to ignore/leave as-is.
+- Repo `/Users/la/Programming/designimation`, branch `main`, HEAD **`30b6883`**, exactly one worktree, working tree clean (only pre-existing `.gitignore`/`ADS-memory`/`.claude` scaffolding untracked, nothing else).
+- **25 commits landed this session** (full list in Completed Work below), taking the catalog from 106/237 built names to **214/237**.
+- **Three concurrent subagents were running catalog build-out work and were just stopped** (by explicit owner instruction, to restart this main session) with a clean working tree — nothing uncommitted, nothing lost. Their state:
+  - `catalog-section-fi` (sections F + I): **fully done and committed.** Section F (Numbers & data-viz, 13/13 names) and section I (Hover & pointer, 19/20 names — one short of the full 20, not otherwise explained in its report) both built, tested, wired into the shared registry, showcase page `demo/showcase/data-hover.html` built and verified with real screenshots. Nothing left in flight.
+  - `catalog-section-jk` (sections J + K, then reassigned to E + L + N): sections J (Ambient, 14/14) and K (Feedback, 17/17) **fully done, committed, and wired** — this agent's screenshot-based verification was the most rigorous of the session, caught and fixed 6 real visual bugs (see Completed Work). It had **just been reassigned** to finish the remaining partial sections — E (SVG & icons, currently 2/17 built), L (Page transitions, 4/6), N (3D & perspective, 5/7) — when the stop happened. **No files existed yet for that reassignment** (git status was clean for E/L/N-related paths at stop time) — this work has not been started, not partially done. Pick it up fresh.
+  - `catalog-verify-mo` (verifying sections M + O, which a since-restarted earlier agent had already fully built): was mid-verification when stopped. M (Navigation, 8/8) and O (Forms, 12/12) were **already fully built, tested, and wired** before this verify pass started (confirmed independently: `npx tsc --noEmit` clean, `npx eslint src test` clean, all 13 unit tests passing, a live screenshot of `demo/showcase/nav-forms.html` through the real bundle showed 0 console/page errors). The verify agent's job was to do the deeper interactive-state screenshot pass (hover/focus/error states on form fields) and fix anything found — **that deeper pass had not reported back yet when stopped.** Treat M/O as built-and-basically-verified but not given the same interactive-screenshot scrutiny as J/K got; worth a spot-check before fully trusting it.
 
-**Gates at HEAD `627f9b1` (verified during the session, not assumed):**
+**Gates at HEAD `30b6883` (verified directly, not assumed):**
 
 | Gate | Command | Result |
 |---|---|---|
-| Unit tests | `npm test` | 337 passing at HEAD (340 with the uncommitted catalog-media addition) |
-| Complexity | `npx eslint src test` | clean; `complexity` and `sonarjs/cognitive-complexity` both capped at 10 as errors, zero disable comments |
+| Unit tests | `npm test` | 411/411 |
+| Complexity | `npx eslint src test` | clean; zero `eslint-disable` comments anywhere in the repo |
 | Types | `npx tsc --noEmit` | clean; `strict` + `noUncheckedIndexedAccess` |
-| Real browser | `npm run verify:browser` | 28/28 in headless Chromium (grew from 24 to 28 today — new replay-FAB burst-sampled checks) |
-| Diagnostic browser suite | `npm run test:browser` | 42/44 as of the last full run this session — 2 pre-existing, already-documented SVG subpath failures, unrelated to anything fixed today |
+| Real browser | `npm run verify:browser` | 28/28 (unchanged from prior session — nothing in this session's work touched what it covers) |
 
-## Completed Work (this session, in order)
+## Catalog completeness — 214/237 (was 106/237 at session start)
 
-This session covered **three prior phases already handed off** (refactor audit + execute, browser-testing dispatch, external review) plus a large amount of **new work triggered by live owner testing in a headful browser**. Full detail lives in `docs/live-testing-backlog.md` and `docs/review-3-gpt-5.6-sol.md` — summary here:
+| Sec | Name | Built | Status |
+|---|---|---|---|
+| A | Entrance & exit matrix | 48/48 | done (pre-session) |
+| B | Scroll reveal & parallax | 9/12 | `reveal-repeat` explicitly not implementable yet (see code comment in `src/effects/presets.ts`), `scroll-skew`/`reveal-direction-aware` unbuilt |
+| C | Scroll mechanics | 11/11 | done (pre-session) |
+| **D** | **Text & typography** | **26/26** | **built this session** — see below, several real bugs found+fixed |
+| E | SVG & icons | 2/17 | only `icon-morph`/`blob-morph` — **next assignment for catalog-section-jk, not started** |
+| **F** | **Numbers & data-viz** | **13/13** | **built this session** |
+| **G** | **Media & images** | **17/17** | **built this session** (first section built, was already-uncommitted from a prior session at start of this one) |
+| H | Layout & FLIP | 9/9 | done (pre-session) |
+| **I** | **Hover & pointer** | **19/20** | **built this session** — one name short, not documented which one |
+| **J** | **Ambient backgrounds** | **14/14** | **built this session** |
+| **K** | **Feedback & status** | **17/17** | **built this session** |
+| L | Page transitions | 4/6 | missing `page-morph`, `smooth-scroll-to` — **next assignment for catalog-section-jk, not started** |
+| **M** | **Navigation** | **8/8** | **built this session** |
+| N | 3D & perspective | 5/7 | missing `depth-layers-pointer`, `perspective-grid` — **next assignment for catalog-section-jk, not started** |
+| **O** | **Forms & inputs** | **12/12** | **built this session** |
 
-### Earlier phases (all verified complete before this session's live-testing work began)
-1. Refactor audit + execution — 5 items (REF-001 through REF-005), all accepted and landed.
-2. Browser-testing dispatch — built `test/browser/` regression suite, named PNG frame capture, found 2 defects (later both fixed — see D-numbers below).
-3. External review #3 (`gpt-5.6-sol`, xhigh, read-only) — first attempt killed mid-turn by the provider's own content-moderation classifier (flagged "adversarial"/"attacker" framing as a cybersecurity risk); rephrased to standard defensive-audit language and re-ran clean. 16 findings, saved to `docs/review-3-gpt-5.6-sol.md`.
+Remaining: **23 names** across B (3), E (15), I (1), L (2), N (2).
 
-### Live owner testing in a headful browser (Playwright MCP — NOT the user's real Chrome, a separate isolated instance) surfaced 6 real defects, all found, root-caused, and fixed today:
+## Showcase pages
 
-- **D1** — `src/core/gesture.ts` never called `setPointerCapture`, so drag/throwable/drag-x/elastic-pull lost track of the pointer once rendered position diverged from the cursor. Fixed `fa1f1d4`.
-- **D2** — `card-flip-y`'s second click was a silent no-op (rewriting an unchanged `animation-play-state` value is a browser no-op). Fixed with `.reverse()` on repeat activation, `a273761`.
-- **D3** — `parallax-y`/`x` froze mid-scroll — `overflow: hidden` on the demo's wrapper accidentally became the `animation-timeline: view()`'s scroll-container source instead of the real document. Fixed with `overflow: clip`, `c274104`.
-- **D4** — pinned-track `horizontal-scroll` variant: `--dsg-progress` tracked correctly but `translate` never moved (`trackTravel()`'s self-overflow math is always zero for a `width: max-content` track). Fixed with a parent-`clientWidth` fallback, `9ef56c6`.
-- **D5** — the replay FAB (`demo/showcase/replay.js`) didn't work at all. Two-layer bug: (a) needed to call `animator.reset(el)` before `play()` — fixed `d229b39`; (b) **that alone wasn't enough** — a `reset()`+reinstall writes an *identical* `animation-name` declaration, which the browser's CSS-animations engine treats as no change, so a finished animation stayed finished forever regardless of which JS object wrote it. Real fix is a reflow-forcing trick (`animation-name` → `none` → forced `getComputedStyle` read → restore) in `src/core/instances.ts`, gated on the structurally-known `activatedBefore` flag rather than re-derived staleness (which is unreliable by the time `activate()` runs). Fixed and verified with multi-point `currentTime` sampling, `d7c674f`.
-- **D6** — FLIP filter transitions (`interactive.html`'s warm/cool filter) never animated. `src/core/flip.ts`'s `mutationWatcher()` had `attributeFilter: ['hidden']` (correct) but was missing `subtree: true`, so it only saw the container's own attribute changes, never its children's (`flip-reorder` worked already because `childList` without `subtree` still catches direct children being added/removed — this is why only the filter case went unnoticed). Fixed `f518391`.
+| Page | Covers | Nav-linked from the other pages? |
+|---|---|---|
+| `reveals.html`, `scroll.html`, `interactive.html` | Pre-existing (A/B/C/H + gestures) | — (original 3, cross-linked with each other) |
+| `text.html` | Section D | Yes — added this session |
+| `data-hover.html` | Sections F + I | **No — not yet cross-linked** |
+| `ambient-feedback.html` | Sections J + K | **No — not yet cross-linked** |
+| `nav-forms.html` | Sections M + O | **No — not yet cross-linked** |
 
-**One defect from live testing turned out NOT to be a bug**: magnetic hover reset — tested directly with real mouse movement in/out of range, resets to ~0 correctly. Not in the backlog as a defect.
+All showcase pages share `theme.js` (dark/light toggle), `docs-nav.js` (Docs dropdown), `replay.js` (replay-all FAB). `show-code.js` (per-element "Show code" modal, added this session) is wired into `reveals.html`, `scroll.html`, `interactive.html`, `text.html`, and `data-hover.html` — **but NOT yet into `ambient-feedback.html` or `nav-forms.html`** (those two were built before `show-code.js` existed).
 
-### External review-3 fixes landed (6 of 16 findings; done by a `gpt-5.6-sol` peer dispatch, each independently verified before being trusted)
-- Finding #1 (ReDoS in `calc()` validator) — `d6da68a`.
-- Finding #3 (spring `stiffness:0` → infinite rAF loop) — `9121d31`.
-- Finding #4 (unfiltered `getAnimations()` in `createCssInstance`) — `e0f8d2f`, added `ownedAnimationsOf()`.
-- Finding #5 (`deferredInstance.cancel()` was a no-op) — `7e436f9`.
-- Finding #6 (non-iterable `WeakMap` made `destroy()` miss live instances) — `d6ab6e9`.
-- Finding #7 (unbounded/non-deduplicated mutation-observer work) — `627f9b1`.
+**Next Step 1, before anything else:** add nav cross-links so all 7 pages link to each other (same pattern as the `text.html` nav-link fix this session — see commit `e2831c5`), and add the `show-code.js` script tag to the two pages missing it.
 
-**10 findings from the review remain unaddressed** — #2, 8, 9, 10, 11, 12, 13, 14, 15, 16. Three of those (#2 `text` param redesign, #12 environment/realm adapter, #13 new `/core/authoring` export surface) were explicitly scoped as **architecture decisions requiring owner sign-off**, not mechanical fixes — see `docs/fix-review-3-packet.md` for the reasoning. The rest (#8 `__proto__` crash, #9 resource limits, #10 DOM/style ownership ledger, #11 unvalidated CSS values, #14 channel ownership gaps, #15 long-press pointer tracking, #16 diagnostics leak) are mechanical per the review's own fix directions but were never reached before the process was killed.
+## Completed Work (this session, chronological)
 
-**Recovered from the killed process's own reasoning (not written anywhere else — pulled from its transcript after the kill), the exact decision points it identified for the two owner-flagged findings it actually reached:**
-- **#2 (`text` param type):** "the current public `ParamSpec` has no established sink-specific type boundaries, selector root/cap contract, or consumer URL-policy hook. Implementing it would invent API shape across layout, scroll, SVG, parsing, and `play()` serialization" — i.e. the owner needs to decide the sink-type boundaries and the selector-scoping/URL-policy contract before this is safe to implement unilaterally.
-- **#5 remainder (after the safe minimum — `deferredInstance.cancel()` now runs teardown, committed):** the deeper "gestures aren't really finite animations" question — "the separate behavior/controller and reduced-motion lifecycle contract" — still needs owner design, same as originally flagged.
-- It also independently confirmed **finding #4's exact reproduction** works as the review predicted: modeled an unrelated infinite `pulse` consumer animation, confirmed Designimation's own `finished` promise still resolves correctly without the fix touching the consumer animation at all.
-- One process-note worth knowing: mid-session, "a concurrent commit landed while the gates were running and... cleared the uncommitted patch" for finding #1 — it recovered by reapplying the exact already-tested diff before committing. No data was actually lost, but it's a concrete example of the concurrent-edit risk in constraint #7 below, not just a theoretical one.
+Full commit list, oldest to newest:
 
-### Features built
-- **F1 — Replay-all FAB** on all 3 showcase pages (`demo/showcase/replay.js`, shared script). Now genuinely works (see D5).
-- **F4 — Light/dark mode toggle** — `3db3758 feat(showcase): add persistent light theme`. Not independently re-verified by the coordinating agent this session; check it live before trusting it.
-
-### Not yet built
-- **F2 — Comprehensive catalog build-out** (~134 unbuilt names across `docs/catalog.md` sections C–O, organized into the owner's 8 requested categories). Only the `media-*` slice exists, uncommitted (see Current State). This is the single largest remaining piece of work from this session — explicitly requested multiple times by the owner ("I want literally all of them... this is gonna go up online, so it has to be rock solid"). The killed build process's own stated plan (from its transcript, not otherwise written down): land shared showcase infrastructure first (it chose the light-mode toggle, `3db3758`), then build catalog sections as independently-useful commits, confirming "the existing architecture can absorb most of the remaining catalog efficiently as CSS primitives/preset rows, while keeping the expensive DOM-transforming effects separate" — i.e. it did not see an architectural blocker to the bulk of this work, just volume. `media-*` was the first section it started.
-- **F3 — Auto-advancing carousel with frosted white edges.** Not started at all.
-- **WebGL/canvas particle systems are explicitly OUT OF SCOPE** per `docs/catalog.md`'s own stated boundary (line 280–281) — the library only ever adapts to a user-supplied canvas, never renders particles itself. Do not build toward this if asked for "more ambient" effects.
-
-## Active Files And Artifacts
-
-| Path | Why it matters |
-|---|---|
-| `docs/live-testing-backlog.md` | The complete record of D1–D6 (all fixed) and F1–F4 (F1, F4 done; F2, F3 not). Read before assuming anything is or isn't broken. |
-| `docs/review-3-gpt-5.6-sol.md` | The 16-finding external review. 6 fixed (commits above), 10 open, 3 of those flagged for explicit owner decision. |
-| `docs/fix-review-3-packet.md` | The dispatch brief for the review fixes — explains which findings are mechanical vs. architecture-decision, useful if resuming that work. |
-| `docs/build-phase2-packet.md` | The dispatch brief for the catalog build-out — category mapping, conventions, the light-mode-toggle addendum. Still the right brief if resuming Phase 2, whether via a fresh peer dispatch or direct work. |
-| `docs/catalog.md` | The ~237-name target catalog, sections A–O. Cross-reference against what's built. |
-| `src/effects/catalog/` | New, uncommitted. The one built slice (`media-*`) of Phase 2. |
-| `src/core/instances.ts` | Heaviest-churned file this session — D2, D5, and review findings #4/#5 all landed here. Read current state before touching again. |
-| `src/core/flip.ts` | D6's fix (`mutationWatcher`). |
-| `demo/showcase/*.html`, `replay.js`, `style.css` | Showcase pages; all three now have the working replay FAB and (per `3db3758`) a light-mode toggle. |
-| A local static server was running on `http://localhost:8934` (serving the repo root, via `npm run showcase`) for live browser testing — likely dead now that the session ended; restart with `npm run showcase` **from the repo root** (not `cd demo &&` — the showcase nav's Docs dropdown links to `/docs/*.md`, which only resolves when the server root is the repo root) if resuming live visual verification. `file://` doesn't work with the Playwright MCP (blocks the protocol); it does work with the project's own pinned `playwright-core` scripts. |
+1. `723fd85` — committed section G (media-*, 17 names) — was sitting uncommitted from a prior session, verified and landed as-is.
+2. `b37ecb6`, `28d5f93`, `cb41647`, `3fed032`, `2ff200c` — theme/nav polish: fixed a flash-of-dark-theme bug (FOUC), made first-visit theme default to OS `prefers-color-scheme`, sun/moon icon toggle, true-white light background, "Docs" nav dropdown (added `demo/showcase/docs-nav.js`), switched the local dev server from serving `demo/` to serving the repo root (`npm run showcase`, was `cd demo && python3 -m http.server`) so `/docs/*.md` is reachable, added real-browser test coverage for the toggle, made the replay-FAB theme-aware.
+3. `85ee46b`, `5ff0a0f` — section D (text & typography, 26 names) built + showcase page.
+4. `f2d262b` — added a "Why not just GSAP?" section to `docs/design.md`, answering the owner's own comparison question (GSAP is 100% free since April 2025 including former paid plugins; it could build almost this entire catalog; the real differentiators are zero-JS-dependency, declarative HTML authoring, and a maintained catalog vs. a general engine — not raw capability). **This section should very likely survive the "rewrite docs for a general audience" pass above** — it's genuinely useful reader-facing content, just written in first-person "I researched this" voice in places that may need smoothing to match the rest of the doc's voice.
+5. `ad57178` — rewrote the Docs viewer: originally linked straight to raw `.md` files (unstyled plain-text dump in a browser). Built `demo/showcase/docs.html` + `demo/showcase/markdown.js` (small dependency-free markdown→HTML renderer) so `docs/catalog.md`/`docs/design.md` render themed and readable.
+6. `e2831c5` — fixed a real gap: `text.html` linked to the other 3 pages but nothing linked back to it.
+7. `597508d` — bumped a demo's duration per owner request.
+8. `338dc85`, `8bced90`, `c4d1ab5` — **three real bugs found via live screenshot testing, not assumed from gate numbers**:
+   - Missing spaces in char-split text effects (whitespace graphemes were wrapped in `display: inline-block` spans, which collapses a lone-space box to zero width).
+   - A CSS grid column with no explicit `grid-template-columns` let an intentionally-overwide marquee track blow the whole page out past the viewport, bypassing its own `overflow: hidden` wrapper.
+   - A stray floating dot artifact traced to `overflow: hidden` shifting an inline-block's baseline per spec — removing the (unnecessary) `overflow: hidden` fixed it.
+   - **`src/core/play.ts` (core library, not showcase chrome):** the programmatic `play()` function (used by the replay-all FAB and the public API) unconditionally stamped `data-dsg-on` to `"manual"` on every call — correct for elements with no declared trigger, but for an element authored `on:hover`/`on:click`/`on:load` it permanently destroyed the real trigger, so after one Replay click, hovering or clicking that element again did nothing. Fixed: only default to `manual` when the element never declared a trigger of its own.
+9. `b33c175`, `9d39175`, `c9e3351` — built the "Show code" feature (per-element modal showing pristine authored HTML, not the runtime-mutated live DOM — fetches the page's own raw source and matches elements by document order). Two real bugs in it, both found and fixed same-session: the modal was permanently visible on page load (a CSS class set `display: grid` at equal specificity to the UA `[hidden]` rule and won by source order — same trap already documented in `docs-nav.js`, just not applied to this new code); and two adjacent buttons sharing a parent (the hero `<h1>`/`<p>` on `reveals.html`) stacked vertically instead of sitting side by side (`display: block` — switched to `inline-block`).
+10. `d3b0223`, `4f8b354`, `52b38ce`, `5ee00d9`, `b080a76` — sections I, F, M+O, J, K built (see Catalog completeness table).
+11. `6de171c`, `30b6883` — wired J/K and F/I into the shared registry (`src/effects/catalog/index.ts`, `src/css/index.css`) and confirmed no name collisions across all now-active sections (full suite 411/411).
+12. `ddf52b7` — `ambient-feedback.html` + **6 real bugs found by catalog-section-jk's screenshot verification**, worth reading in full if touching ambient/feedback effects again: (1) `background:` shorthand in showcase CSS resets `background-image` to `none` and beats the library's layered CSS regardless of specificity — hit 3 separate times (gradient tiles, heart-burst color, confetti dots) before being generalized to "use longhand `background-color` in integrating pages"; (2) a keyframe with only a `to` block relied on an implicit `from` that resolved to the element's own resting `opacity:0` instead of `1` (toast never became visible) — fixed by making both `from` and `to` explicit; (3) a hardcoded-white default speckle/line color was invisible on light-theme panels — switched to `currentColor`.
 
 ## Decisions And Constraints
 
-**Honour these — several were corrected mid-session at the owner's instruction.**
+**Honour these — several were established or re-confirmed this session.**
 
-1. **One folder, no worktrees** — same as prior handoffs for this project.
-2. **Complexity ≤ 10 on both metrics, as errors, zero disable comments** — unchanged, still zero in the repo.
-3. **The Playwright MCP is fine to use for headful/visual verification** — an earlier session avoided it based on a stale, project-specific memory about a *different* MCP config; the owner corrected this. It launches its own isolated browser, not the user's real Chrome. It blocks `file://` — serve over a local HTTP server instead.
-4. **For any programmatic/scripted browser verification, prefer the project's own pinned `playwright-core`** (via a script physically inside the repo, so bare-specifier `import('playwright-core')` resolves) over ad-hoc module-resolution tricks from outside the project — this was a real, repeated time sink early in the session.
-5. **`gpt-5.6-sol` dispatches**: use `<<PEER_DISPATCH>>` + stdin, per `AI-Dev-Shop/skills/llm-operations/references/codex-dispatch.md`. Run a cheap tool-use smoke test first if the Codex CLI version isn't already known-good on this host (it was: `codex-cli 0.147.0` on Darwin x86_64, confirmed clean this session). **Read-only review work needs `-s read-only`; anything that needs to commit needs `-s danger-full-access` or equivalent writable-`.git` config — `-s workspace-write`'s sandbox mounted `.git` read-only and silently blocked every commit on one run this session, wasting a full `xhigh` pass.** Adversarial/attacker-framed prompts can trip the provider's own content-moderation classifier even for fully legitimate, authorized security review of your own code — defensive-audit framing (same technical substance, different rhetoric) avoids this.
-6. **The owner wants to pause Codex dispatches for now** (explicit instruction this session, right before the handoff was requested) — do not re-dispatch `codex exec` without being asked again. Direct work or Claude-subagent dispatch is fine.
-7. **Concurrent-edit discipline**: this repo has no worktree isolation, so two agents (or an agent and the coordinator) editing the same file at the same time is a real, repeatedly-observed risk this session (not hypothetical — it happened twice). Before dispatching a second write-capable agent, check `git status` for uncommitted work from the first; before running your own edits, check whether a dispatched agent might be mid-flight on the same file.
-8. **Verify, don't trust, every dispatched agent's self-report** — this session repeatedly found dispatched-agent completion reports that didn't hold up under independent testing (a claimed-working replay FAB that didn't actually restart anything; a claimed-fixed CSS restart that turned out to need two more rounds of live debugging). Always re-run the gates and, for anything visual/timing-sensitive, do real multi-point live sampling yourself before reporting something as done.
+1. **One folder, no worktrees** — unchanged.
+2. **Complexity ≤ 10 on both metrics, as errors, zero disable comments** — unchanged, still zero in the repo across 411 tests and ~13k more lines than session start.
+3. **The Playwright MCP is fine to use** — this got re-litigated AGAIN this session (an agent's own stale memory note said to avoid it; that note is itself stale, corrected twice now). It launches its own isolated browser, never touches a real user Chrome session. Either it or a small script using `loadChromium()` from `scripts/browser-harness.mjs` (see `scripts/verify-browser.mjs` for the pattern) are both fine — the second is more reliable for scripted, repeatable checks since it's not a shared session other concurrent agents might also be driving (see point 7 below).
+4. **`npm run showcase` must be run from the repo root**, not `cd demo &&` — changed this session specifically so `/docs/*.md` (now `/demo/showcase/docs.html?doc=...`) resolves. **URL scheme changed**: pages are now at `http://localhost:8934/demo/showcase/*.html`, not `http://localhost:8934/showcase/*.html`.
+5. **Two coexisting, both-legitimate registration patterns** in `src/effects/`: (a) "catalog family" — `media`/`text`/`ambient`/`feedback` each export `PRESETS`/`PRIMITIVES` constants extended into `src/effects/catalog/index.ts`'s single `registerCatalog()` chain; (b) "standalone top-level modules" — `gestures`/`layout`/`scroll-mechanics`/`three-d`/`svg`/`navigation`/`forms`, each with its own `registerX()` called directly in the root `src/effects/index.ts`'s `createRegistry()`. Sections M/O followed pattern (b); J/K followed pattern (a). Both work, don't "fix" one to match the other without a reason.
+6. **`data-dsg-on` gets rewritten by the library itself** (see `src/core/play.ts` fix above) — this is exactly why it's a separate attribute from `data-dsg` rather than folded in by default, even though the inline `on:` convenience syntax also works (see Owner's Next-Session Requests #1). Both facts are true at once; not a contradiction.
+7. **Concurrent-edit discipline remains real, not theoretical** — this session avoided collisions by having every dispatched agent build into entirely new files and explicitly defer shared-file wiring (`src/effects/index.ts`, `src/css/index.css`, nav `<a>` tags) back to the coordinating session, applied serially, one agent's diff confirmed clean before the next. One agent (M/O) deviated from the assigned file-naming convention (used new top-level dirs instead of extending `catalog/index.ts`) and wired the root `src/effects/index.ts` directly without asking first — caught before it caused a real collision only because nothing else had touched that file yet at the time. Keep enforcing "report the exact lines, don't touch the shared file yourself" — it worked every other time.
+8. **Verify with real screenshots, not gate numbers or DOM/computed-style assertions alone** — this is the single most repeated lesson of the session. At least 9 distinct real bugs this session (listed above, sections D and J/K) were invisible to `getAnimations()`/attribute/gate checks and were only caught by actually rendering the page and reading a screenshot back. Every dispatch brief this session ended up needing to say this explicitly and non-negotiably; do the same for any new dispatch.
+9. **A dev server this many concurrent agents share will get killed and restarted repeatedly** — not a bug, just what happens when multiple agents each want to control/restart it for their own verification runs. Don't be alarmed by a background server task failing with exit 143; just restart it (`npm run showcase` from repo root, `run_in_background: true`) when you actually need it for something.
 
 ## Risks And Open Questions
 
-- **The killed Codex runs may have left other in-flight reasoning uncaptured.** Only what had already been written to disk survived (the `media-*` catalog slice). If either process was mid-thought on something not yet written, that reasoning is gone — don't assume there's "more coming."
-- **`3db3758`'s light-mode toggle was never independently re-verified live** by the coordinating agent (killed before that check happened) — test it before trusting it, same discipline as everything else this session.
-- **F2 (catalog build-out) is the large remaining scope.** ~131 of ~134 target names are still unbuilt. This is genuinely large — multiple dispatch rounds, not one. The owner's own words: "this is gonna go up online, so it has to be rock solid" — do not trade correctness for name-count.
-- **10 open review findings**, 3 explicitly needing an owner decision before any fix (`text` param redesign, environment/realm adapter, `/core/authoring` surface) — don't unilaterally decide these.
-- **`test/browser`'s 2 remaining failures (SVG subpath morph) are pre-existing and unrelated** to anything touched this session — don't attribute them to recent work if re-verifying.
+- **Section I is 19/20, not 20/20** — no report explained which name was skipped or why. Worth a quick audit against `docs/catalog.md`'s section I list before assuming it's a deliberate, reasoned omission.
+- **M/O (`nav-forms.html`) didn't get the same interactive-state screenshot scrutiny** J/K did (hover/focus/error states specifically) before the verify agent was stopped mid-pass. Basic verification (tsc/eslint/tests/one full-page screenshot) all passed clean, but the deeper pass — the one that's caught real bugs every other time it's been done this session — didn't finish.
+- **Section E is the largest remaining gap** (15 of 17 names unbuilt) and hasn't been started at all despite being queued.
+- **The docs-rewrite request (Owner's Next-Session Requests #2) has real scope ambiguity**: some content that reads as "internal" (the v1/v2/v3 tier breakdown, the channel/primitive model) might actually be legitimate, valuable architecture documentation for an external reader, not planning noise. Use judgment past the specifically-named strings/sections — don't strip content just because it was written during a planning conversation, only because it doesn't serve a reader who wasn't in that conversation.
+- **`data-dsg-on` sweep (Request #1) touches every showcase page's demo captions too**, not just the live attribute — easy to fix the functional markup and miss that the `<p class="tag">` text now shows a form of the attribute nobody actually uses on the page anymore.
 
 ## Suggested Skills
 
-- `AI-Dev-Shop/agents/programmer/skills.md` — for executing the remaining review fixes or catalog build-out.
-- `AI-Dev-Shop/skills/llm-operations/references/codex-dispatch.md` — canonical `codex exec` invocation, if the owner re-authorizes Codex use.
+- `AI-Dev-Shop/agents/programmer/skills.md` — for both owner requests and any remaining catalog build-out (E/L/N, B's 3 missing names).
+- `AI-Dev-Shop/agents/docs/skills.md` (if it exists — check `AI-Dev-Shop/framework/routing/agent-index.md`) — may be a better-fit persona for the docs rewrite specifically than Programmer.
 
 ## Next Steps
 
-Ordered by what the owner asked for most recently and most often.
+Ordered by what's actually queued vs. what's a natural continuation:
 
-1. **Verify the four gates**, then decide what to do with the uncommitted `media-*` catalog slice (commit as-is, extend it, or discard — it's safe, just incomplete).
-2. **Resume F2 (catalog build-out)** — the owner's most-repeated ask this session. `docs/build-phase2-packet.md` is the ready brief. Given the "no more Codex for now" instruction, this likely means direct work or a Claude-subagent dispatch instead of another `codex exec` round, unless the owner re-authorizes Codex.
-3. **F3 (carousel)** — not started, folded into the same build-out packet.
-4. **Resolve the 10 open review-3 findings** — get the 3 architecture-decision ones in front of the owner explicitly; the other 7 are mechanical and can proceed once F2 isn't competing for the same files.
-5. **Live-verify `3db3758`'s light-mode toggle.**
+1. **Owner request #1**: sweep `data-dsg-on`/`data-dsg-timeline`/`data-dsg-threshold` into inline `on:`/`timeline:`/`threshold:` syntax across every showcase page, including caption text. Not started.
+2. **Owner request #2**: rewrite `docs/catalog.md` and `docs/design.md` for a general (human + LLM) audience, removing session/planning/reviewer-specific content. Not started.
+3. **Nav cross-linking** for `data-hover.html`, `ambient-feedback.html`, `nav-forms.html` (add links to/from the other 4 pages) + add `show-code.js` to the two pages missing it.
+4. **Resume catalog-section-jk's reassignment**: sections E (15 names), L (2 names), N (2 names). Not started at all — pick up fresh, use the same dispatch brief pattern (new isolated files, defer shared-file wiring, mandatory real-screenshot verification) that worked for every other section this session.
+5. **Finish M/O's deeper interactive-state verification pass** (hover/focus/error screenshots specifically) — cheap insurance given how many real bugs that exact kind of check has caught this session.
+6. **B's 3 remaining names** (`scroll-skew`, `reveal-direction-aware`; `reveal-repeat` is flagged as not-currently-implementable, see code comment) — smallest remaining chunk, could be folded into whichever agent picks up E/L/N.
+7. Once B/E/I/L/N are all full, the catalog hits 237/237 — worth flagging to the owner as a real milestone when it happens.
 
 ## Handoff Contract
 
-- **Inputs used**: this conversation in full; `git status`/`git log`/`git diff --stat` at HEAD `627f9b1`; live `npm test`/`eslint`/`tsc` runs against the current (uncommitted-inclusive) tree; `docs/live-testing-backlog.md`, `docs/review-3-gpt-5.6-sol.md`, `docs/fix-review-3-packet.md`, `docs/build-phase2-packet.md`, `docs/catalog.md`; process list confirming both Codex runs were terminated.
-- **Output summary**: lets a fresh session resume without replaying an extremely dense session — 6 live-found defects fixed and verified, 6 of 16 external-review findings fixed and verified, 2 features built (1 verified, 1 not), the large catalog build-out barely started.
-- **Risks**: uncaptured in-flight Codex reasoning from the kill; unverified light-mode toggle; large remaining F2 scope; 3 architecture decisions pending owner input; owner currently wants no more Codex dispatches.
-- **Suggested next assignee**: Coordinator → owner decision on Codex re-authorization and the 3 architecture findings → Programmer (F2/F3 build-out, remaining mechanical review fixes).
+- **Inputs used**: this session's full conversation and git history from HEAD `64c006b` (prior handoff) to `30b6883`; live `git log`/`git status`/`git diff` throughout; direct `npx tsc --noEmit`/`npx eslint src test`/`npx vitest run`/`npm run verify:browser` runs against current HEAD; grep-based name counts against every `src/effects/catalog/*.ts`, `src/effects/navigation/`, `src/effects/forms/` file; the three subagents' own final reports before being stopped.
+- **Output summary**: catalog build-out went from 106/237 to 214/237 in one session via concurrent subagent dispatch, plus a real core-library bug fix (`play.ts`'s trigger-clobbering), a Docs-viewer rewrite, a new "Show code" feature, and theme/nav polish — all verified against real gates and, for the parts that mattered visually, real screenshots. Two owner-requested changes are queued and explicitly NOT started (see top of file). Three subagents were mid-task when stopped for this restart; none lost uncommitted work.
+- **Risks**: section I short by one unexplained name; M/O's deeper interactive verification incomplete; the docs rewrite has real judgment-call scope beyond the specifically-named strings.
+- **Suggested next assignee**: fresh Coordinator session → owner-requested changes first (both are small, well-specified, no ambiguity blocking a start) → resume catalog breadth (E/L/N, then B) → nav cross-linking cleanup.
