@@ -11,6 +11,10 @@
  */
 ;(function () {
   const VOID_TAGS = new Set(['img', 'br', 'hr', 'input', 'meta', 'link'])
+  const COPY_ICON =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 2h6a2 2 0 0 1 2 2v6h-1.5V4a.5.5 0 0 0-.5-.5H5V2Zm-2 3h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm.5 1.5v7h6v-7h-6Z"/></svg>'
+  const CHECK_ICON =
+    '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.7 4.3a1 1 0 0 1 0 1.4l-6.5 6.5a1 1 0 0 1-1.4 0L2.3 8.7a1 1 0 1 1 1.4-1.4L6.5 10.1l5.8-5.8a1 1 0 0 1 1.4 0Z"/></svg>'
 
   function prettyPrint(el, depth) {
     const indent = '  '.repeat(depth)
@@ -58,19 +62,64 @@
     header.className = 'dsg-code-modal-header'
     header.appendChild(closeBtn)
 
+    const tryIt = document.createElement('div')
+    tryIt.className = 'dsg-code-tryit'
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'dsg-code-tryit-input'
+    input.spellcheck = false
+    input.setAttribute('aria-label', 'data-dsg value')
+
+    const copyBtn = document.createElement('button')
+    copyBtn.type = 'button'
+    copyBtn.className = 'dsg-code-tryit-copy'
+    copyBtn.setAttribute('aria-label', 'Copy value')
+    copyBtn.innerHTML = COPY_ICON
+
+    const applyBtn = document.createElement('button')
+    applyBtn.type = 'button'
+    applyBtn.className = 'dsg-code-tryit-apply'
+    applyBtn.textContent = 'Apply'
+
+    const resetBtn = document.createElement('button')
+    resetBtn.type = 'button'
+    resetBtn.className = 'dsg-code-tryit-reset'
+    resetBtn.textContent = 'Reset'
+
+    tryIt.append(input, copyBtn, applyBtn, resetBtn)
+
     const pre = document.createElement('pre')
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    dialog.append(header, pre)
+    dialog.append(header, tryIt, pre)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
+
+    let targetEl = null
+    let originalValue = ''
+
+    function applyValue(value) {
+      if (!targetEl) return
+      targetEl.setAttribute('data-dsg', value)
+      // Not window.__dsg.play() — it rebuilds data-dsg itself from a bare effect name and would
+      // silently drop the trigger/duration/params just typed above. reset()+process()+activate()
+      // is the same replay sequence play() uses internally, minus that attribute rewrite, so the
+      // edited value survives and the effect still reruns immediately regardless of its trigger.
+      window.__dsg.reset(targetEl)
+      window.__dsg.process(targetEl)
+      window.__dsg.activate(targetEl)
+    }
 
     function close() {
       backdrop.style.display = 'none'
     }
-    function open(text) {
-      code.textContent = text
+    function open(liveEl, sourceEl) {
+      targetEl = liveEl
+      originalValue = sourceEl.getAttribute('data-dsg') ?? ''
+      code.textContent = prettyPrint(sourceEl, 0)
+      input.value = originalValue
       backdrop.style.display = 'grid'
       closeBtn.focus()
     }
@@ -82,6 +131,31 @@
       if (e.key === 'Escape' && !backdrop.hidden) close()
     })
 
+    applyBtn.addEventListener('click', () => applyValue(input.value))
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') applyValue(input.value)
+    })
+    resetBtn.addEventListener('click', () => {
+      input.value = originalValue
+      applyValue(originalValue)
+    })
+
+    let copyResetTimer = null
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value)
+      } catch (e) {
+        return
+      }
+      copyBtn.innerHTML = CHECK_ICON
+      copyBtn.classList.add('is-copied')
+      clearTimeout(copyResetTimer)
+      copyResetTimer = setTimeout(() => {
+        copyBtn.innerHTML = COPY_ICON
+        copyBtn.classList.remove('is-copied')
+      }, 1200)
+    })
+
     return { open }
   }
 
@@ -90,7 +164,7 @@
     button.type = 'button'
     button.className = 'dsg-show-code-toggle'
     button.textContent = 'Show code'
-    button.addEventListener('click', () => modal.open(prettyPrint(sourceEl, 0)))
+    button.addEventListener('click', () => modal.open(liveEl, sourceEl))
 
     // Append inside the card's own container (figure, .text-demo, or whatever wraps it), not as
     // a sibling of the animated element itself — in a CSS grid layout (every showcase page's
