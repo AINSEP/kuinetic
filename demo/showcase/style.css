@@ -12,8 +12,8 @@
 :root[data-theme='light'] {
   --ink: #221c18;
   --dim: #71645b;
-  --bg: #f8f4ef;
-  --panel: #fffdf9;
+  --bg: #ffffff;
+  --panel: #f5f1ea;
   --accent: #a94f13;
   --line: #ded4ca;
   color-scheme: light;
