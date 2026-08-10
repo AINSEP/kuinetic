@@ -3,6 +3,18 @@
 Why this exists, how to run it, and — the part that was missing before this doc — how an agent
 should actually use the output to diagnose a failure.
 
+> **Rerun this after any change to `src/`:**
+>
+> ```sh
+> npm run test:browser
+> ```
+>
+> This is a real, git-committed regression suite (`test/browser/`, not gitignored), not a one-off
+> script. One command runs all six suites end-to-end and prints a pass/fail summary; nothing about
+> it needs to be remembered or reconstructed. If a future fix lands for either defect in
+> `docs/browser-findings.md`, this is the command that confirms it — the two currently-failing
+> checks named there should flip to `PASS`, and every other check should stay green throughout.
+
 ## Why a browser harness at all
 
 The unit suite (`npm test`) runs in jsdom. jsdom never evaluates `@keyframes`, never applies
@@ -83,8 +95,18 @@ cross-check for the two known findings; do the same for any new failure before a
 regression.
 
 For a suite that passed, the frames are still useful as a "what does correct look like" reference —
-e.g. `.artifacts/frames/gestures/03-drag-settled.png` shows a plain drag resting exactly where it
+e.g. `.artifacts/frames/gestures/06-drag-settled.png` shows a plain drag resting exactly where it
 was released, which is the visual you'd compare a future regression against.
+
+**Continuous motion is burst-sampled, not just before/after.** FLIP, spring physics, and gesture
+drags are inherently continuous — a single before/after frame pair proves the endpoints but not
+that the path between them was correct (no wrong overshoot, no jank, no broken intermediate
+geometry). `flip-geometry` and `gestures` sample several points across the actual transition
+(`scripts/browser-harness.mjs`'s `burstSample()`) instead of one midpoint, so their frame
+directories contain a real filmstrip you can flip through in order —
+e.g. `.artifacts/frames/gestures/11..18-elastic-spring-return-*-of-8-at-*pct.png` is the spring
+return's actual settle curve, eight frames across its 800ms window. Discrete state claims (opacity
+reveals, ARIA attributes, parameter overrides) don't need this — they're single facts, not motion.
 
 ## Suite contract, if you're adding a new one
 
