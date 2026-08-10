@@ -50,6 +50,27 @@ function slugify(name) {
 }
 
 /**
+ * Create a pass/fail check log.
+ *
+ * Every browser script — `verify-browser.mjs` and each `test/browser/*.test.mjs` suite — reports
+ * results the same way: a running console log plus a list a caller can reduce to an exit code.
+ * Centralising it means a suite only owns its assertions, not its own copy of this bookkeeping.
+ *
+ * @returns `check(name, passed, detail?)`, which logs and records, plus the accumulating `results`.
+ * @complexity O(1) time and space per call.
+ * @overallScore 100
+ */
+export function createChecker() {
+  const results = []
+  function check(name, passed, detail = '') {
+    results.push({ name, passed, detail })
+    console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
+    return passed
+  }
+  return { check, results }
+}
+
+/**
  * Create a named-frame recorder over one output directory.
  *
  * Frames are numbered in call order (`01-`, `02-`, ...) so they sort into a filmstrip on disk,

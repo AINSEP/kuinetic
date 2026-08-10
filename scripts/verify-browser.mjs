@@ -12,7 +12,7 @@
  */
 import { rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { createFrameRecorder, loadChromium } from './browser-harness.mjs'
+import { createChecker, createFrameRecorder, loadChromium } from './browser-harness.mjs'
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
 const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
@@ -25,11 +25,7 @@ const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
  */
 const RECORD = process.argv.includes('--record')
 
-const results = []
-function check(name, passed, detail = '') {
-  results.push({ name, passed, detail })
-  console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
-}
+const { check, results } = createChecker()
 
 /** No-op recorder for a normal (non-`--record`) run, so call sites never branch on `RECORD`. */
 const noopSnap = async () => undefined
