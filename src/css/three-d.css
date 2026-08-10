@@ -1,0 +1,90 @@
+/*
+ * 3D, perspective, and page-transition keyframes.
+ *
+ * Every effect here is CSS-tier: the browser owns the frame loop, and the runtime only stamps
+ * custom properties. `card-flip-*` differs from the v1 `flip-in-*` family in intent — those are
+ * entrances, these are two-faced flips that stay flipped.
+ *
+ * INVARIANT: a keyframe may only write properties belonging to its primitive's declared channels.
+ * `test/css-invariants-v3.test.ts` enforces this against these files.
+ */
+@layer dsg.effects {
+  /* --- 3D flips (channel: rotate) --- */
+  @keyframes dsg-card-flip-y {
+    to {
+      rotate: y var(--dsg-from-angle, 180deg);
+    }
+  }
+
+  @keyframes dsg-card-flip-x {
+    to {
+      rotate: x var(--dsg-from-angle, 180deg);
+    }
+  }
+
+  @keyframes dsg-cube-rotate {
+    to {
+      rotate: y var(--dsg-from-angle, 90deg);
+    }
+  }
+
+  @keyframes dsg-book-page-turn {
+    to {
+      rotate: y var(--dsg-from-angle, -160deg);
+    }
+  }
+
+  @keyframes dsg-fold-panel {
+    from {
+      rotate: x var(--dsg-from-angle, -90deg);
+    }
+  }
+
+  /* --- perspective context (channel: layout) --- */
+  [data-dsg-fx~='card-flip-x'],
+  [data-dsg-fx~='card-flip-y'],
+  [data-dsg-fx~='cube-rotate'],
+  [data-dsg-fx~='book-page-turn'],
+  [data-dsg-fx~='fold-panel'] {
+    transform-style: preserve-3d;
+    perspective: var(--dsg-perspective, 1200px);
+  }
+
+  [data-dsg-fx~='book-page-turn'] {
+    transform-origin: left center;
+  }
+
+  [data-dsg-fx~='fold-panel'] {
+    transform-origin: top center;
+  }
+
+  /* --- page transitions (channels: opacity, translate, clip) --- */
+  @keyframes dsg-page-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes dsg-page-slide {
+    from {
+      opacity: 0;
+      translate: 0 var(--dsg-distance, 40px);
+    }
+  }
+
+  @keyframes dsg-curtain-wipe {
+    from {
+      clip-path: inset(0 0 100% 0);
+    }
+  }
+
+  @keyframes dsg-loading-bar {
+    from {
+      scale: 0 1;
+    }
+  }
+
+  [data-dsg-fx~='loading-bar'] {
+    transform-origin: left center;
+  }
+}

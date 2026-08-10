@@ -1,15 +1,19 @@
 import { Registry } from '../core/registry.js'
+import { registerGestures } from './gestures/index.js'
 import { registerLayout } from './layout/index.js'
 import { registerScrollMechanics } from './scroll-mechanics/index.js'
 import { registerSvg } from './svg/index.js'
+import { registerThreeD } from './three-d/index.js'
 import { PRIMITIVES } from './primitives.js'
 import { COMBOS, PRESETS } from './presets.js'
 
 export { PRIMITIVES } from './primitives.js'
 export { COMBOS, PRESETS } from './presets.js'
+export { registerGestures } from './gestures/index.js'
 export { registerLayout } from './layout/index.js'
 export { registerScrollMechanics } from './scroll-mechanics/index.js'
 export { registerSvg } from './svg/index.js'
+export { registerThreeD } from './three-d/index.js'
 
 /** The v1 catalog: entrance/exit, scroll reveal, and parallax. All CSS-rendered. */
 export function registerCore(registry: Registry): Registry {
@@ -35,5 +39,7 @@ export function createRegistry(): Registry {
   registerScrollMechanics(registry)
   registerLayout(registry)
   registerSvg(registry)
+  registerGestures(registry)
+  registerThreeD(registry)
   return registry
 }
