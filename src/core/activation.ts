@@ -43,40 +43,59 @@ export interface ActivationBinderOptions {
  * @overallScore 100
  */
 export function createActivationBinder(options: ActivationBinderOptions = {}): ActivationBinder {
-  const observers = new Map<string, IntersectionObserver>()
-  const callbacks = new WeakMap<Element, () => void>()
+  const observers = new Map<string, { observer: IntersectionObserver; count: number }>()
+  const callbacks = new WeakMap<Element, { activate: () => void; release: Cleanup }>()
   const createObserver = options.createObserver ?? defaultObserverFactory()
 
-  function observerFor(threshold: string): IntersectionObserver | undefined {
+  function observerFor(
+    threshold: string,
+  ): { key: string; shared: { observer: IntersectionObserver; count: number } } | undefined {
     if (!createObserver) return undefined
-    const existing = observers.get(threshold)
-    if (existing) return existing
+    const ratio = toThresholdRatio(threshold)
+    const key = String(ratio)
+    const existing = observers.get(key)
+    if (existing) return { key, shared: existing }
 
     const observer = createObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
-          callbacks.get(entry.target)?.()
-          observer.unobserve(entry.target)
+          const binding = callbacks.get(entry.target)
+          binding?.activate()
+          binding?.release()
         }
       },
-      { threshold: toThresholdRatio(threshold) },
+      { threshold: ratio },
     )
-    observers.set(threshold, observer)
-    return observer
+    const shared = { observer, count: 0 }
+    observers.set(key, shared)
+    return { key, shared }
   }
 
   function bindObserved(el: Element, threshold: string, onActivate: () => void): Cleanup {
-    const observer = observerFor(threshold)
+    const binding = observerFor(threshold)
     // No IntersectionObserver means no way to know when the element is visible; showing the
     // content immediately is the only fail-open choice.
-    if (!observer) {
+    if (!binding) {
       onActivate()
       return NOOP
     }
-    callbacks.set(el, onActivate)
-    observer.observe(el)
-    return () => observer.unobserve(el)
+    const { key, shared } = binding
+    let active = true
+    const release = (): void => {
+      if (!active) return
+      active = false
+      callbacks.delete(el)
+      shared.observer.unobserve(el)
+      shared.count--
+      if (shared.count > 0) return
+      shared.observer.disconnect()
+      observers.delete(key)
+    }
+    callbacks.set(el, { activate: onActivate, release })
+    shared.count++
+    shared.observer.observe(el)
+    return release
   }
 
   function bindEvents(el: Element, activation: Activation, onActivate: () => void): Cleanup {
@@ -101,7 +120,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
     },
 
     destroy() {
-      for (const observer of observers.values()) observer.disconnect()
+      for (const { observer } of observers.values()) observer.disconnect()
       observers.clear()
     },
   }
