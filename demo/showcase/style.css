@@ -378,8 +378,9 @@ a:focus-visible {
 
 /* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo). */
 .dsg-show-code-toggle {
-  display: block;
+  display: inline-block;
   margin-top: 0.7rem;
+  margin-right: 0.5rem;
   font-size: 0.78rem;
   padding: 0.3rem 0.65rem;
   color: var(--dim);
