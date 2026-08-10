@@ -97,6 +97,15 @@ plain CSS gradient-mask for the frosted edges; a FLIP-based reorder or a `parall
 loop for the auto-cycling, whichever fits the existing architecture better. Add it to whichever
 showcase page it fits best (or its own).
 
+## One more small feature: light/dark mode toggle
+
+A button in the top-right of the showcase nav (`demo/showcase/style.css`'s existing `<header
+class="site">` / `<nav>` structure) that switches the whole page to a light color scheme. The
+existing pages are dark-themed by default (check `style.css`'s current color variables) — add a
+light variant and a toggle that swaps between them, persisted across page loads if that's cheap
+(e.g. `localStorage`), shared across all showcase pages the same way `replay.js` is (one script,
+not copy-pasted per page).
+
 ## Quality bar — same four gates as everywhere else in this repo, must stay green throughout
 
 - `npm test` (currently 324/324)
