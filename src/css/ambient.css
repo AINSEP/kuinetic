@@ -132,9 +132,14 @@
   /* --- noise-overlay / scanline: fine repeating patterns, drifted rather than tiled-and-static --- */
 
   [data-dsg-fx~='noise-overlay'] {
+    /*
+     * `currentColor`, not a hardcoded white: a fixed light speckle reads fine on a dark surface
+     * and disappears on a light one. Inheriting the surrounding text color keeps contrast in
+     * both themes, the same trick already used for `spinner`/`spinner-dots`.
+     */
     background-image: repeating-radial-gradient(
       circle at 0 0,
-      color-mix(in srgb, var(--dsg-c1, #ffffff) 12%, transparent) 0,
+      color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0,
       transparent 1.4px,
       transparent 3px
     );
@@ -166,7 +171,7 @@
     background-image: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in srgb, var(--dsg-c1, #ffffff) 18%, transparent) 50%,
+      color-mix(in srgb, var(--dsg-c1, currentColor) 35%, transparent) 50%,
       transparent
     );
     background-size: 100% 220%;
@@ -187,7 +192,7 @@
   [data-dsg-fx~='dot-grid-drift'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--dsg-c1, #ffffff) 28%, transparent) 1.5px,
+      color-mix(in srgb, var(--dsg-c1, currentColor) 45%, transparent) 1.5px,
       transparent 1.5px
     );
     background-size: 22px 22px;
@@ -205,12 +210,12 @@
   [data-dsg-fx~='line-grid-drift'] {
     background-image: repeating-linear-gradient(
         0deg,
-        color-mix(in srgb, var(--dsg-c1, #ffffff) 14%, transparent) 0 1px,
+        color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0 1px,
         transparent 1px 26px
       ),
       repeating-linear-gradient(
         90deg,
-        color-mix(in srgb, var(--dsg-c1, #ffffff) 14%, transparent) 0 1px,
+        color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0 1px,
         transparent 1px 26px
       );
     animation-iteration-count: infinite;
