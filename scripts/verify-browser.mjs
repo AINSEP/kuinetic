@@ -220,28 +220,38 @@ async function run() {
 
   // --- showcase replay FAB ---------------------------------------------------------------
   // The replay page itself matters here: calling `play()` in isolation would not prove the
-  // shared FAB is wired through the public reset/replay path.
+  // shared FAB is wired through the public reset/replay path. Held as an element handle, not
+  // re-queried by selector — `play()` correctly rewrites `data-dsg-on` from `load` to `manual`
+  // once it runs, so a selector keyed on the original value would stop matching after the very
+  // click being tested.
   const showcase = await context.newPage()
   await showcase.goto(SHOWCASE_URL)
   await showcase.waitForFunction(() => window.__dsg !== undefined)
   await showcase.waitForTimeout(800)
-  const loadEffect = '[data-dsg-on="load"]'
-  check(
-    'showcase load effect has already reached its visible final state',
-    (await opacityOf(showcase, loadEffect)) === 1,
-  )
+  const loadEffect = await showcase.$('[data-dsg-on="load"]')
+  const readEffect = () =>
+    loadEffect.evaluate((el) => {
+      const a = el.getAnimations()[0]
+      return { opacity: Number.parseFloat(getComputedStyle(el).opacity), currentTime: a?.currentTime ?? null }
+    })
+  check('showcase load effect has already reached its visible final state', (await readEffect()).opacity === 1)
   await showcase.click('.dsg-replay-fab')
   await showcase.waitForTimeout(80)
-  const replayOpacity = await opacityOf(showcase, loadEffect)
+  const mid = await readEffect()
+  // Proves an actual restart, not just a transient opacity dip: currentTime must have gone back
+  // toward the start, not merely be "less than 1 opacity" (a value frozen anywhere mid-range
+  // would also satisfy an opacity-only check).
   check(
     'replay FAB visibly restarts an already-finished load effect',
-    replayOpacity < 1,
-    `opacity=${replayOpacity}`,
+    mid.opacity < 1 && mid.currentTime !== null && mid.currentTime < 300,
+    `opacity=${mid.opacity}, currentTime=${mid.currentTime}`,
   )
   await showcase.waitForTimeout(650)
+  const after = await readEffect()
   check(
     'replayed showcase effect reaches its visible final state again',
-    (await opacityOf(showcase, loadEffect)) === 1,
+    after.opacity === 1,
+    `opacity=${after.opacity}`,
   )
   await showcase.close()
 
