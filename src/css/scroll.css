@@ -1,0 +1,90 @@
+/*
+ * Scroll-linked keyframes.
+ *
+ * These are driven by `animation-timeline`, not by a clock. Progress maps continuously to scroll
+ * position, so they REVERSE as the user scrolls back — that is the defining difference from an
+ * `on:enter` reveal and the reason the two are separate axes. See docs/design.md §5.
+ */
+@layer dsg.effects {
+  @keyframes dsg-parallax-y {
+    from {
+      translate: 0 calc(var(--dsg-distance, 100px) * -1);
+    }
+    to {
+      translate: 0 var(--dsg-distance, 100px);
+    }
+  }
+
+  @keyframes dsg-parallax-x {
+    from {
+      translate: calc(var(--dsg-distance, 100px) * -1) 0;
+    }
+    to {
+      translate: var(--dsg-distance, 100px) 0;
+    }
+  }
+
+  @keyframes dsg-parallax-scale {
+    from {
+      scale: 1;
+    }
+    to {
+      scale: var(--dsg-to-scale, 1.2);
+    }
+  }
+
+  @keyframes dsg-parallax-rotate {
+    from {
+      rotate: 0deg;
+    }
+    to {
+      rotate: var(--dsg-to-angle, 12deg);
+    }
+  }
+
+  @keyframes dsg-scroll-fade {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dsg-progress-x {
+    from {
+      scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+
+  @keyframes dsg-progress-ring {
+    from {
+      stroke-dashoffset: var(--dsg-path-length, 100);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* A progress bar scales from its leading edge, not its centre. */
+  [data-dsg-fx~='scroll-progress-bar'] {
+    transform-origin: left center;
+  }
+
+  [data-dsg-fx~='scroll-progress-ring'] {
+    stroke-dasharray: var(--dsg-path-length, 100);
+  }
+
+  /*
+   * Native timelines only. Without them the runtime falls back to an `on:enter` reveal, which is
+   * a documented behavioural difference (no scrubbing, no reverse), not an equivalent.
+   */
+  @supports (animation-timeline: view()) {
+    [data-dsg-timeline] {
+      animation-range: var(--dsg-range, entry 0% cover 60%);
+    }
+  }
+}

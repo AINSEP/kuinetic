@@ -1,0 +1,214 @@
+/*
+ * Entrance & exit keyframes — 48 preset names, 24 keyframe blocks.
+ *
+ * INVARIANT: a keyframe may only write properties belonging to its primitive's declared
+ * channels. `test/channels.test.ts` enforces this by parsing this file; breaking it silently
+ * breaks composition-conflict detection.
+ */
+@layer dsg.effects {
+  /* --- opacity only (channels: opacity, translate) --- */
+  @keyframes dsg-in {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+    }
+  }
+
+  @keyframes dsg-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* --- directional: named for the direction of travel, so `fade-left` starts on the right --- */
+  @keyframes dsg-in-up {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: 0 var(--dsg-distance, 24px);
+    }
+  }
+
+  @keyframes dsg-in-down {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+    }
+  }
+
+  @keyframes dsg-in-left {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: var(--dsg-distance, 24px) 0;
+    }
+  }
+
+  @keyframes dsg-in-right {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+    }
+  }
+
+  @keyframes dsg-out-up {
+    to {
+      opacity: 0;
+      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+    }
+  }
+
+  @keyframes dsg-out-down {
+    to {
+      opacity: 0;
+      translate: 0 var(--dsg-distance, 24px);
+    }
+  }
+
+  @keyframes dsg-out-left {
+    to {
+      opacity: 0;
+      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+    }
+  }
+
+  @keyframes dsg-out-right {
+    to {
+      opacity: 0;
+      translate: var(--dsg-distance, 24px) 0;
+    }
+  }
+
+  /* --- logical: --dsg-dir is -1 under :dir(rtl) --- */
+  @keyframes dsg-in-inline-start {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: calc(var(--dsg-distance, 24px) * var(--dsg-dir, 1) * -1) 0;
+    }
+  }
+
+  @keyframes dsg-in-inline-end {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: calc(var(--dsg-distance, 24px) * var(--dsg-dir, 1)) 0;
+    }
+  }
+
+  /* --- scale (channel: scale) --- */
+  @keyframes dsg-zoom-in {
+    from {
+      scale: var(--dsg-from-scale, 0.92);
+    }
+  }
+
+  @keyframes dsg-zoom-out {
+    to {
+      scale: var(--dsg-from-scale, 0.92);
+    }
+  }
+
+  /* --- scale + translate (channels: scale, translate) --- */
+  @keyframes dsg-zoom-in-up {
+    from {
+      scale: var(--dsg-from-scale, 0.92);
+      translate: 0 var(--dsg-distance, 24px);
+    }
+  }
+
+  @keyframes dsg-zoom-in-down {
+    from {
+      scale: var(--dsg-from-scale, 0.92);
+      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+    }
+  }
+
+  /* --- 3D flip (channel: rotate) --- */
+  @keyframes dsg-flip-in-x {
+    from {
+      rotate: x var(--dsg-from-angle, 90deg);
+    }
+  }
+
+  @keyframes dsg-flip-in-y {
+    from {
+      rotate: y var(--dsg-from-angle, 90deg);
+    }
+  }
+
+  @keyframes dsg-flip-out-x {
+    to {
+      rotate: x var(--dsg-from-angle, 90deg);
+    }
+  }
+
+  @keyframes dsg-flip-out-y {
+    to {
+      rotate: y var(--dsg-from-angle, 90deg);
+    }
+  }
+
+  /* --- rotate (channel: rotate) --- */
+  @keyframes dsg-rotate-in {
+    from {
+      rotate: var(--dsg-from-angle, -8deg);
+    }
+  }
+
+  @keyframes dsg-rotate-out {
+    to {
+      rotate: var(--dsg-from-angle, -8deg);
+    }
+  }
+
+  @keyframes dsg-swing-in {
+    from {
+      rotate: var(--dsg-from-angle, -15deg);
+    }
+  }
+
+  /* --- roll (channels: rotate, translate) --- */
+  @keyframes dsg-roll-in {
+    from {
+      rotate: var(--dsg-from-angle, -120deg);
+      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+    }
+  }
+
+  @keyframes dsg-roll-out {
+    to {
+      rotate: var(--dsg-from-angle, -120deg);
+      translate: var(--dsg-distance, 24px) 0;
+    }
+  }
+
+  /* --- blur (channel: filter) --- */
+  @keyframes dsg-blur-in {
+    from {
+      filter: blur(var(--dsg-blur, 12px));
+    }
+  }
+
+  @keyframes dsg-blur-out {
+    to {
+      filter: blur(var(--dsg-blur, 12px));
+    }
+  }
+
+  /* --- combos: one keyframe so opacity is written once (channels: opacity, translate, filter) --- */
+  @keyframes dsg-fade-blur-up {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      translate: 0 var(--dsg-distance, 24px);
+      filter: blur(var(--dsg-blur, 12px));
+    }
+  }
+
+  @keyframes dsg-fade-blur-in {
+    from {
+      opacity: var(--dsg-from-opacity, 0);
+      filter: blur(var(--dsg-blur, 12px));
+    }
+  }
+
+  /* Flip presets need a 3D context; harmless on the others. */
+  [data-dsg-fx*='flip-'] {
+    transform-style: preserve-3d;
+  }
+}

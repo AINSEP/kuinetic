@@ -1,0 +1,31 @@
+{
+  "name": "designimation",
+  "version": "0.0.0",
+  "description": "Declarative web animation from HTML attributes. Native CSS where possible, JS only where necessary.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./effects": "./src/effects/index.ts",
+    "./css": "./src/css/index.css"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-sonarjs": "^3.0.7",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^2.1.9"
+  }
+}
