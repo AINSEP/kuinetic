@@ -183,6 +183,7 @@
       const anim = designimation
         .designimation({ observe: true, reporter: designimation.consoleReporter() })
         .start()
+      window.__dsg = anim
 
       // Plain DOM work — the FLIP container notices the resulting layout change itself.
       const gallery = document.querySelector('#gallery')
@@ -199,5 +200,6 @@
         anim.play('.gallery figure:not([hidden])', 'pop-in', { duration: 500, stagger: 60 })
       })
     </script>
+    <script src="./replay.js"></script>
   </body>
 </html>

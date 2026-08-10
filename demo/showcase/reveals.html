@@ -119,7 +119,10 @@
 
     <script src="../designimation.js"></script>
     <script>
-      designimation.designimation({ observe: true, reporter: designimation.consoleReporter() }).start()
+      window.__dsg = designimation
+        .designimation({ observe: true, reporter: designimation.consoleReporter() })
+        .start()
     </script>
+    <script src="./replay.js"></script>
   </body>
 </html>
