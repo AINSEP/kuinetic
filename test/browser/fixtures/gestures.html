@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — gesture fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        gap: 4rem;
+        padding: 4rem;
+      }
+      .chip {
+        width: 100px;
+        height: 100px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        touch-action: none;
+        user-select: none;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="drag" class="chip" data-dsg="drag">drag</div>
+    <div id="elastic" class="chip" data-dsg="elastic-pull bounds:80">elastic</div>
+    <div id="swipe" class="chip" data-dsg="swipe">swipe</div>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
