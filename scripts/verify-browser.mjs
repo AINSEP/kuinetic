@@ -15,6 +15,9 @@ import { fileURLToPath } from 'node:url'
 import { createChecker, createFrameRecorder, loadChromium } from './browser-harness.mjs'
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
+const SHOWCASE_URL = `file://${fileURLToPath(
+  new URL('../demo/showcase/reveals.html', import.meta.url),
+)}`
 const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
 /**
  * `--record` captures two forms of evidence: a continuous `.webm` video of the whole run (via
@@ -214,6 +217,33 @@ async function run() {
     `${morphed.before} -> ${morphed.after}`,
   )
   await snap(page, 'svg-morph-after-hover')
+
+  // --- showcase replay FAB ---------------------------------------------------------------
+  // The replay page itself matters here: calling `play()` in isolation would not prove the
+  // shared FAB is wired through the public reset/replay path.
+  const showcase = await context.newPage()
+  await showcase.goto(SHOWCASE_URL)
+  await showcase.waitForFunction(() => window.__dsg !== undefined)
+  await showcase.waitForTimeout(800)
+  const loadEffect = '[data-dsg-on="load"]'
+  check(
+    'showcase load effect has already reached its visible final state',
+    (await opacityOf(showcase, loadEffect)) === 1,
+  )
+  await showcase.click('.dsg-replay-fab')
+  await showcase.waitForTimeout(80)
+  const replayOpacity = await opacityOf(showcase, loadEffect)
+  check(
+    'replay FAB visibly restarts an already-finished load effect',
+    replayOpacity < 1,
+    `opacity=${replayOpacity}`,
+  )
+  await showcase.waitForTimeout(650)
+  check(
+    'replayed showcase effect reaches its visible final state again',
+    (await opacityOf(showcase, loadEffect)) === 1,
+  )
+  await showcase.close()
 
   // --- reduced motion lands on the final state, never the from-state --------------------
   const reduced = await browser.newPage({ viewport: { width: 900, height: 700 } })

@@ -19,6 +19,10 @@
     const anim = window.__dsg
     if (!anim) return
     for (const el of document.querySelectorAll('[data-dsg]')) {
+      // `process()` intentionally ignores an unchanged configuration. Tear the installed
+      // instance down through the public API first so an already-finished load effect gets a
+      // fresh animation rather than hitting that identity short-circuit.
+      anim.reset(el)
       anim.play(el, el.getAttribute('data-dsg'))
     }
   }
