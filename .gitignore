@@ -6,6 +6,7 @@ coverage/
 demo/designimation.js
 demo/designimation.css
 .artifacts/
+.playwright-mcp/
 
 # Agent-harness scaffolding — local tooling, not part of the library.
 AI-Dev-Shop/
