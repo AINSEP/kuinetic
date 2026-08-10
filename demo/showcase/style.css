@@ -6,6 +6,17 @@
   --panel: #171413;
   --accent: #d2691e;
   --line: #2a2422;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --ink: #221c18;
+  --dim: #71645b;
+  --bg: #f8f4ef;
+  --panel: #fffdf9;
+  --accent: #a94f13;
+  --line: #ded4ca;
+  color-scheme: light;
 }
 
 * {
@@ -32,7 +43,7 @@ header.site {
   gap: 1.5rem;
   align-items: baseline;
   padding: 1rem 2rem;
-  background: rgb(15 13 12 / 0.82);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
@@ -47,6 +58,12 @@ header.site nav {
   display: flex;
   gap: 1rem;
   font-size: 0.9rem;
+}
+
+.dsg-theme-toggle {
+  margin-left: auto;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
 }
 
 header.site nav a {
@@ -153,6 +170,12 @@ button {
 
 button:hover {
   border-color: var(--accent);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* Replay-all FAB, injected by ./replay.js on every showcase page. A class selector so it wins
