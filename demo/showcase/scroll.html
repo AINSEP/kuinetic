@@ -4,6 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>designimation — scroll</title>
+    <script>
+      /* Resolve the theme synchronously, before any stylesheet paints — see theme.js for the
+         toggle-button mounting logic that runs later, once dataset.theme is already correct. */
+      ;(function () {
+        var KEY = 'designimation-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          } catch (e) {
+            theme = 'dark'
+          }
+        }
+        document.documentElement.dataset.theme = theme
+      })()
+    </script>
     <link rel="stylesheet" href="../designimation.css" />
     <link rel="stylesheet" href="./style.css" />
     <style>

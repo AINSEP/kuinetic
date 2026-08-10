@@ -1,14 +1,33 @@
-/** Shared, persistent color-scheme toggle for every showcase page. */
+/**
+ * Toggle-button mounting and click/persistence logic for the shared showcase theme.
+ *
+ * Initial theme *resolution* (reading storage/OS preference and setting
+ * `document.documentElement.dataset.theme`) happens synchronously in an inline `<head>` script on
+ * each page, before any stylesheet paints — see the FOUC note there. By the time this file runs,
+ * `dataset.theme` is already correct; this file only has to read it, not recompute it.
+ */
 ;(function () {
   const STORAGE_KEY = 'designimation-showcase-theme'
 
-  function savedTheme() {
-    try {
-      return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark'
-    } catch {
-      return 'dark'
-    }
-  }
+  const SUN_ICON =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<circle cx="12" cy="12" r="5"></circle>' +
+    '<line x1="12" y1="1" x2="12" y2="3"></line>' +
+    '<line x1="12" y1="21" x2="12" y2="23"></line>' +
+    '<line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>' +
+    '<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>' +
+    '<line x1="1" y1="12" x2="3" y2="12"></line>' +
+    '<line x1="21" y1="12" x2="23" y2="12"></line>' +
+    '<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>' +
+    '<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>' +
+    '</svg>'
+
+  const MOON_ICON =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+    '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>' +
+    '</svg>'
 
   function saveTheme(theme) {
     try {
@@ -18,9 +37,16 @@
     }
   }
 
+  function currentTheme() {
+    return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
+  }
+
+  // The icon shown is the mode a click switches *to* — a sun in dark mode invites you toward
+  // light, a moon in light mode invites you toward dark.
   function applyTheme(theme, button) {
     document.documentElement.dataset.theme = theme
-    button.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode'
+    button.innerHTML = theme === 'dark' ? SUN_ICON : MOON_ICON
+    button.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
     button.setAttribute('aria-pressed', String(theme === 'light'))
   }
 
@@ -30,10 +56,9 @@
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'dsg-theme-toggle'
-    button.setAttribute('aria-label', 'Toggle showcase color scheme')
-    applyTheme(savedTheme(), button)
+    applyTheme(currentTheme(), button)
     button.addEventListener('click', () => {
-      const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'
+      const next = currentTheme() === 'light' ? 'dark' : 'light'
       applyTheme(next, button)
       saveTheme(next)
     })

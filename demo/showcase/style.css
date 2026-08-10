@@ -62,8 +62,11 @@ header.site nav {
 
 .dsg-theme-toggle {
   margin-left: auto;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.82rem;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
 }
 
 header.site nav a {
