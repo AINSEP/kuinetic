@@ -5,10 +5,10 @@ import { detect } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compile } from './compile.js'
 import type { CompiledPlan } from './compile.js'
-import type { PrepareContext } from './effect-context.js'
 import { readAttributes, resolveConfig } from './element-config.js'
 import type { ElementAttributes, ElementConfig } from './element-config.js'
-import { readEffectParams } from './js-params.js'
+import { createJsEffectPreparer } from './js-effect-preparer.js'
+import type { JsEffectPreparer, JsEffectPreparerOptions } from './js-effect-preparer.js'
 import { parse } from './parse.js'
 import { createRootResolver, createScrollScheduler } from './scroll-scheduler.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
@@ -19,11 +19,10 @@ import { silentReporter } from './reporter.js'
 import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createAttributeLedger, createStyleLedger } from './owned-styles.js'
-import type { StyleLedger } from './owned-styles.js'
 import { applyStagger } from './stagger.js'
 import { applyStylePlan, planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
-import type { Activation, EffectInstance, InstanceState, ParsedValue } from './types.js'
+import type { Activation, InstanceState, ParsedValue } from './types.js'
 
 /** Longest a stalled initialisation may keep an opt-in cloak in place. */
 const CLOAK_WATCHDOG_MS = 3000
@@ -67,6 +66,8 @@ export interface AnimatorOptions {
   scheduler?: ScrollScheduler
   /** Maps an element to the scroll root that moves it. Injected so nesting is fakeable. */
   rootResolver?: (el: Element) => ScrollRoot
+  /** Wires up JS-rendered effects' setup context. Injected so it is testable in isolation. */
+  jsEffectPreparer?: JsEffectPreparer
   /** `'respect'` honours prefers-reduced-motion. `'ignore'` is for demos and tests only. */
   reducedMotion?: 'respect' | 'ignore'
   /** Watch for DOM insertions and attribute changes. Off by default. */
@@ -89,6 +90,7 @@ export class Animator {
   private readonly binder: ActivationBinder
   private readonly scheduler: ScrollScheduler
   private readonly rootResolver: (el: Element) => ScrollRoot
+  private readonly jsEffectPreparer: JsEffectPreparer
   private readonly respectReducedMotion: boolean
   private readonly shouldObserve: boolean
   /** Runtime truth. Attributes are for CSS and debugging; they make a poor state machine. */
@@ -105,6 +107,7 @@ export class Animator {
     this.binder = resolved.binder
     this.scheduler = resolved.scheduler
     this.rootResolver = resolved.rootResolver
+    this.jsEffectPreparer = resolved.jsEffectPreparer
     this.respectReducedMotion = resolved.respectReducedMotion
     this.shouldObserve = resolved.shouldObserve
   }
@@ -244,7 +247,9 @@ export class Animator {
     if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
       state.instances.push(createCssInstance(el, ledger))
     }
-    state.instances.push(...this.prepareJsEffects({ el, plan, signal: controller.signal, ledger }))
+    state.instances.push(
+      ...this.jsEffectPreparer.prepare({ el, plan, signal: controller.signal, ledger }),
+    )
 
     this.openGate({ el, state, stylePlan, config, plan })
   }
@@ -281,68 +286,6 @@ export class Animator {
         this.activate(el),
       ),
     )
-  }
-
-  /**
-   * Run each JS-rendered effect's setup, isolating failures so one broken effect cannot abort
-   * the rest of the element.
-   *
-   * @returns Teardown functions for every effect that initialised successfully.
-   * @complexity O(e) time in JS-rendered effects; O(e) space.
-   * @overallScore 100
-   */
-  private prepareJsEffects(request: {
-    el: Element
-    plan: CompiledPlan
-    signal: AbortSignal
-    ledger: StyleLedger
-  }): EffectInstance[] {
-    const { el, plan, signal, ledger } = request
-    const instances: EffectInstance[] = []
-    if (plan.jsEffects.length === 0) return instances
-
-    const ctx = this.contextFor(el, signal, ledger)
-
-    for (const { spec, resolved } of plan.jsEffects) {
-      const prepare = resolved.primitive.prepare
-      if (!prepare) continue
-      // Validated and defaulted, never the raw attribute strings — a JS primitive branches on
-      // these values, so handing it unscreened author input was both a type lie and the exact
-      // hole `params.ts` exists to close.
-      const params = readEffectParams(
-        { ...resolved.preset.params, ...spec.params },
-        resolved.primitive.parameters,
-        (message) => this.reporter.warn(message, el),
-      )
-      try {
-        instances.push(prepare(el, params, ctx))
-      } catch (error) {
-        this.reporter.warn(`"${spec.name}" failed to initialise: ${String(error)}`, el)
-      }
-    }
-    return instances
-  }
-
-  /**
-   * Build the context handed to JS-rendered primitives.
-   *
-   * @complexity O(1) time, O(1) space.
-   * @overallScore 100
-   */
-  private contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger): PrepareContext {
-    const doc = el.ownerDocument
-    return {
-      doc,
-      win: doc.defaultView ?? (globalThis as unknown as Window),
-      scheduler: this.scheduler,
-      rootFor: this.rootResolver,
-      capabilities: this.capabilities,
-      invalidate: () => this.scheduler.invalidate(),
-      warn: (message: string) => this.reporter.warn(message, el),
-      reducedMotion: this.respectReducedMotion && this.capabilities.reducedMotion,
-      signal,
-      style: ledger,
-    }
   }
 
   /**
@@ -482,17 +425,47 @@ export function createAnimator(options: AnimatorOptions = {}): Animator {
  */
 function resolveCollaborators(options: AnimatorOptions) {
   const root = options.root ?? (globalThis.document as ParentNode)
+  const capabilities = options.capabilities ?? detect()
+  const reporter = options.reporter ?? silentReporter()
+  const scheduler = options.scheduler ?? createScrollScheduler()
+  const rootResolver = options.rootResolver ?? defaultRootResolver(root)
+  const respectReducedMotion = (options.reducedMotion ?? 'respect') === 'respect'
   return {
     registry: options.registry ?? new Registry(),
-    capabilities: options.capabilities ?? detect(),
+    capabilities,
     root,
-    reporter: options.reporter ?? silentReporter(),
+    reporter,
     binder: options.binder ?? createActivationBinder(),
-    scheduler: options.scheduler ?? createScrollScheduler(),
-    rootResolver: options.rootResolver ?? defaultRootResolver(root),
-    respectReducedMotion: (options.reducedMotion ?? 'respect') === 'respect',
+    scheduler,
+    rootResolver,
+    jsEffectPreparer: resolveJsEffectPreparer(options.jsEffectPreparer, {
+      scheduler,
+      rootResolver,
+      capabilities,
+      reporter,
+      respectReducedMotion,
+    }),
+    respectReducedMotion,
     shouldObserve: options.observe ?? false,
   }
+}
+
+/**
+ * Default the JS-effect preparer to one built from this animator's other resolved collaborators.
+ *
+ * Split out of `resolveCollaborators` so that function's own defaulting-branch count stays under
+ * the complexity ceiling — this default depends on collaborators `resolveCollaborators` has
+ * already resolved (`scheduler`, `rootResolver`, ...), so it cannot just be inlined as one more
+ * `??` there.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function resolveJsEffectPreparer(
+  provided: JsEffectPreparer | undefined,
+  deps: JsEffectPreparerOptions,
+): JsEffectPreparer {
+  return provided ?? createJsEffectPreparer(deps)
 }
 
 /**
