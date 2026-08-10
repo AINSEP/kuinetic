@@ -36,7 +36,11 @@
   function buildModal() {
     const backdrop = document.createElement('div')
     backdrop.className = 'dsg-code-modal-backdrop'
-    backdrop.hidden = true
+    // Toggled via inline `display`, never the `hidden` attribute — the CSS below sets
+    // `display: grid` on this class, which has equal specificity to the UA's `[hidden] {
+    // display: none }` rule and wins by source order, leaving the modal visibly stuck open
+    // regardless of `hidden` (same trap already documented in docs-nav.js's dropdown).
+    backdrop.style.display = 'none'
 
     const dialog = document.createElement('div')
     dialog.className = 'dsg-code-modal'
@@ -59,11 +63,11 @@
     document.body.appendChild(backdrop)
 
     function close() {
-      backdrop.hidden = true
+      backdrop.style.display = 'none'
     }
     function open(text) {
       code.textContent = text
-      backdrop.hidden = false
+      backdrop.style.display = 'grid'
       closeBtn.focus()
     }
     closeBtn.addEventListener('click', close)

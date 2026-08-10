@@ -400,10 +400,11 @@ figure .dsg-show-code-toggle {
 }
 
 .dsg-code-modal-backdrop {
+  /* No `display` here on purpose — show-code.js owns it entirely via inline `style.display`
+     ('none' / 'grid'), so there's no equal-specificity fight with the UA `[hidden]` rule. */
   position: fixed;
   inset: 0;
   z-index: 100;
-  display: grid;
   place-items: center;
   padding: 2rem;
   background: rgb(0 0 0 / 0.5);
