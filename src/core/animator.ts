@@ -5,6 +5,8 @@ import { detect } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compile } from './compile.js'
 import type { CompiledPlan } from './compile.js'
+import { createDomWatcher } from './dom-watcher.js'
+import type { DomWatcher } from './dom-watcher.js'
 import { readAttributes, resolveConfig } from './element-config.js'
 import type { ElementAttributes, ElementConfig } from './element-config.js'
 import { createJsEffectPreparer } from './js-effect-preparer.js'
@@ -68,6 +70,12 @@ export interface AnimatorOptions {
   rootResolver?: (el: Element) => ScrollRoot
   /** Wires up JS-rendered effects' setup context. Injected so it is testable in isolation. */
   jsEffectPreparer?: JsEffectPreparer
+  /**
+   * Watches for DOM insertions, removals, and attribute changes. Injected for testability;
+   * defaults to a real `MutationObserver`-backed watcher, built lazily so nothing observes unless
+   * `observe: true` and `start()` actually run.
+   */
+  domWatcher?: DomWatcher
   /** `'respect'` honours prefers-reduced-motion. `'ignore'` is for demos and tests only. */
   reducedMotion?: 'respect' | 'ignore'
   /** Watch for DOM insertions and attribute changes. Off by default. */
@@ -95,7 +103,8 @@ export class Animator {
   private readonly shouldObserve: boolean
   /** Runtime truth. Attributes are for CSS and debugging; they make a poor state machine. */
   private readonly states = new WeakMap<Element, InstanceState>()
-  private mutationObserver?: MutationObserver
+  /** Built lazily by `watch()` when not injected, so nothing observes until `start()` needs it. */
+  private domWatcher: DomWatcher | undefined
   private started = false
 
   constructor(options: AnimatorOptions = {}) {
@@ -108,6 +117,7 @@ export class Animator {
     this.scheduler = resolved.scheduler
     this.rootResolver = resolved.rootResolver
     this.jsEffectPreparer = resolved.jsEffectPreparer
+    this.domWatcher = resolved.domWatcher
     this.respectReducedMotion = resolved.respectReducedMotion
     this.shouldObserve = resolved.shouldObserve
   }
@@ -373,40 +383,31 @@ export class Animator {
   }
 
   destroy(): void {
-    this.mutationObserver?.disconnect()
+    this.domWatcher?.destroy()
     this.binder.destroy()
     this.scheduler.destroy()
     if (this.root) this.releaseTree(this.root)
     this.started = false
   }
 
-  private watch(): void {
-    if (typeof MutationObserver === 'undefined') return
-    this.mutationObserver = new MutationObserver((records) => {
-      for (const record of records) this.handleMutation(record)
-    })
-    this.mutationObserver.observe(this.root as Node, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold],
-    })
-  }
-
   /**
-   * Route one mutation record. Attribute changes recompile in place; insertions scan; removals
-   * tear down so listeners and observers do not outlive their elements.
+   * Start watching for DOM insertions, removals, and attribute changes.
    *
-   * @complexity O(n) time in the nodes carried by the record.
+   * Attribute changes recompile in place; insertions scan; removals tear down so listeners and
+   * observers do not outlive their elements.
+   *
+   * @complexity O(1) time and space to build and start; the watcher's own callback runs O(n) time
+   * in the nodes one mutation record carries.
    * @overallScore 100
    */
-  private handleMutation(record: MutationRecord): void {
-    if (record.type === 'attributes') {
-      if (record.target instanceof Element) this.process(record.target)
-      return
-    }
-    for (const node of record.addedNodes) if (node instanceof Element) this.scan(node)
-    for (const node of record.removedNodes) if (node instanceof Element) this.releaseTree(node)
+  private watch(): void {
+    this.domWatcher ??= createDomWatcher({
+      root: this.root,
+      onElementAdded: (el) => this.scan(el),
+      onElementRemoved: (el) => this.releaseTree(el),
+      onAttributeChanged: (el) => this.process(el),
+    })
+    this.domWatcher.watch()
   }
 }
 
@@ -445,6 +446,11 @@ function resolveCollaborators(options: AnimatorOptions) {
       reporter,
       respectReducedMotion,
     }),
+    // Not defaulted here (unlike the other collaborators above): building the real watcher needs
+    // `this.scan`/`this.process`/`this.releaseTree`, which don't exist yet inside this free
+    // function. `Animator.watch()` builds it lazily instead, so nothing observes — and no
+    // `MutationObserver` is ever constructed — unless `shouldObserve` is true and `start()` runs.
+    domWatcher: options.domWatcher,
     respectReducedMotion,
     shouldObserve: options.observe ?? false,
   }
