@@ -178,14 +178,16 @@ export function createCssInstance(
  */
 export function deferredInstance(setup: () => Cleanup): EffectInstance {
   let cleanup: Cleanup | undefined
+  const teardown = (): void => {
+    cleanup?.()
+    cleanup = undefined
+  }
   return createJsInstance({
     activate() {
       cleanup = setup()
     },
-    destroy() {
-      cleanup?.()
-      cleanup = undefined
-    },
+    cancel: teardown,
+    destroy: teardown,
   })
 }
 

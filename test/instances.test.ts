@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCssInstance } from '../src/core/instances.js'
+import { createCssInstance, deferredInstance } from '../src/core/instances.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 
 interface FakeAnimation extends Animation {
@@ -77,5 +77,26 @@ describe('createCssInstance ownership', () => {
     instance.activate()
     expect(owned.reverse).toHaveBeenCalledOnce()
     expect(consumer.reverse).not.toHaveBeenCalled()
+  })
+})
+
+describe('deferredInstance teardown', () => {
+  it('runs active setup cleanup on cancel and can reactivate safely', () => {
+    const cleanups: Array<ReturnType<typeof vi.fn>> = []
+    const setup = vi.fn(() => {
+      const cleanup = vi.fn()
+      cleanups.push(cleanup)
+      return cleanup
+    })
+    const instance = deferredInstance(setup)
+
+    instance.activate()
+    instance.cancel()
+    expect(cleanups[0]).toHaveBeenCalledOnce()
+
+    instance.activate()
+    instance.cancel()
+    expect(setup).toHaveBeenCalledTimes(2)
+    expect(cleanups[1]).toHaveBeenCalledOnce()
   })
 })
