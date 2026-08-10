@@ -240,7 +240,7 @@ a:focus-visible {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: #fff;
+  background: var(--panel);
   display: grid;
   place-items: center;
   cursor: pointer;
