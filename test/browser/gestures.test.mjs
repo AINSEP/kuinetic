@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { createChecker, createFrameRecorder } from '../../scripts/browser-harness.mjs'
+import { burstSample, createChecker, createFrameRecorder } from '../../scripts/browser-harness.mjs'
 
 /**
  * Real pointer events for the gesture family.
@@ -10,6 +10,11 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * reacts to a moving input device. This suite drives real mouse-generated pointer events through
  * three primitives: plain `drag` (no return, no inertia), `elastic-pull` (bounds resistance plus a
  * spring return), and `swipe` (velocity-gated direction detection).
+ *
+ * Drag movement and the spring return are both continuous motion, not discrete state — a single
+ * before/after frame pair proves the endpoints but says nothing about whether tracking stayed 1:1
+ * throughout the drag or whether the spring return actually moved smoothly toward the origin
+ * instead of, say, sitting frozen. Both are burst-sampled at several points instead.
  *
  * The `elastic-pull` and `swipe` checks are defect-finding, not regression guards, and are
  * expected to fail: `src/core/gesture.ts`'s `recognise()` never calls `setPointerCapture`, so once
@@ -57,10 +62,36 @@ async function readGestureState(page, selector) {
 
 const approx = (actual, expected, tolerance) => Math.abs(actual - expected) <= tolerance
 
+/** Cumulative (dx, dy) targets for a burst-sampled 80px×40px drag, four steps of equal size. */
+const DRAG_BURST_TARGETS = [
+  { dx: 20, dy: 10 },
+  { dx: 40, dy: 20 },
+  { dx: 60, dy: 30 },
+  { dx: 80, dy: 40 },
+]
+
 /**
- * Drive a real mouse-down-move-up drag and confirm the plain `drag` primitive both tracks the
- * pointer 1:1 mid-gesture and rests exactly where it was released, once residual velocity has
- * decayed to zero.
+ * Move the real pointer through several intermediate points of a drag, sampling
+ * `data-dsg-dragging`/`translate` and a frame at each — proof that 1:1 tracking holds
+ * continuously through the gesture, not only at wherever the mouse happens to end up.
+ *
+ * @complexity O(t) browser round trips in the number of targets.
+ * @overallScore 100
+ */
+async function burstSampleDragMovement(page, snap, selector, box, label, targets) {
+  const samples = []
+  for (const [index, target] of targets.entries()) {
+    await page.mouse.move(box.x + target.dx, box.y + target.dy, { steps: 3 })
+    samples.push(await readGestureState(page, selector))
+    await snap(page, `${label}-${index + 1}-of-${targets.length}-dx${target.dx}`)
+  }
+  return samples
+}
+
+/**
+ * Drive a real mouse-down-move-up drag and confirm the plain `drag` primitive tracks the pointer
+ * 1:1 at every sampled point of the movement — not just the final one — and rests exactly where
+ * it was released, once residual velocity has decayed to zero.
  *
  * @complexity O(1) browser round trips.
  * @overallScore 100
@@ -69,20 +100,22 @@ async function checkPlainDrag(page, check, snap) {
   const box = await centerOf(page, '#drag')
   await page.mouse.move(box.x, box.y)
   await page.mouse.down()
-  await page.mouse.move(box.x + 80, box.y + 40, { steps: 10 })
 
-  const mid = await readGestureState(page, '#drag')
+  const samples = await burstSampleDragMovement(page, snap, '#drag', box, 'drag-movement', DRAG_BURST_TARGETS)
+
   check(
     'draggable marks data-dsg-dragging during a real pointer drag',
-    mid.dragging === 'true',
-    `dragging=${mid.dragging}`,
+    samples[0].dragging === 'true',
+    `dragging=${samples[0].dragging}`,
+  )
+  const tracks1to1 = samples.every(
+    (s, i) => approx(s.tx, DRAG_BURST_TARGETS[i].dx, 2) && approx(s.ty, DRAG_BURST_TARGETS[i].dy, 2),
   )
   check(
-    'draggable translate tracks real pointer movement 1:1',
-    approx(mid.tx, 80, 2) && approx(mid.ty, 40, 2),
-    `translate=${mid.translate}`,
+    'draggable translate tracks real pointer movement 1:1 continuously, not just at the end',
+    tracks1to1,
+    samples.map((s, i) => `dx${DRAG_BURST_TARGETS[i].dx}→${s.translate}`).join(', '),
   )
-  await snap(page, 'drag-mid-gesture')
 
   await page.waitForTimeout(VELOCITY_DECAY_MS)
   await page.mouse.up()
@@ -103,26 +136,45 @@ async function checkPlainDrag(page, check, snap) {
   await snap(page, 'drag-settled')
 }
 
+/** Cumulative raw pointer dx for a burst-sampled elastic drag; the last two exceed bounds:80. */
+const ELASTIC_BURST_TARGETS = [{ dx: 40, dy: 0 }, { dx: 80, dy: 0 }, { dx: 115, dy: 0 }, { dx: 150, dy: 0 }]
+
+/** ~100ms cadence across an 800ms spring settle. */
+const SPRING_BURST_FRACTIONS = [0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
 /**
- * Drag `elastic-pull` past its configured bounds and confirm rubber-band resistance damps the
- * tracked offset, then confirm a spring return actually carries it back to the origin.
+ * Drag `elastic-pull` past its configured bounds, sampling resistance at several points of the
+ * movement, then release and burst-sample the spring's return to the origin.
  *
- * @complexity O(1) browser round trips.
+ * The spring-return check asserts two things, not one: the motion must be monotonic toward zero
+ * (real physics — `DEFAULT_SPRING`'s damping ratio is ≈0.89, technically underdamped, so a hair of
+ * overshoot is legitimate and the tolerance absorbs it) *and* it must actually move a meaningful
+ * distance. Without the second half, a permanently frozen offset — exactly the pointer-capture
+ * defect this suite already found — would read as trivially "monotonic" and falsely pass.
+ *
+ * @complexity O(1) browser round trips plus O(t) for each burst.
  * @overallScore 100
  */
 async function checkElasticPull(page, check, snap) {
   const box = await centerOf(page, '#elastic')
   await page.mouse.move(box.x, box.y)
   await page.mouse.down()
-  await page.mouse.move(box.x + 150, box.y, { steps: 12 }) // 150px against bounds:80
 
-  const mid = await readGestureState(page, '#elastic')
-  check(
-    'elastic-pull resists past its bounds instead of tracking the pointer 1:1',
-    mid.tx > 0 && mid.tx < 150,
-    `translate=${mid.translate} (raw pointer delta was 150px)`,
+  const dragSamples = await burstSampleDragMovement(
+    page,
+    snap,
+    '#elastic',
+    box,
+    'elastic-resisted',
+    ELASTIC_BURST_TARGETS,
   )
-  await snap(page, 'elastic-mid-resisted')
+  const alwaysResisted = dragSamples.every((s, i) => s.tx > 0 && s.tx < ELASTIC_BURST_TARGETS[i].dx)
+  const resistanceGrows = dragSamples.every((s, i) => i === 0 || s.tx >= dragSamples[i - 1].tx)
+  check(
+    'elastic-pull resists throughout the movement, not just at the final point',
+    alwaysResisted && resistanceGrows,
+    dragSamples.map((s, i) => `dx${ELASTIC_BURST_TARGETS[i].dx}→${s.translate}`).join(', '),
+  )
 
   await page.waitForTimeout(VELOCITY_DECAY_MS)
   await page.mouse.up()
@@ -134,14 +186,23 @@ async function checkElasticPull(page, check, snap) {
       'its rendered position lag the real cursor; see docs/browser-findings.md',
   )
 
-  await page.waitForTimeout(SPRING_SETTLE_MS)
-  const settled = await readGestureState(page, '#elastic')
+  const { samples: returnSamples } = await burstSample({
+    page,
+    snap,
+    label: 'elastic-spring-return',
+    durationMs: SPRING_SETTLE_MS,
+    fractions: SPRING_BURST_FRACTIONS,
+    read: (p) => p.$eval('#elastic', (el) => el.style.getPropertyValue('translate')),
+  })
+  const returnMagnitudes = returnSamples.map((t) => Math.abs(Number.parseFloat(t) || 0))
+  const monotonicReturn = returnMagnitudes.every((m, i) => i === 0 || m <= returnMagnitudes[i - 1] + 2)
+  const meaningfulMovement = returnMagnitudes[0] - returnMagnitudes[returnMagnitudes.length - 1] > 10
   check(
-    'elastic-pull springs back to the origin on release',
-    Math.abs(settled.tx) < 2 && Math.abs(settled.ty) < 2,
-    `translate=${settled.translate}`,
+    'elastic-pull spring-return moves smoothly and meaningfully back to the origin',
+    monotonicReturn && meaningfulMovement,
+    `translate.x magnitude at ${SPRING_BURST_FRACTIONS.map((f) => `${Math.round(f * 100)}%`).join('/')}: ` +
+      returnMagnitudes.map((m) => m.toFixed(1)).join(', '),
   )
-  await snap(page, 'elastic-settled-at-origin')
 }
 
 /**
