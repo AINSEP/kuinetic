@@ -5,6 +5,7 @@ coverage/
 .DS_Store
 demo/designimation.js
 demo/designimation.css
+demo/showcase/alpine.bundle.js
 .artifacts/
 .playwright-mcp/
 

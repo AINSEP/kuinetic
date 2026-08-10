@@ -1,4 +1,16 @@
 /* Showcase chrome only — none of the animation lives here. */
+
+/* Alpine hides an element with `x-show` only once it has actually processed that element, which
+   happens on `DOMContentLoaded` — before that, declarative nav markup (dropdown menus, the
+   mobile nav panel) is plain HTML with nothing hiding it, so it would flash fully visible for one
+   frame on every load. `x-cloak` is Alpine's standard fix: hidden via plain CSS from first paint,
+   removed by Alpine the instant it takes over that element. The vanilla-JS nav this replaced
+   never had this problem — it built hidden elements at runtime instead of starting from visible
+   markup — so this rule exists specifically because of the move to declarative markup. */
+[x-cloak] {
+  display: none !important;
+}
+
 :root {
   --ink: #f3ece4;
   --dim: #9a8d80;
@@ -54,10 +66,10 @@ header.site strong {
   text-transform: uppercase;
 }
 
-/* Four dropdown triggers (Docs + the 3 demo-page groups from section-nav.js) in a row; flex-wrap
-   is a safety net for in-between widths above the hamburger breakpoint below. Below that
-   breakpoint section-nav.js switches this to an absolutely-positioned panel and owns its
-   `display` entirely via inline style — see the toggle rules further down. */
+/* Four dropdown triggers (Docs + the 3 demo-page groups) in a row; flex-wrap is a safety net for
+   in-between widths above the hamburger breakpoint below. Below that breakpoint the `siteNav`
+   Alpine component (alpine-entry.js) switches this to an absolutely-positioned panel and owns its
+   `display` entirely via `x-show` — see the toggle rules further down. */
 header.site nav {
   display: flex;
   flex-wrap: wrap;
@@ -103,8 +115,8 @@ header.site nav a:hover {
   color: var(--ink);
 }
 
-/* Marks the group containing the current page — set by section-nav.js alongside `aria-current`
-   on the matching link inside the menu. */
+/* Marks the group containing the current page — bound via `:class` to the `siteNav` component's
+   `isActive()`, alongside `:aria-current` on the matching link inside the menu. */
 .dsg-nav-dropdown-trigger.is-active {
   color: var(--ink);
   font-weight: 600;
@@ -112,14 +124,21 @@ header.site nav a:hover {
 
 .dsg-nav-dropdown-menu {
   position: absolute;
-  top: calc(100% + 0.7rem);
+  /* Flush against the trigger — no gap in `top`. A real gap here (previously
+     `calc(100% + 0.7rem)`) left a strip of nothing between the trigger's bottom edge and the
+     menu's top edge; both are descendants of `.dsg-nav-dropdown`, but that empty strip is not, so
+     a mouse moving in a straight line from the trigger down into the menu passed through it and
+     fired `mouseleave` on the wrap mid-transit, closing the menu before a click on a child link
+     could land. The same visual breathing room is recreated below via `padding-top`, which is
+     part of the menu's own hoverable, painted box — no dead zone between it and the trigger. */
+  top: 100%;
   left: 0;
   flex-direction: column;
   min-width: 150px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0.35rem;
+  padding: 0.7rem 0.35rem 0.35rem;
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
 }
 
@@ -147,6 +166,14 @@ header.site nav .dsg-nav-dropdown-menu a[aria-current='page'] {
 }
 
 .dsg-nav-toggle {
+  /* Statically authored right after `nav` in markup now (previously JS-appended to `header.site`
+     at mount time, always landing after `.dsg-theme-toggle`, which theme.js appends independently
+     on its own `DOMContentLoaded` listener). `margin-left: auto` here — not just on
+     `.dsg-theme-toggle` — is what keeps both flush right as a group regardless of that DOM-order
+     difference: whichever of the two comes first absorbs the free space, and the other simply
+     follows immediately after. Inert at desktop width (`display: none` below), so it never fights
+     `.dsg-theme-toggle`'s own auto margin there. */
+  margin-left: auto;
   display: none;
   width: 2.75rem;
   height: 2.75rem;
@@ -169,7 +196,8 @@ header.site nav .dsg-nav-dropdown-menu a[aria-current='page'] {
 
   /* Taken out of the header's flex row entirely — positioned relative to `header.site`, the
      nearest positioned ancestor (`position: sticky` still establishes one). Only layout
-     properties live here; `display` stays exclusively JS-owned, see section-nav.js. */
+     properties live here; `display` stays exclusively Alpine-owned via `x-show`, see
+     alpine-entry.js's `siteNav` component. */
   header.site nav {
     position: absolute;
     top: 100%;
@@ -195,6 +223,11 @@ header.site nav .dsg-nav-dropdown-menu a[aria-current='page'] {
     position: static;
     box-shadow: none;
     margin-top: 0.2rem;
+    /* The extra `padding-top` on `.dsg-nav-dropdown-menu` exists to close a hover dead-zone that
+       only exists for the absolutely-positioned desktop menu (see that rule's comment) — restore
+       the original uniform padding here, since this menu is `position: static` and stacked inline
+       in the column, not hover-driven at all below this breakpoint. */
+    padding: 0.35rem;
   }
 
   header.site nav .dsg-nav-dropdown-menu a {

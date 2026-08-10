@@ -18,7 +18,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
-    "demo": "esbuild src/index.ts --bundle --format=iife --global-name=designimation --outfile=demo/designimation.js && esbuild src/css/index.css --bundle --outfile=demo/designimation.css",
+    "demo": "esbuild src/index.ts --bundle --format=iife --global-name=designimation --outfile=demo/designimation.js && esbuild src/css/index.css --bundle --outfile=demo/designimation.css && esbuild demo/showcase/alpine-entry.js --bundle --format=iife --outfile=demo/showcase/alpine.bundle.js",
     "verify:browser": "npm run demo && node scripts/verify-browser.mjs",
     "test:browser": "npm run demo && node scripts/run-browser-tests.mjs",
     "generate:css": "node scripts/generate-preset-css.mjs",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "alpinejs": "^3.16.0",
     "eslint": "^9.39.5",
     "eslint-plugin-sonarjs": "^3.0.7",
     "jsdom": "^25.0.1",

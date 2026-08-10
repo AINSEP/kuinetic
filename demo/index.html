@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>designimation — demo</title>
     <link rel="stylesheet" href="./designimation.css" />
+    <script defer src="./showcase/alpine.bundle.js"></script>
     <style>
       body {
         margin: 0;
@@ -38,9 +39,14 @@
         gap: 1rem;
       }
 
-      /* This page carries no showcase chrome (no header, no style.css), so the shared
-         docs-nav.js script mounts a minimal standalone bar here instead of prepending into a
-         header nav that doesn't exist. */
+      /* This page carries no showcase chrome (no header, no style.css), so it declares its own
+         minimal standalone bar here instead of the `<header class="site"><nav>` the 8 showcase
+         pages use — but it shares the same `siteNav` Alpine component (registered once in
+         alpine-entry.js) for the Docs dropdown's open/hover/pin/close behavior. */
+      [x-cloak] {
+        display: none !important;
+      }
+
       .dsg-standalone-nav {
         position: sticky;
         top: 0;
@@ -71,16 +77,20 @@
         color: #f5efe8;
       }
 
+      /* Flush against the trigger (`top: 100%`, no gap) with the breathing room moved into
+         `padding-top` instead — see the matching rule in showcase/style.css for why: a real gap
+         in `top` left a dead zone the mouse passed through en route from trigger to menu, closing
+         the menu mid-transit before a click on a link inside it could land. */
       .dsg-standalone-nav .dsg-nav-dropdown-menu {
         position: absolute;
-        top: calc(100% + 0.7rem);
+        top: 100%;
         left: 0;
         flex-direction: column;
         min-width: 150px;
         background: #1c1815;
         border: 1px solid #2a2422;
         border-radius: 8px;
-        padding: 0.35rem;
+        padding: 0.7rem 0.35rem 0.35rem;
         box-shadow: 0 10px 28px rgb(0 0 0 / 0.35);
       }
 
@@ -101,6 +111,29 @@
     </style>
   </head>
   <body>
+    <div class="dsg-standalone-nav" x-data="siteNav" @keydown.escape.window="closeAll()">
+      <div
+        class="dsg-nav-dropdown"
+        @mouseenter="hoverOpen('docs')"
+        @mouseleave="hoverClose('docs')"
+        @click.outside="close('docs')"
+      >
+        <button
+          type="button"
+          class="dsg-nav-dropdown-trigger"
+          aria-haspopup="true"
+          :aria-expanded="isOpen('docs') ? 'true' : 'false'"
+          @click="toggleDropdown('docs')"
+        >
+          Docs
+        </button>
+        <div class="dsg-nav-dropdown-menu" x-cloak x-show="isOpen('docs')">
+          <a href="/demo/showcase/docs.html?doc=catalog">Catalog</a>
+          <a href="/demo/showcase/docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+    </div>
+
     <section class="spacer">scroll down</section>
 
     <section id="stage">
@@ -151,6 +184,5 @@
         .start()
       window.__caps = designimation.detect()
     </script>
-    <script src="./showcase/docs-nav.js"></script>
   </body>
 </html>
