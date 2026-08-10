@@ -71,6 +71,30 @@ synthetic events.
 - **Not covered by the existing `test/browser/scroll-nested.test.mjs`** — that test uses the
   `overflow:auto` variant, which is a genuinely different mechanism from this pinned-track one.
 
+### D5. Replay-all FAB doesn't actually replay declaratively-authored effects
+
+- **Found by:** owner (asked to verify the FAB visually), root-caused by direct testing.
+- **Source:** `demo/showcase/replay.js`, `replayEveryEffect()`.
+- **Symptom:** clicking the FAB visibly does nothing for any element authored via a `data-dsg="..."`
+  attribute (i.e. almost every effect on every showcase page). Verified: `h1`'s
+  `data-dsg-state`/`getComputedStyle().opacity` are byte-identical before and 800ms+ after
+  clicking the FAB.
+- **Root cause, confirmed in source:** `Animator.process()` (`src/core/animator.ts:181`) has a
+  config-identity short-circuit — `if (existing?.fingerprint === fingerprint) return` — so calling
+  `play()` with the exact same effect string an element already has installed is a silent no-op.
+  There is a dedicated method for exactly this situation, `Animator.reset(el)`
+  (`src/core/animator.ts:352`), whose own doc comment says *"Needed for replay... playing the same
+  effect twice was previously a no-op."* `replayEveryEffect()` never calls it — it calls
+  `anim.play(el, el.getAttribute('data-dsg'))` directly, so it hits the exact short-circuit the
+  library already has a documented fix for.
+- **Fix direction:** call `anim.reset(el)` (or the equivalent public entry point, if `reset` isn't
+  exposed on the public animator handle — check `AnimatorOptions`/the instance returned by
+  `designimation()`) for each element before `play()`.
+- **Why it wasn't caught by the agent that built it:** the one demo that *does* use pure
+  JS-driven `anim.play()` with no pre-existing `data-dsg` attribute (the gallery `pop-in` replay
+  button) has no fingerprint to collide with, so it always "works" — that's the only case the FAB
+  build likely spot-checked.
+
 ## Feature requests (not defects)
 
 ### F1. "Replay all" FAB on showcase pages
