@@ -2,23 +2,27 @@ export { createActivationBinder } from './activation.js'
 export type { ActivationBinder, ActivationBinderOptions } from './activation.js'
 export { Animator, createAnimator, ATTR } from './animator.js'
 export type { AnimatorOptions } from './animator.js'
-export { detect, resetCapabilities } from './capabilities.js'
+export { detect } from './capabilities.js'
 export type { Capabilities } from './capabilities.js'
-export { claimedChannels, describeConflicts, findConflicts } from './channels.js'
-export type { ChannelClaim, Conflict } from './channels.js'
-export { compile } from './compile.js'
-export type { CompiledPlan, Entry } from './compile.js'
-export { readAttributes, resolveConfig, toThresholdRatio } from './element-config.js'
-export type { ElementAttributes, ElementConfig } from './element-config.js'
-export { parse, splitTopLevel } from './parse.js'
-export { resolveParams, validate } from './params.js'
 export { play, resolveTargets, toAttributeValue } from './play.js'
 export type { PlaybackHandle, PlayOptions, Target } from './play.js'
-export { Registry, suggest } from './registry.js'
+export { Registry } from './registry.js'
 export type { ResolvedEffect } from './registry.js'
 export { collectingReporter, consoleReporter, silentReporter } from './reporter.js'
 export type { CollectingReporter, Reporter } from './reporter.js'
-export { applyStagger, indexStaggerGroup } from './stagger.js'
-export { applyStylePlan, planStyles } from './style-plan.js'
-export type { Gate, StylePlan, StylePlanInput } from './style-plan.js'
-export * from './types.js'
+export { CHANNEL, inertInstance } from './types.js'
+export type {
+  Activation,
+  Channel,
+  Cleanup,
+  EffectInstance,
+  EffectParams,
+  ParamSpec,
+  ParameterSchema,
+  PerfClass,
+  PrepareContext,
+  Preset,
+  Primitive,
+  ReducedMotionPolicy,
+  Timeline,
+} from './types.js'
