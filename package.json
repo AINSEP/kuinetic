@@ -21,7 +21,8 @@
     "demo": "esbuild src/index.ts --bundle --format=iife --global-name=designimation --outfile=demo/designimation.js && esbuild src/css/index.css --bundle --outfile=demo/designimation.css",
     "verify:browser": "npm run demo && node scripts/verify-browser.mjs",
     "generate:css": "node scripts/generate-preset-css.mjs",
-    "record": "npm run demo && node scripts/verify-browser.mjs --record"
+    "record": "npm run demo && node scripts/verify-browser.mjs --record",
+    "check:showcase": "npm run demo && node scripts/check-showcase.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

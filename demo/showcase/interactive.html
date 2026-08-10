@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — interactive</title>
+    <link rel="stylesheet" href="../designimation.css" />
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      .board {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+      }
+
+      .chip {
+        width: 190px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        touch-action: none;
+        user-select: none;
+      }
+
+      .chip img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        pointer-events: none;
+      }
+
+      .chip b {
+        display: block;
+        padding: 0.6rem 0.8rem;
+        font-size: 0.78rem;
+        font-family: ui-monospace, Menlo, monospace;
+        font-weight: 400;
+        color: var(--dim);
+      }
+
+      /* Attributes the gesture primitives publish, styled with ordinary CSS. */
+      [data-dsg-dragging='true'] {
+        border-color: var(--accent);
+        cursor: grabbing;
+      }
+
+      [data-dsg-swipe='left'] b::after {
+        content: ' ← left';
+        color: var(--accent);
+      }
+
+      [data-dsg-swipe='right'] b::after {
+        content: ' → right';
+        color: var(--accent);
+      }
+
+      [data-dsg-pressed='true'] {
+        outline: 2px solid var(--accent);
+      }
+
+      .filters {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+      }
+
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .gallery figure[hidden] {
+        display: none;
+      }
+
+      .flip-card {
+        perspective: 1200px;
+        width: 220px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <strong>designimation</strong>
+      <nav>
+        <a href="./reveals.html">Reveals</a>
+        <a href="./scroll.html">Scroll</a>
+        <a href="./interactive.html" aria-current="page">Interactive</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1 data-dsg="fade-up 900ms">Gestures and layout.</h1>
+        <p class="lede" data-dsg="fade-up 900ms 120ms">
+          Drag, throw, swipe, and hold. These use a spring integrator rather than an easing curve,
+          because a throw has to start at whatever velocity your pointer had.
+        </p>
+      </section>
+
+      <h2>Drag &amp; physics</h2>
+      <div class="board">
+        <div class="chip" data-dsg="drag">
+          <img src="https://picsum.photos/seed/dsg-p1/600/600" alt="" />
+          <b>drag</b>
+        </div>
+        <div class="chip" data-dsg="throwable">
+          <img src="https://picsum.photos/seed/dsg-p2/600/600" alt="" />
+          <b>throwable — flick it</b>
+        </div>
+        <div class="chip" data-dsg="elastic-pull">
+          <img src="https://picsum.photos/seed/dsg-p3/600/600" alt="" />
+          <b>elastic-pull</b>
+        </div>
+        <div class="chip" data-dsg="drag-x">
+          <img src="https://picsum.photos/seed/dsg-p4/600/600" alt="" />
+          <b>drag-x — axis locked</b>
+        </div>
+      </div>
+
+      <h2>Pointer</h2>
+      <div class="board">
+        <div class="chip" data-dsg="magnetic">
+          <img src="https://picsum.photos/seed/dsg-p5/600/600" alt="" />
+          <b>magnetic</b>
+        </div>
+        <div class="chip" data-dsg="swipe-x">
+          <img src="https://picsum.photos/seed/dsg-p6/600/600" alt="" />
+          <b>swipe-x</b>
+        </div>
+        <div class="chip" data-dsg="long-press">
+          <img src="https://picsum.photos/seed/dsg-p7/600/600" alt="" />
+          <b>long-press — hold</b>
+        </div>
+        <div class="chip flip-card" data-dsg="card-flip-y 700ms" data-dsg-on="click" tabindex="0">
+          <img src="https://picsum.photos/seed/dsg-p8/600/600" alt="" />
+          <b>card-flip-y — click</b>
+        </div>
+      </div>
+
+      <h2>FLIP layout transitions</h2>
+      <p class="note">
+        Filtering is a class change on the children. The library measures before and after, then
+        animates the difference — a layout change is not expressible as keyframes.
+      </p>
+
+      <div class="filters">
+        <button data-filter="all">All</button>
+        <button data-filter="warm">Warm</button>
+        <button data-filter="cool">Cool</button>
+      </div>
+
+      <div class="gallery" id="gallery" data-dsg="flip-filter 420ms">
+        <figure data-tone="warm"><img src="https://picsum.photos/seed/dsg-g1/700/700" alt="" /></figure>
+        <figure data-tone="cool"><img src="https://picsum.photos/seed/dsg-g2/700/700" alt="" /></figure>
+        <figure data-tone="warm"><img src="https://picsum.photos/seed/dsg-g3/700/700" alt="" /></figure>
+        <figure data-tone="cool"><img src="https://picsum.photos/seed/dsg-g4/700/700" alt="" /></figure>
+        <figure data-tone="warm"><img src="https://picsum.photos/seed/dsg-g5/700/700" alt="" /></figure>
+        <figure data-tone="cool"><img src="https://picsum.photos/seed/dsg-g6/700/700" alt="" /></figure>
+        <figure data-tone="warm"><img src="https://picsum.photos/seed/dsg-g7/700/700" alt="" /></figure>
+        <figure data-tone="cool"><img src="https://picsum.photos/seed/dsg-g8/700/700" alt="" /></figure>
+      </div>
+
+      <h2>Programmatic API</h2>
+      <p class="note">
+        The same registry, driven from JavaScript. <code>anim.play()</code> accepts a selector, an
+        Element, or any iterable.
+      </p>
+      <div class="filters">
+        <button id="replay">anim.play('.gallery figure', 'pop-in', { stagger: 60 })</button>
+      </div>
+
+      <div class="tall"></div>
+    </main>
+
+    <script src="../designimation.js"></script>
+    <script>
+      const anim = designimation
+        .designimation({ observe: true, reporter: designimation.consoleReporter() })
+        .start()
+
+      // Plain DOM work — the FLIP container notices the resulting layout change itself.
+      const gallery = document.querySelector('#gallery')
+      for (const button of document.querySelectorAll('[data-filter]')) {
+        button.addEventListener('click', () => {
+          const wanted = button.dataset.filter
+          for (const item of gallery.children) {
+            item.hidden = wanted !== 'all' && item.dataset.tone !== wanted
+          }
+        })
+      }
+
+      document.querySelector('#replay').addEventListener('click', () => {
+        anim.play('.gallery figure:not([hidden])', 'pop-in', { duration: 500, stagger: 60 })
+      })
+    </script>
+  </body>
+</html>

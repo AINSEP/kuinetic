@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>designimation — reveals</title>
+    <link rel="stylesheet" href="../designimation.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="site">
+      <strong>designimation</strong>
+      <nav>
+        <a href="./reveals.html" aria-current="page">Reveals</a>
+        <a href="./scroll.html">Scroll</a>
+        <a href="./interactive.html">Interactive</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1 data-dsg="fade-up 900ms">Everything here is an HTML attribute.</h1>
+        <p class="lede" data-dsg="fade-up 900ms 120ms">
+          No JavaScript on this page configures anything. Each element carries a
+          <code>data-dsg</code> value, and the library compiles it into one CSS animation.
+        </p>
+      </section>
+
+      <h2>The entrance matrix</h2>
+      <p class="note">Scroll slowly — each card reveals as it enters the viewport.</p>
+
+      <div class="grid" data-dsg-stagger="90ms">
+        <figure data-dsg="fade-up">
+          <img src="https://picsum.photos/seed/dsg-a/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="fade-up"</figcaption>
+        </figure>
+        <figure data-dsg="slide-left 700ms">
+          <img src="https://picsum.photos/seed/dsg-b/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="slide-left 700ms"</figcaption>
+        </figure>
+        <figure data-dsg="zoom-in 600ms">
+          <img src="https://picsum.photos/seed/dsg-c/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="zoom-in 600ms"</figcaption>
+        </figure>
+        <figure data-dsg="flip-in-y 800ms">
+          <img src="https://picsum.photos/seed/dsg-d/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="flip-in-y 800ms"</figcaption>
+        </figure>
+        <figure data-dsg="bounce-in-up 800ms">
+          <img src="https://picsum.photos/seed/dsg-e/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="bounce-in-up 800ms"</figcaption>
+        </figure>
+        <figure data-dsg="roll-in 900ms">
+          <img src="https://picsum.photos/seed/dsg-f/800/600" alt="" loading="lazy" />
+          <figcaption>data-dsg="roll-in 900ms"</figcaption>
+        </figure>
+      </div>
+
+      <h2>Composition</h2>
+      <p class="note">
+        Two effects in one attribute. They compile into a single declaration with parallel value
+        lists, and are only allowed when the CSS properties they own are disjoint.
+      </p>
+
+      <div class="grid">
+        <figure data-dsg="slide-up 900ms, blur-in 600ms">
+          <img src="https://picsum.photos/seed/dsg-g/800/600" alt="" loading="lazy" />
+          <figcaption>slide-up 900ms, blur-in 600ms</figcaption>
+        </figure>
+        <figure data-dsg="fade-up 900ms, zoom-in 700ms">
+          <img src="https://picsum.photos/seed/dsg-h/800/600" alt="" loading="lazy" />
+          <figcaption>fade-up 900ms, zoom-in 700ms</figcaption>
+        </figure>
+        <figure data-dsg="slide-right 900ms, blur-in 500ms, zoom-in 700ms">
+          <img src="https://picsum.photos/seed/dsg-i/800/600" alt="" loading="lazy" />
+          <figcaption>three disjoint channels</figcaption>
+        </figure>
+      </div>
+
+      <h2>Parameters</h2>
+      <p class="note">
+        Any parameter the primitive declares can be tuned inline, and is validated before it ever
+        reaches CSS.
+      </p>
+
+      <div class="grid">
+        <figure data-dsg="fade-up 800ms distance:140px">
+          <img src="https://picsum.photos/seed/dsg-j/800/600" alt="" loading="lazy" />
+          <figcaption>distance:140px</figcaption>
+        </figure>
+        <figure data-dsg="fade-up 800ms expo-out distance:140px">
+          <img src="https://picsum.photos/seed/dsg-k/800/600" alt="" loading="lazy" />
+          <figcaption>expo-out easing</figcaption>
+        </figure>
+        <figure data-dsg="rotate-in 900ms angle:-25deg">
+          <img src="https://picsum.photos/seed/dsg-l/800/600" alt="" loading="lazy" />
+          <figcaption>angle:-25deg</figcaption>
+        </figure>
+      </div>
+
+      <h2>Triggers</h2>
+      <div class="grid">
+        <figure data-dsg="zoom-in 400ms" data-dsg-on="hover">
+          <img src="https://picsum.photos/seed/dsg-m/800/600" alt="" loading="lazy" />
+          <figcaption>on:hover — point at me</figcaption>
+        </figure>
+        <figure data-dsg="swing-in 600ms" data-dsg-on="click" tabindex="0">
+          <img src="https://picsum.photos/seed/dsg-n/800/600" alt="" loading="lazy" />
+          <figcaption>on:click — click me</figcaption>
+        </figure>
+        <figure data-dsg="fade-in 600ms" data-dsg-on="load">
+          <img src="https://picsum.photos/seed/dsg-o/800/600" alt="" loading="lazy" />
+          <figcaption>on:load — already ran</figcaption>
+        </figure>
+      </div>
+
+      <div class="tall"></div>
+    </main>
+
+    <script src="../designimation.js"></script>
+    <script>
+      designimation.designimation({ observe: true, reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
