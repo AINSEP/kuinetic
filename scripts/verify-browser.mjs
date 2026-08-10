@@ -12,7 +12,7 @@
  */
 import { rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { createChecker, createFrameRecorder, loadChromium } from './browser-harness.mjs'
+import { burstSample, createChecker, createFrameRecorder, loadChromium } from './browser-harness.mjs'
 
 const PAGE_URL = `file://${fileURLToPath(new URL('../demo/index.html', import.meta.url))}`
 const SHOWCASE_URL = `file://${fileURLToPath(
@@ -232,26 +232,43 @@ async function run() {
   const readEffect = () =>
     loadEffect.evaluate((el) => {
       const a = el.getAnimations()[0]
-      return { opacity: Number.parseFloat(getComputedStyle(el).opacity), currentTime: a?.currentTime ?? null }
+      return {
+        opacity: Number.parseFloat(getComputedStyle(el).opacity),
+        playState: a?.playState ?? null,
+        currentTime: a?.currentTime ?? null,
+      }
     })
   check('showcase load effect has already reached its visible final state', (await readEffect()).opacity === 1)
+
   await showcase.click('.dsg-replay-fab')
-  await showcase.waitForTimeout(80)
-  const mid = await readEffect()
-  // Proves an actual restart, not just a transient opacity dip: currentTime must have gone back
-  // toward the start, not merely be "less than 1 opacity" (a value frozen anywhere mid-range
-  // would also satisfy an opacity-only check).
+  // A single before/after pair cannot tell a genuine restart from a frozen mid-range opacity
+  // reading — burst-sample `currentTime`/`playState` across the whole 600ms duration instead,
+  // the same way flip-geometry proves motion is real rather than just starting and ending right.
+  const { samples: replaySamples } = await burstSample({
+    page: showcase,
+    snap,
+    label: 'showcase-replay',
+    durationMs: 600,
+    fractions: [0, 0.05, 0.15, 0.3, 0.5, 0.75, 1],
+    read: readEffect,
+  })
+  const first = replaySamples[0]
   check(
-    'replay FAB visibly restarts an already-finished load effect',
-    mid.opacity < 1 && mid.currentTime !== null && mid.currentTime < 300,
-    `opacity=${mid.opacity}, currentTime=${mid.currentTime}`,
+    'replay FAB genuinely restarts the animation from the beginning',
+    first.playState === 'running' && first.currentTime !== null && first.currentTime < 60,
+    `first sample: playState=${first.playState}, currentTime=${first.currentTime}`,
   )
-  await showcase.waitForTimeout(650)
-  const after = await readEffect()
+  const times = replaySamples.map((sample) => sample.currentTime ?? 0)
+  check(
+    'replayed animation progresses forward monotonically, not stuck at one frozen value',
+    times.every((time, i) => i === 0 || time >= times[i - 1] - 1),
+    `currentTime samples: ${times.map((time) => time.toFixed(1)).join(', ')}`,
+  )
+  const last = replaySamples[replaySamples.length - 1]
   check(
     'replayed showcase effect reaches its visible final state again',
-    after.opacity === 1,
-    `opacity=${after.opacity}`,
+    last.opacity === 1 && last.playState === 'finished',
+    `opacity=${last.opacity}, playState=${last.playState}`,
   )
   await showcase.close()
 
