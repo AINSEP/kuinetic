@@ -170,15 +170,26 @@ function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContex
 /**
  * How far a horizontal track must move: its overflow past the viewport, unless overridden.
  *
+ * "The viewport" is ambiguous by construction, because a pinned track is used two different ways.
+ * Give the track itself a fixed width narrower than its content (the nested-scroller pattern) and
+ * it clips its own children, so `scrollWidth - clientWidth` already measures the overflow. Size it
+ * to its content instead — `width: max-content`, the natural choice when a separate `overflow:
+ * hidden`/`clip` ancestor does the visual clipping, as in `demo/showcase/scroll.html`'s
+ * `.track-viewport` — and the track's own box always exactly fits its content, so that same
+ * subtraction is permanently zero: there is nothing for the track to overflow relative to itself.
+ * Falling back to the parent's width only when self-overflow reads zero handles both without
+ * requiring a particular ancestor structure.
+ *
  * @complexity O(1) time and space.
  * @overallScore 100
  */
 function trackTravel(node: HTMLElement, authored: string, doc: Document): number {
   if (authored && authored !== 'auto') return toPixels(authored, ABSOLUTE_BASIS, 0)
-  // `auto` is the default, so the overflow branch is the one that normally runs. It previously
-  // could not: the schema defaulted to `0px`, which is truthy, so the override branch always won
-  // and the track moved zero pixels.
-  return Math.max(0, node.scrollWidth - (node.clientWidth || doc.documentElement.clientWidth))
+  // `auto` is the default, so this branch is the one that normally runs.
+  const selfOverflow = node.scrollWidth - node.clientWidth
+  if (selfOverflow > 0) return selfOverflow
+  const viewportWidth = node.parentElement?.clientWidth || doc.documentElement.clientWidth
+  return Math.max(0, node.scrollWidth - viewportWidth)
 }
 
 /**

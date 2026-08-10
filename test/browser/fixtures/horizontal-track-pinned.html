@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>designimation — pinned horizontal-track fixture</title>
+    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      /*
+       * Mirrors demo/showcase/scroll.html's .track-stage/.track-viewport/.track structure — the
+       * pinned-container pattern, distinct from test/browser/fixtures/scroll-nested.html's
+       * `overflow: auto` variant. `.track-viewport` clips; `.track` sizes to its own content via
+       * `width: max-content`, so it never overflows itself — that is exactly what made the "auto"
+       * travel calculation read zero. See docs/live-testing-backlog.md D4.
+       */
+      .track-stage {
+        height: 300vh;
+      }
+      .track-viewport {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: grid;
+        align-content: center;
+        overflow: hidden;
+      }
+      .track {
+        display: flex;
+        gap: 24px;
+        width: max-content;
+        padding: 0 64px;
+      }
+      .panel {
+        width: 380px;
+        height: 260px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        font-size: 2rem;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="track-stage">
+      <div class="track-viewport">
+        <div class="track" data-dsg="horizontal-scroll distance:250vh">
+          <div class="panel">1</div>
+          <div class="panel">2</div>
+          <div class="panel">3</div>
+          <div class="panel">4</div>
+          <div class="panel">5</div>
+        </div>
+      </div>
+    </div>
+    <div style="height: 100vh"></div>
+
+    <script src="../../../demo/designimation.js"></script>
+    <script>
+      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+    </script>
+  </body>
+</html>
