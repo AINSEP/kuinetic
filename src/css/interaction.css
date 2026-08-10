@@ -102,13 +102,22 @@
     box-shadow: 0 0 0 3px var(--dsg-border-glow-color, var(--accent, #d2691e));
   }
 
+  /*
+   * A 108deg peak with 252deg fully transparent read as a periodic flash, not a trail: at any
+   * instant the ring was dark everywhere except a brief arc. The fix widens the non-transparent
+   * span to most of the ring and makes it asymmetric — a long, gradually brightening tail behind
+   * a short, sharp ramp into the head — the shape of an actual comet/beam sweep, with a real gap
+   * left dark for contrast and a sense of direction.
+   */
   [data-dsg-fx~='beam-border'] {
     border: 2px solid transparent;
     border-image-slice: 1;
     border-image-source: conic-gradient(
       from var(--dsg-border-angle, 0deg),
-      transparent 0% 70%,
-      var(--dsg-beam-border-color, var(--accent, #d2691e)) 85%,
+      transparent 0% 22%,
+      color-mix(in srgb, var(--dsg-beam-border-color, var(--accent, #d2691e)) 25%, transparent) 45%,
+      color-mix(in srgb, var(--dsg-beam-border-color, var(--accent, #d2691e)) 70%, transparent) 75%,
+      var(--dsg-beam-border-color, var(--accent, #d2691e)) 94%,
       transparent 100%
     );
   }
