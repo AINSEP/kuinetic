@@ -375,3 +375,86 @@ a:focus-visible {
   background: var(--panel);
   color: var(--ink);
 }
+
+/* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo). */
+.dsg-show-code-toggle {
+  display: block;
+  margin-top: 0.7rem;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.dsg-show-code-toggle:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* figures already have their own padding-free layout (image + figcaption flush to the edges) —
+   give the button breathing room there specifically. */
+figure .dsg-show-code-toggle {
+  margin: 0.7rem 0.9rem 0.9rem;
+}
+
+.dsg-code-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.dsg-code-modal {
+  position: relative;
+  max-width: 720px;
+  max-height: 80vh;
+  width: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+
+.dsg-code-modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--dim);
+  background: none;
+  border: none;
+}
+
+.dsg-code-modal-close:hover {
+  color: var(--ink);
+}
+
+.dsg-code-modal pre {
+  margin: 0;
+  padding: 0;
+}
+
+.dsg-code-modal code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre;
+  background: none;
+  border: none;
+  padding: 0;
+}
