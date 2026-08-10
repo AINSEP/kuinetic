@@ -1,7 +1,4 @@
-# Declarative Web Animation Library — Design v2
-
-Revised after the `gpt-5.6-sol` design review (2026-08-09). Supersedes v1.
-Codename `kin` throughout — **placeholder only**, the real namespace must be chosen before publish.
+# Declarative Web Animation Library — Architecture
 
 ---
 
@@ -30,12 +27,12 @@ scroll reveals, staggering, parallax, pinned sections, horizontal-scroll-inside-
 (`ScrollTrigger`'s `containerAnimation`), scroll-snap, text splitting, scramble text, SVG stroke
 draws and shape morphing, FLIP layout transitions, draggable/inertia physics.
 
-More pointedly: two of the hardest bugs found and fixed in this project's live-testing pass — a
+More pointedly: two of the hardest scroll bugs this project ran into during development — a
 parallax effect freezing mid-scroll, and a horizontal-scroll track that never visually moved — are
 exactly the problem class `ScrollTrigger`'s `pin` and `containerAnimation` already solved, in
-production, for years. Section C of this catalog (scroll mechanics) is its own admittedly hardest
-tier, roughly 40% of total engineering effort. A meaningful chunk of that effort is this project
-re-solving, and re-debugging, something GSAP ships working today, for free.
+production, for years. Section C of this catalog (scroll mechanics) is its own hardest tier to
+build and maintain. A meaningful share of that difficulty is this project re-solving, and
+re-debugging, something GSAP ships working today, for free.
 
 So why does this project still exist? Three reasons, and none of them is "GSAP is less capable":
 
@@ -62,16 +59,15 @@ catalog rather than composed by hand.
 
 ---
 
-## 2. Naming (decide before any code)
+## 2. Namespacing
 
-`data-anim` and `--anim-*` are too generic for a public library — guaranteed collisions with
-site code and other libraries. One short project namespace must cover **all five** of:
+Generic names like `data-anim` and `--anim-*` risk collisions with site code and other libraries,
+so the project uses one short namespace, `dsg`, consistently across all four surfaces:
 
-- attributes (`data-kin`, `data-kin-on`)
-- custom properties (`--kin-reveal-distance`)
-- keyframe names (`@keyframes kin-fade-up`)
-- cascade layers (`@layer kin.effects`)
-- emitted events (`kin:start`, `kin:finish`)
+- attributes (`data-dsg`, `data-dsg-on`)
+- custom properties (`--dsg-reveal-distance`)
+- keyframe names (`@keyframes dsg-fade-up`)
+- cascade layers (`@layer dsg.effects`)
 
 ---
 
@@ -81,16 +77,16 @@ site code and other libraries. One short project namespace must cover **all five
 orders and allows commas inside `steps()`/`linear()`, which imports ambiguity for no gain.
 
 ```
-kin-value    := effect-spec ("," effect-spec)*
+dsg-value    := effect-spec ("," effect-spec)*
 effect-spec  := <effect-name> [<duration>] [<delay>] [<easing>] <key:value>*
 ```
 
 ```html
-<h1 data-kin="fade-up">
-<h1 data-kin="fade-up 800ms">
-<h1 data-kin="fade-up 800ms 200ms ease-out">
-<h1 data-kin="fade-up 800ms distance:40px">
-<h1 data-kin="slide-up 800ms, blur-in 400ms">
+<h1 data-dsg="fade-up">
+<h1 data-dsg="fade-up 800ms">
+<h1 data-dsg="fade-up 800ms 200ms ease-out">
+<h1 data-dsg="fade-up 800ms distance:40px">
+<h1 data-dsg="slide-up 800ms, blur-in 400ms">
 ```
 
 Rules:
@@ -98,16 +94,16 @@ Rules:
   **dev-mode console warning naming the element and the token** — never a silent no-op.
 - Parser must be paren-aware (`ease:cubic-bezier(.2,.8,.2,1)` contains commas). ~30 lines.
 - Attribute values may contain newlines; whitespace normalizes.
-- Longhand `data-kin-duration` etc. remains as an optional alias for server-side templating.
+- Longhand `data-dsg-duration` etc. remains as an optional alias for server-side templating.
   Both parse into the identical internal spec.
 
 ---
 
 ## 4. Composition — the channel model
 
-**Why the naive design failed:** two CSS rules each declaring `animation` don't concatenate;
-the cascade discards one. And two animations writing the same property replace rather than
-blend.
+**Why simple concatenation doesn't work:** two CSS rules each declaring `animation` don't
+concatenate; the cascade discards one. And two animations writing the same property replace
+rather than blend.
 
 **Fix:** every primitive declares the CSS properties it owns. Modern CSS made `translate`,
 `rotate`, and `scale` independent properties, which yields five disjoint channels:
@@ -125,7 +121,7 @@ Compiler resolution order for a comma list:
 1. **Registered combo preset** for that exact set → use it (single tested keyframe, no conflict).
 2. **Channels disjoint** → emit one compiled declaration:
    ```css
-   animation-name:     kin-slide-up, kin-blur-in;
+   animation-name:     dsg-slide-up, dsg-blur-in;
    animation-duration: 800ms,        400ms;
    ```
 3. **Channel collision** → dev warning naming both effects; opt-in WAAPI `composite:'add'`
@@ -137,8 +133,8 @@ Illegal collisions must be documented, not merely warned about.
 
 ## 5. Activation and timeline are separate axes
 
-The single most important correction from review. `on:enter` and `animation-timeline: view()`
-are **different animation models**, not two tiers of one thing:
+`on:enter` and `animation-timeline: view()` are **different animation models**, not two tiers of
+one thing:
 
 - A view timeline maps progress continuously to scroll position → **reverses on scroll-up**.
 - An observer-triggered reveal runs a clock once and **stays completed**.
@@ -148,9 +144,9 @@ are **different animation models**, not two tiers of one thing:
 - `animationend`, fill, cancellation, and replay all differ.
 
 ```html
-<div data-kin="fade-up"  data-kin-on="enter" data-kin-threshold="30%">
-<div data-kin="parallax" data-kin-timeline="view 10% 90%">
-<div data-kin="progress" data-kin-timeline="scroll">
+<div data-dsg="fade-up"  data-dsg-on="enter" data-dsg-threshold="30%">
+<div data-dsg="parallax" data-dsg-timeline="view 10% 90%">
+<div data-dsg="progress" data-dsg-timeline="scroll">
 ```
 
 Contract:
@@ -163,7 +159,8 @@ Contract:
 
 ## 6. Effect model — orthogonal, not tiered
 
-The v1 `Tier` enum collapsed four independent questions. Replace with:
+A single `Tier` enum collapses four independent questions into one. This design treats them as
+orthogonal instead:
 
 ```ts
 interface Effect {
@@ -196,7 +193,7 @@ Execution stays mechanically generic; metadata is declared:
 
 ```ts
 parameters: {
-  distance: { type: 'length', default: '24px', cssProperty: '--kin-reveal-distance' }
+  distance: { type: 'length', default: '24px', cssProperty: '--dsg-reveal-distance' }
 }
 ```
 
@@ -204,7 +201,7 @@ Buys TypeScript options, editor autocomplete, generated docs, validation, unit n
 semver guarantees, and **safe handling of untrusted markup** — author strings are substituted
 into CSS values, so URLs, pathological `calc()`, and huge filters are a real attack surface.
 
-Namespace custom properties **per primitive** (`--kin-reveal-distance`, `--kin-tilt-perspective`),
+Namespace custom properties **per primitive** (`--dsg-reveal-distance`, `--dsg-tilt-perspective`),
 not generically.
 
 **Defaults live in CSS `var()` fallbacks, never written to `element.style`** — inline custom
@@ -215,8 +212,9 @@ Only explicit author overrides get inline precedence.
 
 ## 8. Cloaking / fail-open
 
-The v1 guard was the opposite of fail-open: inline script sets flag → CSS hides everything →
-CDN fails → **page hidden forever**.
+A naive cloaking guard is the opposite of fail-open: an inline script sets a flag, CSS hides
+everything, and if the CDN script fails to load, the flag never clears — **the page stays hidden
+forever**.
 
 Policy:
 - **Default: no global cloaking.** Fail-open is the default behavior.
@@ -246,7 +244,7 @@ The build-time template scanner becomes an **optional optimizer, not a correctne
 It breaks on dynamic names, CMS markup, JSX abstractions, `.play()` aliases, A/B tests, custom
 template languages, and out-of-graph monorepo templates. Ship a safelist + extraction callback.
 
-**Do not create 250 runtime chunks.** ~250 names come from ~33 primitives — ship a compressed
+**Do not create 237 runtime chunks.** ~237 names come from 29 primitives — ship a compressed
 alias table (names → primitive + defaults), CSS per primitive/category, and lazy chunks only
 for expensive JS. Fifteen small requests can lose to one 10KB stylesheet. **Generate the full
 catalog CSS and measure gzip/Brotli before designing any splitting.**
@@ -263,11 +261,11 @@ user markup requesting hundreds of expensive effects.
 `WeakMap<Element, InstanceState>` is the source of runtime truth. Attributes are for CSS and
 debugging — they make a poor state machine.
 
-Known holes from review, all must have defined behavior:
+Edge cases that must have defined behavior:
 - `querySelectorAll` excludes `root` itself when an inserted root carries the attribute.
-- An unknown effect must **not** stamp the normalized attribute — v1's scanner permanently lost
-  such elements to the `:not([data-kin-fx])` guard.
-- Changing `data-kin` after processing must recompile.
+- An unknown effect must **not** stamp the normalized attribute — silently dropping such elements
+  via a `:not([data-dsg-fx])` guard would permanently lose them.
+- Changing `data-dsg` after processing must recompile.
 - Removed elements must clean up.
 - Applying shared vars inside the effect loop makes the last effect win.
 - CSS animation replay needs a defined restart mechanism.
@@ -299,13 +297,13 @@ process-wide registry — makes ShadowRoots, iframes, testing, and SSR tractable
 
 ---
 
-## 12. Platform work that needs first-class design
+## 12. Platform considerations
 
 - **Shadow DOM** — document CSS and MutationObservers don't cross the boundary.
   `animator.attach(shadowRoot)` + a stylesheet install strategy. Closed roots initialize by owner.
 - **SSR/hydration** — no import side effects; explicit `start()`/`hydrate()`.
-- **CSP** — untested until verified against real headers in Chromium, Firefox, WebKit. Needs a
-  strict mode with external CSS and finite class/data tokens.
+- **CSP** — not yet verified against real headers in Chromium, Firefox, or WebKit. Needs a
+  strict mode with external CSS and a finite set of class/data tokens.
 - **Accessibility** — split by grapheme via `Intl.Segmenter` (not code units); one accessible
   reading representation; no `aria-live` spam from counters; hidden reveal targets must not be
   focusable; hover needs focus + coarse-pointer equivalents; policies for flashing, continuous
@@ -332,35 +330,16 @@ Classify every effect by `perfClass` and attach automated layout/paint/long-task
 
 ---
 
-## 14. Roadmap
+## 14. Scope
 
-| | Primitives | Names | Adds |
-|---|---|---|---|
-| **v1** | ~22 | 60–80 | reveals, entrance matrix, hover, text (split/typewriter/scramble/decode), counters, SVG stroke draw, clip-path wipes, ambient backgrounds, 3D card flip, native parallax + progress |
-| **v2** | +6 | +~90 | scroll orchestrator (pin, scrollytelling, stacking, sequence scrub), FLIP layout transitions, arbitrary SVG path morph |
-| **v3** | +5 | +~80 | gestures, physics/springs, page transitions, 3D depth |
-| **Total** | **~33** | **~250** | |
+Names are additive: adding a new named effect is a row in an alias table (name → primitive +
+defaults), not new code, provided the underlying primitive and parameter schema already exist.
+That's why the catalog can carry ~237 names from only 29 primitives.
 
-Adding a name in v2/v3 is a row in the alias table, not new code — provided the primitives and
-the parameter schema are right in v1.
-
-**Deliberately excluded from v1:** pinning, general FLIP, physics, gestures, accessible UI
-components (accordion/carousel/menu own state, focus, and ARIA — they must never share the
-`Effect` interface), and arbitrary composition beyond the channel model.
-
-### Coverage of the original 33-item wishlist
-
-30 of 33 ship in v1. Deferred: **sticky pin** (v2), **horizontal-scroll section** (v2).
-Excluded: **WebGL/canvas backgrounds** — ships as an adapter driving a user-supplied canvas,
-never as a renderer. Caveat: icon *wiggle* is v1; arbitrary SVG *shape morph* is v2.
-
----
-
-## 15. Open questions
-
-1. Namespace/codename — blocks everything downstream.
-2. Measure full-catalog CSS under Brotli before committing to any splitting strategy.
-3. Is the channel model sufficient, or is a `composite:'add'` WAAPI path needed in v1?
-4. Non-native fallback for `timeline:` — sample via scheduler, or degrade to non-scrub? (Sampling
-   contradicts the zero-scroll-listener goal; degrading is visibly different.)
-5. Does the optional build scanner earn its maintenance cost at v1, or wait for v2?
+Deliberately out of scope:
+- **Accessible UI components.** Accordion, carousel, and menu components own their own state,
+  focus, and ARIA. They deliberately never share the `Effect` interface used by animation
+  primitives — this library animates elements, it does not manage component behavior.
+- **WebGL/canvas rendering.** Supported only through an adapter that drives a user-supplied
+  canvas, never as a built-in renderer.
+- **Arbitrary composition beyond the channel model** described in section 4 above.

@@ -1,13 +1,18 @@
-# First-Pass Capability Catalog (v1 + v2 merged)
+# Effect Catalog
 
-Companion to `anim-design-v2.md`. This is the **shipping scope of the first release**:
-the v1 and v2 tiers combined. Codename `kin` (placeholder namespace).
+This catalog lists every named effect the library ships, grouped into fifteen sections (A–O).
+See the [architecture document](?doc=design) for the attribute grammar, composition model, and
+design rationale behind this list.
 
 **Counts:** ~237 named effects from **29 primitives**. Note that 48 names come from a single
 primitive (the entrance/exit matrix), so name count is not work count.
 
-**Not in this pass:** gestures & physics (drag, swipe, inertia, elastic, rubber-band, throwable),
-WebGL/particle rendering (adapter only, never a renderer).
+**Out of scope:** WebGL/particle rendering — canvas-based effects are supported only through an
+adapter that drives a user-supplied canvas, never as a built-in renderer.
+
+Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
+outside the lettered A–O sections below — see [Gestures & physics](#gestures--physics) at the end
+of this document.
 
 ## Legend
 
@@ -80,14 +85,14 @@ Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:ent
 `parallax-rotate` · `depth-layer` · `scroll-progress-bar` · `scroll-progress-ring` ·
 `scroll-fade` · `scroll-skew` · `reveal-direction-aware`
 
-> `parallax-*` and `scroll-*` use `data-kin-timeline`, not `data-kin-on` — they are
+> `parallax-*` and `scroll-*` use `data-dsg-timeline`, not `data-dsg-on` — they are
 > progress-linked and reverse on scroll-up by design.
 
 ---
 
-## C. Scroll mechanics — 11 names *(the expensive tier)*
+## C. Scroll mechanics — 11 names
 
-Primitives 27, 29. `js`. This group is ~40% of total engineering effort.
+Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 
 `pin-section` · `pin-until` · `pin-spacer` · `scrollytelling-step` · `stacking-cards` ·
 `horizontal-scroll` · `sequence-scrub` · `video-scrub` · `scroll-snap-x` · `scroll-snap-y` ·
@@ -156,7 +161,7 @@ Primitives 5, 6, 7, 4.
 
 ---
 
-## H. Layout & FLIP — 9 names *(v2 tier)*
+## H. Layout & FLIP — 9 names
 
 Primitive 28. `js`. One technique unlocks the whole group.
 
@@ -274,20 +279,16 @@ Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
-## Coverage of the original 33-item wishlist
+---
 
-**33 of 33.** Merging v2 into the first pass pulls in `pin-section` and `horizontal-scroll`,
-which were the two deferred items. WebGL/canvas backgrounds are covered only as an adapter
-driving a user-supplied canvas — the library does not render particles itself.
+## Gestures & physics
 
-## Build-order recommendation
+Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
+outside the lettered A–O sections above. `js`.
 
-Ship in this order regardless of merged scope, because later groups depend on the lifecycle
-model the earlier ones prove:
+`drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
+`snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
 
-1. Core + parameter schema + parser + channel conflict detection
-2. A, B, J, G (pure CSS bulk — ~91 names, proves the compiler)
-3. K, O, I (event activation + first JS primitives)
-4. D, E, F (DOM-transforming primitives — proves cleanup/restore)
-5. L, M, N
-6. **H, C** (FLIP + scroll orchestrator — build last, they stress everything above)
+> The drag family differs only in what happens on release: nothing (`drag`), back to origin
+> (`elastic-pull`, `rubber-band`, `snap-back` — spring stiffness varies), or onward with
+> momentum (`drag-inertia`, `throwable`). One primitive, several parameter presets.
