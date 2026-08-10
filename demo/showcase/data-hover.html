@@ -159,7 +159,14 @@
         gap: 0.6rem;
         min-height: 96px;
         padding: 1.2rem;
-        border: 1px solid var(--line);
+        /* Longhand, not the `border` shorthand: the shorthand resets `border-image-source` to
+           `none` as a side effect, and since this page's plain CSS is unlayered it always wins
+           over the library's layered `@layer dsg.effects` rule regardless of specificity —
+           silently blanking border-draw and beam-border, both of which paint via
+           `border-image-source` on this exact element. */
+        border-width: 1px;
+        border-style: solid;
+        border-color: var(--line);
         border-radius: 12px;
         background: var(--panel);
         color: inherit;

@@ -317,11 +317,20 @@ figcaption {
   margin-top: 0.4rem;
 }
 
+/* `background-color`/border longhand, not the `background`/`border` shorthands: both shorthands
+   reset their `-image` sub-property (background-image / border-image-source) to `none` as a side
+   effect, and since this rule is unlayered it always wins over the library's layered
+   `@layer dsg.effects` rules regardless of specificity — silently blanking any button-hosted
+   effect that paints via background-image or border-image-source (e.g. beam-border, border-draw).
+   This bit ambient-feedback.html earlier (worked around there by using a div instead of a button);
+   fixing it here at the shared base rule removes the need for that workaround everywhere else. */
 button {
   font: inherit;
   color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background-color: var(--panel);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--line);
   border-radius: 8px;
   padding: 0.5rem 1rem;
   cursor: pointer;
