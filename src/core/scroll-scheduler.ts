@@ -288,7 +288,7 @@ function defaultIsScrollable(win: Window): (el: Element) => boolean {
  */
 export function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0
-  return value < 0 ? 0 : value > 1 ? 1 : value
+  return Math.min(1, Math.max(0, value))
 }
 
 /**
