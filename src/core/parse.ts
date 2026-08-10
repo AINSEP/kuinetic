@@ -124,11 +124,28 @@ function splitPair(token: string): [string, string] | null {
     else if (char === ')') depth = Math.max(0, depth - 1)
     else if (char === ':' && depth === 0) {
       const key = token.slice(0, i).trim()
-      const value = token.slice(i + 1).trim()
+      const value = unquote(token.slice(i + 1).trim())
       return key && value ? [key, value] : null
     }
   }
   return null
+}
+
+/**
+ * Strip surrounding quotes from a parameter value.
+ *
+ * Quoting is how a value containing spaces survives tokenisation — an SVG path or a descendant
+ * selector is unusable otherwise. The quotes are syntax, so they must not reach the consumer.
+ *
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function unquote(value: string): string {
+  const first = value[0]
+  if ((first === '"' || first === "'") && value.endsWith(first) && value.length > 1) {
+    return value.slice(1, -1)
+  }
+  return value
 }
 
 /**

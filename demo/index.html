@@ -59,6 +59,28 @@
       <div id="hoverable" class="box" data-dsg="zoom-in 200ms on:hover">on:hover</div>
     </section>
 
+    <section id="pin-host" style="height: 200vh">
+      <div id="pinned" class="box" data-dsg="pin-section distance:400px">pinned</div>
+    </section>
+
+    <section id="story-host" style="height: 200vh">
+      <div id="story" data-dsg="scrollytelling-step distance:400px steps:4" style="height: 400px">
+        scrollytelling
+      </div>
+    </section>
+
+    <section>
+      <ul id="flip-list" data-dsg="flip-reorder 300ms">
+        <li class="box" id="card-a">A</li>
+        <li class="box" id="card-b">B</li>
+        <li class="box" id="card-c">C</li>
+      </ul>
+    </section>
+
+    <svg width="0" height="0" style="position: absolute">
+      <path id="morph" data-dsg='icon-morph to:"M0,0 L20,0 L20,20 Z"' d="M0,0 L10,0 L10,10 Z" />
+    </svg>
+
     <section class="spacer">end</section>
 
     <script src="./designimation.js"></script>

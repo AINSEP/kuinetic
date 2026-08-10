@@ -77,6 +77,12 @@ export type ParamType =
   | 'color'
   | 'easing'
   | 'keyword'
+  /**
+   * Free text — a CSS selector, a URL pattern. Consumed only by JS primitives and **never
+   * written to a stylesheet**, which is what makes accepting arbitrary characters safe here.
+   * `resolveParams` drops these on the CSS path; `readParams` keeps them for `prepare`.
+   */
+  | 'text'
 
 export interface ParamSpec {
   type: ParamType
@@ -90,12 +96,33 @@ export interface ParamSpec {
 
 export type ParameterSchema = Record<string, ParamSpec>
 
-export interface PrepareContext {
-  doc: Document
-  warn(message: string): void
-}
+import type { PrepareContext } from './effect-context.js'
+
+export type { PrepareContext }
 
 export type Cleanup = () => void
+
+/**
+ * Validated parameter reader handed to JS-rendered primitives.
+ *
+ * A reader rather than a plain record for three reasons: every declared parameter is guaranteed
+ * present (so no `| undefined` at every call site), unit conversion lives in one place instead of
+ * being re-derived per primitive, and it is structurally distinct from `ResolvedParams`.
+ *
+ * That last point is not cosmetic. `prepare` previously declared `ResolvedParams` while the
+ * animator passed raw author strings; both were `Record<string, string>`, so TypeScript accepted
+ * a call that bypassed all validation. Two different shapes make that class of mistake impossible.
+ */
+export interface EffectParams {
+  /** Validated string value. */
+  text(name: string, fallback?: string): string
+  /** Milliseconds, from a `time` parameter. */
+  ms(name: string, fallback?: number): number
+  /** Bare number, or a percentage as a 0–1 ratio. */
+  num(name: string, fallback?: number): number
+  /** Whether a keyword parameter equals `value` (default `'true'`). */
+  is(name: string, value?: string): boolean
+}
 
 /**
  * A primitive is an implementation. Presets are names that point at a primitive with different
@@ -110,8 +137,11 @@ export interface Primitive {
   supportedActivations: Activation[]
   perfClass: PerfClass
   reducedMotion: ReducedMotionPolicy
-  /** JS-side setup (DOM surgery, listeners, rAF). Returns its own teardown. */
-  prepare?(el: Element, params: ResolvedParams, ctx: PrepareContext): Cleanup
+  /**
+   * JS-side setup (DOM surgery, scheduler subscription, listeners). Returns its own teardown.
+   * `params` are validated and defaulted — never raw author input.
+   */
+  prepare?(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup
 }
 
 export interface Preset {

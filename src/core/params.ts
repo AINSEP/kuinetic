@@ -60,6 +60,9 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
   if (rejection) return rejection
 
   if (spec.type === 'keyword') return checkKeyword(value, spec)
+  // `text` has no shape to match — it is a selector or URL pattern. It still passed the
+  // escape screen above, and `resolveParams` drops it before anything reaches a stylesheet.
+  if (spec.type === 'text') return { value, ok: true }
   if (isAcceptable(value, spec.type)) return { value, ok: true }
   return reject(spec, `not a valid ${spec.type}`)
 }
@@ -162,6 +165,10 @@ export function resolveParams(
       warn(`unknown parameter "${key}" (known: ${Object.keys(schema).join(', ') || 'none'})`)
       continue
     }
+    // `text` parameters are JS-only by definition; letting one reach a stylesheet would
+    // reintroduce exactly the injection surface the rest of this module removes.
+    if (spec.type === 'text') continue
+
     const result = validate(raw, spec)
     if (result.ok) out[spec.cssProperty] = result.value
     else warn(`parameter "${key}": ${result.reason} — got "${raw}", using default "${spec.default}"`)

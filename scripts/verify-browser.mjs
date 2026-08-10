@@ -117,6 +117,59 @@ async function run() {
     (await page.$eval('#hoverable', (el) => el.getAttribute('data-dsg-state'))) === 'running',
   )
 
+  // --- v2: pinning ------------------------------------------------------------------------
+  check(
+    'pin applies sticky positioning',
+    (await page.$eval('#pinned', (el) => getComputedStyle(el).position)) === 'sticky',
+  )
+  check(
+    'pin inserts a spacer that is hidden from assistive tech',
+    (await page.$eval('#pin-host [data-dsg-spacer]', (el) => el.getAttribute('aria-hidden'))) ===
+      'true',
+  )
+
+  // scrollIntoView lands the container exactly at the top, which is progress 0 by definition —
+  // the pin has to be scrolled *past* before it reports anything.
+  await page.$eval('#pin-host', (el) => el.scrollIntoView())
+  await page.evaluate(() => window.scrollBy(0, 200))
+  await page.waitForTimeout(300)
+  const pinProgress = await page.$eval('#pinned', (el) =>
+    Number.parseFloat(el.style.getPropertyValue('--dsg-progress')),
+  )
+  check('pin publishes real scroll progress', pinProgress > 0, `progress=${pinProgress}`)
+
+  // --- v2: scrollytelling -------------------------------------------------------------------
+  await page.$eval('#story-host', (el) => el.scrollIntoView())
+  await page.waitForTimeout(300)
+  await page.evaluate(() => window.scrollBy(0, 300))
+  await page.waitForTimeout(300)
+  const step = await page.$eval('#story', (el) => el.getAttribute('data-dsg-step'))
+  check('scrollytelling advances its step index', Number(step) > 0, `step=${step}`)
+
+  // --- v2: FLIP ------------------------------------------------------------------------------
+  // Reorder the list, then confirm a moved child is actually running an animation.
+  const flipAnimations = await page.evaluate(async () => {
+    const list = document.querySelector('#flip-list')
+    list.prepend(document.querySelector('#card-c'))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    return document.querySelector('#card-a').getAnimations().length
+  })
+  check('FLIP animates a child displaced by a reorder', flipAnimations > 0, `${flipAnimations}`)
+
+  // --- v2: SVG morph --------------------------------------------------------------------------
+  const morphed = await page.evaluate(async () => {
+    const path = document.querySelector('#morph')
+    const before = path.getAttribute('d')
+    path.dispatchEvent(new PointerEvent('pointerenter'))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    return { before, after: path.getAttribute('d') }
+  })
+  check(
+    'SVG path morph rewrites the d attribute on hover',
+    morphed.after !== morphed.before && morphed.after.startsWith('M'),
+    `${morphed.before} -> ${morphed.after}`,
+  )
+
   // --- reduced motion lands on the final state, never the from-state --------------------
   const reduced = await browser.newPage({ viewport: { width: 900, height: 700 } })
   await reduced.emulateMedia({ reducedMotion: 'reduce' })

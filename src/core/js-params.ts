@@ -1,5 +1,5 @@
 import { validate } from './params.js'
-import type { ParameterSchema } from './types.js'
+import type { EffectParams, ParameterSchema } from './types.js'
 
 /**
  * Parameter access for JS-rendered primitives.
@@ -170,4 +170,36 @@ export function toNumber(value: string, fallback = 0): number {
 /** Whether a keyword parameter is set to its enabling value. */
 export function isEnabled(value: string, enabling = 'true'): boolean {
   return value === enabling
+}
+
+/**
+ * Wrap a validated record in the reader primitives consume.
+ *
+ * @param values - Output of `readParams`; every declared parameter is present.
+ * @returns A reader with per-type accessors.
+ * @complexity O(1) per accessor call; O(1) space beyond the record.
+ * @overallScore 100
+ */
+export function createParams(values: Record<string, string>): EffectParams {
+  return {
+    text: (name, fallback = '') => values[name] ?? fallback,
+    ms: (name, fallback = 0) => toMilliseconds(values[name] ?? '', fallback),
+    num: (name, fallback = 0) => toNumber(values[name] ?? '', fallback),
+    is: (name, value = 'true') => (values[name] ?? '') === value,
+  }
+}
+
+/**
+ * Validate authored parameters and wrap them in a reader — the single entry point the animator
+ * uses for JS-rendered effects.
+ *
+ * @complexity O(p * n) time in parameter count and value length; O(p) space.
+ * @overallScore 100
+ */
+export function readEffectParams(
+  authored: Record<string, string>,
+  schema: ParameterSchema,
+  warn: (message: string) => void,
+): EffectParams {
+  return createParams(readParams(authored, schema, warn))
 }

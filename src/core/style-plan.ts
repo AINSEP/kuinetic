@@ -51,7 +51,15 @@ export function planStyles(input: StylePlanInput): StylePlan {
   const properties: Record<string, string> = { ...plan.vars, ...plan.declarations }
   Object.assign(properties, timelineProperties(config, capabilities, useNativeTimeline))
 
-  const gate = resolveGate({ useNativeTimeline, reduce, activation: config.activation })
+  const gate = resolveGate({
+    useNativeTimeline,
+    reduce,
+    activation: config.activation,
+    // A purely JS-rendered effect emits no `animation` declaration, so there is nothing to hold
+    // paused. Gating it would set a play-state on an element that has no animation and, worse,
+    // bind an activation that can never visibly do anything.
+    hasCssAnimation: Object.keys(plan.declarations).length > 0,
+  })
   if (gate === 'deferred') properties['animation-play-state'] = 'paused'
 
   return {
@@ -98,8 +106,10 @@ function resolveGate(input: {
   useNativeTimeline: boolean
   reduce: boolean
   activation: Activation
+  hasCssAnimation: boolean
 }): Gate {
   if (input.useNativeTimeline) return 'native-timeline'
+  if (!input.hasCssAnimation) return 'immediate'
   if (input.reduce || input.activation === 'load') return 'immediate'
   return 'deferred'
 }
