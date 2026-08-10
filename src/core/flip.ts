@@ -228,7 +228,17 @@ export function mutationWatcher(container: Element): (callback: () => void) => C
   return (callback) => {
     if (typeof MutationObserver === 'undefined') return () => {}
     const observer = new MutationObserver(callback)
-    observer.observe(container, { childList: true, attributes: true, attributeFilter: ['hidden'] })
+    // `subtree` is required for the `attributes`/`attributeFilter` half of this config to reach
+    // children at all — a filter effect toggles `hidden` on each child `<figure>`, never on the
+    // container itself, so without `subtree` those mutations were invisible to this observer and
+    // no FLIP cycle ever ran. `flip-reorder`'s direct `childList` mutations on the container
+    // already worked without it, which is why only the filter/toggle case went unnoticed.
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden'],
+    })
     return () => observer.disconnect()
   }
 }
