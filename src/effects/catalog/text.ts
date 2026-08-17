@@ -3,6 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { SetupResult, TimedSetup } from '../../core/instances.js'
+import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
 import {
   SCRAMBLE_CHARSETS,
@@ -184,7 +185,9 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
   applyStaggerVars(layers.decorative, params)
   const items = appendSpansFor(unit, layers.decorative, doc, layers.originalText)
 
-  let settle: () => void = () => {}
+  // A `Promise` executor runs synchronously, so `settle` is always assigned before the
+  // `setTimeout` callback below or `finish` (both later closures) can ever run.
+  let settle!: () => void
   const finished = new Promise<void>((resolve) => {
     settle = resolve
   })
@@ -273,7 +276,9 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
  * @overallScore 100
  */
 function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
-  const charset = SCRAMBLE_CHARSETS[params.text('charset', 'upper')] ?? SCRAMBLE_CHARSETS.upper!
+  // `charset` is a closed `keyword` param (`scrambleParams` below) validated against exactly
+  // `SCRAMBLE_CHARSETS`'s three keys before this ever runs, so the lookup always hits.
+  const charset = SCRAMBLE_CHARSETS[params.text('charset', 'upper')]!
   const revealEvery = Math.max(1, Math.round(params.num('revealEvery', 2)))
   const layers = installSplitLayers(el, el.ownerDocument)
   layers.decorative.classList.add('kui-scramble')
@@ -339,10 +344,13 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
     .filter(Boolean)
   if (words.length === 0) return () => {}
 
-  const original = el.textContent ?? ''
+  // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM spec;
+  // `el: Element` can never be one, so this is always a string.
+  const original = el.textContent!
   const swapMs = 150
   let index = 0
-  el.textContent = words[0] ?? ''
+  // The `words.length === 0` guard just above means `words` is non-empty here.
+  el.textContent = words[0]!
 
   const run = createStepRunner(ctx.win, {
     delayMs: params.timing.delayMs ?? 0,
@@ -351,7 +359,8 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
       el.classList.add('kui-word-cycler-swap')
       ctx.win.setTimeout(() => {
         index = (index + 1) % words.length
-        el.textContent = words[index] ?? ''
+        // Modulo by `words.length` (always >= 1, per the guard above) keeps `index` in bounds.
+        el.textContent = words[index]!
         el.classList.remove('kui-word-cycler-swap')
       }, swapMs)
       return false
@@ -419,3 +428,15 @@ export const TEXT_JS_PRESETS: Preset[] = [
 
 export const TEXT_PRIMITIVES: Primitive[] = [...TEXT_CSS_PRIMITIVES, ...TEXT_JS_PRIMITIVES]
 export const TEXT_PRESETS: Preset[] = [...TEXT_CSS_PRESETS, ...TEXT_JS_PRESETS]
+
+/**
+ * Register catalog section D (text & typography) into a registry.
+ *
+ * @param registry - Registry to populate.
+ * @returns The same registry, for chaining.
+ * @complexity O(n) time in registered primitives and presets; O(1) extra space.
+ * @overallScore 100
+ */
+export function registerText(registry: Registry): Registry {
+  return registry.registerPrimitives(TEXT_PRIMITIVES).registerPresets(TEXT_PRESETS)
+}

@@ -141,7 +141,9 @@ function tweenNumber(ctx: PrepareContext, tween: NumberTween): TimedSetup {
   const { from, to, durationMs, delayMs, easing, onTick } = tween
   let elapsed = 0
   let handle: number | undefined
-  let settle: () => void = () => {}
+  // A `Promise` executor runs synchronously, so `settle` is always assigned before `tick` or
+  // `finish` (the only callers, both later closures) can ever run — no placeholder needed.
+  let settle!: () => void
   const finished = new Promise<void>((resolve) => {
     settle = resolve
   })

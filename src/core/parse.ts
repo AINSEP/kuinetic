@@ -54,6 +54,9 @@ type Token =
   | { kind: 'easing'; value: string }
   | { kind: 'unknown'; value: string }
 
+/** `applyToken`'s only call site already filters out `'time'` before calling it. */
+type NonTimeToken = Exclude<Token, { kind: 'time' }>
+
 /**
  * Split on a delimiter, ignoring delimiters nested inside parentheses or quotes.
  *
@@ -218,8 +221,10 @@ export function parse(input: string): ParsedValue {
  */
 function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
   const tokens = splitTopLevel(segment, ' ', result.warnings)
-  const name = tokens.shift()
-  if (!name) return null
+  // `splitTopLevel` only ever returns trimmed, non-empty parts, and `segment` is itself one such
+  // part from the outer comma-split — so it has at least one non-whitespace character that the
+  // inner space-split can never consume as a separator, guaranteeing at least one token here.
+  const name = tokens.shift()!
   if (splitPair(name)) {
     result.warnings.push(`effect name expected, got "${name}"`)
     return null
@@ -258,7 +263,7 @@ function applyTime(spec: EffectSpec, value: string, seen: number, warnings: stri
  * @overallScore 100
  */
 function applyToken(
-  token: Token,
+  token: NonTimeToken,
   spec: EffectSpec,
   segment: string,
   result: ParsedValue,
@@ -274,7 +279,6 @@ function applyToken(
     )
     return
   }
-  if (token.kind !== 'pair') return
 
   // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
   // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to

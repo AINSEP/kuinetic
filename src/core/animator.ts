@@ -440,9 +440,31 @@ export class Animator {
     state.attributes.restore()
   }
 
-  private releaseTree(node: ParentNode): void {
-    for (const el of [...this.liveElements]) {
-      if (node === el || (node as Node).contains?.(el)) this.release(el)
+  /**
+   * Tear down every tracked element inside a removed subtree.
+   *
+   * Scoped to `node`'s own descendants rather than re-scanning `liveElements` against the whole
+   * page, so a removal event costs O(removed subtree), not O(every animated element alive
+   * anywhere) — `dom-watcher.ts` can queue up to 100 removed roots per frame, and `liveElements`
+   * only shrinks on release, so it stays large on a scroll-reveal-heavy page.
+   *
+   * Membership is checked against `liveElements` (the ground truth) rather than re-querying
+   * `[${ATTR.source}]` the way `scan()` does: `dom-watcher.ts`'s `flush()` drains removed roots
+   * before attribute-change roots, so if calling code strips `data-kui` and removes the element in
+   * the same tick, a selector-based query would already miss it here and leak its teardown.
+   *
+   * `node` is typed `Element`, not `ParentNode`: `dom-watcher.ts`'s `onElementRemoved` — this
+   * method's only caller — is itself typed `(el: Element) => void`, so there is no runtime case
+   * where `node` is a `Document`/`DocumentFragment` to guard against.
+   *
+   * @complexity O(s) time in the removed subtree's element count; O(1) per candidate via the
+   * `liveElements` Set lookup.
+   * @overallScore 100
+   */
+  private releaseTree(node: Element): void {
+    if (this.liveElements.has(node)) this.release(node)
+    for (const el of node.querySelectorAll('*')) {
+      if (this.liveElements.has(el)) this.release(el)
     }
   }
 

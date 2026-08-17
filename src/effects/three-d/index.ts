@@ -1,6 +1,7 @@
 import { CHANNEL } from '../../core/types.js'
-import type { ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { Preset, Primitive } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
+import { cssPrimitive } from '../shared.js'
 
 /**
  * 3D, perspective, and page-transition effects — all CSS-rendered.
@@ -10,34 +11,16 @@ import type { Registry } from '../../core/registry.js'
  * architecture, and it is why tripling the catalog does not triple the payload.
  */
 
-const common: ParameterSchema = {
-  duration: { type: 'time', default: '600ms', cssProperty: '--kui-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
-  stagger: { type: 'time', default: '0ms', cssProperty: '--kui-stagger' },
-}
-
-function cssPrimitive(id: string, channels: string[], extra: ParameterSchema = {}): Primitive {
-  return {
-    id,
-    renderer: 'css-keyframes',
-    channels,
-    parameters: { ...common, ...extra },
-    supportedTimelines: ['time'],
-    supportedActivations: ['load', 'enter', 'hover', 'focus', 'click', 'manual'],
-    perfClass: 'compositor',
-    reducedMotion: 'shorten',
-  }
-}
-
 export const THREE_D_PRIMITIVES: Primitive[] = [
   cssPrimitive('flip-face', [CHANNEL.rotate], {
-    angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
-    perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
+    parameters: {
+      angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
+      perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
+    },
   }),
 
   cssPrimitive('page-reveal', [CHANNEL.opacity, CHANNEL.translate], {
-    distance: { type: 'length', default: '40px', cssProperty: '--kui-distance' },
+    parameters: { distance: { type: 'length', default: '40px', cssProperty: '--kui-distance' } },
   }),
 
   cssPrimitive('wipe', [CHANNEL.clip]),

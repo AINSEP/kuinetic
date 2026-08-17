@@ -88,6 +88,22 @@ describe('validate', () => {
     expect(validate('180', constrained).ok).toBe(true)
   })
 
+  it('rejects a calc() expression against a finite numeric constraint', () => {
+    // `Number('calc(2 + 2)')` is `NaN` unconditionally — this module never evaluates calc
+    // arithmetic — so any `number`-type param with `finite: true` (e.g. `spread` in
+    // src/effects/catalog/feedback.ts) rejects every authored calc() value at this check.
+    const constrained: ParamSpec = {
+      type: 'number',
+      default: '4',
+      cssProperty: '--kui-x',
+      finite: true,
+      minimum: 1,
+    }
+    const result = validate('calc(2 + 2)', constrained)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('expected a finite number')
+  })
+
   it('rejects empty values', () => {
     expect(validate('   ', length).ok).toBe(false)
   })

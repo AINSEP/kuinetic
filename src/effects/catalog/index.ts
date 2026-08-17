@@ -1,10 +1,10 @@
 import type { Registry } from '../../core/registry.js'
-import { AMBIENT_PRESETS, AMBIENT_PRIMITIVES } from './ambient.js'
-import { FEEDBACK_PRESETS, FEEDBACK_PRIMITIVES } from './feedback.js'
-import { INTERACTION_PRESETS, INTERACTION_PRIMITIVES } from './interaction.js'
-import { MEDIA_PRESETS, MEDIA_PRIMITIVES } from './media.js'
-import { NUMBERS_PRESETS, NUMBERS_PRIMITIVES } from './numbers.js'
-import { TEXT_PRESETS, TEXT_PRIMITIVES } from './text.js'
+import { registerAmbient } from './ambient.js'
+import { registerFeedback } from './feedback.js'
+import { registerInteraction } from './interaction.js'
+import { registerMedia } from './media.js'
+import { registerNumbers } from './numbers.js'
+import { registerText } from './text.js'
 
 export { AMBIENT_PRESETS, AMBIENT_PRIMITIVES } from './ambient.js'
 export { FEEDBACK_PRESETS, FEEDBACK_PRIMITIVES } from './feedback.js'
@@ -16,23 +16,22 @@ export { TEXT_PRESETS, TEXT_PRIMITIVES } from './text.js'
 /**
  * Register the CSS-oriented catalog sections.
  *
+ * Delegates to each section's own `register*` function — the same shape every other top-level
+ * category (`registerGestures`, `registerThreeD`, ...) uses — instead of re-registering their
+ * constants inline, so this aggregator and each section's own registration path can never drift
+ * apart from each other.
+ *
  * @param registry - Registry to populate.
  * @returns The same registry, for chaining.
  * @complexity O(n) time in registered primitives and presets.
  * @overallScore 100
  */
 export function registerCatalog(registry: Registry): Registry {
+  registerMedia(registry)
+  registerText(registry)
+  registerAmbient(registry)
+  registerFeedback(registry)
+  registerNumbers(registry)
+  registerInteraction(registry)
   return registry
-    .registerPrimitives(MEDIA_PRIMITIVES)
-    .registerPresets(MEDIA_PRESETS)
-    .registerPrimitives(TEXT_PRIMITIVES)
-    .registerPresets(TEXT_PRESETS)
-    .registerPrimitives(AMBIENT_PRIMITIVES)
-    .registerPresets(AMBIENT_PRESETS)
-    .registerPrimitives(FEEDBACK_PRIMITIVES)
-    .registerPresets(FEEDBACK_PRESETS)
-    .registerPrimitives(NUMBERS_PRIMITIVES)
-    .registerPresets(NUMBERS_PRESETS)
-    .registerPrimitives(INTERACTION_PRIMITIVES)
-    .registerPresets(INTERACTION_PRESETS)
 }

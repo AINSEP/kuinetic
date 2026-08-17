@@ -51,7 +51,9 @@ export function installCountLayers(el: Element, doc: Document): CountLayers {
     decorative,
     srOnly,
     restore: () => {
-      el.textContent = srOnly.textContent ?? ''
+      // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM
+      // spec; `srOnly` is a `<span>` created just above, so this is always a string.
+      el.textContent = srOnly.textContent!
     },
   }
 }

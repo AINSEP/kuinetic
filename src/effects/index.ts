@@ -1,5 +1,6 @@
 import { Registry } from '../core/registry.js'
 import { registerCatalog } from './catalog/index.js'
+import { registerCore } from './catalog/core.js'
 import { registerForms } from './forms/index.js'
 import { registerGestures } from './gestures/index.js'
 import { registerLayout } from './layout/index.js'
@@ -7,24 +8,14 @@ import { registerNavigation } from './navigation/index.js'
 import { registerScrollMechanics } from './scroll-mechanics/index.js'
 import { registerSvg } from './svg/index.js'
 import { registerThreeD } from './three-d/index.js'
-import { PRIMITIVES } from './primitives.js'
-import { COMBOS, PRESETS } from './presets.js'
 
-export { PRIMITIVES } from './primitives.js'
-export { COMBOS, PRESETS } from './presets.js'
+export { PRIMITIVES, PRESETS, COMBOS, registerCore } from './catalog/core.js'
 export { registerGestures } from './gestures/index.js'
 export { registerLayout } from './layout/index.js'
 export { registerScrollMechanics } from './scroll-mechanics/index.js'
 export { registerSvg } from './svg/index.js'
 export { registerThreeD } from './three-d/index.js'
 export { registerCatalog } from './catalog/index.js'
-
-/** The v1 catalog: entrance/exit, scroll reveal, and parallax. All CSS-rendered. */
-export function registerCore(registry: Registry): Registry {
-  registry.registerPrimitives(PRIMITIVES).registerPresets(PRESETS)
-  for (const [names, preset] of COMBOS) registry.registerCombo(names, preset)
-  return registry
-}
 
 /**
  * A registry with the full catalog registered.

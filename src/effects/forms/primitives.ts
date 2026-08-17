@@ -2,7 +2,7 @@ import { CHANNEL, inertInstance } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
-import { cssPrimitive } from '../catalog/shared.js'
+import { cssPrimitive } from '../shared.js'
 
 /**
  * Form and input primitives (catalog section O).

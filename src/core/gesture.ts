@@ -139,7 +139,8 @@ export function recognise(
   }
 
   function vectorNow(sample: Sample): GestureVector {
-    const start = origin ?? sample
+    // Both callers (`onMove`, `onUp`) already guard `if (!origin) return` before calling this.
+    const start = origin!
     const { vx, vy } = velocityFrom(samples)
     return applyAxis({ dx: sample.x - start.x, dy: sample.y - start.y, vx, vy }, axis)
   }

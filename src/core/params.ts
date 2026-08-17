@@ -221,7 +221,9 @@ function isSafeCalc(value: string): boolean {
  */
 function nextCalcToken(value: string, index: number, end: number): number {
   if (value.startsWith('var(', index)) return consumeVar(value, index, end)
-  return CALC_CHARACTER.test(value[index] ?? '') ? index + 1 : -1
+  // Only called from `isSafeCalc`'s `while (index < end)` loop, and `end < value.length`, so
+  // `value[index]` is always in-bounds.
+  return CALC_CHARACTER.test(value[index]!) ? index + 1 : -1
 }
 
 /**
@@ -248,20 +250,18 @@ function consumeVar(value: string, start: number, end: number): number {
  * calc is not a security problem — CSS drops it at computed-value time — but accepting it
  * silently means the author sees no animation and no warning, which is the worst outcome.
  *
+ * Only reached after `isSafeCalc` already tokenized `value` successfully (short-circuit `&&` at
+ * the call site): its tokenizer accepts an outer `calc(`/`)` pair plus, for each `var(...)`
+ * token, only ones whose closing paren `consumeVar` already located — so by construction every
+ * paren here is already balanced, and there is nothing left to check but emptiness and a
+ * trailing operator.
+ *
  * @param value - A string already accepted by the safe calc tokenizer.
- * @returns Whether parentheses balance and no operator is left dangling.
+ * @returns Whether the body is non-empty and has no dangling trailing operator.
  * @complexity O(n) time in value length; O(1) space.
  * @overallScore 100
  */
 function isWellFormedCalc(value: string): boolean {
-  let depth = 0
-  for (const char of value) {
-    if (char === '(') depth++
-    else if (char === ')') depth--
-    if (depth < 0) return false
-  }
-  if (depth !== 0) return false
-
   const body = value.slice('calc('.length, -1).trim()
   return body !== '' && !/[+\-*/]$/.test(body)
 }

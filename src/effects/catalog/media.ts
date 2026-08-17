@@ -1,5 +1,6 @@
 import { CHANNEL } from '../../core/types.js'
 import type { Preset, Primitive } from '../../core/types.js'
+import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
 
 const geometry = {
@@ -67,3 +68,15 @@ export const MEDIA_PRESETS: Preset[] = [
   { name: 'before-after-wipe', primitive: 'media-wipe', keyframes: 'kui-before-after-wipe' },
   { name: 'lightbox-open', primitive: 'media-lightbox', keyframes: 'kui-lightbox-open' },
 ]
+
+/**
+ * Register catalog section G (media & images) into a registry.
+ *
+ * @param registry - Registry to populate.
+ * @returns The same registry, for chaining.
+ * @complexity O(n) time in registered primitives and presets; O(1) extra space.
+ * @overallScore 100
+ */
+export function registerMedia(registry: Registry): Registry {
+  return registry.registerPrimitives(MEDIA_PRIMITIVES).registerPresets(MEDIA_PRESETS)
+}

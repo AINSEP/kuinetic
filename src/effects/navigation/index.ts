@@ -3,7 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive } from '../catalog/shared.js'
+import { cssPrimitive } from '../shared.js'
 
 /**
  * Navigation effects (catalog section M).

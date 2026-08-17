@@ -62,8 +62,9 @@ export class Registry {
   resolve(name: string): ResolvedEffect | undefined {
     const preset = this.presets.get(name)
     if (!preset) return undefined
-    const primitive = this.primitives.get(preset.primitive)
-    if (!primitive) return undefined
+    // `registerPreset` already rejects a preset whose primitive isn't registered, and nothing
+    // ever removes an entry from `primitives`, so a preset in `this.presets` always resolves.
+    const primitive = this.primitives.get(preset.primitive)!
     return { preset, primitive }
   }
 

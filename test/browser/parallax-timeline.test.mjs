@@ -11,7 +11,7 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * `overflow: hidden` to clip an oversized image, which made that motionless frame the timeline's
  * source instead of the document — progress computed once, on load, and stayed there for the rest
  * of the page's scroll. `kui-parallax-y`/`kui-parallax-x` (`src/css/scroll.css`) themselves were
- * never broken; `depth-layer` reuses `kui-parallax-y` (`src/effects/presets.ts`) and shares this
+ * never broken; `depth-layer` reuses `kui-parallax-y` (`src/effects/catalog/core.ts`) and shares this
  * fixture's proof by construction, so it does not need a separate one.
  *
  * A naive `translate !== '0px'` assertion would pass on the broken code too — the frozen value was

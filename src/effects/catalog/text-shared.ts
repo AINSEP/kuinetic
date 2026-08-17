@@ -34,7 +34,9 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
   // `textContent` as literal leading/trailing whitespace, which is insignificant to a reader but
   // was not insignificant to `appendLineSpans` — a leading whitespace text node with no preceding
   // element produced its own empty line bucket, rendered as a stray empty line.
-  const originalText = (el.textContent ?? '').trim()
+  // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM spec;
+  // `el: Element` can never be one, so this is always a string.
+  const originalText = el.textContent!.trim()
   const decorative = doc.createElement('span')
   decorative.setAttribute('aria-hidden', 'true')
   decorative.className = DECORATIVE_CLASS

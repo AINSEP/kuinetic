@@ -1,4 +1,112 @@
-import type { Preset } from '../core/types.js'
+import { CHANNEL } from '../../core/types.js'
+import type { ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { Registry } from '../../core/registry.js'
+import { cssPrimitive as css } from '../shared.js'
+
+/**
+ * The v1 catalog: entrance/exit, scroll reveal, and parallax. All CSS-rendered.
+ *
+ * The oldest and most heavily used section of the library — kept as one file, same shape as
+ * every other catalog category (`ambient.ts`, `feedback.ts`, ...), rather than split across
+ * `primitives.ts`/`presets.ts` one directory up.
+ */
+
+const distance: ParameterSchema = {
+  distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
+  opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' },
+}
+
+export const PRIMITIVES: Primitive[] = [
+  // --- entrance / exit -------------------------------------------------------------------
+  css('reveal', [CHANNEL.opacity, CHANNEL.translate], { parameters: distance }),
+
+  css('scale', [CHANNEL.scale], {
+    parameters: { scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' } },
+  }),
+
+  // Separate from `scale` because it claims translate as well and so composes differently.
+  css('scale-move', [CHANNEL.scale, CHANNEL.translate], {
+    parameters: {
+      ...distance,
+      scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' },
+    },
+  }),
+
+  css('rotate', [CHANNEL.rotate], {
+    parameters: { angle: { type: 'angle', default: '-8deg', cssProperty: '--kui-from-angle' } },
+  }),
+
+  css('roll', [CHANNEL.rotate, CHANNEL.translate], {
+    parameters: {
+      ...distance,
+      angle: { type: 'angle', default: '-120deg', cssProperty: '--kui-from-angle' },
+    },
+  }),
+
+  css('flip-3d', [CHANNEL.rotate], {
+    parameters: {
+      angle: { type: 'angle', default: '90deg', cssProperty: '--kui-from-angle' },
+      perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
+    },
+  }),
+
+  css('blur', [CHANNEL.filter], {
+    parameters: { blur: { type: 'length', default: '12px', cssProperty: '--kui-blur' } },
+  }),
+
+  // Purpose-built combination: one keyframe, so opacity is written once instead of twice.
+  css('reveal-blur', [CHANNEL.opacity, CHANNEL.translate, CHANNEL.filter], {
+    parameters: { ...distance, blur: { type: 'length', default: '12px', cssProperty: '--kui-blur' } },
+  }),
+
+  // --- scroll-linked ---------------------------------------------------------------------
+  // These are progress-linked, not time-triggered: they reverse as the user scrolls back.
+  // That is by design and is why `timeline:` is a different axis from `on:`.
+  css('parallax', [CHANNEL.translate], {
+    parameters: distance,
+    timelines: ['view', 'scroll'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+    perfClass: 'compositor',
+  }),
+
+  css('parallax-scale', [CHANNEL.scale], {
+    parameters: { scale: { type: 'number', default: '1.2', cssProperty: '--kui-to-scale' } },
+    timelines: ['view', 'scroll'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+  }),
+
+  css('parallax-rotate', [CHANNEL.rotate], {
+    parameters: { angle: { type: 'angle', default: '12deg', cssProperty: '--kui-to-angle' } },
+    timelines: ['view', 'scroll'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+  }),
+
+  css('scroll-fade', [CHANNEL.opacity], {
+    parameters: { opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' } },
+    timelines: ['view', 'scroll'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+  }),
+
+  css('progress', [CHANNEL.scale], {
+    timelines: ['scroll', 'view'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+  }),
+
+  // Separate primitive because it writes `stroke-dashoffset`, not `scale` — declaring the
+  // wrong channel would let it silently compose with an effect it actually collides with.
+  css('progress-stroke', [CHANNEL.stroke], {
+    parameters: { length: { type: 'number', default: '100', cssProperty: '--kui-path-length' } },
+    timelines: ['scroll', 'view'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+    perfClass: 'paint',
+  }),
+]
 
 /**
  * Presets are data, not code. 48 entrance/exit names resolve to 8 primitives and ~24 keyframe
@@ -131,3 +239,18 @@ export const COMBOS: Array<[string[], string]> = [
   [['fade-up', 'blur-in'], 'fade-blur-up'],
   [['fade-in', 'blur-in'], 'fade-blur-in'],
 ]
+
+/**
+ * Register the v1 catalog: entrance/exit, scroll reveal, and parallax primitives, presets, and
+ * combos.
+ *
+ * @param registry - Registry to populate.
+ * @returns The same registry, for chaining.
+ * @complexity O(n) time in the number of primitives, presets, and combos.
+ * @overallScore 100
+ */
+export function registerCore(registry: Registry): Registry {
+  registry.registerPrimitives(PRIMITIVES).registerPresets(PRESETS)
+  for (const [names, preset] of COMBOS) registry.registerCombo(names, preset)
+  return registry
+}
