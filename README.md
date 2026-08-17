@@ -15,7 +15,10 @@ gesture-driven motion. 100% branch/statement/function/line test coverage, 788 te
 
 ## Install
 
-Two files, no build step, no bundler config:
+Pick whichever fits — no build step, no bundler config required for any of these.
+
+**Split bundle** (recommended: the CSS keeps working even if the JS is slow, blocked, or fails to
+load) — download `kuinetic.js` + `kuinetic.css`, or use them straight from the CDN:
 
 ```html
 <link rel="stylesheet" href="./kuinetic.css">
@@ -23,6 +26,19 @@ Two files, no build step, no bundler config:
 <script>
   kuinetic.kuinetic({ observe: true }).start()
 </script>
+```
+
+**One tag, self-hosted** — CSS embedded, auto-started with `observe: true`:
+
+```html
+<script src="./kuinetic.all.js"></script>
+```
+
+**One tag, zero download** — served from Cloudflare's CDN:
+
+```html
+<!-- one-tag convenience -->
+<script src="https://kuinetic.pages.dev/kuinetic.all.js"></script>
 ```
 
 Or via npm, with a bundler:
@@ -38,30 +54,17 @@ import 'kuinetic/css'
 kuinetic({ observe: true }).start()
 ```
 
-### From a CDN
+### CDN reference
 
-No install, no download:
-
-```html
-<link rel="stylesheet" href="https://unpkg.com/kuinetic/dist/kuinetic.css">
-<script src="https://unpkg.com/kuinetic/dist/kuinetic.js"></script>
-```
-
-Also mirrored on jsDelivr (`https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.js`) — both update
-automatically from every npm release, no separate action needed.
-
-Additionally self-hosted on Cloudflare's CDN at **`kuinetic.pages.dev`**:
+All files are also mirrored on unpkg (`https://unpkg.com/kuinetic/dist/kuinetic.js`) and jsDelivr
+(`https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.js`) — both update automatically from every
+npm release. Self-hosted on Cloudflare at **`kuinetic.pages.dev`**:
 
 | File | URL | Use when |
 |---|---|---|
 | `kuinetic.js` | `https://kuinetic.pages.dev/kuinetic.js` | Split bundle — pair with `kuinetic.css` below. Side-effect-free on load; you call `.start()` yourself. |
 | `kuinetic.css` | `https://kuinetic.pages.dev/kuinetic.css` | Required alongside `kuinetic.js`. Keeps working even if the JS is slow, blocked, or fails to load. |
 | `kuinetic.all.js` | `https://kuinetic.pages.dev/kuinetic.all.js` | One-tag drop-in — CSS embedded, auto-started with `observe: true`. Trades the CSS-independent guarantee above for one less step. |
-
-```html
-<!-- one-tag convenience -->
-<script src="https://kuinetic.pages.dev/kuinetic.all.js"></script>
-```
 
 ## Your first animation
 
