@@ -338,6 +338,15 @@ describe('play()', () => {
     for (const spy of cancelSpies) expect(spy).toHaveBeenCalledOnce()
   })
 
+  it('resolves finished harmlessly for a target with no installed instances', async () => {
+    const animator = build('<p id="a">Hi</p>')
+    const handle = play({ animator, root: document.body, target: '#a', effect: 'not-a-real-effect' })
+
+    await expect(handle.finished).resolves.toBeUndefined()
+    expect(() => handle.cancel()).not.toThrow()
+    expect(() => handle.finish()).not.toThrow()
+  })
+
   it('finish() finishes every instance on every selected element', () => {
     const animator = build('<p class="x">Hi</p><p class="x">Yo</p>')
     const handle = play({ animator, root: document.body, target: '.x', effect: 'typewriter' }, { duration: 100 })

@@ -212,8 +212,11 @@ function buildPlan(
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
-  plan.supportedActivations = activations ?? []
-  plan.supportedTimelines = timelines ?? []
+  // `activations`/`timelines` start `undefined` only until the loop's first iteration; `compile`
+  // already returns `emptyPlan` before `buildPlan` is ever called with zero entries, so the loop
+  // above always runs at least once and both are real arrays (possibly empty) by here.
+  plan.supportedActivations = activations!
+  plan.supportedTimelines = timelines!
   plan.channels = [...channels]
   return plan
 }

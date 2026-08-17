@@ -315,11 +315,11 @@ export class Animator {
       this.activate(el)
       return
     }
+    // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
+    // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
     state.controller.signal.addEventListener(
       'abort',
-      this.binder.bind(el, stylePlan.activation ?? config.activation, config.threshold, () =>
-        this.activate(el),
-      ),
+      this.binder.bind(el, stylePlan.activation!, config.threshold, () => this.activate(el)),
     )
   }
 

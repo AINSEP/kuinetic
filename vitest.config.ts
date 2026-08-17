@@ -8,7 +8,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.d.ts', 'src/css/**'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/css/**',
+        // Type-only, no runtime code to cover.
+        'src/core/effect-context.ts',
+        // Pointer/gesture primitives depend on real pointer events jsdom doesn't fully implement.
+        // Covered instead by test/browser/gestures.test.mjs.
+        'src/effects/gestures/primitives.ts',
+      ],
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
         branches: 100,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ScrollRoot, SchedulerDeps } from '../src/core/scroll-scheduler.js'
 import {
   clamp01,
@@ -135,6 +135,54 @@ describe('createScrollScheduler — frame discipline', () => {
     source.scrollTo(420)
     frames.flush()
     expect(last).toBe(420)
+  })
+})
+
+describe('createScrollScheduler — default frame source', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('delivers a frame through the real requestAnimationFrame when available', async () => {
+    const raf = vi.fn((callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
+    vi.stubGlobal('requestAnimationFrame', raf)
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    const scheduler = createScrollScheduler()
+    const source = fakeRoot()
+    let delivered = false
+    scheduler.subscribe(source.root, () => {
+      delivered = true
+    })
+    expect(raf).toHaveBeenCalledOnce()
+    expect(delivered).toBe(true)
+    scheduler.destroy()
+  })
+
+  it('falls back to a timer-based frame source when requestAnimationFrame is unavailable', () => {
+    vi.stubGlobal('requestAnimationFrame', undefined)
+    vi.useFakeTimers()
+    const scheduler = createScrollScheduler()
+    const source = fakeRoot()
+    let delivered = false
+    scheduler.subscribe(source.root, () => {
+      delivered = true
+    })
+    expect(delivered).toBe(false)
+    vi.advanceTimersByTime(16)
+    expect(delivered).toBe(true)
+
+    // Also exercise the fallback's cancelFrame path, not only requestFrame.
+    let secondDelivered = false
+    scheduler.subscribe(fakeRoot().root, () => {
+      secondDelivered = true
+    })
+    scheduler.destroy()
+    vi.advanceTimersByTime(16)
+    expect(secondDelivered).toBe(false)
+    vi.useRealTimers()
   })
 })
 

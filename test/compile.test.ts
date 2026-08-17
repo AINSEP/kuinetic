@@ -170,6 +170,80 @@ describe('compile — composition', () => {
     expect(plan.fxNames).toEqual(['gradient-mesh'])
     expect(plan.warnings.join()).toContain('background')
   })
+
+  it('names the registered combo preset in the remedy when a real conflict has one', () => {
+    // The real catalog's registered combos (fade-up+blur-in, fade-in+blur-in) no longer conflict
+    // with each other — see the "no longer substitutes a combo" test above — so this builds a
+    // minimal registry where the conflict and the combo registration are both genuinely present,
+    // to exercise the branch that names the combo rather than the generic remedy text.
+    const custom = new Registry()
+    custom.registerPrimitives([
+      {
+        id: 'p-a',
+        renderer: 'css-keyframes',
+        channels: ['opacity'],
+        parameters: {},
+        supportedTimelines: ['time'],
+        supportedActivations: ['load'],
+        perfClass: 'compositor',
+        reducedMotion: 'shorten',
+      },
+      {
+        id: 'p-b',
+        renderer: 'css-keyframes',
+        channels: ['opacity'],
+        parameters: {},
+        supportedTimelines: ['time'],
+        supportedActivations: ['load'],
+        perfClass: 'compositor',
+        reducedMotion: 'shorten',
+      },
+      {
+        id: 'p-combo',
+        renderer: 'css-keyframes',
+        channels: ['opacity'],
+        parameters: {},
+        supportedTimelines: ['time'],
+        supportedActivations: ['load'],
+        perfClass: 'compositor',
+        reducedMotion: 'shorten',
+      },
+    ])
+    custom.registerPresets([
+      { name: 'combo-a', primitive: 'p-a' },
+      { name: 'combo-b', primitive: 'p-b' },
+      { name: 'combo-fused', primitive: 'p-combo' },
+    ])
+    custom.registerCombo(['combo-a', 'combo-b'], 'combo-fused')
+
+    const plan = compile(parse('combo-a, combo-b'), custom, 'time')
+    expect(plan.fxNames).toEqual(['combo-a'])
+    expect(plan.warnings.join()).toContain('Use the "combo-fused" effect instead.')
+  })
+
+  it('derives the default kui-{name} keyframe when a preset declares none', () => {
+    const custom = new Registry()
+    custom.registerPrimitive({
+      id: 'p-default-kf',
+      renderer: 'css-keyframes',
+      channels: ['opacity'],
+      parameters: {},
+      supportedTimelines: ['time'],
+      supportedActivations: ['load'],
+      perfClass: 'compositor',
+      reducedMotion: 'shorten',
+    })
+    custom.registerPreset({ name: 'default-kf-preset', primitive: 'p-default-kf' })
+
+    const plan = compile(parse('default-kf-preset'), custom, 'time')
+    expect(plan.declarations['animation-name']).toBe('kui-default-kf-preset')
+  })
+
+  it('passes a function-shaped easing through unchanged rather than treating it as a keyword', () => {
+    expect(run('fade-up cubic-bezier(.2,.8,.2,1)').declarations['animation-timing-function']).toBe(
+      'cubic-bezier(.2,.8,.2,1)',
+    )
+  })
 })
 
 describe('compile — reduced motion policy', () => {

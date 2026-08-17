@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createFlipEngine, observeLayout } from '../src/core/flip.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createFlipEngine, mutationWatcher, observeLayout } from '../src/core/flip.js'
 import type { Box, FlipDeps } from '../src/core/flip.js'
 
 /**
@@ -35,6 +35,21 @@ function makeElement(): Element {
   return document.createElement('div')
 }
 
+/** A `getBoundingClientRect()`-shaped return value, for exercising the real `domMeasure`. */
+function domRect(left: number, top: number, width = 100, height = 50): DOMRect {
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect
+}
+
 describe('createFlipEngine', () => {
   it('animates an element that moved, using the inverse of the delta', () => {
     const el = makeElement()
@@ -67,6 +82,8 @@ describe('createFlipEngine', () => {
     const run = engine.play(engine.snapshot([el]), [el])
     expect(run.moved).toEqual([])
     expect(captured).toEqual([])
+    // Nothing to cancel, but the handle's cancel() must still be a safe, real no-op call.
+    expect(() => run.cancel()).not.toThrow()
   })
 
   it('treats sub-pixel drift as noise', () => {
@@ -117,6 +134,27 @@ describe('createFlipEngine', () => {
     await expect(engine.play(engine.snapshot([el]), [el]).finished).resolves.toBeUndefined()
   })
 
+  it('cancels every in-flight animation it started', () => {
+    const el = makeElement()
+    const cancel = vi.fn()
+    const reads = new Map<Element, Box[]>([[el, [box(0, 0), box(200, 0)]]])
+    const readIndex = new Map<Element, number>()
+    const deps: FlipDeps = {
+      measure(target) {
+        const index = readIndex.get(target) ?? 0
+        readIndex.set(target, index + 1)
+        return reads.get(target)?.[index] ?? { x: 0, y: 0, width: 0, height: 0 }
+      },
+      animate: () => ({ finished: new Promise(() => {}), cancel }) as unknown as Animation,
+    }
+    const engine = createFlipEngine(deps)
+    const run = engine.play(engine.snapshot([el]), [el])
+
+    expect(run.moved).toEqual([el])
+    run.cancel()
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
   it('survives an environment with no Web Animations API', () => {
     const el = makeElement()
     const positions = new Map([[el, [box(0, 0), box(10, 0)]]])
@@ -124,6 +162,85 @@ describe('createFlipEngine', () => {
     const run = engine.play(engine.snapshot([el]), [el])
     expect(run.moved).toEqual([el])
     expect(() => run.cancel()).not.toThrow()
+  })
+})
+
+describe('createFlipEngine — default DOM deps', () => {
+  // These bypass `fakeDeps` entirely so `domMeasure`/`domAnimate` themselves run, against a real
+  // element whose `getBoundingClientRect`/`animate` are stubbed directly.
+  it('uses the real DOM animate implementation when the element supports it', () => {
+    const el = makeElement()
+    vi.spyOn(el, 'getBoundingClientRect')
+      .mockReturnValueOnce(domRect(0, 0))
+      .mockReturnValueOnce(domRect(200, 0))
+    const animateSpy = vi.fn().mockReturnValue({ finished: Promise.resolve(), cancel: vi.fn() })
+    ;(el as unknown as { animate: typeof animateSpy }).animate = animateSpy
+
+    const engine = createFlipEngine()
+    const run = engine.play(engine.snapshot([el]), [el])
+
+    expect(run.moved).toEqual([el])
+    expect(animateSpy).toHaveBeenCalledOnce()
+    const [keyframes, options] = animateSpy.mock.calls[0]!
+    expect(keyframes[0]).toMatchObject({ translate: '-200px 0px' })
+    expect(options).toMatchObject({ duration: 400, fill: 'none' })
+  })
+
+  it('falls back to an instant move when the element has no animate method (the jsdom default)', async () => {
+    const el = makeElement()
+    vi.spyOn(el, 'getBoundingClientRect')
+      .mockReturnValueOnce(domRect(0, 0))
+      .mockReturnValueOnce(domRect(200, 0))
+
+    const engine = createFlipEngine()
+    const run = engine.play(engine.snapshot([el]), [el])
+
+    expect(run.moved).toEqual([el])
+    await expect(run.finished).resolves.toBeUndefined()
+    expect(() => run.cancel()).not.toThrow()
+  })
+})
+
+describe('mutationWatcher', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns a no-op cleanup when MutationObserver is unavailable', () => {
+    vi.stubGlobal('MutationObserver', undefined)
+    const container = document.createElement('div')
+    const cleanup = mutationWatcher(container)(() => {})
+    expect(() => cleanup()).not.toThrow()
+  })
+
+  it('observes child list, subtree, and the hidden attribute, and disconnects on cleanup', () => {
+    let observedTarget: Node | undefined
+    let observedOptions: MutationObserverInit | undefined
+    let disconnected = false
+    class FakeMutationObserver {
+      observe(target: Node, options: MutationObserverInit): void {
+        observedTarget = target
+        observedOptions = options
+      }
+      disconnect(): void {
+        disconnected = true
+      }
+    }
+    vi.stubGlobal('MutationObserver', FakeMutationObserver)
+
+    const container = document.createElement('div')
+    const cleanup = mutationWatcher(container)(() => {})
+
+    expect(observedTarget).toBe(container)
+    expect(observedOptions).toMatchObject({
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden'],
+    })
+
+    cleanup()
+    expect(disconnected).toBe(true)
   })
 })
 

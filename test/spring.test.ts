@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createSpringRunner,
   DEFAULT_SPRING,
+  defaultSpringDeps,
   isSettled,
   stepSpring,
 } from '../src/core/spring.js'
@@ -206,6 +207,24 @@ describe('createSpringRunner', () => {
     expect(pending()).toBe(0)
   })
 
+  it('aborts to a fallback of 0 when the target itself, not just the state, is non-finite', () => {
+    const { deps, tick } = fakeDeps()
+    deps.warn = vi.fn()
+    const values: number[] = []
+    const runner = createSpringRunner(CONFIG, (value) => values.push(value), deps)
+    runner.to(Number.POSITIVE_INFINITY)
+    tick(1)
+    expect(deps.warn).toHaveBeenCalledWith('spring produced non-finite state')
+    expect(values.at(-1)).toBe(0)
+  })
+
+  it('adopts an explicit retarget velocity synchronously, before any frame runs', () => {
+    const { deps } = fakeDeps()
+    const runner = createSpringRunner(CONFIG, () => {}, deps)
+    runner.to(50, 200)
+    expect(runner.current().velocity).toBe(200)
+  })
+
   it('stops a valid but non-settling run at the settle budget', () => {
     const { deps, tick, pending } = fakeDeps()
     deps.warn = vi.fn()
@@ -219,5 +238,38 @@ describe('createSpringRunner', () => {
     tick(700)
     expect(deps.warn).toHaveBeenCalledWith('spring exceeded 10000ms settle budget')
     expect(pending()).toBe(0)
+  })
+})
+
+describe('defaultSpringDeps', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('falls back to a setTimeout-based frame source when requestAnimationFrame is unavailable', () => {
+    vi.stubGlobal('requestAnimationFrame', undefined)
+    vi.useFakeTimers()
+    const deps = defaultSpringDeps()
+    expect(typeof deps.now()).toBe('number')
+
+    const callback = vi.fn()
+    const handle = deps.requestFrame(callback)
+    vi.advanceTimersByTime(16)
+    expect(callback).toHaveBeenCalledOnce()
+
+    const secondHandle = deps.requestFrame(callback)
+    deps.cancelFrame(secondHandle)
+    vi.advanceTimersByTime(16)
+    expect(callback).toHaveBeenCalledOnce()
+    expect(handle).not.toBe(secondHandle)
+    vi.useRealTimers()
+  })
+
+  it('uses requestAnimationFrame when it is available', () => {
+    const deps = defaultSpringDeps()
+    expect(typeof deps.now()).toBe('number')
+    const callback = vi.fn()
+    const handle = deps.requestFrame(callback)
+    expect(() => deps.cancelFrame(handle)).not.toThrow()
   })
 })

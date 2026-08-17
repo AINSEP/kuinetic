@@ -66,6 +66,12 @@ export function parsePath(d: string): ParseResult {
       index++
       continue
     }
+    // A path whose first token is a number rather than a command letter would otherwise reach
+    // `consume` with `state.command` still `''`. `ARITY['']` is undefined, so `consume` would
+    // return the same index it was given and this loop would spin forever, growing `segments`
+    // without bound — a real DoS on any untrusted `d` string. The SVG spec requires a path to
+    // start with a moveto, so rejecting here is also spec-correct, not just a safety valve.
+    if (!state.command) return { segments: [], reason: 'path must start with a command letter' }
     index = consume(tokens, index, state)
   }
 
@@ -109,7 +115,10 @@ function closeSubpath(state: PathState): void {
 function consume(tokens: string[], index: number, state: PathState): number {
   const key = state.command.toLowerCase()
   const relative = state.command === key
-  const arity = ARITY[key] ?? 0
+  // `state.command` is only ever '' before the first command letter, and the caller now rejects
+  // that case before reaching here — every other value came from the `/[a-z]/i` match in the main
+  // loop, which is one of `mlhvcz`, so this key is always present in `ARITY`.
+  const arity = ARITY[key]!
   const args = tokens.slice(index, index + arity).map(Number)
   if (args.length < arity) return tokens.length
 

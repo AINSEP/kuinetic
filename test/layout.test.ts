@@ -19,10 +19,13 @@ function fakeCtx(): PrepareContext {
     doc: document,
     win: window,
     style: { set: vi.fn(), claim: vi.fn(), restore: vi.fn(), owned: () => [] },
+    invalidate: vi.fn(),
   } as unknown as PrepareContext
 }
 
 const flipIndicator = LAYOUT_PRIMITIVES.find((primitive) => primitive.id === 'flip-indicator')!
+const flipContainer = LAYOUT_PRIMITIVES.find((primitive) => primitive.id === 'flip-container')!
+const autoHeight = LAYOUT_PRIMITIVES.find((primitive) => primitive.id === 'auto-height')!
 
 describe('flip-indicator', () => {
   afterEach(() => {
@@ -88,6 +91,179 @@ describe('flip-indicator', () => {
 
     instance.destroy()
     target.remove()
+    el.remove()
+  })
+
+  it('does nothing when the follow selector is left at its default empty string', () => {
+    const el = document.createElement('div')
+    const setSpy = vi.fn()
+    const params = createParams({ attribute: 'aria-selected', duration: '400ms', ease: 'ease-out' })
+    const ctx = {
+      ...fakeCtx(),
+      style: { set: setSpy, claim: vi.fn(), restore: vi.fn(), owned: () => [] },
+    } as unknown as PrepareContext
+
+    const instance = flipIndicator.prepare!(el, params, ctx)
+    expect(() => instance.activate()).not.toThrow()
+    expect(setSpy).not.toHaveBeenCalled()
+
+    instance.destroy()
+  })
+
+  it('does nothing when the follow selector matches no element', () => {
+    const el = document.createElement('div')
+    const setSpy = vi.fn()
+    const params = createParams({
+      follow: '#does-not-exist',
+      attribute: 'aria-selected',
+      duration: '400ms',
+      ease: 'ease-out',
+    })
+    const ctx = {
+      ...fakeCtx(),
+      style: { set: setSpy, claim: vi.fn(), restore: vi.fn(), owned: () => [] },
+    } as unknown as PrepareContext
+
+    const instance = flipIndicator.prepare!(el, params, ctx)
+    expect(() => instance.activate()).not.toThrow()
+    expect(setSpy).not.toHaveBeenCalled()
+
+    instance.destroy()
+  })
+
+  it('installs no MutationObserver subscription when the watched attribute is left empty', () => {
+    let observeCalls = 0
+    class FakeMutationObserver {
+      observe(): void {
+        observeCalls++
+      }
+      disconnect(): void {}
+    }
+    vi.stubGlobal('MutationObserver', FakeMutationObserver)
+
+    const el = document.createElement('div')
+    const target = document.createElement('button')
+    target.id = 'active-tab'
+    document.body.append(el, target)
+
+    const params = createParams({ follow: '#active-tab', attribute: '', duration: '400ms', ease: 'ease-out' })
+    const instance = flipIndicator.prepare!(el, params, fakeCtx())
+    instance.activate()
+
+    expect(observeCalls).toBe(0)
+
+    instance.destroy()
+    target.remove()
+    el.remove()
+  })
+
+  it('degrades to a no-op subscription in an environment without MutationObserver', () => {
+    vi.stubGlobal('MutationObserver', undefined)
+
+    const el = document.createElement('div')
+    const target = document.createElement('button')
+    target.id = 'active-tab'
+    document.body.append(el, target)
+
+    const params = createParams({
+      follow: '#active-tab',
+      attribute: 'aria-selected',
+      duration: '400ms',
+      ease: 'ease-out',
+    })
+    const instance = flipIndicator.prepare!(el, params, fakeCtx())
+
+    expect(() => instance.activate()).not.toThrow()
+    expect(() => instance.destroy()).not.toThrow()
+
+    target.remove()
+    el.remove()
+  })
+})
+
+describe('flip-container', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('wires a FLIP engine to the container and disconnects cleanly on destroy', () => {
+    let observeCalls = 0
+    let disconnectCalls = 0
+    class FakeMutationObserver {
+      observe(): void {
+        observeCalls++
+      }
+      disconnect(): void {
+        disconnectCalls++
+      }
+    }
+    vi.stubGlobal('MutationObserver', FakeMutationObserver)
+
+    const container = document.createElement('ul')
+    container.append(document.createElement('li'))
+    const params = createParams({ duration: '400ms', ease: 'ease-out', scale: 'false' })
+    const instance = flipContainer.prepare!(container, params, fakeCtx())
+
+    instance.activate()
+    expect(observeCalls).toBe(1)
+
+    instance.destroy()
+    expect(disconnectCalls).toBe(1)
+  })
+})
+
+describe('auto-height', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('restarts the height animation on each attribute toggle and cancels the running one on destroy', () => {
+    let latest: { fire: () => void } | undefined
+    class ControllableMutationObserver {
+      private readonly callback: MutationCallback
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        latest = this
+      }
+      observe(): void {}
+      disconnect(): void {}
+      fire(): void {
+        this.callback([], this as unknown as MutationObserver)
+      }
+    }
+    vi.stubGlobal('MutationObserver', ControllableMutationObserver)
+
+    const el = document.createElement('div')
+    document.body.append(el)
+
+    // A stand-in for the Web Animations API, which jsdom does not implement: each call records a
+    // distinct `cancel` spy, so the assertions below can tell *which* animation a later toggle or
+    // destroy actually cancelled.
+    const cancels: Array<ReturnType<typeof vi.fn>> = []
+    const fakeAnimate = (): Animation => {
+      const cancel = vi.fn()
+      cancels.push(cancel)
+      return { cancel } as unknown as Animation
+    }
+    el.animate = fakeAnimate as unknown as typeof el.animate
+
+    const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
+    const instance = autoHeight.prepare!(el, params, fakeCtx())
+    instance.activate()
+
+    latest!.fire()
+    expect(cancels).toHaveLength(1)
+    expect(cancels[0]).not.toHaveBeenCalled()
+
+    // A second toggle must cancel the animation the first toggle started, not just replace it.
+    latest!.fire()
+    expect(cancels).toHaveLength(2)
+    expect(cancels[0]).toHaveBeenCalledOnce()
+
+    // Destroying mid-animation must cancel whichever one is still running.
+    instance.destroy()
+    expect(cancels[1]).toHaveBeenCalledOnce()
+
     el.remove()
   })
 })

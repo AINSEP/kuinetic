@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { recognise, rubberBand, swipeDirection, velocityFrom } from '../src/core/gesture.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  defaultGestureDeps,
+  recognise,
+  rubberBand,
+  swipeDirection,
+  velocityFrom,
+} from '../src/core/gesture.js'
 import type { GestureDeps, GestureVector } from '../src/core/gesture.js'
 
 /**
@@ -85,6 +91,17 @@ describe('velocityFrom', () => {
     ]
     expect(velocityFrom(samples)).toEqual({ vx: 0, vy: 0 })
   })
+
+  it('does not throw when the injected clock reports NaN, which fails every "at least as recent as the cutoff" comparison', () => {
+    // `GestureDeps.now` is injectable, so a broken custom clock — not the default `Date.now()`/
+    // `performance.now()` — is the only realistic way this happens: `cutoff` becomes NaN too, and
+    // `NaN >= NaN` is always false, so `.find` exhausts the array and falls back to `samples[0]`.
+    const samples = [
+      { x: 0, y: 0, time: 5 },
+      { x: 1, y: 1, time: Number.NaN },
+    ]
+    expect(() => velocityFrom(samples)).not.toThrow()
+  })
 })
 
 describe('swipeDirection', () => {
@@ -135,6 +152,38 @@ describe('rubberBand', () => {
   })
 })
 
+describe('defaultGestureDeps', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('falls back to Date.now() when performance is unavailable', () => {
+    vi.stubGlobal('performance', undefined)
+    expect(typeof defaultGestureDeps().now()).toBe('number')
+  })
+
+  it('reads performance.now() when it is available', () => {
+    expect(typeof defaultGestureDeps().now()).toBe('number')
+  })
+
+  it('schedules and clears real timers', () => {
+    vi.useFakeTimers()
+    const deps = defaultGestureDeps()
+    const callback = vi.fn()
+
+    const fired = deps.setTimer(callback, 100)
+    vi.advanceTimersByTime(100)
+    expect(callback).toHaveBeenCalledOnce()
+
+    const cleared = deps.setTimer(callback, 100)
+    deps.clearTimer(cleared)
+    vi.advanceTimersByTime(100)
+    expect(callback).toHaveBeenCalledOnce()
+    expect(fired).not.toBe(cleared)
+  })
+})
+
 describe('recognise', () => {
   it('does not start a drag below the movement threshold', () => {
     const el = document.createElement('div')
@@ -180,6 +229,50 @@ describe('recognise', () => {
       [30, 40, 16],
     ])
     expect(moves.at(-1)).toMatchObject({ dx: 30, dy: 0 })
+  })
+
+  it('locks to the y axis', () => {
+    const el = document.createElement('div')
+    const moves: GestureVector[] = []
+    recognise(el, { onMove: (v) => moves.push(v) }, { threshold: 1, axis: 'y' }, deps)
+    drag(el, [
+      [0, 0, 0],
+      [30, 40, 16],
+    ])
+    expect(moves.at(-1)).toMatchObject({ dx: 0, dy: 40 })
+  })
+
+  it('uses native pointer capture when the element supports it', () => {
+    const el = document.createElement('div')
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    Object.defineProperty(el, 'setPointerCapture', { value: setPointerCapture })
+    Object.defineProperty(el, 'releasePointerCapture', { value: releasePointerCapture })
+    recognise(el, {}, { threshold: 1 }, deps)
+    drag(el, [
+      [0, 0, 0],
+      [20, 0, 16],
+    ])
+    expect(setPointerCapture).toHaveBeenCalledOnce()
+    expect(releasePointerCapture).toHaveBeenCalledOnce()
+  })
+
+  it('drops the oldest sample once the retained window is exceeded', () => {
+    const el = document.createElement('div')
+    const onMove = vi.fn()
+    recognise(el, { onMove }, { threshold: 1 }, deps)
+    const path: Array<[number, number, number]> = [[0, 0, 0]]
+    for (let i = 1; i <= 15; i++) path.push([i * 5, 0, i * 16])
+    drag(el, path)
+    expect(onMove).toHaveBeenCalled()
+  })
+
+  it('ignores a pointerup that arrives with no preceding pointerdown', () => {
+    const el = document.createElement('div')
+    const onEnd = vi.fn()
+    recognise(el, { onEnd }, { threshold: 1 }, deps)
+    expect(() => el.dispatchEvent(pointer('pointerup', 0, 0))).not.toThrow()
+    expect(onEnd).not.toHaveBeenCalled()
   })
 
   it('emits a swipe on a fast release', () => {

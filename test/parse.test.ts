@@ -103,6 +103,10 @@ describe('parse', () => {
     expect(parse('   ').specs).toEqual([])
   })
 
+  it('treats a nullish input the same as an empty string rather than throwing', () => {
+    expect(parse(undefined as unknown as string).specs).toEqual([])
+  })
+
   it('unescapes a backslash-escaped quote inside a quoted value', () => {
     // Full round-trip of play.ts's toAttributeValue output, not just the tokenizer boundary.
     const { specs } = parse(String.raw`word-cycler words:"say \"two words\" now"`)

@@ -17,6 +17,7 @@ import {
   groupDigits,
   odometerTokens,
   paddedDigits,
+  resolveEasing,
   tweenValue,
 } from '../src/effects/catalog/numbers-shared.js'
 
@@ -98,6 +99,19 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     expect(el.querySelector('.kui-count-decorative')?.textContent).toBe(
       formatCount(4820, { format: 'currency', decimals: 0, currency: 'USD' }),
     )
+  })
+
+  it('jumps straight to the final value on the first tick when duration is zero', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '0', to: '10', duration: '0ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    vi.advanceTimersByTime(16)
+    expect(el.querySelector('.kui-count-decorative')?.textContent).toBe('10')
   })
 
   it('collapses to an effectively-instant tick under reduced motion instead of freezing blank', () => {
@@ -199,5 +213,71 @@ describe('numbers pure math', () => {
       { char: '2', digit: true },
       { char: '0', digit: true },
     ])
+  })
+})
+
+describe('resolveEasing', () => {
+  it('defaults to easeOutCubic when no easing was authored', () => {
+    expect(resolveEasing(undefined, () => {})).toBe(easeOutCubic)
+  })
+
+  it('resolves "linear" to an unclamped-input, clamped-output identity ramp', () => {
+    const linear = resolveEasing('linear', () => {})
+    expect(linear(0)).toBe(0)
+    expect(linear(0.5)).toBe(0.5)
+    expect(linear(1)).toBe(1)
+  })
+
+  it('warns and falls back to easeOutCubic for an easing with no JS equivalent', () => {
+    const warnings: string[] = []
+    const fn = resolveEasing('steps(4)', (m) => warnings.push(m))
+    expect(fn).toBe(easeOutCubic)
+    expect(warnings.join()).toContain('steps(4)')
+    expect(warnings.join()).toContain('no JS equivalent')
+  })
+
+  it('parses a raw cubic-bezier(...) function into an evaluator matching its endpoints', () => {
+    const fn = resolveEasing('cubic-bezier(0.42,0,1,1)', () => {})
+    expect(fn(0)).toBeCloseTo(0, 5)
+    expect(fn(1)).toBeCloseTo(1, 5)
+  })
+
+  describe('keyword curves — bisection fallback near a flat tangent', () => {
+    // back-out's curve overshoots past 1 partway through and has a near-flat tangent there, which
+    // is exactly the region where Newton-Raphson struggles and the bisection fallback matters —
+    // per the function's own doc comment.
+    it('is monotonic at the endpoints and overshoots past 1 partway through', () => {
+      const backOut = resolveEasing('back-out', () => {})
+      expect(backOut(0)).toBeCloseTo(0, 2)
+      expect(backOut(1)).toBeCloseTo(1, 2)
+
+      const samples = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map(backOut)
+      expect(samples.some((v) => v > 1)).toBe(true)
+      expect(samples.every((v) => Number.isFinite(v))).toBe(true)
+    })
+
+    it('resolves every other keyword curve to a finite, endpoint-anchored evaluator', () => {
+      const keywords = [
+        'ease',
+        'ease-in',
+        'ease-out',
+        'ease-in-out',
+        'expo-in',
+        'expo-out',
+        'expo-in-out',
+        'back-in',
+        'back-in-out',
+        'quart-out',
+        'circ-out',
+      ]
+      for (const keyword of keywords) {
+        const fn = resolveEasing(keyword, () => {})
+        expect(fn(0), keyword).toBeCloseTo(0, 1)
+        expect(fn(1), keyword).toBeCloseTo(1, 1)
+        for (const t of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+          expect(Number.isFinite(fn(t)), `${keyword} at ${t}`).toBe(true)
+        }
+      }
+    })
   })
 })

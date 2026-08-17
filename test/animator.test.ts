@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActivationBinder } from '../src/core/activation.js'
-import { Animator } from '../src/core/animator.js'
+import { Animator, createAnimator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
 import type { Capabilities } from '../src/core/capabilities.js'
+import type { DomWatcher } from '../src/core/dom-watcher.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
 import type { Activation } from '../src/core/types.js'
@@ -237,5 +238,219 @@ describe('Animator — activation failure isolation', () => {
     build('<div data-kui="tab-indicator-slide follow:]"></div>')
     expect(el().getAttribute(ATTR.state)).toBe('failed')
     expect(reporter.messages.join()).toContain('failed to activate')
+  })
+})
+
+describe('Animator — no composable specs at all', () => {
+  it('marks an element failed rather than pending when there is nothing to even suggest', () => {
+    // `plan.unknown.length > 0` is what distinguishes "you typo'd a real effect name" (pending —
+    // a later registration could still claim it) from "there was nothing here to parse at all"
+    // (failed — an empty data-kui value produces zero specs and zero unknown names).
+    build('<div data-kui=""></div>')
+    expect(el().getAttribute(ATTR.state)).toBe('failed')
+  })
+})
+
+describe('Animator.start — idempotency', () => {
+  it('does not rescan on a second start() call', () => {
+    const animator = build('<div data-kui="fade-up"></div>')
+    const bindingsBefore = binder.bindings.length
+    animator.start()
+    expect(binder.bindings).toHaveLength(bindingsBefore)
+  })
+})
+
+describe('createAnimator', () => {
+  it('builds a working Animator instance', () => {
+    document.body.innerHTML = '<div data-kui="fade-up"></div>'
+    const animator = createAnimator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+    })
+    expect(animator).toBeInstanceOf(Animator)
+    animator.start()
+    expect(el().getAttribute(ATTR.normalized)).toBe('fade-up')
+  })
+})
+
+describe('Animator.play', () => {
+  it('delegates to the free play() function for its own root and registry', () => {
+    const animator = build('<p id="a">Hi</p>')
+    const handle = animator.play('#a', 'fade-up')
+    expect(handle.elements).toEqual([document.getElementById('a')])
+    expect(el('#a').getAttribute(ATTR.on)).toBe('manual')
+  })
+})
+
+describe('Animator — teardown isolates a throwing instance', () => {
+  it('does not let one instance\'s throwing destroy() stop the others from being released', () => {
+    const animator = build('<div data-kui="fade-up on:load"></div>')
+    const state = animator.stateOf(el())!
+    const throwing = { ...state.instances[0]!, destroy: () => { throw new Error('destroy boom') } }
+    state.instances.push(throwing)
+
+    expect(() => animator.destroy()).not.toThrow()
+    expect(el().hasAttribute(ATTR.normalized)).toBe(false)
+  })
+})
+
+describe('Animator — stagger group indexed at the scan root itself', () => {
+  it('indexes the root element when it is itself the stagger group, not only its descendants', () => {
+    document.body.innerHTML = '<ul data-kui-stagger="60ms"><li data-kui="fade-up"></li></ul>'
+    const ul = document.body.firstElementChild as HTMLElement
+    const animator = new Animator({
+      root: ul,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+    })
+    animator.start()
+    expect(ul.style.getPropertyValue('--kui-stagger')).toBe('60ms')
+    expect((ul.firstElementChild as HTMLElement).style.getPropertyValue('--kui-i')).toBe('0')
+  })
+})
+
+describe('Animator — observe: true real DOM-watcher wiring', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** requestAnimationFrame stubbed to run synchronously, so the watcher's rAF-scheduled flush
+   *  fires inside the same microtask tick a real MutationObserver callback lands in. */
+  function stubSyncFrame(): void {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0)
+      return 0
+    })
+  }
+
+  async function flushMutations(): Promise<void> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  }
+
+  it('scans an element inserted into the observed subtree', async () => {
+    stubSyncFrame()
+    document.body.innerHTML = ''
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+    })
+    animator.start()
+
+    const added = document.createElement('div')
+    added.setAttribute('data-kui', 'fade-up')
+    document.body.append(added)
+    await flushMutations()
+
+    expect(added.getAttribute(ATTR.normalized)).toBe('fade-up')
+    animator.destroy()
+  })
+
+  it('releases a live element when an ancestor of it is removed, not only the element itself', async () => {
+    stubSyncFrame()
+    document.body.innerHTML = '<section><div data-kui="fade-up"></div></section>'
+    const wrapper = document.body.firstElementChild as HTMLElement
+    const target = wrapper.firstElementChild as HTMLElement
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+    })
+    animator.start()
+    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
+
+    wrapper.remove()
+    await flushMutations()
+
+    expect(target.hasAttribute(ATTR.normalized)).toBe(false)
+    animator.destroy()
+  })
+
+  it('releases an element removed from the observed subtree', async () => {
+    stubSyncFrame()
+    document.body.innerHTML = '<div data-kui="fade-up"></div>'
+    const target = document.body.firstElementChild as HTMLElement
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+    })
+    animator.start()
+    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
+
+    target.remove()
+    await flushMutations()
+
+    expect(target.hasAttribute(ATTR.normalized)).toBe(false)
+    animator.destroy()
+  })
+
+  it('reprocesses an element whose watched attribute changed', async () => {
+    stubSyncFrame()
+    document.body.innerHTML = '<div data-kui="fade-up"></div>'
+    const target = document.body.firstElementChild as HTMLElement
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+    })
+    animator.start()
+    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
+
+    target.setAttribute(ATTR.source, 'zoom-in')
+    await flushMutations()
+
+    expect(target.getAttribute(ATTR.normalized)).toBe('zoom-in')
+    animator.destroy()
+  })
+
+  it('disconnects the real dom watcher on destroy, so later mutations are ignored', async () => {
+    stubSyncFrame()
+    document.body.innerHTML = ''
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+    })
+    animator.start()
+    animator.destroy()
+
+    const added = document.createElement('div')
+    added.setAttribute('data-kui', 'fade-up')
+    document.body.append(added)
+    await flushMutations()
+
+    expect(added.hasAttribute(ATTR.normalized)).toBe(false)
+  })
+
+  it('calls destroy() on an injected domWatcher', () => {
+    const fakeWatcher: DomWatcher = { watch: vi.fn(), destroy: vi.fn() }
+    document.body.innerHTML = ''
+    const animator = new Animator({
+      root: document.body,
+      registry: createRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+      observe: true,
+      domWatcher: fakeWatcher,
+    })
+    animator.start()
+    expect(fakeWatcher.watch).toHaveBeenCalledOnce()
+
+    animator.destroy()
+    expect(fakeWatcher.destroy).toHaveBeenCalledOnce()
   })
 })

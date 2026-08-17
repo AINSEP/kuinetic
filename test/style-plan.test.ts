@@ -41,6 +41,15 @@ function plan(
 }
 
 describe('planStyles — gates', () => {
+  it('runs immediately for a plan with no CSS declarations and no JS effects', () => {
+    // Reachable only by calling planStyles directly (not through Animator, which never installs an
+    // unresolved plan) — an unknown effect name compiles to an entirely empty plan.
+    const result = plan('not-a-real-effect')
+    expect(result.gate).toBe('immediate')
+    expect(result.activation).toBeNull()
+  })
+
+
   it('defers a time-based reveal and binds its activation', () => {
     const result = plan('fade-up')
     expect(result.gate).toBe('deferred')
@@ -106,6 +115,24 @@ describe('planStyles — degraded timeline path', () => {
     expect(result.gate).toBe('deferred')
     expect(result.activation).toBe('enter')
     expect(result.properties['animation-timeline']).toBeUndefined()
+  })
+
+  it('keeps a non-manual authored activation as-is on a degraded timeline', () => {
+    // The `manual` -> `enter` fallback only applies when the configured activation is actually
+    // `manual`; an explicitly authored non-manual activation is not second-guessed.
+    const result = plan('parallax-y on:hover', { timeline: 'view' }, { viewTimeline: false })
+    expect(result.gate).toBe('deferred')
+    expect(result.activation).toBe('hover')
+  })
+
+  it('falls back from an explicitly authored manual activation on a degraded timeline', () => {
+    // `resolveConfig` (used directly by this test's `plan()` helper) only ever produces `manual`
+    // from explicit authoring — it has no knowledge of a primitive's own default activation, which
+    // is applied later, only inside Animator.resolveActivation. `on:manual` is what actually
+    // reaches the `config.activation === 'manual'` check this function exists to handle.
+    const result = plan('parallax-y on:manual', { timeline: 'view' }, { viewTimeline: false })
+    expect(result.gate).toBe('deferred')
+    expect(result.activation).toBe('enter')
   })
 })
 

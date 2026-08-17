@@ -11,6 +11,7 @@ const keyword: ParamSpec = {
   values: ['chars', 'words', 'lines'],
 }
 const text: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-src' }
+const color: ParamSpec = { type: 'color', default: '#000', cssProperty: '--kui-color' }
 
 describe('validate', () => {
   it.each(['24px', '2rem', '50%', '1.5em', '0', '100vh'])('accepts length %s', (value) => {
@@ -89,6 +90,60 @@ describe('validate', () => {
 
   it('rejects empty values', () => {
     expect(validate('   ', length).ok).toBe(false)
+  })
+
+  it('reports no declared keywords when a keyword spec carries no values list', () => {
+    const bare: ParamSpec = { type: 'keyword', default: 'x', cssProperty: '--kui-bare' }
+    const result = validate('anything', bare)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('(none declared)')
+  })
+
+  it('rejects a param type with no known pattern, e.g. a mistyped third-party schema', () => {
+    // `Registry.registerPrimitive` is public, and a plain-JS caller has no compile-time guard
+    // against a mistyped `type` — the runtime check this exercises is what stops a malformed
+    // schema from crashing validation instead of just failing it.
+    const mistyped = { type: 'colour', default: '#000', cssProperty: '--kui-x' } as unknown as ParamSpec
+    const result = validate('123', mistyped)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toContain('not a valid colour')
+  })
+
+  it('enforces an integer constraint independently of finite/min/max', () => {
+    const integerOnly: ParamSpec = {
+      type: 'number',
+      default: '1',
+      cssProperty: '--kui-steps',
+      integer: true,
+    }
+    expect(validate('3.5', integerOnly).ok).toBe(false)
+    expect(validate('3.5', integerOnly).reason).toContain('integer')
+    expect(validate('4', integerOnly)).toEqual({ value: '4', ok: true })
+  })
+
+  it('rejects a calc() whose var() reference is missing its own closing paren', () => {
+    // "calc(var(--x)" has exactly one closing paren total, which the tokenizer consumes as
+    // var(--x)'s own close — leaving calc() itself with none, which must be rejected.
+    expect(validate('calc(var(--x)', length).ok).toBe(false)
+  })
+
+  it('rejects a var() reference whose name is not a legal custom property', () => {
+    expect(validate('calc(var(notaproperty) * 2)', length).ok).toBe(false)
+  })
+
+  describe('color values', () => {
+    it.each(['#fff', '#ffffff', '#ffffffff', 'rgba(0, 0, 0, 0.5)', 'hsl(200 50% 50%)', 'red'])(
+      'accepts %s',
+      (value) => {
+        expect(validate(value, color)).toEqual({ value, ok: true })
+      },
+    )
+
+    it('rejects a value shaped like none of hex, color-function, or keyword', () => {
+      const result = validate('123', color)
+      expect(result.ok).toBe(false)
+      expect(result.value).toBe('#000')
+    })
   })
 
   describe('text values (never reach a stylesheet)', () => {
@@ -184,6 +239,12 @@ describe('resolveParams', () => {
     const result = resolveParams({ nope: '1px' }, schema, (m) => warnings.push(m))
     expect(result).toEqual({})
     expect(warnings.join()).toContain('unknown parameter "nope"')
+  })
+
+  it('reports no known parameters against an empty schema', () => {
+    const warnings: string[] = []
+    resolveParams({ nope: '1px' }, {}, (m) => warnings.push(m))
+    expect(warnings.join()).toContain('(known: none)')
   })
 
   it('warns and skips invalid values rather than writing them', () => {

@@ -64,6 +64,42 @@ describe('parsePath', () => {
   it('reports a path with no drawable segments', () => {
     expect(parsePath('M0,0').reason).toBe('no drawable segments')
   })
+
+  it('rejects a path that opens with a number instead of a command letter, rather than hanging', () => {
+    // Regression: `consume` used to be reachable with `state.command` still '', and
+    // `ARITY[''] ?? 0` silently produced arity 0 — the parse index never advanced, so this used
+    // to loop forever and grow `segments` without bound (verified OOM before the fix). Any
+    // malformed or untrusted `d` string starting with a bare number hit this.
+    expect(parsePath('10,20').reason).toBe('path must start with a command letter')
+    expect(parsePath('10,20 30,40').reason).toBe('path must start with a command letter')
+  })
+
+  it('does not add a zero-length closing segment when the path is already closed', () => {
+    // The last explicit point already equals the subpath start, so Z is a no-op — adding a
+    // duplicate zero-length segment here would later be split into a visible kink.
+    const closed = parsePath('M0,0 L10,0 L0,0 Z')
+    const redundant = parsePath('M0,0 L10,0 L0,0')
+    expect(closed.segments).toHaveLength(redundant.segments.length)
+  })
+
+  it('stops gracefully when a command is truncated mid-argument-list', () => {
+    const { segments, reason } = parsePath('M0,0 L10,0 L20')
+    expect(reason).toBeUndefined()
+    expect(segments).toHaveLength(1)
+  })
+
+  it('treats a relative moveto repetition as a relative lineto', () => {
+    const { segments } = parsePath('m0,0 5,0')
+    expect(segments).toHaveLength(1)
+    expect(segments[0]?.to).toEqual({ x: 5, y: 0 })
+  })
+
+  it('computes relative cubic control points from the current point, not the origin', () => {
+    const { segments } = parsePath('M10,10 c5,0 10,5 10,10')
+    expect(segments[0]?.c1).toEqual({ x: 15, y: 10 })
+    expect(segments[0]?.c2).toEqual({ x: 20, y: 15 })
+    expect(segments[0]?.to).toEqual({ x: 20, y: 20 })
+  })
 })
 
 describe('splitCubic', () => {

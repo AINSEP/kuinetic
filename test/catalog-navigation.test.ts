@@ -1,11 +1,64 @@
-// @vitest-environment node
 import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createRegistry } from '../src/effects/index.js'
-import { NAV_CSS_PRESETS, NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { createParams } from '../src/core/js-params.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
+import type { PrepareContext } from '../src/core/effect-context.js'
+import type { ScrollRoot, ScrollScheduler, ScrollSubscriber } from '../src/core/scroll-scheduler.js'
+import { NAV_CSS_PRESETS, NAV_JS_PRIMITIVES, NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
 
-const css = readFileSync(fileURLToPath(new URL('../src/css/navigation.css', import.meta.url)), 'utf8')
+// A relative `new URL(..., import.meta.url)` throws under the jsdom test environment (its `URL`
+// implementation rejects the resolved result) — resolving through `node:path` off this file's own
+// URL avoids that, same trick as `catalog-numbers.test.ts`. jsdom (rather than `node`) is needed
+// here because the scroll-position primitives below are exercised through real DOM elements.
+const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/css/navigation.css'), 'utf8')
+
+/** A scheduler that hands frames to whichever single subscriber last called `subscribe`. */
+function fakeSchedulerRig(): { scheduler: ScrollScheduler; emit: (scrollTop: number, epoch?: number) => void } {
+  let subscriber: ScrollSubscriber | undefined
+  const scheduler: ScrollScheduler = {
+    subscribe(_root, onFrame) {
+      subscriber = onFrame
+      return () => {
+        subscriber = undefined
+      }
+    },
+    invalidate() {},
+    rootCount: () => (subscriber ? 1 : 0),
+    destroy() {},
+  }
+  return {
+    scheduler,
+    emit(scrollTop, epoch = 0) {
+      subscriber?.({
+        metrics: { scrollTop, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 },
+        epoch,
+      })
+    },
+  }
+}
+
+const fakeRoot: ScrollRoot = {
+  key: 'fake',
+  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 }),
+  onScroll: () => () => {},
+  onResize: () => () => {},
+}
+
+function fakeCtx(el: Element, scheduler: ScrollScheduler): PrepareContext {
+  return {
+    win: window,
+    doc: window.document,
+    scheduler,
+    rootFor: () => fakeRoot,
+    style: createStyleLedger(el),
+    invalidate: () => {},
+  } as unknown as PrepareContext
+}
+
+const findJs = (id: string) => NAV_JS_PRIMITIVES.find((primitive) => primitive.id === id)!
 
 describe('navigation catalog', () => {
   it('registers all 8 section M names', () => {
@@ -36,5 +89,103 @@ describe('navigation catalog', () => {
       const channels = registry.resolve(name)?.primitive.channels ?? []
       expect(channels).not.toContain('aria')
     }
+  })
+})
+
+describe('header-shrink', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('publishes shrink progress from 0 to 1 across the offset and flags the fully-shrunk boundary', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-shrink').prepare!(el, createParams({ offset: '120' }), fakeCtx(el, scheduler))
+    instance.activate()
+
+    emit(0)
+    expect(el.style.getPropertyValue('--kui-shrink')).toBe('0.0000')
+    expect(el.getAttribute('data-kui-shrunk')).toBe('false')
+
+    emit(60)
+    expect(el.style.getPropertyValue('--kui-shrink')).toBe('0.5000')
+
+    emit(150)
+    expect(el.style.getPropertyValue('--kui-shrink')).toBe('1.0000')
+    expect(el.getAttribute('data-kui-shrunk')).toBe('true')
+
+    instance.destroy()
+  })
+
+  it('treats a non-positive offset as always fully shrunk', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-shrink').prepare!(el, createParams({ offset: '0' }), fakeCtx(el, scheduler))
+    instance.activate()
+
+    emit(0)
+    expect(el.style.getPropertyValue('--kui-shrink')).toBe('1.0000')
+    expect(el.getAttribute('data-kui-shrunk')).toBe('true')
+
+    instance.destroy()
+  })
+})
+
+describe('header-hide-on-scroll', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('hides past the offset on scroll-down and reveals on scroll-up', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-hide-on-scroll').prepare!(el, createParams({ offset: '8' }), fakeCtx(el, scheduler))
+    instance.activate()
+
+    emit(50)
+    expect(el.getAttribute('data-kui-hidden')).toBe('true')
+
+    emit(10)
+    expect(el.getAttribute('data-kui-hidden')).toBe('false')
+
+    instance.destroy()
+  })
+
+  it('ignores jitter smaller than the offset, leaving the attribute untouched', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-hide-on-scroll').prepare!(el, createParams({ offset: '8' }), fakeCtx(el, scheduler))
+    instance.activate()
+
+    emit(3)
+    expect(el.hasAttribute('data-kui-hidden')).toBe(false)
+
+    instance.destroy()
+  })
+})
+
+describe('back-to-top-fade', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('toggles visibility once scrolled past the offset', () => {
+    const el = document.createElement('button')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('back-to-top-fade').prepare!(el, createParams({ offset: '400' }), fakeCtx(el, scheduler))
+    instance.activate()
+
+    emit(200)
+    expect(el.getAttribute('data-kui-visible')).toBe('false')
+
+    emit(500)
+    expect(el.getAttribute('data-kui-visible')).toBe('true')
+
+    instance.destroy()
   })
 })

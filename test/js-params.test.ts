@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ABSOLUTE_BASIS,
   createParams,
+  isEnabled,
   readEffectParams,
   readEffectTiming,
   readParams,
@@ -70,6 +71,12 @@ describe('readParams', () => {
   it('keeps text parameters, which the CSS path drops', () => {
     expect(readParams({ target: 'nav a' }, schema, () => {}).target).toBe('nav a')
   })
+
+  it('reports no known parameters against an empty schema', () => {
+    const warnings: string[] = []
+    readParams({ nope: '1' }, {}, (m) => warnings.push(m))
+    expect(warnings.join()).toContain('(known: none)')
+  })
 })
 
 describe('toMilliseconds', () => {
@@ -105,6 +112,11 @@ describe('toPixels', () => {
     expect(toPixels('10vmax', basis)).toBeCloseTo(100)
   })
 
+  it('resolves ch and ex against half the font size', () => {
+    expect(toPixels('2ch', basis)).toBeCloseTo(20)
+    expect(toPixels('2ex', basis)).toBeCloseTo(20)
+  })
+
   it('does not evaluate calc, returning the fallback instead of guessing', () => {
     // A second CSS expression engine is not worth owning; a visible fallback beats a wrong number.
     expect(toPixels('calc(100% - 20px)', basis, 7)).toBe(7)
@@ -116,6 +128,10 @@ describe('toPixels', () => {
 
   it('resolves absolute units without any viewport context', () => {
     expect(toPixels('1in', ABSOLUTE_BASIS)).toBeCloseTo(96)
+  })
+
+  it('returns the fallback for an unrecognised unit', () => {
+    expect(toPixels('24xyz', basis, 42)).toBe(42)
   })
 })
 
@@ -154,6 +170,18 @@ describe('createParams', () => {
   it('tests keyword parameters', () => {
     expect(params.is('spacer')).toBe(true)
     expect(params.is('missing')).toBe(false)
+  })
+})
+
+describe('isEnabled', () => {
+  it('matches against the default enabling value of "true"', () => {
+    expect(isEnabled('true')).toBe(true)
+    expect(isEnabled('false')).toBe(false)
+  })
+
+  it('matches against a custom enabling value', () => {
+    expect(isEnabled('yes', 'yes')).toBe(true)
+    expect(isEnabled('no', 'yes')).toBe(false)
   })
 })
 

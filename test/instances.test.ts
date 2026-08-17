@@ -78,6 +78,18 @@ describe('createCssInstance ownership', () => {
     expect(owned.reverse).toHaveBeenCalledOnce()
     expect(consumer.reverse).not.toHaveBeenCalled()
   })
+
+  it('re-sets running rather than reversing a still-running owned animation on repeat activation', () => {
+    const el = document.createElement('div')
+    const owned = fakeAnimation('kui-in-up', 'running')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.activate()
+    expect(owned.reverse).not.toHaveBeenCalled()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('running')
+  })
 })
 
 describe('deferredInstance completion', () => {
@@ -160,6 +172,21 @@ describe('deferredInstance completion', () => {
   it('keeps resolving immediately for a setup that only returns a cleanup', async () => {
     const instance = deferredInstance(() => () => {})
     instance.activate()
+    await expect(instance.finished).resolves.toBeUndefined()
+  })
+})
+
+describe('createJsInstance repeat calls', () => {
+  it('does not call hooks.activate() again once already active', () => {
+    const activate = vi.fn()
+    const instance = createJsInstance({ activate, destroy: () => {} })
+    instance.activate()
+    instance.activate()
+    expect(activate).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to an already-resolved promise when the hooks declare no finished()', async () => {
+    const instance = createJsInstance({ activate: () => {}, destroy: () => {} })
     await expect(instance.finished).resolves.toBeUndefined()
   })
 })

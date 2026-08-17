@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Registry } from '../src/core/registry.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
@@ -51,6 +51,31 @@ function pointerEvent(type: string, x: number, y: number): PointerEvent {
   return event
 }
 
+/**
+ * Deterministic stand-in for `requestAnimationFrame`/`cancelAnimationFrame`, so a cursor dot's
+ * spring frames advance only when the test asks — the same queue-and-tick shape `spring.test.ts`
+ * uses for `createSpringRunner` directly, needed here because `springDepsFor` reads the real
+ * globals rather than anything injectable off `ctx`.
+ */
+function stubFrames(): { tick: (count: number) => void } {
+  const frames: Array<(time: number) => void> = []
+  let time = 0
+  vi.stubGlobal('requestAnimationFrame', (cb: (time: number) => void) => {
+    frames.push(cb)
+    return frames.length
+  })
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+  return {
+    tick(count: number) {
+      for (let i = 0; i < count; i++) {
+        const next = frames.shift()
+        time += 16
+        next?.(time)
+      }
+    },
+  }
+}
+
 describe('interaction catalog registration', () => {
   it('registers 20 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
     expect(INTERACTION_PRESETS).toHaveLength(20)
@@ -92,6 +117,18 @@ describe('discrete hover/focus effects (CSS-driven, no-op prepare)', () => {
   })
 })
 
+describe('beam-border-auto (continuous variant, CSS-driven, no-op prepare)', () => {
+  it('resolves to an inert instance, same as the hover-gated family', () => {
+    const reg = registry()
+    const resolved = reg.resolve('beam-border-auto')!
+    const el = document.createElement('div')
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+    expect(() => instance.activate()).not.toThrow()
+    expect(el.outerHTML).toBe('<div></div>')
+    instance.destroy()
+  })
+})
+
 describe('pointer-tracking effects (real JS)', () => {
   afterEach(() => {
     document.body.replaceChildren()
@@ -112,6 +149,20 @@ describe('pointer-tracking effects (real JS)', () => {
     expect(document.body.querySelectorAll('.kui-cursor-dot')).toHaveLength(before)
     instance.destroy()
   })
+
+  it.each(['tilt-3d', 'tilt-parallax', 'cursor-spotlight'] as const)(
+    '%s no-ops on a coarse pointer, each carrying its own guard',
+    (name) => {
+      const reg = registry()
+      const resolved = reg.resolve(name)!
+      const el = document.createElement('div')
+      document.body.append(el)
+      const coarseWin = { matchMedia: () => ({ matches: false }) } as unknown as Window
+      const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el, { win: coarseWin }))
+      expect(() => instance.activate()).not.toThrow()
+      instance.destroy()
+    },
+  )
 
   it('tilt-3d writes a perspective/rotate transform on pointermove and resets on pointerleave', () => {
     const reg = registry()
@@ -178,6 +229,176 @@ describe('pointer-tracking effects (real JS)', () => {
     expect(deep!.style.translate).toBe('0.00px 0.00px')
 
     instance.destroy()
+  })
+
+  it('treats a non-numeric data-depth as depth 0 rather than NaN', () => {
+    const reg = registry()
+    const resolved = reg.resolve('tilt-parallax')!
+    const el = document.createElement('div')
+    el.innerHTML = '<span data-depth="not-a-number"></span>'
+    document.body.append(el)
+    stubRect(el, { left: 0, top: 0, width: 100, height: 100 })
+
+    const instance = resolved.primitive.prepare!(el, createParams({ strength: '24' }), fakeCtx(el))
+    instance.activate()
+    el.dispatchEvent(pointerEvent('pointermove', 100, 50))
+
+    const layer = el.querySelector('span') as HTMLElement
+    expect(layer.style.translate).toBe('0.00px 0.00px')
+    instance.destroy()
+  })
+
+  it('tilt-3d jumps to a partial tilt on focus (no pointer position to follow) and resets on blur', () => {
+    const reg = registry()
+    const resolved = reg.resolve('tilt-3d')!
+    const el = document.createElement('div')
+    document.body.append(el)
+    stubRect(el, { left: 0, top: 0, width: 200, height: 100 })
+
+    const instance = resolved.primitive.prepare!(el, createParams({ maxAngle: '14' }), fakeCtx(el))
+    instance.activate()
+
+    el.dispatchEvent(new Event('focus'))
+    expect((el as HTMLElement).style.transform).toContain('rotateX(-7.00deg) rotateY(7.00deg)')
+
+    el.dispatchEvent(new Event('blur'))
+    expect((el as HTMLElement).style.transform).toContain('rotateX(0.00deg) rotateY(0.00deg)')
+
+    instance.destroy()
+  })
+
+  it('cursor-spotlight re-centres and shows on focus (no pointer position to follow), hides on blur', () => {
+    const reg = registry()
+    const resolved = reg.resolve('cursor-spotlight')!
+    const el = document.createElement('div')
+    document.body.append(el)
+    stubRect(el, { left: 10, top: 10, width: 100, height: 100 })
+
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+    instance.activate()
+
+    el.dispatchEvent(new Event('focus'))
+    expect((el as HTMLElement).style.getPropertyValue('--kui-x')).toBe('50%')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-y')).toBe('50%')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-spotlight-opacity')).toBe('1')
+
+    el.dispatchEvent(new Event('blur'))
+    expect((el as HTMLElement).style.getPropertyValue('--kui-spotlight-opacity')).toBe('0')
+
+    instance.destroy()
+  })
+
+  it('leaves an already-positioned element\'s position untouched', () => {
+    const reg = registry()
+    const resolved = reg.resolve('cursor-spotlight')!
+    const el = document.createElement('div')
+    el.style.position = 'absolute'
+    document.body.append(el)
+    stubRect(el, { left: 10, top: 10, width: 100, height: 100 })
+
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+    instance.activate()
+
+    expect((el as HTMLElement).style.position).toBe('absolute')
+    instance.destroy()
+  })
+
+  it('claims position:relative for an explicitly static element, anchoring the glow overlay', () => {
+    // jsdom's getComputedStyle reports an empty string, not "static", for an element with no
+    // position style set at all — the claim path is only actually reachable (in this test
+    // environment, and matching the code's own === 'static' check) via an *explicit* `static`.
+    const reg = registry()
+    const resolved = reg.resolve('cursor-spotlight')!
+    const el = document.createElement('div')
+    el.style.position = 'static'
+    document.body.append(el)
+    stubRect(el, { left: 10, top: 10, width: 100, height: 100 })
+
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+    instance.activate()
+
+    expect((el as HTMLElement).style.position).toBe('relative')
+    instance.destroy()
+  })
+})
+
+describe('cursor-dot family (real JS, spring-driven)', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+    vi.unstubAllGlobals()
+  })
+
+  it('cursor-follow springs a synthetic dot toward the pointer, hides on leave, jumps to centre on focus, and cleans up on destroy', () => {
+    const { tick } = stubFrames()
+    const reg = registry()
+    const resolved = reg.resolve('cursor-follow')!
+    const el = document.createElement('a')
+    document.body.append(el)
+    stubRect(el, { left: 0, top: 0, width: 100, height: 40 })
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ stiffness: '300', damping: '30' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+
+    const dot = document.querySelector('.kui-cursor-dot-follow') as HTMLElement
+    expect(dot).toBeTruthy()
+    expect(dot.parentElement).toBe(document.body)
+
+    el.dispatchEvent(pointerEvent('pointermove', 80, 20))
+    expect(dot.classList.contains('kui-cursor-dot-active')).toBe(true)
+
+    tick(20) // let the spring actually advance toward the pointer position
+    const [x] = dot.style.translate.split(' ').map(Number.parseFloat)
+    expect(x).toBeGreaterThan(0)
+
+    el.dispatchEvent(new Event('pointerleave'))
+    expect(dot.classList.contains('kui-cursor-dot-active')).toBe(false)
+
+    el.dispatchEvent(new Event('focus'))
+    expect(dot.classList.contains('kui-cursor-dot-active')).toBe(true)
+    expect(dot.style.translate).toBe('50.0px 20.0px') // element centre: left 0 + width/2, top 0 + height/2
+
+    el.dispatchEvent(new Event('blur'))
+    expect(dot.classList.contains('kui-cursor-dot-active')).toBe(false)
+
+    instance.destroy()
+    expect(document.querySelector('.kui-cursor-dot-follow')).toBeNull()
+  })
+
+  it('cursor-label sets the dot text from its label param', () => {
+    const reg = registry()
+    const el = document.createElement('div')
+    document.body.append(el)
+
+    const resolved = reg.resolve('cursor-label')!
+    const instance = resolved.primitive.prepare!(el, createParams({ label: 'View' }), fakeCtx(el))
+    instance.activate()
+
+    const dot = document.querySelector('.kui-cursor-dot-label') as HTMLElement
+    expect(dot.textContent).toBe('View')
+
+    instance.destroy()
+    expect(document.querySelector('.kui-cursor-dot-label')).toBeNull()
+  })
+
+  it('cursor-lag and cursor-invert each wire up their own dot class', () => {
+    const reg = registry()
+    for (const [name, cls] of [
+      ['cursor-lag', 'kui-cursor-dot-lag'],
+      ['cursor-invert', 'kui-cursor-dot-invert'],
+    ] as const) {
+      const el = document.createElement('div')
+      document.body.append(el)
+      const resolved = reg.resolve(name)!
+      const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+      instance.activate()
+      expect(document.querySelector(`.${cls}`)).toBeTruthy()
+      instance.destroy()
+      expect(document.querySelector(`.${cls}`)).toBeNull()
+    }
   })
 })
 

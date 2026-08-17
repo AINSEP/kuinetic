@@ -3,12 +3,15 @@ import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import {
+  appendCharSpans,
   appendLineSpans,
+  appendSpansFor,
   appendWordSpans,
   installSplitLayers,
   nextTypeState,
   scrambledFrame,
   segmentGraphemes,
+  splitRevealFinishMs,
 } from '../src/effects/catalog/text-shared.js'
 
 /**
@@ -55,6 +58,16 @@ describe('installSplitLayers', () => {
   })
 })
 
+describe('appendCharSpans', () => {
+  it('leaves whitespace graphemes as plain text nodes rather than zero-width spans', () => {
+    const container = document.createElement('span')
+    const spans = appendCharSpans(container, document, 'a b')
+    expect(spans).toHaveLength(2) // 'a' and 'b' only — the space is not one of them
+    expect(container.textContent).toBe('a b')
+    expect(container.querySelectorAll('.kui-split-item')).toHaveLength(2)
+  })
+})
+
 describe('appendWordSpans', () => {
   it('wraps words but leaves whitespace as plain text nodes', () => {
     const container = document.createElement('span')
@@ -64,12 +77,42 @@ describe('appendWordSpans', () => {
   })
 })
 
+describe('appendSpansFor', () => {
+  it('dispatches to appendWordSpans for the "words" unit', () => {
+    const container = document.createElement('span')
+    const spans = appendSpansFor('words', container, document, 'one two')
+    expect(spans).toHaveLength(2)
+    expect(container.querySelectorAll('.kui-split-item')).toHaveLength(2)
+  })
+
+  it('dispatches to appendLineSpans for the "lines" unit', () => {
+    const container = document.createElement('span')
+    const spans = appendSpansFor('lines', container, document, 'one two')
+    expect(spans.length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.kui-split-line').length).toBeGreaterThan(0)
+  })
+
+  it('dispatches to appendCharSpans for the "chars" unit', () => {
+    const container = document.createElement('span')
+    const spans = appendSpansFor('chars', container, document, 'ab')
+    expect(spans).toHaveLength(2)
+  })
+})
+
 describe('appendLineSpans', () => {
   it('wraps every word into some line container without losing content', () => {
     const container = document.createElement('span')
     appendLineSpans(container, document, 'one two three')
     expect(container.textContent).toBe('one two three')
     expect(container.querySelectorAll('.kui-split-line').length).toBeGreaterThan(0)
+  })
+
+  it('starts a bucket for leading whitespace that precedes the first word span', () => {
+    // appendWordSpans emits the leading space as a plain text node, so bucketByLine's very first
+    // child is not an HTMLElement — it must still open a bucket for it rather than dropping it.
+    const container = document.createElement('span')
+    appendLineSpans(container, document, ' one two')
+    expect(container.textContent).toBe(' one two')
   })
 })
 
@@ -95,6 +138,27 @@ describe('split-chars / split-text', () => {
     instance.destroy()
     expect(el.textContent).toBe('a👩‍👩‍👧‍👦b')
     expect(el.querySelector('.kui-split-decorative')).toBeNull()
+  })
+
+  it('finish() clears the pending completion timer and resolves finished immediately', async () => {
+    vi.useFakeTimers()
+    const resolved = registry.resolve('split-chars')!
+    const el = document.createElement('p')
+    el.textContent = 'hello'
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ unit: 'chars', direction: 'fade', duration: '2s', stagger: '30ms' }),
+      fakeCtx(),
+    )
+
+    instance.activate()
+    instance.finish()
+    await expect(instance.finished).resolves.toBeUndefined()
+
+    // The timer that would have settled `finished` on its own is now dead — advancing well past
+    // it must not throw or double-resolve.
+    expect(() => vi.advanceTimersByTime(10_000)).not.toThrow()
+    vi.useRealTimers()
   })
 })
 
@@ -180,6 +244,52 @@ describe('word-cycler', () => {
     instance.destroy()
     expect(el.textContent).toBe('placeholder')
   })
+
+  it('is a harmless no-op when no words were authored at all', () => {
+    const resolved = registry.resolve('word-cycler')!
+    const el = document.createElement('span')
+    el.textContent = 'placeholder'
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx())
+
+    expect(() => instance.activate()).not.toThrow()
+    expect(el.textContent).toBe('placeholder')
+    expect(() => instance.destroy()).not.toThrow()
+    expect(el.textContent).toBe('placeholder')
+  })
+
+  it('finish() stops the cycle without throwing', () => {
+    const resolved = registry.resolve('word-cycler')!
+    const el = document.createElement('span')
+    el.textContent = 'placeholder'
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ words: 'alpha|beta', interval: '1000ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    expect(() => instance.finish()).not.toThrow()
+    instance.destroy()
+  })
+
+  it('wraps a single-word list back to itself rather than getting stuck', () => {
+    const resolved = registry.resolve('word-cycler')!
+    const el = document.createElement('span')
+    el.textContent = 'placeholder'
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ words: 'alone', interval: '1000ms' }),
+      fakeCtx(),
+    )
+
+    instance.activate()
+    expect(el.textContent).toBe('alone')
+
+    vi.advanceTimersByTime(1000 + 150)
+    expect(el.textContent).toBe('alone')
+    expect(el.classList.contains('kui-word-cycler-swap')).toBe(false)
+
+    instance.destroy()
+  })
 })
 
 describe('nextTypeState', () => {
@@ -207,5 +317,15 @@ describe('scrambledFrame', () => {
 
   it('never scrambles whitespace, so word boundaries stay legible mid-resolve', () => {
     expect(scrambledFrame(['a', ' ', 'b'], 0, 'XYZ', () => 0)).toBe('X X')
+  })
+
+  it('falls back to the original grapheme when the charset is empty', () => {
+    expect(scrambledFrame(['a', 'b'], 0, '', () => 0)).toBe('ab')
+  })
+})
+
+describe('splitRevealFinishMs', () => {
+  it('is zero for an empty split — nothing was ever going to animate', () => {
+    expect(splitRevealFinishMs(createParams({}), 0)).toBe(0)
   })
 })
