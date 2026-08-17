@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — gesture fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — gesture fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       body {
         margin: 0;
@@ -27,13 +27,13 @@
     </style>
   </head>
   <body>
-    <div id="drag" class="chip" data-dsg="drag">drag</div>
-    <div id="elastic" class="chip" data-dsg="elastic-pull bounds:80">elastic</div>
-    <div id="swipe" class="chip" data-dsg="swipe">swipe</div>
+    <div id="drag" class="chip" data-kui="drag">drag</div>
+    <div id="elastic" class="chip" data-kui="elastic-pull bounds:80">elastic</div>
+    <div id="swipe" class="chip" data-kui="swipe">swipe</div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

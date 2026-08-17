@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — post-destroy cleanliness fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — post-destroy cleanliness fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       body {
         margin: 0;
@@ -27,12 +27,12 @@
     </style>
   </head>
   <body>
-    <div id="magnet" class="chip" data-dsg="magnetic radius:200 strength:0.5">magnet</div>
-    <div id="drag" class="chip" data-dsg="drag">drag</div>
+    <div id="magnet" class="chip" data-kui="magnetic radius:200 strength:0.5">magnet</div>
+    <div id="drag" class="chip" data-kui="drag">drag</div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

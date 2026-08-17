@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Ambient &amp; Feedback</title>
+<meta name="description" content="Continuous ambient-background and event-driven feedback patterns for kUInetic's data-kui effects — gradients, noise, scanlines, spinners, toasts, and click reactions, compiled to real CSS, zero animation-loop JS." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero (shared vocabulary, copied from reveals.html) ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 20ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 30ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
+
+  /* ---------- matrix groups ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+
+  /* ---------- demo grid / cards (shared vocabulary, copied from reveals.html) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
+     align-items:stretch adds to this card to match the tallest card in its row. Without this, the
+     card's own --surface background shows through as a sliver below a figcaption sized only to its
+     own content. Applies uniformly here: the "first child" varies by card type (photo, CSS-only
+     ambient stage, or feedback body), so each gets its own `flex: none` rule below, and figcaption
+     stays the single shared `flex: 1 0 auto` rule. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- alternating two-tone fill for grey-surface cards ----------
+     Applies only to cards where the card's own flat --surface grey is the visible
+     background: CSS-only ambient stages with no photo, and feedback/status demo bodies
+     (which have no background of their own and fall through to .demo-card's). Cards with
+     a full-bleed photo (or the two `.ambient-stage.is-dark` cards, which are deliberately
+     forced near-black for contrast against starfield/wave-blob's own imagery regardless of
+     theme) are left alone — swapping those to --bg would go white-on-white in light theme. */
+  .demo-card.tone-a { background: var(--accent); color: var(--accent-ink); }
+  .demo-card.tone-a .ambient-stage { background-color: var(--accent); }
+  .demo-card.tone-a .ambient-orb,
+  .demo-card.tone-a .ambient-shape:nth-child(1) { background: var(--accent-ink); }
+  .demo-card.tone-b { background: var(--bg); color: var(--fg); border-color: var(--border); }
+  .demo-card.tone-b .ambient-stage { background-color: var(--bg); }
+
+  /* ---------- tone-a contrast overrides ----------
+     `.tone-a` fills with the theme-invariant `--accent` yellow (same value in light and dark).
+     Components that carry their OWN hardcoded `color: var(--fg)` / `border-color: var(--border)`
+     — like system.css's `.btn-ghost`, tuned for `--bg`/`--surface` contrast — override whatever
+     `.tone-a` set. In light mode `--fg` is near-black (reads fine on yellow by coincidence); in
+     dark mode `--fg` flips to white while the card stays the same yellow, so the button text goes
+     white-on-yellow and disappears. Re-point at `--accent-ink`, the token this page already uses
+     everywhere else for "ink that reads on the accent fill" (see `.badge`, the dark-mode
+     `figcaption` swap above, and `.tone-a .ambient-orb` two rules up). Border gets the same
+     treatment: `var(--border)` is a subtle near-background grey in both themes and is close to
+     invisible against solid yellow. */
+  .demo-card.tone-a .btn-ghost {
+    color: var(--accent-ink);
+    border-color: color-mix(in srgb, var(--accent-ink) 35%, transparent);
+  }
+  .demo-card.tone-a .btn-ghost:hover { border-color: var(--accent-ink); }
+  /* `.toast`'s own background is a `--surface`-based tint (`color-mix(accent 18%, surface)`),
+     not solid `--accent` — in dark mode that mix comes out a dark olive, so inheriting the
+     card's `--accent-ink` (near-black) text gives ~1.7:1 contrast, effectively invisible. Since
+     the toast's background follows `--surface`'s lightness per theme, its text should follow
+     `--fg` (the page's normal contrast partner for `--surface`/`--bg`) instead of the card's
+     accent-ink override. Verified ~12:1 in dark mode and ~19:1 in light mode after this change. */
+  .demo-card.tone-a .toast { color: var(--fg); }
+  /* Same camouflage problem as `.ambient-orb` above, but total: `.wobble-icon`'s own
+     `background: var(--accent)` (below) is pixel-identical to this card's `--accent` fill in
+     both themes, and the button has no border or glyph — so it's 100% invisible against its own
+     card at all times, not just during the wobble. Confirmed live: the click-triggered animation
+     genuinely runs (data-kui-state ready→running→finished, a real Animation with progressing
+     currentTime) but has nothing visibly distinct to move. Same fix as ambient-orb: swap to
+     `--accent-ink` so the icon — and its wobble — are actually visible. */
+  .demo-card.tone-a .wobble-icon { background: var(--accent-ink); }
+
+  /* ---------- J: ambient background stages ---------- */
+  .ambient-stage {
+    position: relative; flex: none; aspect-ratio: 4 / 3; overflow: clip;
+    display: grid; place-items: center;
+    /* `background-color`, not the `background` shorthand: the shorthand resets `background-image`
+       to `none`, and since this page's plain CSS is unlayered it would win over the library's
+       `@layer kui.effects` rule regardless of specificity, silently blanking every
+       background-driven ambient effect placed here. */
+    background-color: color-mix(in srgb, var(--surface) 92%, black 8%);
+  }
+  .ambient-stage.is-dark { background-color: #0b0a0a; }
+  .ambient-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* The effect layer sits on top of a photo via absolute positioning + a blend mode, rather than
+     both fighting over the `background` property on the same element. */
+  .ambient-fx { position: absolute; inset: 0; }
+  .ambient-orb { width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 70%, white 10%); }
+  .ambient-shape { position: absolute; width: 14px; height: 14px; border-radius: 30%; background: color-mix(in srgb, var(--accent) 65%, white 15%); }
+  .ambient-shape:nth-child(1) { left: 28%; top: 34%; }
+  .ambient-shape:nth-child(2) { left: 55%; top: 22%; background: color-mix(in srgb, #60a5fa 65%, white 15%); }
+  .ambient-shape:nth-child(3) { left: 68%; top: 58%; background: color-mix(in srgb, #34d399 65%, white 15%); }
+  /* Border-family effects. beam-border paints its ring into a `::before` pseudo-element (safe to
+     nest real content inside), but gradient-rotate-border applies `mask-composite: exclude`
+     directly to the element carrying `data-kui` — which also masks away any real DOM children
+     placed inside it, not just its own background. So the ring and the photo can't be parent/child
+     here: `.ambient-border-ring` is an empty sibling absolutely filling the pad (nothing lost when
+     its content-box gets masked out), and `.ambient-border-inner` independently shows the photo,
+     inset by the same 3px the ring's own padding reserves. */
+  .ambient-border-pad { flex: none; position: relative; aspect-ratio: 4 / 3; }
+  .ambient-border-pad[role='button'] { cursor: pointer; }
+  .ambient-border-ring { position: absolute; inset: 0; }
+  .ambient-border-inner { position: absolute; inset: 3px; border-radius: 8px; overflow: clip; background: var(--surface); }
+  .ambient-border-inner img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- K: feedback cards ---------- */
+  .feedback-body { flex: none; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .feedback-stage { flex: none; display: grid; place-items: center; position: relative; min-height: 64px; }
+
+  /* --- skeleton --- */
+  .skeleton-block { width: 100%; height: 14px; border-radius: 6px; }
+  .skeleton-block + .skeleton-block { margin-top: 0.5rem; }
+  .skeleton-content { width: 100%; display: none; color: var(--fg); font-size: 0.85rem; }
+  .skeleton-content.visible { display: block; }
+  .skeleton-content.visible ~ .skeleton-block { display: none; }
+
+  /* --- progress track --- */
+  .progress-track { width: 100%; height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .progress-track > span { display: block; height: 100%; }
+
+  /* --- toast --- */
+  .toast-demo { position: relative; width: 100%; height: 64px; }
+  .toast {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    border: 1px solid var(--accent); border-radius: 8px; padding: 0.55rem 0.8rem; font-size: 0.85rem; opacity: 0;
+  }
+
+  /* --- field + shake/wobble --- */
+  .field { width: 100%; padding: 0.5rem 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); font: inherit; }
+  .wobble-icon { width: 36px; height: 36px; border-radius: 9px; background: var(--accent); cursor: pointer; border: none; }
+
+  /* --- ripple --- */
+  .ripple-surface {
+    position: relative; width: 100%; height: 64px; border-radius: 8px; border: 1px solid var(--border);
+    overflow: hidden; cursor: pointer; display: grid; place-items: center; color: var(--muted); font-size: 0.8rem;
+  }
+  .ripple-dot { position: absolute; width: 12px; height: 12px; }
+
+  /* --- badge / count / heart / confetti --- */
+  .badge {
+    display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px;
+    border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 0.75rem; font-weight: 700;
+  }
+  .count { font-size: 1.6rem; font-weight: 700; }
+  /* A div, not a `<button>`: this page's own `.btn` rules are unlayered and would clash with the
+     library's layered effect declarations on a real button regardless of specificity. `role="button"`
+     + `tabindex` + the keydown handler in the demo-glue script keep it keyboard operable without that. */
+  .heart-btn { display: inline-block; font-size: 1.9rem; cursor: pointer; line-height: 1; }
+  .heart-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .confetti-dot { display: inline-block; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer; }
+  .confetti-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* --- copy confirm --- */
+  .copy-row { position: relative; display: flex; align-items: center; gap: 0.6rem; }
+  .copy-confirm-label { opacity: 0; font-size: 0.8rem; color: #34d399; }
+
+  /* --- pull to refresh --- */
+  .pull-surface {
+    width: 100%; height: 64px; border-radius: 8px; border: 1px dashed var(--border);
+    display: grid; place-items: center; color: var(--muted); font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Ambient &amp; Feedback</p>
+          <h1 data-kui="fade-up 700ms">Ambient backgrounds &amp; feedback states.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            Catalog sections <code>J</code> and <code>K</code> — 14 continuous ambient effects and
+            17 loading/reaction effects. Every ambient effect below loops forever and disables
+            entirely under <code>prefers-reduced-motion</code> rather than shortening to a
+            meaningless 1ms.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#ambient" class="btn btn-primary">Scroll the effects</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> Trigger buttons below are demo glue, not part of the library — every effect itself is one attribute.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/futuristic_visor_hud.jpg"
+            alt="Close-up of a futuristic helmet visor with a glowing cyan holographic HUD display, dark background with warm bokeh lights"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- J: AMBIENT BACKGROUNDS -->
+      <section id="ambient" data-od-id="ambient">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">J — Ambient backgrounds</h2>
+          <p>
+            14 continuous, decorative effects, <code>on:load</code> by default — plus
+            <code>beam-border</code>, a related hover/border primitive worth knowing even though
+            it's catalogued separately from these 14. Loops run at full speed here; nothing waits
+            for scroll or a click. Several are layered directly over real photography rather than a
+            flat panel, since effects like <code>scanline</code> and <code>spotlight-follow</code>
+            read best over something with texture underneath.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Gradient &amp; color fields — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="ambient-stage" data-kui="gradient-mesh"></div>
+              <figcaption>data-kui="gradient-mesh"</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="ambient-stage" data-kui="aurora"></div>
+              <figcaption>data-kui="aurora"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Border treatments — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-border-pad">
+                <div class="ambient-border-ring" data-kui="gradient-rotate-border"></div>
+                <div class="ambient-border-inner">
+                  <img src="./assets/tech_earbuds_neon.jpg" alt="Matte white wireless earbuds case lit by red and blue neon gel lighting on a reflective dark desk" loading="lazy" />
+                </div>
+              </div>
+              <figcaption>data-kui="gradient-rotate-border"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-border-pad" data-kui="beam-border" role="button" tabindex="0" aria-label="Beam border demo">
+                <div class="ambient-border-inner">
+                  <img src="./assets/gaming_controller_glow.jpg" alt="Modern wireless game controller displayed on a stand, lit by cool blue studio lighting against a dark background" loading="lazy" />
+                </div>
+              </div>
+              <figcaption>data-kui="beam-border" — hover/border family, not one of J's 14</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Texture &amp; scanlines — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage">
+                <img src="./assets/vr_headset_dark_studio.jpg" alt="Person wearing a black VR headset, kneeling in a minimalist dark room lit by white LED strip lighting" loading="lazy" />
+                <div class="ambient-fx" data-kui="noise-overlay" style="color:#ffffff; mix-blend-mode:overlay;"></div>
+              </div>
+              <figcaption>data-kui="noise-overlay" — layered over photo</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage">
+                <img src="./assets/futuristic_visor_hud.jpg" alt="Close-up of a futuristic helmet visor with a glowing cyan holographic HUD display, dark background with warm bokeh lights" loading="lazy" />
+                <div class="ambient-fx" data-kui="scanline" style="color:#ffffff; mix-blend-mode:screen;"></div>
+              </div>
+              <figcaption>data-kui="scanline" — layered over photo</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Grid drift — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="ambient-stage" data-kui="dot-grid-drift"></div>
+              <figcaption>data-kui="dot-grid-drift"</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="ambient-stage" data-kui="line-grid-drift"></div>
+              <figcaption>data-kui="line-grid-drift"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Floating &amp; orbiting shapes — 4</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="ambient-stage">
+                <div class="ambient-shape" data-kui="floating-shapes"></div>
+                <div class="ambient-shape" data-kui="floating-shapes 5s 300ms"></div>
+                <div class="ambient-shape" data-kui="floating-shapes 7s 600ms"></div>
+              </div>
+              <figcaption>data-kui="floating-shapes"</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="ambient-stage"><div class="ambient-orb" data-kui="float"></div></div>
+              <figcaption>data-kui="float"</figcaption>
+            </figure>
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="ambient-stage"><div class="ambient-orb" data-kui="bob"></div></div>
+              <figcaption>data-kui="bob"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage">
+                <img src="./assets/gaming_controller_glow.jpg" alt="Modern wireless game controller displayed on a stand, lit by cool blue studio lighting against a dark background" loading="lazy" />
+                <div class="ambient-fx" style="display:grid; place-items:center;"><div class="ambient-orb" data-kui="glow-pulse"></div></div>
+              </div>
+              <figcaption>data-kui="glow-pulse" — layered over photo</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Light &amp; atmosphere — 3</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage is-dark" data-kui="starfield"></div>
+              <figcaption>data-kui="starfield"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage">
+                <img src="./assets/tech_helmet.jpg" alt="Profile portrait in a glossy black tech visor and wired headphones, red accent light" loading="lazy" />
+                <div class="ambient-fx" data-kui="spotlight-follow" style="color:#ffffff; mix-blend-mode:screen;"></div>
+              </div>
+              <figcaption>data-kui="spotlight-follow" — layered over photo</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <div class="ambient-stage is-dark" data-kui="wave-blob"></div>
+              <figcaption>data-kui="wave-blob"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- K: FEEDBACK & STATUS -->
+      <section id="feedback" data-od-id="feedback">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">K — Feedback &amp; status</h2>
+          <p>17 loading indicators and event-driven reactions. Trigger buttons are demo glue, not part of the library.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Loading indicators — 6</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="flex-direction: column; align-items: stretch; gap: 0.5rem;">
+                  <div class="skeleton-block" data-kui="skeleton-shimmer" style="width: 90%"></div>
+                  <div class="skeleton-block" data-kui="skeleton-shimmer 1.6s 120ms" style="width: 65%"></div>
+                </div>
+              </div>
+              <figcaption>data-kui="skeleton-shimmer"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="flex-direction: column; align-items: stretch; gap: 0.5rem">
+                  <div class="skeleton-block" id="sk-placeholder-1" style="width: 100%; background: var(--border)"></div>
+                  <div class="skeleton-block" id="sk-placeholder-2" style="width: 70%; background: var(--border)"></div>
+                  <p class="skeleton-content" id="sk-content" data-kui="skeleton-to-content on:manual">
+                    Loaded. This paragraph replaced the skeleton.
+                  </p>
+                  <button type="button" class="btn btn-ghost" id="btn-skeleton-load" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Load content</button>
+                </div>
+              </div>
+              <figcaption>data-kui="skeleton-to-content"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body"><div class="feedback-stage"><div data-kui="spinner"></div></div></div>
+              <figcaption>data-kui="spinner"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body"><div class="feedback-stage"><div data-kui="spinner-dots" style="color: var(--accent-text)"></div></div></div>
+              <figcaption>data-kui="spinner-dots"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body"><div class="feedback-stage"><div data-kui="spinner-ring"></div></div></div>
+              <figcaption>data-kui="spinner-ring"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="align-items: stretch">
+                  <div class="progress-track"><span data-kui="progress-indeterminate" style="background: var(--accent)"></span></div>
+                </div>
+              </div>
+              <figcaption>data-kui="progress-indeterminate"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Toast — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-a" data-kui="fade-up" style="grid-column: span 2">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="align-items: stretch">
+                  <div class="toast-demo">
+                    <div class="toast" id="toast-demo">Saved successfully.</div>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-ghost" id="btn-toast-in" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Show toast</button>
+                  <button type="button" class="btn btn-ghost" id="btn-toast-out" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Dismiss toast</button>
+                </div>
+              </div>
+              <figcaption>data-kui="toast-slide-in" / "toast-slide-out"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Error &amp; attention — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="align-items: stretch; flex-direction: column; gap: 0.6rem">
+                  <input class="field" id="shake-field" data-kui="shake-error on:manual" placeholder="email@example.com" />
+                  <button type="button" class="btn btn-ghost" id="btn-shake" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Trigger validation error</button>
+                </div>
+              </div>
+              <figcaption>data-kui="shake-error"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <!-- This button was invisible against its own tone-a card background — see the
+                       .demo-card.tone-a .wobble-icon rule in <style> — which was the actual cause of
+                       "nothing happens" on click; the animation itself was always running. -->
+                  <button type="button" class="wobble-icon" data-kui="wobble on:click" aria-label="Wobble on click"></button>
+                </div>
+              </div>
+              <figcaption>data-kui="wobble" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Click reactions — 6</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <div class="ripple-surface">
+                    click for ripple
+                    <div class="ripple-dot" data-kui="ripple on:manual" id="ripple-dot"></div>
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="ripple"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="gap: 0.8rem">
+                  <span class="badge" id="badge-pop-demo" data-kui="badge-pop on:manual">3</span>
+                  <button type="button" class="btn btn-ghost" id="btn-badge-pop" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Notify</button>
+                </div>
+              </div>
+              <figcaption>data-kui="badge-pop"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="gap: 0.8rem">
+                  <span class="count" id="count-bump-demo" data-kui="count-bump on:manual">128</span>
+                  <button type="button" class="btn btn-ghost" id="btn-count-bump" style="padding:0.5rem 0.9rem; font-size:0.8rem;">+1</button>
+                </div>
+              </div>
+              <figcaption>data-kui="count-bump"</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <div class="heart-btn" data-kui="heart-burst on:click" role="button" tabindex="0" aria-label="Like">♥</div>
+                </div>
+              </div>
+              <figcaption>data-kui="heart-burst" — click me</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <div class="confetti-dot" data-kui="confetti-burst on:click" role="button" tabindex="0" aria-label="Celebrate"></div>
+                </div>
+              </div>
+              <figcaption>data-kui="confetti-burst" — click me</figcaption>
+            </figure>
+
+            <figure class="demo-card tone-a" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <div class="copy-row">
+                    <button type="button" class="btn btn-ghost" id="btn-copy" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Copy link</button>
+                    <span class="copy-confirm-label" id="copy-confirm-label" data-kui="copy-confirm on:manual">Copied!</span>
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="copy-confirm"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Gesture-simulated — 1</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card tone-b" data-kui="fade-up">
+              <div class="feedback-body">
+                <div class="feedback-stage" style="align-items: stretch; flex-direction: column; gap: 0.6rem">
+                  <div class="pull-surface" id="pull-surface" data-kui="pull-to-refresh on:manual">pull down</div>
+                  <button type="button" class="btn btn-ghost" id="btn-pull" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Simulate pull-to-refresh</button>
+                </div>
+              </div>
+              <figcaption>data-kui="pull-to-refresh"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    /*
+     * Demo-only glue: none of this is part of the library. `manual`-activation elements are
+     * held at their from-state until one of these handlers calls `__kui.play()` on them.
+     */
+    ;(function () {
+      function on(id, event, handler) {
+        var el = document.getElementById(id)
+        if (el) el.addEventListener(event, handler)
+      }
+
+      function whenReady(fn) {
+        if (window.__kui) fn()
+        else setTimeout(function () {
+          whenReady(fn)
+        }, 20)
+      }
+
+      whenReady(function () {
+        var kui = window.__kui
+
+        on('btn-skeleton-load', 'click', function () {
+          document.getElementById('sk-placeholder-1').style.display = 'none'
+          document.getElementById('sk-placeholder-2').style.display = 'none'
+          var content = document.getElementById('sk-content')
+          content.classList.add('visible')
+          kui.play(content, 'skeleton-to-content')
+        })
+
+        on('btn-toast-in', 'click', function () {
+          kui.play('#toast-demo', 'toast-slide-in')
+        })
+        on('btn-toast-out', 'click', function () {
+          kui.play('#toast-demo', 'toast-slide-out')
+        })
+
+        on('btn-shake', 'click', function () {
+          kui.play('#shake-field', 'shake-error')
+        })
+
+        var rippleSurface = document.querySelector('.ripple-surface')
+        if (rippleSurface) {
+          rippleSurface.addEventListener('click', function (evt) {
+            var rect = rippleSurface.getBoundingClientRect()
+            var dot = document.getElementById('ripple-dot')
+            dot.style.left = evt.clientX - rect.left - 6 + 'px'
+            dot.style.top = evt.clientY - rect.top - 6 + 'px'
+            kui.play(dot, 'ripple')
+          })
+        }
+
+        on('btn-badge-pop', 'click', function () {
+          kui.play('#badge-pop-demo', 'badge-pop')
+        })
+
+        on('btn-count-bump', 'click', function () {
+          var el = document.getElementById('count-bump-demo')
+          el.textContent = String(Number(el.textContent) + 1)
+          kui.play(el, 'count-bump')
+        })
+
+        on('btn-copy', 'click', function () {
+          kui.play('#copy-confirm-label', 'copy-confirm')
+        })
+
+        on('btn-pull', 'click', function () {
+          kui.play('#pull-surface', 'pull-to-refresh')
+        })
+
+        // .heart-btn and .confetti-dot are divs (role="button"), not real <button>s, so
+        // Enter/Space do not dispatch a native click the way they would on one — this restores
+        // that for both.
+        document.querySelectorAll('.heart-btn, .confetti-dot').forEach(function (el) {
+          el.addEventListener('keydown', function (evt) {
+            if (evt.key === 'Enter' || evt.key === ' ') {
+              evt.preventDefault()
+              el.click()
+            }
+          })
+        })
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+</body>
+</html>

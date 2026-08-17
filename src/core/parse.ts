@@ -59,13 +59,19 @@ type Token =
  *
  * @param input - Raw attribute text.
  * @param delimiter - `','` for effect segments, `' '` for tokens within a segment.
+ * @param warnings - Sink for a diagnostic when a quote or `(` is never closed. Optional so the
+ *   two-argument call every existing caller and test uses keeps working unchanged.
  * @returns Trimmed, non-empty parts.
  * @complexity O(n) time in input length; O(n) space for the parts.
  * @overallScore 100
  */
-export function splitTopLevel(input: string, delimiter: ',' | ' '): string[] {
+export function splitTopLevel(
+  input: string,
+  delimiter: ',' | ' ',
+  warnings: string[] = [],
+): string[] {
   const parts: string[] = []
-  const scanner = { depth: 0, quote: null as string | null }
+  const scanner = { depth: 0, quote: null as string | null, escaped: false }
   let buffer = ''
 
   for (const char of input) {
@@ -77,6 +83,12 @@ export function splitTopLevel(input: string, delimiter: ',' | ' '): string[] {
     buffer += char
   }
   if (buffer.trim()) parts.push(buffer.trim())
+
+  // An unterminated quote or `(` swallows every delimiter for the rest of the input into one
+  // part, silently dropping every effect/token after it — worth naming rather than guessing.
+  if (scanner.quote) warnings.push(`unterminated ${scanner.quote} quote in "${input}"`)
+  else if (scanner.depth > 0) warnings.push(`unclosed "(" in "${input}"`)
+
   return parts
 }
 
@@ -89,15 +101,10 @@ export function splitTopLevel(input: string, delimiter: ',' | ' '): string[] {
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function isSeparator(
-  char: string,
-  delimiter: ',' | ' ',
-  scanner: { depth: number; quote: string | null },
-): boolean {
-  if (scanner.quote) {
-    if (char === scanner.quote) scanner.quote = null
-    return false
-  }
+type Scanner = { depth: number; quote: string | null; escaped: boolean }
+
+function isSeparator(char: string, delimiter: ',' | ' ', scanner: Scanner): boolean {
+  if (scanner.quote) return advanceQuote(char, scanner)
   if (char === '"' || char === "'") {
     scanner.quote = char
     return false
@@ -107,6 +114,20 @@ function isSeparator(
 
   if (scanner.depth !== 0) return false
   return delimiter === ' ' ? /\s/.test(char) : char === delimiter
+}
+
+/**
+ * Advance the scanner one character while inside a quote. Never a separator — a delimiter inside
+ * quotes is data, not syntax — so this only exists to decide whether the quote just closed.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function advanceQuote(char: string, scanner: Scanner): boolean {
+  if (scanner.escaped) scanner.escaped = false
+  else if (char === '\\') scanner.escaped = true
+  else if (char === scanner.quote) scanner.quote = null
+  return false
 }
 
 /**
@@ -143,7 +164,10 @@ function splitPair(token: string): [string, string] | null {
 function unquote(value: string): string {
   const first = value[0]
   if ((first === '"' || first === "'") && value.endsWith(first) && value.length > 1) {
-    return value.slice(1, -1)
+    // `splitTopLevel`'s scanner already treated `\"`/`\'` as literal, not a closing quote — undo
+    // the escape here so the value matches what was originally quoted, e.g. `toAttributeValue`'s
+    // `quoteIfNeeded` round-trips `say "two words" now` through `"say \"two words\" now"`.
+    return value.slice(1, -1).replaceAll(`\\${first}`, first)
   }
   return value
 }
@@ -168,7 +192,7 @@ function isEasing(token: string): boolean {
 }
 
 /**
- * Parse a `data-dsg` attribute value.
+ * Parse a `data-kui` attribute value.
  *
  * @param input - Raw attribute text; empty or whitespace yields an empty spec list.
  * @returns Effect specs plus any hoisted element-scoped settings and warnings.
@@ -178,7 +202,7 @@ function isEasing(token: string): boolean {
 export function parse(input: string): ParsedValue {
   const result: ParsedValue = { specs: [], warnings: [] }
 
-  for (const segment of splitTopLevel(input ?? '', ',')) {
+  for (const segment of splitTopLevel(input ?? '', ',', result.warnings)) {
     const spec = parseSegment(segment, result)
     if (spec) result.specs.push(spec)
   }
@@ -193,7 +217,7 @@ export function parse(input: string): ParsedValue {
  * @overallScore 100
  */
 function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
-  const tokens = splitTopLevel(segment, ' ')
+  const tokens = splitTopLevel(segment, ' ', result.warnings)
   const name = tokens.shift()
   if (!name) return null
   if (splitPair(name)) {
@@ -252,7 +276,11 @@ function applyToken(
   }
   if (token.kind !== 'pair') return
 
-  if (HOISTS[token.key]) {
+  // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
+  // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to
+  // an inherited value there — truthy, but not a hoist handler, so calling it threw and aborted
+  // the whole attribute scan for every element after this one.
+  if (Object.hasOwn(HOISTS, token.key)) {
     HOISTS[token.key]!(result, token.value)
     return
   }

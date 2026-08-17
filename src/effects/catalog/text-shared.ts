@@ -3,8 +3,8 @@ import type { Cleanup, EffectParams } from '../../core/types.js'
 /** How `split-text` breaks a string into decorative pieces. */
 export type SplitUnit = 'chars' | 'words' | 'lines'
 
-const SR_ONLY_CLASS = 'dsg-sr-only'
-const DECORATIVE_CLASS = 'dsg-split-decorative'
+const SR_ONLY_CLASS = 'kui-sr-only'
+const DECORATIVE_CLASS = 'kui-split-decorative'
 
 export interface SplitLayers {
   /** `aria-hidden` container the caller populates with decorative markup or text. */
@@ -87,14 +87,14 @@ function segmentWords(text: string): WordToken[] {
   }))
 }
 
-/** Index a synthetic child for the `--dsg-i` / `--dsg-stagger` delay formula declared in text.css. */
+/** Index a synthetic child for the `--kui-i` / `--kui-stagger` delay formula declared in text.css. */
 function markItem(el: HTMLElement, index: number, extraClass?: string): void {
-  el.className = extraClass ? `dsg-split-item ${extraClass}` : 'dsg-split-item'
-  el.style.setProperty('--dsg-i', String(index))
+  el.className = extraClass ? `kui-split-item ${extraClass}` : 'kui-split-item'
+  el.style.setProperty('--kui-i', String(index))
 }
 
 /**
- * Forward validated timing params onto a synthetic container, so the `--dsg-i` × `--dsg-stagger`
+ * Forward validated timing params onto a synthetic container, so the `--kui-i` × `--kui-stagger`
  * delay formula in text.css can read them by inheritance.
  *
  * A JS-rendered primitive's per-primitive namespaced `cssProperty` (see `registry.ts`) only
@@ -102,14 +102,113 @@ function markItem(el: HTMLElement, index: number, extraClass?: string): void {
  * here reads that. These are plain, self-chosen custom properties on a container this module
  * created and owns outright, populated straight from the validated `EffectParams` reader.
  *
+ * Segment timing wins over the same-named parameters: `split-words 2s 1s linear` and
+ * `split-words duration:2s delay:1s ease:linear` are two spellings of one intent, and the
+ * positional one is the spelling `play()` emits, so it cannot be the one that gets dropped.
+ *
  * @complexity O(1) time and space.
  * @overallScore 100
  */
 export function applyStaggerVars(el: HTMLElement, params: EffectParams): void {
-  el.style.setProperty('--dsg-duration', params.text('duration', '500ms'))
-  el.style.setProperty('--dsg-delay', params.text('delay', '0ms'))
-  el.style.setProperty('--dsg-ease', params.text('ease', 'ease-out'))
-  el.style.setProperty('--dsg-stagger', params.text('stagger', '30ms'))
+  const { durationMs, delayMs, easing } = params.timing
+  const duration = durationMs === undefined ? params.text('duration', '500ms') : `${durationMs}ms`
+  const delay = delayMs === undefined ? params.text('delay', '0ms') : `${delayMs}ms`
+  el.style.setProperty('--kui-duration', duration)
+  el.style.setProperty('--kui-delay', delay)
+  el.style.setProperty('--kui-ease', easing ?? params.text('ease', 'ease-out'))
+  el.style.setProperty('--kui-stagger', params.text('stagger', '30ms'))
+}
+
+/**
+ * Milliseconds per tick for a stepped effect.
+ *
+ * A `step:` parameter names one tick; an authored duration names the *whole* effect, so it divides
+ * across the ticks the effect needs. That is the only reading that makes `typewriter 2s` mean the
+ * same thing as `fade-up 2s` — both take two seconds — rather than two seconds per character.
+ *
+ * @param params - Reader carrying both the `step` parameter and the segment's timing.
+ * @param ticks - How many ticks the effect will take to complete.
+ * @param fallback - The primitive's own per-tick default.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function stepMsFor(params: EffectParams, ticks: number, fallback: number): number {
+  const total = params.timing.durationMs
+  if (total === undefined || ticks <= 0) return params.ms('step', fallback)
+  // Floored at one millisecond: a zero interval is a busy loop, and browsers clamp it anyway.
+  return Math.max(1, total / ticks)
+}
+
+/**
+ * Total time before every staggered `.kui-split-item` has finished its reveal keyframe: the last
+ * item's `--kui-i * --kui-stagger` delay (text.css), plus its own duration. `prepareSplitText`
+ * needs this as a plain number to know when `finished` may resolve — nothing else in this file
+ * derives it, so it is expressed here once rather than re-parsed at the call site.
+ *
+ * @param itemCount - Staggered item count; zero when there was nothing to split, in which case
+ *   nothing animates and the effect is already over.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function splitRevealFinishMs(params: EffectParams, itemCount: number): number {
+  if (itemCount === 0) return 0
+  const durationMs = params.timing.durationMs ?? params.ms('duration', 500)
+  const delayMs = params.timing.delayMs ?? params.ms('delay', 0)
+  const staggerMs = params.ms('stagger', 30)
+  return delayMs + (itemCount - 1) * staggerMs + durationMs
+}
+
+export interface StepRunOptions {
+  /** Milliseconds before the first tick. */
+  delayMs: number
+  /** Milliseconds between ticks. */
+  stepMs: number
+  /** One frame of work. Returns `true` when there is nothing left to do. */
+  tick(): boolean
+}
+
+export interface StepRun {
+  /**
+   * Resolves once a tick reports it is done, or once `stop()` runs. A looping effect never
+   * reports done, so its promise never resolves — which is exactly right, and matches what an
+   * infinite CSS animation's `Animation.finished` does.
+   */
+  finished: Promise<void>
+  stop(): void
+}
+
+/**
+ * Run `tick` on an interval after an optional delay, and report when it is genuinely over.
+ *
+ * The delay is the whole point of the leading timeout: a JS-rendered effect had no way to honour
+ * an authored delay at all, because it never participates in the CSS `animation-delay` that the
+ * same attribute already means for every other effect.
+ *
+ * @param win - Timer source, injected so tests can drive it with fake timers.
+ * @param options - Delay, interval, and the work itself.
+ * @complexity O(1) time and space beyond the caller's own per-tick work.
+ * @overallScore 100
+ */
+export function createStepRunner(win: Window, options: StepRunOptions): StepRun {
+  let settle: (() => void) | undefined
+  const finished = new Promise<void>((resolve) => {
+    settle = resolve
+  })
+  let interval: number | undefined
+
+  function stop(): void {
+    win.clearTimeout(start)
+    if (interval !== undefined) win.clearInterval(interval)
+    settle?.()
+  }
+
+  const start = win.setTimeout(() => {
+    interval = win.setInterval(() => {
+      if (options.tick()) stop()
+    }, options.stepMs)
+  }, options.delayMs)
+
+  return { finished, stop }
 }
 
 /**
@@ -208,7 +307,7 @@ export function appendLineSpans(container: Element, doc: Document, text: string)
   container.replaceChildren()
   return buckets.map((nodes, index) => {
     const line = doc.createElement('span')
-    markItem(line, index, 'dsg-split-line')
+    markItem(line, index, 'kui-split-line')
     for (const node of nodes) line.append(node)
     container.append(line)
     return line

@@ -4,16 +4,16 @@
  * Two halves. The CSS-tier presets below (gradients, variable-font axes, marquee, redaction,
  * extrude) are keyframes plus a metadata row, same as every other CSS-tier section. The JS-tier
  * presets (split/reveal, motion, typewriter, scramble, word-cycler) are driven from
- * `src/effects/catalog/text.ts`'s `prepare` functions, which build a synthetic `.dsg-split-item`
- * tree and hand this file only two custom properties per instance: `--dsg-i` (position) and the
- * timing quartet `--dsg-duration`/`--dsg-delay`/`--dsg-ease`/`--dsg-stagger`, so the same delay
- * formula the compiler uses for authored stagger groups (`--dsg-i * --dsg-stagger`) applies here
+ * `src/effects/catalog/text.ts`'s `prepare` functions, which build a synthetic `.kui-split-item`
+ * tree and hand this file only two custom properties per instance: `--kui-i` (position) and the
+ * timing quartet `--kui-duration`/`--kui-delay`/`--kui-ease`/`--kui-stagger`, so the same delay
+ * formula the compiler uses for authored stagger groups (`--kui-i * --kui-stagger`) applies here
  * too, just written directly instead of compiled.
  */
-@layer dsg.effects {
+@layer kui.effects {
   /* --- accessible-split scaffolding, shared by every JS-tier effect in this file --- */
 
-  .dsg-sr-only {
+  .kui-sr-only {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -25,34 +25,34 @@
     border: 0;
   }
 
-  .dsg-split-decorative {
+  .kui-split-decorative {
     display: inline;
   }
 
-  .dsg-split-item {
+  .kui-split-item {
     display: inline-block;
-    animation-duration: var(--dsg-duration, 500ms);
-    animation-delay: calc(var(--dsg-delay, 0ms) + var(--dsg-i, 0) * var(--dsg-stagger, 30ms));
-    animation-timing-function: var(--dsg-ease, ease-out);
+    animation-duration: var(--kui-duration, 500ms);
+    animation-delay: calc(var(--kui-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 30ms));
+    animation-timing-function: var(--kui-ease, ease-out);
     animation-fill-mode: both;
   }
 
-  .dsg-split-line {
+  .kui-split-line {
     display: block;
   }
 
   /* --- split-chars / split-words / split-lines / text-reveal-* --- */
 
-  [data-dsg-split-fx='fade'] .dsg-split-item {
-    animation-name: dsg-split-reveal-fade;
+  [data-kui-split-fx='fade'] .kui-split-item {
+    animation-name: kui-split-reveal-fade;
   }
 
-  [data-dsg-split-fx='up'] .dsg-split-item {
-    animation-name: dsg-split-reveal-up;
+  [data-kui-split-fx='up'] .kui-split-item {
+    animation-name: kui-split-reveal-up;
   }
 
-  [data-dsg-split-fx='down'] .dsg-split-item {
-    animation-name: dsg-split-reveal-down;
+  [data-kui-split-fx='down'] .kui-split-item {
+    animation-name: kui-split-reveal-down;
   }
 
   /*
@@ -62,31 +62,31 @@
    * span down relative to any plain-text sibling (trailing punctuation, inter-word spaces)
    * still using the real baseline — visible as a stray, oddly-placed period after "view.".
    */
-  [data-dsg-split-fx='mask'] .dsg-split-item {
-    animation-name: dsg-split-reveal-mask;
+  [data-kui-split-fx='mask'] .kui-split-item {
+    animation-name: kui-split-reveal-mask;
   }
 
-  @keyframes dsg-split-reveal-fade {
+  @keyframes kui-split-reveal-fade {
     from {
       opacity: 0;
     }
   }
 
-  @keyframes dsg-split-reveal-up {
+  @keyframes kui-split-reveal-up {
     from {
       opacity: 0;
       translate: 0 0.6em;
     }
   }
 
-  @keyframes dsg-split-reveal-down {
+  @keyframes kui-split-reveal-down {
     from {
       opacity: 0;
       translate: 0 -0.6em;
     }
   }
 
-  @keyframes dsg-split-reveal-mask {
+  @keyframes kui-split-reveal-mask {
     from {
       opacity: 0;
       clip-path: inset(0 0 100% 0);
@@ -95,22 +95,22 @@
 
   /* --- text-wave / text-jitter: continuous per-character motion --- */
 
-  [data-dsg-split-fx='wave'] .dsg-split-item {
-    animation-name: dsg-split-wave;
+  [data-kui-split-fx='wave'] .kui-split-item {
+    animation-name: kui-split-wave;
     animation-duration: 1400ms;
     animation-iteration-count: infinite;
     animation-timing-function: ease-in-out;
   }
 
-  [data-dsg-split-fx='jitter'] .dsg-split-item {
-    animation-name: dsg-split-jitter;
+  [data-kui-split-fx='jitter'] .kui-split-item {
+    animation-name: kui-split-jitter;
     animation-duration: 220ms;
     animation-iteration-count: infinite;
     animation-timing-function: ease-in-out;
     animation-direction: alternate;
   }
 
-  @keyframes dsg-split-wave {
+  @keyframes kui-split-wave {
     0%,
     100% {
       translate: 0 0;
@@ -120,7 +120,7 @@
     }
   }
 
-  @keyframes dsg-split-jitter {
+  @keyframes kui-split-jitter {
     from {
       translate: 0 0;
       rotate: 0deg;
@@ -133,7 +133,7 @@
 
   /* --- typewriter / typewriter-loop --- */
 
-  .dsg-typewriter::after {
+  .kui-typewriter::after {
     content: '';
     display: inline-block;
     width: 0.08em;
@@ -141,10 +141,10 @@
     height: 1em;
     vertical-align: -0.15em;
     background: currentColor;
-    animation: dsg-caret-blink 1s steps(1) infinite;
+    animation: kui-caret-blink 1s steps(1) infinite;
   }
 
-  @keyframes dsg-caret-blink {
+  @keyframes kui-caret-blink {
     50% {
       opacity: 0;
     }
@@ -152,24 +152,32 @@
 
   /* --- scramble / decode / glitch --- */
 
-  .dsg-scramble {
+  .kui-scramble {
     font-variant-numeric: tabular-nums;
   }
 
   /* --- word-cycler: real words, so only the swap transition lives here --- */
 
-  [data-dsg-fx~='word-cycler'] {
+  [data-kui-fx~='word-cycler'] {
     display: inline-block;
     transition: opacity 150ms ease-out;
   }
 
-  [data-dsg-fx~='word-cycler'].dsg-word-cycler-swap {
+  [data-kui-fx~='word-cycler'].kui-word-cycler-swap {
     opacity: 0;
   }
 
   /* --- gradient-shimmer / gradient-sweep / highlight-sweep / underline-draw --- */
 
-  [data-dsg-fx~='gradient-shimmer'] {
+  /*
+   * `gradient-shimmer`'s `text-shimmer` primitive declares `reducedMotion: 'disable'` — the same
+   * signal `ambient.css`/`feedback.css` use to mark a preset that loops forever, since there is no
+   * meaningful "shortened" version of an infinite loop. Without this custom property the compiler
+   * (`iterationCountProperty` in `compile.ts`) defaults every track to a one-shot
+   * `animation-iteration-count: 1`, so the shine ran once and stopped instead of sweeping
+   * continuously.
+   */
+  [data-kui-fx~='gradient-shimmer'] {
     background-image: linear-gradient(
       100deg,
       currentColor 40%,
@@ -180,9 +188,10 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+    --kui-fx-gradient-shimmer-iterations: infinite;
   }
 
-  @keyframes dsg-gradient-shimmer {
+  @keyframes kui-gradient-shimmer {
     from {
       background-position: 200% 0;
     }
@@ -191,7 +200,7 @@
     }
   }
 
-  [data-dsg-fx~='gradient-sweep'] {
+  [data-kui-fx~='gradient-sweep'] {
     background-image: linear-gradient(
       100deg,
       transparent 30%,
@@ -204,7 +213,7 @@
     -webkit-text-fill-color: transparent;
   }
 
-  @keyframes dsg-gradient-sweep {
+  @keyframes kui-gradient-sweep {
     from {
       background-position: 220% 0;
     }
@@ -213,20 +222,20 @@
     }
   }
 
-  [data-dsg-fx~='highlight-sweep'] {
+  [data-kui-fx~='highlight-sweep'] {
     background-image: linear-gradient(90deg, color-mix(in srgb, gold 55%, transparent) 0 100%);
     background-repeat: no-repeat;
     background-size: 0% 100%;
     padding: 0 0.05em;
   }
 
-  @keyframes dsg-highlight-sweep {
+  @keyframes kui-highlight-sweep {
     to {
       background-size: 100% 100%;
     }
   }
 
-  [data-dsg-fx~='underline-draw'] {
+  [data-kui-fx~='underline-draw'] {
     background-image: linear-gradient(currentColor, currentColor);
     background-repeat: no-repeat;
     background-position: 0 100%;
@@ -234,7 +243,7 @@
     padding-bottom: 0.15em;
   }
 
-  @keyframes dsg-underline-draw {
+  @keyframes kui-underline-draw {
     to {
       background-size: 100% 2px;
     }
@@ -242,12 +251,12 @@
 
   /* --- text-outline-fill --- */
 
-  [data-dsg-fx~='text-outline-fill'] {
+  [data-kui-fx~='text-outline-fill'] {
     -webkit-text-stroke: 1px currentColor;
     color: transparent;
   }
 
-  @keyframes dsg-text-outline-fill {
+  @keyframes kui-text-outline-fill {
     to {
       color: currentColor;
     }
@@ -255,46 +264,63 @@
 
   /* --- var-weight / var-width / var-slant --- */
 
-  @keyframes dsg-var-weight {
+  @keyframes kui-var-weight {
     from {
-      font-weight: var(--dsg-from-weight, 100);
+      font-weight: var(--kui-from-weight, 100);
     }
     to {
-      font-weight: var(--dsg-to-weight, 800);
+      font-weight: var(--kui-to-weight, 800);
     }
   }
 
-  @keyframes dsg-var-width {
+  @keyframes kui-var-width {
     from {
-      font-stretch: var(--dsg-from-width, 75%);
+      font-stretch: var(--kui-from-width, 75%);
     }
     to {
-      font-stretch: var(--dsg-to-width, 125%);
+      font-stretch: var(--kui-to-width, 125%);
     }
   }
 
-  @keyframes dsg-var-slant {
+  @keyframes kui-var-slant {
     from {
-      font-style: oblique var(--dsg-from-slant, 0deg);
+      font-style: oblique var(--kui-from-slant, 0deg);
     }
     to {
-      font-style: oblique var(--dsg-to-slant, -10deg);
+      font-style: oblique var(--kui-to-slant, -10deg);
     }
   }
 
   /* --- marquee / marquee-scroll-linked ---
    * The seamless loop needs two copies of the track content side by side; that duplication is
    * the author's, in HTML, same as any other marquee implementation — this is the keyframe only.
-   * `marquee-scroll-linked` is the same primitive with `data-dsg-timeline="scroll"` authored,
-   * which the compiler swaps to `animation-timeline: scroll()` automatically.
+   * `marquee-scroll-linked` is the same primitive with `data-kui-timeline="scroll"` authored,
+   * which the compiler swaps to `animation-timeline: scroll()` automatically. The base layout is
+   * shared by both preset names — `[data-kui-fx~=X]` only matches the exact token `X`, so a
+   * selector naming just `marquee` never matched an element authored `marquee-scroll-linked`,
+   * leaving it without the `max-content` track width the translate keyframe depends on.
    */
-  [data-dsg-fx~='marquee'] {
+  [data-kui-fx~='marquee'],
+  [data-kui-fx~='marquee-scroll-linked'] {
     display: flex;
     width: max-content;
     will-change: translate;
   }
 
-  @keyframes dsg-marquee {
+  /*
+   * Only plain `marquee` is time-driven — `text-marquee`'s `reducedMotion: 'disable'` (see
+   * `text.ts`) marks it as a preset with no meaningful "shortened" duration, the same signal
+   * `ambient.css`/`feedback.css` use for their infinite loops, and without this property the
+   * compiler defaulted its track to a one-shot `animation-iteration-count: 1` (`compile.ts`'s
+   * `iterationCountProperty`), so the track ran once and stopped instead of scrolling forever.
+   * `marquee-scroll-linked` needs no such property: its position is driven by scroll offset via
+   * `animation-timeline: scroll()`, not by iteration count.
+   */
+  [data-kui-fx~='marquee'] {
+    --kui-fx-marquee-iterations: infinite;
+  }
+
+  @keyframes kui-marquee {
     to {
       translate: -50% 0;
     }
@@ -302,12 +328,12 @@
 
   /* --- redaction-reveal --- */
 
-  [data-dsg-fx~='redaction-reveal'] {
+  [data-kui-fx~='redaction-reveal'] {
     position: relative;
     display: inline-block;
   }
 
-  [data-dsg-fx~='redaction-reveal']::before {
+  [data-kui-fx~='redaction-reveal']::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -315,7 +341,7 @@
     clip-path: inset(0 0 0 0);
   }
 
-  @keyframes dsg-redaction-reveal {
+  @keyframes kui-redaction-reveal {
     to {
       clip-path: inset(0 0 0 100%);
     }
@@ -323,7 +349,7 @@
 
   /* --- text-3d-extrude --- */
 
-  [data-dsg-fx~='text-3d-extrude'] {
+  [data-kui-fx~='text-3d-extrude'] {
     display: inline-block;
     text-shadow:
       1px 1px 0 color-mix(in srgb, currentColor 70%, transparent),
@@ -334,7 +360,7 @@
       6px 6px 8px rgb(0 0 0 / 0.35);
   }
 
-  @keyframes dsg-text-3d-extrude {
+  @keyframes kui-text-3d-extrude {
     from {
       rotate: -6deg;
       translate: 0 12px;

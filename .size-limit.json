@@ -1,0 +1,15 @@
+[
+  {
+    "name": "kuinetic.js (browser bundle, brotli) — reported, not capped (owner decision: no size limit)",
+    "path": "dist/kuinetic.js"
+  },
+  {
+    "name": "kuinetic.css (core effects stylesheet, brotli) — current: ~7.6 KB",
+    "path": "dist/kuinetic.css",
+    "limit": "8 KB"
+  },
+  {
+    "name": "kuinetic.all.js (standalone drop-in, JS+CSS, brotli) — reported, not capped (embeds kuinetic.js, so bound by the same owner decision)",
+    "path": "dist/kuinetic.all.js"
+  }
+]

@@ -6,18 +6,18 @@ import { ATTR } from './attrs.js'
  * Only the index is written; the offset arithmetic stays in the CSS `calc()` so the browser
  * applies it, rather than JS recomputing a delay per element.
  *
- * @param group - Element carrying `data-dsg-stagger`.
+ * @param group - Element carrying `data-kui-stagger`.
  * @complexity O(n) time in the number of children; O(1) extra space.
  * @overallScore 100
  */
 export function indexStaggerGroup(group: Element): void {
   const step = group.getAttribute(ATTR.stagger)
-  if (step) (group as HTMLElement).style.setProperty('--dsg-stagger', step)
+  if (step) (group as HTMLElement).style.setProperty('--kui-stagger', step)
 
   let index = 0
   for (const child of group.children) {
     if (child.hasAttribute(ATTR.source)) {
-      ;(child as HTMLElement).style.setProperty('--dsg-i', String(index))
+      ;(child as HTMLElement).style.setProperty('--kui-i', String(index))
       index++
     }
   }

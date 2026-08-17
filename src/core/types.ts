@@ -13,7 +13,7 @@
 
 /**
  * A CSS property group an effect writes to. Two effects may only be composed in one
- * `data-dsg` list when their channel sets are disjoint — see `core/channels.ts`.
+ * `data-kui` list when their channel sets are disjoint — see `core/channels.ts`.
  *
  * `translate` / `rotate` / `scale` are separate channels because they are independent CSS
  * properties in modern browsers. Under the old `transform` shorthand they would all have
@@ -33,7 +33,7 @@ export const CHANNEL = {
 } as const
 
 /**
- * A CSS property group an effect writes to. Two effects may only be composed in one `data-dsg`
+ * A CSS property group an effect writes to. Two effects may only be composed in one `data-kui`
  * list when their channel sets are disjoint — see `core/channels.ts`.
  *
  * `translate` / `rotate` / `scale` are separate channels because they are independent CSS
@@ -88,7 +88,7 @@ export interface ParamSpec {
   type: ParamType
   /** Used as the `var()` fallback in CSS. Never written to element.style — see design.md §7. */
   default: string
-  /** Custom property this parameter feeds, e.g. `--dsg-reveal-distance`. */
+  /** Custom property this parameter feeds, e.g. `--kui-reveal-distance`. */
   cssProperty: string
   /** For `keyword` params. */
   values?: readonly string[]
@@ -149,6 +149,26 @@ export function inertInstance(destroy: Cleanup = () => {}): EffectInstance {
 }
 
 /**
+ * Author timing for one effect segment — the positional `2s 1s linear` of `data-kui`.
+ *
+ * Separate from `EffectParams` because it is not a parameter: it is not declared in any
+ * `ParameterSchema`, it means the same thing for every effect, and the CSS renderer already reads
+ * it straight off the `EffectSpec` in `compile.pushTrack`. A JS-rendered primitive gets the same
+ * three values here rather than having to declare look-alike parameters of its own.
+ *
+ * Every field is optional and `undefined` means *the author named none* — a primitive must be able
+ * to tell that apart from an explicit `0ms` so its own default still applies.
+ */
+export interface EffectTiming {
+  /** Total time the whole effect should take, in milliseconds. */
+  durationMs?: number
+  /** Time before the effect starts, in milliseconds. */
+  delayMs?: number
+  /** Validated CSS easing keyword or function. */
+  easing?: string
+}
+
+/**
  * Validated parameter reader handed to JS-rendered primitives.
  *
  * A reader rather than a plain record for three reasons: every declared parameter is guaranteed
@@ -168,6 +188,11 @@ export interface EffectParams {
   num(name: string, fallback?: number): number
   /** Whether a keyword parameter equals `value` (default `'true'`). */
   is(name: string, value?: string): boolean
+  /**
+   * Author timing for this effect segment. Time-driven primitives should honour it; the many that
+   * are driven by a pointer or the scroll position instead can ignore it entirely.
+   */
+  readonly timing: EffectTiming
 }
 
 /**
@@ -216,7 +241,7 @@ export interface Preset {
 
 export type ResolvedParams = Record<string, string>
 
-/** One effect segment parsed out of a `data-dsg` value. */
+/** One effect segment parsed out of a `data-kui` value. */
 export interface EffectSpec {
   name: string
   duration?: string
@@ -225,7 +250,7 @@ export interface EffectSpec {
   params: Record<string, string>
 }
 
-/** The full parse of one element's `data-dsg` attribute. */
+/** The full parse of one element's `data-kui` attribute. */
 export interface ParsedValue {
   specs: EffectSpec[]
   /** Hoisted from reserved `on:` / `timeline:` / `threshold:` keys. Element-scoped. */
@@ -237,7 +262,7 @@ export interface ParsedValue {
 
 /** Runtime truth. Attributes are for CSS and debugging; they make a poor state machine. */
 export interface InstanceState {
-  /** Whole-configuration identity, not just `data-dsg` — see `fingerprintOf`. */
+  /** Whole-configuration identity, not just `data-kui` — see `fingerprintOf`. */
   fingerprint: string
   specs: EffectSpec[]
   activation: Activation

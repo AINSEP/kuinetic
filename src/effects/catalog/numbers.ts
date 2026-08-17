@@ -1,8 +1,10 @@
 import { CHANNEL } from '../../core/types.js'
-import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import type { Registry } from '../../core/registry.js'
 import { deferPrepare } from '../../core/instances.js'
+import type { TimedSetup } from '../../core/instances.js'
+import { effectDurationMs } from '../../core/js-params.js'
 import { cssPrimitive } from './shared.js'
 import {
   formatCount,
@@ -10,8 +12,8 @@ import {
   installCountLayers,
   odometerTokens,
   paddedDigits,
+  resolveEasing,
   tweenValue,
-  easeOutCubic,
 } from './numbers-shared.js'
 import type { CountFormat, CountFormatOptions } from './numbers-shared.js'
 
@@ -33,13 +35,13 @@ const COUNT_STEP_MS = 16
 const REDUCED_MOTION_DURATION_MS = 1
 
 const countParams: ParameterSchema = {
-  duration: { type: 'time', default: '1600ms', cssProperty: '--dsg-duration' },
-  from: { type: 'number', default: '0', cssProperty: '--dsg-from' },
-  to: { type: 'number', default: '100', cssProperty: '--dsg-to' },
+  duration: { type: 'time', default: '1600ms', cssProperty: '--kui-duration' },
+  from: { type: 'number', default: '0', cssProperty: '--kui-from' },
+  to: { type: 'number', default: '100', cssProperty: '--kui-to' },
   decimals: {
     type: 'number',
     default: '0',
-    cssProperty: '--dsg-decimals',
+    cssProperty: '--kui-decimals',
     integer: true,
     minimum: 0,
     maximum: 6,
@@ -47,16 +49,16 @@ const countParams: ParameterSchema = {
   format: {
     type: 'keyword',
     default: 'number',
-    cssProperty: '--dsg-format',
+    cssProperty: '--kui-format',
     values: ['number', 'currency', 'percent', 'compact'],
   },
-  currency: { type: 'text', default: 'USD', cssProperty: '--dsg-currency' },
+  currency: { type: 'text', default: 'USD', cssProperty: '--kui-currency' },
 }
 
 const odometerParams: ParameterSchema = {
-  duration: { type: 'time', default: '1600ms', cssProperty: '--dsg-duration' },
-  from: { type: 'number', default: '0', cssProperty: '--dsg-from' },
-  to: { type: 'number', default: '100', cssProperty: '--dsg-to' },
+  duration: { type: 'time', default: '1600ms', cssProperty: '--kui-duration' },
+  from: { type: 'number', default: '0', cssProperty: '--kui-from' },
+  to: { type: 'number', default: '100', cssProperty: '--kui-to' },
 }
 
 function countPrimitive(id: string, parameters: ParameterSchema, prepare: Primitive['prepare']): Primitive {
@@ -84,14 +86,36 @@ function countPrimitive(id: string, parameters: ParameterSchema, prepare: Primit
  * @overallScore 100
  */
 function tweenDurationMs(params: EffectParams, ctx: PrepareContext): number {
-  return ctx.reducedMotion ? REDUCED_MOTION_DURATION_MS : Math.max(0, params.ms('duration', 1600))
+  return ctx.reducedMotion ? REDUCED_MOTION_DURATION_MS : Math.max(0, effectDurationMs(params, 1600))
 }
 
 export interface NumberTween {
   from: number
   to: number
   durationMs: number
+  /** Time before the ramp starts. Author `delay`, same as every other timed JS primitive. */
+  delayMs: number
+  /** Author `easing`, already resolved to a JS evaluator — `resolveEasing`'s fallback if none. */
+  easing: (t: number) => number
   onTick: (value: number, done: boolean) => void
+}
+
+/**
+ * Resolve the timing `tweenNumber` needs from an effect's validated params: duration (already
+ * reduced-motion aware), positional delay, and an easing evaluator for the positional easing.
+ *
+ * @complexity O(1) time and space beyond `resolveEasing`'s own bounded solve.
+ * @overallScore 100
+ */
+function tweenTimingFor(
+  params: EffectParams,
+  ctx: PrepareContext,
+): Pick<NumberTween, 'durationMs' | 'delayMs' | 'easing'> {
+  return {
+    durationMs: tweenDurationMs(params, ctx),
+    delayMs: Math.max(0, params.timing.delayMs ?? 0),
+    easing: resolveEasing(params.timing.easing, ctx.warn),
+  }
 }
 
 /**
@@ -100,25 +124,55 @@ export interface NumberTween {
  *
  * A fixed-step `setInterval` rather than a `requestAnimationFrame` loop, matching every other
  * timed JS primitive in this catalog (`typewriter`, `scramble-text`) — one timing mechanism, one
- * thing to reason about for reduced-motion and test-environment substitution.
+ * thing to reason about for reduced-motion and test-environment substitution. The leading
+ * `setTimeout` before the interval starts is the same delay-then-tick shape `createStepRunner`
+ * uses for the text-tier primitives, so an authored `delay:` means the same thing everywhere.
+ *
+ * Reports its own completion: a counter is one-shot with a knowable end, so resolving `finished`
+ * at activation the way a continuous effect does would stamp `data-kui-state="finished"` while the
+ * digits were still climbing, and resolve `play()` on a count that had barely started.
  *
  * @param ctx - Owning effect context; only `win` is read, for its timers.
- * @param tween - Start/end values, total duration, and the per-tick callback.
+ * @param tween - Start/end values, timing, and the per-tick callback.
  * @complexity O(1) work per tick; total ticks bounded by `durationMs / COUNT_STEP_MS`.
  * @overallScore 100
  */
-function tweenNumber(ctx: PrepareContext, tween: NumberTween): Cleanup {
-  const { from, to, durationMs, onTick } = tween
+function tweenNumber(ctx: PrepareContext, tween: NumberTween): TimedSetup {
+  const { from, to, durationMs, delayMs, easing, onTick } = tween
   let elapsed = 0
+  let handle: number | undefined
+  let settle: () => void = () => {}
+  const finished = new Promise<void>((resolve) => {
+    settle = resolve
+  })
+
+  const stop = (): void => {
+    ctx.win.clearTimeout(start)
+    if (handle !== undefined) ctx.win.clearInterval(handle)
+  }
   const tick = (): void => {
     elapsed += COUNT_STEP_MS
     const ratio = durationMs <= 0 ? 1 : Math.min(elapsed / durationMs, 1)
     const done = ratio >= 1
-    onTick(tweenValue(easeOutCubic(ratio), from, to), done)
-    if (done) ctx.win.clearInterval(handle)
+    onTick(tweenValue(easing(ratio), from, to), done)
+    if (done) {
+      stop()
+      settle()
+    }
   }
-  const handle = ctx.win.setInterval(tick, COUNT_STEP_MS)
-  return () => ctx.win.clearInterval(handle)
+  const start = ctx.win.setTimeout(() => {
+    handle = ctx.win.setInterval(tick, COUNT_STEP_MS)
+  }, delayMs)
+
+  return {
+    cleanup: stop,
+    finished,
+    finish: () => {
+      stop()
+      onTick(to, true)
+      settle()
+    },
+  }
 }
 
 /**
@@ -129,7 +183,7 @@ function tweenNumber(ctx: PrepareContext, tween: NumberTween): Cleanup {
  * @complexity O(1) work per tick; O(1) space beyond the two accessible layers.
  * @overallScore 100
  */
-function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
   const doc = el.ownerDocument
   const from = params.num('from', 0)
   const to = params.num('to', 100)
@@ -142,25 +196,29 @@ function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): C
   layers.decorative.textContent = formatCount(from, options)
   layers.srOnly.textContent = formatCount(from, options)
 
-  const stop = tweenNumber(ctx, {
+  const tween = tweenNumber(ctx, {
     from,
     to,
-    durationMs: tweenDurationMs(params, ctx),
+    ...tweenTimingFor(params, ctx),
     onTick: (value, done) => {
       layers.decorative.textContent = formatCount(value, options)
       if (done) layers.srOnly.textContent = formatCount(to, options)
     },
   })
 
-  return () => {
-    stop()
-    layers.restore()
+  return {
+    cleanup: () => {
+      tween.cleanup()
+      layers.restore()
+    },
+    finished: tween.finished,
+    finish: tween.finish,
   }
 }
 
 /**
- * Build the digit-column DOM once: one `.dsg-odometer-col` per digit position, each containing a
- * ten-row strip translated into view by `--dsg-o`, plus a plain text node for each separator.
+ * Build the digit-column DOM once: one `.kui-odometer-col` per digit position, each containing a
+ * ten-row strip translated into view by `--kui-o`, plus a plain text node for each separator.
  *
  * @returns The strip elements to update, one per digit position, in left-to-right order.
  * @complexity O(w) time and space in digit-string width.
@@ -174,15 +232,15 @@ function buildOdometerColumns(container: Element, doc: Document, grouped: string
       continue
     }
     const column = doc.createElement('span')
-    column.className = 'dsg-odometer-col'
+    column.className = 'kui-odometer-col'
     const strip = doc.createElement('span')
-    strip.className = 'dsg-odometer-strip'
+    strip.className = 'kui-odometer-strip'
     for (let digit = 0; digit <= 9; digit++) {
       const row = doc.createElement('span')
       row.textContent = String(digit)
       strip.append(row)
     }
-    strip.style.setProperty('--dsg-o', token.char)
+    strip.style.setProperty('--kui-o', token.char)
     column.append(strip)
     container.append(column)
     strips.push(strip)
@@ -195,7 +253,7 @@ function updateOdometerColumns(strips: HTMLElement[], grouped: string): void {
   let index = 0
   for (const token of odometerTokens(grouped)) {
     if (!token.digit) continue
-    strips[index]?.style.setProperty('--dsg-o', token.char)
+    strips[index]?.style.setProperty('--kui-o', token.char)
     index++
   }
 }
@@ -203,12 +261,12 @@ function updateOdometerColumns(strips: HTMLElement[], grouped: string): void {
 /**
  * Roll a fixed-width digit odometer from `from` to `to`. Digit count is fixed at install time from
  * whichever of `from`/`to` is wider, so the column layout never reflows mid-count — only the
- * digits inside each column change, each via its own CSS transition on `--dsg-o`.
+ * digits inside each column change, each via its own CSS transition on `--kui-o`.
  *
  * @complexity O(w) time and space in digit-string width, both to build and per tick.
  * @overallScore 100
  */
-function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
   const doc = el.ownerDocument
   const from = Math.max(0, params.num('from', 0))
   const to = Math.max(0, params.num('to', 100))
@@ -220,19 +278,23 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
   layers.srOnly.textContent = fromGrouped
   const strips = buildOdometerColumns(layers.decorative, doc, fromGrouped)
 
-  const stop = tweenNumber(ctx, {
+  const tween = tweenNumber(ctx, {
     from,
     to,
-    durationMs: tweenDurationMs(params, ctx),
+    ...tweenTimingFor(params, ctx),
     onTick: (value, done) => {
       updateOdometerColumns(strips, groupDigits(paddedDigits(value, width)))
       if (done) layers.srOnly.textContent = toGrouped
     },
   })
 
-  return () => {
-    stop()
-    layers.restore()
+  return {
+    cleanup: () => {
+      tween.cleanup()
+      layers.restore()
+    },
+    finished: tween.finished,
+    finish: tween.finish,
   }
 }
 
@@ -272,13 +334,13 @@ export const METER_PRIMITIVES: Primitive[] = [
 ]
 
 export const METER_PRESETS: Preset[] = [
-  { name: 'progress-ring', primitive: 'stroke-sweep', keyframes: 'dsg-progress-ring' },
-  { name: 'gauge-sweep', primitive: 'stroke-sweep', keyframes: 'dsg-gauge-sweep' },
-  { name: 'donut-sweep', primitive: 'stroke-sweep', keyframes: 'dsg-donut-sweep' },
-  { name: 'sparkline-draw', primitive: 'stroke-sweep', keyframes: 'dsg-sparkline-draw' },
-  { name: 'progress-bar', primitive: 'meter-bar', keyframes: 'dsg-progress-bar' },
-  { name: 'progress-segments', primitive: 'meter-segments', keyframes: 'dsg-progress-segments' },
-  { name: 'star-rating-fill', primitive: 'meter-stars', keyframes: 'dsg-star-rating-fill' },
+  { name: 'progress-ring', primitive: 'stroke-sweep', keyframes: 'kui-progress-ring' },
+  { name: 'gauge-sweep', primitive: 'stroke-sweep', keyframes: 'kui-gauge-sweep' },
+  { name: 'donut-sweep', primitive: 'stroke-sweep', keyframes: 'kui-donut-sweep' },
+  { name: 'sparkline-draw', primitive: 'stroke-sweep', keyframes: 'kui-sparkline-draw' },
+  { name: 'progress-bar', primitive: 'meter-bar', keyframes: 'kui-progress-bar' },
+  { name: 'progress-segments', primitive: 'meter-segments', keyframes: 'kui-progress-segments' },
+  { name: 'star-rating-fill', primitive: 'meter-stars', keyframes: 'kui-star-rating-fill' },
 ]
 
 export const NUMBERS_PRIMITIVES: Primitive[] = [...COUNT_PRIMITIVES, ...METER_PRIMITIVES]

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — theme-toggle fixture</title>
+    <!--
+      Same FOUC-prevention resolution as every real showcase page: read the stored preference,
+      fall back to the OS preference, and set `dataset.theme` synchronously before any stylesheet
+      paints. This has to live in the fixture itself (not `demo/theme.js`) because it runs before
+      that script is even requested — `demo/theme.js`'s own doc comment is explicit that initial
+      *resolution* is someone else's job; it only mounts the button and handles clicks afterward.
+    -->
+    <script>
+      ;(function () {
+        var KEY = 'kuinetic-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          } catch (e) {}
+        }
+        document.documentElement.dataset.theme = theme || 'light'
+      })()
+    </script>
+    <style>
+      :root {
+        --bg: #0f0d0c;
+      }
+      :root[data-theme='light'] {
+        --bg: #ffffff;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: canvastext;
+        font-family: system-ui, sans-serif;
+      }
+      header.site {
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      `demo/theme.js`'s `mountThemeToggle()` looks for `header.site` and appends the real
+      `.kui-theme-toggle` button into it — this is the actual shared component every current
+      showcase page (landing-studio.html, landing-minimal.html) uses, loaded below by reference
+      rather than reimplemented here, so this suite keeps testing real shipped code instead of a
+      copy of it.
+    -->
+    <header class="site" data-nav-root></header>
+
+    <script src="../../../demo/theme.js"></script>
+  </body>
+</html>

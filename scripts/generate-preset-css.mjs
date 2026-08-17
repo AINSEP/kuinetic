@@ -27,13 +27,13 @@ function build() {
   )
 }
 
-/** `--dsg-distance: 100px;` lines for one preset, resolved through its primitive's schema. */
-function declarationsFor(registry, preset) {
-  const resolved = registry.resolve(preset.name)
-  if (!resolved || !preset.params) return []
+/** `--kui-distance: 100px;` lines for one resolved preset+primitive pair. */
+function declarationsFor(resolved) {
+  const { preset, primitive } = resolved
+  if (!preset.params) return []
 
   return Object.entries(preset.params).flatMap(([name, value]) => {
-    const spec = resolved.primitive.parameters[name]
+    const spec = primitive.parameters[name]
     // `text` parameters are JS-only and must never reach a stylesheet.
     if (!spec || spec.type === 'text') return []
     return [`  ${spec.cssProperty}: ${value};`]
@@ -42,14 +42,19 @@ function declarationsFor(registry, preset) {
 
 async function main() {
   build()
-  const { createRegistry, PRESETS } = await import(bundle)
+  const { createRegistry } = await import(bundle)
   const registry = createRegistry()
 
   const blocks = []
-  for (const preset of PRESETS) {
-    const declarations = declarationsFor(registry, preset)
+  // `registry.names()` walks every registered category (core, ambient, feedback, interaction,
+  // numbers, text, forms, navigation, scroll-mechanics, layout, svg, gestures, three-d) — the
+  // previous version only iterated the `PRESETS` export, which is the core v1 catalog alone, so
+  // every preset registered by another package's `register*` silently never got a stylesheet rule.
+  for (const name of registry.names()) {
+    const resolved = registry.resolve(name)
+    const declarations = declarationsFor(resolved)
     if (declarations.length === 0) continue
-    blocks.push(`  [data-dsg-fx~='${preset.name}'] {\n  ${declarations.join('\n  ')}\n  }`)
+    blocks.push(`  [data-kui-fx~='${name}'] {\n  ${declarations.join('\n  ')}\n  }`)
   }
 
   const css = `/*
@@ -58,7 +63,7 @@ async function main() {
  * Preset parameter defaults, as ordinary rules so consumer CSS can override them without
  * \`!important\`. Run \`npm run generate:css\` after changing any preset's params.
  */
-@layer dsg.presets {
+@layer kui.presets {
 ${blocks.join('\n\n')}
 }
 `

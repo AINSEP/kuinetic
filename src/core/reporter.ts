@@ -18,8 +18,8 @@ export interface Reporter {
 export function consoleReporter(): Reporter {
   return {
     warn(message, subject) {
-      if (subject === undefined) console.warn(`[designimation] ${message}`)
-      else console.warn(`[designimation] ${message}`, subject)
+      if (subject === undefined) console.warn(`[kuinetic] ${message}`)
+      else console.warn(`[kuinetic] ${message}`, subject)
     },
   }
 }

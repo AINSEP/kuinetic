@@ -11,12 +11,12 @@ export { COMBOS, PRESETS, PRIMITIVES, createRegistry } from './effects/index.js'
  * Importing this module has no side effects — nothing is scanned and the document is not
  * touched until `.start()` is called. That keeps SSR, hydration, and tests deterministic.
  *
- *   import { designimation } from 'designimation'
- *   import 'designimation/css'
- *   designimation({ observe: true }).start()
+ *   import { kuinetic } from 'kuinetic'
+ *   import 'kuinetic/css'
+ *   kuinetic({ observe: true }).start()
  */
-export function designimation(options: AnimatorOptions = {}): Animator {
+export function kuinetic(options: AnimatorOptions = {}): Animator {
   return new Animator({ registry: createRegistry(), ...options })
 }
 
-export default designimation
+export default kuinetic

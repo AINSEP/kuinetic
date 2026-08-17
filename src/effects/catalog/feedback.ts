@@ -4,50 +4,50 @@ import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
 
 const loop = {
-  duration: { type: 'time', default: '1.6s', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'linear', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '1.6s', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
 } as const
 
 const spin = {
-  duration: { type: 'time', default: '900ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'linear', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '900ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
 } as const
 
 const dotPulse = {
-  duration: { type: 'time', default: '1.2s', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '1.2s', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
 } as const
 
 const progressTrack = {
-  duration: { type: 'time', default: '1.4s', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '1.4s', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
 } as const
 
 const toast = {
-  duration: { type: 'time', default: '420ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'back-out', cssProperty: '--dsg-ease' },
-  distance: { type: 'length', default: '24px', cssProperty: '--dsg-distance' },
+  duration: { type: 'time', default: '420ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'back-out', cssProperty: '--kui-ease' },
+  distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
 } as const
 
 const shake = {
-  duration: { type: 'time', default: '500ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'linear', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
 } as const
 
 const pop = {
-  duration: { type: 'time', default: '420ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'back-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '420ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'back-out', cssProperty: '--kui-ease' },
 } as const
 
 const ripple = {
-  duration: { type: 'time', default: '600ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--dsg-ease' },
-  spread: { type: 'number', default: '4', cssProperty: '--dsg-ripple-scale', finite: true, minimum: 1 },
+  duration: { type: 'time', default: '600ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  spread: { type: 'number', default: '4', cssProperty: '--kui-ripple-scale', finite: true, minimum: 1 },
 } as const
 
 const confirm = {
-  duration: { type: 'time', default: '1400ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'linear', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '1400ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
 } as const
 
 /**
@@ -74,13 +74,22 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
     perfClass: 'continuous',
   }),
-  cssPrimitive('feedback-dot-pulse', [CHANNEL.scale, CHANNEL.opacity], {
+  // Declares every channel the preset's CSS actually paints, not just what the shared keyframe
+  // animates: spinner-dots' `[data-kui-fx~='spinner-dots']` rule also sets `background:
+  // currentColor` (the dot itself) and `box-shadow` (the other two dots), entirely outside
+  // `@keyframes kui-spinner-dots`. Declaring only [scale, opacity] let a composed
+  // `background`-writing effect (e.g. gradient-mesh) pass channel-collision detection and then
+  // have its gradient silently overwritten by this rule — see css-invariants.test.ts's "CSS
+  // static rules" describe block, which now catches this class of omission directly.
+  cssPrimitive('feedback-dot-pulse', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'shadow'], {
     parameters: dotPulse,
     defaultActivation: 'load',
     reducedMotion: 'disable',
     perfClass: 'continuous',
   }),
-  cssPrimitive('feedback-progress-track', [CHANNEL.translate, CHANNEL.scale], {
+  // Same shape as feedback-dot-pulse above: `[data-kui-fx~='progress-indeterminate']` sets
+  // `background: currentColor` unconditionally for the bar itself, outside the keyframe.
+  cssPrimitive('feedback-progress-track', [CHANNEL.translate, CHANNEL.scale, CHANNEL.background], {
     parameters: progressTrack,
     defaultActivation: 'load',
     reducedMotion: 'disable',
@@ -97,7 +106,9 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
   cssPrimitive('feedback-wobble', [CHANNEL.translate, CHANNEL.rotate], {
     defaultActivation: 'click',
   }),
-  cssPrimitive('feedback-ripple', [CHANNEL.scale, CHANNEL.opacity], {
+  // `[data-kui-fx~='ripple']` sets `background: currentColor` unconditionally for the ripple
+  // disc itself, outside the keyframe — same gap as feedback-dot-pulse/feedback-progress-track.
+  cssPrimitive('feedback-ripple', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background], {
     parameters: ripple,
     defaultActivation: 'click',
   }),
@@ -105,7 +116,11 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     parameters: pop,
     defaultActivation: 'manual',
   }),
-  cssPrimitive('feedback-burst', [CHANNEL.scale, CHANNEL.opacity], {
+  // Declares every channel any preset built on it actually paints, not just what the shared
+  // keyframes animate: heart-burst's CSS also sets `color`, confetti-burst's also sets
+  // `background-image`. Understating this let a composed `background`-writing effect (e.g.
+  // gradient-mesh) pass channel-collision detection and silently overwrite confetti-burst's dots.
+  cssPrimitive('feedback-burst', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, CHANNEL.color], {
     parameters: pop,
     defaultActivation: 'click',
   }),
@@ -119,50 +134,50 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
 ]
 
 export const FEEDBACK_PRESETS: Preset[] = [
-  { name: 'skeleton-shimmer', primitive: 'feedback-shimmer', keyframes: 'dsg-skeleton-shimmer' },
-  { name: 'skeleton-to-content', primitive: 'feedback-fade', keyframes: 'dsg-skeleton-to-content' },
-  { name: 'spinner', primitive: 'feedback-spin', keyframes: 'dsg-spinner-spin' },
-  { name: 'spinner-dots', primitive: 'feedback-dot-pulse', keyframes: 'dsg-spinner-dots' },
-  { name: 'spinner-ring', primitive: 'feedback-spin', keyframes: 'dsg-spinner-ring-spin' },
+  { name: 'skeleton-shimmer', primitive: 'feedback-shimmer', keyframes: 'kui-skeleton-shimmer' },
+  { name: 'skeleton-to-content', primitive: 'feedback-fade', keyframes: 'kui-skeleton-to-content' },
+  { name: 'spinner', primitive: 'feedback-spin', keyframes: 'kui-spinner-spin' },
+  { name: 'spinner-dots', primitive: 'feedback-dot-pulse', keyframes: 'kui-spinner-dots' },
+  { name: 'spinner-ring', primitive: 'feedback-spin', keyframes: 'kui-spinner-ring-spin' },
   {
     name: 'progress-indeterminate',
     primitive: 'feedback-progress-track',
-    keyframes: 'dsg-progress-indeterminate',
+    keyframes: 'kui-progress-indeterminate',
   },
-  { name: 'toast-slide-in', primitive: 'feedback-toast', keyframes: 'dsg-toast-slide-in' },
+  { name: 'toast-slide-in', primitive: 'feedback-toast', keyframes: 'kui-toast-slide-in' },
   {
     name: 'toast-slide-out',
     primitive: 'feedback-toast',
-    keyframes: 'dsg-toast-slide-out',
+    keyframes: 'kui-toast-slide-out',
     params: { ease: 'ease-in' },
   },
-  { name: 'shake-error', primitive: 'feedback-shake', keyframes: 'dsg-shake-error' },
+  { name: 'shake-error', primitive: 'feedback-shake', keyframes: 'kui-shake-error' },
   {
     name: 'wobble',
     primitive: 'feedback-wobble',
-    keyframes: 'dsg-wobble',
+    keyframes: 'kui-wobble',
     params: { duration: '600ms', ease: 'ease-in-out' },
   },
-  { name: 'ripple', primitive: 'feedback-ripple', keyframes: 'dsg-ripple' },
-  { name: 'badge-pop', primitive: 'feedback-pop', keyframes: 'dsg-badge-pop' },
-  { name: 'count-bump', primitive: 'feedback-pop', keyframes: 'dsg-count-bump', params: { duration: '280ms' } },
+  { name: 'ripple', primitive: 'feedback-ripple', keyframes: 'kui-ripple' },
+  { name: 'badge-pop', primitive: 'feedback-pop', keyframes: 'kui-badge-pop' },
+  { name: 'count-bump', primitive: 'feedback-pop', keyframes: 'kui-count-bump', params: { duration: '280ms' } },
   {
     name: 'heart-burst',
     primitive: 'feedback-burst',
-    keyframes: 'dsg-heart-burst',
+    keyframes: 'kui-heart-burst',
     params: { duration: '700ms' },
   },
   {
     name: 'confetti-burst',
     primitive: 'feedback-burst',
-    keyframes: 'dsg-confetti-burst',
+    keyframes: 'kui-confetti-burst',
     params: { duration: '900ms' },
   },
-  { name: 'copy-confirm', primitive: 'feedback-confirm', keyframes: 'dsg-copy-confirm' },
+  { name: 'copy-confirm', primitive: 'feedback-confirm', keyframes: 'kui-copy-confirm' },
   {
     name: 'pull-to-refresh',
     primitive: 'feedback-pull',
-    keyframes: 'dsg-pull-to-refresh',
+    keyframes: 'kui-pull-to-refresh',
     params: { duration: '900ms', ease: 'ease-out' },
   },
 ]

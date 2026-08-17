@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kUInetic — Minimal Studio</title>
+    <script>
+      (function () {
+        var KEY = 'kuinetic-showcase-theme'
+        var theme = null
+        try {
+          var stored = localStorage.getItem(KEY)
+          if (stored === 'light' || stored === 'dark') theme = stored
+        } catch (e) {}
+        if (!theme) {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+          } catch (e) {}
+        }
+        document.documentElement.dataset.theme = theme || 'dark'
+      })()
+    </script>
+    <link rel="stylesheet" href="./kuinetic.css?v=1786402037" />
+    <link rel="stylesheet" href="./style.css" />
+    <script defer src="./nav.js"></script>
+    <style>
+      .minimal-hero {
+        padding: 9rem 0 6rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .minimal-title {
+        font-size: clamp(3rem, 9vw, 6rem);
+        font-weight: 300;
+        line-height: 0.98;
+        letter-spacing: -0.04em;
+        margin: 0 0 2rem;
+      }
+
+      .minimal-sub {
+        font-size: 1.3rem;
+        color: var(--dim);
+        font-weight: 300;
+        max-width: 48ch;
+        line-height: 1.5;
+        margin-bottom: 3rem;
+      }
+
+      .studio-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2.5rem;
+        margin-top: 4rem;
+      }
+
+      @media (max-width: 768px) {
+        .studio-grid { grid-template-columns: 1fr; }
+      }
+
+      .studio-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .studio-card img {
+        width: 100%;
+        aspect-ratio: 16 / 11;
+        object-fit: cover;
+        display: block;
+      }
+
+      .studio-meta {
+        padding: 1.5rem;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+      }
+
+      .studio-meta h4 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 500;
+      }
+
+      .studio-meta span {
+        font-size: 0.85rem;
+        color: var(--dim);
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site" data-nav-root>
+      <strong>kUInetic</strong>
+      <nav data-nav-panel data-kui="menu-stagger-open on:manual" hidden>
+        <div class="kui-nav-dropdown" data-nav-group="docs">
+          <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+            Docs
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <a href="./docs.html?doc=catalog">Catalog</a>
+            <a href="./docs.html?doc=design">Architecture</a>
+          </div>
+        </div>
+
+        <div class="kui-nav-dropdown" data-nav-group="css-animations">
+          <button
+            type="button"
+            class="kui-nav-dropdown-trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+            data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+          >
+            CSS Animations
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+            <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+            <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+            <a href="./text.html" data-nav-link="text.html">Text</a>
+            <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+            <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+            <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+          </div>
+        </div>
+
+        <div class="kui-nav-dropdown" data-nav-group="js-animations">
+          <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+            JS Animations
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <span class="kui-nav-coming-soon">Coming soon</span>
+          </div>
+        </div>
+
+        <div class="kui-nav-dropdown" data-nav-group="designs">
+          <button
+            type="button"
+            class="kui-nav-dropdown-trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+            data-nav-pages="index.html"
+          >
+            Designs
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <a href="./index.html" data-nav-link="index.html">Hero SaaS</a>
+            <span class="kui-nav-coming-soon">Coming soon</span>
+          </div>
+        </div>
+      </nav>
+      <button
+        type="button"
+        class="kui-nav-toggle"
+        aria-haspopup="true"
+        aria-label="Toggle navigation menu"
+        aria-expanded="false"
+        data-nav-hamburger
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </header>
+
+    <main>
+      <section class="minimal-hero">
+        <h1 class="minimal-title" data-kui="slide-up 1000ms, blur-in 700ms">
+          Purity in motion.
+        </h1>
+        <p class="minimal-sub" data-kui="fade-up 900ms 200ms">
+          A minimalist animation framework designed for high-craft digital products, visual systems, and editorial design.
+        </p>
+      </section>
+
+      <section>
+        <h2 data-kui="fade-up">Selected Works</h2>
+
+        <div class="studio-grid" data-kui-stagger="140ms">
+          <div class="studio-card" data-kui="tilt-3d maxAngle:10">
+            <img src="./assets/nike_shoe.jpg" alt="Red Nike Sneaker" data-kui="zoom-in 500ms on:hover" loading="lazy" />
+            <div class="studio-meta">
+              <h4>01 / Nike Sneaker Concept</h4>
+              <span>2026</span>
+            </div>
+          </div>
+
+          <div class="studio-card" data-kui="tilt-3d maxAngle:10">
+            <img src="./assets/luxury_watch.jpg" alt="Luxury Obsidian Watch" data-kui="zoom-in 500ms on:hover" loading="lazy" />
+            <div class="studio-meta">
+              <h4>02 / Chronograph Series</h4>
+              <span>2026</span>
+            </div>
+          </div>
+
+          <div class="studio-card" data-kui="tilt-3d maxAngle:10">
+            <img src="./assets/designer_audio.jpg" alt="Designer Audio" data-kui="zoom-in 500ms on:hover" loading="lazy" />
+            <div class="studio-meta">
+              <h4>03 / Acoustic Engineering</h4>
+              <span>2026</span>
+            </div>
+          </div>
+
+          <div class="studio-card" data-kui="tilt-3d maxAngle:10">
+            <img src="./assets/model_1.jpg" alt="Studio Portrait" data-kui="zoom-in 500ms on:hover" loading="lazy" />
+            <div class="studio-meta">
+              <h4>04 / Editorial Portraiture</h4>
+              <span>2026</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic
+        .kuinetic({ reporter: kuinetic.consoleReporter() })
+        .start()
+    </script>
+    <script src="./theme.js"></script>
+  </body>
+</html>

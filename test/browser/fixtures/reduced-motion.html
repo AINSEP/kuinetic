@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — reduced motion (JS effects) fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — reduced motion (JS effects) fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       body {
         margin: 0;
@@ -28,15 +28,42 @@
     </style>
   </head>
   <body>
-    <div id="drag" class="chip" data-dsg="drag">drag</div>
+    <div id="drag" class="chip" data-kui="drag">drag</div>
+
+    <!-- `lift` moves via a CSS transition, `checkbox-draw` via a transition on a *sibling* svg —
+         neither emits an `animation`, so both were invisible to an `animation-*`-only policy. -->
+    <button id="lift" data-kui="lift">lift</button>
+
+    <!-- Control: an unrelated element sharing `lift`'s parent, with its own transition and a
+         class that merely contains the substring "kui-". An earlier version of the base.css
+         policy reached this via an unqualified `~` (any later sibling, regardless of the
+         effect driving `lift`) and a `[class*='kui-']` substring match — this must keep running
+         at its authored duration under reduced motion. -->
+    <div id="unrelated" class="my-kui-thing" style="transition: opacity 220ms ease-out">unrelated</div>
+
+    <label>
+      <input id="check" type="checkbox" data-kui="checkbox-draw" />
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M4 12l6 6 10-12" stroke="currentColor" stroke-width="3" />
+      </svg>
+    </label>
+
+    <!-- `toggle-morph`: a second native-state satellite pair (`.kui-track` and the nested
+         `.kui-thumb`), reached through the same `[data-kui-fx~='toggle-morph']` scoping as
+         `checkbox-draw` above — proof the effect-scoped rewrite still reaches real satellites,
+         not just that it stops reaching unrelated ones. -->
+    <label>
+      <input id="toggle" type="checkbox" data-kui="toggle-morph" />
+      <span class="kui-track"><span class="kui-thumb"></span></span>
+    </label>
 
     <div id="pin-host">
-      <div id="pinned" class="chip" data-dsg="pin-section distance:400px">pinned</div>
+      <div id="pinned" class="chip" data-kui="pin-section distance:400px">pinned</div>
     </div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

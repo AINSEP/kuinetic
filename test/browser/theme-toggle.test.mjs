@@ -6,11 +6,17 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * a flash of the wrong theme before `theme.js` loads (fixed by resolving the theme synchronously
  * in a `<head>` script instead), and a first-visit default that should follow the OS preference
  * rather than always defaulting to dark. See `docs/live-testing-backlog.md` F4.
+ *
+ * Runs against `fixtures/theme-toggle.html` rather than a real showcase page: this suite is about
+ * `demo/theme.js`'s behavior specifically (loaded by the fixture, not reimplemented in it), and
+ * pinning it to any one showcase page's markup means every unrelated redesign of that page can
+ * silently disarm it, which is exactly what happened when `demo/showcase/reveals.html` was
+ * deleted in a reorganization this suite had no other reason to know about.
  */
 export const name = 'theme-toggle'
 
-const PAGE_URL = `file://${fileURLToPath(new URL('../../demo/showcase/reveals.html', import.meta.url))}`
-const STORAGE_KEY = 'designimation-showcase-theme'
+const PAGE_URL = `file://${fileURLToPath(new URL('./fixtures/theme-toggle.html', import.meta.url))}`
+const STORAGE_KEY = 'kuinetic-showcase-theme'
 
 async function readTheme(page) {
   return page.evaluate(
@@ -96,7 +102,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   check('page with no stored preference and dark OS scheme starts dark', before.dataset === 'dark')
   await snap(page, 'before-click')
 
-  await page.click('.dsg-theme-toggle')
+  await page.click('.kui-theme-toggle')
   const after = await readTheme(page)
   check(
     'clicking the toggle flips dataset.theme to light',
@@ -108,7 +114,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
     after.stored === 'light',
     `stored=${after.stored}`,
   )
-  const buttonState = await page.$eval('.dsg-theme-toggle', (el) => ({
+  const buttonState = await page.$eval('.kui-theme-toggle', (el) => ({
     ariaLabel: el.getAttribute('aria-label'),
     ariaPressed: el.getAttribute('aria-pressed'),
   }))

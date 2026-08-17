@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { effectDurationMs } from '../../core/js-params.js'
 import { recognise, rubberBand } from '../../core/gesture.js'
 import type { GestureVector } from '../../core/gesture.js'
 import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../core/spring.js'
@@ -22,7 +23,7 @@ const springParams: ParameterSchema = {
   stiffness: {
     type: 'number',
     default: '180',
-    cssProperty: '--dsg-stiffness',
+    cssProperty: '--kui-stiffness',
     finite: true,
     minimum: 1,
     maximum: 10_000,
@@ -30,7 +31,7 @@ const springParams: ParameterSchema = {
   damping: {
     type: 'number',
     default: '24',
-    cssProperty: '--dsg-damping',
+    cssProperty: '--kui-damping',
     finite: true,
     minimum: 0.1,
     maximum: 1_000,
@@ -121,13 +122,13 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
       onStart() {
         runners.x.stop()
         runners.y.stop()
-        el.setAttribute('data-dsg-dragging', 'true')
+        el.setAttribute('data-kui-dragging', 'true')
       },
       onMove(vector) {
         write({ x: resist(vector.dx, bounds), y: resist(vector.dy, bounds) })
       },
       onEnd(vector) {
-        el.setAttribute('data-dsg-dragging', 'false')
+        el.setAttribute('data-kui-dragging', 'false')
         settle(runners, offset, vector, { returns, inertia })
       },
     },
@@ -140,7 +141,7 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
     stopRecognising()
     runners.x.stop()
     runners.y.stop()
-    el.removeAttribute('data-dsg-dragging')
+    el.removeAttribute('data-kui-dragging')
   }
 }
 
@@ -179,7 +180,7 @@ function settle(
  * Publish swipe direction as an attribute.
  *
  * An attribute rather than a callback keeps the whole category declarative: authors style
- * `[data-dsg-swipe="left"]` instead of subscribing to anything.
+ * `[data-kui-swipe="left"]` instead of subscribing to anything.
  *
  * @complexity O(1) per pointer event; O(1) space.
  * @overallScore 100
@@ -189,7 +190,7 @@ function prepareSwipeable(el: Element, params: EffectParams): Cleanup {
     el,
     {
       onSwipe(direction) {
-        el.setAttribute('data-dsg-swipe', direction)
+        el.setAttribute('data-kui-swipe', direction)
       },
     },
     {
@@ -200,7 +201,7 @@ function prepareSwipeable(el: Element, params: EffectParams): Cleanup {
 
   return () => {
     stop()
-    el.removeAttribute('data-dsg-swipe')
+    el.removeAttribute('data-kui-swipe')
   }
 }
 
@@ -215,18 +216,18 @@ function preparePressable(el: Element, params: EffectParams): Cleanup {
     el,
     {
       onLongPress() {
-        el.setAttribute('data-dsg-pressed', 'true')
+        el.setAttribute('data-kui-pressed', 'true')
       },
       onEnd() {
-        el.setAttribute('data-dsg-pressed', 'false')
+        el.setAttribute('data-kui-pressed', 'false')
       },
     },
-    { longPressMs: params.ms('duration', 500) },
+    { longPressMs: effectDurationMs(params, 500) },
   )
 
   return () => {
     stop()
-    el.removeAttribute('data-dsg-pressed')
+    el.removeAttribute('data-kui-pressed')
   }
 }
 
@@ -280,18 +281,18 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     ['translate'],
     {
       ...springParams,
-      axis: { type: 'keyword', default: 'both', cssProperty: '--dsg-axis', values: ['x', 'y', 'both'] },
-      bounds: { type: 'number', default: '0', cssProperty: '--dsg-bounds' },
+      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', values: ['x', 'y', 'both'] },
+      bounds: { type: 'number', default: '0', cssProperty: '--kui-bounds' },
       return: {
         type: 'keyword',
         default: 'false',
-        cssProperty: '--dsg-return',
+        cssProperty: '--kui-return',
         values: ['true', 'false'],
       },
       inertia: {
         type: 'keyword',
         default: 'false',
-        cssProperty: '--dsg-inertia',
+        cssProperty: '--kui-inertia',
         values: ['true', 'false'],
       },
     },
@@ -302,8 +303,8 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     'swipeable',
     ['state'],
     {
-      axis: { type: 'keyword', default: 'both', cssProperty: '--dsg-axis', values: ['x', 'y', 'both'] },
-      velocity: { type: 'number', default: '300', cssProperty: '--dsg-velocity' },
+      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', values: ['x', 'y', 'both'] },
+      velocity: { type: 'number', default: '300', cssProperty: '--kui-velocity' },
     },
     deferPrepare(prepareSwipeable),
   ),
@@ -311,7 +312,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
   gesturePrimitive(
     'pressable',
     ['state'],
-    { duration: { type: 'time', default: '500ms', cssProperty: '--dsg-duration' } },
+    { duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' } },
     deferPrepare(preparePressable),
   ),
 
@@ -320,8 +321,8 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     ['translate'],
     {
       ...springParams,
-      radius: { type: 'number', default: '120', cssProperty: '--dsg-radius' },
-      strength: { type: 'number', default: '0.35', cssProperty: '--dsg-strength' },
+      radius: { type: 'number', default: '120', cssProperty: '--kui-radius' },
+      strength: { type: 'number', default: '0.35', cssProperty: '--kui-strength' },
     },
     deferPrepare(prepareMagnetic),
   ),

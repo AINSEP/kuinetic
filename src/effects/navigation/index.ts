@@ -26,32 +26,24 @@ export const NAV_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('menu-fullscreen', [CHANNEL.clip, CHANNEL.opacity]),
   cssPrimitive('panel-reveal', [CHANNEL.opacity, CHANNEL.translate]),
   cssPrimitive('drawer-slide', [CHANNEL.translate], {
-    parameters: {
-      side: {
-        type: 'keyword',
-        default: 'right',
-        cssProperty: '--dsg-side',
-        values: ['left', 'right'],
-      },
-    },
     defaultActivation: 'click',
   }),
 ]
 
 export const NAV_CSS_PRESETS: Preset[] = [
-  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'dsg-nav-reveal' },
-  { name: 'menu-fullscreen', primitive: 'menu-fullscreen', keyframes: 'dsg-menu-fullscreen' },
-  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'dsg-panel-reveal' },
+  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'kui-nav-reveal' },
+  { name: 'menu-fullscreen', primitive: 'menu-fullscreen', keyframes: 'kui-menu-fullscreen' },
+  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'kui-panel-reveal' },
   {
     name: 'mega-menu-drop',
     primitive: 'panel-reveal',
-    keyframes: 'dsg-panel-reveal',
+    keyframes: 'kui-panel-reveal',
     params: { duration: '550ms' },
   },
   {
     name: 'drawer-slide',
     primitive: 'drawer-slide',
-    keyframes: 'dsg-drawer-slide-right',
+    keyframes: 'kui-drawer-slide-right',
   },
 ]
 
@@ -108,8 +100,8 @@ function prepareHeaderShrink(el: Element, params: EffectParams, ctx: PrepareCont
   const offset = params.num('offset', 120)
   return subscribeScrollTop(el, ctx, (top) => {
     const progress = offset > 0 ? Math.min(1, Math.max(0, top / offset)) : 1
-    ctx.style.set('--dsg-shrink', progress.toFixed(4))
-    el.setAttribute('data-dsg-shrunk', String(progress >= 1))
+    ctx.style.set('--kui-shrink', progress.toFixed(4))
+    el.setAttribute('data-kui-shrunk', String(progress >= 1))
   })
 }
 
@@ -126,7 +118,7 @@ function prepareHeaderHide(el: Element, params: EffectParams, ctx: PrepareContex
   return subscribeScrollTop(el, ctx, (top) => {
     const delta = top - last
     if (Math.abs(delta) < minDelta) return
-    el.setAttribute('data-dsg-hidden', String(delta > 0 && top > minDelta))
+    el.setAttribute('data-kui-hidden', String(delta > 0 && top > minDelta))
     last = top
   })
 }
@@ -140,7 +132,7 @@ function prepareHeaderHide(el: Element, params: EffectParams, ctx: PrepareContex
 function prepareBackToTop(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const offset = params.num('offset', 400)
   return subscribeScrollTop(el, ctx, (top) => {
-    el.setAttribute('data-dsg-visible', String(top > offset))
+    el.setAttribute('data-kui-visible', String(top > offset))
   })
 }
 
@@ -148,19 +140,19 @@ export const NAV_JS_PRIMITIVES: Primitive[] = [
   navPrimitive(
     'header-shrink',
     ['layout'],
-    { offset: { type: 'number', default: '120', cssProperty: '--dsg-offset' } },
+    { offset: { type: 'number', default: '120', cssProperty: '--kui-offset' } },
     deferPrepare(prepareHeaderShrink),
   ),
   navPrimitive(
     'header-hide-on-scroll',
     [CHANNEL.translate],
-    { offset: { type: 'number', default: '8', cssProperty: '--dsg-offset' } },
+    { offset: { type: 'number', default: '8', cssProperty: '--kui-offset' } },
     deferPrepare(prepareHeaderHide),
   ),
   navPrimitive(
     'back-to-top-fade',
     [CHANNEL.opacity, CHANNEL.translate],
-    { offset: { type: 'number', default: '400', cssProperty: '--dsg-offset' } },
+    { offset: { type: 'number', default: '400', cssProperty: '--kui-offset' } },
     deferPrepare(prepareBackToTop),
   ),
 ]

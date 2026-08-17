@@ -27,9 +27,9 @@ export const FORMS_PRIMITIVES: Primitive[] = [
 export const FORMS_PRESETS: Preset[] = [
   { name: 'label-float', primitive: 'native-state' },
   { name: 'input-underline-grow', primitive: 'native-state' },
-  { name: 'focus-ring-grow', primitive: 'focus-ring', keyframes: 'dsg-focus-ring-grow' },
-  { name: 'validate-shake', primitive: 'validate-shake', keyframes: 'dsg-validate-shake' },
-  { name: 'validate-check', primitive: 'validate-check', keyframes: 'dsg-validate-check' },
+  { name: 'focus-ring-grow', primitive: 'focus-ring', keyframes: 'kui-focus-ring-grow' },
+  { name: 'validate-shake', primitive: 'validate-shake', keyframes: 'kui-validate-shake' },
+  { name: 'validate-check', primitive: 'validate-check', keyframes: 'kui-validate-check' },
   { name: 'strength-meter', primitive: 'strength-meter' },
   { name: 'toggle-morph', primitive: 'native-state' },
   { name: 'checkbox-draw', primitive: 'native-state' },

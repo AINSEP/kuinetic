@@ -14,7 +14,7 @@ import {
   resolveTargets,
   silentReporter,
   toAttributeValue,
-} from 'designimation/core'
+} from 'kuinetic/core'
 import type {
   Activation,
   ActivationBinder,
@@ -39,11 +39,11 @@ import type {
   ResolvedEffect,
   Target,
   Timeline,
-} from 'designimation/core'
-import * as CoreBarrel from 'designimation/core'
+} from 'kuinetic/core'
+import * as CoreBarrel from 'kuinetic/core'
 
 /**
- * Guards `designimation/core`'s published export list.
+ * Guards `kuinetic/core`'s published export list.
  *
  * `src/core/index.ts` is a versioned public subpath (see `package.json` `exports`), not an
  * internal convenience barrel — everything it re-exports is a contract a third-party primitive
@@ -51,11 +51,11 @@ import * as CoreBarrel from 'designimation/core'
  * directly, so a later `export *` creeping back in, or a compiler-internal export landing on the
  * barrel, fails here instead of silently widening the published contract (REF-005).
  */
-describe('designimation/core public surface', () => {
+describe('kuinetic/core public surface', () => {
   it('exports the runtime tier', () => {
     expect(typeof Animator).toBe('function')
     expect(typeof createAnimator).toBe('function')
-    expect(ATTR).toMatchObject({ source: 'data-dsg' })
+    expect(ATTR).toMatchObject({ source: 'data-kui' })
     expect(typeof Registry).toBe('function')
     expect(typeof detect).toBe('function')
     expect(typeof play).toBe('function')

@@ -126,6 +126,9 @@ const MAX_SETTLE_MS = 10_000
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
+// Factory closing over the running spring's state; length is four small named closures plus the
+// returned runner, not one long procedure.
+// eslint-disable-next-line max-lines-per-function
 export function createSpringRunner(
   config: SpringConfig,
   onChange: (value: number, settled: boolean) => void,

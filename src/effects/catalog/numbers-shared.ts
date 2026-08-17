@@ -9,8 +9,8 @@ export interface CountFormatOptions {
   currency: string
 }
 
-const SR_ONLY_CLASS = 'dsg-sr-only'
-const DECORATIVE_CLASS = 'dsg-count-decorative'
+const SR_ONLY_CLASS = 'kui-sr-only'
+const DECORATIVE_CLASS = 'kui-count-decorative'
 
 export interface CountLayers {
   /** `aria-hidden` node the ticking display writes to on every frame. */
@@ -78,6 +78,102 @@ export function easeOutCubic(t: number): number {
  */
 export function tweenValue(t: number, from: number, to: number): number {
   return from + (to - from) * t
+}
+
+/**
+ * Build a JS evaluator for a CSS `cubic-bezier(x1, y1, x2, y2)` curve.
+ *
+ * Newton-Raphson converges in a handful of iterations for any well-formed curve; the bisection
+ * fallback only matters near a flat tangent (a `back-*` curve's overshoot, for instance), where
+ * Newton's derivative division would otherwise overshoot forever. Mirrors the algorithm browsers
+ * themselves use for `animation-timing-function: cubic-bezier(...)` (WebKit's `UnitBezier`).
+ *
+ * @complexity O(1) time per call (bounded iteration count); O(1) space.
+ * @overallScore 100
+ */
+function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
+  const cx = 3 * x1
+  const bx = 3 * (x2 - x1) - cx
+  const ax = 1 - cx - bx
+  const cy = 3 * y1
+  const by = 3 * (y2 - y1) - cy
+  const ay = 1 - cy - by
+  const sampleX = (t: number): number => ((ax * t + bx) * t + cx) * t
+  const sampleY = (t: number): number => ((ay * t + by) * t + cy) * t
+  const slopeX = (t: number): number => (3 * ax * t + 2 * bx) * t + cx
+
+  function solveT(x: number): number {
+    let t = x
+    for (let i = 0; i < 8; i++) {
+      const slope = slopeX(t)
+      if (Math.abs(slope) < 1e-6) break
+      const next = t - (sampleX(t) - x) / slope
+      if (Math.abs(sampleX(next) - x) < 1e-6) return next
+      t = next
+    }
+    let lo = 0
+    let hi = 1
+    t = x
+    while (hi - lo > 1e-6) {
+      if (sampleX(t) < x) lo = t
+      else hi = t
+      t = (lo + hi) / 2
+    }
+    return t
+  }
+
+  return (t: number) => sampleY(solveT(Math.min(Math.max(t, 0), 1)))
+}
+
+/**
+ * Control points for keyword easings a counter tween can resolve without a CSS engine. The
+ * `ease*` values are the CSS spec's own bezier equivalents; the rest mirror the curves
+ * `base.css` writes into `--kui-ease-*`, so a JS-tweened counter given `back-out` settles along
+ * the exact same curve a CSS-rendered effect given `back-out` would.
+ */
+const EASING_KEYWORDS: Record<string, [number, number, number, number]> = {
+  ease: [0.25, 0.1, 0.25, 1],
+  'ease-in': [0.42, 0, 1, 1],
+  'ease-out': [0, 0, 0.58, 1],
+  'ease-in-out': [0.42, 0, 0.58, 1],
+  'expo-in': [0.7, 0, 0.84, 0],
+  'expo-out': [0.16, 1, 0.3, 1],
+  'expo-in-out': [0.87, 0, 0.13, 1],
+  'back-in': [0.36, 0, 0.66, -0.56],
+  'back-out': [0.34, 1.56, 0.64, 1],
+  'back-in-out': [0.68, -0.6, 0.32, 1.6],
+  'quart-out': [0.25, 1, 0.5, 1],
+  'circ-out': [0, 0.55, 0.45, 1],
+}
+
+const CUBIC_BEZIER_FN =
+  /^cubic-bezier\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\)$/i
+
+/**
+ * Resolve an author's validated `EffectTiming.easing` to a JS evaluator a tween can call per tick.
+ *
+ * `easeOutCubic` is both the historical no-easing-authored default and the fallback for a value
+ * this cannot map: `steps()`/`linear()` functions, `step-start`/`step-end`, `spring` (a keyframed
+ * `linear()` easing, not a bezier), or any keyword outside the table above. Falling back silently
+ * would leave an author's explicit easing quietly ignored a second time — the exact bug this
+ * function exists to close — so every unmapped-but-authored value warns once instead.
+ *
+ * @param warn - Diagnostic sink, called once for an easing this cannot map.
+ * @complexity O(1) time and space beyond the returned evaluator's own bounded solve.
+ * @overallScore 100
+ */
+export function resolveEasing(
+  easing: string | undefined,
+  warn: (message: string) => void,
+): (t: number) => number {
+  if (easing === undefined) return easeOutCubic
+  if (easing === 'linear') return (t) => Math.min(Math.max(t, 0), 1)
+  const keyword = EASING_KEYWORDS[easing]
+  if (keyword) return cubicBezier(...keyword)
+  const fn = CUBIC_BEZIER_FN.exec(easing)
+  if (fn) return cubicBezier(Number(fn[1]), Number(fn[2]), Number(fn[3]), Number(fn[4]))
+  warn(`easing "${easing}" has no JS equivalent for a counter tween — using the default ease-out`)
+  return easeOutCubic
 }
 
 const COMPACT_OPTIONS: Intl.NumberFormatOptions = { notation: 'compact', maximumFractionDigits: 1 }

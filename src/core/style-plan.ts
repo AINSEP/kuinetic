@@ -3,7 +3,7 @@ import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'
 import type { ElementConfig } from './element-config.js'
 import type { AttributeLedger, StyleLedger } from './owned-styles.js'
-import type { Activation, Timeline } from './types.js'
+import type { Activation, Channel, Timeline } from './types.js'
 
 /**
  * How the animation is started.
@@ -47,7 +47,9 @@ export interface StylePlanInput {
 export function planStyles(input: StylePlanInput): StylePlan {
   const { plan, config, capabilities, respectReducedMotion } = input
   const reduce = respectReducedMotion && capabilities.reducedMotion
-  const useNativeTimeline = supportsTimeline(config.timeline, capabilities)
+  const useNativeTimeline =
+    supportsTimeline(config.timeline, capabilities) &&
+    plan.supportedTimelines.includes(config.timeline)
 
   const properties: Record<string, string> = { ...plan.vars, ...plan.declarations }
   Object.assign(properties, timelineProperties(config, capabilities, useNativeTimeline))
@@ -62,6 +64,12 @@ export function planStyles(input: StylePlanInput): StylePlan {
     // `on:click` would silently do nothing for every pinned, dragged, or morphing element.
     hasWork: hasCssAnimation || plan.jsEffects.length > 0,
     hasCssAnimation,
+    // A browser lacking standalone translate/rotate/scale support silently ignores any
+    // `@keyframes` step written in those properties — the animation never visibly completes. An
+    // effect deferred on that promise would sit paused (or, for an entrance reveal, invisible)
+    // forever, so it must reach its final state immediately instead, the same fail-open rule
+    // already applied under reduced motion.
+    unsupportedTransform: needsIndividualTransforms(plan.channels, capabilities),
   })
   if (gate === 'deferred') properties['animation-play-state'] = 'paused'
 
@@ -94,7 +102,7 @@ function timelineProperties(
   }
   if (capabilities.animationRange) {
     // Written unconditionally, not only when a range was authored: the default range previously
-    // lived in a CSS rule keyed on `data-dsg-timeline`, which an inline `timeline:view` never
+    // lived in a CSS rule keyed on `data-kui-timeline`, which an inline `timeline:view` never
     // sets — so the inline and longhand grammars produced different animations.
     properties['animation-range'] = config.range || 'entry 0% cover 60%'
   }
@@ -116,11 +124,24 @@ function resolveGate(input: {
   activation: Activation
   hasWork: boolean
   hasCssAnimation: boolean
+  unsupportedTransform: boolean
 }): Gate {
   if (input.useNativeTimeline) return 'native-timeline'
   if (!input.hasWork) return 'immediate'
-  if (input.reduce || input.activation === 'load') return 'immediate'
+  if (input.reduce || input.activation === 'load' || input.unsupportedTransform) return 'immediate'
   return 'deferred'
+}
+
+/**
+ * Whether the composed effects depend on a transform channel this browser cannot render
+ * independently of the others (see `capabilities.ts`'s `individualTransforms`).
+ *
+ * @complexity O(c) time in composed channels; O(1) space.
+ * @overallScore 100
+ */
+function needsIndividualTransforms(channels: Channel[], capabilities: Capabilities): boolean {
+  if (capabilities.individualTransforms) return false
+  return channels.some((c) => c === 'translate' || c === 'rotate' || c === 'scale')
 }
 
 /**

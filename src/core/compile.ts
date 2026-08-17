@@ -4,13 +4,14 @@ import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest, timingProperty } from './registry.js'
 import type {
   Activation,
+  Channel,
   EffectSpec,
   ParsedValue,
   ReducedMotionPolicy,
   Timeline,
 } from './types.js'
 
-/** CSS-native timing keywords; anything else resolves to a `--dsg-ease-*` custom property. */
+/** CSS-native timing keywords; anything else resolves to a `--kui-ease-*` custom property. */
 const NATIVE_EASINGS = new Set([
   'linear',
   'ease',
@@ -30,7 +31,7 @@ export interface Entry {
 }
 
 export interface CompiledPlan {
-  /** Effect names to stamp into `data-dsg-fx` for CSS hooks and debugging. */
+  /** Effect names to stamp into `data-kui-fx` for CSS hooks and debugging. */
   fxNames: string[]
   /** Custom properties to write. Author overrides only — defaults stay in CSS `var()` fallbacks. */
   vars: Record<string, string>
@@ -46,11 +47,20 @@ export interface CompiledPlan {
   defaultActivation?: Activation
   /** Activations every composed primitive supports, for enforcement by the animator. */
   supportedActivations: Activation[]
+  /**
+   * Timelines every composed primitive supports. Empty means none — `style-plan.ts` must not
+   * apply a native `view()`/`scroll()` timeline the author's effect doesn't declare support for,
+   * even when the browser itself is capable of one; `warnUnsupportedTimeline` only warns, it
+   * doesn't change what's compiled, so this is what actually stops the mismatch from being applied.
+   */
+  supportedTimelines: Timeline[]
+  /** Union of channels every composed effect writes to, so callers can react to what actually moves. */
+  channels: Channel[]
   warnings: string[]
 }
 
 /**
- * Turn a parsed `data-dsg` value into the writes an element needs.
+ * Turn a parsed `data-kui` value into the writes an element needs.
  *
  * Pure: same inputs always produce the same plan, and nothing is applied to the DOM here. That
  * is what lets composition rules, parameter validation, and declaration output be asserted
@@ -88,6 +98,8 @@ function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {
     unknown,
     reducedMotion: 'shorten',
     supportedActivations: [],
+    supportedTimelines: [],
+    channels: [],
     warnings,
   }
 }
@@ -164,16 +176,27 @@ function buildPlan(
   warnings: string[],
 ): CompiledPlan {
   const plan = emptyPlan(unknown, warnings)
-  const tracks: AnimationTracks = { names: [], durations: [], delays: [], easings: [] }
+  const tracks: AnimationTracks = {
+    names: [],
+    durations: [],
+    delays: [],
+    easings: [],
+    iterationCounts: [],
+  }
+  const channels = new Set<Channel>()
+  // Accumulated outside `plan` so `undefined` (no effect has contributed yet) stays distinct from
+  // `[]` (the composed effects genuinely share nothing) — see `intersect`.
+  let activations: Activation[] | undefined
+  let timelines: Timeline[] | undefined
 
   for (const entry of entries) {
     const { preset, primitive } = entry.resolved
     plan.fxNames.push(preset.name)
     plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
     plan.defaultActivation ??= primitive.defaultActivation
-    plan.supportedActivations = plan.supportedActivations.length
-      ? plan.supportedActivations.filter((a) => primitive.supportedActivations.includes(a))
-      : [...primitive.supportedActivations]
+    activations = intersect(activations, primitive.supportedActivations)
+    timelines = intersect(timelines, primitive.supportedTimelines)
+    for (const channel of primitive.channels) channels.add(channel)
     warnUnsupportedTimeline(preset.name, primitive.supportedTimelines, timeline, warnings)
 
     // Only the author's own overrides go inline. Preset defaults are emitted as cascade rules by
@@ -189,7 +212,29 @@ function buildPlan(
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
+  plan.supportedActivations = activations ?? []
+  plan.supportedTimelines = timelines ?? []
+  plan.channels = [...channels]
   return plan
+}
+
+/**
+ * Narrow a running capability intersection by one more primitive's support list.
+ *
+ * `undefined` means no primitive has contributed yet; `[]` means the composed primitives share
+ * nothing. Collapsing those two states into "is the array empty?" — which is what the previous
+ * `length ? filter : copy` form did — made an intersection that had legitimately emptied out
+ * repopulate from the next effect: `fade-up, parallax-scale, scroll-progress-ring timeline:view`
+ * emptied on the second effect and came back as `['scroll', 'view']` on the third, so
+ * `style-plan.ts` applied `view()` to `fade-up`, the exact mismatch `supportedTimelines` was
+ * added to prevent. Emptiness is a real answer here and must survive the rest of the list.
+ *
+ * @complexity O(a * b) time in the two list lengths — both are single-digit; O(a) space.
+ * @overallScore 100
+ */
+function intersect<T>(accumulated: T[] | undefined, supported: T[]): T[] {
+  if (!accumulated) return [...supported]
+  return accumulated.filter((value) => supported.includes(value))
 }
 
 interface AnimationTracks {
@@ -197,6 +242,17 @@ interface AnimationTracks {
   durations: string[]
   delays: string[]
   easings: string[]
+  iterationCounts: string[]
+}
+
+/**
+ * Custom property a looping preset's static CSS sets to `infinite` (see `ambient.css`,
+ * `feedback.css`). Namespaced per *preset*, not primitive: iteration count is a fact about the
+ * preset's own keyframes, not something an author configures, and presets sharing one primitive
+ * are not guaranteed to agree on it.
+ */
+function iterationCountProperty(presetName: string): string {
+  return `--kui-fx-${presetName}-iterations`
 }
 
 /**
@@ -211,12 +267,17 @@ interface AnimationTracks {
 function pushTrack(tracks: AnimationTracks, entry: Entry): void {
   const { spec, resolved } = entry
   const id = resolved.primitive.id
-  tracks.names.push(resolved.preset.keyframes ?? `dsg-${resolved.preset.name}`)
-  // Each track reads its *own* primitive's timing property. Sharing one `--dsg-duration` across
+  tracks.names.push(resolved.preset.keyframes ?? `kui-${resolved.preset.name}`)
+  // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
   tracks.durations.push(spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`)
   tracks.delays.push(staggerDelay(spec.delay, id))
   tracks.easings.push(easingValue(spec.easing, id))
+  // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
+  // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
+  // infinite` in that CSS, is what stops a composed one-shot effect from inheriting the loop: CSS
+  // repeats a shorter value list to match the longest one across every longhand in the group.
+  tracks.iterationCounts.push(`var(${iterationCountProperty(resolved.preset.name)}, 1)`)
 }
 
 function declarationsFor(tracks: AnimationTracks): Record<string, string> {
@@ -226,6 +287,7 @@ function declarationsFor(tracks: AnimationTracks): Record<string, string> {
     'animation-duration': tracks.durations.join(', '),
     'animation-delay': tracks.delays.join(', '),
     'animation-timing-function': tracks.easings.join(', '),
+    'animation-iteration-count': tracks.iterationCounts.join(', '),
     'animation-fill-mode': tracks.names.map(() => 'both').join(', '),
   }
 }
@@ -255,12 +317,12 @@ function warnUnsupportedTimeline(
  */
 function staggerDelay(delay: string | undefined, primitiveId: string): string {
   const base = delay ?? `var(${timingProperty(primitiveId, 'delay')}, 0ms)`
-  return `calc(${base} + var(--dsg-i, 0) * var(--dsg-stagger, 0ms))`
+  return `calc(${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms))`
 }
 
 function easingValue(easing: string | undefined, primitiveId: string): string {
   if (!easing) return `var(${timingProperty(primitiveId, 'ease')}, ease-out)`
   if (NATIVE_EASINGS.has(easing)) return easing
   if (easing.includes('(')) return easing
-  return `var(--dsg-ease-${easing}, ease-out)`
+  return `var(--kui-ease-${easing}, ease-out)`
 }

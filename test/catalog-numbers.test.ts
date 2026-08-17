@@ -61,9 +61,9 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     )
 
     instance.activate()
-    const decorative = el.querySelector('.dsg-count-decorative')!
+    const decorative = el.querySelector('.kui-count-decorative')!
     expect(decorative.getAttribute('aria-hidden')).toBe('true')
-    const srOnly = el.querySelector('.dsg-sr-only')!
+    const srOnly = el.querySelector('.kui-sr-only')!
     expect(srOnly.textContent).toBe('0')
 
     vi.advanceTimersByTime(48) // partway through a 100ms ramp
@@ -95,7 +95,7 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     )
     instance.activate()
     vi.advanceTimersByTime(1600)
-    expect(el.querySelector('.dsg-count-decorative')?.textContent).toBe(
+    expect(el.querySelector('.kui-count-decorative')?.textContent).toBe(
       formatCount(4820, { format: 'currency', decimals: 0, currency: 'USD' }),
     )
   })
@@ -110,7 +110,7 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     )
     instance.activate()
     vi.advanceTimersByTime(16)
-    expect(el.querySelector('.dsg-count-decorative')?.textContent).toBe('50')
+    expect(el.querySelector('.kui-count-decorative')?.textContent).toBe('50')
   })
 })
 
@@ -128,15 +128,15 @@ describe('odometer-roll', () => {
     )
 
     instance.activate()
-    const columns = el.querySelectorAll('.dsg-odometer-col')
+    const columns = el.querySelectorAll('.kui-odometer-col')
     expect(columns).toHaveLength(3) // "125" is the wider of "0" and "125" at 3 digits
-    expect(el.querySelector('.dsg-sr-only')?.textContent).toBe('000')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('000')
 
     vi.advanceTimersByTime(80)
-    const strips = el.querySelectorAll('.dsg-odometer-strip')
-    const digits = [...strips].map((strip) => (strip as HTMLElement).style.getPropertyValue('--dsg-o'))
+    const strips = el.querySelectorAll('.kui-odometer-strip')
+    const digits = [...strips].map((strip) => (strip as HTMLElement).style.getPropertyValue('--kui-o'))
     expect(digits.join('')).toBe('125')
-    expect(el.querySelector('.dsg-sr-only')?.textContent).toBe('125')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('125')
 
     instance.destroy()
     expect(el.textContent).toBe('125')
@@ -153,7 +153,7 @@ describe('odometer-roll', () => {
     instance.activate()
     vi.advanceTimersByTime(16)
     // "4820" is 4 digits, grouped as "4,820" — one comma, rendered as a plain text node.
-    expect(el.querySelectorAll('.dsg-odometer-col')).toHaveLength(4)
+    expect(el.querySelectorAll('.kui-odometer-col')).toHaveLength(4)
     expect(el.textContent).toContain(',')
   })
 })

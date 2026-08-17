@@ -20,7 +20,7 @@ export class Registry {
 
   registerPrimitive(primitive: Primitive): this {
     if (this.primitives.has(primitive.id)) {
-      throw new Error(`designimation: primitive "${primitive.id}" is already registered`)
+      throw new Error(`kuinetic: primitive "${primitive.id}" is already registered`)
     }
     this.primitives.set(primitive.id, namespaceTiming(primitive))
     return this
@@ -28,11 +28,11 @@ export class Registry {
 
   registerPreset(preset: Preset): this {
     if (this.presets.has(preset.name)) {
-      throw new Error(`designimation: effect "${preset.name}" is already registered`)
+      throw new Error(`kuinetic: effect "${preset.name}" is already registered`)
     }
     if (!this.primitives.has(preset.primitive)) {
       throw new Error(
-        `designimation: effect "${preset.name}" references unknown primitive "${preset.primitive}"`,
+        `kuinetic: effect "${preset.name}" references unknown primitive "${preset.primitive}"`,
       )
     }
     this.presets.set(preset.name, preset)
@@ -90,8 +90,8 @@ export class Registry {
  * Timing parameters that must not be shared between composed effects.
  *
  * Geometry parameters are already protected by the channel model: two effects can only share
- * `--dsg-distance` if both claim `translate`, and that composition is rejected. Timing is the
- * exception — `pop-in, blur-in` have disjoint channels, so both tracks read one `--dsg-ease` and
+ * `--kui-distance` if both claim `translate`, and that composition is rejected. Timing is the
+ * exception — `pop-in, blur-in` have disjoint channels, so both tracks read one `--kui-ease` and
  * the blur silently inherits the pop's `back-out`. Namespacing per primitive closes exactly that
  * hole, and nothing wider.
  *
@@ -102,7 +102,7 @@ const TIMING_PARAMS = ['duration', 'delay', 'ease'] as const
 
 /** Custom property a primitive's timing parameter writes to. */
 export function timingProperty(primitiveId: string, name: string): string {
-  return `--dsg-${primitiveId}-${name}`
+  return `--kui-${primitiveId}-${name}`
 }
 
 /**

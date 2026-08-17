@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { effectDurationMs } from '../../core/js-params.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
@@ -29,7 +30,7 @@ function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): C
     return () => {}
   }
 
-  const duration = params.ms('duration', 300)
+  const duration = effectDurationMs(params, 300)
   let frame = 0
   let cancelled = false
 
@@ -75,9 +76,9 @@ export const SVG_PRIMITIVES: Primitive[] = [
     // safely compose with a fade or a rotation on the same element.
     channels: ['path'],
     parameters: {
-      from: { type: 'text', default: '', cssProperty: '--dsg-path-from' },
-      to: { type: 'text', default: '', cssProperty: '--dsg-path-to' },
-      duration: { type: 'time', default: '300ms', cssProperty: '--dsg-duration' },
+      from: { type: 'text', default: '', cssProperty: '--kui-path-from' },
+      to: { type: 'text', default: '', cssProperty: '--kui-path-to' },
+      duration: { type: 'time', default: '300ms', cssProperty: '--kui-duration' },
     },
     supportedTimelines: ['time'],
     supportedActivations: ['hover', 'focus', 'manual', 'load'],

@@ -50,7 +50,8 @@ async function run() {
   const failed = allResults.filter((r) => !r.passed)
   console.log(`\n${allResults.length - failed.length}/${allResults.length} browser-test checks passed`)
   if (failed.length > 0) {
-    console.log(`\nFAILED:\n${failed.map((f) => `  - [${f.suite}] ${f.name}  ${f.detail}`).join('\n')}`)
+    const lines = failed.map((f) => `  - [${f.suite}] ${f.name}  ${f.detail}`)
+    console.log(`\nFAILED:\n${lines.join('\n')}`)
     process.exit(1)
   }
 }

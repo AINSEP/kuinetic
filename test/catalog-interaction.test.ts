@@ -52,8 +52,8 @@ function pointerEvent(type: string, x: number, y: number): PointerEvent {
 }
 
 describe('interaction catalog registration', () => {
-  it('registers 19 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
-    expect(INTERACTION_PRESETS).toHaveLength(19)
+  it('registers 20 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
+    expect(INTERACTION_PRESETS).toHaveLength(20)
     expect(HOVER_PRESETS).toHaveLength(12)
     expect(POINTER_PRESETS).toHaveLength(7)
     const reg = registry()
@@ -80,7 +80,7 @@ describe('discrete hover/focus effects (CSS-driven, no-op prepare)', () => {
 
   it('ships a :focus-visible rule and a fine-pointer :hover mirror for every hover name', () => {
     for (const preset of HOVER_PRESETS) {
-      const selector = `[data-dsg-fx~='${preset.name}']`
+      const selector = `[data-kui-fx~='${preset.name}']`
       expect(css, `${preset.name}: missing :focus-visible`).toContain(`${selector}:focus-visible`)
       expect(css, `${preset.name}: missing :hover`).toContain(`${selector}:hover`)
     }
@@ -102,14 +102,14 @@ describe('pointer-tracking effects (real JS)', () => {
     const resolved = reg.resolve('cursor-follow')!
     const el = document.createElement('a')
     document.body.append(el)
-    const before = document.body.querySelectorAll('.dsg-cursor-dot').length
+    const before = document.body.querySelectorAll('.kui-cursor-dot').length
 
     // `supportsFineHover` is the very first line of `prepareCursorDot`, so a fake window that
     // fails that check is safe here — nothing past it ever touches `ctx.win` again.
     const coarseWin = { matchMedia: () => ({ matches: false }) } as unknown as Window
     const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el, { win: coarseWin }))
     instance.activate()
-    expect(document.body.querySelectorAll('.dsg-cursor-dot')).toHaveLength(before)
+    expect(document.body.querySelectorAll('.kui-cursor-dot')).toHaveLength(before)
     instance.destroy()
   })
 
@@ -133,7 +133,7 @@ describe('pointer-tracking effects (real JS)', () => {
     instance.destroy()
   })
 
-  it('cursor-spotlight publishes --dsg-x/--dsg-y on pointermove and hides on pointerleave', () => {
+  it('cursor-spotlight publishes --kui-x/--kui-y on pointermove and hides on pointerleave', () => {
     const reg = registry()
     const resolved = reg.resolve('cursor-spotlight')!
     const el = document.createElement('div')
@@ -144,12 +144,12 @@ describe('pointer-tracking effects (real JS)', () => {
     instance.activate()
 
     el.dispatchEvent(pointerEvent('pointermove', 60, 40))
-    expect((el as HTMLElement).style.getPropertyValue('--dsg-x')).toBe('50.0px')
-    expect((el as HTMLElement).style.getPropertyValue('--dsg-y')).toBe('30.0px')
-    expect((el as HTMLElement).style.getPropertyValue('--dsg-spotlight-opacity')).toBe('1')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-x')).toBe('50.0px')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-y')).toBe('30.0px')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-spotlight-opacity')).toBe('1')
 
     el.dispatchEvent(new Event('pointerleave'))
-    expect((el as HTMLElement).style.getPropertyValue('--dsg-spotlight-opacity')).toBe('0')
+    expect((el as HTMLElement).style.getPropertyValue('--kui-spotlight-opacity')).toBe('0')
 
     instance.destroy()
   })

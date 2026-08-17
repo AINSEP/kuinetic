@@ -1,10 +1,10 @@
 import type { Activation, ParameterSchema, Primitive, ReducedMotionPolicy, Timeline } from '../../core/types.js'
 
 const COMMON: ParameterSchema = {
-  duration: { type: 'time', default: '600ms', cssProperty: '--dsg-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--dsg-delay' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--dsg-ease' },
-  stagger: { type: 'time', default: '0ms', cssProperty: '--dsg-stagger' },
+  duration: { type: 'time', default: '600ms', cssProperty: '--kui-duration' },
+  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  stagger: { type: 'time', default: '0ms', cssProperty: '--kui-stagger' },
 }
 
 export interface CssPrimitiveOptions {

@@ -20,7 +20,7 @@ const SETTLE_MS = 300
 
 async function readCard(page) {
   return page.$eval('#card', (el) => ({
-    state: el.getAttribute('data-dsg-state'),
+    state: el.getAttribute('data-kui-state'),
     style: el.getAttribute('style'),
     rotate: getComputedStyle(el).rotate,
   }))
@@ -40,7 +40,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const page = await context.newPage()
 
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   const initial = await readCard(page)
   await snap(page, 'initial-ready')
 

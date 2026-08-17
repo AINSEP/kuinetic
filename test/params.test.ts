@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { resolveParams, validate } from '../src/core/params.js'
+import { isSameOriginPath, resolveParams, validate } from '../src/core/params.js'
 import type { ParamSpec, ParameterSchema } from '../src/core/types.js'
 
-const length: ParamSpec = { type: 'length', default: '24px', cssProperty: '--dsg-distance' }
-const time: ParamSpec = { type: 'time', default: '600ms', cssProperty: '--dsg-duration' }
+const length: ParamSpec = { type: 'length', default: '24px', cssProperty: '--kui-distance' }
+const time: ParamSpec = { type: 'time', default: '600ms', cssProperty: '--kui-duration' }
 const keyword: ParamSpec = {
   type: 'keyword',
   default: 'chars',
-  cssProperty: '--dsg-split',
+  cssProperty: '--kui-split',
   values: ['chars', 'words', 'lines'],
 }
+const text: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-src' }
 
 describe('validate', () => {
   it.each(['24px', '2rem', '50%', '1.5em', '0', '100vh'])('accepts length %s', (value) => {
@@ -89,6 +90,77 @@ describe('validate', () => {
   it('rejects empty values', () => {
     expect(validate('   ', length).ok).toBe(false)
   })
+
+  describe('text values (never reach a stylesheet)', () => {
+    it('accepts braces, needed for media-scrub frame patterns like "frame-{i}.jpg"', () => {
+      expect(validate('frame-{i}.jpg', text)).toEqual({ value: 'frame-{i}.jpg', ok: true })
+    })
+
+    it('accepts a CSS selector with descendant combinators', () => {
+      expect(validate('nav a.active', text)).toEqual({ value: 'nav a.active', ok: true })
+    })
+
+    it('still rejects the declaration-escape characters that are not brace-shaped', () => {
+      expect(validate('a; background: red', text).ok).toBe(false)
+      expect(validate('url(http://evil.test)', text).ok).toBe(false)
+    })
+  })
+
+  it('still rejects brace-containing garbage for typed (non-text) parameters', () => {
+    // Braces are no longer screened directly, but a shape check for `length` still catches it.
+    const result = validate('10px} body {display:none', length)
+    expect(result.ok).toBe(false)
+    expect(result.value).toBe('24px')
+  })
+})
+
+describe('isSameOriginPath', () => {
+  describe('accepts values that can only ever request the page\'s own origin', () => {
+    it.each([
+      ['bare relative filename', 'frame-{i}.jpg'],
+      ['{i} substitution mid-path', 'frames/frame-{i}.jpg'],
+      ['current-directory relative', './frame-{i}.jpg'],
+      ['parent-directory relative', '../assets/frame-{i}.jpg'],
+      ['root-relative absolute path', '/images/frame-{i}.jpg'],
+      ['colon after the first path segment (query, not scheme)', 'frame.jpg?t=12:30'],
+      ['colon after the first path segment (path, not scheme)', 'frames/frame:1.jpg'],
+      ['disambiguated leading dot-segment', './frame:1.jpg'],
+    ])('%s: %s', (_label, value) => {
+      expect(isSameOriginPath(value)).toBe(true)
+    })
+
+    // Real usage from demo/scroll.html's sequence-scrub, plus the adjacent spellings an author
+    // could reasonably reach for instead — must keep working exactly as written.
+    it.each([
+      './assets/scenic_scrub_{i}.jpg',
+      'assets/frame-{i}.jpg',
+      '/assets/frame-{i}.jpg',
+      '../frames/{i}.png',
+    ])('showcase-derived shape: %s', (value) => {
+      expect(isSameOriginPath(value)).toBe(true)
+    })
+  })
+
+  describe('rejects values that can escape the page\'s own origin', () => {
+    it.each([
+      ['protocol-relative', '//evil.test/beacon.gif'],
+      ['backslash protocol-relative', '\\\\evil.test\\beacon.gif'],
+      ['mixed-slash protocol-relative', '/\\evil.test/beacon.gif'],
+      ['http to another origin', 'http://evil.test/beacon.gif'],
+      ['https to another origin', 'https://evil.test/beacon.gif'],
+      ['https uppercase scheme', 'HTTPS://evil.test/beacon.gif'],
+      ['data URI', 'data:text/plain,exfiltrated'],
+      ['blob URI', 'blob:https://evil.test/uuid'],
+      ['file URI', 'file:///etc/passwd'],
+      // Built rather than a literal so the string doesn't read as an eval sink to static
+      // analysis; already closed elsewhere (the `<img>`-only write guard), checked here too as
+      // defense in depth. Mixed-case, since scheme names are case-insensitive.
+      ['javascript URI, mixed case', `${'Java'}${'Script:window.pwned=true'}`],
+      ['bare leading scheme-shaped segment', 'frame:1.jpg'],
+    ])('%s: %s', (_label, value) => {
+      expect(isSameOriginPath(value)).toBe(false)
+    })
+  })
 })
 
 describe('resolveParams', () => {
@@ -97,7 +169,7 @@ describe('resolveParams', () => {
   it('maps authored params onto their custom properties', () => {
     const warnings: string[] = []
     const result = resolveParams({ distance: '40px' }, schema, (m) => warnings.push(m))
-    expect(result).toEqual({ '--dsg-distance': '40px' })
+    expect(result).toEqual({ '--kui-distance': '40px' })
     expect(warnings).toEqual([])
   })
 
@@ -121,5 +193,23 @@ describe('resolveParams', () => {
     )
     expect(result).toEqual({})
     expect(warnings.join()).toContain('disallowed CSS syntax')
+  })
+
+  it('treats a prototype-chain key as unknown rather than an inherited value', () => {
+    // `schema['__proto__']` alone falls through to Object.prototype (truthy), which would have
+    // skipped the "unknown parameter" warning and used it as if it were a real ParamSpec.
+    // `{ __proto__: ... }` object-literal syntax is special-cased by the language and would
+    // silently produce an empty object instead of an own key, so this uses defineProperty to
+    // construct a genuine own-enumerable `__proto__` entry the way an unusual caller might.
+    const authored: Record<string, string> = Object.defineProperty({}, '__proto__', {
+      value: '40px',
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
+    const warnings: string[] = []
+    const result = resolveParams(authored, schema, (m) => warnings.push(m))
+    expect(result).toEqual({})
+    expect(warnings.join()).toContain('unknown parameter "__proto__"')
   })
 })

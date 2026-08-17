@@ -41,7 +41,7 @@ describe('installSplitLayers', () => {
     const layers = installSplitLayers(el, document)
 
     expect(layers.decorative.getAttribute('aria-hidden')).toBe('true')
-    const srOnly = el.querySelector('.dsg-sr-only')!
+    const srOnly = el.querySelector('.kui-sr-only')!
     expect(srOnly.textContent).toBe('Hi there')
     // The decorative layer starts empty — a11y correctness only requires the sr-only twin to hold
     // the real text; callers are free to populate the decorative layer with anything afterwards.
@@ -49,8 +49,8 @@ describe('installSplitLayers', () => {
 
     layers.restore()
     expect(el.textContent).toBe('Hi there')
-    expect(el.querySelector('.dsg-split-decorative')).toBeNull()
-    expect(el.querySelector('.dsg-sr-only')).toBeNull()
+    expect(el.querySelector('.kui-split-decorative')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
     expect(el.childNodes).toHaveLength(1)
   })
 })
@@ -60,7 +60,7 @@ describe('appendWordSpans', () => {
     const container = document.createElement('span')
     appendWordSpans(container, document, 'one  two')
     expect(container.textContent).toBe('one  two')
-    expect(container.querySelectorAll('.dsg-split-item')).toHaveLength(2)
+    expect(container.querySelectorAll('.kui-split-item')).toHaveLength(2)
   })
 })
 
@@ -69,7 +69,7 @@ describe('appendLineSpans', () => {
     const container = document.createElement('span')
     appendLineSpans(container, document, 'one two three')
     expect(container.textContent).toBe('one two three')
-    expect(container.querySelectorAll('.dsg-split-line').length).toBeGreaterThan(0)
+    expect(container.querySelectorAll('.kui-split-line').length).toBeGreaterThan(0)
   })
 })
 
@@ -88,13 +88,13 @@ describe('split-chars / split-text', () => {
     expect(el.textContent).toBe('a👩‍👩‍👧‍👦b')
 
     instance.activate()
-    const items = el.querySelectorAll('.dsg-split-item')
+    const items = el.querySelectorAll('.kui-split-item')
     expect(items).toHaveLength(3)
-    expect(el.querySelector('.dsg-sr-only')?.textContent).toBe('a👩‍👩‍👧‍👦b')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('a👩‍👩‍👧‍👦b')
 
     instance.destroy()
     expect(el.textContent).toBe('a👩‍👩‍👧‍👦b')
-    expect(el.querySelector('.dsg-split-decorative')).toBeNull()
+    expect(el.querySelector('.kui-split-decorative')).toBeNull()
   })
 })
 
@@ -113,9 +113,9 @@ describe('typewriter', () => {
     )
 
     instance.activate()
-    const decorative = el.querySelector('.dsg-typewriter')!
+    const decorative = el.querySelector('.kui-typewriter')!
     expect(decorative.getAttribute('aria-hidden')).toBe('true')
-    expect(el.querySelector('.dsg-sr-only')?.textContent).toBe('Hi')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('Hi')
 
     vi.advanceTimersByTime(50)
     expect(decorative.textContent).toBe('H')
@@ -142,15 +142,15 @@ describe('scramble/decode/glitch', () => {
     )
 
     instance.activate()
-    expect(el.querySelector('.dsg-scramble')?.getAttribute('aria-hidden')).toBe('true')
-    expect(el.querySelector('.dsg-sr-only')?.textContent).toBe('ok')
+    expect(el.querySelector('.kui-scramble')?.getAttribute('aria-hidden')).toBe('true')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('ok')
 
     vi.advanceTimersByTime(10)
     // First character resolved, second still scrambled from the fixed 'ok' charset text.
-    expect(el.querySelector('.dsg-scramble')!.textContent!.charAt(0)).toBe('o')
+    expect(el.querySelector('.kui-scramble')!.textContent!.charAt(0)).toBe('o')
 
     vi.advanceTimersByTime(10)
-    expect(el.querySelector('.dsg-scramble')?.textContent).toBe('ok')
+    expect(el.querySelector('.kui-scramble')?.textContent).toBe('ok')
 
     instance.destroy()
     expect(el.textContent).toBe('ok')

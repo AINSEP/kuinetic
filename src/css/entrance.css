@@ -5,210 +5,210 @@
  * channels. `test/channels.test.ts` enforces this by parsing this file; breaking it silently
  * breaks composition-conflict detection.
  */
-@layer dsg.effects {
+@layer kui.effects {
   /* --- opacity only (channels: opacity, translate) --- */
-  @keyframes dsg-in {
+  @keyframes kui-in {
     from {
-      opacity: var(--dsg-from-opacity, 0);
+      opacity: var(--kui-from-opacity, 0);
     }
   }
 
-  @keyframes dsg-out {
+  @keyframes kui-out {
     to {
       opacity: 0;
     }
   }
 
   /* --- directional: named for the direction of travel, so `fade-left` starts on the right --- */
-  @keyframes dsg-in-up {
+  @keyframes kui-in-up {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: 0 var(--dsg-distance, 24px);
+      opacity: var(--kui-from-opacity, 0);
+      translate: 0 var(--kui-distance, 24px);
     }
   }
 
-  @keyframes dsg-in-down {
+  @keyframes kui-in-down {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+      opacity: var(--kui-from-opacity, 0);
+      translate: 0 calc(var(--kui-distance, 24px) * -1);
     }
   }
 
-  @keyframes dsg-in-left {
+  @keyframes kui-in-left {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: var(--dsg-distance, 24px) 0;
+      opacity: var(--kui-from-opacity, 0);
+      translate: var(--kui-distance, 24px) 0;
     }
   }
 
-  @keyframes dsg-in-right {
+  @keyframes kui-in-right {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+      opacity: var(--kui-from-opacity, 0);
+      translate: calc(var(--kui-distance, 24px) * -1) 0;
     }
   }
 
-  @keyframes dsg-out-up {
+  @keyframes kui-out-up {
     to {
       opacity: 0;
-      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+      translate: 0 calc(var(--kui-distance, 24px) * -1);
     }
   }
 
-  @keyframes dsg-out-down {
+  @keyframes kui-out-down {
     to {
       opacity: 0;
-      translate: 0 var(--dsg-distance, 24px);
+      translate: 0 var(--kui-distance, 24px);
     }
   }
 
-  @keyframes dsg-out-left {
+  @keyframes kui-out-left {
     to {
       opacity: 0;
-      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+      translate: calc(var(--kui-distance, 24px) * -1) 0;
     }
   }
 
-  @keyframes dsg-out-right {
+  @keyframes kui-out-right {
     to {
       opacity: 0;
-      translate: var(--dsg-distance, 24px) 0;
+      translate: var(--kui-distance, 24px) 0;
     }
   }
 
-  /* --- logical: --dsg-dir is -1 under :dir(rtl) --- */
-  @keyframes dsg-in-inline-start {
+  /* --- logical: --kui-dir is -1 under :dir(rtl) --- */
+  @keyframes kui-in-inline-start {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: calc(var(--dsg-distance, 24px) * var(--dsg-dir, 1) * -1) 0;
+      opacity: var(--kui-from-opacity, 0);
+      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1) * -1) 0;
     }
   }
 
-  @keyframes dsg-in-inline-end {
+  @keyframes kui-in-inline-end {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: calc(var(--dsg-distance, 24px) * var(--dsg-dir, 1)) 0;
+      opacity: var(--kui-from-opacity, 0);
+      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1)) 0;
     }
   }
 
   /* --- scale (channel: scale) --- */
-  @keyframes dsg-zoom-in {
+  @keyframes kui-zoom-in {
     from {
-      scale: var(--dsg-from-scale, 0.92);
+      scale: var(--kui-from-scale, 0.92);
     }
   }
 
-  @keyframes dsg-zoom-out {
+  @keyframes kui-zoom-out {
     to {
-      scale: var(--dsg-from-scale, 0.92);
+      scale: var(--kui-from-scale, 0.92);
     }
   }
 
   /* --- scale + translate (channels: scale, translate) --- */
-  @keyframes dsg-zoom-in-up {
+  @keyframes kui-zoom-in-up {
     from {
-      scale: var(--dsg-from-scale, 0.92);
-      translate: 0 var(--dsg-distance, 24px);
+      scale: var(--kui-from-scale, 0.92);
+      translate: 0 var(--kui-distance, 24px);
     }
   }
 
-  @keyframes dsg-zoom-in-down {
+  @keyframes kui-zoom-in-down {
     from {
-      scale: var(--dsg-from-scale, 0.92);
-      translate: 0 calc(var(--dsg-distance, 24px) * -1);
+      scale: var(--kui-from-scale, 0.92);
+      translate: 0 calc(var(--kui-distance, 24px) * -1);
     }
   }
 
   /* --- 3D flip (channel: rotate) --- */
-  @keyframes dsg-flip-in-x {
+  @keyframes kui-flip-in-x {
     from {
-      rotate: x var(--dsg-from-angle, 90deg);
+      rotate: x var(--kui-from-angle, 90deg);
     }
   }
 
-  @keyframes dsg-flip-in-y {
+  @keyframes kui-flip-in-y {
     from {
-      rotate: y var(--dsg-from-angle, 90deg);
+      rotate: y var(--kui-from-angle, 90deg);
     }
   }
 
-  @keyframes dsg-flip-out-x {
+  @keyframes kui-flip-out-x {
     to {
-      rotate: x var(--dsg-from-angle, 90deg);
+      rotate: x var(--kui-from-angle, 90deg);
     }
   }
 
-  @keyframes dsg-flip-out-y {
+  @keyframes kui-flip-out-y {
     to {
-      rotate: y var(--dsg-from-angle, 90deg);
+      rotate: y var(--kui-from-angle, 90deg);
     }
   }
 
   /* --- rotate (channel: rotate) --- */
-  @keyframes dsg-rotate-in {
+  @keyframes kui-rotate-in {
     from {
-      rotate: var(--dsg-from-angle, -8deg);
+      rotate: var(--kui-from-angle, -8deg);
     }
   }
 
-  @keyframes dsg-rotate-out {
+  @keyframes kui-rotate-out {
     to {
-      rotate: var(--dsg-from-angle, -8deg);
+      rotate: var(--kui-from-angle, -8deg);
     }
   }
 
-  @keyframes dsg-swing-in {
+  @keyframes kui-swing-in {
     from {
-      rotate: var(--dsg-from-angle, -15deg);
+      rotate: var(--kui-from-angle, -15deg);
     }
   }
 
   /* --- roll (channels: rotate, translate) --- */
-  @keyframes dsg-roll-in {
+  @keyframes kui-roll-in {
     from {
-      rotate: var(--dsg-from-angle, -120deg);
-      translate: calc(var(--dsg-distance, 24px) * -1) 0;
+      rotate: var(--kui-from-angle, -120deg);
+      translate: calc(var(--kui-distance, 24px) * -1) 0;
     }
   }
 
-  @keyframes dsg-roll-out {
+  @keyframes kui-roll-out {
     to {
-      rotate: var(--dsg-from-angle, -120deg);
-      translate: var(--dsg-distance, 24px) 0;
+      rotate: var(--kui-from-angle, -120deg);
+      translate: var(--kui-distance, 24px) 0;
     }
   }
 
   /* --- blur (channel: filter) --- */
-  @keyframes dsg-blur-in {
+  @keyframes kui-blur-in {
     from {
-      filter: blur(var(--dsg-blur, 12px));
+      filter: blur(var(--kui-blur, 12px));
     }
   }
 
-  @keyframes dsg-blur-out {
+  @keyframes kui-blur-out {
     to {
-      filter: blur(var(--dsg-blur, 12px));
+      filter: blur(var(--kui-blur, 12px));
     }
   }
 
   /* --- combos: one keyframe so opacity is written once (channels: opacity, translate, filter) --- */
-  @keyframes dsg-fade-blur-up {
+  @keyframes kui-fade-blur-up {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      translate: 0 var(--dsg-distance, 24px);
-      filter: blur(var(--dsg-blur, 12px));
+      opacity: var(--kui-from-opacity, 0);
+      translate: 0 var(--kui-distance, 24px);
+      filter: blur(var(--kui-blur, 12px));
     }
   }
 
-  @keyframes dsg-fade-blur-in {
+  @keyframes kui-fade-blur-in {
     from {
-      opacity: var(--dsg-from-opacity, 0);
-      filter: blur(var(--dsg-blur, 12px));
+      opacity: var(--kui-from-opacity, 0);
+      filter: blur(var(--kui-blur, 12px));
     }
   }
 
   /* Flip presets need a 3D context; harmless on the others. */
-  [data-dsg-fx*='flip-'] {
+  [data-kui-fx*='flip-'] {
     transform-style: preserve-3d;
   }
 }

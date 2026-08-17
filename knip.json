@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["scripts/*.mjs", "test/**/*.test.ts", "test/browser/**/*.mjs"],
+  "project": ["src/**/*.ts", "scripts/**/*.mjs"],
+  "ignoreDependencies": [
+    // Consumed via CSS `@import`/`@plugin` in demo/tailwind-entry.css, invisible to knip's
+    // JS/TS-only import graph — not actually dead.
+    "tailwindcss",
+    "daisyui"
+  ]
+}

@@ -1,96 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { Animator } from '../src/core/animator.js'
-import type { Capabilities } from '../src/core/capabilities.js'
-import { createActivationBinder } from '../src/core/activation.js'
-import { collectingReporter } from '../src/core/reporter.js'
-import type { CollectingReporter } from '../src/core/reporter.js'
-import type { ScrollRoot, ScrollScheduler, ScrollSubscriber } from '../src/core/scroll-scheduler.js'
 import { progressFrom } from '../src/effects/scroll-mechanics/tracker.js'
 import { createRegistry } from '../src/effects/index.js'
+import { build, el, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
 
-/**
- * Scroll mechanics under test with a fake scheduler and a fake measurer.
- *
- * Real scrolling is not available in jsdom and would be non-deterministic anywhere else, so the
- * scheduler is driven directly. This is exactly what the injected scheduler was added for.
- */
-
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
-  individualTransforms: true,
-  scrollTimelineName: true,
-  viewTransitions: false,
-  intersectionObserver: true,
-  reducedMotion: false,
-}
-
-interface FakeScheduler extends ScrollScheduler {
-  /** Deliver a frame to every subscriber. */
-  emit(scrollTop: number, epoch?: number): void
-  subscriberCount(): number
-}
-
-function fakeScheduler(): FakeScheduler {
-  const subscribers = new Set<ScrollSubscriber>()
-  return {
-    subscribe(_root: ScrollRoot, onFrame: ScrollSubscriber) {
-      subscribers.add(onFrame)
-      return () => subscribers.delete(onFrame)
-    },
-    invalidate() {},
-    rootCount: () => (subscribers.size > 0 ? 1 : 0),
-    destroy: () => subscribers.clear(),
-    emit(scrollTop, epoch = 0) {
-      for (const subscriber of [...subscribers]) {
-        subscriber({
-          metrics: { scrollTop, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 },
-          epoch,
-        })
-      }
-    },
-    subscriberCount: () => subscribers.size,
-  }
-}
-
-const fakeRoot: ScrollRoot = {
-  key: 'fake',
-  metrics: () => ({ scrollTop: 0, scrollLeft: 0, viewportWidth: 1000, viewportHeight: 800, viewportTop: 0, viewportLeft: 0 }),
-  onScroll: () => () => {},
-  onResize: () => () => {},
-}
-
-let scheduler: FakeScheduler
-let reporter: CollectingReporter
-
-/**
- * Force `getBoundingClientRect` to a known value. jsdom returns all-zero rects, which would make
- * every progress calculation trivially 0.
- */
-function stubRect(el: Element, top: number, height = 400): void {
-  el.getBoundingClientRect = () =>
-    ({ top, left: 0, width: 200, height, bottom: top + height, right: 200 }) as DOMRect
-}
-
-function build(html: string) {
-  document.body.innerHTML = html
-  scheduler = fakeScheduler()
-  reporter = collectingReporter()
-  const animator = new Animator({
-    root: document.body,
-    registry: createRegistry(),
-    capabilities: CAPS,
-    reporter,
-    binder: createActivationBinder({ createObserver: undefined }),
-    scheduler,
-    rootResolver: () => fakeRoot,
-  })
-  return animator
-}
-
-const el = (selector = '[data-dsg]'): HTMLElement =>
-  document.body.querySelector(selector) as HTMLElement
+// Fake scheduler, fake measurer, `build`/`stubRect`/`el` helpers, and the `scheduler`/`reporter`
+// state `build` populates all live in test/support/scroll-mechanics-harness.ts — every describe
+// block below depends on them. See that file's doc comment for why it isn't `*.test.ts`.
 
 beforeEach(() => {
   document.body.innerHTML = ''
@@ -122,7 +37,7 @@ const stubContainer = (top: number, height = 400): void => stubRect(document.bod
 
 describe('pin', () => {
   it('makes the element sticky and subscribes to the scheduler', () => {
-    const animator = build('<div data-dsg="pin-section"></div>')
+    const animator = build('<div data-kui="pin-section"></div>')
     stubContainer(0)
     animator.start()
 
@@ -131,92 +46,92 @@ describe('pin', () => {
   })
 
   it('publishes progress as a custom property', () => {
-    const animator = build('<div data-dsg="pin-until distance:400px"></div>')
+    const animator = build('<div data-kui="pin-until distance:400px"></div>')
     stubContainer(0)
     animator.start()
 
     scheduler.emit(0)
-    expect(el().style.getPropertyValue('--dsg-progress')).toBe('0.0000')
+    expect(el().style.getPropertyValue('--kui-progress')).toBe('0.0000')
 
     stubContainer(-200)
     scheduler.emit(200, 1)
-    expect(Number(el().style.getPropertyValue('--dsg-progress'))).toBeCloseTo(0.5)
+    expect(Number(el().style.getPropertyValue('--kui-progress'))).toBeCloseTo(0.5)
   })
 
   it('marks the pinned window with an attribute', () => {
-    const animator = build('<div data-dsg="pin-until distance:400px"></div>')
+    const animator = build('<div data-kui="pin-until distance:400px"></div>')
     stubContainer(-200)
     animator.start()
     scheduler.emit(200)
-    expect(el().getAttribute('data-dsg-pinned')).toBe('true')
+    expect(el().getAttribute('data-kui-pinned')).toBe('true')
   })
 
   it('adds a spacer so a pin longer than its container still holds', () => {
     // Sticky silently does nothing once its containing block scrolls away; the spacer is the fix.
-    const animator = build('<div data-dsg="pin-section distance:600px"></div>')
+    const animator = build('<div data-kui="pin-section distance:600px"></div>')
     stubContainer(0)
     animator.start()
 
-    const spacer = document.querySelector('[data-dsg-spacer]') as HTMLElement
+    const spacer = document.querySelector('[data-kui-spacer]') as HTMLElement
     expect(spacer).not.toBeNull()
     expect(spacer.style.height).toBe('600px')
     expect(spacer.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('omits the spacer when not requested', () => {
-    const animator = build('<div data-dsg="pin-until"></div>')
+    const animator = build('<div data-kui="pin-until"></div>')
     stubContainer(0)
     animator.start()
-    expect(document.querySelector('[data-dsg-spacer]')).toBeNull()
+    expect(document.querySelector('[data-kui-spacer]')).toBeNull()
   })
 
   it('restores the element and removes the spacer on destroy', () => {
-    const animator = build('<div data-dsg="pin-section"></div>')
+    const animator = build('<div data-kui="pin-section"></div>')
     stubContainer(0)
     animator.start()
     animator.destroy()
 
     expect(el().style.position).toBe('')
-    expect(document.querySelector('[data-dsg-spacer]')).toBeNull()
-    expect(el().hasAttribute('data-dsg-pinned')).toBe(false)
+    expect(document.querySelector('[data-kui-spacer]')).toBeNull()
+    expect(el().hasAttribute('data-kui-pinned')).toBe(false)
     expect(scheduler.subscriberCount()).toBe(0)
   })
 })
 
 describe('scroll-progress', () => {
   it('publishes a discrete step index for scrollytelling', () => {
-    const animator = build('<div data-dsg="scrollytelling-step distance:400px steps:4"></div>')
+    const animator = build('<div data-kui="scrollytelling-step distance:400px steps:4"></div>')
     stubRect(el(), 0)
     animator.start()
 
     scheduler.emit(0)
-    expect(el().getAttribute('data-dsg-step')).toBe('0')
+    expect(el().getAttribute('data-kui-step')).toBe('0')
 
     stubRect(el(), -300)
     scheduler.emit(300, 1)
-    expect(el().getAttribute('data-dsg-step')).toBe('3')
+    expect(el().getAttribute('data-kui-step')).toBe('3')
   })
 
   it('clamps the final step rather than going one past the end', () => {
-    const animator = build('<div data-dsg="scrollytelling-step distance:400px steps:4"></div>')
+    const animator = build('<div data-kui="scrollytelling-step distance:400px steps:4"></div>')
     stubRect(el(), -400)
     animator.start()
     scheduler.emit(400)
-    expect(el().getAttribute('data-dsg-step')).toBe('3')
+    expect(el().getAttribute('data-kui-step')).toBe('3')
   })
 
   it('omits the step attribute when steps is 0', () => {
-    const animator = build('<div data-dsg="scroll-progress"></div>')
+    const animator = build('<div data-kui="scroll-progress"></div>')
     stubRect(el(), 0)
     animator.start()
     scheduler.emit(0)
-    expect(el().hasAttribute('data-dsg-step')).toBe(false)
+    expect(el().hasAttribute('data-kui-step')).toBe(false)
   })
 })
 
 describe('horizontal-scroll', () => {
   it('translates the track in proportion to progress', () => {
-    const animator = build('<div data-dsg="horizontal-scroll distance:400px travel:1000px"></div>')
+    const animator = build('<div data-kui="horizontal-scroll distance:400px travel:1000px"></div>')
     stubRect(el(), -200)
     animator.start()
     scheduler.emit(200)
@@ -224,7 +139,7 @@ describe('horizontal-scroll', () => {
   })
 
   it('clears the translation on destroy', () => {
-    const animator = build('<div data-dsg="horizontal-scroll travel:100px"></div>')
+    const animator = build('<div data-kui="horizontal-scroll travel:100px"></div>')
     stubRect(el(), 0)
     animator.start()
     scheduler.emit(0)
@@ -233,14 +148,252 @@ describe('horizontal-scroll', () => {
   })
 })
 
+describe('media-scrub', () => {
+  it('writes the frame pattern to an <img> src, substituting {i}', () => {
+    const animator = build(
+      '<img data-kui="sequence-scrub distance:400px frames:4 src:frame-{i}.jpg">',
+    )
+    stubRect(el('img'), 0)
+    animator.start()
+    scheduler.emit(0)
+    expect((el('img') as HTMLImageElement).src).toContain('frame-0.jpg')
+
+    stubRect(el('img'), -400)
+    scheduler.emit(400, 1)
+    expect((el('img') as HTMLImageElement).src).toContain('frame-3.jpg')
+  })
+
+  it('scrubs currentTime for a <video>, never touching src', () => {
+    const animator = build('<video data-kui="video-scrub distance:400px"></video>')
+    const video = el('video') as HTMLVideoElement
+    Object.defineProperty(video, 'duration', { value: 10, configurable: true })
+    let currentTime = 0
+    Object.defineProperty(video, 'currentTime', {
+      get: () => currentTime,
+      set: (v) => {
+        currentTime = v
+      },
+      configurable: true,
+    })
+    stubRect(video, -200)
+    animator.start()
+    scheduler.emit(200)
+    expect(currentTime).toBeCloseTo(5)
+    expect(video.getAttribute('src')).toBeNull()
+  })
+
+  it('never writes src on a non-<img> element, closing the javascript: URL vector', () => {
+    const animator = build(
+      '<iframe data-kui="sequence-scrub distance:400px frames:1 src:javascript:window.pwned=true"></iframe>',
+    )
+    const iframe = el('iframe') as HTMLIFrameElement
+    stubRect(iframe, 0)
+    animator.start()
+    scheduler.emit(0)
+    expect(iframe.getAttribute('src')).toBeNull()
+  })
+
+  // The test above already proves a same-origin `frame-{i}.jpg` pattern keeps substituting once
+  // this gate is in place — that regression coverage isn't duplicated here. Exhaustive shape
+  // coverage (root-relative, protocol-relative, cross-origin, non-http(s) schemes) lives in
+  // test/params.test.ts's `isSameOriginPath` suite; this proves the gate is wired into the
+  // primitive end to end, not just correct in isolation.
+  it('blocks and warns on a cross-origin src instead of issuing the request', () => {
+    const animator = build(
+      '<img data-kui="sequence-scrub distance:400px frames:1 src:https://evil.test/beacon.gif">',
+    )
+    const img = el('img') as HTMLImageElement
+    stubRect(img, 0)
+    animator.start()
+    scheduler.emit(0)
+    expect(img.getAttribute('src')).toBeNull()
+    expect(reporter.messages.join()).toContain('must be a same-origin path')
+  })
+
+  // demo/scroll.html's real sequence-scrub markup, verified live: must keep cycling frames.
+  it('keeps the showcase\'s ./assets/scenic_scrub_{i}.jpg pattern working', () => {
+    const animator = build(
+      '<img data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh">',
+    )
+    stubRect(el('img'), 0)
+    animator.start()
+    scheduler.emit(0)
+    // `./` is stripped by URL resolution, same as any browser normalizing a relative path.
+    expect((el('img') as HTMLImageElement).src).toContain('assets/scenic_scrub_0.jpg')
+    expect(reporter.messages.join()).not.toContain('same-origin')
+  })
+})
+
 describe('scroll-snap', () => {
   it('applies native snapping to the container and its children', () => {
-    const animator = build('<ul data-dsg="scroll-snap-x"><li></li><li></li></ul>')
+    const animator = build('<ul data-kui="scroll-snap-x"><li></li><li></li></ul>')
     animator.start()
 
     expect(el('ul').style.scrollSnapType).toContain('x')
     const items = [...document.querySelectorAll('li')] as HTMLElement[]
     expect(items.every((item) => item.style.scrollSnapAlign === 'start')).toBe(true)
+  })
+})
+
+describe('scroll-spy', () => {
+  it('warns and ignores an invalid target selector rather than throwing inside the shared scheduler', () => {
+    const animator = build('<div data-kui="scroll-spy target:["></div>')
+    stubRect(el(), -200)
+    animator.start()
+
+    // A throw here would abort the scheduler's frame loop for every other subscriber on the root,
+    // not just this instance.
+    expect(() => scheduler.emit(200)).not.toThrow()
+    expect(reporter.messages.join()).toContain('not a valid selector')
+    expect(el().getAttribute('data-kui-active')).toBe('true')
+  })
+
+  it('marks and clears only the links it actually wrote to', () => {
+    const animator = build('<a class="spy-link" href="#a"></a><div data-kui="scroll-spy target:.spy-link"></div>')
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+
+    const link = el('.spy-link')
+    expect(link.getAttribute('data-kui-active')).toBe('true')
+
+    animator.destroy()
+    expect(link.hasAttribute('data-kui-active')).toBe(false)
+  })
+
+  it('leaves a matching link alone when no frame ever wrote to it', () => {
+    const animator = build('<a class="spy-link" data-kui-active="true"></a><div data-kui="scroll-spy target:.spy-link"></div>')
+    stubRect(el(), -200)
+    animator.start()
+
+    // Destroyed before any frame fires: cleanup must undo what this instance wrote, and it wrote
+    // nothing. A re-query on teardown would wipe state that was never the library's to clear.
+    animator.destroy()
+    expect(el('.spy-link').getAttribute('data-kui-active')).toBe('true')
+  })
+
+  it('restores a link that already carried data-kui-active, and removes one that did not', () => {
+    // The touched-set alone recorded *which* links were stamped but not *what they held first*,
+    // so teardown deleted the consumer's own value. Both halves of the ledger contract are
+    // asserted here: "had a value" restores it, "had none" removes the attribute.
+    const animator = build(
+      '<a class="spy-link" id="owned" data-kui-active="sticky"></a>' +
+        '<a class="spy-link" id="fresh"></a>' +
+        '<div data-kui="scroll-spy target:.spy-link"></div>',
+    )
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+
+    // This instance really did overwrite both, so the restore is doing work, not no-op'ing.
+    expect(el('#owned').getAttribute('data-kui-active')).toBe('true')
+    expect(el('#fresh').getAttribute('data-kui-active')).toBe('true')
+
+    animator.destroy()
+    expect(el('#owned').getAttribute('data-kui-active')).toBe('sticky')
+    expect(el('#fresh').hasAttribute('data-kui-active')).toBe(false)
+  })
+
+  it('restores an authored data-kui-active on the tracked element itself', () => {
+    const animator = build('<div data-kui="scroll-spy" data-kui-active="authored"></div>')
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+    expect(el().getAttribute('data-kui-active')).toBe('true')
+
+    animator.destroy()
+    expect(el().getAttribute('data-kui-active')).toBe('authored')
+  })
+
+  it('does not restore a stale value when the boolean flips more than once', () => {
+    // Each flip re-runs the query; the ledger must keep the value from *before* the first write,
+    // not the value this instance itself left behind on the previous flip.
+    const animator = build('<a class="spy-link" data-kui-active="sticky"></a><div data-kui="scroll-spy distance:400px target:.spy-link"></div>')
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+    expect(el('.spy-link').getAttribute('data-kui-active')).toBe('true')
+
+    // Past the end of the range: active flips back to false and the links are rewritten.
+    stubRect(el(), -400)
+    scheduler.emit(400, 1)
+    expect(el('.spy-link').getAttribute('data-kui-active')).toBe('false')
+
+    animator.destroy()
+    expect(el('.spy-link').getAttribute('data-kui-active')).toBe('sticky')
+  })
+
+  it('rejects target:* rather than stamping the whole document', () => {
+    // `*` is syntactically valid, so setup-time syntax validation passed it through to query and
+    // write across the entire document on every frame — a correctness *and* a performance defect.
+    const animator = build('<p id="bystander">unrelated</p><div data-kui="scroll-spy target:*"></div>')
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+
+    expect(reporter.messages.join()).toContain('matches the whole document')
+    expect(el('#bystander').hasAttribute('data-kui-active')).toBe(false)
+    expect(document.documentElement.hasAttribute('data-kui-active')).toBe(false)
+    expect(document.body.hasAttribute('data-kui-active')).toBe(false)
+    // The element's own state still works; only the mirroring is dropped.
+    expect(el().getAttribute('data-kui-active')).toBe('true')
+  })
+
+  it('rejects other document-wide selectors by the same rule', () => {
+    for (const target of ['html', 'body', ':root']) {
+      const animator = build(`<div data-kui="scroll-spy target:${target}"></div>`)
+      stubRect(el(), -200)
+      animator.start()
+      scheduler.emit(200)
+
+      expect(reporter.messages.join(), target).toContain('matches the whole document')
+      expect(document.documentElement.hasAttribute('data-kui-active'), target).toBe(false)
+      expect(document.body.hasAttribute('data-kui-active'), target).toBe(false)
+      animator.destroy()
+    }
+  })
+
+  it('still allows a wildcard scoped to a container', () => {
+    // The rule rejects breadth, not the `*` character: a scoped wildcard names a bounded set, so
+    // a syntactic ban on `*` would have been the wrong instrument. Written without spaces because
+    // the `data-kui` grammar splits parameters on top-level whitespace.
+    const animator = build('<nav class="spy-nav"><a></a><a></a></nav><div data-kui="scroll-spy target:.spy-nav>*"></div>')
+    stubRect(el(), -200)
+    animator.start()
+    scheduler.emit(200)
+
+    const anchors = [...document.querySelectorAll('.spy-nav a')]
+    expect(anchors.length).toBe(2)
+    expect(anchors.every((a) => a.getAttribute('data-kui-active') === 'true')).toBe(true)
+    expect(reporter.messages.join()).not.toContain('matches the whole document')
+  })
+
+  it('does not re-query the document on frames that do not flip the boolean', () => {
+    const animator = build('<a class="spy-link"></a><div data-kui="scroll-spy distance:400px target:.spy-link"></div>')
+    stubRect(el(), -200)
+    animator.start()
+
+    let queries = 0
+    const real = document.querySelectorAll.bind(document)
+    document.querySelectorAll = ((selector: string) => {
+      if (selector === '.spy-link') queries += 1
+      return real(selector)
+    }) as typeof document.querySelectorAll
+
+    try {
+      scheduler.emit(200)
+      expect(queries).toBe(1)
+      // Progress advances but `active` stays true, so these frames must do no document work.
+      stubRect(el(), -250)
+      scheduler.emit(250, 1)
+      stubRect(el(), -300)
+      scheduler.emit(300, 2)
+      expect(queries).toBe(1)
+    } finally {
+      document.querySelectorAll = real
+    }
+
+    animator.destroy()
   })
 })
 
@@ -266,16 +419,16 @@ describe('registration and parameters', () => {
   })
 
   it('rejects a dangerous parameter before it reaches the primitive', () => {
-    const animator = build('<div data-dsg="pin-until distance:url(http://evil.test)"></div>')
+    const animator = build('<div data-kui="pin-until distance:url(http://evil.test)"></div>')
     stubRect(el(), 0)
     animator.start()
     expect(reporter.messages.join()).toContain('disallowed CSS syntax')
   })
 
   it('never writes a text parameter into the element style', () => {
-    const animator = build('<div data-dsg="scroll-spy target:nav a"></div>')
+    const animator = build('<div data-kui="scroll-spy target:nav a"></div>')
     stubRect(el(), 0)
     animator.start()
-    expect(el().style.getPropertyValue('--dsg-target')).toBe('')
+    expect(el().style.getPropertyValue('--kui-target')).toBe('')
   })
 })

@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — parallax view()-timeline fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — parallax view()-timeline fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       body {
         margin: 0;
@@ -41,13 +41,13 @@
   <body>
     <div class="spacer-above"></div>
     <div class="frame">
-      <div id="parallax" data-dsg="parallax-y distance:100px" data-dsg-timeline="view"></div>
+      <div id="parallax" data-kui="parallax-y distance:100px" data-kui-timeline="view"></div>
     </div>
     <div class="spacer-below"></div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

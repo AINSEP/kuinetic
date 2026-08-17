@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Nav &amp; Forms</title>
+<meta name="description" content="Navigation chrome and form-input feedback — 8 data-kui navigation primitives and 12 form primitives, dressed in daisyUI + Tailwind components while kUInetic owns only the motion, never the open/close state or focus handling." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<link rel="stylesheet" href="./tailwind.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--bg);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* This page's hero skips photography on purpose, same call as text.html — a nav/forms page's
+     "visual anchor" is a live miniature of the chrome it demos below, built from the same
+     daisyUI components, not a stock photo. */
+  .hero-media-frame { display: flex; height: 100%; flex-direction: column; justify-content: center; gap: 0.85rem; padding: clamp(1.5rem, 3vw, 2.25rem); }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+
+  /* ---------- matrix groups (grouped by the catalog's own M/O subheadings) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+
+  /* ---------- demo grid / cards ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* This page's cards hold a live nav/form demo instead of a photo, so — same adaptation as
+     text.html's .demo-card-text — the caption is the fixed-height element (flex:none) and the
+     body grows to match row height, the opposite of reveals.html's img+figcaption cards. */
+  .demo-card figcaption { flex: none; }
+  .demo-card-body { flex: 1 1 auto; padding: 1.4rem; }
+
+  /* Cards whose data-kui panel (dropdown-open, mega-menu-drop) pops outside the card's own box
+     need the card's overflow:clip above relaxed, or the popover is cut off at the card edge.
+     Bumping z-index on hover/focus keeps an open popover above the cards in the grid row below
+     it. */
+  .demo-card--pop { overflow: visible; position: relative; z-index: 1; }
+  .demo-card--pop:hover, .demo-card--pop:focus-within { z-index: 5; }
+
+  /* ---------- card fill: alternating ink/paper, not a flat grey surface ----------
+     .demo-card's own base rule above is the "paper" half (var(--bg)/var(--fg), same as the
+     page — separated only by the hairline border, per the system's card-separation rule).
+     Navigation cards alternate every other one to an acid-lime "ink" fill so the grid doesn't
+     read as one flat sheet. Forms & inputs (below) deliberately stays paper-only, uniform,
+     un-alternated — nearly every form primitive in that section already uses --accent as ITS
+     OWN signal color (checkbox-draw's stroke, radio-fill's dot, range-fill's track, the submit
+     button's fill), so doubling that color as the card background too would wash the signal
+     out or make it disappear outright against a same-color card. */
+  #navigation .demo-grid > .demo-card:nth-child(odd) { background: var(--accent); color: var(--accent-ink); }
+  /* .btn-primary is itself an --accent fill (daisyUI reskin below) — on an odd/ink card it
+     would match the card color and vanish, so invert it to the ink treatment for contrast. */
+  #navigation .demo-grid > .demo-card:nth-child(odd) .btn-primary { background: var(--accent-ink); color: var(--accent); }
+  /* .filler's own color: var(--muted) (below) reads as a muddy olive directly on the accent
+     fill — swap it for a translucent accent-ink so it keeps its "secondary text" weight but
+     stays legible against yellow instead of fighting it. */
+  #navigation .demo-grid > .demo-card:nth-child(odd) .filler { color: var(--accent-ink); opacity: 0.72; }
+
+  /* ---------- daisyUI reskin: paper-white / near-black / acid-lime, not daisyUI's default
+     indigo/blue ----------
+     tailwind.css ships daisyUI's own [data-theme=light|dark] token blocks inside `@layer base`
+     (see tailwind-entry.css's own comment on why Preflight/daisyUI stay layered while
+     style.css/system.css don't). Rules in THIS unlayered <style> block win outright over any
+     @layer rule regardless of source order or specificity, so redeclaring daisyUI's color
+     tokens here is enough to reskin every daisyUI component used below without touching
+     tailwind.css or system.css. */
+  :root[data-theme='light'],
+  :root[data-theme='dark'] {
+    --color-base-100: var(--bg);
+    --color-base-200: var(--surface);
+    --color-base-300: var(--border);
+    --color-base-content: var(--fg);
+    --color-primary: var(--accent);
+    --color-primary-content: var(--accent-ink);
+    --color-secondary: var(--fg);
+    --color-secondary-content: var(--bg);
+    --color-accent: var(--accent);
+    --color-accent-content: var(--accent-ink);
+    --color-neutral: var(--fg);
+    --color-neutral-content: var(--bg);
+    --radius-selector: 6px;
+    --radius-field: 6px;
+    --radius-box: 12px;
+    --depth: 0;
+    --noise: 0;
+  }
+
+  /* kuinetic.css's forms/nav effects fall back to the OLD style.css variable names (--dim,
+     --line) for a few off-state colors: toggle-morph's off track, range-fill's unfilled track,
+     step-progress's off segments. system.css doesn't define those names, so without this alias
+     those three effects would silently render kuinetic.css's hardcoded warm-brown fallback
+     colors instead of this page's actual muted/border tokens. */
+  :root { --dim: var(--muted); --line: var(--border); }
+
+  /* focus-ring-grow's box-shadow keyframe also falls back to a hardcoded color
+     (the old system's terracotta accent) when --kui-ring-color isn't set — give it the site's
+     acid-lime instead. */
+  [data-kui^='focus-ring-grow'] { --kui-ring-color: rgb(228 242 34 / 0.55); }
+
+  /* toggle-morph / checkbox-draw / radio-fill hide their native input visually via Tailwind's
+     sr-only so the custom track/svg/dot kUInetic animates via sibling selectors is the only
+     visible control — sr-only keeps the input focusable and label-clickable, but its own
+     focus-visible outline lands on a clipped 1px box, so redirect the outline to whichever
+     sibling is actually visible. */
+  input.sr-only:focus-visible ~ * { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: inherit; }
+
+  /* radio-fill: kuinetic.css's own rule is `[data-kui-fx~=radio-fill] ~ .kui-dot`, a strict
+     sibling combinator — .kui-dot has to share the input's own parent, it can't sit inside a
+     separate "frame" wrapper between them. That means the frame ring has to BE the input's
+     parent (.kui-radio-frame below) rather than a sibling of it, which puts the sr-only input
+     out of reach of the generic sibling rule above — :focus-within on the frame covers it. */
+  .kui-radio-frame:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- scroll-driven chrome demos (header-shrink / header-hide-on-scroll) ---------- */
+  .scroll-box { height: 160px; overflow-y: auto; position: relative; }
+  .scroll-box .filler { padding: 0 1rem; height: 500px; color: var(--muted); font-size: 0.85rem; }
+  .mini-header {
+    position: sticky; top: 0; display: flex; align-items: center; gap: 0.75rem;
+    padding-inline: 1rem; background: var(--bg); border-bottom: 1px solid var(--border); font-weight: 700;
+    /* padding-block and font-size are deliberately NOT set here: header-shrink's own rule owns
+       those two channels in kuinetic.css's earlier-declared @layer, and any later-declared
+       layer — daisyUI's utilities, loaded after kuinetic.css — would outrank it under normal
+       cascade-layer rules if this element set them too (see the reskin comment above). */
+  }
+
+  /* ---------- floating label (label-float) ---------- */
+  .field { position: relative; }
+  .field label {
+    position: absolute; left: 0.9rem; top: 50%; margin-top: -0.6em;
+    font-size: 0.92rem; color: var(--muted); pointer-events: none;
+    /* transform-origin / transition, and the focused translate+scale, come from kuinetic.css's
+       own [data-kui-fx~=label-float] ~ label rule — margin-top (not translate) does the resting
+       vertical centering here so it never collides with that rule's translate-only float. */
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Nav &amp; Forms</p>
+          <h1 data-kui="fade-up 900ms">Chrome that moves with intent.</h1>
+          <p class="lede" data-kui="fade-up 900ms 90ms">
+            Catalog sections <code>M</code> (navigation, 8 names) and <code>O</code> (forms &amp;
+            inputs, 12 names), built on daisyUI + Tailwind components. Both respect the same
+            boundary: this library animates the chrome you already control — it never owns
+            <code>aria-expanded</code>, focus trapping, or keyboard handling.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 900ms 160ms">
+            <a href="#navigation" class="btn btn-primary">See the primitives</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 900ms 220ms"><span class="dot"></span> Every control below still needs you to click, hover, or type — kUInetic only owns the motion that follows.</p>
+        </div>
+        <div class="hero-media" data-kui="fade-blur-up 900ms on:load">
+          <div class="hero-media-frame">
+            <div class="flex items-center gap-3 text-xs text-base-content/60">
+              <span class="h-2 w-2 rounded-full bg-primary"></span>
+              <span>Docs</span>
+              <span>Catalog</span>
+              <span class="badge badge-sm ml-auto border-none bg-primary text-primary-content">JS</span>
+            </div>
+            <ul class="menu w-full rounded-box bg-base-200 p-2 text-sm">
+              <li><a>Getting started</a></li>
+              <li><a>Catalog</a></li>
+              <li><a>Architecture</a></li>
+            </ul>
+            <label class="input w-full text-sm">
+              <span class="text-base-content/50">Search primitives…</span>
+            </label>
+            <button type="button" class="btn btn-primary btn-sm w-fit">Get started</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- NAVIGATION -->
+      <section id="navigation" data-od-id="navigation">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Navigation</h2>
+          <p>
+            All 8 <code>M</code> names from the <a href="./docs.html?doc=catalog">catalog</a> —
+            menus, scroll-driven chrome, and hover panels — dressed in daisyUI's
+            <code>navbar</code>, <code>menu</code>, and <code>btn</code> components. kUInetic
+            never decides when a menu opens; it only supplies the motion once your own trigger
+            says so.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Menus — 2</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <ul class="menu w-full rounded-box bg-base-200 p-2 text-sm" data-kui-stagger="90ms">
+                  <li data-kui="menu-stagger-open"><a>Home</a></li>
+                  <li data-kui="menu-stagger-open"><a>Products</a></li>
+                  <li data-kui="menu-stagger-open"><a>Docs</a></li>
+                  <li data-kui="menu-stagger-open"><a>Contact</a></li>
+                </ul>
+              </div>
+              <figcaption>data-kui="menu-stagger-open" — scroll to trigger</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body relative flex min-h-[150px] items-center justify-center overflow-hidden">
+                <button type="button" class="btn btn-primary btn-sm" data-kui-menu-open>Open menu</button>
+                <div
+                  class="pointer-events-none absolute inset-0 flex items-center justify-center bg-base-100 px-4 text-center text-sm"
+                  data-kui="menu-fullscreen on:manual"
+                >
+                  Fullscreen menu content, clipped to the demo box.
+                </div>
+              </div>
+              <figcaption>data-kui="menu-fullscreen" — click "Open menu"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Scroll-driven chrome — 3</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="scroll-box rounded-box border border-base-300">
+                  <div class="mini-header" data-kui="header-shrink offset:80">Mini header — scroll me</div>
+                  <div class="filler">Scroll this box down. The header padding and type size shrink smoothly as you pass the first 80px, driven by a published <code>--kui-shrink</code> progress value.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="header-shrink offset:80" — scroll the box</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="scroll-box rounded-box border border-base-300">
+                  <div class="mini-header" data-kui="header-hide-on-scroll">Mini header — scroll me</div>
+                  <div class="filler">Scroll down to hide this header, scroll back up to bring it back. Direction, not just position, drives it.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="header-hide-on-scroll" — scroll, then scroll back up</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="scroll-box rounded-box border border-base-300">
+                  <div class="filler">Scroll this box down to reveal the "back to top" control in the corner.</div>
+                  <div class="filler">Keep scrolling.</div>
+                  <button
+                    type="button"
+                    class="kui-replay-fab"
+                    style="position:absolute; right:0.75rem; bottom:0.75rem; width:40px; height:40px;"
+                    data-kui="back-to-top-fade offset:120"
+                  >↑</button>
+                </div>
+              </div>
+              <figcaption>data-kui="back-to-top-fade offset:120" — scroll the box</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Hover panels &amp; drawer — 3</p>
+          <div class="demo-grid">
+            <figure class="demo-card demo-card--pop">
+              <div class="demo-card-body flex min-h-[140px] items-center">
+                <span class="relative inline-block" data-kui-hover-panel>
+                  <button type="button" class="btn btn-ghost btn-sm">Account</button>
+                  <ul
+                    class="menu absolute left-0 top-[calc(100%+0.5rem)] z-30 min-w-[190px] rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+                    data-kui="dropdown-open 350ms on:manual"
+                  >
+                    <li><a>Profile</a></li>
+                    <li><a>Settings</a></li>
+                    <li><a>Sign out</a></li>
+                  </ul>
+                </span>
+              </div>
+              <figcaption>data-kui="dropdown-open 350ms" — point at Account</figcaption>
+            </figure>
+
+            <figure class="demo-card demo-card--pop md:col-span-2">
+              <div class="demo-card-body flex min-h-[140px] items-center">
+                <span class="relative inline-block" data-kui-hover-panel>
+                  <button type="button" class="btn btn-ghost btn-sm">Products</button>
+                  <div
+                    class="absolute left-0 top-[calc(100%+0.5rem)] z-30 grid min-w-[300px] grid-cols-2 gap-2 rounded-box border border-base-300 bg-base-100 p-3 text-sm shadow-lg"
+                    data-kui="mega-menu-drop on:manual"
+                  >
+                    <span>Animation</span><span>Scroll</span><span>Gestures</span><span>3D</span>
+                  </div>
+                </span>
+              </div>
+              <figcaption>data-kui="mega-menu-drop" — point at Products</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="relative h-[140px] overflow-hidden rounded-box border border-base-300">
+                  <button type="button" class="btn btn-primary btn-sm m-3" data-kui-drawer-open>Open drawer</button>
+                  <div
+                    class="absolute inset-y-0 right-0 w-3/5 border-l border-base-300 bg-base-100 p-4 text-sm"
+                    data-kui="drawer-slide on:click"
+                    tabindex="0"
+                  >Drawer content — click me to slide back out</div>
+                </div>
+              </div>
+              <figcaption>data-kui="drawer-slide on:click" — click the drawer to slide it</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORMS & INPUTS -->
+      <section id="forms" data-od-id="forms">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Forms &amp; inputs</h2>
+          <p>
+            All 12 <code>O</code> names — floating labels, validation, selection controls, and
+            submission feedback — inside daisyUI's <code>input</code>, <code>fieldset</code>, and
+            <code>label</code> components. Where a primitive needs its own sibling markup (the
+            toggle's track, the radio's dot, the checkbox's drawn check), that markup stays
+            exactly as kUInetic's CSS expects it — daisyUI only dresses the row around it.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Text fields — 4</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="field max-w-xs">
+                  <input id="ff-name" class="input w-full" placeholder=" " data-kui="label-float" />
+                  <label for="ff-name">Full name</label>
+                </div>
+              </div>
+              <figcaption>data-kui="label-float" — click into the field</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="max-w-xs">
+                  <input
+                    id="ff-email"
+                    class="w-full border-0 border-b-2 border-base-300 bg-transparent px-1 py-2 text-base-content focus:outline-none"
+                    placeholder="Email"
+                    data-kui="input-underline-grow"
+                  />
+                  <span class="kui-underline -mt-0.5 block"></span>
+                </div>
+              </div>
+              <figcaption>data-kui="input-underline-grow" — click into the field</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <input id="ff-focus" class="input w-full max-w-xs" placeholder="Focus me" data-kui="focus-ring-grow 350ms" />
+              </div>
+              <figcaption>data-kui="focus-ring-grow 350ms" — click into the field</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <input
+                  id="ff-shake"
+                  class="input input-error w-full max-w-xs"
+                  placeholder="Invalid value"
+                  data-kui="validate-shake 400ms on:click"
+                />
+              </div>
+              <figcaption>data-kui="validate-shake 400ms on:click" — click the field</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Inline feedback — 2</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body flex min-h-[60px] items-center gap-3">
+                <svg
+                  viewBox="0 0 24 24"
+                  class="h-7 w-7 shrink-0 cursor-pointer fill-none"
+                  style="stroke: var(--accent); stroke-width: 2.5"
+                  data-kui="validate-check 500ms on:click"
+                  role="button"
+                  tabindex="0"
+                  aria-label="Draw the checkmark"
+                >
+                  <path d="M4 12l5 5L20 6" />
+                </svg>
+                <span class="badge badge-outline text-xs">Click to draw the check</span>
+              </div>
+              <figcaption>data-kui="validate-check 500ms on:click"</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <input id="ff-strength" class="input w-full max-w-xs" type="password" placeholder="Password" data-kui="strength-meter" />
+                <div class="kui-meter mt-2 flex max-w-xs gap-1">
+                  <span class="h-[5px] flex-1 rounded-full"></span>
+                  <span class="h-[5px] flex-1 rounded-full"></span>
+                  <span class="h-[5px] flex-1 rounded-full"></span>
+                  <span class="h-[5px] flex-1 rounded-full"></span>
+                </div>
+                <p class="mt-1 max-w-xs text-xs text-base-content/50">Type a password to fill the meter</p>
+              </div>
+              <figcaption>data-kui="strength-meter" — type a password</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Selection controls — 3</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <label class="label flex w-fit cursor-pointer items-center gap-3">
+                  <input type="checkbox" class="sr-only" data-kui="toggle-morph" />
+                  <span class="kui-track"><span class="kui-thumb"></span></span>
+                  Notifications
+                </label>
+              </div>
+              <figcaption>data-kui="toggle-morph" — click the switch</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <label class="label flex w-fit cursor-pointer items-center gap-3">
+                  <input type="checkbox" class="sr-only" data-kui="checkbox-draw" />
+                  <svg viewBox="0 0 24 24" class="h-5 w-5 rounded-[5px] border border-base-300 fill-none" style="stroke: var(--accent); stroke-width: 2.5">
+                    <path d="M4 12l5 5L20 6" />
+                  </svg>
+                  Agree to terms
+                </label>
+              </div>
+              <figcaption>data-kui="checkbox-draw" — click the checkbox</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body">
+                <div class="join">
+                  <label class="label join-item flex cursor-pointer items-center gap-2 border border-base-300 px-3 py-2">
+                    <span class="kui-radio-frame relative inline-grid h-5 w-5 place-items-center rounded-full border border-base-300">
+                      <input type="radio" name="kui-radio-demo" class="sr-only" data-kui="radio-fill" />
+                      <span class="kui-dot"></span>
+                    </span>
+                    Monthly
+                  </label>
+                  <label class="label join-item flex cursor-pointer items-center gap-2 border border-base-300 px-3 py-2">
+                    <span class="kui-radio-frame relative inline-grid h-5 w-5 place-items-center rounded-full border border-base-300">
+                      <input type="radio" name="kui-radio-demo" class="sr-only" data-kui="radio-fill" />
+                      <span class="kui-dot"></span>
+                    </span>
+                    Yearly
+                  </label>
+                </div>
+              </div>
+              <figcaption>data-kui="radio-fill" — pick one</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Progress &amp; submission — 3</p>
+          <div class="demo-grid">
+            <figure class="demo-card">
+              <div class="demo-card-body flex min-h-[60px] items-center">
+                <input type="range" min="0" max="100" value="40" class="w-full max-w-[260px]" data-kui="range-fill" />
+              </div>
+              <figcaption>data-kui="range-fill" — drag the slider</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body flex min-h-[60px] items-center">
+                <div class="flex max-w-[260px] flex-1 gap-2" data-kui="step-progress steps:4">
+                  <span class="h-[6px] flex-1 rounded-full"></span>
+                  <span class="h-[6px] flex-1 rounded-full"></span>
+                  <span class="h-[6px] flex-1 rounded-full"></span>
+                  <span class="h-[6px] flex-1 rounded-full"></span>
+                </div>
+              </div>
+              <figcaption>data-kui="step-progress steps:4" — click the bar to advance</figcaption>
+            </figure>
+
+            <figure class="demo-card">
+              <div class="demo-card-body flex min-h-[60px] items-center">
+                <button type="button" class="btn btn-primary min-w-[150px]" data-kui="submit-to-spinner-to-check load:900ms hold:1200ms">
+                  <span class="kui-stage-idle">Submit</span>
+                  <span class="kui-stage-loading"><span class="kui-spinner"></span> Sending…</span>
+                  <span class="kui-stage-done">✓ Done</span>
+                </button>
+              </div>
+              <figcaption>data-kui="submit-to-spinner-to-check load:900ms hold:1200ms" — click to submit</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+    document.querySelector('[data-kui-drawer-open]')?.addEventListener('click', () => {
+      window.__kui.play(document.querySelector('[data-kui^="drawer-slide"]'), 'drawer-slide')
+    })
+    document.querySelector('[data-kui-menu-open]')?.addEventListener('click', () => {
+      window.__kui.play(document.querySelector('[data-kui^="menu-fullscreen"]'), 'menu-fullscreen')
+    })
+    // dropdown-open / mega-menu-drop: `on:hover` binds pointerenter on the *same* element, but
+    // the panel sits outside the trigger button's own box (it drops down below it), so the
+    // button never sees the panel's hover state. Play it explicitly from the wrapper instead —
+    // the same `.play()` the "Programmatic API" section of interactive.html demonstrates.
+    for (const wrapper of document.querySelectorAll('[data-kui-hover-panel]')) {
+      const panel = wrapper.querySelector('[data-kui]')
+      wrapper.addEventListener('mouseenter', () => {
+        window.__kui.play(panel, panel.getAttribute('data-kui'))
+      })
+    }
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+</body>
+</html>

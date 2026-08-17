@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — pinned horizontal-track fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — pinned horizontal-track fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       * {
         box-sizing: border-box;
@@ -52,7 +52,7 @@
   <body>
     <div class="track-stage">
       <div class="track-viewport">
-        <div class="track" data-dsg="horizontal-scroll distance:250vh">
+        <div class="track" data-kui="horizontal-scroll distance:250vh">
           <div class="panel">1</div>
           <div class="panel">2</div>
           <div class="panel">3</div>
@@ -63,9 +63,9 @@
     </div>
     <div style="height: 100vh"></div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

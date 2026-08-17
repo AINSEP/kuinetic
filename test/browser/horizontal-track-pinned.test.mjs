@@ -3,7 +3,7 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
 
 /**
  * The pinned-track `horizontal-scroll` variant must actually translate the track, not just
- * publish `--dsg-progress`.
+ * publish `--kui-progress`.
  *
  * Root cause (docs/live-testing-backlog.md D4): `trackTravel`'s "auto" measurement computed
  * `node.scrollWidth - node.clientWidth` on the track itself. That is only non-zero when the track
@@ -11,7 +11,7 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * by `scroll-nested.test.mjs`. `demo/showcase/scroll.html`'s pinned-track pattern instead gives the
  * track `width: max-content` and lets a separate `overflow: hidden` `.track-viewport` do the
  * clipping, so the track's own box always exactly fits its content and that subtraction was
- * permanently zero — `--dsg-progress` ticked up correctly while `translate` sat frozen at `0px`.
+ * permanently zero — `--kui-progress` ticked up correctly while `translate` sat frozen at `0px`.
  * This fixture mirrors that exact structure; `scroll-nested.test.mjs` covers the other one and is
  * untouched by this fix.
  */
@@ -37,7 +37,7 @@ async function scrollAndRead(page, y) {
   await page.waitForTimeout(30)
   return page.$eval('.track', (el) => ({
     translate: getComputedStyle(el).translate,
-    progress: Number.parseFloat(el.style.getPropertyValue('--dsg-progress')),
+    progress: Number.parseFloat(el.style.getPropertyValue('--kui-progress')),
   }))
 }
 
@@ -48,7 +48,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const context = await browser.newContext({ viewport: { width: VIEWPORT_WIDTH, height: 700 } })
   const page = await context.newPage()
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   await snap(page, 'initial-load')
 
   const start = await scrollAndRead(page, 0)

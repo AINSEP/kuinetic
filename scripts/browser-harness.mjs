@@ -64,7 +64,8 @@ export function createChecker() {
   const results = []
   function check(name, passed, detail = '') {
     results.push({ name, passed, detail })
-    console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`)
+    const suffix = detail ? `  — ${detail}` : ''
+    console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${suffix}`)
     return passed
   }
   return { check, results }

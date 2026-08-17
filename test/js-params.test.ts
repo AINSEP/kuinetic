@@ -3,6 +3,7 @@ import {
   ABSOLUTE_BASIS,
   createParams,
   readEffectParams,
+  readEffectTiming,
   readParams,
   toMilliseconds,
   toNumber,
@@ -12,15 +13,15 @@ import type { LengthBasis } from '../src/core/js-params.js'
 import type { ParameterSchema } from '../src/core/types.js'
 
 const schema: ParameterSchema = {
-  distance: { type: 'length', default: '24px', cssProperty: '--dsg-distance' },
-  duration: { type: 'time', default: '400ms', cssProperty: '--dsg-duration' },
+  distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
+  duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
   spacer: {
     type: 'keyword',
     default: 'false',
-    cssProperty: '--dsg-spacer',
+    cssProperty: '--kui-spacer',
     values: ['true', 'false'],
   },
-  target: { type: 'text', default: '', cssProperty: '--dsg-target' },
+  target: { type: 'text', default: '', cssProperty: '--kui-target' },
 }
 
 const basis: LengthBasis = {
@@ -161,5 +162,53 @@ describe('readEffectParams', () => {
     const params = readEffectParams({ distance: 'url(http://evil.test)' }, schema, () => {})
     expect(params.text('distance')).toBe('24px')
     expect(params.ms('duration')).toBe(400)
+  })
+
+  it('carries the segment timing through untouched', () => {
+    const params = readEffectParams({}, schema, () => {}, { durationMs: 2000, easing: 'linear' })
+    expect(params.timing).toEqual({ durationMs: 2000, easing: 'linear' })
+  })
+
+  it('reports no timing at all when the author wrote none', () => {
+    expect(readEffectParams({}, schema, () => {}).timing).toEqual({})
+  })
+})
+
+describe('readEffectTiming', () => {
+  it('converts positional duration and delay to milliseconds and keeps the easing', () => {
+    const timing = readEffectTiming({ duration: '2s', delay: '250ms', easing: 'linear' }, () => {})
+    expect(timing).toEqual({ durationMs: 2000, delayMs: 250, easing: 'linear' })
+  })
+
+  it('leaves each field undefined when the author named none', () => {
+    // `undefined` has to stay distinguishable from `0ms`, or a primitive can never tell "no delay
+    // was written" from "the author asked for zero" and its own default is unreachable.
+    expect(readEffectTiming({}, () => {})).toEqual({
+      durationMs: undefined,
+      delayMs: undefined,
+      easing: undefined,
+    })
+  })
+
+  it('drops a non-time duration with a warning rather than passing it on', () => {
+    const warnings: string[] = []
+    const timing = readEffectTiming({ duration: 'calc(1s * 2)' }, (m) => warnings.push(m))
+    expect(timing.durationMs).toBeUndefined()
+    expect(warnings[0]).toContain('duration')
+  })
+
+  it('drops a non-time delay with a warning', () => {
+    const warnings: string[] = []
+    expect(readEffectTiming({ delay: '10' }, (m) => warnings.push(m)).delayMs).toBeUndefined()
+    expect(warnings[0]).toContain('delay')
+  })
+
+  it('screens the easing through the same validator as a parameter', () => {
+    // It reaches a stylesheet via `--kui-ease`, so it gets the identical escape screen every
+    // authored `easing` parameter already gets.
+    const warnings: string[] = []
+    const timing = readEffectTiming({ easing: 'url(http://evil.test)' }, (m) => warnings.push(m))
+    expect(timing.easing).toBeUndefined()
+    expect(warnings[0]).toContain('easing')
   })
 })

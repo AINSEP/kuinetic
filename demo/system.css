@@ -1,0 +1,229 @@
+/* Shared showcase system — paper-white / near-black / acid-lime.
+   Extracted from index.html so CSS Animation pages can adopt the same
+   header, type, button, and footer language without re-authoring it.
+   Page-specific content (hero variants, demo grids) stays in each page's
+   own <style> block; only truly shared chrome lives here. */
+
+:root,
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --surface: #f6f6f4;
+  --fg: #08090a;
+  --muted: oklch(46% 0.017 75);
+  --border: #e4e4e2;
+  --accent: #e4f222;
+  --accent-ink: #08090a;
+  --accent-text: #8a6d00;
+  --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --bg: #08090a;
+  --surface: #0f1011;
+  --fg: #ffffff;
+  --muted: #8a8f98;
+  --border: #23252a;
+  --accent: #e4f222;
+  --accent-ink: #08090a;
+  --accent-text: #e4f222;
+  --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] main h1,
+:root[data-theme='dark'] main h2 { color: var(--accent); }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv01' on, 'ss03' on, 'zero' on;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+@media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
+
+section { padding: clamp(3.5rem, 5vw + 1rem, 6rem) 0; border-top: 1px solid var(--border); }
+section:first-of-type { border-top: none; }
+
+h1, h2, h3, h4 { margin: 0; font-weight: 510; }
+p { margin: 0; }
+
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+a { color: inherit; }
+a:not(.btn):not(.nav-link):not(.chip) {
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+button, a.btn { font-family: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header / nav ---------- */
+.site-header {
+  position: sticky;
+  top: 1rem;
+  z-index: 100;
+  margin: 1rem auto 0;
+  max-width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  box-shadow: var(--shadow-float);
+}
+.logo { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none !important; }
+.logo-mark {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 20px; height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  flex: none;
+}
+.logo-dot {
+  position: absolute; top: -1.5px; left: 50%;
+  width: 5px; height: 5px; margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform-origin: 2.5px 11.5px;
+  animation: logo-orbit 3.5s linear infinite;
+}
+@keyframes logo-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
+.wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.wordmark b { font-weight: 800; }
+
+.nav-links { display: flex; align-items: center; gap: 1.25rem; font-size: 0.9rem; }
+/* The unconditional display:flex above is an author rule, so it always beats the UA's
+   [hidden]{display:none} at equal specificity regardless of source order (author origin wins
+   over user-agent origin outright) — without this, nav.js setting .hidden=true on mobile close
+   never actually hides the panel. */
+.nav-links[hidden] { display: none; }
+.kui-nav-dropdown { position: relative; }
+.kui-nav-dropdown-trigger {
+  font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
+  background: none; border: none; padding: 0; cursor: pointer;
+}
+.kui-nav-dropdown-trigger:hover,
+.kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+.kui-nav-dropdown-trigger.is-active { font-weight: 600; }
+.kui-nav-coming-soon {
+  display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+  font-style: italic; color: var(--muted); opacity: 0.7;
+}
+.kui-nav-dropdown-menu {
+  position: absolute; top: calc(100% + 0.7rem); left: 0; flex-direction: column;
+  min-width: 160px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 0.35rem; box-shadow: var(--shadow-float);
+}
+.kui-nav-dropdown-menu a {
+  display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
+  font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
+}
+.kui-nav-dropdown-menu a:hover,
+.kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
+.kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+.kui-nav-toggle {
+  display: none; width: 2.4rem; height: 2.4rem; padding: 0;
+  color: var(--muted); background: none; border: none; flex: none;
+}
+.kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { color: var(--fg); }
+/* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
+   overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
+   silently ships with no links at desktop widths too. Forcing display here makes the nav
+   correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
+@media (min-width: 721px) { .nav-links[hidden] { display: flex; } }
+@media (max-width: 720px) {
+  .kui-nav-toggle { display: grid; place-items: center; }
+  .kui-nav-backdrop {
+    position: fixed; inset: 0; z-index: 1;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .nav-links {
+    position: absolute; top: calc(100% + 0.6rem); left: 0; right: 0; z-index: 2;
+    flex-direction: column; align-items: stretch; gap: 0.2rem;
+    padding: 0.9rem; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: var(--shadow-float);
+  }
+  .nav-links .kui-nav-dropdown-trigger { display: flex; align-items: center; width: 100%; min-height: 44px; }
+  .nav-links .kui-nav-dropdown-menu { position: static; box-shadow: none; margin-top: 0.1rem; padding: 0.3rem; }
+  .nav-links .kui-nav-dropdown-menu a { min-height: 44px; display: flex; align-items: center; }
+}
+@media (max-width: 420px) {
+  .site-header { gap: 0.65rem; padding: 0.5rem 0.5rem 0.5rem 1rem; }
+  .site-header > .nav-cta { display: none; }
+}
+
+.theme-toggle {
+  width: 2.4rem; height: 2.4rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--fg);
+  color: var(--bg);
+  display: grid; place-items: center;
+  padding: 0;
+  flex: none;
+}
+.theme-toggle:hover { opacity: 0.85; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 6px;
+  font-size: 0.95rem; font-weight: 590;
+  text-decoration: none !important;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+.btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); position: relative; overflow: hidden; }
+.btn-ghost:hover { border-color: var(--fg); }
+
+/* ---------- kicker / eyebrow ---------- */
+.kicker {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 1rem;
+}
+.kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+
+/* ---------- footer ---------- */
+footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
+.foot-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.foot-note { font-size: 0.85rem; color: var(--muted); }
+.back-top { font-size: 0.85rem; color: var(--muted); text-decoration: none !important; }
+.back-top:hover { color: var(--fg); }
+
+/* ---------- replay fab ---------- */
+.kui-replay-fab {
+  position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60;
+  width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
+  background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
+  box-shadow: var(--shadow-float);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.kui-replay-fab:hover { transform: scale(1.06); }
+.kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

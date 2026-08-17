@@ -28,6 +28,31 @@ describe('splitTopLevel', () => {
   it('tolerates unbalanced closing parens without going negative', () => {
     expect(splitTopLevel('a), b', ',')).toEqual(['a)', 'b'])
   })
+
+  it('treats a backslash-escaped quote as literal, not a closer', () => {
+    // Round-trips play.ts's toAttributeValue: quoteIfNeeded escapes `"` as `\"` so a value
+    // containing a literal double quote survives tokenising as one piece.
+    expect(splitTopLevel(String.raw`words:"say \"two words\" now"`, ' ')).toEqual([
+      String.raw`words:"say \"two words\" now"`,
+    ])
+  })
+
+  it('warns on an unterminated quote instead of silently swallowing the rest of the input', () => {
+    const warnings: string[] = []
+    const parts = splitTopLevel('fade-up, blur-in key:"unterminated, oops', ',', warnings)
+    expect(parts).toEqual(['fade-up', 'blur-in key:"unterminated, oops'])
+    expect(warnings.join()).toContain('unterminated " quote')
+  })
+
+  it('warns on an unclosed paren instead of silently swallowing the rest of the input', () => {
+    const warnings: string[] = []
+    splitTopLevel('fade-up ease:cubic-bezier(.2, .8, blur-in', ',', warnings)
+    expect(warnings.join()).toContain('unclosed "("')
+  })
+
+  it('defaults to no warnings collection so every existing two-argument call keeps working', () => {
+    expect(() => splitTopLevel('a "unterminated', ' ')).not.toThrow()
+  })
 })
 
 describe('parse', () => {
@@ -76,6 +101,22 @@ describe('parse', () => {
   it('returns no specs for empty input', () => {
     expect(parse('').specs).toEqual([])
     expect(parse('   ').specs).toEqual([])
+  })
+
+  it('unescapes a backslash-escaped quote inside a quoted value', () => {
+    // Full round-trip of play.ts's toAttributeValue output, not just the tokenizer boundary.
+    const { specs } = parse(String.raw`word-cycler words:"say \"two words\" now"`)
+    expect(specs[0]?.params.words).toBe('say "two words" now')
+  })
+
+  it('does not crash on a prototype-chain key and does not treat it as a hoist', () => {
+    // HOISTS is a plain object; `HOISTS['__proto__']` used to resolve to the inherited
+    // Object.prototype (truthy but not a function shaped like a hoist handler), and calling it
+    // threw — aborting the scan of every element after this one.
+    expect(() => parse('fade-up __proto__:x')).not.toThrow()
+    const result = parse('fade-up __proto__:x')
+    expect(result.activation).toBeUndefined()
+    expect(result.timeline).toBeUndefined()
   })
 
   describe('hoisted element-scoped keys', () => {

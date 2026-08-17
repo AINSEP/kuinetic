@@ -46,7 +46,7 @@ npm run record                 # same 24 checks, plus video + a named PNG filmst
 npm run test:browser           # the six test/browser/ suites, always captures named frames
 ```
 
-All three run `npm run demo` first (an esbuild bundle of `src/` into `demo/designimation.js` /
+All three run `npm run build` first (an esbuild bundle of `src/` into `demo/kuinetic.js` /
 `.css`), since every fixture — `demo/index.html` and everything under `test/browser/fixtures/` —
 loads the library from that compiled bundle, not from TypeScript source directly.
 
@@ -125,7 +125,7 @@ export async function run({ browser, ARTIFACT_DIR }) {  // one Playwright Browse
 `scripts/run-browser-tests.mjs` discovers every `test/browser/*.test.mjs` file, launches one shared
 Chromium instance, runs each suite's `run()` in file-name order, and aggregates pass/fail into a
 single exit code. Fixtures live in `test/browser/fixtures/*.html` and load the library via a
-relative path to the compiled `demo/designimation.js`/`.css` — build fresh, self-contained HTML
+relative path to the compiled `demo/kuinetic.js`/`.css` — build fresh, self-contained HTML
 files with deterministic geometry (fixed pixel sizes, no external network dependency) rather than
 reusing `demo/showcase/*.html`, which references remote `picsum.photos` images and is not
 deterministic enough for pixel-level assertions.

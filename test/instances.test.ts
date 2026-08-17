@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCssInstance, deferredInstance } from '../src/core/instances.js'
+import { createCssInstance, createJsInstance, deferredInstance } from '../src/core/instances.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 
 interface FakeAnimation extends Animation {
@@ -41,23 +41,23 @@ function withAnimations(el: Element, animations: Animation[]): void {
 describe('createCssInstance ownership', () => {
   it('ignores unrelated consumer animations when awaiting completion', async () => {
     const el = document.createElement('div')
-    const owned = fakeAnimation('dsg-in-up')
+    const owned = fakeAnimation('kui-in-up')
     const consumer = fakeAnimation('pulse')
     Object.defineProperty(consumer, 'finished', { value: new Promise<void>(() => {}) })
     withAnimations(el, [owned, consumer])
 
-    const instance = createCssInstance(el, createStyleLedger(el), ['dsg-in-up'])
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
     instance.activate()
     await expect(instance.finished).resolves.toBeUndefined()
   })
 
   it('cancels and finishes only owned animations', () => {
     const el = document.createElement('div')
-    const owned = fakeAnimation('dsg-in-up')
+    const owned = fakeAnimation('kui-in-up')
     const consumer = fakeAnimation('pulse')
     withAnimations(el, [owned, consumer])
 
-    const instance = createCssInstance(el, createStyleLedger(el), ['dsg-in-up'])
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
     instance.cancel()
     instance.finish()
     expect(owned.cancel).toHaveBeenCalledOnce()
@@ -68,15 +68,135 @@ describe('createCssInstance ownership', () => {
 
   it('reverses only a finished owned animation on repeat activation', () => {
     const el = document.createElement('div')
-    const owned = fakeAnimation('dsg-in-up', 'finished')
+    const owned = fakeAnimation('kui-in-up', 'finished')
     const consumer = fakeAnimation('pulse', 'finished')
     withAnimations(el, [owned, consumer])
 
-    const instance = createCssInstance(el, createStyleLedger(el), ['dsg-in-up'])
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
     instance.activate()
     instance.activate()
     expect(owned.reverse).toHaveBeenCalledOnce()
     expect(consumer.reverse).not.toHaveBeenCalled()
+  })
+})
+
+describe('deferredInstance completion', () => {
+  it('leaves finished pending until a timed setup says its work is done', async () => {
+    let complete: (() => void) | undefined
+    const instance = deferredInstance(() => ({
+      cleanup: () => {},
+      finished: new Promise<void>((resolve) => {
+        complete = resolve
+      }),
+    }))
+
+    instance.activate()
+    let resolved = false
+    void instance.finished.then(() => {
+      resolved = true
+    })
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+
+    complete!()
+    await instance.finished
+    expect(resolved).toBe(true)
+  })
+
+  it('resolves rather than rejects when a timed setup is cancelled mid-run', async () => {
+    const instance = deferredInstance(() => ({ cleanup: () => {}, finished: new Promise(() => {}) }))
+    instance.activate()
+    instance.cancel()
+    await expect(instance.finished).resolves.toBeUndefined()
+  })
+
+  it("delegates finish() to the setup's own end state and then resolves", async () => {
+    const jumped = vi.fn()
+    const instance = deferredInstance(() => ({
+      cleanup: () => {},
+      finished: new Promise(() => {}),
+      finish: jumped,
+    }))
+
+    instance.activate()
+    instance.finish()
+    expect(jumped).toHaveBeenCalledOnce()
+    await expect(instance.finished).resolves.toBeUndefined()
+  })
+
+  it('is inert when finished or cancelled before it was ever activated', async () => {
+    const instance = deferredInstance(() => ({ cleanup: () => {}, finished: new Promise(() => {}) }))
+    instance.finish()
+    instance.cancel()
+    await expect(instance.finished).resolves.toBeUndefined()
+  })
+
+  it('replaces a settled promise with a fresh one on reactivation', async () => {
+    let complete: (() => void) | undefined
+    const instance = deferredInstance(() => ({
+      cleanup: () => {},
+      finished: new Promise<void>((resolve) => {
+        complete = resolve
+      }),
+    }))
+
+    instance.activate()
+    instance.cancel()
+    await expect(instance.finished).resolves.toBeUndefined()
+
+    instance.activate()
+    let resolved = false
+    void instance.finished.then(() => {
+      resolved = true
+    })
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+
+    complete!()
+    await instance.finished
+    expect(resolved).toBe(true)
+  })
+
+  it('keeps resolving immediately for a setup that only returns a cleanup', async () => {
+    const instance = deferredInstance(() => () => {})
+    instance.activate()
+    await expect(instance.finished).resolves.toBeUndefined()
+  })
+})
+
+describe('createJsInstance activation failures', () => {
+  it('does not get stuck permanently active when hooks.activate() throws', () => {
+    // `active` was previously flipped to true before hooks.activate() ran, so a throwing setup
+    // left the instance stuck: the `if (active) return` guard swallowed every later activate()
+    // call silently, with no way back in. `Animator.activate()` now catches this throw and may
+    // retry the same instance on a later call — that retry has to actually run hooks.activate()
+    // again, not vanish.
+    let attempts = 0
+    const instance = createJsInstance({
+      activate: () => {
+        attempts++
+        if (attempts === 1) throw new Error('boom')
+      },
+      destroy: () => {},
+    })
+
+    expect(() => instance.activate()).toThrow('boom')
+    instance.activate()
+    expect(attempts).toBe(2)
+  })
+
+  it('lets a later activate() succeed and reach the running state after an earlier throw', () => {
+    let shouldThrow = true
+    const instance = createJsInstance({
+      activate: () => {
+        if (shouldThrow) throw new Error('boom')
+      },
+      destroy: () => {},
+    })
+
+    expect(() => instance.activate()).toThrow('boom')
+    shouldThrow = false
+    expect(() => instance.activate()).not.toThrow()
   })
 })
 

@@ -115,6 +115,9 @@ function defaultDeps(): SchedulerDeps {
  * @complexity O(s) time per frame in subscribers of dirtied roots; O(r + s) space.
  * @overallScore 100
  */
+// Factory closing over the root-entry map; length is four small named closures plus the returned
+// scheduler, not one long procedure.
+// eslint-disable-next-line max-lines-per-function
 export function createScrollScheduler(deps: SchedulerDeps = defaultDeps()): ScrollScheduler {
   const entries = new Map<string, RootEntry>()
   let epoch = 0

@@ -1,76 +1,76 @@
 /* Numbers and data-viz effects (catalog section F). */
-@layer dsg.effects {
+@layer kui.effects {
   /*
    * `progress-ring`, `gauge-sweep`, `donut-sweep`, and `sparkline-draw` all draw an SVG stroke by
    * animating `stroke-dashoffset` from the shape's own circumference to zero — the same technique
-   * `scroll-progress-ring` already uses. The author sets `--dsg-path-length` (and, for a
+   * `scroll-progress-ring` already uses. The author sets `--kui-path-length` (and, for a
    * semicircle gauge or an open-ended sparkline, `stroke-dasharray` itself if it differs from the
    * full length) to the real geometry of their own `<circle>` or `<path>`; the library never
    * measures SVG geometry itself.
    */
-  @keyframes dsg-progress-ring {
-    from { stroke-dashoffset: var(--dsg-path-length, 100); }
+  @keyframes kui-progress-ring {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
     to { stroke-dashoffset: 0; }
   }
-  @keyframes dsg-gauge-sweep {
-    from { stroke-dashoffset: var(--dsg-path-length, 100); }
+  @keyframes kui-gauge-sweep {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
     to { stroke-dashoffset: 0; }
   }
-  @keyframes dsg-donut-sweep {
-    from { stroke-dashoffset: var(--dsg-path-length, 100); }
+  @keyframes kui-donut-sweep {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
     to { stroke-dashoffset: 0; }
   }
-  @keyframes dsg-sparkline-draw {
-    from { stroke-dashoffset: var(--dsg-path-length, 1000); }
+  @keyframes kui-sparkline-draw {
+    from { stroke-dashoffset: var(--kui-path-length, 1000); }
     to { stroke-dashoffset: 0; }
   }
 
-  [data-dsg-fx~='progress-ring'],
-  [data-dsg-fx~='gauge-sweep'],
-  [data-dsg-fx~='donut-sweep'],
-  [data-dsg-fx~='sparkline-draw'] {
-    stroke-dasharray: var(--dsg-path-length, 100);
+  [data-kui-fx~='progress-ring'],
+  [data-kui-fx~='gauge-sweep'],
+  [data-kui-fx~='donut-sweep'],
+  [data-kui-fx~='sparkline-draw'] {
+    stroke-dasharray: var(--kui-path-length, 100);
     fill: none;
   }
 
   /* A progress bar scales from its leading edge, not its centre — same rule as scroll-progress-bar. */
-  @keyframes dsg-progress-bar {
+  @keyframes kui-progress-bar {
     from { scale: 0 1; }
     to { scale: 1 1; }
   }
-  [data-dsg-fx~='progress-bar'] {
+  [data-kui-fx~='progress-bar'] {
     transform-origin: left center;
   }
 
   /*
-   * A segment "lights up" from dim to lit. Applied per segment child with `data-dsg-stagger` on
+   * A segment "lights up" from dim to lit. Applied per segment child with `data-kui-stagger` on
    * the row, reusing the library's existing stagger mechanism rather than inventing a second one.
    */
-  @keyframes dsg-progress-segments {
+  @keyframes kui-progress-segments {
     from { opacity: 0.18; }
     to { opacity: 1; }
   }
 
   /*
    * The filled-stars layer sits on top of a static empty-stars layer and reveals left-to-right up
-   * to `--dsg-fill` (a percentage the author sets from the rating, e.g. `--dsg-fill: 80%`).
+   * to `--kui-fill` (a percentage the author sets from the rating, e.g. `--kui-fill: 80%`).
    */
-  @keyframes dsg-star-rating-fill {
+  @keyframes kui-star-rating-fill {
     from { clip-path: inset(0 100% 0 0); }
-    to { clip-path: inset(0 calc(100% - var(--dsg-fill, 100%)) 0 0); }
+    to { clip-path: inset(0 calc(100% - var(--kui-fill, 100%)) 0 0); }
   }
 
   /*
    * The odometer's digit columns. Built once per digit position at prepare time; each tick moves
-   * a strip's ten stacked digits into place by setting `--dsg-o` (0–9), and the transition — not a
+   * a strip's ten stacked digits into place by setting `--kui-o` (0–9), and the transition — not a
    * keyframe — is what makes each step read as a roll instead of a jump cut.
    */
-  .dsg-count-decorative {
+  .kui-count-decorative {
     display: inline-flex;
     align-items: baseline;
   }
 
-  .dsg-odometer-col {
+  .kui-odometer-col {
     display: inline-block;
     overflow: hidden;
     height: 1em;
@@ -79,18 +79,18 @@
   }
 
   /*
-   * A fixed, un-namespaced step timing — deliberately independent of `--dsg-count-odometer-*`,
+   * A fixed, un-namespaced step timing — deliberately independent of `--kui-count-odometer-*`,
    * which govern the JS tween's *total* duration and would otherwise leak into this per-digit
    * step transition, turning a fast overall count into a strip that visibly can't keep up.
    */
-  .dsg-odometer-strip {
+  .kui-odometer-strip {
     display: flex;
     flex-direction: column;
-    translate: 0 calc(var(--dsg-o, 0) * -1em);
+    translate: 0 calc(var(--kui-o, 0) * -1em);
     transition: translate 220ms ease-out;
   }
 
-  .dsg-odometer-strip > span {
+  .kui-odometer-strip > span {
     height: 1em;
     line-height: 1;
   }

@@ -14,7 +14,7 @@ function animationsOf(el: Element): Animation[] {
 }
 
 /**
- * Select only CSS animation handles emitted by the compiled Designimation plan.
+ * Select only CSS animation handles emitted by the compiled kUInetic plan.
  *
  * @param el - Element carrying both library and possibly consumer animations.
  * @param names - Exact keyframe names emitted by the compiler.
@@ -164,6 +164,34 @@ export function createCssInstance(
 }
 
 /**
+ * What a *finite* JS primitive's setup returns instead of a bare teardown.
+ *
+ * A continuous primitive — a drag handler, a pin, an ambient loop — has no end, so it returns a
+ * plain `Cleanup` and keeps the immediately-resolved `finished` every caller composing
+ * `Promise.all` over an element's instances already relies on. Only an effect that genuinely
+ * completes needs to say so, and only that effect pays for it.
+ */
+export interface TimedSetup {
+  cleanup: Cleanup
+  /**
+   * Resolves when the effect's own work is done. A setup that loops forever should hand over a
+   * promise that never resolves — the same contract an `animation-iteration-count: infinite` CSS
+   * effect already has, since its `Animation.finished` never resolves either.
+   */
+  finished: Promise<void>
+  /** Jump to the end state, for `EffectInstance.finish()`. */
+  finish?: () => void
+}
+
+/** A deferred setup's return: a teardown, or a teardown plus the effect's own completion. */
+export type SetupResult = Cleanup | TimedSetup
+
+function cleanupOf(result: SetupResult | undefined): Cleanup | undefined {
+  if (result === undefined) return undefined
+  return typeof result === 'function' ? result : result.cleanup
+}
+
+/**
  * Turn setup-that-also-starts into a properly gated instance.
  *
  * Most JS primitives are naturally written as "wire it up and go" — subscribe to the scheduler,
@@ -171,28 +199,47 @@ export function createCssInstance(
  * makes them obey `on:enter`, `on:click`, `manual`, and `reducedMotion: 'disable'` without each
  * primitive having to implement gating itself.
  *
- * @param setup - Runs on activation; returns its own teardown.
+ * @param setup - Runs on activation; returns its own teardown, optionally with its completion.
  * @returns An instance that does nothing until activated.
  * @complexity O(1) beyond the setup itself.
  * @overallScore 100
  */
-export function deferredInstance(setup: () => Cleanup): EffectInstance {
-  let cleanup: Cleanup | undefined
+export function deferredInstance(setup: () => SetupResult): EffectInstance {
+  let running: SetupResult | undefined
+  let settle: (() => void) | undefined
+  let finished = Promise.resolve()
+
   const teardown = (): void => {
-    cleanup?.()
-    cleanup = undefined
+    cleanupOf(running)?.()
+    running = undefined
+    settle?.()
   }
+
   return createJsInstance({
     activate() {
-      cleanup = setup()
+      running = setup()
+      if (typeof running === 'function') return
+      // Installed here rather than at construction because whether this effect finishes at all is
+      // only knowable once its setup has actually started it.
+      const work = running.finished
+      finished = new Promise((resolve) => {
+        settle = resolve
+      })
+      void work.then(() => settle?.())
     },
     cancel: teardown,
+    finish() {
+      if (typeof running === 'object') running.finish?.()
+      settle?.()
+    },
     destroy: teardown,
+    finished: () => finished,
   })
 }
 
 /**
- * Wrap a `(el, params, ctx) => Cleanup`-shaped setup function as a deferred `Primitive['prepare']`.
+ * Wrap a `(el, params, ctx) => SetupResult`-shaped setup function as a deferred
+ * `Primitive['prepare']`.
  *
  * Every JS primitive's `prepare` is `deferredInstance(() => setup(...args))` — this names that
  * composition once instead of re-deriving it at each of the library's fourteen call sites.
@@ -201,7 +248,7 @@ export function deferredInstance(setup: () => Cleanup): EffectInstance {
  * @overallScore 100
  */
 export function deferPrepare<Args extends unknown[]>(
-  setup: (...args: Args) => Cleanup,
+  setup: (...args: Args) => SetupResult,
 ): (...args: Args) => EffectInstance {
   return (...args: Args) => deferredInstance(() => setup(...args))
 }
@@ -213,8 +260,14 @@ export interface JsInstanceHooks {
   finish?(): void
   /** Release listeners, observers, subscriptions, and inserted nodes. */
   destroy: Cleanup
-  /** Resolve when the effect completes. Continuous effects may simply never resolve. */
-  finished?: Promise<void>
+  /**
+   * Resolve when the effect completes. Continuous effects may simply never resolve.
+   *
+   * Read on every access rather than captured once, so a setup that only learns its own completion
+   * at activation time can swap in a real promise — the animator and `play()` both read
+   * `finished` after `activate()`, never before.
+   */
+  finished?(): Promise<void>
 }
 
 /**
@@ -231,8 +284,13 @@ export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
   return {
     activate() {
       if (active) return
-      active = true
+      // Flipped only once `hooks.activate()` returns, not before it runs: `Animator.activate()`
+      // now catches a throw from here (see animator.ts) and may retry a later explicit
+      // `activate()` call on the same instance. Marking `active` first meant a throwing setup
+      // left this instance permanently stuck "active" with nothing actually running — every
+      // future `activate()` call became a silent no-op via the guard above, with no way back in.
       hooks.activate()
+      active = true
     },
     cancel() {
       hooks.cancel?.()
@@ -241,7 +299,9 @@ export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
     finish() {
       hooks.finish?.()
     },
-    finished: hooks.finished ?? Promise.resolve(),
+    get finished() {
+      return hooks.finished?.() ?? Promise.resolve()
+    },
     destroy() {
       active = false
       hooks.destroy()

@@ -1,25 +1,29 @@
 /*
  * Ambient background effects (catalog section J).
  *
- * Every preset here loops forever, so each carries `animation-iteration-count: infinite` as a
- * static declaration (the runtime never writes iteration-count — see `docs/build-phase2-packet.md`
- * conventions). Reduced motion is handled entirely by the primitive's declared
- * `reducedMotion: 'disable'` plus the generic `[data-dsg-rm='disable']` policy in `base.css`; no
+ * Every preset here loops forever, so each sets its own `--kui-fx-<name>-iterations: infinite`
+ * custom property rather than the `animation-iteration-count` longhand directly. The compiled
+ * per-element declaration (`compile.ts`) reads it through `var(..., 1)`, one value per composed
+ * track — a bare `animation-iteration-count: infinite` here would apply to every effect sharing
+ * this element's `animation-name` list (CSS repeats a shorter value list to match the longest
+ * one), making a composed one-shot effect loop forever too. Reduced motion is handled entirely by
+ * the primitive's declared
+ * `reducedMotion: 'disable'` plus the generic `[data-kui-rm='disable']` policy in `base.css`; no
  * effect here needs its own media query.
  */
-@layer dsg.effects {
+@layer kui.effects {
   /* --- gradient-mesh / aurora / wave-blob / spotlight-follow: soft multi-stop gradient drift,
      all channel `background` so they compose safely with translate/scale/opacity effects --- */
 
-  [data-dsg-fx~='gradient-mesh'] {
+  [data-kui-fx~='gradient-mesh'] {
     background-image:
-      radial-gradient(at 15% 20%, color-mix(in srgb, var(--dsg-c1, #7c3aed) 55%, transparent), transparent 55%),
-      radial-gradient(at 85% 15%, color-mix(in srgb, var(--dsg-c2, #06b6d4) 50%, transparent), transparent 55%),
-      radial-gradient(at 50% 85%, color-mix(in srgb, var(--dsg-c3, #f97316) 45%, transparent), transparent 55%);
+      radial-gradient(at 15% 20%, color-mix(in srgb, var(--kui-c1, #7c3aed) 55%, transparent), transparent 55%),
+      radial-gradient(at 85% 15%, color-mix(in srgb, var(--kui-c2, #06b6d4) 50%, transparent), transparent 55%),
+      radial-gradient(at 50% 85%, color-mix(in srgb, var(--kui-c3, #f97316) 45%, transparent), transparent 55%);
     background-size: 200% 200%;
-    animation-iteration-count: infinite;
+    --kui-fx-gradient-mesh-iterations: infinite;
   }
-  @keyframes dsg-gradient-mesh {
+  @keyframes kui-gradient-mesh {
     0%,
     100% {
       background-position: 0% 0%, 100% 0%, 50% 100%;
@@ -29,15 +33,15 @@
     }
   }
 
-  [data-dsg-fx~='aurora'] {
+  [data-kui-fx~='aurora'] {
     background-image:
-      linear-gradient(120deg, color-mix(in srgb, var(--dsg-c1, #34d399) 45%, transparent), transparent 45%),
-      linear-gradient(240deg, color-mix(in srgb, var(--dsg-c2, #60a5fa) 45%, transparent), transparent 45%),
-      linear-gradient(0deg, color-mix(in srgb, var(--dsg-c3, #c084fc) 40%, transparent), transparent 50%);
+      linear-gradient(120deg, color-mix(in srgb, var(--kui-c1, #34d399) 45%, transparent), transparent 45%),
+      linear-gradient(240deg, color-mix(in srgb, var(--kui-c2, #60a5fa) 45%, transparent), transparent 45%),
+      linear-gradient(0deg, color-mix(in srgb, var(--kui-c3, #c084fc) 40%, transparent), transparent 50%);
     background-size: 260% 260%;
-    animation-iteration-count: infinite;
+    --kui-fx-aurora-iterations: infinite;
   }
-  @keyframes dsg-aurora {
+  @keyframes kui-aurora {
     0%,
     100% {
       background-position: 0% 50%, 100% 50%, 50% 0%;
@@ -47,17 +51,17 @@
     }
   }
 
-  [data-dsg-fx~='wave-blob'] {
+  [data-kui-fx~='wave-blob'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--dsg-c1, #22d3ee) 50%, transparent),
+      color-mix(in srgb, var(--kui-c1, #22d3ee) 50%, transparent),
       transparent 60%
     );
     background-size: 140% 140%;
     background-repeat: no-repeat;
-    animation-iteration-count: infinite;
+    --kui-fx-wave-blob-iterations: infinite;
   }
-  @keyframes dsg-wave-blob {
+  @keyframes kui-wave-blob {
     0%,
     100% {
       background-position: 20% 30%;
@@ -73,17 +77,17 @@
     }
   }
 
-  [data-dsg-fx~='spotlight-follow'] {
+  [data-kui-fx~='spotlight-follow'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--dsg-c1, #fde68a) 65%, transparent),
+      color-mix(in srgb, var(--kui-c1, #fde68a) 65%, transparent),
       transparent 65%
     );
     background-size: 55% 55%;
     background-repeat: no-repeat;
-    animation-iteration-count: infinite;
+    --kui-fx-spotlight-follow-iterations: infinite;
   }
-  @keyframes dsg-spotlight-follow {
+  @keyframes kui-spotlight-follow {
     0%,
     100% {
       background-position: 10% 15%;
@@ -103,24 +107,24 @@
      "rotation" reads as light travelling around an edge rather than the box literally spinning
      (spinning the whole box would rotate its content, too) --- */
 
-  [data-dsg-fx~='gradient-rotate-border'] {
+  [data-kui-fx~='gradient-rotate-border'] {
     position: relative;
     background-image: linear-gradient(
       90deg,
-      var(--dsg-c1, #f472b6),
-      var(--dsg-c2, #60a5fa),
-      var(--dsg-c3, #34d399),
-      var(--dsg-c4, #fbbf24),
-      var(--dsg-c1, #f472b6)
+      var(--kui-c1, #f472b6),
+      var(--kui-c2, #60a5fa),
+      var(--kui-c3, #34d399),
+      var(--kui-c4, #fbbf24),
+      var(--kui-c1, #f472b6)
     );
     background-size: 300% 100%;
     padding: 3px;
     mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask-composite: exclude;
     -webkit-mask-composite: xor;
-    animation-iteration-count: infinite;
+    --kui-fx-gradient-rotate-border-iterations: infinite;
   }
-  @keyframes dsg-gradient-rotate-border {
+  @keyframes kui-gradient-rotate-border {
     from {
       background-position: 0% 50%;
     }
@@ -131,7 +135,7 @@
 
   /* --- noise-overlay / scanline: fine repeating patterns, drifted rather than tiled-and-static --- */
 
-  [data-dsg-fx~='noise-overlay'] {
+  [data-kui-fx~='noise-overlay'] {
     /*
      * `currentColor`, not a hardcoded white: a fixed light speckle reads fine on a dark surface
      * and disappears on a light one. Inheriting the surrounding text color keeps contrast in
@@ -139,14 +143,14 @@
      */
     background-image: repeating-radial-gradient(
       circle at 0 0,
-      color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0,
+      color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0,
       transparent 1.4px,
       transparent 3px
     );
     background-size: 5px 5px;
-    animation-iteration-count: infinite;
+    --kui-fx-noise-overlay-iterations: infinite;
   }
-  @keyframes dsg-noise-overlay {
+  @keyframes kui-noise-overlay {
     0% {
       background-position: 0 0;
     }
@@ -167,18 +171,18 @@
     }
   }
 
-  [data-dsg-fx~='scanline'] {
+  [data-kui-fx~='scanline'] {
     background-image: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in srgb, var(--dsg-c1, currentColor) 35%, transparent) 50%,
+      color-mix(in srgb, var(--kui-c1, currentColor) 35%, transparent) 50%,
       transparent
     );
     background-size: 100% 220%;
     background-repeat: no-repeat;
-    animation-iteration-count: infinite;
+    --kui-fx-scanline-iterations: infinite;
   }
-  @keyframes dsg-scanline {
+  @keyframes kui-scanline {
     from {
       background-position: 0 -120%;
     }
@@ -189,16 +193,16 @@
 
   /* --- dot-grid-drift / line-grid-drift / starfield: repeating patterns panning diagonally --- */
 
-  [data-dsg-fx~='dot-grid-drift'] {
+  [data-kui-fx~='dot-grid-drift'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--dsg-c1, currentColor) 45%, transparent) 1.5px,
+      color-mix(in srgb, var(--kui-c1, currentColor) 45%, transparent) 1.5px,
       transparent 1.5px
     );
     background-size: 22px 22px;
-    animation-iteration-count: infinite;
+    --kui-fx-dot-grid-drift-iterations: infinite;
   }
-  @keyframes dsg-dot-grid-drift {
+  @keyframes kui-dot-grid-drift {
     from {
       background-position: 0 0;
     }
@@ -207,20 +211,20 @@
     }
   }
 
-  [data-dsg-fx~='line-grid-drift'] {
+  [data-kui-fx~='line-grid-drift'] {
     background-image: repeating-linear-gradient(
         0deg,
-        color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0 1px,
+        color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0 1px,
         transparent 1px 26px
       ),
       repeating-linear-gradient(
         90deg,
-        color-mix(in srgb, var(--dsg-c1, currentColor) 30%, transparent) 0 1px,
+        color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0 1px,
         transparent 1px 26px
       );
-    animation-iteration-count: infinite;
+    --kui-fx-line-grid-drift-iterations: infinite;
   }
-  @keyframes dsg-line-grid-drift {
+  @keyframes kui-line-grid-drift {
     from {
       background-position: 0 0, 0 0;
     }
@@ -229,17 +233,17 @@
     }
   }
 
-  [data-dsg-fx~='starfield'] {
-    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--dsg-c1, #ffffff) 90%, transparent), transparent),
-      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--dsg-c1, #ffffff) 70%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--dsg-c1, #ffffff) 85%, transparent), transparent),
-      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--dsg-c1, #ffffff) 60%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--dsg-c1, #ffffff) 80%, transparent), transparent);
+  [data-kui-fx~='starfield'] {
+    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--kui-c1, #ffffff) 90%, transparent), transparent),
+      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--kui-c1, #ffffff) 70%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--kui-c1, #ffffff) 85%, transparent), transparent),
+      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--kui-c1, #ffffff) 60%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--kui-c1, #ffffff) 80%, transparent), transparent);
     background-size: 220px 220px;
     background-repeat: repeat;
-    animation-iteration-count: infinite;
+    --kui-fx-starfield-iterations: infinite;
   }
-  @keyframes dsg-starfield {
+  @keyframes kui-starfield {
     from {
       background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
     }
@@ -250,54 +254,54 @@
 
   /* --- float / bob / floating-shapes: one primitive, three amplitudes/timings --- */
 
-  [data-dsg-fx~='float'] {
-    animation-iteration-count: infinite;
+  [data-kui-fx~='float'] {
+    --kui-fx-float-iterations: infinite;
   }
-  @keyframes dsg-float {
+  @keyframes kui-float {
     0%,
     100% {
       translate: 0 0;
     }
     50% {
-      translate: 0 calc(var(--dsg-distance, 14px) * -1);
+      translate: 0 calc(var(--kui-distance, 14px) * -1);
     }
   }
 
-  [data-dsg-fx~='bob'] {
-    animation-iteration-count: infinite;
+  [data-kui-fx~='bob'] {
+    --kui-fx-bob-iterations: infinite;
   }
-  @keyframes dsg-bob {
+  @keyframes kui-bob {
     0%,
     100% {
       translate: 0 0;
     }
     50% {
-      translate: 0 calc(var(--dsg-distance, 8px) * -1);
+      translate: 0 calc(var(--kui-distance, 8px) * -1);
     }
   }
 
-  [data-dsg-fx~='floating-shapes'] {
-    animation-iteration-count: infinite;
+  [data-kui-fx~='floating-shapes'] {
+    --kui-fx-floating-shapes-iterations: infinite;
   }
-  @keyframes dsg-floating-shapes {
+  @keyframes kui-floating-shapes {
     0%,
     100% {
       translate: 0 0;
     }
     33% {
-      translate: calc(var(--dsg-distance, 10px) * 0.6) calc(var(--dsg-distance, 10px) * -1);
+      translate: calc(var(--kui-distance, 10px) * 0.6) calc(var(--kui-distance, 10px) * -1);
     }
     66% {
-      translate: calc(var(--dsg-distance, 10px) * -0.6) calc(var(--dsg-distance, 10px) * -0.4);
+      translate: calc(var(--kui-distance, 10px) * -0.6) calc(var(--kui-distance, 10px) * -0.4);
     }
   }
 
   /* --- glow-pulse: scale + opacity breathing --- */
 
-  [data-dsg-fx~='glow-pulse'] {
-    animation-iteration-count: infinite;
+  [data-kui-fx~='glow-pulse'] {
+    --kui-fx-glow-pulse-iterations: infinite;
   }
-  @keyframes dsg-glow-pulse {
+  @keyframes kui-glow-pulse {
     0%,
     100% {
       scale: 1;

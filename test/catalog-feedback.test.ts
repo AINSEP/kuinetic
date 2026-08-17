@@ -2,15 +2,18 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
-import { FEEDBACK_PRESETS, registerFeedback } from '../src/effects/catalog/feedback.js'
+import { FEEDBACK_PRESETS, FEEDBACK_PRIMITIVES, registerFeedback } from '../src/effects/catalog/feedback.js'
+import { createRegistry } from '../src/effects/index.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/feedback.css', import.meta.url)), 'utf8')
 
 /**
- * Same standalone-registry rationale as `catalog-ambient.test.ts`: `registerFeedback` is not yet
- * wired into `createRegistry()` because `src/effects/catalog/index.ts` is a shared aggregation
- * point another concurrently-built catalog section also needs.
+ * A standalone registry (feedback primitives/presets only) is enough for tests that only ever
+ * resolve feedback names. The channel-collision regression below needs `gradient-mesh` too —
+ * that's an ambient preset — so it uses the full `createRegistry()` instead.
  */
 function feedbackRegistry(): Registry {
   return registerFeedback(new Registry())
@@ -49,8 +52,78 @@ describe('feedback catalog', () => {
     }
   })
 
-  it('marks every continuous loop as infinite in the stylesheet', () => {
-    const occurrences = css.match(/animation-iteration-count: infinite;/g) ?? []
+  it('marks every continuous loop as infinite via its own iteration-count var', () => {
+    // Not a bare `animation-iteration-count: infinite;` — that would apply to every track sharing
+    // an element's `animation-name` list, making a composed one-shot effect loop forever too. See
+    // `iterationCountProperty` in src/core/compile.ts and the header comment in feedback.css.
+    const occurrences = css.match(/--kui-fx-[\w-]+-iterations: infinite;/g) ?? []
     expect(occurrences.length).toBeGreaterThanOrEqual(5)
+  })
+})
+
+/**
+ * Regression coverage for the under-declared-channel bug: `spinner-dots`, `progress-indeterminate`,
+ * and `ripple` each write `background` (and `spinner-dots` also `box-shadow`) from their
+ * unconditional `[data-kui-fx~=NAME]` rule in feedback.css, entirely outside `@keyframes` — see
+ * that file's ~line 73, ~97, ~200. Declaring only their animated channels (scale/opacity or
+ * translate/scale) let a composed `background`-writing effect like `gradient-mesh` pass channel
+ * collision detection and then have its gradient silently overwritten. `findConflicts` (via
+ * `compile`) is the actual mechanism `data-kui="a, b"` runs through, so these go through the full
+ * parse → compile pipeline with the real registry rather than asserting on primitive metadata
+ * alone — a wiring mistake between the two would otherwise slip past a metadata-only check.
+ */
+describe('feedback catalog — channel collisions with an ambient background effect', () => {
+  const registry = createRegistry()
+
+  function run(source: string) {
+    return compile(parse(source), registry, 'time')
+  }
+
+  it('rejects gradient-mesh, spinner-dots', () => {
+    const plan = run('gradient-mesh, spinner-dots')
+    expect(plan.warnings.join()).toContain('cannot compose')
+    expect(plan.fxNames).toEqual(['gradient-mesh'])
+  })
+
+  it('rejects gradient-mesh, progress-indeterminate', () => {
+    const plan = run('gradient-mesh, progress-indeterminate')
+    expect(plan.warnings.join()).toContain('cannot compose')
+    expect(plan.fxNames).toEqual(['gradient-mesh'])
+  })
+
+  it('rejects gradient-mesh, ripple', () => {
+    const plan = run('gradient-mesh, ripple')
+    expect(plan.warnings.join()).toContain('cannot compose')
+    expect(plan.fxNames).toEqual(['gradient-mesh'])
+  })
+
+  it('still composes effects with genuinely disjoint channels (the fix is not overbroad)', () => {
+    // shake-error (translate only) shares nothing with spinner-dots' corrected
+    // [scale, opacity, background, shadow] set.
+    const plan = run('shake-error, spinner-dots')
+    expect(plan.warnings.join()).not.toContain('cannot compose')
+    expect(plan.fxNames).toEqual(['shake-error', 'spinner-dots'])
+  })
+})
+
+describe('feedback catalog — corrected channel declarations', () => {
+  function channelsFor(id: string): string[] {
+    return FEEDBACK_PRIMITIVES.find((primitive) => primitive.id === id)?.channels ?? []
+  }
+
+  it('feedback-dot-pulse (spinner-dots) declares background and shadow alongside scale/opacity', () => {
+    expect(channelsFor('feedback-dot-pulse')).toEqual(
+      expect.arrayContaining(['scale', 'opacity', 'background', 'shadow']),
+    )
+  })
+
+  it('feedback-progress-track (progress-indeterminate) declares background alongside translate/scale', () => {
+    expect(channelsFor('feedback-progress-track')).toEqual(
+      expect.arrayContaining(['translate', 'scale', 'background']),
+    )
+  })
+
+  it('feedback-ripple declares background alongside scale/opacity', () => {
+    expect(channelsFor('feedback-ripple')).toEqual(expect.arrayContaining(['scale', 'opacity', 'background']))
   })
 })

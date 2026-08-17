@@ -1,7 +1,7 @@
 import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
-import { readEffectParams } from './js-params.js'
+import { readEffectParams, readEffectTiming } from './js-params.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Reporter } from './reporter.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
@@ -84,13 +84,20 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
       for (const { spec, resolved } of plan.jsEffects) {
         const prepare = resolved.primitive.prepare
         if (!prepare) continue
+        const warn = (message: string): void => reporter.warn(message, el)
         // Validated and defaulted, never the raw attribute strings — a JS primitive branches on
         // these values, so handing it unscreened author input was both a type lie and the exact
         // hole `params.ts` exists to close.
+        //
+        // Timing rides alongside rather than inside the parameter record: `compile.pushTrack` reads
+        // it off the spec for CSS-rendered effects, and a JS-rendered one has no other route to it
+        // — merging it into the record instead would warn "unknown parameter" on every primitive
+        // whose schema does not happen to declare a look-alike `duration`/`delay`/`ease`.
         const params = readEffectParams(
           { ...resolved.preset.params, ...spec.params },
           resolved.primitive.parameters,
-          (message) => reporter.warn(message, el),
+          warn,
+          readEffectTiming(spec, warn),
         )
         try {
           instances.push(prepare(el, params, ctx))

@@ -13,7 +13,7 @@ import { cssPrimitive } from '../catalog/shared.js'
  * change in both directions. Re-deriving that with a JS listener would be strictly worse: slower,
  * one more thing to clean up, and it would still just toggle a class the browser already toggles
  * for free. Those five are `inertInstance()` — no JS work at all — with the entire animation as a
- * plain CSS `transition` scoped under the compiled `[data-dsg-fx~='name']` marker in forms.css.
+ * plain CSS `transition` scoped under the compiled `[data-kui-fx~='name']` marker in forms.css.
  *
  * The rest genuinely need JS: `strength-meter` and `range-fill` compute a value from input;
  * `submit-to-spinner-to-check` and `step-progress` are multi-stage state machines a single
@@ -21,9 +21,9 @@ import { cssPrimitive } from '../catalog/shared.js'
  */
 
 const timing: ParameterSchema = {
-  duration: { type: 'time', default: '400ms', cssProperty: '--dsg-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--dsg-delay' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
+  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 
 // --- native-state-driven, CSS transitions only ---
@@ -37,8 +37,9 @@ export const NATIVE_STATE_PRIMITIVE: Primitive = {
   supportedActivations: ['load'],
   defaultActivation: 'load',
   perfClass: 'compositor',
-  // Native pseudo-classes drive these, so there is no "shorten a duration" available at this
-  // layer — a consumer wanting reduced motion here overrides the plain CSS transition directly.
+  // Native pseudo-classes drive these and the motion lands on a sibling, not on the control that
+  // carries the attribute, so base.css's policy layer enforces this through its sibling
+  // `transition-duration` rules rather than the `animation-*` ones.
   reducedMotion: 'disable',
   prepare: () => inertInstance(),
 }
@@ -96,7 +97,7 @@ export function computeStrength(value: string): number {
 
 /**
  * Publish a password's strength level (0-4) as an attribute a sibling meter reads via
- * `[data-dsg-strength-level='n'] ~ .meter`.
+ * `[data-kui-strength-level='n'] ~ .meter`.
  *
  * @complexity O(1) per input event, dominated by `computeStrength`.
  * @overallScore 100
@@ -104,18 +105,18 @@ export function computeStrength(value: string): number {
 function prepareStrengthMeter(el: Element): Cleanup {
   const input = el as HTMLInputElement
   const update = (): void => {
-    el.setAttribute('data-dsg-strength-level', String(computeStrength(input.value)))
+    el.setAttribute('data-kui-strength-level', String(computeStrength(input.value)))
   }
   input.addEventListener('input', update)
   update()
   return () => {
     input.removeEventListener('input', update)
-    el.removeAttribute('data-dsg-strength-level')
+    el.removeAttribute('data-kui-strength-level')
   }
 }
 
 /**
- * Publish a range input's fill percentage as `--dsg-fill`, so a `background: linear-gradient`
+ * Publish a range input's fill percentage as `--kui-fill`, so a `background: linear-gradient`
  * declared once in CSS paints the filled portion of the track.
  *
  * @complexity O(1) per input event.
@@ -127,7 +128,7 @@ function prepareRangeFill(el: Element, params: EffectParams, ctx: PrepareContext
     const min = Number(input.min || '0')
     const max = Number(input.max || '100')
     const pct = max > min ? ((Number(input.value) - min) / (max - min)) * 100 : 0
-    ctx.style.set('--dsg-fill', `${pct.toFixed(2)}%`)
+    ctx.style.set('--kui-fill', `${pct.toFixed(2)}%`)
   }
   input.addEventListener('input', update)
   update()
@@ -163,7 +164,7 @@ export function nextStep(step: number, total: number): number {
 function prepareStepProgress(el: Element, params: EffectParams): Cleanup {
   const total = Math.max(1, Math.round(params.num('steps', 4)))
   let step = 0
-  const render = (): void => el.setAttribute('data-dsg-step', String(step))
+  const render = (): void => el.setAttribute('data-kui-step', String(step))
   const advance = (): void => {
     step = nextStep(step, total)
     render()
@@ -172,14 +173,14 @@ function prepareStepProgress(el: Element, params: EffectParams): Cleanup {
   render()
   return () => {
     el.removeEventListener('click', advance)
-    el.removeAttribute('data-dsg-step')
+    el.removeAttribute('data-kui-step')
   }
 }
 
 export const STEP_PROGRESS_PRIMITIVE = jsInputPrimitive(
   'step-progress',
   ['state'],
-  { steps: { type: 'number', default: '4', cssProperty: '--dsg-steps', minimum: 1, integer: true } },
+  { steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, integer: true } },
   deferPrepare(prepareStepProgress),
 )
 
@@ -205,7 +206,7 @@ function prepareSubmitFlow(el: Element, params: EffectParams, ctx: PrepareContex
   let stage: SubmitStage = 'idle'
   let handle: number | undefined
 
-  const render = (): void => el.setAttribute('data-dsg-stage', stage)
+  const render = (): void => el.setAttribute('data-kui-stage', stage)
   const toIdle = (): void => {
     stage = nextSubmitStage(stage)
     render()
@@ -227,7 +228,7 @@ function prepareSubmitFlow(el: Element, params: EffectParams, ctx: PrepareContex
   return () => {
     el.removeEventListener('click', advance)
     if (handle !== undefined) ctx.win.clearTimeout(handle)
-    el.removeAttribute('data-dsg-stage')
+    el.removeAttribute('data-kui-stage')
   }
 }
 
@@ -235,8 +236,8 @@ export const SUBMIT_FLOW_PRIMITIVE = jsInputPrimitive(
   'submit-flow',
   ['state'],
   {
-    load: { type: 'time', default: '1200ms', cssProperty: '--dsg-load' },
-    hold: { type: 'time', default: '1500ms', cssProperty: '--dsg-hold' },
+    load: { type: 'time', default: '1200ms', cssProperty: '--kui-load' },
+    hold: { type: 'time', default: '1500ms', cssProperty: '--kui-hold' },
   },
   deferPrepare(prepareSubmitFlow),
 )

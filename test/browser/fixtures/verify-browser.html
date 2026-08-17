@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — verify-browser fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #14110f;
+        color: #f5efe8;
+      }
+      section {
+        padding: 3rem 2rem;
+      }
+      .spacer {
+        height: 130vh;
+        display: grid;
+        place-items: center;
+        color: #8a7f76;
+      }
+      .box {
+        width: 140px;
+        height: 90px;
+        margin: 1rem 0;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+        display: grid;
+        place-items: center;
+        font-size: 0.8rem;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        display: flex;
+        gap: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      One purpose-built page for `scripts/verify-browser.mjs`, independent of any showcase page.
+      Each element below exists solely to exercise one thing that suite asserts (see the matching
+      `check*` function name in a comment) — this fixture has no design/layout goals of its own, so
+      a showcase redesign can no longer silently break real-browser verification the way deleting
+      `demo/showcase/reveals.html`'s `#onload` et al. did. Reconstructed from `git show
+      HEAD:demo/index.html`, the last page these checks passed against, translated to the current
+      `data-kui`/`kuinetic` naming (that page predates both renames).
+    -->
+    <section class="spacer">scroll down</section>
+
+    <section id="stage">
+      <!-- checkOnLoad -->
+      <div id="onload" class="box" data-kui="zoom-in 200ms on:load">on:load</div>
+      <!-- checkRevealHeldBeforeActivation / checkRevealAfterScrollIntoView: no on: clause, so this
+           defaults to on:enter and stays paused off-screen until #stage scrolls into view. -->
+      <div id="reveal" class="box" data-kui="fade-up 400ms">fade-up</div>
+      <!-- checkComposition: two disjoint channels (reveal + blur) must compose into two live
+           animations, kui-in-up (fade-up/slide-up share this keyframe name) and kui-blur-in. -->
+      <div id="composed" class="box" data-kui="slide-up 400ms, blur-in 300ms">composed</div>
+      <!-- checkComposition: a composable pair (fade-up + blur-in) must keep both animations
+           rather than being substituted for a single combo animation. -->
+      <div id="combo" class="box" data-kui="fade-up 400ms, blur-in 300ms">combo preset</div>
+      <!-- checkParameters -->
+      <div id="override" class="box" data-kui="fade-up 400ms distance:80px">override</div>
+      <div id="rejected" class="box" data-kui="fade-up 400ms distance:url(http://evil.test)">
+        rejected param
+      </div>
+      <!-- checkStagger -->
+      <ul id="stagger" data-kui-stagger="80ms">
+        <li class="box" data-kui="fade-up 300ms">1</li>
+        <li class="box" data-kui="fade-up 300ms">2</li>
+        <li class="box" data-kui="fade-up 300ms">3</li>
+      </ul>
+      <!-- checkHover -->
+      <div id="hoverable" class="box" data-kui="zoom-in 200ms on:hover">on:hover</div>
+    </section>
+
+    <!-- checkPinning -->
+    <section id="pin-host" style="height: 200vh">
+      <div id="pinned" class="box" data-kui="pin-section distance:400px">pinned</div>
+    </section>
+
+    <!-- checkScrollytelling -->
+    <section id="story-host" style="height: 200vh">
+      <div id="story" data-kui="scrollytelling-step distance:400px steps:4" style="height: 400px">
+        scrollytelling
+      </div>
+    </section>
+
+    <!-- checkFlip -->
+    <section>
+      <ul id="flip-list" data-kui="flip-reorder 300ms">
+        <li class="box" id="card-a">A</li>
+        <li class="box" id="card-b">B</li>
+        <li class="box" id="card-c">C</li>
+      </ul>
+    </section>
+
+    <!-- checkSvgMorph -->
+    <svg width="0" height="0" style="position: absolute">
+      <path id="morph" data-kui='icon-morph to:"M0,0 L20,0 L20,20 Z"' d="M0,0 L10,0 L10,10 Z" />
+    </svg>
+
+    <section class="spacer">end</section>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
+      window.__caps = kuinetic.detect()
+    </script>
+  </body>
+</html>

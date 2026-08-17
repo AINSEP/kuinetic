@@ -14,7 +14,7 @@ export interface ElementConfig {
   /** Whether the author named an activation, so a primitive default may fill in when not. */
   activationAuthored: boolean
   timeline: Timeline
-  /** Trailing tokens of `data-dsg-timeline`, e.g. `entry 0% cover 60%`. */
+  /** Trailing tokens of `data-kui-timeline`, e.g. `entry 0% cover 60%`. */
   range: string
   threshold: string
 }
@@ -50,7 +50,7 @@ export function readAttributes(el: Element): ElementAttributes {
  * longhand attribute.
  *
  * @param attributes - Snapshot from `readAttributes`.
- * @param parsed - Result of parsing the `data-dsg` value, whose hoisted keys win.
+ * @param parsed - Result of parsing the `data-kui` value, whose hoisted keys win.
  * @returns Fully defaulted configuration; unknown values fall back rather than throwing.
  * @complexity O(k) time in the length of the timeline attribute; O(1) extra space.
  * @overallScore 100

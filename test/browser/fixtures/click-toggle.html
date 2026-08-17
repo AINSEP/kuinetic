@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — click-toggle fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — click-toggle fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       body {
         margin: 0;
@@ -21,11 +21,11 @@
     </style>
   </head>
   <body>
-    <div id="card" data-dsg="card-flip-y 120ms" data-dsg-on="click" tabindex="0">flip</div>
+    <div id="card" data-kui="card-flip-y 120ms" data-kui-on="click" tabindex="0">flip</div>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

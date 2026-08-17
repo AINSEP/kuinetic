@@ -5,73 +5,67 @@
  * (src/effects/navigation/index.ts) only ever writes a custom property or an attribute; every
  * visible transition below is a plain CSS `transition`, so the browser interpolates every frame.
  */
-@layer dsg.effects {
-  @keyframes dsg-nav-reveal {
+@layer kui.effects {
+  @keyframes kui-nav-reveal {
     from {
       opacity: 0;
-      translate: 0 var(--dsg-distance, 16px);
+      translate: 0 var(--kui-distance, 16px);
     }
   }
 
-  @keyframes dsg-menu-fullscreen {
+  @keyframes kui-menu-fullscreen {
     from {
       opacity: 0;
-      clip-path: circle(0% at var(--dsg-origin, 100% 0%));
+      clip-path: circle(0% at var(--kui-origin, 100% 0%));
     }
     to {
       opacity: 1;
-      clip-path: circle(150% at var(--dsg-origin, 100% 0%));
+      clip-path: circle(150% at var(--kui-origin, 100% 0%));
     }
   }
 
-  @keyframes dsg-panel-reveal {
+  @keyframes kui-panel-reveal {
     from {
       opacity: 0;
-      translate: 0 calc(var(--dsg-distance, 10px) * -1);
+      translate: 0 calc(var(--kui-distance, 10px) * -1);
     }
   }
 
-  @keyframes dsg-drawer-slide-right {
+  @keyframes kui-drawer-slide-right {
     from {
       translate: 100% 0;
     }
   }
 
-  @keyframes dsg-drawer-slide-left {
-    from {
-      translate: -100% 0;
-    }
-  }
-
-  /* header-shrink: `--dsg-shrink` is published as 0..1 by the JS side; every property it drives
+  /* header-shrink: `--kui-shrink` is published as 0..1 by the JS side; every property it drives
      is a plain calc(), so the transition is the browser's, not a per-frame style write. */
-  [data-dsg-fx~='header-shrink'] {
-    --dsg-shrink: 0;
-    padding-block: calc(1.4rem - 0.7rem * var(--dsg-shrink, 0));
-    font-size: calc(1rem - 0.15rem * var(--dsg-shrink, 0));
+  [data-kui-fx~='header-shrink'] {
+    --kui-shrink: 0;
+    padding-block: calc(1.4rem - 0.7rem * var(--kui-shrink, 0));
+    font-size: calc(1rem - 0.15rem * var(--kui-shrink, 0));
     transition: padding-block 200ms ease-out, font-size 200ms ease-out, box-shadow 200ms ease-out;
   }
 
-  [data-dsg-fx~='header-shrink'][data-dsg-shrunk='true'] {
+  [data-kui-fx~='header-shrink'][data-kui-shrunk='true'] {
     box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
   }
 
-  [data-dsg-fx~='header-hide-on-scroll'] {
+  [data-kui-fx~='header-hide-on-scroll'] {
     transition: translate 220ms ease-out;
   }
 
-  [data-dsg-fx~='header-hide-on-scroll'][data-dsg-hidden='true'] {
+  [data-kui-fx~='header-hide-on-scroll'][data-kui-hidden='true'] {
     translate: 0 -100%;
   }
 
-  [data-dsg-fx~='back-to-top-fade'] {
+  [data-kui-fx~='back-to-top-fade'] {
     opacity: 0;
     translate: 0 12px;
     pointer-events: none;
     transition: opacity 200ms ease-out, translate 200ms ease-out;
   }
 
-  [data-dsg-fx~='back-to-top-fade'][data-dsg-visible='true'] {
+  [data-kui-fx~='back-to-top-fade'][data-kui-visible='true'] {
     opacity: 1;
     translate: 0 0;
     pointer-events: auto;

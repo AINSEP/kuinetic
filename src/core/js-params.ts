@@ -1,5 +1,11 @@
 import { validate } from './params.js'
-import type { EffectParams, ParameterSchema } from './types.js'
+import type {
+  EffectParams,
+  EffectSpec,
+  EffectTiming,
+  ParamSpec,
+  ParameterSchema,
+} from './types.js'
 
 /**
  * Parameter access for JS-rendered primitives.
@@ -83,7 +89,9 @@ export function readParams(
   for (const [name, spec] of Object.entries(schema)) out[name] = spec.default
 
   for (const [name, raw] of Object.entries(authored)) {
-    const spec = schema[name]
+    // `Object.hasOwn`: `schema[name]` alone falls through to `Object.prototype` for a key like
+    // `__proto__`/`constructor`, silently treating it as a "known" param instead of warning.
+    const spec = Object.hasOwn(schema, name) ? schema[name] : undefined
     if (!spec) {
       warn(`unknown parameter "${name}" (known: ${Object.keys(schema).join(', ') || 'none'})`)
       continue
@@ -172,20 +180,102 @@ export function isEnabled(value: string, enabling = 'true'): boolean {
   return value === enabling
 }
 
+/** Easings reach a stylesheet, so an authored one is screened by the same validator as a param. */
+const EASING_SPEC: ParamSpec = { type: 'easing', default: '', cssProperty: '--kui-ease' }
+
+/**
+ * Convert an authored positional time, dropping — loudly — anything that is not one.
+ *
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function timingMs(
+  raw: string | undefined,
+  label: string,
+  warn: (message: string) => void,
+): number | undefined {
+  if (raw === undefined) return undefined
+  const ms = toMilliseconds(raw, Number.NaN)
+  if (Number.isFinite(ms)) return ms
+  warn(`${label} "${raw}" is not a valid time — ignored`)
+  return undefined
+}
+
+/**
+ * Screen an authored easing, dropping — loudly — anything that is not one.
+ *
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function timingEasing(
+  raw: string | undefined,
+  warn: (message: string) => void,
+): string | undefined {
+  if (raw === undefined) return undefined
+  const result = validate(raw, EASING_SPEC)
+  if (result.ok) return result.value
+  warn(`easing "${raw}": ${result.reason} — ignored`)
+  return undefined
+}
+
+/**
+ * Read one effect segment's positional timing into the shape JS primitives consume.
+ *
+ * The CSS renderer hands these straight to `animation-duration`/`-delay`/`-timing-function`, where
+ * the browser does the screening. Nothing screened them on the JS path, so they are converted to
+ * numbers (and the easing validated) here instead of anywhere a primitive might forget.
+ *
+ * @param spec - The parsed effect segment.
+ * @param warn - Diagnostic sink, called once per rejected value.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+export function readEffectTiming(
+  spec: Pick<EffectSpec, 'duration' | 'delay' | 'easing'>,
+  warn: (message: string) => void,
+): EffectTiming {
+  return {
+    durationMs: timingMs(spec.duration, 'duration', warn),
+    delayMs: timingMs(spec.delay, 'delay', warn),
+    easing: timingEasing(spec.easing, warn),
+  }
+}
+
+/**
+ * How long an unstepped effect should run, preferring the segment's positional time over the
+ * same-named parameter.
+ *
+ * `count 3s` and `count duration:3s` are two spellings of one intent, and the positional one is
+ * what `play()` emits, so it cannot be the spelling that gets dropped. `stepMsFor` is the
+ * equivalent for effects whose authored duration divides across a tick count instead.
+ *
+ * @param fallback - The primitive's own default, used when the author wrote neither spelling.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function effectDurationMs(params: EffectParams, fallback: number): number {
+  return params.timing.durationMs ?? params.ms('duration', fallback)
+}
+
 /**
  * Wrap a validated record in the reader primitives consume.
  *
  * @param values - Output of `readParams`; every declared parameter is present.
+ * @param timing - Author timing for the segment; empty when none was written.
  * @returns A reader with per-type accessors.
  * @complexity O(1) per accessor call; O(1) space beyond the record.
  * @overallScore 100
  */
-export function createParams(values: Record<string, string>): EffectParams {
+export function createParams(
+  values: Record<string, string>,
+  timing: EffectTiming = {},
+): EffectParams {
   return {
     text: (name, fallback = '') => values[name] ?? fallback,
     ms: (name, fallback = 0) => toMilliseconds(values[name] ?? '', fallback),
     num: (name, fallback = 0) => toNumber(values[name] ?? '', fallback),
     is: (name, value = 'true') => (values[name] ?? '') === value,
+    timing,
   }
 }
 
@@ -200,6 +290,7 @@ export function readEffectParams(
   authored: Record<string, string>,
   schema: ParameterSchema,
   warn: (message: string) => void,
+  timing: EffectTiming = {},
 ): EffectParams {
-  return createParams(readParams(authored, schema, warn))
+  return createParams(readParams(authored, schema, warn), timing)
 }

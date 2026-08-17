@@ -3,9 +3,9 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
-demo/designimation.js
-demo/designimation.css
-demo/showcase/alpine.bundle.js
+demo/kuinetic.js
+demo/kuinetic.css
+demo/showcase/tailwind.css
 .artifacts/
 .playwright-mcp/
 

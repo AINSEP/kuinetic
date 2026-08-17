@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Reveals</title>
+<meta name="description" content="Entrance, composition, parameter, and trigger patterns for kUInetic's data-kui reveal effects — compiled to real CSS keyframes, zero animation-loop JS." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+
+  /* ---------- matrix groups (entrance matrix, grouped by primitive family) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+
+  /* ---------- demo grid / cards ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
+     align-items:stretch adds to this card to match the tallest card in its row (e.g. a
+     neighbor whose caption wraps to two lines). Without this, the card's own --surface
+     background shows through as a sliver below a figcaption sized only to its own content. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  /* Light mode: solid black caption strip, white text. Dark mode (below) flips to the
+     acid-lime accent with black text — accent-ink and accent are the same literal color in
+     both themes, so this pairing has to be spelled out per-theme rather than read off tokens
+     directly. */
+  .demo-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Reveals</p>
+          <h1 data-kui="fade-up 700ms">Everything here is one HTML attribute.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            No JavaScript on this page configures anything. Each element carries a
+            <code>data-kui</code> value, and the library compiles it into a single CSS
+            <code>@keyframes</code> rule — entrance, composition, parameters, and trigger, all in one string.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> Scroll slowly — every card below reveals on its own enter timeline.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/model_1.jpg"
+            alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- ENTRANCE MATRIX -->
+      <section id="matrix" data-od-id="matrix">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">The entrance matrix</h2>
+          <p>
+            All 32 entrance names the library ships, grouped the same way the
+            <a href="./docs.html?doc=catalog">catalog</a> groups them. The matching 16 exit names
+            (<code>fade-out</code>, <code>slide-out-left</code>, and friends) aren't shown here —
+            an exit effect's resting state is invisible, so there's nothing honest to demo with a
+            scroll-triggered card.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Fade — 5</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="fade-in">
+              <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" loading="lazy" />
+              <figcaption>data-kui="fade-in"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-up">
+              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
+              <figcaption>data-kui="fade-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-down">
+              <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" loading="lazy" />
+              <figcaption>data-kui="fade-down"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-left">
+              <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
+              <figcaption>data-kui="fade-left"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-right">
+              <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
+              <figcaption>data-kui="fade-right"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Slide — 4</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="slide-up">
+              <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
+              <figcaption>data-kui="slide-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-down">
+              <img src="./assets/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" loading="lazy" />
+              <figcaption>data-kui="slide-down"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-left">
+              <img src="./assets/green_monochrome.jpg" alt="Portrait in a green jumpsuit against a matching green backdrop, one leg raised" loading="lazy" />
+              <figcaption>data-kui="slide-left"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-right">
+              <img src="./assets/orange_visor.jpg" alt="Model wearing a mirrored visor, lit in orange and blue" loading="lazy" />
+              <figcaption>data-kui="slide-right"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Logical (RTL-aware) — 4</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="slide-inline-start">
+              <img src="./assets/yellow_mc.png" alt="Editorial fashion portrait in monochrome mustard-gold, oversized coat" loading="lazy" />
+              <figcaption>data-kui="slide-inline-start"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-inline-end">
+              <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
+              <figcaption>data-kui="slide-inline-end"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-block-start">
+              <img src="./assets/pink_mc.jpg" alt="Editorial fashion portrait in monochrome pink, blowing a bubblegum bubble" loading="lazy" />
+              <figcaption>data-kui="slide-block-start"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slide-block-end">
+              <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
+              <figcaption>data-kui="slide-block-end"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Zoom — 4</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="zoom-in">
+              <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
+              <figcaption>data-kui="zoom-in"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="zoom-in-up">
+              <img src="./assets/gucci_nail_polish.jpg" alt="Gucci nail polish bottles, one pouring lacquer over the other against a lilac backdrop" loading="lazy" />
+              <figcaption>data-kui="zoom-in-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="zoom-in-down">
+              <img src="./assets/tech_helmet.jpg" alt="Profile portrait in a glossy black tech visor and wired headphones, red accent light" loading="lazy" />
+              <figcaption>data-kui="zoom-in-down"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="pop-in">
+              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
+              <figcaption>data-kui="pop-in"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Flip — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="flip-in-x">
+              <img src="./assets/earpods.jpg" alt="Leather AirPods case, open, with both earbuds resting on a leather backdrop" loading="lazy" />
+              <figcaption>data-kui="flip-in-x"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="flip-in-y">
+              <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
+              <figcaption>data-kui="flip-in-y"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Rotate — 5</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="rotate-in">
+              <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
+              <figcaption>data-kui="rotate-in"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="rotate-in-left">
+              <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
+              <figcaption>data-kui="rotate-in-left"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="rotate-in-right">
+              <img src="./assets/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" loading="lazy" />
+              <figcaption>data-kui="rotate-in-right"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="roll-in">
+              <img src="./assets/green_monochrome.jpg" alt="Portrait in a green jumpsuit against a matching green backdrop, one leg raised" loading="lazy" />
+              <figcaption>data-kui="roll-in"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="swing-in">
+              <img src="./assets/orange_visor.jpg" alt="Model wearing a mirrored visor, lit in orange and blue" loading="lazy" />
+              <figcaption>data-kui="swing-in"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Blur — 1</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="blur-in">
+              <img src="./assets/perfume_bottle.jpg" alt="Amber perfume bottle staged with dried flowers between a plaster arch and stone" loading="lazy" />
+              <figcaption>data-kui="blur-in"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Combo presets — 2</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="fade-blur-up">
+              <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
+              <figcaption>data-kui="fade-blur-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="fade-blur-in">
+              <img src="./assets/jewelry_black.jpg" alt="Stacked diamond rings on dark draped fabric" loading="lazy" />
+              <figcaption>data-kui="fade-blur-in"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Character easing — 5</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-kui="bounce-in">
+              <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
+              <figcaption>data-kui="bounce-in"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="bounce-in-up">
+              <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
+              <figcaption>data-kui="bounce-in-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="bounce-in-down">
+              <img src="./assets/motion_blur_model.jpg" alt="Long-exposure portrait dissolving into streaks of warm and cool light" loading="lazy" />
+              <figcaption>data-kui="bounce-in-down"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="back-in-up">
+              <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" loading="lazy" />
+              <figcaption>data-kui="back-in-up"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="back-in-down">
+              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
+              <figcaption>data-kui="back-in-down"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPOSITION -->
+      <section data-od-id="composition">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Composition</h2>
+          <p>Two or three effects in one attribute. They compile into a single declaration with parallel value lists, and are only allowed when the CSS channels they own are disjoint.</p>
+        </div>
+        <div class="demo-grid" data-kui-stagger="90ms">
+          <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms">
+            <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
+            <figcaption>slide-up 900ms, blur-in 600ms</figcaption>
+          </figure>
+          <figure class="demo-card" data-kui="fade-up 900ms, zoom-in 700ms">
+            <img src="./assets/jewelry_black.jpg" alt="Stacked diamond rings on dark draped fabric" loading="lazy" />
+            <figcaption>fade-up 900ms, zoom-in 700ms</figcaption>
+          </figure>
+          <figure class="demo-card" data-kui="slide-right 900ms, blur-in 500ms, zoom-in 700ms">
+            <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
+            <figcaption>three disjoint channels</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- PARAMETERS -->
+      <section data-od-id="parameters">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Parameters</h2>
+          <p>Any parameter the primitive declares can be tuned inline, and is validated before it ever reaches CSS.</p>
+        </div>
+        <div class="demo-grid" data-kui-stagger="90ms">
+          <figure class="demo-card" data-kui="fade-up 800ms distance:140px">
+            <img src="./assets/perfume_bottle.jpg" alt="Amber perfume bottle staged with dried flowers between a plaster arch and stone" loading="lazy" />
+            <figcaption>distance:140px</figcaption>
+          </figure>
+          <figure class="demo-card" data-kui="fade-up 800ms expo-out distance:140px">
+            <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
+            <figcaption>expo-out easing</figcaption>
+          </figure>
+          <figure class="demo-card" data-kui="rotate-in 900ms angle:-25deg">
+            <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" loading="lazy" />
+            <figcaption>angle:-25deg</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- TRIGGERS -->
+      <section data-od-id="triggers">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Triggers</h2>
+          <p>Effects don't have to fire on enter — hover, click, and load are first-class triggers too.</p>
+        </div>
+        <div class="demo-grid" data-kui-stagger="90ms">
+          <figure class="demo-card" data-kui="zoom-in 400ms on:hover">
+            <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
+            <figcaption>on:hover — point at me</figcaption>
+          </figure>
+          <figure class="demo-card" data-kui="swing-in 600ms on:click" tabindex="0">
+            <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
+            <figcaption>on:click — click me</figcaption>
+          </figure>
+          <figure class="demo-card" id="load-fade" data-kui="fade-in 600ms on:load">
+            <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
+            <figcaption>on:load — already ran</figcaption>
+          </figure>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+</body>
+</html>

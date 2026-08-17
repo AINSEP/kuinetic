@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { effectDurationMs } from '../../core/js-params.js'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 
@@ -15,8 +16,8 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
  */
 
 const timing: ParameterSchema = {
-  duration: { type: 'time', default: '400ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 
 function layoutPrimitive(
@@ -53,7 +54,7 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
     el,
     engine,
     {
-      durationMs: params.ms('duration', 400),
+      durationMs: effectDurationMs(params, 400),
       easing: params.text('ease'),
       scale: params.is('scale'),
     },
@@ -74,8 +75,12 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
 function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
   ctx.style.set('overflow', 'hidden')
+  // Measuring the natural height means clearing any inline `height` first, and a collapsed start
+  // state is exactly the sort of thing an author writes inline. Claiming it makes that removal a
+  // tracked write, so teardown hands the value back instead of eating it.
+  ctx.style.claim('height')
 
-  const duration = params.ms('duration', 400)
+  const duration = effectDurationMs(params, 400)
   let animation: Animation | null = null
 
   const observer = watchAttribute(node, params.text('attribute'), () => {
@@ -100,6 +105,8 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
  */
 function animateHeight(node: HTMLElement, duration: number, easing: string): Animation | null {
   const from = `${node.getBoundingClientRect().height}px`
+  // Removed rather than written, so `scrollHeight` reports the unconstrained height.
+  // `prepareAutoHeight` claims the property, which is what makes this removal restorable.
   node.style.removeProperty('height')
   const to = `${node.scrollHeight}px`
 
@@ -138,16 +145,17 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
     ctx.style.set('width', `${box.width}px`)
     ctx.style.set('translate', `${shift}px 0`)
     engine.play(before, [node], {
-      durationMs: params.ms('duration', 400),
+      durationMs: effectDurationMs(params, 400),
       easing: params.text('ease'),
       scale: true,
     })
   }
 
-  const stop = watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
+  // `move()` is fallible — a malformed `follow` selector reaches `querySelector` directly — so it
+  // runs before `watchAttribute` subscribes, not after. A throw here must never leave a live
+  // MutationObserver that this function has already stopped being able to hand back as cleanup.
   move()
-
-  return stop
+  return watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
 }
 
 /**
@@ -171,7 +179,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       scale: {
         type: 'keyword',
         default: 'false',
-        cssProperty: '--dsg-flip-scale',
+        cssProperty: '--kui-flip-scale',
         values: ['true', 'false'],
       },
     },
@@ -181,7 +189,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
   layoutPrimitive(
     'auto-height',
     ['layout'],
-    { attribute: { type: 'text', default: 'data-open', cssProperty: '--dsg-attribute' } },
+    { attribute: { type: 'text', default: 'data-open', cssProperty: '--kui-attribute' } },
     deferPrepare(prepareAutoHeight),
   ),
 
@@ -189,8 +197,8 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
     'flip-indicator',
     ['translate', 'layout'],
     {
-      follow: { type: 'text', default: '', cssProperty: '--dsg-follow' },
-      attribute: { type: 'text', default: 'aria-selected', cssProperty: '--dsg-attribute' },
+      follow: { type: 'text', default: '', cssProperty: '--kui-follow' },
+      attribute: { type: 'text', default: 'aria-selected', cssProperty: '--kui-attribute' },
     },
     deferPrepare(prepareIndicator),
   ),

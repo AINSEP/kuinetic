@@ -115,6 +115,9 @@ function applyAxis(vector: GestureVector, axis: Axis): GestureVector {
  * @complexity O(1) per pointer event; O(1) space (samples are capped).
  * @overallScore 100
  */
+// Factory closing over pointer-gesture state; length is five small named closures
+// (sampleOf/vectorNow/onDown/onMove/onUp) plus wiring, not one long procedure.
+// eslint-disable-next-line max-lines-per-function
 export function recognise(
   el: Element,
   handlers: GestureHandlers,

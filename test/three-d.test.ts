@@ -8,18 +8,9 @@ import { describe, expect, it } from 'vitest'
 import { createRegistry } from '../src/effects/index.js'
 import { GESTURE_PRESETS } from '../src/effects/gestures/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
+import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/css/three-d.css', import.meta.url)), 'utf8')
-
-/** Which CSS properties each channel may claim. Mirrors `test/css-invariants.test.ts`. */
-const CHANNEL_PROPERTIES: Record<string, string[]> = {
-  opacity: ['opacity'],
-  translate: ['translate'],
-  scale: ['scale'],
-  rotate: ['rotate'],
-  filter: ['filter'],
-  clip: ['clip-path', 'mask-image'],
-}
 
 function readBalancedBlock(source: string, start: number): string {
   let depth = 1
@@ -87,7 +78,7 @@ describe('three-d stylesheet', () => {
   })
 
   it('keeps every rule inside the effects cascade layer', () => {
-    expect(CSS).toContain('@layer dsg.effects {')
+    expect(CSS).toContain('@layer kui.effects {')
   })
 })
 

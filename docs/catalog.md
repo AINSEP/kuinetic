@@ -85,7 +85,7 @@ Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:ent
 `parallax-rotate` · `depth-layer` · `scroll-progress-bar` · `scroll-progress-ring` ·
 `scroll-fade` · `scroll-skew` · `reveal-direction-aware`
 
-> `parallax-*` and `scroll-*` use `data-dsg-timeline`, not `data-dsg-on` — they are
+> `parallax-*` and `scroll-*` use `data-kui-timeline`, not `data-kui-on` — they are
 > progress-linked and reverse on scroll-up by design.
 
 ---

@@ -4,116 +4,411 @@
  * Preset parameter defaults, as ordinary rules so consumer CSS can override them without
  * `!important`. Run `npm run generate:css` after changing any preset's params.
  */
-@layer dsg.presets {
-  [data-dsg-fx~='slide-up'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+@layer kui.presets {
+  [data-kui-fx~='back-in-down'] {
+    --kui-distance: 120px;
+    --kui-reveal-ease: expo-out;
   }
 
-  [data-dsg-fx~='slide-down'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='back-in-up'] {
+    --kui-distance: 120px;
+    --kui-reveal-ease: expo-out;
   }
 
-  [data-dsg-fx~='slide-left'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='blob-morph'] {
+    --kui-path-morph-duration: 800ms;
   }
 
-  [data-dsg-fx~='slide-right'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='bob'] {
+    --kui-ambient-float-duration: 2s;
+    --kui-distance: 8px;
   }
 
-  [data-dsg-fx~='slide-out-up'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='book-page-turn'] {
+    --kui-from-angle: -160deg;
+    --kui-flip-face-duration: 900ms;
   }
 
-  [data-dsg-fx~='slide-out-down'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='bounce-in'] {
+    --kui-from-scale: 0.3;
+    --kui-scale-ease: back-out;
   }
 
-  [data-dsg-fx~='slide-out-left'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='bounce-in-down'] {
+    --kui-distance: 60px;
+    --kui-reveal-ease: back-out;
   }
 
-  [data-dsg-fx~='slide-out-right'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='bounce-in-up'] {
+    --kui-distance: 60px;
+    --kui-reveal-ease: back-out;
   }
 
-  [data-dsg-fx~='slide-inline-start'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='confetti-burst'] {
+    --kui-feedback-burst-duration: 900ms;
   }
 
-  [data-dsg-fx~='slide-inline-end'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='count-bump'] {
+    --kui-feedback-pop-duration: 280ms;
   }
 
-  [data-dsg-fx~='slide-block-start'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='count-compact'] {
+    --kui-from: 0;
+    --kui-to: 128400;
+    --kui-format: compact;
   }
 
-  [data-dsg-fx~='slide-block-end'] {
-    --dsg-distance: 100px;
-    --dsg-from-opacity: 1;
+  [data-kui-fx~='count-currency'] {
+    --kui-from: 0;
+    --kui-to: 4820;
+    --kui-format: currency;
+    --kui-decimals: 0;
   }
 
-  [data-dsg-fx~='pop-in'] {
-    --dsg-from-scale: 0.6;
-    --dsg-scale-ease: back-out;
+  [data-kui-fx~='count-down'] {
+    --kui-from: 100;
+    --kui-to: 0;
   }
 
-  [data-dsg-fx~='pop-out'] {
-    --dsg-from-scale: 0.6;
-    --dsg-scale-ease: back-in;
+  [data-kui-fx~='count-percent'] {
+    --kui-from: 0;
+    --kui-to: 0.82;
+    --kui-format: percent;
+    --kui-decimals: 0;
   }
 
-  [data-dsg-fx~='rotate-in-left'] {
-    --dsg-from-angle: -45deg;
+  [data-kui-fx~='count-up'] {
+    --kui-from: 0;
+    --kui-to: 100;
   }
 
-  [data-dsg-fx~='rotate-in-right'] {
-    --dsg-from-angle: 45deg;
+  [data-kui-fx~='cube-rotate'] {
+    --kui-from-angle: 90deg;
   }
 
-  [data-dsg-fx~='swing-in'] {
-    --dsg-from-angle: -15deg;
-    --dsg-rotate-ease: back-out;
+  [data-kui-fx~='cursor-follow'] {
+    --kui-stiffness: 300;
+    --kui-damping: 30;
   }
 
-  [data-dsg-fx~='bounce-in'] {
-    --dsg-from-scale: 0.3;
-    --dsg-scale-ease: back-out;
+  [data-kui-fx~='cursor-invert'] {
+    --kui-stiffness: 260;
+    --kui-damping: 26;
   }
 
-  [data-dsg-fx~='bounce-in-up'] {
-    --dsg-distance: 60px;
-    --dsg-reveal-ease: back-out;
+  [data-kui-fx~='cursor-label'] {
+    --kui-stiffness: 260;
+    --kui-damping: 26;
   }
 
-  [data-dsg-fx~='bounce-in-down'] {
-    --dsg-distance: 60px;
-    --dsg-reveal-ease: back-out;
+  [data-kui-fx~='cursor-lag'] {
+    --kui-stiffness: 80;
+    --kui-damping: 14;
   }
 
-  [data-dsg-fx~='back-in-up'] {
-    --dsg-distance: 120px;
-    --dsg-reveal-ease: expo-out;
+  [data-kui-fx~='curtain-wipe'] {
+    --kui-wipe-duration: 800ms;
   }
 
-  [data-dsg-fx~='back-in-down'] {
-    --dsg-distance: 120px;
-    --dsg-reveal-ease: expo-out;
+  [data-kui-fx~='decode'] {
+    --kui-charset: binary;
   }
 
-  [data-dsg-fx~='depth-layer'] {
-    --dsg-distance: 200px;
+  [data-kui-fx~='depth-layer'] {
+    --kui-distance: 200px;
+  }
+
+  [data-kui-fx~='dot-grid-drift'] {
+    --kui-ambient-gradient-duration: 16s;
+    --kui-ambient-gradient-ease: linear;
+  }
+
+  [data-kui-fx~='drag-inertia'] {
+    --kui-inertia: true;
+  }
+
+  [data-kui-fx~='drag-x'] {
+    --kui-axis: x;
+  }
+
+  [data-kui-fx~='drag-y'] {
+    --kui-axis: y;
+  }
+
+  [data-kui-fx~='elastic-pull'] {
+    --kui-return: true;
+    --kui-bounds: 80;
+  }
+
+  [data-kui-fx~='expand-to-modal'] {
+    --kui-flip-scale: true;
+    --kui-flip-container-duration: 500ms;
+  }
+
+  [data-kui-fx~='floating-shapes'] {
+    --kui-ambient-float-duration: 6s;
+    --kui-distance: 10px;
+  }
+
+  [data-kui-fx~='fold-panel'] {
+    --kui-from-angle: -90deg;
+  }
+
+  [data-kui-fx~='glitch'] {
+    --kui-charset: symbols;
+  }
+
+  [data-kui-fx~='gradient-rotate-border'] {
+    --kui-ambient-gradient-duration: 6s;
+    --kui-ambient-gradient-ease: linear;
+  }
+
+  [data-kui-fx~='grid-to-list'] {
+    --kui-flip-scale: true;
+  }
+
+  [data-kui-fx~='heart-burst'] {
+    --kui-feedback-burst-duration: 700ms;
+  }
+
+  [data-kui-fx~='line-grid-drift'] {
+    --kui-ambient-gradient-duration: 16s;
+    --kui-ambient-gradient-ease: linear;
+  }
+
+  [data-kui-fx~='magnetic-snap'] {
+    --kui-strength: 0.6;
+    --kui-radius: 160;
+  }
+
+  [data-kui-fx~='mega-menu-drop'] {
+    --kui-panel-reveal-duration: 550ms;
+  }
+
+  [data-kui-fx~='noise-overlay'] {
+    --kui-ambient-gradient-duration: 650ms;
+    --kui-ambient-gradient-ease: steps(6);
+  }
+
+  [data-kui-fx~='odometer-roll'] {
+    --kui-from: 0;
+    --kui-to: 4820;
+  }
+
+  [data-kui-fx~='pin-section'] {
+    --kui-distance: 100vh;
+    --kui-spacer: true;
+  }
+
+  [data-kui-fx~='pin-spacer'] {
+    --kui-spacer: true;
+  }
+
+  [data-kui-fx~='pin-until'] {
+    --kui-spacer: false;
+  }
+
+  [data-kui-fx~='pop-in'] {
+    --kui-from-scale: 0.6;
+    --kui-scale-ease: back-out;
+  }
+
+  [data-kui-fx~='pop-out'] {
+    --kui-from-scale: 0.6;
+    --kui-scale-ease: back-in;
+  }
+
+  [data-kui-fx~='pull-to-refresh'] {
+    --kui-feedback-pull-duration: 900ms;
+    --kui-feedback-pull-ease: ease-out;
+  }
+
+  [data-kui-fx~='rotate-in-left'] {
+    --kui-from-angle: -45deg;
+  }
+
+  [data-kui-fx~='rotate-in-right'] {
+    --kui-from-angle: 45deg;
+  }
+
+  [data-kui-fx~='rubber-band'] {
+    --kui-return: true;
+    --kui-bounds: 120;
+  }
+
+  [data-kui-fx~='scanline'] {
+    --kui-ambient-gradient-duration: 3.5s;
+    --kui-ambient-gradient-ease: linear;
+  }
+
+  [data-kui-fx~='scramble'] {
+    --kui-charset: upper;
+  }
+
+  [data-kui-fx~='scroll-snap-x'] {
+    --kui-axis: x;
+  }
+
+  [data-kui-fx~='scroll-snap-y'] {
+    --kui-axis: y;
+  }
+
+  [data-kui-fx~='scrollytelling-step'] {
+    --kui-steps: 4;
+  }
+
+  [data-kui-fx~='slide-block-end'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-block-start'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-down'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-inline-end'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-inline-start'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-left'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-out-down'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-out-left'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-out-right'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-out-up'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-right'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='slide-up'] {
+    --kui-distance: 100px;
+    --kui-from-opacity: 1;
+  }
+
+  [data-kui-fx~='snap-back'] {
+    --kui-return: true;
+    --kui-stiffness: 260;
+  }
+
+  [data-kui-fx~='split-chars'] {
+    --kui-unit: chars;
+    --kui-direction: fade;
+  }
+
+  [data-kui-fx~='split-lines'] {
+    --kui-unit: lines;
+    --kui-direction: fade;
+  }
+
+  [data-kui-fx~='split-words'] {
+    --kui-unit: words;
+    --kui-direction: fade;
+  }
+
+  [data-kui-fx~='spotlight-follow'] {
+    --kui-ambient-gradient-duration: 9s;
+  }
+
+  [data-kui-fx~='stacking-cards'] {
+    --kui-spacer: false;
+  }
+
+  [data-kui-fx~='starfield'] {
+    --kui-ambient-gradient-duration: 40s;
+    --kui-ambient-gradient-ease: linear;
+  }
+
+  [data-kui-fx~='swing-in'] {
+    --kui-from-angle: -15deg;
+    --kui-rotate-ease: back-out;
+  }
+
+  [data-kui-fx~='swipe-x'] {
+    --kui-axis: x;
+  }
+
+  [data-kui-fx~='tab-indicator-slide'] {
+    --kui-flip-indicator-duration: 300ms;
+  }
+
+  [data-kui-fx~='text-jitter'] {
+    --kui-motion: jitter;
+  }
+
+  [data-kui-fx~='text-reveal-down'] {
+    --kui-unit: words;
+    --kui-direction: down;
+  }
+
+  [data-kui-fx~='text-reveal-mask'] {
+    --kui-unit: lines;
+    --kui-direction: mask;
+  }
+
+  [data-kui-fx~='text-reveal-up'] {
+    --kui-unit: words;
+    --kui-direction: up;
+  }
+
+  [data-kui-fx~='text-wave'] {
+    --kui-motion: wave;
+  }
+
+  [data-kui-fx~='throwable'] {
+    --kui-inertia: true;
+    --kui-damping: 18;
+  }
+
+  [data-kui-fx~='toast-slide-out'] {
+    --kui-feedback-toast-ease: ease-in;
+  }
+
+  [data-kui-fx~='typewriter'] {
+    --kui-loop: false;
+  }
+
+  [data-kui-fx~='typewriter-loop'] {
+    --kui-loop: true;
+  }
+
+  [data-kui-fx~='wave-blob'] {
+    --kui-ambient-gradient-duration: 12s;
+  }
+
+  [data-kui-fx~='wobble'] {
+    --kui-feedback-wobble-duration: 600ms;
+    --kui-feedback-wobble-ease: ease-in-out;
   }
 }

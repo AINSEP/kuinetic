@@ -32,7 +32,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const page = await context.newPage()
 
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   await snap(page, 'authored-two-subpath-hole')
 
   const beforeD = await page.$eval('#morph', (el) => el.getAttribute('d'))

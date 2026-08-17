@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Interactive</title>
+<meta name="description" content="Drag, throw, swipe, magnetic pull, long-press, and FLIP-powered layout transitions — kUInetic's gesture and layout primitives, driven by a spring integrator and a MutationObserver instead of CSS keyframes." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+
+  /* ---------- matrix groups ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .matrix-group-controls { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; }
+  .matrix-group-controls button {
+    padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .matrix-group-controls button:hover { border-color: var(--fg); }
+  .matrix-group-controls button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  /* ---------- demo grid / cards (static entrance-matrix pattern) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
+     align-items:stretch adds to this card to match the tallest card in its row (e.g. a
+     neighbor whose caption wraps to two lines). Without this, the card's own --surface
+     background shows through as a sliver below a figcaption sized only to its own content. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  /* Light mode: solid black caption strip, white text. Dark mode (below) flips to the
+     acid-lime accent with black text — accent-ink and accent are the same literal color in
+     both themes, so this pairing has to be spelled out per-theme rather than read off tokens
+     directly. */
+  .demo-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .demo-grid .demo-card[hidden] { display: none; }
+
+  /* ---------- page-specific: gesture arenas (draggable / swipeable / pressable / magnetic) ----------
+     These need visible room to move in, unlike the fixed-aspect entrance-matrix cards, so each
+     primitive gets its own bordered "arena": a generous pointer-tracking stage plus a small
+     chip that actually carries the data-kui attribute and gets dragged/thrown/pulled around
+     inside it. The caption lives outside the chip so it never moves with it. */
+  .gesture-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .gesture-grid { margin-top: 0; }
+  .gesture-arena { display: flex; flex-direction: column; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .gesture-stage {
+    position: relative; flex: 1 1 auto; min-height: 230px;
+    display: grid; place-items: center; border-radius: 12px 12px 0 0;
+    background-image: radial-gradient(color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1px);
+    background-size: 18px 18px; background-position: center;
+  }
+  .gesture-chip {
+    position: relative; width: 124px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg); box-shadow: var(--shadow-float);
+    touch-action: none; user-select: none; cursor: grab;
+  }
+  .gesture-chip-media { overflow: clip; border-radius: 9px; }
+  .gesture-chip img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; pointer-events: none; }
+  .gesture-chip[data-kui-dragging='true'] { cursor: grabbing; border-color: var(--accent); }
+  .gesture-chip[data-kui-pressed='true'] { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .gesture-chip[data-kui-swipe]::after {
+    position: absolute; top: 6px; right: 6px; padding: 0.15rem 0.5rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem; font-weight: 700;
+    color: var(--accent-ink); background: var(--accent);
+  }
+  .gesture-chip[data-kui-swipe='left']::after { content: '\2190 left'; }
+  .gesture-chip[data-kui-swipe='right']::after { content: '\2192 right'; }
+  .gesture-chip[data-kui-swipe='up']::after { content: '\2191 up'; }
+  .gesture-chip[data-kui-swipe='down']::after { content: '\2193 down'; }
+  .gesture-arena figcaption {
+    flex: none; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+    border-radius: 0 0 12px 12px;
+  }
+  :root[data-theme='dark'] .gesture-arena figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+
+  /* ---------- page-specific: FLIP layout variants ---------- */
+  .demo-grid.is-list { grid-template-columns: 1fr; }
+  .demo-grid.is-list .demo-card { flex-direction: row; }
+  .demo-grid.is-list .demo-card img { width: 110px; aspect-ratio: 1; flex: none; }
+  .demo-grid.is-list .demo-card figcaption { border-top: none; }
+
+  .masonry-grid { margin-top: 2.5rem; column-count: 1; column-gap: 1.25rem; }
+  .matrix-group .masonry-grid { margin-top: 0; }
+  @media (min-width: 620px) { .masonry-grid { column-count: 2; } }
+  @media (min-width: 980px) { .masonry-grid { column-count: 3; } }
+  .masonry-grid .demo-card { break-inside: avoid; margin-bottom: 1.25rem; }
+  .masonry-grid .demo-card.is-tall img { aspect-ratio: 3 / 4; }
+  .masonry-grid .demo-card.is-wide img { aspect-ratio: 16 / 9; }
+  .masonry-grid .demo-card[hidden] { display: none; }
+
+  .modal-grid { grid-template-columns: repeat(2, 1fr); grid-auto-flow: dense; }
+  @media (min-width: 620px) { .modal-grid { grid-template-columns: repeat(4, 1fr); } }
+  .modal-grid .demo-card { cursor: pointer; }
+  .modal-grid .demo-card.is-expanded { grid-column: span 2; grid-row: span 2; }
+  .modal-grid .demo-card.is-expanded img { aspect-ratio: 16 / 11; }
+
+  /* ---------- page-specific: accordion (auto-height) ---------- */
+  .accordion { margin-top: 2.5rem; border: 1px solid var(--border); border-radius: 12px; overflow: clip; background: var(--surface); }
+  .matrix-group .accordion { margin-top: 0; }
+  .accordion-item + .accordion-item { border-top: 1px solid var(--border); }
+  .accordion-header {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1.1rem 1.25rem; background: none; border: none; font: inherit; font-size: 0.95rem;
+    font-weight: 590; color: var(--fg); text-align: left;
+  }
+  .accordion-header .plus { flex: none; color: var(--muted); transition: transform 200ms ease; }
+  .accordion-header[aria-expanded='true'] .plus { transform: rotate(45deg); color: var(--accent-text); }
+  /* Resting state lives in ordinary CSS (0 vs auto); the accordion-height primitive only
+     supplies the animated transition between whichever two values CSS resolves to. */
+  .accordion-panel { height: 0; overflow: hidden; }
+  .accordion-panel[data-open] { height: auto; }
+  .accordion-panel-inner { padding: 0 1.25rem 1.25rem; color: var(--muted); line-height: 1.65; font-size: 0.9rem; max-width: 60ch; }
+  .accordion-panel-inner code { font-size: 0.85em; padding: 0.1em 0.4em; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); }
+
+  /* ---------- page-specific: tabs (flip-indicator) ---------- */
+  .tabs { margin-top: 2.5rem; }
+  .matrix-group .tabs { margin-top: 0; }
+  .tablist { position: relative; display: inline-flex; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+  .tab-indicator { position: absolute; top: 0.3rem; left: 0.3rem; height: calc(100% - 0.6rem); border-radius: 999px; background: var(--accent); z-index: 0; }
+  .tab-btn { position: relative; z-index: 1; padding: 0.55rem 1.15rem; border-radius: 999px; border: none; background: none; font: inherit; font-size: 0.85rem; font-weight: 590; color: var(--muted); }
+  .tab-btn[aria-selected='true'] { color: var(--accent-ink); }
+  .tab-panels { margin-top: 1.25rem; max-width: 60ch; }
+  .tab-panel p { color: var(--muted); line-height: 1.65; }
+  .tab-panel[hidden] { display: none; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Interactive</p>
+          <h1 data-kui="fade-up 700ms">Gestures and layout.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            Drag, throw, swipe, and hold. These primitives use a spring integrator rather than an
+            easing curve, because a throw has to start at whatever velocity your pointer had —
+            and the layout moves below aren't keyframed at all: the library measures a
+            <code>before</code> and <code>after</code> and animates the difference.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#gestures" class="btn btn-primary">Feel the gestures</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> Every card below responds to a real pointer — drag, swipe, or hold one.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/grayscale_train_station.jpg"
+            alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- GESTURES & PHYSICS -->
+      <section id="gestures" data-od-id="gestures">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Gestures &amp; physics</h2>
+          <p>
+            Thirteen preset names over four primitives — <code>draggable</code>, <code>swipeable</code>,
+            <code>pressable</code>, <code>magnetic</code> — sitting outside the lettered A–O catalog
+            sections. The drag family differs only in what happens on release: nothing (<code>drag</code>),
+            back to origin with varying spring stiffness (<code>elastic-pull</code>, <code>rubber-band</code>,
+            <code>snap-back</code>), or onward with momentum (<code>drag-inertia</code>, <code>throwable</code>).
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draggable · axis — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag" — drag it anywhere</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-x">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-x" — horizontal only</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-y">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-y" — vertical only</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draggable · momentum — 2</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-inertia">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-inertia" — flick and release</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="throwable">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="throwable" — flick it away</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draggable · return springs — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="elastic-pull">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="elastic-pull" — soft snap back</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="rubber-band">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="rubber-band" — wider give</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="snap-back">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="snap-back" — stiff spring</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Swipeable — 2</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="swipe">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="swipe" — swipe any direction</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="swipe-x">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="swipe-x" — left or right only</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Pressable — 1</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="long-press">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="long-press" — press and hold</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Magnetic — 2</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="magnetic">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="magnetic" — move your pointer near</figcaption>
+            </figure>
+            <figure class="gesture-arena">
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="magnetic-snap">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="magnetic-snap" — stronger pull</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- LAYOUT & FLIP -->
+      <section id="layout" data-od-id="layout">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Layout &amp; FLIP</h2>
+          <p>
+            Nine preset names, one technique: the library measures each child's box before a DOM
+            change, measures again after, and animates only the delta. Filtering is a class or
+            <code>hidden</code> change on the children — a layout change isn't expressible as
+            keyframes. These animate elements <em>you</em> control; <code>accordion-height</code>
+            animates height only, it doesn't own <code>aria-expanded</code> or keyboard handling.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-filter — 1</p>
+          <div class="matrix-group-controls" id="filter-controls">
+            <button type="button" data-filter="all" class="is-active">All</button>
+            <button type="button" data-filter="platform">Platform</button>
+            <button type="button" data-filter="street">Street</button>
+          </div>
+          <div class="demo-grid" id="filter-gallery" data-kui="flip-filter">
+            <figure class="demo-card" data-tone="platform"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>platform</figcaption></figure>
+            <figure class="demo-card" data-tone="street"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>street</figcaption></figure>
+            <figure class="demo-card" data-tone="platform"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>platform</figcaption></figure>
+            <figure class="demo-card" data-tone="street"><img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" loading="lazy" /><figcaption>street</figcaption></figure>
+            <figure class="demo-card" data-tone="platform"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>platform</figcaption></figure>
+            <figure class="demo-card" data-tone="street"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>street</figcaption></figure>
+            <figure class="demo-card" data-tone="platform"><img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" loading="lazy" /><figcaption>platform</figcaption></figure>
+            <figure class="demo-card" data-tone="street"><img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" loading="lazy" /><figcaption>street</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-reorder — 1</p>
+          <p style="margin-top:-0.4rem; margin-bottom:1rem; color:var(--muted); font-size:0.85rem;">Click any card — it jumps to the front and the rest reflow around it.</p>
+          <div class="demo-grid" id="reorder-grid" data-kui="flip-reorder">
+            <figure class="demo-card" tabindex="0"><img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-sort — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="sort-asc">Sort ascending</button>
+            <button type="button" id="sort-desc">Sort descending</button>
+          </div>
+          <div class="demo-grid" id="sort-grid" data-kui="flip-sort">
+            <figure class="demo-card" data-size="80"><img src="./assets/grayscale_train_station.jpg" alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance" loading="lazy" /><figcaption>elastic-pull bounds: 80</figcaption></figure>
+            <figure class="demo-card" data-size="120"><img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" loading="lazy" /><figcaption>rubber-band bounds: 120</figcaption></figure>
+            <figure class="demo-card" data-size="18"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>throwable damping: 18</figcaption></figure>
+            <figure class="demo-card" data-size="260"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>snap-back stiffness: 260</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-shuffle — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="shuffle-btn">Shuffle order</button>
+          </div>
+          <div class="demo-grid" id="shuffle-grid" data-kui="flip-shuffle">
+            <figure class="demo-card"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">grid-to-list — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="list-toggle">Switch to list</button>
+          </div>
+          <div class="demo-grid" id="list-grid" data-kui="grid-to-list">
+            <figure class="demo-card"><img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">masonry-reflow — 1</p>
+          <div class="matrix-group-controls" id="masonry-controls">
+            <button type="button" data-filter="all" class="is-active">All</button>
+            <button type="button" data-filter="tall">Tall</button>
+            <button type="button" data-filter="wide">Wide</button>
+          </div>
+          <div class="masonry-grid" id="masonry-grid" data-kui="masonry-reflow">
+            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" loading="lazy" /><figcaption>tall</figcaption></figure>
+            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>wide</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>tall</figcaption></figure>
+            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>wide</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>tall</figcaption></figure>
+            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" loading="lazy" /><figcaption>wide</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">expand-to-modal — 1</p>
+          <p style="margin-top:-0.4rem; margin-bottom:1rem; color:var(--muted); font-size:0.85rem;">Click a card to expand it in place; the rest of the grid reflows around it.</p>
+          <div class="demo-grid modal-grid" id="modal-grid" data-kui="expand-to-modal">
+            <figure class="demo-card" tabindex="0"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/grayscale_train_station.jpg" alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">accordion-height &amp; tab-indicator-slide — 2</p>
+          <div class="accordion">
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="true" aria-controls="faq-1">
+                What's the difference between elastic-pull and snap-back?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-1" data-kui="accordion-height" data-open>
+                <div class="accordion-panel-inner">
+                  Same primitive (<code>draggable</code> with <code>return:true</code>), different spring
+                  stiffness. <code>elastic-pull</code> ships a soft return, <code>rubber-band</code> widens
+                  the resistance before it lets go, and <code>snap-back</code> uses a stiff spring
+                  (<code>stiffness:260</code>) that whips home fast.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="false" aria-controls="faq-2">
+                Why don't swipe and long-press move the element?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-2" data-kui="accordion-height">
+                <div class="accordion-panel-inner">
+                  <code>swipeable</code> and <code>pressable</code> only own a <code>state</code> channel —
+                  they publish <code>data-kui-swipe</code> / <code>data-kui-pressed</code> attributes and
+                  leave the visual response to ordinary CSS, same as the swipe badge and press outline on
+                  the cards above.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="false" aria-controls="faq-3">
+                What actually triggers a FLIP replay?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-3" data-kui="accordion-height">
+                <div class="accordion-panel-inner">
+                  A <code>MutationObserver</code> on the container watching <code>childList</code>,
+                  <code>subtree</code>, and the <code>hidden</code> attribute. Reordering or hiding
+                  children fires it automatically — a bare CSS class change on the container (like
+                  <code>grid-to-list</code>'s view toggle) does not, so this page re-appends the children
+                  after a class swap to give the observer something to notice.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <div class="tablist" role="tablist" aria-label="Layout patterns">
+              <span class="tab-indicator" data-kui="tab-indicator-slide follow:.tab-btn.is-active" aria-hidden="true"></span>
+              <button type="button" class="tab-btn is-active" role="tab" id="tab-grid" aria-selected="true" aria-controls="panel-grid">Grid</button>
+              <button type="button" class="tab-btn" role="tab" id="tab-list" aria-selected="false" aria-controls="panel-list">List</button>
+              <button type="button" class="tab-btn" role="tab" id="tab-masonry" aria-selected="false" aria-controls="panel-masonry">Masonry</button>
+            </div>
+            <div class="tab-panels">
+              <div class="tab-panel" id="panel-grid" role="tabpanel" aria-labelledby="tab-grid">
+                <p>Even columns, fixed aspect ratio — the entrance-matrix and filter demos above all use this.</p>
+              </div>
+              <div class="tab-panel" id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden>
+                <p>Single column, image and caption side by side — what <code>grid-to-list</code> switches into.</p>
+              </div>
+              <div class="tab-panel" id="panel-masonry" role="tabpanel" aria-labelledby="tab-masonry" hidden>
+                <p>Variable-height columns that pack tight — what <code>masonry-reflow</code> demonstrates above.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROGRAMMATIC API -->
+      <section data-od-id="programmatic">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Programmatic API</h2>
+          <p>The same registry, driven from JavaScript. <code>anim.play()</code> accepts a selector, an Element, or any iterable.</p>
+        </div>
+        <div class="matrix-group-controls">
+          <button type="button" id="replay">anim.play('#shuffle-grid .demo-card', 'pop-in', { stagger: 60 })</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // ---- Gesture + layout page behavior ----
+    ;(function () {
+      function onActivate(el, handler) {
+        el.addEventListener('click', handler)
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handler(e)
+          }
+        })
+      }
+
+      // flip-container primitives are driven by a MutationObserver watching childList/subtree
+      // changes and the `hidden` attribute — a bare class toggle on the container or a child is
+      // invisible to it, so any move that's "same elements, new layout" needs an explicit
+      // re-append to register as a childList mutation the observer will actually see.
+      function touchMutation(container) {
+        Array.prototype.slice.call(container.children).forEach(function (child) {
+          container.appendChild(child)
+        })
+      }
+
+      // flip-filter — gallery filtered by the `hidden` attribute (native MutationObserver trigger)
+      var filterGallery = document.querySelector('#filter-gallery')
+      var filterButtons = document.querySelectorAll('#filter-controls [data-filter]')
+      filterButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var wanted = button.dataset.filter
+          filterButtons.forEach(function (b) { b.classList.toggle('is-active', b === button) })
+          Array.prototype.slice.call(filterGallery.children).forEach(function (item) {
+            item.hidden = wanted !== 'all' && item.dataset.tone !== wanted
+          })
+        })
+      })
+
+      // flip-reorder — click any card to bring it to the front
+      var reorderGrid = document.querySelector('#reorder-grid')
+      reorderGrid.querySelectorAll('.demo-card').forEach(function (card) {
+        onActivate(card, function () { reorderGrid.prepend(card) })
+      })
+
+      // flip-sort — sort by data-size ascending/descending
+      var sortGrid = document.querySelector('#sort-grid')
+      function sortBy(direction) {
+        var cards = Array.prototype.slice.call(sortGrid.children)
+        cards.sort(function (a, b) { return direction * (Number(a.dataset.size) - Number(b.dataset.size)) })
+        cards.forEach(function (card) { sortGrid.appendChild(card) })
+      }
+      document.querySelector('#sort-asc').addEventListener('click', function () { sortBy(1) })
+      document.querySelector('#sort-desc').addEventListener('click', function () { sortBy(-1) })
+
+      // flip-shuffle — randomize order
+      var shuffleGrid = document.querySelector('#shuffle-grid')
+      document.querySelector('#shuffle-btn').addEventListener('click', function () {
+        var cards = Array.prototype.slice.call(shuffleGrid.children)
+        for (var i = cards.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1))
+          var tmp = cards[i]; cards[i] = cards[j]; cards[j] = tmp
+        }
+        cards.forEach(function (card) { shuffleGrid.appendChild(card) })
+      })
+
+      // grid-to-list — toggle layout, then touch the DOM so the FLIP observer notices the resize
+      var listGrid = document.querySelector('#list-grid')
+      var listToggle = document.querySelector('#list-toggle')
+      listToggle.addEventListener('click', function () {
+        var isList = listGrid.classList.toggle('is-list')
+        listToggle.textContent = isList ? 'Switch to grid' : 'Switch to list'
+        touchMutation(listGrid)
+      })
+
+      // masonry-reflow — filter by orientation (native `hidden` trigger, real masonry columns)
+      var masonryGrid = document.querySelector('#masonry-grid')
+      var masonryButtons = document.querySelectorAll('#masonry-controls [data-filter]')
+      masonryButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var wanted = button.dataset.filter
+          masonryButtons.forEach(function (b) { b.classList.toggle('is-active', b === button) })
+          Array.prototype.slice.call(masonryGrid.children).forEach(function (item) {
+            item.hidden = wanted !== 'all' && item.dataset.orientation !== wanted
+          })
+        })
+      })
+
+      // expand-to-modal — click a card to expand it in place, reflowing its neighbors
+      var modalGrid = document.querySelector('#modal-grid')
+      modalGrid.querySelectorAll('.demo-card').forEach(function (card) {
+        onActivate(card, function () {
+          modalGrid.querySelectorAll('.demo-card.is-expanded').forEach(function (other) {
+            if (other !== card) other.classList.remove('is-expanded')
+          })
+          card.classList.toggle('is-expanded')
+          touchMutation(modalGrid)
+        })
+      })
+
+      // accordion-height — single-open accordion, toggling the attribute the primitive watches
+      var accordionHeaders = document.querySelectorAll('.accordion-header')
+      accordionHeaders.forEach(function (header) {
+        header.addEventListener('click', function () {
+          var isOpen = header.getAttribute('aria-expanded') === 'true'
+          accordionHeaders.forEach(function (other) {
+            if (other !== header) {
+              other.setAttribute('aria-expanded', 'false')
+              document.getElementById(other.getAttribute('aria-controls')).removeAttribute('data-open')
+            }
+          })
+          header.setAttribute('aria-expanded', String(!isOpen))
+          var panel = document.getElementById(header.getAttribute('aria-controls'))
+          if (isOpen) panel.removeAttribute('data-open')
+          else panel.setAttribute('data-open', '')
+        })
+      })
+
+      // tab-indicator-slide — a real tablist; aria-selected is the attribute the primitive watches
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab-btn'))
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (other) {
+            var selected = other === tab
+            other.setAttribute('aria-selected', String(selected))
+            other.classList.toggle('is-active', selected)
+            document.getElementById(other.getAttribute('aria-controls')).hidden = !selected
+          })
+        })
+      })
+
+      // Programmatic API — replay a declarative entrance effect through the JS registry
+      document.querySelector('#replay').addEventListener('click', function () {
+        window.__kui.play('#shuffle-grid .demo-card', 'pop-in', { duration: 500, stagger: 60 })
+      })
+    })()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+</body>
+</html>

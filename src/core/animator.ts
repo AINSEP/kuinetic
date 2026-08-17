@@ -24,7 +24,7 @@ import { createAttributeLedger, createStyleLedger } from './owned-styles.js'
 import { applyStagger } from './stagger.js'
 import { applyStylePlan, planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
-import type { Activation, InstanceState, ParsedValue } from './types.js'
+import type { Activation, EffectInstance, InstanceState, ParsedValue } from './types.js'
 
 /** Longest a stalled initialisation may keep an opt-in cloak in place. */
 const CLOAK_WATCHDOG_MS = 3000
@@ -32,6 +32,24 @@ const CLOAK_WATCHDOG_MS = 3000
 /** Configuration identity: every attribute that changes what gets compiled. */
 function fingerprintOf(attributes: ElementAttributes): string {
   return [attributes.source, attributes.on, attributes.timeline, attributes.threshold].join('\u0000')
+}
+
+/**
+ * `instanceof Element`, safe in environments that never declare the global at all.
+ *
+ * `Element` is not merely absent-as-a-property (which `instanceof`'s right-hand side would
+ * tolerate) — in a DOM-less Node process it is an undeclared identifier, so evaluating it throws
+ * `ReferenceError` before `instanceof` ever runs, regardless of what `node` is. Every bare
+ * `instanceof Element` in this module was reachable from construction (`defaultRootResolver`) or
+ * from `start()` (`scan`, `uncloak`) — exactly the paths `src/index.ts`'s doc comment promises
+ * stay DOM-free for SSR and worker consumers. Same guard style as `capabilities.ts`'s `typeof
+ * CSS === 'undefined'` checks.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function isElementNode(node: unknown): node is Element {
+  return typeof Element !== 'undefined' && node instanceof Element
 }
 
 export { ATTR }
@@ -160,7 +178,7 @@ export class Animator {
   scan(root: ParentNode = this.root): this {
     if (!root) return this
     const selector = `[${ATTR.source}]`
-    if (root instanceof Element && root.matches(selector)) this.process(root)
+    if (isElementNode(root) && root.matches(selector)) this.process(root)
     for (const el of root.querySelectorAll(selector)) this.process(el)
     applyStagger(root)
     return this
@@ -169,14 +187,14 @@ export class Animator {
   /**
    * Compile and install one element's effects, recompiling if its attribute changed.
    *
-   * @param el - Element carrying `data-dsg`.
+   * @param el - Element carrying `data-kui`.
    * @complexity O(e) time in the number of composed effects; O(e) space for the plan.
    * @overallScore 100
    */
   process(el: Element): void {
     const attributes = readAttributes(el)
-    // The whole configuration, not just `data-dsg`. Keying on the source alone meant a change to
-    // `data-dsg-on`, `data-dsg-timeline`, or `data-dsg-threshold` was ignored permanently — even
+    // The whole configuration, not just `data-kui`. Keying on the source alone meant a change to
+    // `data-kui-on`, `data-kui-timeline`, or `data-kui-threshold` was ignored permanently — even
     // when `process()` was called again by hand.
     const fingerprint = fingerprintOf(attributes)
     const existing = this.states.get(el)
@@ -308,7 +326,16 @@ export class Animator {
   /**
    * Start a deferred animation.
    *
-   * @complexity O(1) time, O(1) space.
+   * A JS-rendered effect's real setup work is postponed until this call — `deferPrepare` in
+   * `instances.ts` only wires up an inert instance during `prepare` — so a broken primitive (a bad
+   * selector, a malformed param) first throws here, not while the plan was being built. `scan()`
+   * reaches this synchronously for every `on:load` element, inside the very loop that processes
+   * every other element on the page; an uncaught throw here previously unwound that loop and
+   * silently orphaned every element after the broken one — the same blast radius the `__proto__`
+   * scan-crash fix closed for a different door. Each instance is isolated so one effect's failure
+   * can neither strand a sibling effect on the same element nor abort the rest of the scan.
+   *
+   * @complexity O(n) time in composed instances; O(1) space.
    * @overallScore 100
    */
   activate(el: Element): void {
@@ -316,15 +343,43 @@ export class Animator {
     if (!state || state.status === 'running') return
     state.status = 'running'
     state.attributes.set(ATTR.state, 'running')
-    for (const instance of state.instances) instance.activate()
 
-    // The reported state has to become truthful eventually, or `data-dsg-state` codifies a lie
+    const started = state.instances.filter((instance) => this.startInstance(instance, el))
+    if (started.length === 0 && state.instances.length > 0) {
+      // Every instance on this element failed to activate — nothing is running, so falling
+      // through to the empty `Promise.all` below and reporting "finished" would codify a lie
+      // exactly as much as leaving the element stuck "running" forever would.
+      state.status = 'failed'
+      state.attributes.set(ATTR.state, 'failed')
+      return
+    }
+
+    // The reported state has to become truthful eventually, or `data-kui-state` codifies a lie
     // that tests then assert against.
-    void Promise.all(state.instances.map((instance) => instance.finished)).then(() => {
+    void Promise.all(started.map((instance) => instance.finished)).then(() => {
       if (this.states.get(el) !== state || state.status !== 'running') return
       state.status = 'finished'
       state.attributes.set(ATTR.state, 'finished')
     })
+  }
+
+  /**
+   * Activate one instance, isolating a throw from its (possibly deferred) setup.
+   *
+   * @returns Whether the instance actually started — a failed instance is excluded from the
+   * `finished` gate in `activate()`, since something that never started can never legitimately
+   * finish (see `EffectInstance.finished`'s "resolves, never rejects" contract in `types.ts`).
+   * @complexity O(1) time, O(1) space.
+   * @overallScore 100
+   */
+  private startInstance(instance: EffectInstance, el: Element): boolean {
+    try {
+      instance.activate()
+      return true
+    } catch (error) {
+      this.reporter.warn(`effect failed to activate: ${String(error)}`, el)
+      return false
+    }
   }
 
   /**
@@ -345,7 +400,7 @@ export class Animator {
    * @overallScore 100
    */
   uncloak(): void {
-    const doc = this.root instanceof Element ? this.root.ownerDocument : (this.root as Document)
+    const doc = isElementNode(this.root) ? this.root.ownerDocument : (this.root as Document | undefined)
     doc?.documentElement?.removeAttribute(ATTR.cloak)
   }
 
@@ -493,7 +548,7 @@ function resolveJsEffectPreparer(
  * @overallScore 100
  */
 function defaultRootResolver(root: ParentNode | undefined): (el: Element) => ScrollRoot {
-  const doc = root instanceof Element ? root.ownerDocument : (root as Document | undefined)
+  const doc = isElementNode(root) ? root.ownerDocument : (root as Document | undefined)
   const win = doc?.defaultView ?? (globalThis as unknown as Window)
   return createRootResolver({ win })
 }

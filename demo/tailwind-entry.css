@@ -1,0 +1,51 @@
+/*
+ * Deliberately not the shorthand `@import "tailwindcss";` — that pulls in Preflight
+ * (tailwindcss/preflight.css), which resets margins/borders on `h1`/`h2`/`button`/`a`/`code` and
+ * `box-sizing` globally. style.css (the showcase's own hand-rolled design system) already owns
+ * all of that, and is itself plain unlayered CSS — under the cascade's `@layer` rules, unlayered
+ * declarations always beat layered ones regardless of specificity or source order, so keeping
+ * Preflight out and everything below layered is what actually keeps style.css safe, not `<link>`
+ * ordering. Importing the theme + components + utilities layers keeps daisyUI's component classes
+ * (`.btn`, `.menu`, `.drawer`, `.collapse`, ...) and Tailwind's utilities available additively.
+ */
+@layer theme, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@plugin 'daisyui';
+
+/* Site theme toggling is attribute-based (`document.documentElement.dataset.theme`, see
+   theme.js), not OS-preference-based — point Tailwind's `dark:` variant at that attribute instead
+   of the default `prefers-color-scheme` media query. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * Linear reference palette (docs/design-system-linear.md) — additive utility tokens (bg-void,
+ * text-paper, etc.) for pages opting into the Linear system. Does not touch demo/style.css's
+ * existing --ink/--dim/--bg/--panel/--accent/--line custom properties the shared nav chrome
+ * reads — a page that wants the nav to match overrides those separately (see index.html).
+ */
+@theme {
+  --color-void: #08090a;
+  --color-carbon: #0f1011;
+  --color-obsidian: #161718;
+  --color-graphite: #23252a;
+  --color-smoke: #383b3f;
+  --color-ash: #62666d;
+  --color-fog: #8a8f98;
+  --color-mist: #d0d6e0;
+  --color-bone: #e5e5e6;
+  --color-paper: #ffffff;
+  --color-acid-lime: #e4f222;
+  --color-pulse-green: #27a644;
+  --color-coral-red: #eb5757;
+  --color-signal-teal: #02b8cc;
+  --color-iris-violet: #6366f1;
+  --color-lavender: #8b5cf6;
+
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-kui-badge: 4px;
+  --radius-kui-input: 6px;
+  --radius-kui-button: 6px;
+  --radius-kui-card: 12px;
+}

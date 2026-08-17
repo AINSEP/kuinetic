@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CSS animations using HTML attributes</title>
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. ~237 named effects from 29 primitives. JavaScript only for the handful of effects that genuinely need it." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<script defer src="./nav.js"></script>
+<style>
+  :root,
+  :root[data-theme='light'] {
+    --bg: #ffffff;
+    --surface: #f6f6f4;
+    --fg: #08090a;
+    --muted: oklch(46% 0.017 75);
+    --border: #e4e4e2;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Bright acid-lime text on white is a contrast failure (~1.2:1). A plain color-mix(accent,
+       black) darkens it while keeping green as the dominant channel, which reads as olive/green
+       rather than yellow — this is a dedicated dark gold instead, red channel now dominant, ~4.9:1
+       on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
+       accents) where it sits on a dark or neutral surface instead. */
+    --accent-text: #8a6d00;
+    --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    --bg: #08090a;
+    --surface: #0f1011;
+    --fg: #ffffff;
+    --muted: #8a8f98;
+    --border: #23252a;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
+       here — matches --accent exactly. */
+    --accent-text: #e4f222;
+    --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+
+  /* Dark mode only: acid-lime reads with excellent contrast on the near-black canvas (unlike on
+     paper-white, where the source system explicitly bans it as running text) — so every section
+     heading goes full accent in dark mode, each the sole accent-as-text use in its own section. */
+  :root[data-theme='dark'] main h1,
+  :root[data-theme='dark'] main h2,
+  :root[data-theme='dark'] .catalog-stat .num { color: var(--accent); }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv01' on, 'ss03' on, 'zero' on;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  @media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
+
+  section { padding: clamp(3.5rem, 5vw + 1rem, 6rem) 0; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: none; }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 510; }
+  p { margin: 0; }
+
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  a { color: inherit; }
+  a:not(.btn):not(.nav-link):not(.chip) {
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 3px;
+  }
+
+  button, a.btn { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- header / nav ---------- */
+  .site-header {
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
+    margin: 1rem auto 0;
+    max-width: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    box-shadow: var(--shadow-float);
+  }
+  .logo { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none !important; }
+  .logo-mark {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 20px; height: 20px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    flex: none;
+  }
+  .logo-dot {
+    position: absolute; top: -1.5px; left: 50%;
+    width: 5px; height: 5px; margin-left: -2.5px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform-origin: 2.5px 11.5px;
+    animation: logo-orbit 3.5s linear infinite;
+  }
+  @keyframes logo-orbit { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
+  .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .wordmark b { font-weight: 800; }
+
+  .nav-links { display: flex; align-items: center; gap: 1.25rem; font-size: 0.9rem; }
+  .kui-nav-dropdown { position: relative; }
+  .kui-nav-dropdown-trigger {
+    font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
+    background: none; border: none; padding: 0; cursor: pointer;
+  }
+  .kui-nav-dropdown-trigger:hover,
+  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+  .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
+  .kui-nav-coming-soon {
+    display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+    font-style: italic; color: var(--muted); opacity: 0.7;
+  }
+  .kui-nav-dropdown-menu {
+    position: absolute; top: calc(100% + 0.7rem); left: 0; flex-direction: column;
+    min-width: 160px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 0.35rem; box-shadow: var(--shadow-float);
+  }
+  .kui-nav-dropdown-menu a {
+    display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
+    font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
+  }
+  .kui-nav-dropdown-menu a:hover,
+  .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
+  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  .kui-nav-toggle {
+    display: none; width: 2.4rem; height: 2.4rem; padding: 0;
+    color: var(--muted); background: none; border: none; flex: none;
+  }
+  .kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { color: var(--fg); }
+  @media (min-width: 721px) { .nav-links { opacity: 1 !important; } }
+  @media (max-width: 720px) {
+    .kui-nav-toggle { display: grid; place-items: center; }
+    /* Fixed full-viewport layer behind the open mobile panel, in front of the page — without it,
+       whatever section happens to be scrolled behind the header (e.g. a solid-accent card) shows
+       through around the panel's edges, and there's no reliable "outside" target to click to
+       close it. See nav.js's setMobileOpen/backdrop wiring. */
+    .kui-nav-backdrop {
+      position: fixed; inset: 0; z-index: 1;
+      background: color-mix(in srgb, var(--bg) 70%, transparent);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }
+    .nav-links {
+      position: absolute; top: calc(100% + 0.6rem); left: 0; right: 0; z-index: 2;
+      flex-direction: column; align-items: stretch; gap: 0.2rem;
+      padding: 0.9rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: var(--shadow-float);
+    }
+    .nav-links .kui-nav-dropdown-trigger { display: flex; align-items: center; width: 100%; min-height: 44px; }
+    .nav-links .kui-nav-dropdown-menu { position: static; box-shadow: none; margin-top: 0.1rem; padding: 0.3rem; }
+    .nav-links .kui-nav-dropdown-menu a { min-height: 44px; display: flex; align-items: center; }
+  }
+  @media (max-width: 420px) {
+    .site-header { gap: 0.65rem; padding: 0.5rem 0.5rem 0.5rem 1rem; }
+    .site-header > .nav-cta { display: none; }
+  }
+
+  .theme-toggle {
+    width: 2.4rem; height: 2.4rem;
+    border-radius: 50%;
+    border: none;
+    background: var(--fg);
+    color: var(--bg);
+    display: grid; place-items: center;
+    padding: 0;
+    flex: none;
+  }
+  .theme-toggle:hover { opacity: 0.85; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.8rem 1.4rem;
+    border-radius: 6px;
+    font-size: 0.95rem; font-weight: 590;
+    text-decoration: none !important;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
+  .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+  .btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); position: relative; overflow: hidden; }
+  .btn-ghost:hover { border-color: var(--fg); }
+
+  /* ---------- kicker / eyebrow ---------- */
+  .kicker {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1rem;
+  }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+
+  /* ---------- hero ---------- */
+  .hero {
+    padding-top: clamp(4rem, 6vw + 2rem, 8rem); padding-bottom: clamp(3rem, 5vw, 5rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .hero { grid-template-columns: 1.1fr 0.9fr; gap: 3rem; } }
+  .hero-media { perspective: 1200px; }
+  .flip-card {
+    position: relative; width: 100%; aspect-ratio: 4 / 5;
+    transform-style: preserve-3d; cursor: pointer;
+  }
+  .flip-face {
+    position: absolute; inset: 0; overflow: clip;
+    border-radius: 12px; border: 1px solid var(--border);
+    backface-visibility: hidden;
+  }
+  .flip-face img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .flip-back { rotate: y 180deg; }
+  .hero h1 {
+    max-width: 17ch;
+    font-size: clamp(2.75rem, 2.1rem + 3.2vw, 4.75rem);
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+  }
+  .hero .lede {
+    margin-top: 1.5rem; max-width: 54ch;
+    font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .hero .lede code {
+    font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--fg);
+  }
+  .hero-actions { margin-top: 2.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .hero-note { margin-top: 1.75rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+
+  /* ---------- code proof ---------- */
+  .proof { display: grid; gap: 2.5rem; align-items: start; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .proof { grid-template-columns: 0.9fr 1.1fr; gap: 3rem; } }
+  .proof h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 16ch; }
+  .proof p { margin-top: 1rem; color: var(--muted); line-height: 1.65; max-width: 46ch; }
+  .proof-card {
+    background: var(--accent); color: var(--accent-ink);
+    border: 1px solid var(--accent); border-radius: 12px; padding: 1.75rem;
+  }
+  .proof-card pre { margin: 0; font-size: 0.85rem; line-height: 1.6; overflow-x: auto; }
+  .proof-card pre code { color: var(--accent-ink); }
+  .proof-divider { margin: 1.5rem 0; border-top: 1px solid color-mix(in srgb, var(--accent-ink) 18%, transparent); padding-top: 1.5rem; }
+  .proof-render h3 { font-size: 1.2rem; font-weight: 510; color: var(--accent-ink); }
+
+  /* ---------- pillars ---------- */
+  .pillars-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; }
+  .pillars { margin-top: 2.5rem; display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .pillars { grid-template-columns: repeat(3, 1fr); } }
+  /* All three cards share one solid-accent treatment, theme-invariant by design (--accent and
+     --accent-ink don't shift between light/dark, unlike --surface/--fg — a dark-mode pillar was
+     reading as a near-invisible dark box on the dark page background before this). Text goes
+     near-black and extra-bold rather than the usual page weight, since it's sitting on a
+     saturated fill instead of the neutral surface the rest of the page reads against. */
+  .pillar { padding: 1.75rem; border-radius: 12px; background: var(--accent); border: 1px solid var(--accent); }
+  .pillar-swatch {
+    margin-bottom: 1.25rem; height: 7rem; display: grid; place-items: center;
+    border-radius: 8px; border: 1px solid var(--accent-ink); background: var(--accent);
+    font-size: 0.8rem; color: var(--accent-ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .pillar h3 { font-size: 1.02rem; font-weight: 800; color: var(--accent-ink); }
+  .pillar p { margin-top: 0.5rem; font-size: 0.92rem; color: var(--accent-ink); font-weight: 590; opacity: 0.85; line-height: 1.6; }
+
+  /* ---------- gallery ---------- */
+  .gallery-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 1.5rem; }
+  .gallery-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 22ch; }
+  .gallery-head p { margin-top: 0.6rem; color: var(--muted); max-width: 48ch; line-height: 1.6; }
+  .gallery { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+  @media (min-width: 720px) { .gallery { grid-template-columns: repeat(4, 1fr); } }
+  .g-card {
+    position: relative; overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 3 / 4; background: var(--surface);
+  }
+  .g-card.g-wide { grid-column: span 2; aspect-ratio: 16 / 10; }
+  @media (max-width: 719px) { .g-card.g-wide { grid-column: span 2; } }
+  .g-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .g-tag {
+    position: absolute; left: 0.7rem; bottom: 0.7rem;
+    padding: 0.3rem 0.6rem; border-radius: 4px;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(6px);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; color: var(--fg);
+    border: 1px solid var(--border);
+  }
+
+  .g-card.g-parallax img { position: absolute; inset: -15% 0; width: 100%; height: 130%; object-fit: cover; }
+
+  /* ---------- catalog stat ---------- */
+  .catalog-stat { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 2rem; }
+  .catalog-stat .num { font-size: clamp(2.5rem, 3vw + 1rem, 3.5rem); font-weight: 510; letter-spacing: -0.02em; }
+  .catalog-stat .num-note { margin-top: 0.5rem; color: var(--muted); max-width: 42ch; line-height: 1.6; }
+  .chips { margin-top: 2.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem; padding: 0.35rem 0.7rem; border-radius: 9999px;
+    border: 1px solid var(--border); color: var(--muted); background: var(--surface);
+    text-decoration: none !important; cursor: default;
+  }
+  .chip b { font-weight: inherit; color: inherit; }
+  .chip-icon { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .chip-icon svg, .chip-icon img { width: 14px; height: 14px; flex: none; border-radius: 3px; object-fit: cover; display: block; }
+  .chip-action { font: inherit; cursor: pointer; }
+  .chip-action:hover { color: var(--fg); border-color: var(--fg); }
+  .chip[data-kui*="drag"] { cursor: grab; touch-action: none; }
+
+  /* ---------- install ---------- */
+  .install-card {
+    display: grid; gap: 2rem; grid-template-columns: 1fr; background: var(--accent);
+    border: 1px solid var(--accent); border-radius: 12px; padding: clamp(1.75rem, 3vw, 3rem);
+  }
+  @media (min-width: 860px) { .install-card { grid-template-columns: 1fr 1fr; } }
+  .install-card h2 {
+    font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 18ch;
+    color: var(--accent-ink) !important; /* sits on a permanently yellow card — must win over the dark-mode heading rule */
+  }
+  .install-card > div > p { margin-top: 1rem; color: var(--accent-ink); line-height: 1.65; max-width: 44ch; }
+  .install-snip { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; margin-top: 1.5rem; }
+  .install-snip-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .install-snip code { font-size: 0.85rem; color: var(--fg); }
+  .install-snip + .install-snip { margin-top: 0.75rem; }
+  .copy-btn {
+    flex: none; font-size: 0.75rem; font-weight: 590; color: var(--muted);
+    background: none; border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.65rem;
+  }
+  .copy-btn:hover { color: var(--fg); border-color: var(--fg); }
+  .copy-btn.is-copied { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .install-code pre { margin: 0; font-size: 0.82rem; line-height: 1.65; overflow-x: auto; color: var(--muted); }
+
+  /* ---------- footer ---------- */
+  footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
+  .foot-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+  .foot-note { font-size: 0.85rem; color: var(--muted); }
+  .back-top { font-size: 0.85rem; color: var(--muted); text-decoration: none !important; }
+  .back-top:hover { color: var(--fg); }
+
+  /* ---------- replay fab ---------- */
+  .kui-replay-fab {
+    position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60;
+    width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
+    background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
+    box-shadow: var(--shadow-float);
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+  .kui-replay-fab:hover { transform: scale(1.06); }
+  .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="#top" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html,landing-minimal.html,landing-studio.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <a href="./landing-minimal.html" data-nav-link="landing-minimal.html">Minimal Studio</a>
+          <a href="./landing-studio.html" data-nav-link="landing-studio.html">Motion Playground</a>
+        </div>
+      </div>
+    </nav>
+    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">Declarative web animation</p>
+          <h1 data-kui="typewriter">CSS animations using HTML attributes.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            <code>data-kui</code> compiles into real <code>@keyframes</code> and native scroll-driven
+            timelines — no animation loop, no runtime once it's compiled. JavaScript is reserved for
+            the handful of effects that genuinely can't be done any other way: dragging, text
+            splitting, reading scroll position.
+          </p>
+          <div class="hero-actions" data-kui="fade-up 700ms 180ms">
+            <a href="#gallery" class="btn btn-primary">See it on real content</a>
+            <a href="#proof" class="btn btn-ghost" data-kui="shine-sweep">Read the proof →</a>
+          </div>
+          <p class="hero-note" data-kui="fade-up 700ms 260ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
+        </div>
+        <div class="hero-media" data-kui="fade-left 700ms 120ms">
+          <div class="flip-card" data-kui="card-flip-y on:hover">
+            <div class="flip-face flip-front">
+              <img src="./assets/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" />
+            </div>
+            <div class="flip-face flip-back">
+              <img src="./assets/green_monochrome.jpg" alt="Portrait in a green jumpsuit against a matching green backdrop, one leg raised" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CODE PROOF -->
+      <section class="proof" id="proof" data-od-id="proof">
+        <div>
+          <h2 data-kui="text-reveal-mask 700ms" data-kui-on="enter">One attribute. One compiled animation.</h2>
+          <p>
+            Author the effect name, timing, and parameters directly on the element. The parser
+            resolves it once against a channel model that keeps unrelated effects from fighting
+            over the same CSS property, then hands the rest to the browser's own compositor.
+          </p>
+        </div>
+        <div class="proof-card">
+          <pre><code>&lt;h2 data-kui="fade-up 800ms"&gt;
+  Disjoint channels compose
+  without a conflict.
+&lt;/h2&gt;</code></pre>
+          <div class="proof-divider proof-render">
+            <h3 data-kui="fade-up 800ms" data-kui-on="enter">Disjoint channels compose without a conflict.</h3>
+          </div>
+        </div>
+      </section>
+
+      <!-- PILLARS -->
+      <section data-od-id="pillars">
+        <div class="pillars-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Three things it actually does</h2>
+        </div>
+        <div class="pillars" data-kui-stagger="100ms">
+          <div class="pillar" data-kui="fade-right 500ms" data-kui-on="enter">
+            <div class="pillar-swatch" data-kui="tilt-3d maxAngle:24 perspective:500px">tilt-3d</div>
+            <h3>CSS-native</h3>
+            <p>Entrances, 3D tilt, and reveals run as real <code>@keyframes</code> on the compositor thread. They keep running if a script is slow, blocked, or never loads at all.</p>
+          </div>
+          <div class="pillar" data-kui="fade-up 500ms 60ms" data-kui-on="enter">
+            <div class="pillar-swatch" data-kui="beam-border">beam-border</div>
+            <h3>JavaScript only where necessary</h3>
+            <p>Drag, gesture, text-splitting, and scroll-position effects are JS-prepared — every other primitive in the catalog needs none of it.</p>
+          </div>
+          <div class="pillar" data-kui="fade-left 500ms 120ms" data-kui-on="enter">
+            <div class="pillar-swatch" data-kui="border-glow" style="--kui-border-glow-color: #ffffff">border-glow</div>
+            <h3>Scroll-driven, not scroll-listened</h3>
+            <p>Pins, parallax, and scrollytelling prefer native <code>animation-timeline: view()</code>, falling back to one shared scheduler rather than a listener per effect.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- GALLERY -->
+      <section id="gallery" data-od-id="gallery">
+        <div class="gallery-head">
+          <div>
+            <h2 data-kui="fade-up" data-kui-on="enter">Animated on real content, not just typography</h2>
+            <p>Three photographs, three live effects — a scroll-linked parallax drift, a slow
+              ken-burns zoom, and a diagonal wipe reveal. All compiled CSS, all playing on their
+              own — nothing here waits for a hover.</p>
+          </div>
+        </div>
+        <div class="gallery" data-kui-stagger="80ms">
+          <div class="g-card g-wide g-parallax" data-kui="fade-up 500ms" data-kui-on="enter">
+            <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" data-kui="parallax-y distance:120px timeline:view" />
+            <span class="g-tag">parallax-y</span>
+          </div>
+          <div class="g-card" data-kui="fade-up 500ms 60ms" data-kui-on="enter">
+            <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" data-kui="ken-burns 9000ms" />
+            <span class="g-tag">ken-burns</span>
+          </div>
+          <div class="g-card" data-kui="fade-up 500ms 120ms" data-kui-on="enter">
+            <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" data-kui="wipe-diagonal 900ms" />
+            <span class="g-tag">wipe-diagonal</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CATALOG -->
+      <section id="catalog" data-od-id="catalog">
+        <div class="catalog-stat" data-kui="fade-up" data-kui-on="enter">
+          <div>
+            <p class="num">~<span data-kui="count-up 1800ms to:237" data-kui-on="enter">0</span> named effects</p>
+            <p class="num-note">from 29 primitives across 15 catalog categories — entrance, scroll mechanics, 3D, text, forms, navigation, gestures, and more.</p>
+          </div>
+        </div>
+        <div class="chips" data-kui="flip-reorder" data-kui-stagger="35ms" aria-label="Sample of named effects in the catalog — hover a chip to preview its effect">
+          <span class="chip" data-kui="fade-up 500ms" data-kui-on="hover">fade-up</span>
+          <span class="chip" data-kui="slide-left 500ms" data-kui-on="hover">slide-left</span>
+          <span class="chip" data-kui="zoom-in 500ms" data-kui-on="hover">zoom-in</span>
+          <span class="chip" data-kui="bounce-in-up 600ms" data-kui-on="hover">bounce-in-up</span>
+          <span class="chip" data-kui="blur-in 500ms" data-kui-on="hover">blur-in</span>
+          <span class="chip" data-kui="parallax-y distance:10px timeline:view" title="parallax-y is scroll-position-linked (timeline:view) and only supports manual activation — it can't be gated to hover">parallax-y</span>
+          <span class="chip" data-kui="reveal-once" data-kui-on="hover">reveal-once</span>
+          <span class="chip" title="Needs a dedicated tall scroll runway to pin against — see it live in scroll.html">pin-section</span>
+          <span class="chip" title="Needs a wide multi-item track to scroll through — see it live in scroll.html">horizontal-scroll</span>
+          <span class="chip" data-kui="split-chars 400ms" data-kui-on="hover">split-chars</span>
+          <span class="chip" data-kui="text-reveal-mask 500ms" data-kui-on="hover">text-reveal-mask</span>
+          <span class="chip" data-kui="typewriter" data-kui-on="hover">typewriter</span>
+          <span class="chip" data-kui="scramble" data-kui-on="hover">scramble</span>
+          <span class="chip" data-kui="underline-draw 500ms" data-kui-on="hover" title="draw-stroke isn't wired up in this build of the library — showing underline-draw, the same stroke-drawing family">draw-stroke</span>
+          <span class="chip chip-icon">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+              <path fill="currentColor" d="M8 0C12.42 0 16 3.58 16 8C16 12.42 12.42 16 8 16C3.58 16 0 12.42 0 8C0 3.58 3.58 0 8 0Z" data-kui="icon-morph to:'M2 2L14 2L14 14L2 14Z'" />
+            </svg>
+            icon-morph
+          </span>
+          <span class="chip">count-up <b data-kui="count-up 1200ms to:237" data-kui-on="hover">0</b></span>
+          <span class="chip chip-icon">
+            <svg width="14" height="14" viewBox="0 0 32 32" aria-hidden="true">
+              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-opacity="0.25" stroke-width="3" fill="none" />
+              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="3" fill="none" transform="rotate(-90 16 16)" style="--kui-path-length: 81.7" data-kui="progress-ring 1200ms" data-kui-on="hover" />
+            </svg>
+            progress-ring
+          </span>
+          <span class="chip chip-icon"><img src="./assets/nike_shoe.jpg" alt="" data-kui="ken-burns 3000ms on:hover" /> ken-burns</span>
+          <span class="chip" data-kui="wipe-circle 500ms" data-kui-on="hover">wipe-circle</span>
+          <span class="chip chip-icon"><img src="./assets/kuinetic_spray.jpg" alt="" data-kui="duotone-hover on:hover" /> duotone-hover</span>
+          <span class="chip" data-kui="magnetic">magnetic</span>
+          <span class="chip" data-kui="tilt-3d maxAngle:18">tilt-3d</span>
+          <span class="chip" data-kui="beam-border">beam-border</span>
+          <span class="chip" data-kui="shine-sweep">shine-sweep</span>
+          <button type="button" class="chip chip-action" id="chip-shuffle" title="Click to shuffle — watch flip-reorder animate every chip to its new spot">flip-reorder</button>
+          <span class="chip" data-kui="card-flip-x on:hover">card-flip-x</span>
+          <span class="chip" data-kui="drag-inertia">drag-inertia</span>
+          <span class="chip" data-kui="elastic-pull">elastic-pull</span>
+        </div>
+      </section>
+
+      <!-- INSTALL -->
+      <section id="install" data-od-id="install">
+        <div class="install-card">
+          <div>
+            <h2 data-kui="fade-up" data-kui-on="enter">Ship it in two lines.</h2>
+            <p>Standalone, MIT-licensed, framework-agnostic. No product or CMS coupling — drop the
+              two files in and start authoring <code>data-kui</code> attributes.</p>
+          </div>
+          <div>
+            <div class="install-snip">
+              <div class="install-snip-row">
+                <code id="npm-cmd">npm install kuinetic</code>
+                <button type="button" class="copy-btn" data-copy-target="npm-cmd">Copy</button>
+              </div>
+            </div>
+            <div class="install-snip install-code">
+              <pre><code>&lt;link rel="stylesheet" href="./kuinetic.css"&gt;
+&lt;script src="./kuinetic.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  kuinetic.kuinetic({ observe: true }).start()
+&lt;/script&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    // Copy-to-clipboard
+    document.querySelectorAll('.copy-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.dataset.copyTarget)
+        if (!target) return
+        var text = target.textContent
+        var done = function () {
+          var original = btn.textContent
+          btn.textContent = 'Copied'
+          btn.classList.add('is-copied')
+          setTimeout(function () {
+            btn.textContent = original
+            btn.classList.remove('is-copied')
+          }, 1500)
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, done)
+        } else {
+          var ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          try { document.execCommand('copy') } catch (e) {}
+          document.body.removeChild(ta)
+          done()
+        }
+      })
+    })
+  </script>
+  <script src="./replay.js"></script>
+  <script>
+    // Shuffle the chip row — the flip-reorder effect on .chips notices the DOM
+    // reorder itself and animates every chip to its new position.
+    var shuffleBtn = document.getElementById('chip-shuffle')
+    if (shuffleBtn) {
+      shuffleBtn.addEventListener('click', function () {
+        var container = document.querySelector('.chips')
+        var items = Array.prototype.slice.call(container.children)
+        for (var i = items.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1))
+          var tmp = items[i]
+          items[i] = items[j]
+          items[j] = tmp
+        }
+        items.forEach(function (el) { container.appendChild(el) })
+      })
+    }
+  </script>
+</body>
+</html>

@@ -42,6 +42,9 @@ export interface ActivationBinderOptions {
  * @complexity O(1) per bind; O(t) space in the number of distinct thresholds.
  * @overallScore 100
  */
+// Factory closing over shared observer/callback state; length is four small named closures plus
+// the returned binder, not one long procedure.
+// eslint-disable-next-line max-lines-per-function
 export function createActivationBinder(options: ActivationBinderOptions = {}): ActivationBinder {
   const observers = new Map<string, { observer: IntersectionObserver; count: number }>()
   const callbacks = new WeakMap<Element, { activate: () => void; release: Cleanup }>()

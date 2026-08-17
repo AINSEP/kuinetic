@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Scroll</title>
+<meta name="description" content="Scroll-linked parallax, progress, pinning, scrollytelling, and horizontal-scroll patterns for kUInetic's data-kui primitives — native CSS timelines where the browser supports them, a shared JS orchestrator where it doesn't." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 60ch; line-height: 1.6; }
+
+  /* ---------- matrix groups (grouped by primitive family, mirrors catalog.md order) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .matrix-group-note { margin: -0.4rem 0 0.85rem; font-size: 0.85rem; color: var(--muted); line-height: 1.6; max-width: 60ch; }
+
+  /* ---------- demo grid / cards (entrance-style, simple flat cards) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
+     align-items:stretch adds to this card to match the tallest card in its row. Without this, the
+     card's own --surface background shows through as a sliver below a figcaption sized only to its
+     own content. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card figcaption,
+  .parallax-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption,
+  :root[data-theme='dark'] .parallax-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ================================================================================
+     Scroll-page-specific: everything below needs real height/width to actually scroll,
+     unlike the flat entrance cards above.
+     ================================================================================ */
+
+  /* ---------- fixed progress chrome: live examples of scroll-progress-bar / -ring ---------- */
+  #progress-bar {
+    position: fixed; inset: 0 0 auto; height: 3px;
+    background: var(--accent); transform-origin: left center; z-index: 100;
+  }
+  .progress-ring-wrap {
+    position: fixed; left: 1.25rem; bottom: 1.25rem; z-index: 60;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border); box-shadow: var(--shadow-float);
+    display: grid; place-items: center;
+  }
+  .progress-ring-wrap svg { transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: var(--border); stroke-width: 3; }
+  .ring-fill { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+
+  /* ---------- parallax cards (Section B) ---------- */
+  .parallax-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .parallax-frame { position: relative; height: 230px; overflow: clip; flex: none; }
+  .parallax-frame img { position: absolute; inset: -20% 0; width: 100%; height: 140%; object-fit: cover; }
+  /* parallax-x travels horizontally, so the oversize has to be on the inline axis instead */
+  .parallax-frame.is-x img { inset: 0 -20%; width: 140%; height: 100%; }
+  /* parallax-scale grows from within its own box — no oversize needed, a gap would show at scale:1 */
+  .parallax-frame.is-scale img { inset: 0; width: 100%; height: 100%; }
+  /* parallax-rotate needs slack in both axes so a rotated corner never shows the frame's edge */
+  .parallax-frame.is-rotate img { inset: -16%; width: 132%; height: 132%; }
+
+  /* ---------- pinning group (Section C) ---------- */
+  .pin-section-stage {
+    position: relative; min-height: 320vh; margin-top: 2rem;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .pin-section-card {
+    position: relative; height: 100vh; overflow: clip;
+    display: grid; place-items: center; text-align: center;
+  }
+  .pin-section-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pin-section-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgb(8 9 10 / 0.15), rgb(8 9 10 / 0.55));
+  }
+  .pin-section-card .pin-copy {
+    position: relative; z-index: 1; color: #fff; padding: 0 1.5rem; max-width: 30ch;
+    opacity: calc(0.25 + var(--kui-progress, 0) * 0.75);
+    translate: 0 calc(var(--kui-progress, 0) * -40px);
+  }
+  .pin-section-card .pin-copy p.kicker { color: rgb(255 255 255 / 0.75); }
+  .pin-section-card .pin-copy h3 { font-size: clamp(1.6rem, 1vw + 1.4rem, 2.4rem); letter-spacing: -0.02em; }
+
+  .pin-until-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
+  @media (min-width: 800px) { .pin-until-layout { grid-template-columns: 0.85fr 1.15fr; gap: 2.5rem; } }
+  .pin-until-aside {
+    align-self: start; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .pin-until-aside h4 { font-size: 1.15rem; letter-spacing: -0.01em; }
+  .pin-until-aside p { margin-top: 0.6rem; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
+  .pin-until-aside .mono-note { margin-top: 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; color: var(--muted); }
+  .pin-until-content { display: grid; gap: 1.5rem; }
+  .pin-until-block { border-radius: 12px; overflow: clip; border: 1px solid var(--border); }
+  .pin-until-block img { display: block; width: 100%; height: 62vh; max-height: 460px; object-fit: cover; }
+
+  .pin-spacer-demo { margin-top: 2rem; }
+  .pin-spacer-track { position: relative; min-height: 260vh; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .pin-spacer-card {
+    position: relative; height: 70vh; overflow: clip; border-radius: 0;
+    display: grid; place-items: center;
+  }
+  .pin-spacer-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pin-spacer-card::after { content: ''; position: absolute; inset: 0; background: rgb(8 9 10 / 0.4); }
+  .pin-spacer-card .pin-copy { position: relative; z-index: 1; color: #fff; text-align: center; }
+  .pin-spacer-card .pin-copy .mono { display: block; font-size: 0.78rem; letter-spacing: 0.04em; color: rgb(255 255 255 / 0.75); margin-top: 0.5rem; }
+  /* Makes the JS-inserted spacer node visible for teaching purposes — this dashed box IS the
+     `distance`-tall <div data-kui-spacer> the pin primitive creates automatically after the card. */
+  .pin-spacer-track [data-kui-spacer] { outline: 1px dashed var(--border); outline-offset: -1px; }
+  .pin-spacer-track [data-kui-spacer]::before {
+    content: 'auto-inserted spacer · height = distance'; display: block; margin: 1rem auto 0; width: fit-content;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--muted);
+  }
+
+  .stack-group { margin-top: 2rem; }
+  .stack-item { min-height: 92vh; display: flex; align-items: flex-start; justify-content: center; padding-top: 4vh; }
+  .stack-item:first-child { min-height: 60vh; }
+  .stack-card {
+    width: min(680px, 92%); height: 58vh; max-height: 460px;
+    border-radius: 16px; overflow: clip; border: 1px solid var(--border);
+    box-shadow: var(--shadow-float); position: relative;
+  }
+  .stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .stack-card figcaption {
+    position: absolute; left: 0.9rem; bottom: 0.9rem; z-index: 1;
+    padding: 0.5rem 0.85rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem;
+    color: #fff; background: rgb(8 9 10 / 0.55); backdrop-filter: blur(6px);
+  }
+
+  /* ---------- scrollytelling (Section C) ---------- */
+  .story { position: relative; min-height: 280vh; margin-top: 2rem; overflow: clip; border-radius: 14px; border: 1px solid var(--border); }
+  .story > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .story::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(8 9 10 / 0.35), rgb(8 9 10 / 0.75)); }
+  .story-pin {
+    position: sticky; top: 0; height: 100vh;
+    display: grid; align-content: center; gap: 1rem; padding: 0 2rem;
+  }
+  .story-pin p {
+    position: relative; z-index: 1; margin: 0; font-size: clamp(1.2rem, 1vw + 1rem, 1.7rem);
+    color: rgb(255 255 255 / 0.4); transition: color 240ms ease; max-width: 34ch;
+  }
+  .story[data-kui-step='0'] .story-pin p:nth-child(1),
+  .story[data-kui-step='1'] .story-pin p:nth-child(2),
+  .story[data-kui-step='2'] .story-pin p:nth-child(3),
+  .story[data-kui-step='3'] .story-pin p:nth-child(4) {
+    color: #fff;
+  }
+
+  /* ---------- horizontal scroll (Section C) ---------- */
+  .track-stage { height: 300vh; margin-top: 2rem; }
+  .track-viewport { position: sticky; top: 0; height: 100vh; display: grid; align-content: center; overflow: hidden; }
+  .track { display: flex; gap: 1.5rem; width: max-content; padding: 0 4rem; }
+  .track figure { width: 380px; flex: none; border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface); }
+  .track figure img { display: block; width: 100%; height: 280px; object-fit: cover; }
+  .track figure figcaption { padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
+
+  /* ---------- sequence-scrub (Section C) ---------- */
+  .scrub-stage { height: 260vh; margin-top: 2rem; }
+  .scrub-viewport {
+    position: sticky; top: 10vh; height: 80vh; max-height: 560px;
+    border-radius: 14px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
+  }
+  .scrub-viewport img {
+    display: block; width: 100%; height: 100%; object-fit: cover;
+    filter: grayscale(calc(100% - var(--kui-progress, 0) * 100%));
+  }
+
+  /* ---------- scroll-spy (Section C) ---------- */
+  .spy-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
+  @media (min-width: 800px) { .spy-layout { grid-template-columns: 200px 1fr; gap: 2.5rem; } }
+  .spy-nav {
+    align-self: start; position: sticky; top: 6rem; display: flex; flex-direction: column; gap: 0.35rem;
+    padding: 1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .spy-nav a {
+    font-size: 0.88rem; padding: 0.5rem 0.6rem; border-radius: 7px; color: var(--muted);
+    text-decoration: none !important; transition: color 150ms ease, background-color 150ms ease;
+  }
+  .spy-nav a[data-kui-active='true'] { color: var(--accent-text); font-weight: 600; background: var(--bg); }
+  .spy-sections { display: grid; gap: 1.25rem; }
+  .spy-section {
+    position: relative; min-height: 68vh; border-radius: 14px; overflow: clip; border: 1px solid var(--border);
+    display: flex; align-items: flex-end;
+  }
+  .spy-section img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .spy-section::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgb(8 9 10 / 0.7)); }
+  .spy-section .spy-label { position: relative; z-index: 1; padding: 1.5rem; color: #fff; }
+  .spy-section .spy-label .kicker { color: rgb(255 255 255 / 0.75); }
+  .spy-section .spy-label h4 { font-size: 1.5rem; letter-spacing: -0.01em; }
+
+  /* ---------- native scroll-snap (Section C) ---------- */
+  .snap-x-row {
+    display: flex; gap: 1rem; margin-top: 2rem; padding-bottom: 0.75rem;
+    overflow-x: auto; scroll-padding-inline: 1.5rem;
+  }
+  .snap-x-row figure {
+    flex: none; width: min(78vw, 420px); scroll-snap-stop: always;
+    border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
+  }
+  .snap-x-row img { display: block; width: 100%; height: 260px; object-fit: cover; }
+  .snap-x-row figcaption { padding: 0.6rem 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; color: var(--muted); }
+
+  .snap-y-panel {
+    margin-top: 2rem; height: 62vh; max-height: 520px; overflow-y: auto;
+    border-radius: 14px; border: 1px solid var(--border);
+  }
+  .snap-y-panel figure { position: relative; height: 100%; }
+  .snap-y-panel img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .snap-y-panel figcaption {
+    position: absolute; left: 1.25rem; bottom: 1.25rem; z-index: 1;
+    padding: 0.5rem 0.85rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem;
+    color: #fff; background: rgb(8 9 10 / 0.55); backdrop-filter: blur(6px);
+  }
+
+  .note { margin-top: 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6; max-width: 60ch; }
+  .note code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+</style>
+</head>
+<body>
+
+  <div id="progress-bar" data-kui="scroll-progress-bar timeline:scroll" aria-hidden="true"></div>
+  <div class="progress-ring-wrap" aria-hidden="true">
+    <svg viewBox="0 0 44 44" width="46" height="46">
+      <circle class="ring-track" cx="22" cy="22" r="18" />
+      <circle class="ring-fill" cx="22" cy="22" r="18" pathLength="100" data-kui="scroll-progress-ring timeline:scroll" />
+    </svg>
+  </div>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Scroll</p>
+          <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            Everything on this page reads real scroll position, not a fixed timer. Some effects use
+            <code>data-kui-timeline</code> — a native CSS <code>view()</code>/<code>scroll()</code> timeline that
+            reverses the instant you scroll back up. Others need real measurement — pinning,
+            scrollytelling, horizontal tracks — so they run through the library's shared JS orchestrator instead.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> The bar above the header and the ring in the lower-left corner are both live — watch them as you scroll this page.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/scenic_volcano_eruption.jpg"
+            alt="Volcán de Fuego erupting at night, glowing lava fountains arcing over the silhouetted cone under a dense, star-filled sky"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- SECTION B: SCROLL REVEAL & PARALLAX -->
+      <section id="matrix" data-od-id="reveal-parallax">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Scroll reveal &amp; parallax</h2>
+          <p>
+            Catalog section B — 12 named effects. Nine are live below; three
+            (<code>reveal-repeat</code>, <code>scroll-skew</code>, <code>reveal-direction-aware</code>) are
+            documented in the catalog but not yet wired into the shipped library — <code>reveal-repeat</code>
+            was removed as byte-identical to <code>reveal-once</code> once the activation binder stopped
+            re-observing after first entry, and the other two have no registered primitive to grep for.
+            <code>parallax-*</code> and <code>scroll-*</code> use <code>data-kui-timeline</code>, not
+            <code>data-kui-on</code> — progress-linked, so they reverse on scroll-up by design.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Reveal &amp; fade — 2</p>
+          <div class="demo-grid">
+            <figure class="demo-card" data-kui="reveal-once">
+              <img src="./assets/scenic_lake_reflection.jpg" alt="A calm alpine lake with a mirror-still reflection of the mountains above it" loading="lazy" />
+              <figcaption>data-kui="reveal-once"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="scroll-fade timeline:view">
+              <img src="./assets/scenic_desert_dunes.jpg" alt="Rolling desert sand dunes with strong shadow texture" loading="lazy" />
+              <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Parallax — 5</p>
+          <p class="matrix-group-note">Each frame clips a deliberately oversized image so the transform never reveals a bare edge — the amount and direction of oversize differs per effect (see the CSS comments in this page's <code>&lt;style&gt;</code> block).</p>
+          <div class="demo-grid">
+            <figure class="parallax-card">
+              <div class="parallax-frame">
+                <img data-kui="parallax-y distance:120px timeline:view" src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
+              </div>
+              <figcaption>parallax-y — distance:120px</figcaption>
+            </figure>
+            <figure class="parallax-card">
+              <div class="parallax-frame is-x">
+                <img data-kui="parallax-x distance:100px timeline:view" src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
+              </div>
+              <figcaption>parallax-x — distance:100px</figcaption>
+            </figure>
+            <figure class="parallax-card">
+              <div class="parallax-frame is-scale">
+                <img data-kui="parallax-scale scale:1.25 timeline:view" src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
+              </div>
+              <figcaption>parallax-scale — scale:1.25</figcaption>
+            </figure>
+            <figure class="parallax-card">
+              <div class="parallax-frame is-rotate">
+                <img data-kui="parallax-rotate angle:10deg timeline:view" src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
+              </div>
+              <figcaption>parallax-rotate — angle:10deg</figcaption>
+            </figure>
+            <figure class="parallax-card">
+              <div class="parallax-frame">
+                <img data-kui="depth-layer timeline:view" src="./assets/scenic_valley_mist.jpg" alt="A misty mountain valley with layered ridgelines fading into fog" loading="lazy" />
+              </div>
+              <figcaption>depth-layer — distance:200px (same primitive as parallax-y, more travel)</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION C: SCROLL MECHANICS -->
+      <section data-od-id="scroll-mechanics">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Scroll mechanics</h2>
+          <p>
+            Catalog section C — 11 named effects, all backed by real primitives. Ten are demonstrated below;
+            <code>video-scrub</code> is verified in <code>kuinetic.js</code> (the same <code>media-scrub</code>
+            primitive as <code>sequence-scrub</code>, just fed a <code>&lt;video&gt;</code> instead of a frame
+            pattern) but is left unwired here — this pass sourced photography, not video footage, and wiring a
+            real <code>&lt;video&gt;</code> element in in place of a frame sequence is a small, well-understood follow-up.
+            Everything here needs the shared JS orchestrator: measurement, resize invalidation, cleanup.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Pinning — 4</p>
+
+          <p class="matrix-group-note" style="margin-top:0.85rem;">pin-section — the default carries an auto-inserted spacer, so a pin longer than its containing block still reserves scroll room.</p>
+          <div class="pin-section-stage">
+            <div class="pin-section-card" data-kui="pin-section distance:200vh">
+              <img src="./assets/scenic_grand_canyon_vista.jpg" alt="An epic, vast canyon vista stretching to the horizon" loading="lazy" />
+              <div class="pin-copy">
+                <p class="kicker">data-kui="pin-section distance:200vh"</p>
+                <h3>Pinned while the section passes.</h3>
+              </div>
+            </div>
+          </div>
+
+          <p class="matrix-group-note" style="margin-top:2rem;">pin-until — spacer:false. No spacer is inserted; the sticky panel relies on its own naturally taller sibling for scroll room, the classic sticky-sidebar pattern.</p>
+          <div class="pin-until-layout">
+            <aside class="pin-until-aside" data-kui="pin-until offset:6rem">
+              <h4>Three stops, one scroll.</h4>
+              <p>This panel sticks at <code>offset:6rem</code> while the itinerary beside it scrolls past underneath. Nothing here is JS-positioned besides <code>position:sticky</code> itself — the height comes from the content on the right.</p>
+              <p class="mono-note">data-kui="pin-until offset:6rem"</p>
+            </aside>
+            <div class="pin-until-content">
+              <figure class="pin-until-block">
+                <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
+              </figure>
+              <figure class="pin-until-block">
+                <img src="./assets/scenic_terraced_rice_fields.jpg" alt="Green terraced rice fields carved into a hillside" loading="lazy" />
+              </figure>
+              <figure class="pin-until-block">
+                <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
+              </figure>
+            </div>
+          </div>
+
+          <p class="matrix-group-note" style="margin-top:2rem;">pin-spacer — same primitive as pin-section, spelled out explicitly: the dashed box below the photo is the real <code>&lt;div data-kui-spacer&gt;</code> the primitive inserts into the DOM.</p>
+          <div class="pin-spacer-demo">
+            <div class="pin-spacer-track">
+              <div class="pin-spacer-card" data-kui="pin-spacer distance:120vh">
+                <img src="./assets/scenic_slot_canyon.jpg" alt="A narrow slot canyon with warm glowing sandstone walls and light beams" loading="lazy" />
+                <div class="pin-copy">
+                  <span class="mono">data-kui="pin-spacer distance:120vh"</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="matrix-group-note" style="margin-top:2rem;">stacking-cards — the pin primitive applied per card, each at its own <code>offset</code>, so the stack builds up naturally as you scroll.</p>
+          <div class="stack-group">
+            <div class="stack-item">
+              <figure class="stack-card" data-kui="stacking-cards offset:1rem">
+                <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
+                <figcaption>offset:1rem</figcaption>
+              </figure>
+            </div>
+            <div class="stack-item">
+              <figure class="stack-card" data-kui="stacking-cards offset:2.25rem">
+                <img src="./assets/scenic_redwood_forest.jpg" alt="Tall old-growth redwood trees with sunbeams through the canopy" loading="lazy" />
+                <figcaption>offset:2.25rem</figcaption>
+              </figure>
+            </div>
+            <div class="stack-item">
+              <figure class="stack-card" data-kui="stacking-cards offset:3.5rem">
+                <img src="./assets/scenic_sahara_dunes.jpg" alt="Sahara desert dune ridgelines lit in warm sunset tones" loading="lazy" />
+                <figcaption>offset:3.5rem</figcaption>
+              </figure>
+            </div>
+            <div class="stack-item">
+              <figure class="stack-card" data-kui="stacking-cards offset:4.75rem">
+                <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
+                <figcaption>offset:4.75rem</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Scrollytelling — 1</p>
+          <div class="story" data-kui="scrollytelling-step distance:200vh steps:4" data-kui-step="0">
+            <img src="./assets/scenic_glacier_ice.jpg" alt="A glacier landscape of blue-white ice under a cold sky" loading="lazy" />
+            <div class="story-pin">
+              <p>One — the compiler reads the attribute.</p>
+              <p>Two — parameters are validated before they reach CSS.</p>
+              <p>Three — channels decide whether effects may compose.</p>
+              <p>Four — the browser owns the frame loop.</p>
+            </div>
+          </div>
+          <p class="note">The primitive writes <code>data-kui-step</code> onto the section itself; the highlight above is a plain attribute selector.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Horizontal travel — 1</p>
+          <div class="track-stage">
+            <div class="track-viewport">
+              <div class="track" data-kui="horizontal-scroll distance:250vh">
+                <figure>
+                  <img src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
+                  <figcaption>Alps</figcaption>
+                </figure>
+                <figure>
+                  <img src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
+                  <figcaption>Amalfi coast</figcaption>
+                </figure>
+                <figure>
+                  <img src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
+                  <figcaption>Canyon falls</figcaption>
+                </figure>
+                <figure>
+                  <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
+                  <figcaption>Aurora</figcaption>
+                </figure>
+                <figure>
+                  <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
+                  <figcaption>City nights</figcaption>
+                </figure>
+              </div>
+            </div>
+          </div>
+          <p class="note">data-kui="horizontal-scroll distance:250vh" — a JS orchestrator translates the track directly; nothing here is a native scroll container.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Media scrub — 1 of 2</p>
+          <p class="matrix-group-note">
+            sequence-scrub's <code>frames:</code>/<code>src:</code> params swap in one real still per fifth of the
+            scroll range via a <code>{i}</code> placeholder in the <code>src</code> pattern — five distinct photos
+            below, not a filter effect. <code>src</code> is a JS-only <code>text</code> param, so the value never
+            reaches a stylesheet — it goes straight to <code>&lt;img&gt;.src</code> — which is why the shared
+            CSS-escape guard on <code>data-kui</code> values leaves braces alone for this one param. The
+            grayscale→color wipe is layered on top from the same real <code>--kui-progress</code> the primitive
+            publishes, so both mechanisms are visible scrolling through this one element.
+          </p>
+          <div class="scrub-stage">
+            <div class="scrub-viewport">
+              <img data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh" src="./assets/scenic_scrub_0.jpg" alt="A sequence of five landscape photos swapping in frame by frame as you scroll, fading from grayscale to full color" loading="lazy" />
+            </div>
+          </div>
+          <p class="note">data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh"</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Navigation — 1</p>
+          <p class="matrix-group-note">scroll-spy writes <code>data-kui-active</code> onto the tracked section and mirrors it onto whatever <code>target</code> selector you point at — here, the matching nav link.</p>
+          <div class="spy-layout">
+            <nav class="spy-nav" aria-label="Jump to region">
+              <a id="spy-link-mountains" href="#spy-mountains">Mountains</a>
+              <a id="spy-link-coasts" href="#spy-coasts">Coasts</a>
+              <a id="spy-link-deserts" href="#spy-deserts">Deserts</a>
+              <a id="spy-link-forests" href="#spy-forests">Forests</a>
+            </nav>
+            <div class="spy-sections">
+              <section id="spy-mountains" class="spy-section" data-kui="scroll-spy target:#spy-link-mountains">
+                <img src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Region</p><h4>Mountains</h4></div>
+              </section>
+              <section id="spy-coasts" class="spy-section" data-kui="scroll-spy target:#spy-link-coasts">
+                <img src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Region</p><h4>Coasts</h4></div>
+              </section>
+              <section id="spy-deserts" class="spy-section" data-kui="scroll-spy target:#spy-link-deserts">
+                <img src="./assets/scenic_desert_dunes.jpg" alt="Rolling desert sand dunes with strong shadow texture" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Region</p><h4>Deserts</h4></div>
+              </section>
+              <section id="spy-forests" class="spy-section" data-kui="scroll-spy target:#spy-link-forests">
+                <img src="./assets/scenic_redwood_forest.jpg" alt="Tall old-growth redwood trees with sunbeams through the canopy" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Region</p><h4>Forests</h4></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Native CSS passthroughs — 2</p>
+          <p class="matrix-group-note">scroll-snap-x / scroll-snap-y just set <code>scroll-snap-type</code>/<code>-align</code> — these are real independently-scrollable containers, not JS-driven like the horizontal track above. Drag or scroll them directly.</p>
+
+          <div class="snap-x-row" data-kui="scroll-snap-x">
+            <figure>
+              <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
+              <figcaption>scroll-snap-x</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
+              <figcaption>scroll-snap-x</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_slot_canyon.jpg" alt="A narrow slot canyon with warm glowing sandstone walls and light beams" loading="lazy" />
+              <figcaption>scroll-snap-x</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
+              <figcaption>scroll-snap-x</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_glacier_ice.jpg" alt="A glacier landscape of blue-white ice under a cold sky" loading="lazy" />
+              <figcaption>scroll-snap-x</figcaption>
+            </figure>
+          </div>
+
+          <div class="snap-y-panel" data-kui="scroll-snap-y">
+            <figure>
+              <img src="./assets/scenic_grand_canyon_vista.jpg" alt="An epic, vast canyon vista stretching to the horizon" loading="lazy" />
+              <figcaption>scroll-snap-y — 1 of 4</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
+              <figcaption>scroll-snap-y — 2 of 4</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
+              <figcaption>scroll-snap-y — 3 of 4</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
+              <figcaption>scroll-snap-y — 4 of 4</figcaption>
+            </figure>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+</body>
+</html>

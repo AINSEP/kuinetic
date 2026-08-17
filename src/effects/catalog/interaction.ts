@@ -19,11 +19,11 @@ import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-sha
 /**
  * Hover and pointer effects (catalog section I).
  *
- * Twelve names (`lift` through `icon-bounce`) are ordinary reversible hover/focus states — the
+ * Thirteen names (`lift` through `icon-bounce`) are ordinary reversible hover/focus states — the
  * library's own `on:hover` activation only listens for `pointerenter`/`focusin` and never
  * un-triggers on leave (see `core/activation.ts`), which is right for a one-shot reveal but wrong
  * for a button that should visibly settle back down when the pointer moves away. These are
- * therefore registered with a no-op `prepare` purely so `data-dsg="lift"` parses, channel-conflicts,
+ * therefore registered with a no-op `prepare` purely so `data-kui="lift"` parses, channel-conflicts,
  * and picks up author parameter overrides — the actual, fully reversible motion is native
  * `:hover`/`:focus-visible` CSS in `interaction.css`, gated to fine-pointer devices so a tap does
  * not leave an element stuck "hovered".
@@ -37,8 +37,8 @@ import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-sha
 // --- discrete hover/focus family: CSS-driven, JS renderer only for registry bookkeeping ---
 
 const hoverTiming: ParameterSchema = {
-  duration: { type: 'time', default: '220ms', cssProperty: '--dsg-duration' },
-  ease: { type: 'easing', default: 'ease-out', cssProperty: '--dsg-ease' },
+  duration: { type: 'time', default: '220ms', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 
 function hoverPrimitive(id: string, channels: string[]): Primitive {
@@ -52,9 +52,10 @@ function hoverPrimitive(id: string, channels: string[]): Primitive {
     defaultActivation: 'load',
     perfClass: 'compositor',
     // Not 'disable': a translate/box-shadow/rotate hover micro-interaction at this scale is not a
-    // vestibular trigger the way parallax or continuous ambient motion is, and 'disable' would be
-    // a no-op here regardless — the real motion lives in CSS transitions/`:hover`-scoped
-    // animations, entirely outside this primitive's compiled (and here, unused) `animation-*` path.
+    // vestibular trigger the way parallax or continuous ambient motion is. The real motion lives in
+    // CSS transitions and `:hover`-scoped pseudo-element animations rather than this primitive's
+    // (here unused) compiled `animation-*` path, so the policy layer shortens it via the
+    // `transition-duration` and `::before`/`::after` rules in base.css.
     reducedMotion: 'shorten',
     prepare: () => inertInstance(),
   }
@@ -80,13 +81,40 @@ export const HOVER_PRESETS: Preset[] = HOVER_PRIMITIVES.map((primitive) => ({
   primitive: primitive.id,
 }))
 
+// --- continuous variant: same beam-border visual, always running instead of hover-gated ---
+//
+// A deliberately separate primitive/preset rather than a new name on HOVER_PRIMITIVES — every
+// member of that family is required (see catalog-interaction.test.ts) to ship a matching
+// `:hover`/`:focus-visible` CSS rule, which is exactly the behavior this variant exists to not
+// have. `reducedMotion: 'disable'`, not `'shorten'`: an infinite loop has no meaningful "shorter"
+// duration, the same reasoning `ambient.ts`'s continuous primitives use.
+
+export const CONTINUOUS_BORDER_PRIMITIVES: Primitive[] = [
+  {
+    id: 'beam-border-auto',
+    renderer: 'javascript' as Renderer,
+    channels: ['border'],
+    parameters: hoverTiming,
+    supportedTimelines: ['time'],
+    supportedActivations: ['load'],
+    defaultActivation: 'load',
+    perfClass: 'compositor',
+    reducedMotion: 'disable',
+    prepare: () => inertInstance(),
+  },
+]
+
+export const CONTINUOUS_BORDER_PRESETS: Preset[] = [
+  { name: 'beam-border-auto', primitive: 'beam-border-auto' },
+]
+
 // --- pointer-tracking family: real JS, continuous, reversible on leave ---
 
 const springParams: ParameterSchema = {
   stiffness: {
     type: 'number',
     default: '260',
-    cssProperty: '--dsg-stiffness',
+    cssProperty: '--kui-stiffness',
     finite: true,
     minimum: 1,
     maximum: 10_000,
@@ -94,7 +122,7 @@ const springParams: ParameterSchema = {
   damping: {
     type: 'number',
     default: '26',
-    cssProperty: '--dsg-damping',
+    cssProperty: '--kui-damping',
     finite: true,
     minimum: 0.1,
     maximum: 1_000,
@@ -258,7 +286,7 @@ function writeDotPosition(dot: HTMLElement, x: number, y: number): void {
 /** Build the synthetic follower element shared by `cursor-follow`/`-lag`/`-label`/`-invert`. */
 function createCursorDot(doc: Document, dotClass: string, labelText: string): HTMLElement {
   const dot = doc.createElement('span')
-  dot.className = `dsg-cursor-dot ${dotClass}`
+  dot.className = `kui-cursor-dot ${dotClass}`
   dot.setAttribute('aria-hidden', 'true')
   if (labelText) dot.textContent = labelText
   doc.body.append(dot)
@@ -298,10 +326,10 @@ function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext
   const runners = createCursorRunners(dot, springFrom(params), springDepsFor(ctx))
 
   function show(): void {
-    dot.classList.add('dsg-cursor-dot-active')
+    dot.classList.add('kui-cursor-dot-active')
   }
   function hide(): void {
-    dot.classList.remove('dsg-cursor-dot-active')
+    dot.classList.remove('kui-cursor-dot-active')
   }
   function onMove(event: PointerEvent): void {
     show()
@@ -335,7 +363,7 @@ function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext
 }
 
 /**
- * Publish the pointer position as `--dsg-x`/`--dsg-y` custom properties for `cursor-spotlight`'s
+ * Publish the pointer position as `--kui-x`/`--kui-y` custom properties for `cursor-spotlight`'s
  * `radial-gradient` to read — direct 1:1 tracking rather than a spring, since a light source
  * lagging behind the cursor reads as broken rather than smooth.
  *
@@ -352,9 +380,9 @@ function prepareSpotlight(el: Element, params: EffectParams, ctx: PrepareContext
   if (ctx.win.getComputedStyle(node).position === 'static') ctx.style.set('position', 'relative')
 
   function writeSpot(x: string, y: string, on: boolean): void {
-    ctx.style.set('--dsg-x', x)
-    ctx.style.set('--dsg-y', y)
-    ctx.style.set('--dsg-spotlight-opacity', on ? '1' : '0')
+    ctx.style.set('--kui-x', x)
+    ctx.style.set('--kui-y', y)
+    ctx.style.set('--kui-spotlight-opacity', on ? '1' : '0')
   }
   function onMove(event: PointerEvent): void {
     const rect = node.getBoundingClientRect()
@@ -381,17 +409,17 @@ function prepareSpotlight(el: Element, params: EffectParams, ctx: PrepareContext
 }
 
 const tiltParams: ParameterSchema = {
-  maxAngle: { type: 'number', default: '14', cssProperty: '--dsg-max-angle' },
-  perspective: { type: 'length', default: '800px', cssProperty: '--dsg-perspective' },
+  maxAngle: { type: 'number', default: '14', cssProperty: '--kui-max-angle' },
+  perspective: { type: 'length', default: '800px', cssProperty: '--kui-perspective' },
 }
 
 const parallaxParams: ParameterSchema = {
-  strength: { type: 'number', default: '24', cssProperty: '--dsg-strength' },
+  strength: { type: 'number', default: '24', cssProperty: '--kui-strength' },
 }
 
 const cursorDotParams: ParameterSchema = {
   ...springParams,
-  label: { type: 'text', default: '', cssProperty: '--dsg-label' },
+  label: { type: 'text', default: '', cssProperty: '--kui-label' },
 }
 
 export const POINTER_PRIMITIVES: Primitive[] = [
@@ -405,16 +433,16 @@ export const POINTER_PRIMITIVES: Primitive[] = [
 ]
 
 function prepareCursorFollow(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  return prepareCursorDot(el, params, ctx, 'dsg-cursor-dot-follow')
+  return prepareCursorDot(el, params, ctx, 'kui-cursor-dot-follow')
 }
 function prepareCursorLag(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  return prepareCursorDot(el, params, ctx, 'dsg-cursor-dot-lag')
+  return prepareCursorDot(el, params, ctx, 'kui-cursor-dot-lag')
 }
 function prepareCursorLabel(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  return prepareCursorDot(el, params, ctx, 'dsg-cursor-dot-label')
+  return prepareCursorDot(el, params, ctx, 'kui-cursor-dot-label')
 }
 function prepareCursorInvert(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  return prepareCursorDot(el, params, ctx, 'dsg-cursor-dot-invert')
+  return prepareCursorDot(el, params, ctx, 'kui-cursor-dot-invert')
 }
 
 export const POINTER_PRESETS: Preset[] = [
@@ -427,8 +455,16 @@ export const POINTER_PRESETS: Preset[] = [
   { name: 'cursor-invert', primitive: 'cursor-invert', params: { stiffness: '260', damping: '26' } },
 ]
 
-export const INTERACTION_PRIMITIVES: Primitive[] = [...HOVER_PRIMITIVES, ...POINTER_PRIMITIVES]
-export const INTERACTION_PRESETS: Preset[] = [...HOVER_PRESETS, ...POINTER_PRESETS]
+export const INTERACTION_PRIMITIVES: Primitive[] = [
+  ...HOVER_PRIMITIVES,
+  ...POINTER_PRIMITIVES,
+  ...CONTINUOUS_BORDER_PRIMITIVES,
+]
+export const INTERACTION_PRESETS: Preset[] = [
+  ...HOVER_PRESETS,
+  ...POINTER_PRESETS,
+  ...CONTINUOUS_BORDER_PRESETS,
+]
 
 /**
  * Register the hover and pointer catalog (section I).

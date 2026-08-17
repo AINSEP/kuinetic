@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>designimation — FLIP geometry fixture</title>
-    <link rel="stylesheet" href="../../../demo/designimation.css" />
+    <title>kuinetic — FLIP geometry fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
     <style>
       * {
         box-sizing: border-box;
@@ -42,15 +42,15 @@
     </style>
   </head>
   <body>
-    <ul id="list" data-dsg="flip-reorder 400ms">
+    <ul id="list" data-kui="flip-reorder 400ms">
       <li id="a" class="box">A</li>
       <li id="b" class="box">B</li>
       <li id="c" class="box">C</li>
     </ul>
 
-    <script src="../../../demo/designimation.js"></script>
+    <script src="../../../demo/kuinetic.js"></script>
     <script>
-      window.__dsg = designimation.designimation({ reporter: designimation.consoleReporter() }).start()
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
     </script>
   </body>
 </html>

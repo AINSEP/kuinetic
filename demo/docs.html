@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — docs</title>
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* Same token system and header/nav chrome as index.html — kept in sync by hand since each
+     showcase page is a standalone file with no shared build step. */
+  :root,
+  :root[data-theme='light'] {
+    --bg: #ffffff;
+    --surface: #f6f6f4;
+    --fg: #08090a;
+    --muted: oklch(46% 0.017 75);
+    --border: #e4e4e2;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Bright acid-lime text on white is a contrast failure (~1.2:1). A plain color-mix(accent,
+       black) darkens it while keeping green as the dominant channel, which reads as olive/green
+       rather than yellow — this is a dedicated dark gold instead, red channel now dominant, ~4.9:1
+       on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
+       accents) where it sits on a dark or neutral surface instead. */
+    --accent-text: #8a6d00;
+    --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    --bg: #08090a;
+    --surface: #0f1011;
+    --fg: #ffffff;
+    --muted: #8a8f98;
+    --border: #23252a;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
+       here — matches --accent exactly. */
+    --accent-text: #e4f222;
+    --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv01' on, 'ss03' on, 'zero' on;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+  @media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 510; }
+  p { margin: 0; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  a { color: inherit; }
+  a:not(.btn):not(.nav-link):not(.chip) {
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 3px;
+  }
+  button, a.btn { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- header / nav ---------- */
+  .site-header {
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
+    margin: 1rem auto 0;
+    max-width: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    box-shadow: var(--shadow-float);
+  }
+  .logo { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none !important; }
+  .logo-mark {
+    position: relative; display: inline-grid; place-items: center;
+    width: 20px; height: 20px; border: 1.5px solid currentColor; border-radius: 50%; flex: none;
+  }
+  .logo-dot {
+    position: absolute; top: -1.5px; left: 50%;
+    width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%;
+    background: var(--accent);
+    transform-origin: 2.5px 11.5px;
+    animation: logo-orbit 3.5s linear infinite;
+  }
+  @keyframes logo-orbit { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
+  .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .wordmark b { font-weight: 800; }
+
+  .nav-links { display: flex; align-items: center; gap: 1.25rem; font-size: 0.9rem; }
+  /* The unconditional display:flex above is an author rule, so it always beats the UA's
+     [hidden]{display:none} at equal specificity regardless of source order (author origin wins
+     over user-agent origin outright) — without this, nav.js setting .hidden=true on mobile close
+     never actually hides the panel. Same class of bug the .doc-toc comment below already
+     documents for a different element. */
+  .nav-links[hidden] { display: none; }
+  .kui-nav-dropdown { position: relative; }
+  .kui-nav-dropdown-trigger {
+    font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
+    background: none; border: none; padding: 0; cursor: pointer;
+  }
+  .kui-nav-dropdown-trigger:hover,
+  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+  .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
+  .kui-nav-coming-soon {
+    display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+    font-style: italic; color: var(--muted); opacity: 0.7;
+  }
+  .kui-nav-dropdown-menu {
+    position: absolute; top: calc(100% + 0.7rem); left: 0; flex-direction: column;
+    min-width: 160px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 0.35rem; box-shadow: var(--shadow-float);
+  }
+  .kui-nav-dropdown-menu a {
+    display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
+    font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
+  }
+  .kui-nav-dropdown-menu a:hover,
+  .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
+  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  .kui-nav-toggle {
+    display: none; width: 2.4rem; height: 2.4rem; padding: 0;
+    color: var(--muted); background: none; border: none; flex: none;
+  }
+  .kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { color: var(--fg); }
+  /* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
+     overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
+     silently ships with no links at desktop widths too. Forcing display here makes the nav
+     correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
+  @media (min-width: 721px) { .nav-links[hidden] { display: flex; } }
+  @media (max-width: 720px) {
+    .kui-nav-toggle { display: grid; place-items: center; }
+    /* Fixed full-viewport layer behind the open mobile panel, in front of the page — without it,
+       whatever's scrolled behind the header shows through around the panel's edges, and there's
+       no reliable "outside" target to click to close it. See nav.js's setMobileOpen/backdrop
+       wiring. */
+    .kui-nav-backdrop {
+      position: fixed; inset: 0; z-index: 1;
+      background: color-mix(in srgb, var(--bg) 70%, transparent);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }
+    .nav-links {
+      position: absolute; top: calc(100% + 0.6rem); left: 0; right: 0; z-index: 2;
+      flex-direction: column; align-items: stretch; gap: 0.2rem;
+      padding: 0.9rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: var(--shadow-float);
+    }
+    .nav-links .kui-nav-dropdown-trigger { display: flex; align-items: center; width: 100%; min-height: 44px; }
+    .nav-links .kui-nav-dropdown-menu { position: static; box-shadow: none; margin-top: 0.1rem; padding: 0.3rem; }
+    .nav-links .kui-nav-dropdown-menu a { min-height: 44px; display: flex; align-items: center; }
+  }
+  @media (max-width: 420px) {
+    .site-header { gap: 0.65rem; padding: 0.5rem 0.5rem 0.5rem 1rem; }
+  }
+
+  .theme-toggle {
+    width: 2.4rem; height: 2.4rem; border-radius: 50%; border: none;
+    background: var(--fg); color: var(--bg);
+    display: grid; place-items: center; padding: 0; flex: none;
+  }
+  .theme-toggle:hover { opacity: 0.85; }
+
+  /* ---------- reading progress ---------- */
+  /* var(--fg) rather than the accent: a bright acid-lime line reads as an alert/loading bar, not
+     a reading indicator — plain ink (black in light, white in dark) is the quieter, more common
+     treatment (Medium and most blog readers do the same) and it's the one thing on the page that
+     should never compete for attention with the actual accent uses. */
+  .doc-progress {
+    position: fixed; top: 0; left: 0; z-index: 110;
+    width: 100%; height: 3px;
+    background: var(--fg);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    will-change: transform;
+  }
+  @media (prefers-reduced-motion: reduce) { .doc-progress { transition: none; } }
+
+  /* ---------- docs viewer ---------- */
+  /* Longhand on purpose: this element also carries .wrap (which sets the left/right padding).
+     A `padding:` shorthand here — even with 0 for the horizontal values — overwrites ALL four
+     sides at equal specificity, silently zeroing the side padding .wrap just set. That's exactly
+     what was happening: .wrap.doc-main rendered with 0 horizontal padding, running content flush
+     to the viewport edge on narrow screens where .wrap's own max-width no longer provided a visual
+     margin via centering. */
+  .doc-main { padding-top: clamp(3rem, 5vw + 1.5rem, 5rem); padding-bottom: 8rem; }
+
+  .doc-switch {
+    display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem;
+    margin-bottom: 2.5rem; padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-switch a { color: var(--muted); text-decoration: none !important; font-size: 0.95rem; }
+  .doc-switch a[aria-current='page'] { color: var(--fg); font-weight: 600; }
+
+  .doc-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 3rem;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .doc-layout { grid-template-columns: 1fr; }
+  }
+
+  /* min-width:0 overrides the grid item's default automatic minimum size (content max-content,
+     i.e. up to the full 72ch), which otherwise forces .doc-layout's 1fr track — and the whole
+     page — wider than a narrow viewport regardless of the internal overflow-x:auto wrappers on
+     pre/table below. Classic CSS Grid blowout; this is the standard fix. */
+  .doc-body { max-width: 72ch; min-width: 0; line-height: 1.7; color: var(--muted); }
+  .doc-body h1,
+  .doc-body h2,
+  .doc-body h3,
+  .doc-body h4 { scroll-margin-top: 96px; }
+  .doc-body h1 { font-size: 2.1rem; line-height: 1.1; letter-spacing: -0.02em; color: var(--fg); margin: 0 0 1rem; }
+  .doc-body h2 { font-size: 1.4rem; letter-spacing: -0.01em; color: var(--fg); margin: 2.5rem 0 0.75rem; }
+  .doc-body h3 { font-size: 1.1rem; color: var(--fg); margin: 1.75rem 0 0.5rem; }
+  .doc-body h4 {
+    font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+    margin: 1.5rem 0 0.4rem;
+  }
+  .doc-body strong { color: var(--fg); font-weight: 590; }
+  .doc-body ul, .doc-body ol { padding-left: 1.4rem; margin: 0.75rem 0; }
+  .doc-body li { margin: 0.35rem 0; }
+  .doc-body hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  .doc-body code {
+    font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--fg);
+  }
+  .doc-body pre {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1rem 1.25rem; overflow-x: auto; margin: 1rem 0;
+  }
+  .doc-body pre code { background: none; border: none; padding: 0; color: var(--fg); }
+  .doc-table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; }
+  .doc-body table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  .doc-body th, .doc-body td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; white-space: nowrap; }
+  .doc-body th { background: var(--surface); color: var(--fg); }
+
+  /* Live demo box — docs/getting-started.md's `live` fences render into here. Real data-kui
+     markup, animated by the same engine running the rest of the page (see the kuinetic.js init
+     script above); not a screenshot or a description of the effect. */
+  .doc-live {
+    margin: 1.25rem 0; padding: 2.5rem 1.5rem;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    gap: 1.5rem; text-align: center;
+  }
+  .doc-demo-box {
+    padding: 0.9rem 1.4rem; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    font-size: 0.9rem; color: var(--fg);
+  }
+  .doc-demo-label {
+    flex-basis: 100%; margin-bottom: -0.5rem;
+    font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  }
+
+  /* Sidebar TOC — mirrors .doc-body's h2 list, highlighting whichever section is currently in
+     view (see the buildToc/updateActive script below). Sticky under the floating pill header. */
+  .doc-toc {
+    position: sticky;
+    top: 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+    max-height: calc(100vh - 128px);
+    overflow-y: auto;
+    padding-right: 0.9rem;
+    border-right: 1px solid var(--border);
+  }
+  .doc-toc a {
+    padding: 0.4rem 0.9rem 0.4rem 0;
+    margin-right: -1px;
+    border-right: 1px solid transparent;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    text-decoration: none !important;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+  .doc-toc a:hover { color: var(--fg); }
+  .doc-toc a.is-active { color: var(--fg); border-right-color: var(--accent); font-weight: 600; }
+  /* Must come after the base .doc-toc rule above — same specificity, so source order decides the
+     cascade, and this losing that order is exactly how the sidebar ended up stuck visible below
+     900px despite the media query "matching": the unconditional display:flex above was later in
+     the file than this override used to be, so it won regardless of viewport width. */
+  @media (max-width: 900px) {
+    .doc-toc { display: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="doc-progress" class="doc-progress" aria-hidden="true"></div>
+
+  <header class="site-header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap doc-main">
+      <nav class="doc-switch">
+        <a data-doc="getting-started" href="?doc=getting-started">Getting Started</a>
+        <a data-doc="catalog" href="?doc=catalog">Catalog</a>
+        <a data-doc="design" href="?doc=design">Architecture</a>
+      </nav>
+      <div class="doc-layout">
+        <nav id="doc-toc" class="doc-toc" aria-label="On this page" hidden></nav>
+        <article id="doc-body" class="doc-body">Loading…</article>
+      </div>
+    </div>
+  </main>
+
+  <script src="./markdown.js"></script>
+  <script src="./kuinetic.js"></script>
+  <script>
+    // Getting Started embeds real `data-kui` markup via markdown.js's `live` fence (see
+    // doc-live below). `observe: true` keeps a MutationObserver running so elements inserted
+    // later by loadDoc()'s `body.innerHTML = ...` — after this script has already called
+    // start() — are picked up automatically; no manual re-scan needed per doc switch.
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle — identical to index.html's, so both pages agree on the persisted preference.
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    // Reading progress — thin bar fixed to the top edge, filling as the user scrolls through the
+    // document. Independent of the doc fetch below: it should track whatever's on the page
+    // (including the error state) rather than depend on the markdown having loaded.
+    ;(function () {
+      var bar = document.getElementById('doc-progress')
+      var ticking = false
+      function update() {
+        ticking = false
+        var scrollable = document.documentElement.scrollHeight - window.innerHeight
+        var ratio = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0
+        bar.style.transform = 'scaleX(' + ratio + ')'
+      }
+      function onScroll() {
+        if (ticking) return
+        ticking = true
+        requestAnimationFrame(update)
+      }
+      window.addEventListener('scroll', onScroll, { passive: true })
+      window.addEventListener('resize', onScroll)
+      update()
+    })()
+  </script>
+  <script>
+    ;(function () {
+      var body = document.getElementById('doc-body')
+      var toc = document.getElementById('doc-toc')
+      var stopTocTracking = null // torn down and rebuilt on every doc switch — see buildToc
+      var currentDoc = null
+
+      var DOCS = {
+        'getting-started': 'getting started',
+        catalog: 'catalog',
+        design: 'architecture'
+      }
+      var DEFAULT_DOC = 'getting-started'
+
+      function docFromSearch(search) {
+        var doc = new URLSearchParams(search).get('doc')
+        return Object.prototype.hasOwnProperty.call(DOCS, doc) ? doc : DEFAULT_DOC
+      }
+
+      // Tab clicks are handled entirely in JS rather than left as plain `href="?doc=..."`
+      // navigations: a bare query-string href needs to resolve against the current document's
+      // URL, which misbehaves inside this app's embedded preview (the same class of issue the
+      // replay button hit earlier with `location.reload()`) — Architecture would appear to do
+      // nothing. Building the target from `location.pathname` directly and driving the switch via
+      // history.pushState sidesteps that resolution entirely, and also means switching tabs no
+      // longer costs a full page reload.
+      async function loadDoc(doc, push) {
+        currentDoc = doc
+        document.querySelectorAll('.doc-switch a').forEach(function (a) {
+          if (a.dataset.doc === doc) a.setAttribute('aria-current', 'page')
+          else a.removeAttribute('aria-current')
+        })
+        document.title = 'kUInetic — ' + DOCS[doc]
+
+        if (push) {
+          try { history.pushState({ doc: doc }, '', location.pathname + '?doc=' + doc) } catch (e) {}
+        }
+
+        body.innerHTML = 'Loading…'
+        toc.hidden = true
+        try {
+          // no-store: this fetches whatever's on disk right now. Docs get edited independently of
+          // any page reload the browser considers "fresh enough" to skip revalidating.
+          var res = await fetch('./docs/' + doc + '.md', { cache: 'no-store' })
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          var text = await res.text()
+          body.innerHTML = window.renderMarkdown(text)
+          buildToc(body, toc)
+        } catch (err) {
+          body.textContent = 'Could not load docs/' + doc + '.md (' + err.message + ')'
+        }
+      }
+
+      document.querySelectorAll('.doc-switch a').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault()
+          var doc = a.dataset.doc
+          if (doc === docFromSearch(location.search)) return
+          loadDoc(doc, true)
+        })
+      })
+      // Clicking a same-page `#heading-id` link (the sidebar TOC) also fires `popstate` — a
+      // fragment navigation still creates a history entry, per spec. Reloading unconditionally
+      // here wiped `doc-body` back to "Loading…" mid-scroll, destroying the very heading the
+      // browser was trying to scroll to, so every TOC click silently landed back at the top.
+      // Only doc switches (real ?doc= change, from the tab buttons or the browser's own
+      // back/forward) should trigger a reload — a bare hash change must not.
+      window.addEventListener('popstate', function () {
+        var doc = docFromSearch(location.search)
+        if (doc === currentDoc) return
+        loadDoc(doc, false)
+      })
+
+      // Sidebar TOC: lists each H2 section and highlights whichever one the user is currently
+      // reading. Headings scroll in document order under normal flow, so the last heading whose
+      // top has crossed the strip below the sticky header is "current" — no IntersectionObserver
+      // edge cases around gaps between sections needed.
+      function buildToc(container, nav) {
+        if (stopTocTracking) { stopTocTracking(); stopTocTracking = null }
+
+        var headings = Array.prototype.slice.call(container.querySelectorAll('h2'))
+        if (!headings.length) {
+          nav.hidden = true
+          return
+        }
+        nav.hidden = false
+        nav.innerHTML = ''
+        var links = headings.map(function (h) {
+          var a = document.createElement('a')
+          a.href = '#' + h.id
+          a.textContent = h.textContent
+          nav.appendChild(a)
+          return a
+        })
+
+        // A few px past .doc-body h2's scroll-margin-top (96px): a heading landed exactly at its
+        // scroll-margin-top via a native anchor jump sits at ~96.03px after sub-pixel scroll
+        // rounding, which failed a bare `<= 96` check and left the *previous* link highlighted
+        // right after clicking its own TOC link. The slack absorbs that rounding.
+        var STRIP = 104
+        var ticking = false
+        function updateActive() {
+          ticking = false
+          var current = -1
+          for (var i = 0; i < headings.length; i++) {
+            if (headings[i].getBoundingClientRect().top - STRIP <= 0) current = i
+            else break
+          }
+          links.forEach(function (a, i) { a.classList.toggle('is-active', i === current) })
+        }
+        function onScroll() {
+          if (ticking) return
+          ticking = true
+          requestAnimationFrame(updateActive)
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', onScroll)
+        updateActive()
+        stopTocTracking = function () {
+          window.removeEventListener('scroll', onScroll)
+          window.removeEventListener('resize', onScroll)
+        }
+      }
+
+      loadDoc(docFromSearch(location.search), false)
+    })()
+  </script>
+</body>
+</html>

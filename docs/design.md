@@ -41,7 +41,7 @@ So why does this project still exist? Three reasons, and none of them is "GSAP i
    library payload to download and execute first. GSAP is a JS engine you ship and run — core
    plus `ScrollTrigger` plus `SplitText` plus `MorphSVGPlugin` adds up fast, and every animation on
    the page depends on that JS having successfully loaded and executed.
-2. **Declarative HTML authoring, not an imperative API.** `<h1 data-dsg="fade-up 900ms">` is the
+2. **Declarative HTML authoring, not an imperative API.** `<h1 data-kui="fade-up 900ms">` is the
    whole configuration. No JS file to write, own, or debug. GSAP is fundamentally a JavaScript API
    — even the simplest GSAP animation is a `.js` file someone writes and maintains.
 3. **A catalog, not an engine.** GSAP gives you the primitives to build any of these effects; it
@@ -62,12 +62,12 @@ catalog rather than composed by hand.
 ## 2. Namespacing
 
 Generic names like `data-anim` and `--anim-*` risk collisions with site code and other libraries,
-so the project uses one short namespace, `dsg`, consistently across all four surfaces:
+so the project uses one short namespace, `kui`, consistently across all four surfaces:
 
-- attributes (`data-dsg`, `data-dsg-on`)
-- custom properties (`--dsg-reveal-distance`)
-- keyframe names (`@keyframes dsg-fade-up`)
-- cascade layers (`@layer dsg.effects`)
+- attributes (`data-kui`, `data-kui-on`)
+- custom properties (`--kui-reveal-distance`)
+- keyframe names (`@keyframes kui-fade-up`)
+- cascade layers (`@layer kui.effects`)
 
 ---
 
@@ -77,16 +77,16 @@ so the project uses one short namespace, `dsg`, consistently across all four sur
 orders and allows commas inside `steps()`/`linear()`, which imports ambiguity for no gain.
 
 ```
-dsg-value    := effect-spec ("," effect-spec)*
+kui-value    := effect-spec ("," effect-spec)*
 effect-spec  := <effect-name> [<duration>] [<delay>] [<easing>] <key:value>*
 ```
 
 ```html
-<h1 data-dsg="fade-up">
-<h1 data-dsg="fade-up 800ms">
-<h1 data-dsg="fade-up 800ms 200ms ease-out">
-<h1 data-dsg="fade-up 800ms distance:40px">
-<h1 data-dsg="slide-up 800ms, blur-in 400ms">
+<h1 data-kui="fade-up">
+<h1 data-kui="fade-up 800ms">
+<h1 data-kui="fade-up 800ms 200ms ease-out">
+<h1 data-kui="fade-up 800ms distance:40px">
+<h1 data-kui="slide-up 800ms, blur-in 400ms">
 ```
 
 Rules:
@@ -94,8 +94,9 @@ Rules:
   **dev-mode console warning naming the element and the token** — never a silent no-op.
 - Parser must be paren-aware (`ease:cubic-bezier(.2,.8,.2,1)` contains commas). ~30 lines.
 - Attribute values may contain newlines; whitespace normalizes.
-- Longhand `data-dsg-duration` etc. remains as an optional alias for server-side templating.
-  Both parse into the identical internal spec.
+- Element-scoped settings (`on`, `timeline`, `threshold`) also have longhand attribute forms
+  (`data-kui-on` etc.) for server-side templating; the inline key wins when both are present.
+  Timing is grammar-only — there is no `data-kui-duration`.
 
 ---
 
@@ -118,14 +119,19 @@ rather than blend.
 
 Compiler resolution order for a comma list:
 
-1. **Registered combo preset** for that exact set → use it (single tested keyframe, no conflict).
-2. **Channels disjoint** → emit one compiled declaration:
+1. **Channels disjoint** → emit one compiled declaration:
    ```css
-   animation-name:     dsg-slide-up, dsg-blur-in;
+   animation-name:     kui-slide-up, kui-blur-in;
    animation-duration: 800ms,        400ms;
    ```
-3. **Channel collision** → dev warning naming both effects; opt-in WAAPI `composite:'add'`
-   path (drops to JS renderer) for genuine blending.
+2. **Channel collision** → dev warning naming both effects and the channel they share, and only
+   the **first** effect in the list compiles. Falling back to one effect is deliberate: the
+   alternative is emitting a visibly wrong animation.
+
+A registered combo preset (`fade-up, blur-in` → `fade-blur-up`) is *not* substituted
+automatically. It is looked up on the collision path only, so the warning can name a concrete
+remedy — "Use the `fade-blur-up` effect instead." With no combo registered, the warning suggests
+applying the effects to nested elements or registering a combined one.
 
 Illegal collisions must be documented, not merely warned about.
 
@@ -144,9 +150,9 @@ one thing:
 - `animationend`, fill, cancellation, and replay all differ.
 
 ```html
-<div data-dsg="fade-up"  data-dsg-on="enter" data-dsg-threshold="30%">
-<div data-dsg="parallax" data-dsg-timeline="view 10% 90%">
-<div data-dsg="progress" data-dsg-timeline="scroll">
+<div data-kui="fade-up"  data-kui-on="enter" data-kui-threshold="30%">
+<div data-kui="parallax" data-kui-timeline="view 10% 90%">
+<div data-kui="progress" data-kui-timeline="scroll">
 ```
 
 Contract:
@@ -193,7 +199,7 @@ Execution stays mechanically generic; metadata is declared:
 
 ```ts
 parameters: {
-  distance: { type: 'length', default: '24px', cssProperty: '--dsg-reveal-distance' }
+  distance: { type: 'length', default: '24px', cssProperty: '--kui-reveal-distance' }
 }
 ```
 
@@ -201,7 +207,7 @@ Buys TypeScript options, editor autocomplete, generated docs, validation, unit n
 semver guarantees, and **safe handling of untrusted markup** — author strings are substituted
 into CSS values, so URLs, pathological `calc()`, and huge filters are a real attack surface.
 
-Namespace custom properties **per primitive** (`--dsg-reveal-distance`, `--dsg-tilt-perspective`),
+Namespace custom properties **per primitive** (`--kui-reveal-distance`, `--kui-tilt-perspective`),
 not generically.
 
 **Defaults live in CSS `var()` fallbacks, never written to `element.style`** — inline custom
@@ -264,8 +270,8 @@ debugging — they make a poor state machine.
 Edge cases that must have defined behavior:
 - `querySelectorAll` excludes `root` itself when an inserted root carries the attribute.
 - An unknown effect must **not** stamp the normalized attribute — silently dropping such elements
-  via a `:not([data-dsg-fx])` guard would permanently lose them.
-- Changing `data-dsg` after processing must recompile.
+  via a `:not([data-kui-fx])` guard would permanently lose them.
+- Changing `data-kui` after processing must recompile.
 - Removed elements must clean up.
 - Applying shared vars inside the effect loop makes the last effect win.
 - CSS animation replay needs a defined restart mechanism.
@@ -281,7 +287,7 @@ are separate entry points (SSR, hydration, tests, multiple versions).
 ## 11. Programmatic API
 
 ```js
-const anim = designimation({ observe: true }).start()
+const anim = kuinetic({ observe: true }).start()
 const run = anim.play('.card', 'fade-up', { duration: 800, stagger: 60 })
 await run.finished
 run.cancel()
@@ -305,7 +311,7 @@ skipped). An element authored with its own `on:hover`/`on:click`/`on:load` trigg
 trigger after a programmatic `play()` — e.g. the showcase's replay-all button — rather than being
 permanently pinned to manual activation; `play()` still fires the effect immediately regardless.
 
-Instance-scoped: `designimation({ observe, reporter, ...AnimatorOptions })` returns an `Animator`
+Instance-scoped: `kuinetic({ observe, reporter, ...AnimatorOptions })` returns an `Animator`
 bound to its own root, not a process-wide registry — the same shape works for a `ShadowRoot`,
 an iframe, a test harness, or an SSR-hydrated subtree.
 

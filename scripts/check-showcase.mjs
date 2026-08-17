@@ -1,7 +1,7 @@
 /**
  * Smoke-check the showcase pages.
  *
- * Cheaper and blunter than the assertion harness: it only proves every authored `data-dsg` value
+ * Cheaper and blunter than the assertion harness: it only proves every authored `data-kui` value
  * resolved to a registered effect and installed without error. That catches the most common
  * authoring mistake — a typo'd effect name, which leaves the element in `pending` forever — before
  * anyone opens a browser.
@@ -12,8 +12,8 @@
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
-const PAGES = ['reveals', 'scroll', 'interactive', 'text']
-const dir = fileURLToPath(new URL('../demo/showcase/', import.meta.url))
+const PAGES = ['reveals', 'scroll', 'interactive', 'text', 'data-hover', 'ambient-feedback', 'nav-forms']
+const dir = fileURLToPath(new URL('../demo/', import.meta.url))
 
 const browser = await chromium.launch({ headless: true })
 let failures = 0
@@ -30,10 +30,10 @@ for (const name of PAGES) {
   await page.waitForTimeout(600)
 
   const stats = await page.evaluate(() => ({
-    authored: document.querySelectorAll('[data-dsg]').length,
-    installed: document.querySelectorAll('[data-dsg-fx]').length,
-    pending: document.querySelectorAll('[data-dsg-state="pending"]').length,
-    failed: document.querySelectorAll('[data-dsg-state="failed"]').length,
+    authored: document.querySelectorAll('[data-kui]').length,
+    installed: document.querySelectorAll('[data-kui-fx]').length,
+    pending: document.querySelectorAll('[data-kui-state="pending"]').length,
+    failed: document.querySelectorAll('[data-kui-state="failed"]').length,
   }))
 
   const scriptErrors = errors.filter((e) => !/net::|Failed to load resource/.test(e))

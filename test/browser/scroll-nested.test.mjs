@@ -47,7 +47,7 @@ const rectCallCount = (page) => page.evaluate(() => window.__rectCalls)
 
 async function readTrackState(page) {
   return page.$eval('#track', (el) => ({
-    progress: Number.parseFloat(el.style.getPropertyValue('--dsg-progress')),
+    progress: Number.parseFloat(el.style.getPropertyValue('--kui-progress')),
     translate: el.style.getPropertyValue('translate'),
   }))
 }
@@ -158,7 +158,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   await page.addInitScript(COUNT_RECT_CALLS)
 
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   await settle(page)
   await snap(page, 'initial-load')
 

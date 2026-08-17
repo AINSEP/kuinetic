@@ -3,7 +3,7 @@
  *
  * The runtime writes inline custom properties, animation longhands, and timeline properties, but
  * previously tore down by removing three attributes. Recompiling `fade-up distance:80px` into
- * `zoom-in` therefore left `--dsg-distance` behind, and destroying an animator left every
+ * `zoom-in` therefore left `--kui-distance` behind, and destroying an animator left every
  * animation installed.
  *
  * A ledger records what this library wrote *and what was there before*, so teardown restores the

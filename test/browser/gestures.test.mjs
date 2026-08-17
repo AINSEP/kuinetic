@@ -52,8 +52,8 @@ async function readGestureState(page, selector) {
   return page.$eval(selector, (el) => {
     const [tx, ty] = el.style.getPropertyValue('translate').split(' ').map(Number.parseFloat)
     return {
-      dragging: el.getAttribute('data-dsg-dragging'),
-      swipe: el.getAttribute('data-dsg-swipe'),
+      dragging: el.getAttribute('data-kui-dragging'),
+      swipe: el.getAttribute('data-kui-swipe'),
       translate: el.style.getPropertyValue('translate'),
       tx,
       ty,
@@ -73,7 +73,7 @@ const DRAG_BURST_TARGETS = [
 
 /**
  * Move the real pointer through several intermediate points of a drag, sampling
- * `data-dsg-dragging`/`translate` and a frame at each — proof that 1:1 tracking holds
+ * `data-kui-dragging`/`translate` and a frame at each — proof that 1:1 tracking holds
  * continuously through the gesture, not only at wherever the mouse happens to end up.
  *
  * @complexity O(t) browser round trips in the number of targets.
@@ -105,7 +105,7 @@ async function checkPlainDrag(page, check, snap) {
   const samples = await burstSampleDragMovement(page, snap, '#drag', box, 'drag-movement', DRAG_BURST_TARGETS)
 
   check(
-    'draggable marks data-dsg-dragging during a real pointer drag',
+    'draggable marks data-kui-dragging during a real pointer drag',
     samples[0].dragging === 'true',
     `dragging=${samples[0].dragging}`,
   )
@@ -122,7 +122,7 @@ async function checkPlainDrag(page, check, snap) {
   await page.mouse.up()
   const released = await readGestureState(page, '#drag')
   check(
-    'draggable clears data-dsg-dragging on release',
+    'draggable clears data-kui-dragging on release',
     released.dragging === 'false',
     `dragging=${released.dragging}`,
   )
@@ -181,7 +181,7 @@ async function checkElasticPull(page, check, snap) {
   await page.mouse.up()
   const released = await readGestureState(page, '#elastic')
   check(
-    'elastic-pull clears data-dsg-dragging after pointerup (pointer capture)',
+    'elastic-pull clears data-kui-dragging after pointerup (pointer capture)',
     released.dragging === 'false',
     `dragging=${released.dragging}`,
   )
@@ -224,11 +224,11 @@ async function checkSwipe(page, check, snap) {
   await page.mouse.up()
   await page.waitForTimeout(50)
 
-  const direction = await page.$eval('#swipe', (el) => el.getAttribute('data-dsg-swipe'))
+  const direction = await page.$eval('#swipe', (el) => el.getAttribute('data-kui-swipe'))
   check(
     'a fast real-pointer flick is recognised as a rightward swipe',
     direction === 'right',
-    `data-dsg-swipe=${direction}`,
+    `data-kui-swipe=${direction}`,
   )
   await snap(page, 'swipe-detected')
 }
@@ -241,7 +241,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const page = await context.newPage()
 
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   await snap(page, 'initial-load')
 
   await checkPlainDrag(page, check, snap)

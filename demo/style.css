@@ -1,0 +1,729 @@
+/* Showcase chrome only — none of the animation lives here. */
+
+:root {
+  --ink: #f3ece4;
+  --dim: #9a8d80;
+  --bg: #0f0d0c;
+  --panel: #171413;
+  --accent: #d2691e;
+  --line: #2a2422;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --ink: #221c18;
+  --dim: #71645b;
+  --bg: #ffffff;
+  --panel: #f5f1ea;
+  --accent: #a94f13;
+  --line: #ded4ca;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+header.site {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  gap: 1.5rem;
+  align-items: baseline;
+  padding: 1rem 2rem;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+header.site strong {
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Four dropdown triggers (Docs + the 3 demo-page groups) in a row; flex-wrap is a safety net for
+   in-between widths above the hamburger breakpoint below. Below that breakpoint `nav.js`'s
+   `applyNarrow`/`setMobileOpen` switch this to an absolutely-positioned panel and own its
+   `hidden` attribute entirely — see the toggle rules further down. */
+header.site nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* The unconditional display:flex above is an author rule, so it always beats the UA's
+   [hidden]{display:none} at equal specificity regardless of source order (author origin wins
+   over user-agent origin outright) — without this, nav.js setting .hidden=true on mobile close
+   never actually hides the panel. */
+header.site nav[hidden] {
+  display: none;
+}
+
+.kui-theme-toggle {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+}
+
+header.site nav a {
+  color: var(--dim);
+  text-decoration: none;
+}
+
+header.site nav a[aria-current='page'],
+header.site nav a:hover {
+  color: var(--ink);
+}
+
+.kui-nav-dropdown {
+  position: relative;
+}
+
+.kui-nav-dropdown-trigger {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--dim);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.kui-nav-coming-soon {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--dim);
+  opacity: 0.7;
+}
+
+.kui-nav-dropdown-trigger:hover,
+.kui-nav-dropdown-trigger[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+/* Marks the group containing the current page — set once at init by `nav.js`'s active-page pass
+   (`data-nav-pages` on the trigger), alongside `aria-current` on the matching link in the menu. */
+.kui-nav-dropdown-trigger.is-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.kui-nav-dropdown-menu {
+  position: absolute;
+  /* Flush against the trigger — no gap in `top`. A real gap here (previously
+     `calc(100% + 0.7rem)`) left a strip of nothing between the trigger's bottom edge and the
+     menu's top edge; both are descendants of `.kui-nav-dropdown`, but that empty strip is not, so
+     a mouse moving in a straight line from the trigger down into the menu passed through it and
+     fired `mouseleave` on the wrap mid-transit, closing the menu before a click on a child link
+     could land. The same visual breathing room is recreated below via `padding-top`, which is
+     part of the menu's own hoverable, painted box — no dead zone between it and the trigger. */
+  top: 100%;
+  left: 0;
+  flex-direction: column;
+  min-width: 150px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.35rem 0.35rem;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+}
+
+header.site nav .kui-nav-dropdown-menu a {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  color: var(--dim);
+  text-decoration: none;
+}
+
+header.site nav .kui-nav-dropdown-menu a:hover,
+header.site nav .kui-nav-dropdown-menu a:focus-visible {
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* Same specificity as `header.site nav a[aria-current='page']` above, but declared later — needs
+   its own class-qualified selector so it isn't silently lost to the color:dim rule right above,
+   which shares that same specificity and would otherwise win on source order. */
+header.site nav .kui-nav-dropdown-menu a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.kui-nav-toggle {
+  /* Statically authored right after `nav` in markup now (previously JS-appended to `header.site`
+     at mount time, always landing after `.kui-theme-toggle`, which theme.js appends independently
+     on its own `DOMContentLoaded` listener). `margin-left: auto` here — not just on
+     `.kui-theme-toggle` — is what keeps both flush right as a group regardless of that DOM-order
+     difference: whichever of the two comes first absorbs the free space, and the other simply
+     follows immediately after. Inert at desktop width (`display: none` below), so it never fights
+     `.kui-theme-toggle`'s own auto margin there. */
+  margin-left: auto;
+  display: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  color: var(--dim);
+  background: none;
+  border: none;
+}
+
+.kui-nav-toggle:hover,
+.kui-nav-toggle[aria-expanded='true'] {
+  color: var(--ink);
+}
+
+/* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
+   overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
+   silently ships with no links at desktop widths too. Forcing display here makes the nav
+   correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
+@media (min-width: 769px) {
+  header.site nav[hidden] {
+    display: flex;
+  }
+}
+
+@media (max-width: 768px) {
+  .kui-nav-toggle {
+    display: grid;
+    place-items: center;
+  }
+
+  /* Taken out of the header's flex row entirely — positioned relative to `header.site`, the
+     nearest positioned ancestor (`position: sticky` still establishes one). Only layout
+     properties live here; visibility stays exclusively `nav.js`-owned via the `hidden`
+     attribute, see demo/showcase/nav.js's `applyNarrow`/`setMobileOpen`. */
+  header.site nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 1rem 1.5rem 1.5rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 16px 32px rgb(0 0 0 / 0.25);
+  }
+
+  header.site nav .kui-nav-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  header.site nav .kui-nav-dropdown-menu {
+    position: static;
+    box-shadow: none;
+    margin-top: 0.2rem;
+    /* The extra `padding-top` on `.kui-nav-dropdown-menu` exists to close a hover dead-zone that
+       only exists for the absolutely-positioned desktop menu (see that rule's comment) — restore
+       the original uniform padding here, since this menu is `position: static` and stacked inline
+       in the column, not hover-driven at all below this breakpoint. */
+    padding: 0.35rem;
+  }
+
+  header.site nav .kui-nav-dropdown-menu a {
+    min-height: 44px;
+  }
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 2rem 8rem;
+}
+
+.hero {
+  padding: 7rem 0 4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: clamp(2.4rem, 7vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 4rem 0 0.5rem;
+}
+
+p.lede {
+  font-size: 1.15rem;
+  color: var(--dim);
+  max-width: 58ch;
+  margin: 0;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+  color: var(--accent);
+}
+
+figure {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+figcaption {
+  padding: 0.7rem 0.9rem;
+  font-size: 0.8rem;
+  color: var(--dim);
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.tall {
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+}
+
+.note {
+  color: var(--dim);
+  font-size: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+/* `background-color`/border longhand, not the `background`/`border` shorthands: both shorthands
+   reset their `-image` sub-property (background-image / border-image-source) to `none` as a side
+   effect, and since this rule is unlayered it always wins over the library's layered
+   `@layer kui.effects` rules regardless of specificity — silently blanking any button-hosted
+   effect that paints via background-image or border-image-source (e.g. beam-border, border-draw).
+   This bit ambient-feedback.html earlier (worked around there by using a div instead of a button);
+   fixing it here at the shared base rule removes the need for that workaround everywhere else. */
+button {
+  font: inherit;
+  color: var(--ink);
+  background-color: var(--panel);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Replay-all FAB, injected by ./replay.js on every showcase page. A class selector so it wins
+   over the generic `button` rule above without needing !important. */
+.kui-replay-fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 60;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.35);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.kui-replay-fab:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+}
+
+.kui-replay-fab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Docs viewer (demo/showcase/docs.html + markdown.js) — renders docs/*.md client-side, no
+   external renderer. */
+.doc-main {
+  padding-top: 3rem;
+}
+
+.doc-switch {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.doc-switch a {
+  color: var(--dim);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.doc-switch a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.doc-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 3rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .doc-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-toc {
+    display: none;
+  }
+}
+
+.doc-body {
+  max-width: 72ch;
+  line-height: 1.7;
+  color: var(--dim);
+}
+
+.doc-body h1,
+.doc-body h2,
+.doc-body h3,
+.doc-body h4 {
+  scroll-margin-top: 96px;
+}
+
+.doc-body h1 {
+  font-size: 2.1rem;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0 0 1rem;
+}
+
+.doc-body h2 {
+  font-size: 1.4rem;
+  color: var(--ink);
+  margin: 2.5rem 0 0.75rem;
+}
+
+.doc-body h3 {
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 1.75rem 0 0.5rem;
+}
+
+.doc-body h4 {
+  font-size: 0.85rem;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 1.5rem 0 0.4rem;
+}
+
+/* Sidebar TOC — mirrors .doc-body's h2 list, highlighting whichever section is currently in view
+   (see docs.html's buildToc/updateActive). Sticky under the site header so it stays visible for
+   the whole scroll. */
+.doc-toc {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  max-height: calc(100vh - 128px);
+  overflow-y: auto;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--line);
+}
+
+.doc-toc a {
+  padding: 0.4rem 0 0.4rem 0.9rem;
+  margin-left: -1px;
+  border-left: 1px solid transparent;
+  color: var(--dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+
+.doc-toc a:hover {
+  color: var(--ink);
+}
+
+.doc-toc a.is-active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+
+.doc-body strong {
+  color: var(--ink);
+}
+
+.doc-body ul,
+.doc-body ol {
+  padding-left: 1.4rem;
+  margin: 0.75rem 0;
+}
+
+.doc-body li {
+  margin: 0.35rem 0;
+}
+
+.doc-body hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.5rem 0;
+}
+
+.doc-body pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.doc-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink);
+}
+
+.doc-table-wrap {
+  overflow-x: auto;
+  margin: 1rem 0 1.5rem;
+}
+
+.doc-body table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.doc-body th,
+.doc-body td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.doc-body th {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+/* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo). */
+.kui-show-code-toggle {
+  display: inline-block;
+  margin-top: 0.7rem;
+  margin-right: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.kui-show-code-toggle:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* figures already have their own padding-free layout (image + figcaption flush to the edges) —
+   give the button breathing room there specifically. */
+figure .kui-show-code-toggle {
+  margin: 0.7rem 0.9rem 0.9rem;
+}
+
+.kui-code-modal-backdrop {
+  /* No `display` here on purpose — show-code.js owns it entirely via inline `style.display`
+     ('none' / 'grid'), so there's no equal-specificity fight with the UA `[hidden]` rule. */
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  place-items: center;
+  padding: 2rem;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.kui-code-modal {
+  position: relative;
+  max-width: 720px;
+  max-height: 80vh;
+  width: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+
+.kui-code-modal-header {
+  display: flex;
+  justify-content: flex-end;
+  /* negative margin pulls the button back into the dialog's own padding, so it sits in the
+     same snug corner it occupied when it was absolutely positioned, instead of a full 1.5rem
+     inset that reads like an empty row. */
+  margin: -0.9rem -0.9rem 0.6rem 0;
+}
+
+.kui-code-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--dim);
+  background: none;
+  border: none;
+}
+
+.kui-code-modal-close:hover {
+  color: var(--ink);
+}
+
+.kui-code-tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.kui-code-tryit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.kui-code-tryit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kui-code-tryit-copy,
+.kui-code-tryit-apply,
+.kui-code-tryit-reset {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.kui-code-tryit-copy {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem;
+  color: var(--dim);
+}
+
+.kui-code-tryit-copy.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.kui-code-tryit-copy:hover,
+.kui-code-tryit-apply:hover,
+.kui-code-tryit-reset:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.kui-code-modal pre {
+  margin: 0;
+  padding: 0;
+}
+
+.kui-code-modal code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: none;
+  border: none;
+  padding: 0;
+}

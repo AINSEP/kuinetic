@@ -10,7 +10,7 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * `magnetic` (a `window`-level `pointermove` listener) and `draggable` (element-level pointer
  * listeners), interacts with both — leaving `draggable` mid-gesture, pointer still down, to stress
  * teardown during an active drag rather than only a settled one — then calls `reset()` and checks
- * what is externally observable: no lingering inline styles, no lingering `data-dsg-*`
+ * what is externally observable: no lingering inline styles, no lingering `data-kui-*`
  * attributes, and no lingering event listeners.
  *
  * Listener accounting is done by wrapping `EventTarget.prototype.addEventListener` /
@@ -46,10 +46,10 @@ async function listenerCounts(page) {
 async function readCleanupState(page, id) {
   return page.$eval(id, (el) => ({
     style: el.getAttribute('style'),
-    dsgAttributes: el
+    kuiAttributes: el
       .getAttributeNames()
-      .filter((n) => n.startsWith('data-dsg'))
-      .filter((n) => n !== 'data-dsg'), // the author's own attribute is never library-owned
+      .filter((n) => n.startsWith('data-kui'))
+      .filter((n) => n !== 'data-kui'), // the author's own attribute is never library-owned
   }))
 }
 
@@ -62,7 +62,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
   await page.addInitScript(COUNT_LISTENERS)
 
   await page.goto(FIXTURE_URL)
-  await page.waitForFunction(() => window.__dsg !== undefined)
+  await page.waitForFunction(() => window.__kui !== undefined)
   await page.waitForTimeout(150)
 
   // Engage the magnet's spring toward the pointer.
@@ -86,14 +86,14 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const active = await readCleanupState(page, '#drag')
   check(
     'sanity: the drag is actually active before teardown',
-    active.style !== null && active.dsgAttributes.includes('data-dsg-dragging'),
-    `style=${active.style}, attrs=${active.dsgAttributes.join(',')}`,
+    active.style !== null && active.kuiAttributes.includes('data-kui-dragging'),
+    `style=${active.style}, attrs=${active.kuiAttributes.join(',')}`,
   )
   await snap(page, 'active-before-destroy')
 
   await page.evaluate(() => {
-    window.__dsg.reset(document.querySelector('#magnet'))
-    window.__dsg.reset(document.querySelector('#drag'))
+    window.__kui.reset(document.querySelector('#magnet'))
+    window.__kui.reset(document.querySelector('#drag'))
   })
   // Release the (now-unlistened) pointer so Playwright doesn't leave the mouse button down for
   // whatever runs next.
@@ -102,8 +102,8 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const dragAfter = await readCleanupState(page, '#drag')
   check(
     'reset() removes every library-owned attribute from a mid-gesture element',
-    dragAfter.dsgAttributes.length === 0,
-    `remaining attrs=${dragAfter.dsgAttributes.join(',')}`,
+    dragAfter.kuiAttributes.length === 0,
+    `remaining attrs=${dragAfter.kuiAttributes.join(',')}`,
   )
   check(
     'reset() restores inline style, leaving no translate behind',

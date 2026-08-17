@@ -1,8 +1,10 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
+import { isSameOriginPath } from '../../core/params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
-import { createStyleLedger } from '../../core/owned-styles.js'
+import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
+import type { AttributeLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { trackProgress } from './tracker.js'
 
@@ -17,10 +19,10 @@ import { trackProgress } from './tracker.js'
  * its duration is the user's scrolling, not a clock.
  */
 
-const PROGRESS_VAR = '--dsg-progress'
+const PROGRESS_VAR = '--kui-progress'
 
 const distanceParam: ParameterSchema = {
-  distance: { type: 'length', default: '100vh', cssProperty: '--dsg-distance' },
+  distance: { type: 'length', default: '100vh', cssProperty: '--kui-distance' },
 }
 
 /** One primitive's distinguishing fields; the rest are identical across the category. */
@@ -81,7 +83,7 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
 
   const untrack = trackProgress(tracked, ctx, { distance: params.text('distance') }, (progress) => {
     writeProgress(ctx, progress)
-    el.setAttribute('data-dsg-pinned', progress > 0 && progress < 1 ? 'true' : 'false')
+    el.setAttribute('data-kui-pinned', progress > 0 && progress < 1 ? 'true' : 'false')
   })
 
   // Inline styles are restored by the animator's ledger, so teardown only undoes what the
@@ -89,7 +91,7 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
   return () => {
     untrack()
     removeSpacer?.()
-    el.removeAttribute('data-dsg-pinned')
+    el.removeAttribute('data-kui-pinned')
   }
 }
 
@@ -105,7 +107,7 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
  */
 function insertSpacer(node: HTMLElement, distance: string, ctx: PrepareContext): Cleanup {
   const spacer = ctx.doc.createElement('div')
-  spacer.setAttribute('data-dsg-spacer', '')
+  spacer.setAttribute('data-kui-spacer', '')
   spacer.setAttribute('aria-hidden', 'true')
   spacer.style.height = distance
   spacer.style.pointerEvents = 'none'
@@ -122,7 +124,7 @@ function insertSpacer(node: HTMLElement, distance: string, ctx: PrepareContext):
  * Publish scroll progress, and a discrete step index when `steps` is set.
  *
  * The step attribute is what makes scrollytelling a CSS problem rather than a JS one: authors
- * select on `[data-dsg-step="2"]` instead of subscribing to anything.
+ * select on `[data-kui-step="2"]` instead of subscribing to anything.
  *
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
@@ -134,13 +136,13 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
     writeProgress(ctx, progress)
     if (steps > 0) {
       const index = Math.min(steps - 1, Math.floor(progress * steps))
-      el.setAttribute('data-dsg-step', String(index))
+      el.setAttribute('data-kui-step', String(index))
     }
   })
 
   return () => {
     untrack()
-    el.removeAttribute('data-dsg-step')
+    el.removeAttribute('data-kui-step')
   }
 }
 
@@ -202,7 +204,7 @@ function trackTravel(node: HTMLElement, authored: string, doc: Document): number
  */
 function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const frames = Math.max(1, Math.round(params.num('frames', 1)))
-  const pattern = params.text('src')
+  const pattern = mediaSrcPattern(params.text('src'), ctx)
   const media = el as HTMLMediaElement & HTMLImageElement
   let lastIndex = -1
 
@@ -215,6 +217,29 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
   })
 
   return untrack
+}
+
+/**
+ * Constrain the authored frame pattern to the page's own origin before it can reach `<img src>`.
+ *
+ * `type: 'text'` params are shape-free by design (`core/params.ts`) — media-scrub's `src` shares
+ * the type with `scroll-spy`'s `target`, a CSS selector that has no notion of "origin" and would
+ * wrongly reject something like `a[href^="http:"]` if the constraint lived in the shared type
+ * instead of here, at this parameter's own point of use. Left unconstrained, an untrusted
+ * `data-kui` author (a CMS field, not necessarily the site owner) could turn `src` into an
+ * exfiltration or tracking-pixel gadget, or use the visitor's browser to probe internal hosts —
+ * see `isSameOriginPath` for the full threat model.
+ *
+ * Checked once at setup rather than per frame, since the pattern itself never changes while
+ * scrolling — only the substituted `{i}` index does.
+ *
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function mediaSrcPattern(pattern: string, ctx: PrepareContext): string {
+  if (!pattern || isSameOriginPath(pattern)) return pattern
+  ctx.warn(`media-scrub "src" must be a same-origin path, got "${pattern}" — ignoring`)
+  return ''
 }
 
 interface FrameWrite {
@@ -231,42 +256,131 @@ function applyFrame(media: HTMLMediaElement & HTMLImageElement, write: FrameWrit
     if (duration > 0) media.currentTime = duration * progress
     return
   }
+  // Only <img> is a safe `src` target for an author-supplied pattern. Anything else — an
+  // <iframe> above all — navigates on `src` assignment, which a `javascript:` pattern would turn
+  // into script execution the moment the first frame is written.
+  if (media.tagName !== 'IMG') return
   if (pattern) media.src = pattern.replace('{i}', String(index).padStart(String(frames).length, '0'))
 }
 
 /**
  * Mark the navigation link pointing at the most recently entered section.
  *
- * Writes `data-dsg-active` rather than toggling a class, so the styling contract stays the
+ * Writes `data-kui-active` rather than toggling a class, so the styling contract stays the
  * library's attribute vocabulary and cannot collide with a site's own class names.
  *
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
 function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const selector = params.text('target')
+  const selector = spyTarget(params.text('target'), ctx)
+  /*
+   * One ledger per element ever written, rather than a bare Set of touched elements.
+   *
+   * The Set recorded *which* links this instance stamped but not *what they held first*, so
+   * teardown removed a `data-kui-active` the consumer had authored themselves. That is the same
+   * defect `createStyleLedger` was introduced to close for inline styles, so this uses the
+   * attribute half of that ledger rather than inventing a second restore mechanism. The tracked
+   * element gets one too: `removeAttribute` on teardown destroyed an authored value there as well.
+   */
+  const links = new Map<Element, AttributeLedger>()
+  const self = createAttributeLedger(el)
+  /*
+   * scroll-spy's entire output is one boolean, so a frame that does not flip it has nothing to do.
+   * Re-running `querySelectorAll` and re-stamping every match on every scroll frame was pure
+   * waste — the same per-frame-work defect `prepareMediaScrub` avoids with its `lastIndex` guard,
+   * and the reason a broad selector was a performance problem and not only a correctness one.
+   */
+  let last: boolean | undefined
+
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
     const active = progress > 0 && progress < 1
-    el.setAttribute('data-dsg-active', String(active))
-    if (selector) markLinks(ctx.doc, selector, active)
+    if (active === last) return
+    last = active
+    self.set('data-kui-active', String(active))
+    // Re-queried per flip rather than resolved once at setup, so a nav rendered or reordered
+    // after this element was prepared is still picked up. Flips are rare; frames are not.
+    if (selector) markLinks(ctx.doc, selector, active, links)
   })
 
   // External link state is written outside this element, so it must be undone explicitly.
   return () => {
     untrack()
-    el.removeAttribute('data-dsg-active')
-    if (selector) clearLinks(ctx.doc, selector)
+    self.restore()
+    for (const ledger of links.values()) ledger.restore()
   }
 }
 
-function markLinks(doc: Document, selector: string, active: boolean): void {
+/**
+ * Resolve the `target` selector once at setup, rejecting both the unusable and the over-broad.
+ *
+ * Two distinct failures, one warning channel. An invalid selector thrown from inside the shared
+ * scheduler's frame callback would skip every other subscriber on that root, not just this one.
+ * An over-broad one is worse for being silent: `target:*` is perfectly valid syntax, so a
+ * syntax-only check passed it straight through to stamp `data-kui-active` onto every element in
+ * the document, on every frame.
+ *
+ * Rejecting rather than silently narrowing is the honest response, because there is no narrower
+ * selector that could be meant. scroll-spy's contract — see `demo/scroll.html`, where each
+ * section carries `target:#spy-link-<region>` — is "mark the nav link for this section". A
+ * selector reaching `<html>` or `<body>` is not naming a link, it is naming the page, and
+ * guessing which of its thousands of descendants the author meant would be worse than saying so.
+ *
+ * @complexity O(1) time and space; `matches` walks the selector, not the document.
+ * @overallScore 100
+ */
+function spyTarget(selector: string, ctx: PrepareContext): string {
+  if (!selector) return selector
+  const breadth = selectorBreadth(selector, ctx.doc)
+  if (breadth === 'invalid') {
+    ctx.warn(`scroll-spy target "${selector}" is not a valid selector and will be ignored`)
+    return ''
+  }
+  if (breadth === 'document-wide') {
+    ctx.warn(`scroll-spy target "${selector}" matches the whole document and will be ignored`)
+    return ''
+  }
+  return selector
+}
+
+/**
+ * Classify a selector by asking the document root whether it matches, not by parsing the string.
+ *
+ * Testing the two elements every over-broad selector must necessarily hit catches `*`, `:root`,
+ * `html`, `body` and compounds like `*, a` with one rule and no bespoke parser — while leaving a
+ * deliberately scoped wildcard such as `.spy-nav > *` working, which a syntactic ban on `*` would
+ * not. `matches` throws on invalid syntax exactly as `querySelectorAll` did, so the same call
+ * still answers the validity question.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function selectorBreadth(selector: string, doc: Document): 'invalid' | 'document-wide' | 'ok' {
+  try {
+    if (doc.documentElement.matches(selector)) return 'document-wide'
+    if (doc.body?.matches(selector)) return 'document-wide'
+    return 'ok'
+  } catch {
+    return 'invalid'
+  }
+}
+
+function markLinks(
+  doc: Document,
+  selector: string,
+  active: boolean,
+  links: Map<Element, AttributeLedger>,
+): void {
   for (const link of doc.querySelectorAll(selector)) {
-    link.setAttribute('data-dsg-active', String(active))
+    let ledger = links.get(link)
+    if (!ledger) {
+      ledger = createAttributeLedger(link)
+      links.set(link, ledger)
+    }
+    // The ledger remembers only the value it first replaced, so repeated flips never overwrite
+    // the consumer's original with one of this instance's own writes.
+    ledger.set('data-kui-active', String(active))
   }
-}
-
-function clearLinks(doc: Document, selector: string): void {
-  for (const link of doc.querySelectorAll(selector)) link.removeAttribute('data-dsg-active')
 }
 
 /**
@@ -300,11 +414,11 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['layout', 'progress'],
     parameters: {
       ...distanceParam,
-      offset: { type: 'length', default: '0px', cssProperty: '--dsg-offset' },
+      offset: { type: 'length', default: '0px', cssProperty: '--kui-offset' },
       spacer: {
         type: 'keyword',
         default: 'false',
-        cssProperty: '--dsg-spacer',
+        cssProperty: '--kui-spacer',
         values: ['true', 'false'],
       },
     },
@@ -317,7 +431,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['progress'],
     parameters: {
       ...distanceParam,
-      steps: { type: 'number', default: '0', cssProperty: '--dsg-steps' },
+      steps: { type: 'number', default: '0', cssProperty: '--kui-steps' },
     },
     prepare: deferPrepare(prepareProgress),
   }),
@@ -327,7 +441,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['translate', 'progress'],
     parameters: {
       ...distanceParam,
-      travel: { type: 'text', default: 'auto', cssProperty: '--dsg-travel' },
+      travel: { type: 'text', default: 'auto', cssProperty: '--kui-travel' },
     },
     prepare: deferPrepare(prepareHorizontal),
   }),
@@ -337,8 +451,8 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['media', 'progress'],
     parameters: {
       ...distanceParam,
-      frames: { type: 'number', default: '1', cssProperty: '--dsg-frames' },
-      src: { type: 'text', default: '', cssProperty: '--dsg-src' },
+      frames: { type: 'number', default: '1', cssProperty: '--kui-frames' },
+      src: { type: 'text', default: '', cssProperty: '--kui-src' },
     },
     prepare: deferPrepare(prepareMediaScrub),
     perfClass: 'paint',
@@ -349,7 +463,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['state'],
     parameters: {
       ...distanceParam,
-      target: { type: 'text', default: '', cssProperty: '--dsg-target' },
+      target: { type: 'text', default: '', cssProperty: '--kui-target' },
     },
     prepare: deferPrepare(prepareScrollSpy),
   }),
@@ -358,17 +472,17 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     id: 'scroll-snap',
     channels: ['layout'],
     parameters: {
-      axis: { type: 'keyword', default: 'y', cssProperty: '--dsg-axis', values: ['x', 'y'] },
+      axis: { type: 'keyword', default: 'y', cssProperty: '--kui-axis', values: ['x', 'y'] },
       strictness: {
         type: 'keyword',
         default: 'mandatory',
-        cssProperty: '--dsg-snap-strictness',
+        cssProperty: '--kui-snap-strictness',
         values: ['mandatory', 'proximity'],
       },
       align: {
         type: 'keyword',
         default: 'start',
-        cssProperty: '--dsg-snap-align',
+        cssProperty: '--kui-snap-align',
         values: ['start', 'center', 'end'],
       },
     },

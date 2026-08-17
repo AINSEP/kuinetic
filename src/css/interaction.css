@@ -8,13 +8,13 @@
  * stuck "hovered" with no pointer to leave it; the matching `:focus-visible` rule is never scoped
  * that way, so keyboard users reach the same state on every pointer type.
  */
-@layer dsg.effects {
-  @property --dsg-border-angle {
+@layer kui.effects {
+  @property --kui-border-angle {
     syntax: '<angle>';
     inherits: false;
     initial-value: 0deg;
   }
-  @property --dsg-border-pct {
+  @property --kui-border-pct {
     syntax: '<percentage>';
     inherits: false;
     initial-value: 0%;
@@ -22,28 +22,28 @@
 
   /* --- button family --- */
 
-  [data-dsg-fx~='lift'] {
-    transition: translate var(--dsg-lift-duration, 220ms) var(--dsg-lift-ease, ease-out);
+  [data-kui-fx~='lift'] {
+    transition: translate var(--kui-lift-duration, 220ms) var(--kui-lift-ease, ease-out);
   }
-  [data-dsg-fx~='lift']:focus-visible {
+  [data-kui-fx~='lift']:focus-visible {
     translate: 0 -6px;
   }
 
-  [data-dsg-fx~='lift-shadow'] {
+  [data-kui-fx~='lift-shadow'] {
     transition:
-      translate var(--dsg-lift-shadow-duration, 220ms) var(--dsg-lift-shadow-ease, ease-out),
-      box-shadow var(--dsg-lift-shadow-duration, 220ms) var(--dsg-lift-shadow-ease, ease-out);
+      translate var(--kui-lift-shadow-duration, 220ms) var(--kui-lift-shadow-ease, ease-out),
+      box-shadow var(--kui-lift-shadow-duration, 220ms) var(--kui-lift-shadow-ease, ease-out);
   }
-  [data-dsg-fx~='lift-shadow']:focus-visible {
+  [data-kui-fx~='lift-shadow']:focus-visible {
     translate: 0 -6px;
     box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
   }
 
-  [data-dsg-fx~='shine-sweep'] {
+  [data-kui-fx~='shine-sweep'] {
     position: relative;
     overflow: hidden;
   }
-  [data-dsg-fx~='shine-sweep']::after {
+  [data-kui-fx~='shine-sweep']::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -52,10 +52,10 @@
     background-position: 120% 0;
     pointer-events: none;
   }
-  [data-dsg-fx~='shine-sweep']:focus-visible::after {
-    animation: dsg-shine-sweep var(--dsg-shine-sweep-duration, 700ms) var(--dsg-shine-sweep-ease, ease-out);
+  [data-kui-fx~='shine-sweep']:focus-visible::after {
+    animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out);
   }
-  @keyframes dsg-shine-sweep {
+  @keyframes kui-shine-sweep {
     from { background-position: 120% 0; }
     to { background-position: -20% 0; }
   }
@@ -66,76 +66,110 @@
    * animation instead passes through that hidden midpoint and lands back face-front, reading as a
    * single flap-and-return rather than a button that vanishes while hovered.
    */
-  [data-dsg-fx~='split-flap'] {
+  [data-kui-fx~='split-flap'] {
     display: inline-block;
     perspective: 600px;
     backface-visibility: hidden;
   }
-  [data-dsg-fx~='split-flap']:focus-visible {
-    animation: dsg-split-flap var(--dsg-split-flap-duration, 600ms) var(--dsg-split-flap-ease, ease-in-out);
+  [data-kui-fx~='split-flap']:focus-visible {
+    animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out);
   }
-  @keyframes dsg-split-flap {
+  @keyframes kui-split-flap {
     from { rotate: x 0deg; }
     to { rotate: x 360deg; }
   }
 
   /* --- border family --- */
 
-  [data-dsg-fx~='border-draw'] {
+  [data-kui-fx~='border-draw'] {
     border: 2px solid transparent;
     border-image-slice: 1;
     border-image-source: conic-gradient(
       from -90deg,
-      var(--dsg-border-draw-color, var(--accent, #d2691e)) 0 var(--dsg-border-pct, 0%),
+      var(--kui-border-draw-color, var(--accent, #d2691e)) 0 var(--kui-border-pct, 0%),
       transparent 0
     );
-    transition: --dsg-border-pct var(--dsg-border-draw-duration, 500ms) var(--dsg-border-draw-ease, ease-out);
+    transition: --kui-border-pct var(--kui-border-draw-duration, 500ms) var(--kui-border-draw-ease, ease-out);
   }
-  [data-dsg-fx~='border-draw']:focus-visible {
-    --dsg-border-pct: 100%;
+  [data-kui-fx~='border-draw']:focus-visible {
+    --kui-border-pct: 100%;
   }
 
-  [data-dsg-fx~='border-glow'] {
-    transition: box-shadow var(--dsg-border-glow-duration, 260ms) var(--dsg-border-glow-ease, ease-out);
+  [data-kui-fx~='border-glow'] {
+    transition: box-shadow var(--kui-border-glow-duration, 260ms) var(--kui-border-glow-ease, ease-out);
   }
-  [data-dsg-fx~='border-glow']:focus-visible {
-    box-shadow: 0 0 0 3px var(--dsg-border-glow-color, var(--accent, #d2691e));
+  [data-kui-fx~='border-glow']:focus-visible {
+    box-shadow: 0 0 0 3px var(--kui-border-glow-color, var(--accent, #d2691e));
   }
 
   /*
-   * A 108deg peak with 252deg fully transparent read as a periodic flash, not a trail: at any
-   * instant the ring was dark everywhere except a brief arc. The fix widens the non-transparent
-   * span to most of the ring and makes it asymmetric — a long, gradually brightening tail behind
-   * a short, sharp ramp into the head — the shape of an actual comet/beam sweep, with a real gap
-   * left dark for contrast and a sense of direction.
+   * `mask-composite: exclude` with a content-box/padding-box pair, not `border-image-slice`: two
+   * full-box mask layers, one inset by the padding (the beam's own thickness) and one not,
+   * subtracted from each other leave only the padding ring itself — the gradient underneath is
+   * masked down to just the perimeter regardless of `border-radius`, which `border-image` handles
+   * far less predictably on rounded corners. Only 260deg-360deg of the conic gradient carries
+   * color; the rest is transparent, which is what reads as a travelling beam rather than a
+   * full-ring rainbow. `-webkit-mask`/`-webkit-mask-composite` are the Safari-required forms of
+   * the same two standard properties — both are needed, not a progressive-enhancement fallback.
    */
-  [data-dsg-fx~='beam-border'] {
-    border: 2px solid transparent;
-    border-image-slice: 1;
-    border-image-source: conic-gradient(
-      from var(--dsg-border-angle, 0deg),
-      transparent 0% 22%,
-      color-mix(in srgb, var(--dsg-beam-border-color, var(--accent, #d2691e)) 25%, transparent) 45%,
-      color-mix(in srgb, var(--dsg-beam-border-color, var(--accent, #d2691e)) 70%, transparent) 75%,
-      var(--dsg-beam-border-color, var(--accent, #d2691e)) 94%,
-      transparent 100%
+  [data-kui-fx~='beam-border'],
+  [data-kui-fx~='beam-border-auto'] {
+    position: relative;
+  }
+  [data-kui-fx~='beam-border']::before,
+  [data-kui-fx~='beam-border-auto']::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: var(--kui-beam-border-width, 3px);
+    background: conic-gradient(
+      from var(--kui-border-angle, 0deg),
+      transparent 0deg,
+      transparent 260deg,
+      var(--kui-beam-border-c1, #ff5f6d) 282deg,
+      var(--kui-beam-border-c2, #ffc371) 306deg,
+      var(--kui-beam-border-c3, #4facfe) 330deg,
+      var(--kui-beam-border-c4, #a855f7) 354deg,
+      transparent 360deg
     );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--kui-beam-border-fade-duration, 200ms) ease-out;
   }
-  [data-dsg-fx~='beam-border']:focus-visible {
-    animation: dsg-beam-rotate var(--dsg-beam-border-duration, 1400ms) linear infinite;
+  [data-kui-fx~='beam-border']:focus-visible::before {
+    opacity: 1;
+    animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
   }
-  @keyframes dsg-beam-rotate {
-    from { --dsg-border-angle: 0deg; }
-    to { --dsg-border-angle: 360deg; }
+  /* beam-border-auto: the always-on sibling — unconditional, no :hover/:focus-visible gate. */
+  [data-kui-fx~='beam-border-auto']::before {
+    opacity: 1;
+    animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
+  }
+  @keyframes kui-beam-rotate {
+    to { --kui-border-angle: 360deg; }
+  }
+  /* Freezes at a fixed angle rather than removing the beam outright — the same choice the
+     reference implementation this was adapted from makes, so an interrupted animation still
+     leaves a readable static accent instead of the border vanishing entirely. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-kui-fx~='beam-border']:focus-visible::before,
+    [data-kui-fx~='beam-border-auto']::before {
+      animation: none;
+      --kui-border-angle: 45deg;
+    }
   }
 
   /* --- link family --- */
 
-  [data-dsg-fx~='underline-slide'] {
+  [data-kui-fx~='underline-slide'] {
     position: relative;
     text-decoration: none;
   }
-  [data-dsg-fx~='underline-slide']::after {
+  [data-kui-fx~='underline-slide']::after {
     content: '';
     position: absolute;
     left: 0;
@@ -145,17 +179,17 @@
     background: currentcolor;
     scale: 0 1;
     transform-origin: left center;
-    transition: scale var(--dsg-underline-slide-duration, 260ms) var(--dsg-underline-slide-ease, ease-out);
+    transition: scale var(--kui-underline-slide-duration, 260ms) var(--kui-underline-slide-ease, ease-out);
   }
-  [data-dsg-fx~='underline-slide']:focus-visible::after {
+  [data-kui-fx~='underline-slide']:focus-visible::after {
     scale: 1 1;
   }
 
-  [data-dsg-fx~='underline-center'] {
+  [data-kui-fx~='underline-center'] {
     position: relative;
     text-decoration: none;
   }
-  [data-dsg-fx~='underline-center']::after {
+  [data-kui-fx~='underline-center']::after {
     content: '';
     position: absolute;
     left: 0;
@@ -165,18 +199,18 @@
     background: currentcolor;
     scale: 0 1;
     transform-origin: center;
-    transition: scale var(--dsg-underline-center-duration, 260ms) var(--dsg-underline-center-ease, ease-out);
+    transition: scale var(--kui-underline-center-duration, 260ms) var(--kui-underline-center-ease, ease-out);
   }
-  [data-dsg-fx~='underline-center']:focus-visible::after {
+  [data-kui-fx~='underline-center']:focus-visible::after {
     scale: 1 1;
   }
 
   /* --- icon family --- */
 
-  [data-dsg-fx~='icon-wiggle']:focus-visible {
-    animation: dsg-icon-wiggle var(--dsg-icon-wiggle-duration, 500ms) var(--dsg-icon-wiggle-ease, ease-in-out);
+  [data-kui-fx~='icon-wiggle']:focus-visible {
+    animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out);
   }
-  @keyframes dsg-icon-wiggle {
+  @keyframes kui-icon-wiggle {
     0%, 100% { rotate: 0deg; }
     20% { rotate: -12deg; }
     40% { rotate: 10deg; }
@@ -184,18 +218,18 @@
     80% { rotate: 4deg; }
   }
 
-  [data-dsg-fx~='icon-spin']:focus-visible {
-    animation: dsg-icon-spin var(--dsg-icon-spin-duration, 700ms) linear;
+  [data-kui-fx~='icon-spin']:focus-visible {
+    animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear;
   }
-  @keyframes dsg-icon-spin {
+  @keyframes kui-icon-spin {
     from { rotate: 0deg; }
     to { rotate: 360deg; }
   }
 
-  [data-dsg-fx~='icon-bounce']:focus-visible {
-    animation: dsg-icon-bounce var(--dsg-icon-bounce-duration, 500ms) var(--dsg-icon-bounce-ease, ease-out);
+  [data-kui-fx~='icon-bounce']:focus-visible {
+    animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out);
   }
-  @keyframes dsg-icon-bounce {
+  @keyframes kui-icon-bounce {
     0%, 100% { translate: 0 0; }
     30% { translate: 0 -7px; }
     55% { translate: 0 1px; }
@@ -205,41 +239,42 @@
   /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
      reach the identical state — grouped in one block so the two never drift apart. */
   @media (hover: hover) and (pointer: fine) {
-    [data-dsg-fx~='lift']:hover { translate: 0 -6px; }
-    [data-dsg-fx~='lift-shadow']:hover {
+    [data-kui-fx~='lift']:hover { translate: 0 -6px; }
+    [data-kui-fx~='lift-shadow']:hover {
       translate: 0 -6px;
       box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
     }
-    [data-dsg-fx~='shine-sweep']:hover::after {
-      animation: dsg-shine-sweep var(--dsg-shine-sweep-duration, 700ms) var(--dsg-shine-sweep-ease, ease-out);
+    [data-kui-fx~='shine-sweep']:hover::after {
+      animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out);
     }
-    [data-dsg-fx~='split-flap']:hover {
-      animation: dsg-split-flap var(--dsg-split-flap-duration, 600ms) var(--dsg-split-flap-ease, ease-in-out);
+    [data-kui-fx~='split-flap']:hover {
+      animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out);
     }
-    [data-dsg-fx~='border-draw']:hover { --dsg-border-pct: 100%; }
-    [data-dsg-fx~='border-glow']:hover {
-      box-shadow: 0 0 0 3px var(--dsg-border-glow-color, var(--accent, #d2691e));
+    [data-kui-fx~='border-draw']:hover { --kui-border-pct: 100%; }
+    [data-kui-fx~='border-glow']:hover {
+      box-shadow: 0 0 0 3px var(--kui-border-glow-color, var(--accent, #d2691e));
     }
-    [data-dsg-fx~='beam-border']:hover {
-      animation: dsg-beam-rotate var(--dsg-beam-border-duration, 1400ms) linear infinite;
+    [data-kui-fx~='beam-border']:hover::before {
+      opacity: 1;
+      animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
     }
-    [data-dsg-fx~='underline-slide']:hover::after { scale: 1 1; }
-    [data-dsg-fx~='underline-center']:hover::after { scale: 1 1; }
-    [data-dsg-fx~='icon-wiggle']:hover {
-      animation: dsg-icon-wiggle var(--dsg-icon-wiggle-duration, 500ms) var(--dsg-icon-wiggle-ease, ease-in-out);
+    [data-kui-fx~='underline-slide']:hover::after { scale: 1 1; }
+    [data-kui-fx~='underline-center']:hover::after { scale: 1 1; }
+    [data-kui-fx~='icon-wiggle']:hover {
+      animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out);
     }
-    [data-dsg-fx~='icon-spin']:hover {
-      animation: dsg-icon-spin var(--dsg-icon-spin-duration, 700ms) linear;
+    [data-kui-fx~='icon-spin']:hover {
+      animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear;
     }
-    [data-dsg-fx~='icon-bounce']:hover {
-      animation: dsg-icon-bounce var(--dsg-icon-bounce-duration, 500ms) var(--dsg-icon-bounce-ease, ease-out);
+    [data-kui-fx~='icon-bounce']:hover {
+      animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out);
     }
   }
 
   /* --- pointer-tracking family: JS writes the motion; this is presentation only --- */
 
-  [data-dsg-fx~='tilt-3d'],
-  [data-dsg-fx~='tilt-parallax'] {
+  [data-kui-fx~='tilt-3d'],
+  [data-kui-fx~='tilt-parallax'] {
     transform-style: preserve-3d;
   }
 
@@ -248,22 +283,22 @@
    * host site's own `--accent` (falling back to a plain orange when a consumer defines neither)
    * keeps contrast in both themes instead of hardcoding one.
    */
-  [data-dsg-fx~='cursor-spotlight']::before {
+  [data-kui-fx~='cursor-spotlight']::before {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
-    opacity: var(--dsg-spotlight-opacity, 0);
+    opacity: var(--kui-spotlight-opacity, 0);
     transition: opacity 200ms ease-out;
     background: radial-gradient(
-      circle 160px at var(--dsg-x, 50%) var(--dsg-y, 50%),
+      circle 160px at var(--kui-x, 50%) var(--kui-y, 50%),
       color-mix(in srgb, var(--accent, #d2691e) 30%, transparent),
       transparent 70%
     );
   }
 
-  .dsg-cursor-dot {
+  .kui-cursor-dot {
     position: fixed;
     top: 0;
     left: 0;
@@ -274,13 +309,13 @@
     opacity: 0;
     transition: opacity 160ms ease-out;
   }
-  .dsg-cursor-dot-active {
+  .kui-cursor-dot-active {
     opacity: 1;
   }
 
-  .dsg-cursor-dot-follow,
-  .dsg-cursor-dot-lag,
-  .dsg-cursor-dot-invert {
+  .kui-cursor-dot-follow,
+  .kui-cursor-dot-lag,
+  .kui-cursor-dot-invert {
     width: 14px;
     height: 14px;
     margin: -7px 0 0 -7px;
@@ -288,12 +323,12 @@
     background: var(--accent, #d2691e);
   }
 
-  .dsg-cursor-dot-invert {
+  .kui-cursor-dot-invert {
     background: #fff;
     mix-blend-mode: difference;
   }
 
-  .dsg-cursor-dot-label {
+  .kui-cursor-dot-label {
     margin: -1.4em 0 0 -1.4em;
     padding: 0.4em 0.8em;
     border-radius: 999px;
@@ -308,7 +343,7 @@
      (see `supportsFineHover`), so nothing here ever activates on a touchscreen — this rule exists
      only as a second, CSS-level guarantee that a dot can never be left painted on screen. */
   @media (pointer: coarse) {
-    .dsg-cursor-dot {
+    .kui-cursor-dot {
       display: none;
     }
   }

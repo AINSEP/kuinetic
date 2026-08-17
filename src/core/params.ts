@@ -9,8 +9,28 @@ import type { ParamSpec, ParameterSchema, ResolvedParams } from './types.js'
  * reaches `style.setProperty`. See docs/design.md §7.
  */
 
-/** Characters and functions that let a value escape its declaration or reach the network. */
-const DANGEROUS = /[;{}<]|\/\*|url\s*\(|expression\s*\(|@import|image-set\s*\(/i
+/**
+ * Characters and functions that let a value escape its declaration or reach the network.
+ *
+ * `{`/`}` are deliberately not in this set: values reach the DOM through `style.setProperty`
+ * (CSSOM), not string concatenation into a stylesheet, so a brace cannot splice out of its
+ * declaration the way it could in a text-templated `<style>` block. Blocking them anyway used to
+ * break `type: 'text'` values that legitimately contain braces, e.g. a media-scrub `src` pattern
+ * like `frame-{i}.jpg`.
+ */
+const DANGEROUS = /[;<]|\/\*|url\s*\(|expression\s*\(|@import|image-set\s*\(/i
+
+/**
+ * Matches a value that resolves to a URI scheme (`http:`, `data:`, `javascript:`, …) or a
+ * protocol-relative origin (`//host/…`, plus the backslash spellings a browser's URL parser
+ * treats the same way once a `\` appears where a `/` would). Matching only from the very start
+ * of the string means a colon that shows up *after* the first path separator — inside a later
+ * segment or a query string — is never mistaken for a scheme; that is also the RFC 3986 §4.2
+ * rule for when a leading segment needs a `./` prefix to stay unambiguously relative.
+ *
+ * Used to keep `src`-shaped values same-origin — see `isSameOriginPath` below.
+ */
+const ABSOLUTE_OR_PROTOCOL_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|[/\\]{2})/i
 
 const MAX_VALUE_LENGTH = 200
 
@@ -105,6 +125,41 @@ function isColor(value: string): boolean {
 function checkKeyword(value: string, spec: ParamSpec): ValidationResult {
   if (spec.values?.includes(value)) return { value, ok: true }
   return reject(spec, `expected one of ${spec.values?.join(', ') ?? '(none declared)'}`)
+}
+
+/**
+ * Whether an authored value stays on the page's own origin wherever a `src`-shaped `text`
+ * parameter is actually turned into a network request.
+ *
+ * `type: 'text'` is deliberately shape-free — see the module doc above — because it also carries
+ * CSS selectors and other non-URL strings that have no notion of "origin" at all. So this is not
+ * part of `validate()`: a `text` value that is a URL pattern (media-scrub's frame `src`) is safe
+ * to accept lexically, but a *consumer of that value* must call this before ever assigning it to
+ * something that fetches, such as `<img>.src`.
+ *
+ * The threat: `data-kui` content is not always authored by the site owner — a CMS field, a
+ * comment, anything not trusted the way hand-written markup is — so an unconstrained `src`
+ * pattern turns the visitor's own browser into a same-origin-cookie-free but still
+ * attacker-directed request tool: exfiltration via path/query, third-party tracking pixels, or
+ * probing hosts on the victim's internal network that are unreachable from outside it. A
+ * Content-Security-Policy would mitigate this, but the library should not depend on the consumer
+ * having one.
+ *
+ * Only relative and root-relative paths pass. That is narrower than "any same-origin URL": a
+ * fully-qualified `https://this-very-site/…` is rejected too, on purpose, because nothing this
+ * library ships needs one — a root-relative path reaches the same resource — and accepting it
+ * would mean re-deriving "is this really the page's own origin" from `location` inside what is
+ * otherwise pure string validation, with all the parsing edge cases (`this-site.com.evil.com`,
+ * userinfo tricks, IDN lookalikes) that comparison invites. Rejecting every scheme uniformly,
+ * regardless of which host follows it, has no such edge cases.
+ *
+ * @param value - Author-supplied value already accepted by {@link validate} as `type: 'text'`.
+ * @returns Whether every request this value can produce is confined to the page's own origin.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+export function isSameOriginPath(value: string): boolean {
+  return !ABSOLUTE_OR_PROTOCOL_RELATIVE.test(value)
 }
 
 /**
@@ -234,7 +289,9 @@ export function resolveParams(
   const out: ResolvedParams = {}
 
   for (const [key, raw] of Object.entries(authored)) {
-    const spec = schema[key]
+    // `Object.hasOwn`: `schema[key]` alone falls through to `Object.prototype` for a key like
+    // `__proto__`/`constructor`, silently treating it as a "known" param instead of warning.
+    const spec = Object.hasOwn(schema, key) ? schema[key] : undefined
     if (!spec) {
       warn(`unknown parameter "${key}" (known: ${Object.keys(schema).join(', ') || 'none'})`)
       continue

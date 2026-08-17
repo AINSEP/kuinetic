@@ -21,8 +21,8 @@ describe('compile — single effect', () => {
 
   it('emits the preset keyframes, not the preset name', () => {
     // slide-up and fade-up share one keyframe block; only their defaults differ.
-    expect(run('slide-up').declarations['animation-name']).toBe('dsg-in-up')
-    expect(run('fade-up').declarations['animation-name']).toBe('dsg-in-up')
+    expect(run('slide-up').declarations['animation-name']).toBe('kui-in-up')
+    expect(run('fade-up').declarations['animation-name']).toBe('kui-in-up')
   })
 
   it('does NOT inline preset defaults, so consumer CSS can override them', () => {
@@ -32,12 +32,12 @@ describe('compile — single effect', () => {
   })
 
   it('lets an author override a preset default', () => {
-    expect(run('slide-up distance:40px').vars['--dsg-distance']).toBe('40px')
+    expect(run('slide-up distance:40px').vars['--kui-distance']).toBe('40px')
   })
 
   it('uses a primitive-scoped var() fallback when no duration is given', () => {
     expect(run('fade-up').declarations['animation-duration']).toBe(
-      'var(--dsg-reveal-duration, 600ms)',
+      'var(--kui-reveal-duration, 600ms)',
     )
   })
 
@@ -47,23 +47,23 @@ describe('compile — single effect', () => {
 
   it('folds stagger into the delay so the browser does the arithmetic', () => {
     expect(run('fade-up').declarations['animation-delay']).toBe(
-      'calc(var(--dsg-reveal-delay, 0ms) + var(--dsg-i, 0) * var(--dsg-stagger, 0ms))',
+      'calc(var(--kui-reveal-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 0ms))',
     )
   })
 
   it('resolves a named curve to its custom property', () => {
     expect(run('fade-up expo-out').declarations['animation-timing-function']).toBe(
-      'var(--dsg-ease-expo-out, ease-out)',
+      'var(--kui-ease-expo-out, ease-out)',
     )
   })
 
   it('scopes timing properties per primitive so composed effects cannot bleed', () => {
-    // pop-in sets ease:back-out. Sharing one --dsg-ease meant blur-in silently inherited it,
+    // pop-in sets ease:back-out. Sharing one --kui-ease meant blur-in silently inherited it,
     // even though their channels are disjoint and composition was therefore allowed.
     const plan = run('pop-in ease:back-out, blur-in')
-    expect(plan.vars['--dsg-scale-ease']).toBe('back-out')
+    expect(plan.vars['--kui-scale-ease']).toBe('back-out')
     expect(plan.declarations['animation-timing-function']).toBe(
-      'var(--dsg-scale-ease, ease-out), var(--dsg-blur-ease, ease-out)',
+      'var(--kui-scale-ease, ease-out), var(--kui-blur-ease, ease-out)',
     )
   })
 
@@ -73,6 +73,12 @@ describe('compile — single effect', () => {
 
   it('sets fill-mode both so the from-state holds before activation', () => {
     expect(run('fade-up').declarations['animation-fill-mode']).toBe('both')
+  })
+
+  it('defaults iteration-count to a per-preset var() falling back to 1 (one-shot)', () => {
+    expect(run('fade-up').declarations['animation-iteration-count']).toBe(
+      'var(--kui-fx-fade-up-iterations, 1)',
+    )
   })
 })
 
@@ -98,13 +104,24 @@ describe('compile — composition', () => {
   it('composes effects whose channels are disjoint', () => {
     const plan = run('slide-up, blur-in')
     expect(plan.fxNames).toEqual(['slide-up', 'blur-in'])
-    expect(plan.declarations['animation-name']).toBe('dsg-in-up, dsg-blur-in')
+    expect(plan.declarations['animation-name']).toBe('kui-in-up, kui-blur-in')
   })
 
   it('emits parallel value lists so per-effect timing survives composition', () => {
     const plan = run('slide-up 800ms, blur-in 400ms')
     expect(plan.declarations['animation-duration']).toBe('800ms, 400ms')
     expect(plan.declarations['animation-fill-mode']).toBe('both, both')
+  })
+
+  it('gives a looping effect its own iteration-count var, not a shared scalar', () => {
+    // Regression: a bare `animation-iteration-count: infinite` on gradient-mesh's own CSS rule
+    // would apply to every track sharing this element's `animation-name` list (CSS repeats a
+    // shorter value list to match the longest one), making the composed one-shot fade-up loop
+    // forever too. Each track must resolve independently.
+    const plan = run('gradient-mesh, fade-up')
+    expect(plan.declarations['animation-iteration-count']).toBe(
+      'var(--kui-fx-gradient-mesh-iterations, 1), var(--kui-fx-fade-up-iterations, 1)',
+    )
   })
 
   it('composes three disjoint channels', () => {
@@ -144,6 +161,15 @@ describe('compile — composition', () => {
   it('treats the same effect listed twice as a collision', () => {
     expect(run('fade-up, fade-up').warnings.join()).toContain('cannot compose')
   })
+
+  it('catches a background collision confetti-burst previously hid from detection', () => {
+    // Regression: feedback-burst (confetti-burst's primitive) used to declare only
+    // scale+opacity, even though confetti-burst's own CSS paints `background-image`. That let it
+    // pass composition with another background-writing effect and get silently overwritten.
+    const plan = run('gradient-mesh, confetti-burst')
+    expect(plan.fxNames).toEqual(['gradient-mesh'])
+    expect(plan.warnings.join()).toContain('background')
+  })
 })
 
 describe('compile — reduced motion policy', () => {
@@ -172,5 +198,44 @@ describe('compile — timeline support', () => {
 
   it('warns when a scroll-linked effect is left on the default time timeline', () => {
     expect(run('parallax-y').warnings.join()).toContain('does not support timeline "time"')
+  })
+})
+
+describe('compile — capability intersection across composed effects', () => {
+  it('intersects timelines down to the ones every composed effect supports', () => {
+    // parallax-y and scroll-progress-ring both declare view+scroll, so both survive.
+    const plan = run('parallax-y, scroll-progress-ring', 'view')
+    expect(plan.fxNames).toEqual(['parallax-y', 'scroll-progress-ring'])
+    expect([...plan.supportedTimelines].sort((a, b) => a.localeCompare(b))).toEqual([
+      'scroll',
+      'view',
+    ])
+  })
+
+  it('keeps a timeline intersection empty once it legitimately empties out', () => {
+    // Regression: the accumulator was `length ? filter : copy`, so an empty intersection was
+    // indistinguishable from "no effect has contributed yet". fade-up (time) and parallax-scale
+    // (view/scroll) share nothing, but scroll-progress-ring then REPOPULATED the list with
+    // ['scroll', 'view'] — and style-plan.ts duly applied view() to fade-up, which is exactly
+    // the mismatch supportedTimelines exists to stop.
+    const plan = run('fade-up, parallax-scale, scroll-progress-ring', 'view')
+    expect(plan.fxNames).toEqual(['fade-up', 'parallax-scale', 'scroll-progress-ring'])
+    expect(plan.supportedTimelines).toEqual([])
+  })
+
+  it('intersects activations down to the ones every composed effect supports', () => {
+    // fade-up supports all six; parallax-scale only `manual`.
+    const plan = run('fade-up, parallax-scale', 'view')
+    expect(plan.fxNames).toEqual(['fade-up', 'parallax-scale'])
+    expect(plan.supportedActivations).toEqual(['manual'])
+  })
+
+  it('keeps an activation intersection empty once it legitimately empties out', () => {
+    // Same defect on the activation axis: lift supports only `load`, parallax-scale only
+    // `manual`, so nothing is left — but blur-in supports all six and used to restore them,
+    // handing the animator a contract every composed effect had already ruled out.
+    const plan = run('lift, parallax-scale, blur-in', 'view')
+    expect(plan.fxNames).toEqual(['lift', 'parallax-scale', 'blur-in'])
+    expect(plan.supportedActivations).toEqual([])
   })
 })

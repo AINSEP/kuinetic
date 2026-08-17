@@ -1,47 +1,47 @@
 /*
- * designimation — base layer
+ * kuinetic — base layer
  *
  * Cascade layers mean a consuming site's own CSS wins without `!important` wars. Keep every
- * library rule inside `dsg.*`; never emit a bare top-level rule.
+ * library rule inside `kui.*`; never emit a bare top-level rule.
  */
-@layer dsg.tokens, dsg.presets, dsg.effects, dsg.policy;
+@layer kui.tokens, kui.presets, kui.effects, kui.policy;
 
-@layer dsg.tokens {
+@layer kui.tokens {
   :root {
-    --dsg-ease-expo-in: cubic-bezier(0.7, 0, 0.84, 0);
-    --dsg-ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
-    --dsg-ease-expo-in-out: cubic-bezier(0.87, 0, 0.13, 1);
-    --dsg-ease-back-in: cubic-bezier(0.36, 0, 0.66, -0.56);
-    --dsg-ease-back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --dsg-ease-back-in-out: cubic-bezier(0.68, -0.6, 0.32, 1.6);
-    --dsg-ease-quart-out: cubic-bezier(0.25, 1, 0.5, 1);
-    --dsg-ease-circ-out: cubic-bezier(0, 0.55, 0.45, 1);
-    --dsg-ease-spring: linear(0, 0.4 12%, 0.9 25%, 1.06 38%, 1.01 62%, 1);
+    --kui-ease-expo-in: cubic-bezier(0.7, 0, 0.84, 0);
+    --kui-ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --kui-ease-expo-in-out: cubic-bezier(0.87, 0, 0.13, 1);
+    --kui-ease-back-in: cubic-bezier(0.36, 0, 0.66, -0.56);
+    --kui-ease-back-out: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --kui-ease-back-in-out: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+    --kui-ease-quart-out: cubic-bezier(0.25, 1, 0.5, 1);
+    --kui-ease-circ-out: cubic-bezier(0, 0.55, 0.45, 1);
+    --kui-ease-spring: linear(0, 0.4 12%, 0.9 25%, 1.06 38%, 1.01 62%, 1);
   }
 
   /*
    * Writing-mode sign for the logical slide family. Physical `slide-left` is deliberately NOT
    * affected — silently reversing "left" in RTL surprises authors.
    */
-  [data-dsg-fx] {
-    --dsg-dir: 1;
+  [data-kui-fx] {
+    --kui-dir: 1;
   }
 
-  :dir(rtl) [data-dsg-fx] {
-    --dsg-dir: -1;
+  :dir(rtl) [data-kui-fx] {
+    --kui-dir: -1;
   }
 }
 
-@layer dsg.policy {
+@layer kui.policy {
   /*
-   * Opt-in cloak, twice over: the root must carry `data-dsg-cloak` AND the element must be
-   * marked `data-dsg-reveal`. Cloaking every effect hid tilt targets, counters, pinned sections,
+   * Opt-in cloak, twice over: the root must carry `data-kui-cloak` AND the element must be
+   * marked `data-kui-reveal`. Cloaking every effect hid tilt targets, counters, pinned sections,
    * and drag handles — none of which have a from-state worth hiding.
    *
    * The runtime removes the root attribute on start, and a watchdog removes it if start stalls,
    * so a failed or slow initialisation cannot leave a page blank.
    */
-  html[data-dsg-cloak] [data-dsg][data-dsg-reveal]:not([data-dsg-state]) {
+  html[data-kui-cloak] [data-kui][data-kui-reveal]:not([data-kui-state]) {
     opacity: 0 !important;
   }
 
@@ -51,18 +51,78 @@
    * `animation: none` on an entrance would leave the element stuck at its from-state.
    */
   @media (prefers-reduced-motion: reduce) {
-    [data-dsg-rm='shorten'] {
+    /*
+     * Transitions, under every policy. The `animation-*` rules below only reach motion the
+     * compiler emitted as an `animation`, but the hover family (`lift`) and the whole
+     * native-form-state family (`checkbox-draw`) move via a plain CSS `transition` instead — those
+     * ran at full speed while their primitive declared `shorten` or `disable`.
+     *
+     * Shortening rather than removing is what makes this safe to apply this broadly: a transition
+     * still settles on its end value at any duration, so no state-driven resting position — an
+     * unchecked `radio-fill` dot, an unfilled `strength-meter` segment — can be stranded.
+     *
+     * The trailing selectors reach past the marked element because the native-form-state family
+     * stamps `data-kui-rm` on the *control* while the motion lives on the sibling it drives: a
+     * `<label>`, an inline `<svg>` checkmark, or a `kui-`-classed node the runtime builds, none of
+     * which ever carry the attribute themselves. An adversarial review caught an earlier version
+     * of this reach using `[data-kui-rm] ~ :is(label, [class*='kui-'], [class*='kui-'] *)`: an
+     * unqualified `~` matches *every* later sibling in the parent, not just the one satellite the
+     * control actually drives, and `[class*='kui-']` is a substring match that also catches an
+     * unrelated consumer class merely containing "kui-" (`my-kui-thing`, `takui-panel`). Together
+     * those forced a `lift` button's unrelated sibling `<label>` — or any other element sharing
+     * its parent — onto a 1ms transition it never declared.
+     *
+     * Each selector below is instead scoped to the exact compiled effect name
+     * (`[data-kui-fx~='name']`, the same attribute forms.css keys its real animation off of) paired
+     * with the exact satellite selector that effect's own forms.css rule drives — never a bare
+     * class substring or an unscoped sibling reach. `.kui-odometer-strip` is the one runtime-built
+     * *descendant* that needs it: its 220ms per-digit-roll transition (numbers.css) is fixed and
+     * separate from `count-odometer`'s own JS tween duration, which `ctx.reducedMotion` already
+     * shortens in `prepare`.
+     *
+     * `test/reduced-motion-coverage.test.ts` statically checks this list against every
+     * transition-declaring `[data-kui-fx~='name'] ~ selector` rule in forms.css (and any sibling
+     * stylesheet using the same pattern) in both directions, so a new native-state satellite added
+     * there without a matching entry here — or a stale entry left after one is removed — fails
+     * loudly instead of quietly reverting to the exact under- or over-reach this fix corrected.
+     */
+    [data-kui-rm],
+    [data-kui-rm]::before,
+    [data-kui-rm]::after,
+    [data-kui-rm] .kui-odometer-strip,
+    [data-kui-rm][data-kui-fx~='label-float'] ~ label,
+    [data-kui-rm][data-kui-fx~='input-underline-grow'] ~ .kui-underline,
+    [data-kui-rm][data-kui-fx~='toggle-morph'] ~ .kui-track,
+    [data-kui-rm][data-kui-fx~='toggle-morph'] ~ .kui-track .kui-thumb,
+    [data-kui-rm][data-kui-fx~='checkbox-draw'] ~ svg path,
+    [data-kui-rm][data-kui-fx~='radio-fill'] ~ .kui-dot,
+    [data-kui-rm][data-kui-fx~='strength-meter'] ~ .kui-meter > * {
+      transition-duration: 1ms !important;
+      transition-delay: 0ms !important;
+    }
+
+    /* Pseudo-elements do not inherit the element's `animation-*`, so `shine-sweep` — whose sweep
+       lives entirely on `::after` — is invisible to a rule matching the element alone. */
+    [data-kui-rm='shorten'],
+    [data-kui-rm='shorten']::before,
+    [data-kui-rm='shorten']::after {
       animation-duration: 1ms !important;
       animation-delay: 0ms !important;
     }
 
-    [data-dsg-rm='crossfade'] {
-      animation-name: dsg-in !important;
+    [data-kui-rm='crossfade'] {
+      animation-name: kui-in !important;
       animation-duration: 200ms !important;
     }
 
-    /* Disabled effects must land in their final state, never their from-state. */
-    [data-dsg-rm='disable'] {
+    /*
+     * Disabled effects must land in their final state, never their from-state. Deliberately not
+     * extended to pseudo-elements or siblings the way the transition rule above is: `opacity: 1`
+     * on `cursor-spotlight`'s `::before` would paint a permanent glow, and `scale: none` on
+     * `radio-fill`'s sibling dot would fill every unselected radio. For those the shortened
+     * transition is the entire treatment.
+     */
+    [data-kui-rm='disable'] {
       animation: none !important;
       opacity: 1 !important;
       translate: none !important;
@@ -73,8 +133,8 @@
   }
 
   @media print {
-    [data-dsg-fx],
-    [data-dsg-reveal] {
+    [data-kui-fx],
+    [data-kui-reveal] {
       animation: none !important;
       opacity: 1 !important;
       translate: none !important;

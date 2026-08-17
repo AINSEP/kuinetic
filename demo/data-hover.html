@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Data &amp; Hover</title>
+<meta name="description" content="Counters, SVG progress geometry, and rating fills alongside button, border, link, icon, card-tilt, and cursor hover effects for kUInetic's data-kui primitives — one HTML attribute each." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+
+  /* ---------- matrix groups (grouped by the catalog's own subgroupings) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .note { margin-top: 0.5rem; color: var(--muted); font-size: 0.88rem; line-height: 1.6; max-width: 60ch; }
+  .note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+
+  /* ---------- demo grid / cards (identical vocabulary to reveals.html) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0.85rem; }
+  /* flex column so figcaption/.demo-card-caption can grow to fill whatever extra height CSS
+     Grid's default align-items:stretch adds to this card to match the tallest card in its row.
+     Without this, the card's own background shows through as a sliver below a caption sized
+     only to its own content. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+  /* ---------- card fill: alternating ink/paper, not a flat grey surface ----------
+     The rule above is the "paper" half (var(--bg)/var(--fg), same as the page — separated only
+     by the hairline border). Alternate every other card to an acid-lime "ink" fill so the grid
+     doesn't read as one flat sheet — except grids marked .demo-grid--paper (rings/gauges/sweeps,
+     bars/segments/ratings), which already use --accent as the ring/bar/segment's OWN data-value
+     color; doubling that as the card background too would wash the fill out or hide it outright
+     against a same-color card, so those stay paper-only and uniform. */
+  .demo-grid:not(.demo-grid--paper) > .demo-card:nth-child(odd) { background: var(--accent); color: var(--accent-ink); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  /* Light mode: solid black caption strip, white text. Dark mode (below) flips to the
+     acid-lime accent with black text. Applies to real <figcaption> (card-tilt's image cards)
+     and to the plain .demo-card-caption <p> used by every non-image card on this page (stat,
+     meter, and fx cards) — same convention, same rule, two selectors so neither markup shape
+     has to fake being the other. */
+  .demo-card figcaption,
+  .demo-card .demo-card-caption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption,
+  :root[data-theme='dark'] .demo-card .demo-card-caption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- counters (section F) ---------- */
+  /* The label used to live as a <span> nested inside the counter's own <b>, which risked a
+     descendant selector (`.stat-body span`) reaching the counter's internal accessible-layer
+     spans (kui-count-decorative, kui-sr-only, the odometer's column/strip spans) and, being
+     unlayered page CSS, silently beating their `@layer kui.effects` display rules regardless of
+     specificity — that's what broke the odometer's column layout once before. Moving the label
+     out into the sibling .demo-card-caption below removes the nesting risk entirely: nothing
+     here ever selects `span`. */
+  .stat-body { flex: 1 0 auto; display: flex; align-items: center; padding: 1.6rem 1.5rem 1.3rem; }
+  .stat-body b { font-size: 2.1rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+  /* ---------- rings, gauges, bars, ratings (section F) ---------- */
+  .meter-body { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1.25rem; }
+  .meter-body svg { overflow: visible; }
+  .meter-ring circle, .meter-donut circle, .meter-gauge path { fill: none; stroke-linecap: round; }
+  .meter-track { stroke: var(--border); }
+  .meter-value { stroke: var(--accent); }
+  .meter-spark path.track { fill: none; stroke: var(--border); stroke-width: 2; }
+  .meter-spark path.line { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .meter-bar-track { width: 100%; height: 10px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .meter-bar-fill { height: 100%; width: 100%; border-radius: 999px; background: var(--accent); }
+  .meter-segments-track { display: flex; gap: 5px; width: 100%; }
+  .meter-segments-track > i { flex: 1; height: 10px; border-radius: 3px; background: var(--accent); font-style: normal; }
+  .star-rating { position: relative; font-size: 1.7rem; letter-spacing: 0.15em; line-height: 1; }
+  .star-rating .empty { color: var(--border); }
+  .star-rating .filled { position: absolute; inset: 0; color: var(--accent); --kui-fill: 70%; }
+
+  /* ---------- buttons, borders, icons (section I) ---------- */
+  .fx-body { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 1.75rem 1.25rem; }
+  /* Longhand border/background, not the `border`/`background` shorthands: both shorthands reset
+     their `-image` sub-property (border-image-source / background-image) to `none` as a side
+     effect, and since this page's plain CSS is unlayered it always wins over the library's
+     layered `@layer kui.effects` rule regardless of specificity — silently blanking any
+     button-hosted effect that paints via border-image-source or background-image (border-draw,
+     beam-border, shine-sweep, split-flap all qualify). */
+  .fx-btn {
+    width: 100%; font: inherit; font-weight: 560; font-size: 0.95rem; color: var(--fg);
+    background-color: var(--bg);
+    border-width: 1px; border-style: solid; border-color: var(--border);
+    border-radius: 8px; padding: 0.9rem 1rem; cursor: pointer; text-align: center;
+  }
+  .fx-btn:hover { border-color: var(--fg); }
+  .icon-btn {
+    width: 3.4rem; height: 3.4rem; border-radius: 50%; padding: 0;
+    display: grid; place-items: center; font-size: 1.5rem; color: var(--fg);
+    background-color: var(--bg);
+    border-width: 1px; border-style: solid; border-color: var(--border);
+    cursor: pointer;
+  }
+  .icon-btn:hover { border-color: var(--fg); }
+
+  /* ---------- links (section I) ---------- */
+  .link-row { display: flex; flex-wrap: wrap; gap: 2.5rem; margin-top: 1.4rem; }
+  .link-row a { font-size: 1.15rem; font-weight: 500; }
+
+  /* ---------- card tilt (section I) — real photography, per the owner's asset library ---------- */
+  .tilt-media { position: relative; flex: none; }
+  .tilt-media img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  /* Scrim behind the depth-layered overlay text so it reads regardless of how bright the
+     underlying photo is (mens_accessories_flatlay.jpg is a light, low-contrast frame). */
+  .tilt-media::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, transparent 45%, rgb(0 0 0 / 0.6) 100%);
+  }
+  .tilt-parallax-card [data-depth] {
+    position: absolute; left: 14px; pointer-events: none; color: #ffffff;
+    text-shadow: 0 2px 10px rgb(0 0 0 / 0.6);
+  }
+  .tilt-parallax-card [data-depth='24'] { top: 14px; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .tilt-parallax-card [data-depth='6'] { bottom: 12px; font-size: 0.75rem; opacity: 0.9; }
+
+  /* ---------- cursor (section I) — a live zone, not an artifact, so it stays visually distinct
+     (dashed border) from the solid-border demo-card components above ---------- */
+  .cursor-zone {
+    display: grid; place-items: center; min-height: 150px; padding: 1rem;
+    border-radius: 14px; border: 1px dashed var(--border); background: var(--bg);
+    color: var(--muted); font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="js-animations">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Data &amp; Hover</p>
+          <h1 data-kui="fade-up 900ms">Numbers and hover.</h1>
+          <p class="lede" data-kui="fade-up 900ms 90ms">
+            Catalog section F counts up, sweeps SVG geometry, and fills bars and ratings — all
+            scroll-triggered. Section I answers a pointer or a keyboard focus:
+            <code>lift</code>, <code>tilt-3d</code>, five different cursor followers, each with a
+            <code>:focus-visible</code> equivalent.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 900ms 160ms">
+            <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 900ms 220ms"><span class="dot"></span> Scroll for the counters, then hover or Tab through the cards below.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/luxury_watch.jpg"
+            alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- NUMBERS & DATA VIZ (catalog section F, 13 names) -->
+      <section id="matrix" data-od-id="numbers">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Numbers &amp; data viz</h2>
+          <p>
+            All 13 names in <a href="./docs.html?doc=catalog">catalog section F</a> — count
+            formats, SVG progress geometry, and bar/segment/rating fills. Counters expose their
+            final value to assistive tech and never spam <code>aria-live</code> mid-animation.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Counters — 6</p>
+          <p class="note">Scroll each card into view to trigger its count.</p>
+          <div class="demo-grid" data-kui-stagger="80ms">
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="count-up 1800ms to:2450">0</b></div>
+              <p class="demo-card-caption">data-kui="count-up 1800ms to:2450"</p>
+            </div>
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="count-down 1800ms from:500 to:0">0</b></div>
+              <p class="demo-card-caption">data-kui="count-down 1800ms from:500 to:0"</p>
+            </div>
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="count-currency 1800ms to:4820 decimals:0">0</b></div>
+              <p class="demo-card-caption">data-kui="count-currency 1800ms to:4820 decimals:0"</p>
+            </div>
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="count-percent 1800ms to:0.94">0</b></div>
+              <p class="demo-card-caption">data-kui="count-percent 1800ms to:0.94"</p>
+            </div>
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="count-compact 1800ms to:128400">0</b></div>
+              <p class="demo-card-caption">data-kui="count-compact 1800ms to:128400"</p>
+            </div>
+            <div class="demo-card">
+              <div class="stat-body"><b data-kui="odometer-roll 2000ms to:4820">0</b></div>
+              <p class="demo-card-caption">data-kui="odometer-roll 2000ms to:4820"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Rings, gauges &amp; sweeps — 4</p>
+          <p class="note">
+            Author-supplied SVG geometry: <code>stroke-dasharray</code> and
+            <code>--kui-path-length</code> match the shape's own circumference or arc length, the
+            same convention <code>scroll-progress-ring</code> uses.
+          </p>
+          <div class="demo-grid demo-grid--paper" data-kui-stagger="100ms">
+            <div class="demo-card">
+              <div class="meter-body">
+                <svg class="meter-ring" width="110" height="110" viewBox="0 0 100 100">
+                  <circle class="meter-track" cx="50" cy="50" r="42" stroke-width="10" />
+                  <circle
+                    class="meter-value"
+                    cx="50" cy="50" r="42" stroke-width="10"
+                    transform="rotate(-90 50 50)"
+                    style="--kui-path-length: 264"
+                    data-kui="progress-ring 1400ms"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="progress-ring"</p>
+            </div>
+            <div class="demo-card">
+              <div class="meter-body">
+                <svg class="meter-gauge" width="110" height="70" viewBox="0 0 100 60">
+                  <path class="meter-track" d="M10,50 A40,40 0 0 1 90,50" stroke-width="10" />
+                  <path
+                    class="meter-value"
+                    d="M10,50 A40,40 0 0 1 90,50"
+                    stroke-width="10"
+                    style="--kui-path-length: 130"
+                    data-kui="gauge-sweep 1400ms"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="gauge-sweep"</p>
+            </div>
+            <div class="demo-card">
+              <div class="meter-body">
+                <svg class="meter-donut" width="110" height="110" viewBox="0 0 100 100">
+                  <circle class="meter-track" cx="50" cy="50" r="38" stroke-width="18" />
+                  <circle
+                    class="meter-value"
+                    cx="50" cy="50" r="38" stroke-width="18"
+                    transform="rotate(-90 50 50)"
+                    style="--kui-path-length: 240"
+                    data-kui="donut-sweep 1400ms"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="donut-sweep"</p>
+            </div>
+            <div class="demo-card">
+              <div class="meter-body">
+                <svg class="meter-spark" width="140" height="60" viewBox="0 0 100 40">
+                  <path class="track" d="M0,30 L20,10 L40,25 L60,5 L80,20 L100,8" />
+                  <path
+                    class="line"
+                    d="M0,30 L20,10 L40,25 L60,5 L80,20 L100,8"
+                    style="--kui-path-length: 140"
+                    data-kui="sparkline-draw 1400ms"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="sparkline-draw"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Bars, segments &amp; ratings — 3</p>
+          <div class="demo-grid demo-grid--paper" data-kui-stagger="100ms">
+            <div class="demo-card">
+              <div class="meter-body" style="flex-direction: column; align-items: stretch;">
+                <div class="meter-bar-track">
+                  <div class="meter-bar-fill" data-kui="progress-bar 1200ms"></div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="progress-bar"</p>
+            </div>
+            <div class="demo-card">
+              <div class="meter-body" style="flex-direction: column; align-items: stretch;">
+                <div class="meter-segments-track" data-kui-stagger="90ms">
+                  <i data-kui="progress-segments 350ms"></i>
+                  <i data-kui="progress-segments 350ms"></i>
+                  <i data-kui="progress-segments 350ms"></i>
+                  <i data-kui="progress-segments 350ms"></i>
+                  <i data-kui="progress-segments 350ms"></i>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="progress-segments" (staggered)</p>
+            </div>
+            <div class="demo-card">
+              <div class="meter-body">
+                <div class="star-rating" aria-label="3.5 out of 5 stars">
+                  <span class="empty" aria-hidden="true">★★★★★</span>
+                  <span class="filled" aria-hidden="true" data-kui="star-rating-fill 900ms">★★★★★</span>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="star-rating-fill" — 70%</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HOVER & POINTER (catalog section I, 20 names) -->
+      <section data-od-id="hover">
+        <div class="section-head">
+          <h2 data-kui="fade-up" data-kui-on="enter">Hover &amp; pointer</h2>
+          <p>
+            All 20 names in <a href="./docs.html?doc=catalog">catalog section I</a>, grouped
+            exactly as the catalog groups them — button, border, link, icon, card, and cursor.
+            Every hover effect below ships a <code>:focus-visible</code> equivalent, so Tab works
+            as well as a pointer.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Buttons — 5</p>
+          <div class="demo-grid">
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="lift">Lift</button></div>
+              <p class="demo-card-caption">data-kui="lift" — hover or Tab</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="lift-shadow">Lift + shadow</button></div>
+              <p class="demo-card-caption">data-kui="lift-shadow"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="magnetic">Magnetic</button></div>
+              <p class="demo-card-caption">data-kui="magnetic" — move close</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="shine-sweep">Shine sweep</button></div>
+              <p class="demo-card-caption">data-kui="shine-sweep"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="split-flap">Split flap</button></div>
+              <p class="demo-card-caption">data-kui="split-flap"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Borders — 3</p>
+          <div class="demo-grid">
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="border-draw">Border draw</button></div>
+              <p class="demo-card-caption">data-kui="border-draw"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="border-glow">Border glow</button></div>
+              <p class="demo-card-caption">data-kui="border-glow"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="fx-btn" data-kui="beam-border">Beam border</button></div>
+              <p class="demo-card-caption">data-kui="beam-border"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Links — 2</p>
+          <div class="link-row">
+            <a href="#" data-kui="underline-slide">underline-slide</a>
+            <a href="#" data-kui="underline-center">underline-center</a>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Icons — 3</p>
+          <div class="demo-grid">
+            <div class="demo-card">
+              <div class="fx-body"><button class="icon-btn" data-kui="icon-wiggle" aria-label="icon-wiggle">⚑</button></div>
+              <p class="demo-card-caption">data-kui="icon-wiggle"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="icon-btn" data-kui="icon-spin" aria-label="icon-spin">⚙</button></div>
+              <p class="demo-card-caption">data-kui="icon-spin"</p>
+            </div>
+            <div class="demo-card">
+              <div class="fx-body"><button class="icon-btn" data-kui="icon-bounce" aria-label="icon-bounce">▲</button></div>
+              <p class="demo-card-caption">data-kui="icon-bounce"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Card tilt — 2</p>
+          <p class="note">Move the pointer over each card, or Tab to it.</p>
+          <div class="demo-grid" data-kui-stagger="120ms">
+            <figure class="demo-card" data-kui="tilt-3d" tabindex="0">
+              <img src="./assets/azzaro_cologne.jpg" alt="Matte black Azzaro cologne bottle with a diamond-quilted band, wisps of smoke curling beside sprigs of juniper" loading="lazy" />
+              <figcaption>data-kui="tilt-3d"</figcaption>
+            </figure>
+            <figure class="demo-card tilt-parallax-card" data-kui="tilt-parallax" tabindex="0">
+              <div class="tilt-media">
+                <img src="./assets/mens_accessories_flatlay.jpg" alt="Black leather brogues, belt, sunglasses, bow tie, cufflinks, and wristwatch arranged as a flat lay on a light textured sheet" loading="lazy" />
+                <b data-depth="24">tilt-parallax</b>
+                <small data-depth="6">layers move at different depths</small>
+              </div>
+              <figcaption>data-kui="tilt-parallax"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Cursor — 5</p>
+          <p class="note">Each zone spawns its own follower — move the pointer across, or Tab in.</p>
+          <div class="demo-grid">
+            <div class="cursor-zone" data-kui="cursor-follow" tabindex="0">cursor-follow</div>
+            <div class="cursor-zone" data-kui="cursor-lag" tabindex="0">cursor-lag</div>
+            <div class="cursor-zone" data-kui="cursor-label" tabindex="0">cursor-label</div>
+            <div class="cursor-zone" data-kui="cursor-spotlight" tabindex="0">cursor-spotlight</div>
+            <div class="cursor-zone" data-kui="cursor-invert" tabindex="0">cursor-invert</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+</body>
+</html>
