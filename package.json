@@ -1,6 +1,6 @@
 {
   "name": "kuinetic",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Declarative web animation from HTML attributes. Native CSS where possible, JS only where necessary.",
   "type": "module",
   "license": "MIT",
@@ -46,6 +46,7 @@
     "verify:pack": "npm run build:dist && node scripts/verify-pack.mjs",
     "clean:dist": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "prepack": "npm run build:dist",
+    "prepublishOnly": "node -e \"if (require('./package.json').version === '0.0.0') { console.error('Refusing to publish placeholder version 0.0.0 — bump package.json first.'); process.exit(1) }\"",
     "dev": "npm run build && node scripts/dev-server.mjs",
     "verify:browser": "npm run build && node scripts/verify-browser.mjs",
     "test:browser": "npm run build && node scripts/run-browser-tests.mjs",
