@@ -5,6 +5,7 @@ coverage/
 .DS_Store
 demo/kuinetic.js
 demo/kuinetic.css
+demo/kuinetic.all.js
 demo/showcase/tailwind.css
 .artifacts/
 .playwright-mcp/

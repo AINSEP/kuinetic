@@ -13,15 +13,18 @@
  * (the guarantee `docs/design.md` §1a makes for the library generally) should use the split
  * files. This one trades that guarantee for one-tag convenience, on purpose.
  *
- * Requires `dist/kuinetic.js` and `dist/kuinetic.css` to already exist — run after `build:dist`'s
- * own esbuild steps, not standalone.
+ * Requires `<dir>/kuinetic.js` and `<dir>/kuinetic.css` to already exist — run after the esbuild
+ * steps that produce them, not standalone. `<dir>` defaults to `dist` (the publishable package
+ * output) and also runs against `demo` (the local showcase / CDN deploy target) so both stay in
+ * sync automatically instead of needing a manual copy step.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const js = readFileSync(`${root}dist/kuinetic.js`, 'utf8')
-const css = readFileSync(`${root}dist/kuinetic.css`, 'utf8')
+const dir = process.argv[2] ?? 'dist'
+const js = readFileSync(`${root}${dir}/kuinetic.js`, 'utf8')
+const css = readFileSync(`${root}${dir}/kuinetic.css`, 'utf8')
 
 const tail = `
 ;(function () {
@@ -35,6 +38,6 @@ const tail = `
 })()
 `
 
-const outFile = `${root}dist/kuinetic.all.js`
+const outFile = `${root}${dir}/kuinetic.all.js`
 writeFileSync(outFile, js + tail)
-console.log(`wrote dist/kuinetic.all.js (${js.length + tail.length} bytes)`)
+console.log(`wrote ${dir}/kuinetic.all.js (${js.length + tail.length} bytes)`)
