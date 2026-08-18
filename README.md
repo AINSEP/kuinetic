@@ -59,16 +59,17 @@ kuinetic({ observe: true }).start()
 Every file is mirrored on jsDelivr and unpkg — both update automatically from every npm release,
 no separate action needed — and additionally self-hosted on Cloudflare at **`kuinetic.pages.dev`**:
 
-| File | jsDelivr | unpkg | Cloudflare |
+| File | cdn.jsdelivr.net | unpkg.com | kuinetic.pages.dev |
 |---|---|---|---|
-| `kuinetic.js` | [`cdn.jsdelivr.net/npm/kuinetic`](https://cdn.jsdelivr.net/npm/kuinetic) (shorthand) | [`unpkg.com/kuinetic`](https://unpkg.com/kuinetic) (shorthand) | [`kuinetic.pages.dev/kuinetic.js`](https://kuinetic.pages.dev/kuinetic.js) |
-| `kuinetic.css` | [`cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css) | [`unpkg.com/kuinetic/dist/kuinetic.css`](https://unpkg.com/kuinetic/dist/kuinetic.css) | [`kuinetic.pages.dev/kuinetic.css`](https://kuinetic.pages.dev/kuinetic.css) |
-| `kuinetic.all.js` | [`cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js) | [`unpkg.com/kuinetic/dist/kuinetic.all.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.js) | [`kuinetic.pages.dev/kuinetic.all.js`](https://kuinetic.pages.dev/kuinetic.all.js) |
+| `kuinetic.js` | [`/npm/kuinetic`](https://cdn.jsdelivr.net/npm/kuinetic) † | [`/kuinetic`](https://unpkg.com/kuinetic) † | [`/kuinetic.js`](https://kuinetic.pages.dev/kuinetic.js) |
+| `kuinetic.css` | [`/npm/kuinetic/dist/kuinetic.css`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css) | [`/kuinetic/dist/kuinetic.css`](https://unpkg.com/kuinetic/dist/kuinetic.css) | [`/kuinetic.css`](https://kuinetic.pages.dev/kuinetic.css) |
+| `kuinetic.all.js` | [`/npm/kuinetic/dist/kuinetic.all.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js) | [`/kuinetic/dist/kuinetic.all.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.js) | [`/kuinetic.all.js`](https://kuinetic.pages.dev/kuinetic.all.js) |
 
-The shorthand (no path) only works for `kuinetic.js` — jsDelivr/unpkg resolve it from the
-`"jsdelivr"`/`"unpkg"` fields in `package.json`; `.css` and `.all.js` need the explicit `/dist/`
-path since only one default file can be designated that way. `kuinetic.js` is the split bundle —
-side-effect-free on load, pair it with `kuinetic.css`, which keeps working even if the JS is slow,
+† shorthand — resolves via the `"jsdelivr"`/`"unpkg"` fields in `package.json`; only `kuinetic.js`
+gets one, since a package can only designate a single default file that way.
+
+`kuinetic.js` is the split bundle — side-effect-free on load, pair it with `kuinetic.css`, which
+keeps working even if the JS is slow,
 blocked, or fails to load. `kuinetic.all.js` is the one-tag drop-in — CSS embedded, auto-started
 with `observe: true` — trading that CSS-independence guarantee for one less step.
 
