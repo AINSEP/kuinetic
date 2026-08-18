@@ -56,15 +56,21 @@ kuinetic({ observe: true }).start()
 
 ### CDN reference
 
-All files are also mirrored on unpkg (`https://unpkg.com/kuinetic/dist/kuinetic.js`) and jsDelivr
-(`https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.js`) — both update automatically from every
-npm release. Self-hosted on Cloudflare at **`kuinetic.pages.dev`**:
+Every file is mirrored on jsDelivr and unpkg — both update automatically from every npm release,
+no separate action needed — and additionally self-hosted on Cloudflare at **`kuinetic.pages.dev`**:
 
-| File | URL | Use when |
-|---|---|---|
-| `kuinetic.js` | `https://kuinetic.pages.dev/kuinetic.js` | Split bundle — pair with `kuinetic.css` below. Side-effect-free on load; you call `.start()` yourself. |
-| `kuinetic.css` | `https://kuinetic.pages.dev/kuinetic.css` | Required alongside `kuinetic.js`. Keeps working even if the JS is slow, blocked, or fails to load. |
-| `kuinetic.all.js` | `https://kuinetic.pages.dev/kuinetic.all.js` | One-tag drop-in — CSS embedded, auto-started with `observe: true`. Trades the CSS-independent guarantee above for one less step. |
+| File | jsDelivr | unpkg | Cloudflare |
+|---|---|---|---|
+| `kuinetic.js` | [`cdn.jsdelivr.net/npm/kuinetic`](https://cdn.jsdelivr.net/npm/kuinetic) (shorthand) | [`unpkg.com/kuinetic`](https://unpkg.com/kuinetic) (shorthand) | [`kuinetic.pages.dev/kuinetic.js`](https://kuinetic.pages.dev/kuinetic.js) |
+| `kuinetic.css` | [`cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css) | [`unpkg.com/kuinetic/dist/kuinetic.css`](https://unpkg.com/kuinetic/dist/kuinetic.css) | [`kuinetic.pages.dev/kuinetic.css`](https://kuinetic.pages.dev/kuinetic.css) |
+| `kuinetic.all.js` | [`cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js) | [`unpkg.com/kuinetic/dist/kuinetic.all.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.js) | [`kuinetic.pages.dev/kuinetic.all.js`](https://kuinetic.pages.dev/kuinetic.all.js) |
+
+The shorthand (no path) only works for `kuinetic.js` — jsDelivr/unpkg resolve it from the
+`"jsdelivr"`/`"unpkg"` fields in `package.json`; `.css` and `.all.js` need the explicit `/dist/`
+path since only one default file can be designated that way. `kuinetic.js` is the split bundle —
+side-effect-free on load, pair it with `kuinetic.css`, which keeps working even if the JS is slow,
+blocked, or fails to load. `kuinetic.all.js` is the one-tag drop-in — CSS embedded, auto-started
+with `observe: true` — trading that CSS-independence guarantee for one less step.
 
 ## Your first animation
 
