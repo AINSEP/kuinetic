@@ -72,11 +72,11 @@
 
   [data-kui-fx~='spinner-dots'] {
     display: inline-block;
-    width: 8px;
-    height: 8px;
+    width: var(--kui-dot-size, 8px);
+    height: var(--kui-dot-size, 8px);
     border-radius: 50%;
     background: currentColor;
-    box-shadow: -16px 0 currentColor, 16px 0 currentColor;
+    box-shadow: calc(var(--kui-dot-size, 8px) * -2) 0 currentColor, calc(var(--kui-dot-size, 8px) * 2) 0 currentColor;
     --kui-fx-spinner-dots-iterations: infinite;
   }
   @keyframes kui-spinner-dots {
@@ -220,7 +220,7 @@
       scale: 0.4;
     }
     60% {
-      scale: 1.18;
+      scale: var(--kui-pop-scale, 1.18);
     }
     100% {
       scale: 1;
@@ -233,7 +233,7 @@
       scale: 1;
     }
     50% {
-      scale: 1.3;
+      scale: var(--kui-pop-scale, 1.18);
     }
   }
 
@@ -247,7 +247,7 @@
       scale: 1;
     }
     30% {
-      scale: 1.4;
+      scale: var(--kui-pop-scale, 1.18);
     }
     55% {
       scale: 0.9;
@@ -258,11 +258,11 @@
   }
 
   [data-kui-fx~='confetti-burst'] {
-    background-image: radial-gradient(circle at 20% 20%, #f43f5e 0 3px, transparent 3px),
-      radial-gradient(circle at 75% 15%, #fbbf24 0 3px, transparent 3px),
-      radial-gradient(circle at 50% 75%, #34d399 0 3px, transparent 3px),
-      radial-gradient(circle at 85% 65%, #60a5fa 0 3px, transparent 3px),
-      radial-gradient(circle at 15% 65%, #c084fc 0 3px, transparent 3px);
+    background-image: radial-gradient(circle at 20% 20%, var(--kui-c1, #f43f5e) 0 3px, transparent 3px),
+      radial-gradient(circle at 75% 15%, var(--kui-c2, #fbbf24) 0 3px, transparent 3px),
+      radial-gradient(circle at 50% 75%, var(--kui-c3, #34d399) 0 3px, transparent 3px),
+      radial-gradient(circle at 85% 65%, var(--kui-c4, #60a5fa) 0 3px, transparent 3px),
+      radial-gradient(circle at 15% 65%, var(--kui-c5, #c084fc) 0 3px, transparent 3px);
     background-repeat: no-repeat;
   }
   @keyframes kui-confetti-burst {
@@ -271,7 +271,7 @@
       opacity: 0;
     }
     40% {
-      scale: 1.15;
+      scale: var(--kui-pop-scale, 1.18);
       opacity: 1;
     }
     100% {
@@ -304,7 +304,7 @@
       translate: 0 0;
     }
     45% {
-      translate: 0 36px;
+      translate: 0 var(--kui-pull-distance, 36px);
     }
     100% {
       translate: 0 0;

@@ -104,7 +104,13 @@ function timelineProperties(
     // Written unconditionally, not only when a range was authored: the default range previously
     // lived in a CSS rule keyed on `data-kui-timeline`, which an inline `timeline:view` never
     // sets — so the inline and longhand grammars produced different animations.
-    properties['animation-range'] = config.range || 'entry 0% cover 60%'
+    // Named ranges like `entry`/`cover` are defined only for view() progress timelines; a
+    // scroll() progress timeline has no element-relative "entry" phase; the whole point is that
+    // it tracks the scroller's own 0%–100% scroll offset. Falling through to the view() default
+    // here silently produced an out-of-range animation-range, which browsers resolve as already
+    // fully complete — the effect renders permanently pinned at its end state.
+    properties['animation-range'] =
+      config.range || (config.timeline === 'scroll' ? '0% 100%' : 'entry 0% cover 60%')
   }
   return properties
 }

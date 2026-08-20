@@ -16,6 +16,7 @@ const spin = {
 const dotPulse = {
   duration: { type: 'time', default: '1.2s', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
+  dotSize: { type: 'length', default: '8px', cssProperty: '--kui-dot-size' },
 } as const
 
 const progressTrack = {
@@ -37,6 +38,7 @@ const shake = {
 const pop = {
   duration: { type: 'time', default: '420ms', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'back-out', cssProperty: '--kui-ease' },
+  scale: { type: 'number', default: '1.18', cssProperty: '--kui-pop-scale', finite: true, minimum: 1 },
 } as const
 
 const ripple = {
@@ -48,6 +50,10 @@ const ripple = {
 const confirm = {
   duration: { type: 'time', default: '1400ms', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
+} as const
+
+const pull = {
+  distance: { type: 'length', default: '36px', cssProperty: '--kui-pull-distance' },
 } as const
 
 /**
@@ -129,6 +135,7 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     defaultActivation: 'click',
   }),
   cssPrimitive('feedback-pull', [CHANNEL.translate], {
+    parameters: pull,
     defaultActivation: 'manual',
   }),
 ]
@@ -160,18 +167,23 @@ export const FEEDBACK_PRESETS: Preset[] = [
   },
   { name: 'ripple', primitive: 'feedback-ripple', keyframes: 'kui-ripple' },
   { name: 'badge-pop', primitive: 'feedback-pop', keyframes: 'kui-badge-pop' },
-  { name: 'count-bump', primitive: 'feedback-pop', keyframes: 'kui-count-bump', params: { duration: '280ms' } },
+  {
+    name: 'count-bump',
+    primitive: 'feedback-pop',
+    keyframes: 'kui-count-bump',
+    params: { duration: '280ms', scale: '1.3' },
+  },
   {
     name: 'heart-burst',
     primitive: 'feedback-burst',
     keyframes: 'kui-heart-burst',
-    params: { duration: '700ms' },
+    params: { duration: '700ms', scale: '1.4' },
   },
   {
     name: 'confetti-burst',
     primitive: 'feedback-burst',
     keyframes: 'kui-confetti-burst',
-    params: { duration: '900ms' },
+    params: { duration: '900ms', scale: '1.15' },
   },
   { name: 'copy-confirm', primitive: 'feedback-confirm', keyframes: 'kui-copy-confirm' },
   {

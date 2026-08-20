@@ -30,7 +30,7 @@ export const MEDIA_PRIMITIVES: Primitive[] = [
     perfClass: 'paint',
   }),
   cssPrimitive('media-blur-up', [CHANNEL.translate, CHANNEL.filter], {
-    parameters: geometry,
+    parameters: { ...geometry, blur: { type: 'length', default: '16px', cssProperty: '--kui-blur' } },
     perfClass: 'paint',
   }),
   cssPrimitive('media-parallax-frame', [CHANNEL.translate], {

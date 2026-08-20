@@ -26,7 +26,7 @@
     transition: translate var(--kui-lift-duration, 220ms) var(--kui-lift-ease, ease-out);
   }
   [data-kui-fx~='lift']:focus-visible {
-    translate: 0 -6px;
+    translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
   }
 
   [data-kui-fx~='lift-shadow'] {
@@ -35,7 +35,7 @@
       box-shadow var(--kui-lift-shadow-duration, 220ms) var(--kui-lift-shadow-ease, ease-out);
   }
   [data-kui-fx~='lift-shadow']:focus-visible {
-    translate: 0 -6px;
+    translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
     box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
   }
 
@@ -47,7 +47,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.35) 50%, transparent 60%);
+    background: linear-gradient(115deg, transparent 40%, var(--kui-c1, rgb(255 255 255 / 0.35)) 50%, transparent 60%);
     background-size: 220% 100%;
     background-position: 120% 0;
     pointer-events: none;
@@ -239,9 +239,9 @@
   /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
      reach the identical state — grouped in one block so the two never drift apart. */
   @media (hover: hover) and (pointer: fine) {
-    [data-kui-fx~='lift']:hover { translate: 0 -6px; }
+    [data-kui-fx~='lift']:hover { translate: 0 calc(var(--kui-lift-distance, 6px) * -1); }
     [data-kui-fx~='lift-shadow']:hover {
-      translate: 0 -6px;
+      translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
       box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
     }
     [data-kui-fx~='shine-sweep']:hover::after {
@@ -324,7 +324,9 @@
   }
 
   .kui-cursor-dot-invert {
-    background: #fff;
+    /* mix-blend-mode: difference only reads correctly against any background when this stays
+       pure white — overriding --kui-invert-color trades away the always-visible guarantee. */
+    background: var(--kui-invert-color, #fff);
     mix-blend-mode: difference;
   }
 
@@ -333,7 +335,7 @@
     padding: 0.4em 0.8em;
     border-radius: 999px;
     background: var(--accent, #d2691e);
-    color: #fff;
+    color: var(--kui-label-color, #fff);
     font-size: 0.75rem;
     font-family: ui-monospace, Menlo, monospace;
     white-space: nowrap;

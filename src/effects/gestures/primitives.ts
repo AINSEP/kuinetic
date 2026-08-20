@@ -36,6 +36,13 @@ const springParams: ParameterSchema = {
     minimum: 0.1,
     maximum: 1_000,
   },
+  mass: {
+    type: 'number',
+    default: '1',
+    cssProperty: '--kui-mass',
+    finite: true,
+    minimum: 0.1,
+  },
 }
 
 function gesturePrimitive(
@@ -63,6 +70,7 @@ function springFrom(params: EffectParams): SpringConfig {
     ...DEFAULT_SPRING,
     stiffness: params.num('stiffness', DEFAULT_SPRING.stiffness),
     damping: params.num('damping', DEFAULT_SPRING.damping),
+    mass: params.num('mass', DEFAULT_SPRING.mass),
   }
 }
 
@@ -102,6 +110,8 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   const bounds = params.num('bounds', 0)
   const returns = params.is('return')
   const inertia = params.is('inertia')
+  const resistance = params.num('resistance', 0.55)
+  const momentum = params.num('momentum', 0.2)
 
   const offset = { x: 0, y: 0 }
   const deps = springDeps(ctx)
@@ -125,11 +135,11 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
         el.setAttribute('data-kui-dragging', 'true')
       },
       onMove(vector) {
-        write({ x: resist(vector.dx, bounds), y: resist(vector.dy, bounds) })
+        write({ x: resist(vector.dx, bounds, resistance), y: resist(vector.dy, bounds, resistance) })
       },
       onEnd(vector) {
         el.setAttribute('data-kui-dragging', 'false')
-        settle(runners, offset, vector, { returns, inertia })
+        settle(runners, offset, vector, { returns, inertia, momentum })
       },
     },
     { axis: params.text('axis', 'both') as 'x' | 'y' | 'both' },
@@ -146,8 +156,8 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
 }
 
 /** Past the bound, movement is damped rather than blocked; hard clamping reads as broken. */
-function resist(delta: number, bounds: number): number {
-  return bounds > 0 ? rubberBand(delta, bounds) : delta
+function resist(delta: number, bounds: number, tension: number): number {
+  return bounds > 0 ? rubberBand(delta, bounds, tension) : delta
 }
 
 /**
@@ -160,7 +170,7 @@ function settle(
   runners: DragRunners,
   offset: { x: number; y: number },
   vector: GestureVector,
-  mode: { returns: boolean; inertia: boolean },
+  mode: { returns: boolean; inertia: boolean; momentum: number },
 ): void {
   runners.x.set(offset.x, mode.inertia ? vector.vx : 0)
   runners.y.set(offset.y, mode.inertia ? vector.vy : 0)
@@ -172,8 +182,8 @@ function settle(
   }
   // Free throw: target the position momentum would carry it to, so the spring decelerates
   // instead of snapping back.
-  runners.x.to(offset.x + vector.vx * 0.2)
-  runners.y.to(offset.y + vector.vy * 0.2)
+  runners.x.to(offset.x + vector.vx * mode.momentum)
+  runners.y.to(offset.y + vector.vy * mode.momentum)
 }
 
 /**
@@ -295,6 +305,15 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
         cssProperty: '--kui-inertia',
         values: ['true', 'false'],
       },
+      resistance: {
+        type: 'number',
+        default: '0.55',
+        cssProperty: '--kui-resistance',
+        finite: true,
+        minimum: 0,
+        maximum: 1,
+      },
+      momentum: { type: 'number', default: '0.2', cssProperty: '--kui-momentum', finite: true },
     },
     deferPrepare(prepareDraggable),
   ),

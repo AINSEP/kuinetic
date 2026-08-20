@@ -40,14 +40,30 @@
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
   .demo-hero .hero-media {
-    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
-    aspect-ratio: 4 / 5; background: var(--surface);
+    position: relative; overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface); cursor: grab;
   }
-  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .demo-hero .hero-media[data-kui-dragging='true'] { cursor: grabbing; }
+  /* object-position: top — every photo here is a portrait-orientation editorial shot with the
+     face in the top third; center-cropping (the default) pushes it out of frame the more each
+     box's aspect ratio departs from the source's. Anchoring to the top keeps faces in the crop
+     across the hero, the demo-card grids, and the gesture chips below. */
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; touch-action: none; }
+  .hero-drag-label {
+    position: absolute; left: 1.25rem; bottom: 1.25rem; z-index: 1;
+    color: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700;
+    font-size: clamp(1.4rem, 1vw + 1.1rem, 2rem); letter-spacing: -0.01em;
+    text-shadow: 0 2px 16px rgb(0 0 0 / 0.65);
+    pointer-events: none;
+  }
 
   /* ---------- section heads ---------- */
   .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
   .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+  /* Same drag affordance as .gesture-chip below — the library only writes the translate
+     channel and a data-kui-dragging flag, cursor/touch-action is always the page's job. */
+  .section-head [data-kui='rubber-band'] { touch-action: none; cursor: grab; }
+  .section-head [data-kui='rubber-band'][data-kui-dragging='true'] { cursor: grabbing; }
 
   /* ---------- matrix groups ---------- */
   .matrix-group { margin-top: 2.5rem; }
@@ -63,16 +79,36 @@
   }
   .matrix-group-controls button:hover { border-color: var(--fg); }
   .matrix-group-controls button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  /* One "Show code" per Layout & FLIP block, opening the whole grid's markup rather than a
+     single card (see show-code.js's data-show-code-target) — pushed to the far right of
+     whatever sort/filter/shuffle buttons the block already has, so it always reads as a
+     separate, block-level action rather than one more option among them. The shared
+     .kui-show-code-toggle rule sizes itself for sitting inside a figcaption (width:100%,
+     max-width:200px); reset both here so it sits at its own content width in this row instead.
+     Selector is `button.kui-show-code-toggle`, not just the class, because `.matrix-group-controls
+     button` above is a class+element selector — one specificity rung above a bare class — and
+     would otherwise win on background/border/color and flatten this back to a plain grey pill. */
+  .matrix-group-controls button.kui-show-code-toggle {
+    width: auto; max-width: none; margin: 0 0 0 auto; align-self: auto;
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  }
 
   /* ---------- demo grid / cards (static entrance-matrix pattern) ---------- */
-  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
   .matrix-group .demo-grid { margin-top: 0; }
   /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
      align-items:stretch adds to this card to match the tallest card in its row (e.g. a
      neighbor whose caption wraps to two lines). Without this, the card's own --surface
      background shows through as a sliver below a figcaption sized only to its own content. */
   .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
-  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; flex: none; }
+  /* Portrait (3:4) instead of the shared 4:3 above, across every Layout & FLIP grid. */
+  #filter-gallery .demo-card img,
+  #shuffle-grid .demo-card img,
+  #sort-grid .demo-card img,
+  #list-grid .demo-card img,
+  #modal-grid .demo-card img,
+  #reorder-grid .demo-card img { aspect-ratio: 3 / 4; }
   /* Light mode: solid black caption strip, white text. Dark mode (below) flips to the
      acid-lime accent with black text — accent-ink and accent are the same literal color in
      both themes, so this pairing has to be spelled out per-theme rather than read off tokens
@@ -94,7 +130,7 @@
      primitive gets its own bordered "arena": a generous pointer-tracking stage plus a small
      chip that actually carries the data-kui attribute and gets dragged/thrown/pulled around
      inside it. The caption lives outside the chip so it never moves with it. */
-  .gesture-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .gesture-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }
   .matrix-group .gesture-grid { margin-top: 0; }
   .gesture-arena { display: flex; flex-direction: column; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
   .gesture-stage {
@@ -104,12 +140,20 @@
     background-size: 18px 18px; background-position: center;
   }
   .gesture-chip {
-    position: relative; width: 124px; border-radius: 10px; border: 1px solid var(--border);
+    /* Was 124px square — noticeably smaller than every other image on this page and, being
+       square, cropped hardest of all of them. Wider and paired with the 3:4 ratio above, it
+       reads as a real photo instead of a thumbnail. `.gesture-stage`'s min-height is a floor,
+       not a cap, so it grows to fit without any change there. */
+    position: relative; width: 168px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--bg); box-shadow: var(--shadow-float);
     touch-action: none; user-select: none; cursor: grab;
   }
   .gesture-chip-media { overflow: clip; border-radius: 9px; }
-  .gesture-chip img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; pointer-events: none; }
+  .gesture-chip img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; pointer-events: none; }
+  /* strange-hat.jpg is a profile shot with the face roughly mid-frame — its sculptural headpiece
+     fills the top of the source, not the face itself — so the shared `top` bias above crops the
+     face out entirely instead of into frame. Override just this file back toward center. */
+  img[src$='strange-hat.jpg'] { object-position: center 40%; }
   .gesture-chip[data-kui-dragging='true'] { cursor: grabbing; border-color: var(--accent); }
   .gesture-chip[data-kui-pressed='true'] { outline: 2px solid var(--accent); outline-offset: 2px; }
   .gesture-chip[data-kui-swipe]::after {
@@ -133,15 +177,32 @@
 
   /* ---------- page-specific: FLIP layout variants ---------- */
   .demo-grid.is-list { grid-template-columns: 1fr; }
-  .demo-grid.is-list .demo-card { flex-direction: row; }
-  .demo-grid.is-list .demo-card img { width: 110px; aspect-ratio: 1; flex: none; }
-  .demo-grid.is-list .demo-card figcaption { border-top: none; }
+  /* Grid items default to justify-self: stretch, so once the caption stopped growing to fill
+     the row (above) the card's own border kept doing it instead — same emptiness, just white
+     instead of black. width: fit-content sizes the whole card (image + capped caption) to its
+     content and stops there. */
+  .demo-grid.is-list .demo-card { flex-direction: row; width: fit-content; max-width: 100%; }
+  /* #list-grid .demo-card img (below) carries an ID, which outranks this rule's three classes
+     regardless of source order — restate it with the ID present so list view still wins once
+     grid-to-list's own landscape override exists. */
+  .demo-grid.is-list .demo-card img,
+  #list-grid.is-list .demo-card img { width: 110px; aspect-ratio: 1; flex: none; }
+  /* figcaption's base rule is `flex: 1 0 auto`, meant to fill a fixed-width grid card from below.
+     In list mode the card is a full-width row instead, so that same rule stretches the solid
+     black caption strip the entire remaining row width — content is a couple of short words, so
+     it reads as a giant black bar. Cap it to its own content width instead; the card's own
+     --surface background (not black) fills whatever's left of the row. */
+  .demo-grid.is-list .demo-card figcaption { flex: 0 1 auto; border-top: none; border-left: 1px solid var(--border); }
 
   .masonry-grid { margin-top: 2.5rem; column-count: 1; column-gap: 1.25rem; }
   .matrix-group .masonry-grid { margin-top: 0; }
   @media (min-width: 620px) { .masonry-grid { column-count: 2; } }
   @media (min-width: 980px) { .masonry-grid { column-count: 3; } }
-  .masonry-grid .demo-card { break-inside: avoid; margin-bottom: 1.25rem; }
+  /* margin-top:0 — <figure> carries a UA-default 1em top margin that nothing else here resets,
+     and Chrome's multicol implementation collapses it into the container's top edge differently
+     per column: the first card in one column sits flush while another column's first card sits
+     visibly lower, purely from browser-inconsistent collapse behavior, not from any authored gap. */
+  .masonry-grid .demo-card { break-inside: avoid; margin-top: 0; margin-bottom: 1.25rem; }
   .masonry-grid .demo-card.is-tall img { aspect-ratio: 3 / 4; }
   .masonry-grid .demo-card.is-wide img { aspect-ratio: 16 / 9; }
   .masonry-grid .demo-card[hidden] { display: none; }
@@ -150,7 +211,16 @@
   @media (min-width: 620px) { .modal-grid { grid-template-columns: repeat(4, 1fr); } }
   .modal-grid .demo-card { cursor: pointer; }
   .modal-grid .demo-card.is-expanded { grid-column: span 2; grid-row: span 2; }
-  .modal-grid .demo-card.is-expanded img { aspect-ratio: 16 / 11; }
+  /* The whole point of expanding is to see what the base crop cuts off (16:9 now, not 4:3 — see
+     #modal-grid's landscape override below), so the expanded state drops the fixed crop entirely
+     — `aspect-ratio: auto` lets the img size to its own natural ratio instead of a second guessed
+     one, `contain` is the belt-and-suspenders fallback for the one frame before the browser knows
+     that natural size, and the `#modal-grid` qualifier matches that override's ID so this still
+     wins once it exists (an ID outranks three classes regardless of source order). */
+  .modal-grid .demo-card.is-expanded img,
+  #modal-grid .demo-card.is-expanded img {
+    aspect-ratio: auto; object-fit: contain; max-height: 70vh; background: var(--bg);
+  }
 
   /* ---------- page-specific: accordion (auto-height) ---------- */
   .accordion { margin-top: 2.5rem; border: 1px solid var(--border); border-radius: 12px; overflow: clip; background: var(--surface); }
@@ -269,68 +339,77 @@
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Interactive</p>
           <h1 data-kui="fade-up 700ms">Gestures and layout.</h1>
-          <p class="lede" data-kui="fade-up 700ms 90ms">
+          <!-- split-text (and scramble, tried first) both replace this element's children with a
+               plain-text decorative layer while they run (text-shared.ts's installSplitLayers) —
+               nested markup like the <code> badges used elsewhere on this line would get flattened
+               to plain text and never come back, so "before"/"after" stay plain words here instead
+               of styled badges. -->
+          <p class="lede" data-kui="split-lines 900ms 90ms">
             Drag, throw, swipe, and hold. These primitives use a spring integrator rather than an
             easing curve, because a throw has to start at whatever velocity your pointer had —
-            and the layout moves below aren't keyframed at all: the library measures a
-            <code>before</code> and <code>after</code> and animates the difference.
+            and the layout moves below aren't keyframed at all: the library measures a before and
+            after and animates the difference.
           </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#gestures" class="btn btn-primary">Feel the gestures</a>
             <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
           </div>
-          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> Every card below responds to a real pointer — drag, swipe, or hold one.</p>
+          <p class="demo-hero-note" data-kui="blur-in 900ms 220ms"><span class="dot"></span> Every card below responds to a real pointer — drag, swipe, or hold one.</p>
         </div>
         <div class="hero-media">
           <img
-            src="./assets/grayscale_train_station.jpg"
-            alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance"
-            data-kui="blur-in 2000ms on:load"
+            src="./assets/akira-pantsuit.jpg"
+            alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots"
+            data-kui="blur-in 2000ms on:load, snap-back"
+            draggable="false"
           />
+          <span class="hero-drag-label" data-kui="typewriter on:load">Drag me</span>
         </div>
       </section>
 
       <!-- GESTURES & PHYSICS -->
       <section id="gestures" data-od-id="gestures">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Gestures &amp; physics</h2>
-          <p>
-            Thirteen preset names over four primitives — <code>draggable</code>, <code>swipeable</code>,
-            <code>pressable</code>, <code>magnetic</code> — sitting outside the lettered A–O catalog
-            sections. The drag family differs only in what happens on release: nothing (<code>drag</code>),
-            back to origin with varying spring stiffness (<code>elastic-pull</code>, <code>rubber-band</code>,
-            <code>snap-back</code>), or onward with momentum (<code>drag-inertia</code>, <code>throwable</code>).
-          </p>
+          <h2 data-kui="fade-up on:enter">Gestures &amp; physics</h2>
+          <div data-kui="rubber-band">
+            <p data-kui="split-lines 650ms">
+              Thirteen preset names over four primitives — <code>draggable</code>, <code>swipeable</code>,
+              <code>pressable</code>, <code>magnetic</code> — sitting outside the lettered A–O catalog
+              sections. The drag family differs only in what happens on release: nothing (<code>drag</code>),
+              back to origin with varying spring stiffness (<code>elastic-pull</code>, <code>rubber-band</code>,
+              <code>snap-back</code>), or onward with momentum (<code>drag-inertia</code>, <code>throwable</code>).
+            </p>
+          </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Draggable · axis — 3</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="drag">
                   <div class="gesture-chip-media">
-                    <img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" />
+                    <img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="drag" — drag it anywhere</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="drag-x">
                   <div class="gesture-chip-media">
-                    <img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" />
+                    <img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="drag-x" — horizontal only</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="drag-y">
                   <div class="gesture-chip-media">
-                    <img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" />
+                    <img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" />
                   </div>
                 </div>
               </div>
@@ -342,21 +421,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Draggable · momentum — 2</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="drag-inertia">
                   <div class="gesture-chip-media">
-                    <img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" />
+                    <img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="drag-inertia" — flick and release</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="throwable">
                   <div class="gesture-chip-media">
-                    <img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" />
+                    <img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" />
                   </div>
                 </div>
               </div>
@@ -368,31 +447,31 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Draggable · return springs — 3</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="elastic-pull">
                   <div class="gesture-chip-media">
-                    <img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" />
+                    <img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="elastic-pull" — soft snap back</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="rubber-band">
                   <div class="gesture-chip-media">
-                    <img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" />
+                    <img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="rubber-band" — wider give</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="snap-back">
                   <div class="gesture-chip-media">
-                    <img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" />
+                    <img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" />
                   </div>
                 </div>
               </div>
@@ -404,21 +483,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Swipeable — 2</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="swipe">
                   <div class="gesture-chip-media">
-                    <img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" />
+                    <img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="swipe" — swipe any direction</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="swipe-x">
                   <div class="gesture-chip-media">
-                    <img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" />
+                    <img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" />
                   </div>
                 </div>
               </div>
@@ -430,11 +509,11 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Pressable — 1</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="long-press">
                   <div class="gesture-chip-media">
-                    <img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" />
+                    <img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" />
                   </div>
                 </div>
               </div>
@@ -446,21 +525,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Magnetic — 2</p>
           <div class="gesture-grid">
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="magnetic">
                   <div class="gesture-chip-media">
-                    <img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" />
+                    <img src="./assets/black-cover.jpg" alt="Beauty portrait of a face wrapped in a black headwrap down to the nose, gold drop earrings, matte black lipstick" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="magnetic" — move your pointer near</figcaption>
             </figure>
-            <figure class="gesture-arena">
+            <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="magnetic-snap">
                   <div class="gesture-chip-media">
-                    <img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" />
+                    <img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" />
                   </div>
                 </div>
               </div>
@@ -473,8 +552,8 @@
       <!-- LAYOUT & FLIP -->
       <section id="layout" data-od-id="layout">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Layout &amp; FLIP</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Layout &amp; FLIP</h2>
+          <p data-kui="blur-in">
             Nine preset names, one technique: the library measures each child's box before a DOM
             change, measures again after, and animates only the delta. Filtering is a class or
             <code>hidden</code> change on the children — a layout change isn't expressible as
@@ -487,29 +566,33 @@
           <p class="matrix-group-label">flip-filter — 1</p>
           <div class="matrix-group-controls" id="filter-controls">
             <button type="button" data-filter="all" class="is-active">All</button>
-            <button type="button" data-filter="platform">Platform</button>
-            <button type="button" data-filter="street">Street</button>
+            <button type="button" data-filter="classic">Classic</button>
+            <button type="button" data-filter="futuristic">Futuristic</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="filter-gallery">Show code</button>
           </div>
           <div class="demo-grid" id="filter-gallery" data-kui="flip-filter">
-            <figure class="demo-card" data-tone="platform"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>platform</figcaption></figure>
-            <figure class="demo-card" data-tone="street"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>street</figcaption></figure>
-            <figure class="demo-card" data-tone="platform"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>platform</figcaption></figure>
-            <figure class="demo-card" data-tone="street"><img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" loading="lazy" /><figcaption>street</figcaption></figure>
-            <figure class="demo-card" data-tone="platform"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>platform</figcaption></figure>
-            <figure class="demo-card" data-tone="street"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>street</figcaption></figure>
-            <figure class="demo-card" data-tone="platform"><img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" loading="lazy" /><figcaption>platform</figcaption></figure>
-            <figure class="demo-card" data-tone="street"><img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" loading="lazy" /><figcaption>street</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>futuristic</figcaption></figure>
           </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">flip-reorder — 1</p>
           <p style="margin-top:-0.4rem; margin-bottom:1rem; color:var(--muted); font-size:0.85rem;">Click any card — it jumps to the front and the rest reflow around it.</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="reorder-grid">Show code</button>
+          </div>
           <div class="demo-grid" id="reorder-grid" data-kui="flip-reorder">
-            <figure class="demo-card" tabindex="0"><img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
           </div>
         </div>
 
@@ -518,25 +601,34 @@
           <div class="matrix-group-controls">
             <button type="button" id="sort-asc">Sort ascending</button>
             <button type="button" id="sort-desc">Sort descending</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="sort-grid">Show code</button>
           </div>
           <div class="demo-grid" id="sort-grid" data-kui="flip-sort">
-            <figure class="demo-card" data-size="80"><img src="./assets/grayscale_train_station.jpg" alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance" loading="lazy" /><figcaption>elastic-pull bounds: 80</figcaption></figure>
-            <figure class="demo-card" data-size="120"><img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" loading="lazy" /><figcaption>rubber-band bounds: 120</figcaption></figure>
-            <figure class="demo-card" data-size="18"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>throwable damping: 18</figcaption></figure>
-            <figure class="demo-card" data-size="260"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>snap-back stiffness: 260</figcaption></figure>
+            <!-- Captions are fixed identity labels, one per photo, not effect names or a plain
+                 "order: N" — a label that names what the card actually shows and travels with it as
+                 flip-sort reorders by data-size is what lets a viewer tell "this one" from "that
+                 one" mid-sort, which neither the earlier borrowed effect names nor a bare number did. -->
+            <figure class="demo-card" data-size="80"><img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>black helmet</figcaption></figure>
+            <figure class="demo-card" data-size="120"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><figcaption>pink bubblegum</figcaption></figure>
+            <figure class="demo-card" data-size="18"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>silver mesh</figcaption></figure>
+            <figure class="demo-card" data-size="260"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>red visor</figcaption></figure>
           </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">flip-shuffle — 1</p>
-          <div class="matrix-group-controls">
+          <div class="matrix-group-controls" id="shuffle-controls">
             <button type="button" id="shuffle-btn">Shuffle order</button>
+            <button type="button" data-filter="all" class="is-active">All</button>
+            <button type="button" data-filter="classic">Classic</button>
+            <button type="button" data-filter="futuristic">Futuristic</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="shuffle-grid">Show code</button>
           </div>
           <div class="demo-grid" id="shuffle-grid" data-kui="flip-shuffle">
-            <figure class="demo-card"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/solitary_walker_sunlit.jpg" alt="High-contrast black-and-white street photo of a man walking past a sunburst between city buildings" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
           </div>
         </div>
 
@@ -544,12 +636,13 @@
           <p class="matrix-group-label">grid-to-list — 1</p>
           <div class="matrix-group-controls">
             <button type="button" id="list-toggle">Switch to list</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="list-grid">Show code</button>
           </div>
           <div class="demo-grid" id="list-grid" data-kui="grid-to-list">
-            <figure class="demo-card"><img src="./assets/monochrome_street_walkers.jpg" alt="Black-and-white photo of pedestrians walking down a cobblestone lane strung with string lights at dusk" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/subway_hallway_walker.jpg" alt="Black-and-white photo of a commuter walking away down a subway platform, carrying bags" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/traveler_with_suitcase.jpg" alt="Black-and-white photo of a lone traveler pulling a suitcase down a quiet backlit suburban street" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
           </div>
         </div>
 
@@ -557,27 +650,34 @@
           <p class="matrix-group-label">masonry-reflow — 1</p>
           <div class="matrix-group-controls" id="masonry-controls">
             <button type="button" data-filter="all" class="is-active">All</button>
-            <button type="button" data-filter="tall">Tall</button>
-            <button type="button" data-filter="wide">Wide</button>
+            <button type="button" data-filter="classic">Classic</button>
+            <button type="button" data-filter="futuristic">Futuristic</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="masonry-grid">Show code</button>
           </div>
+          <!-- data-orientation (tall/wide) still drives the masonry shape itself via the is-tall/
+               is-wide classes above — that's a structural fact about each card, unrelated to what
+               it's filtered by. data-tone is the independent filter axis. All six portrait (is-tall). -->
           <div class="masonry-grid" id="masonry-grid" data-kui="masonry-reflow">
-            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/candid_portrait_man.jpg" alt="Black-and-white close portrait of a man in a denim shirt looking directly at the camera" loading="lazy" /><figcaption>tall</figcaption></figure>
-            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/silhouette_sunrise_walk.jpg" alt="Silhouette of a person walking along a waterfront promenade at sunrise with a city skyline behind" loading="lazy" /><figcaption>wide</figcaption></figure>
-            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/empty_platform_tunnel.jpg" alt="Wide-angle monochrome photo of a modern subway platform and tunnel with two commuters walking toward the train" loading="lazy" /><figcaption>tall</figcaption></figure>
-            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/pedestrian_crossing_blur.jpg" alt="Long-exposure black-and-white photo of a crowd blurring across a city crosswalk" loading="lazy" /><figcaption>wide</figcaption></figure>
-            <figure class="demo-card is-tall" data-orientation="tall"><img src="./assets/crowded_train_platform.jpg" alt="Black-and-white photo of passengers walking along a sunlit train station platform, one leaning on a cane" loading="lazy" /><figcaption>tall</figcaption></figure>
-            <figure class="demo-card is-wide" data-orientation="wide"><img src="./assets/two_people_street_shadows.jpg" alt="Black-and-white profile of two people walking close together past a sunlit wall, casting long shadows" loading="lazy" /><figcaption>wide</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="classic"><img src="./assets/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten liquid gold dripping over the eyes and mouth, bold red lips" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="classic"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><figcaption>classic</figcaption></figure>
           </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">expand-to-modal — 1</p>
           <p style="margin-top:-0.4rem; margin-bottom:1rem; color:var(--muted); font-size:0.85rem;">Click a card to expand it in place; the rest of the grid reflows around it.</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="modal-grid">Show code</button>
+          </div>
           <div class="demo-grid modal-grid" id="modal-grid" data-kui="expand-to-modal">
-            <figure class="demo-card" tabindex="0"><img src="./assets/candid_subway_platform.jpg" alt="Two commuters in silhouette waiting as a subway train pulls into a dimly lit station" loading="lazy" /><figcaption>click to expand</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/grayscale_train_station.jpg" alt="Black-and-white photo of a train pulling into a platform as a lone commuter waits in the distance" loading="lazy" /><figcaption>click to expand</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/pedestrian_lane_timelapse.jpg" alt="Overhead long-exposure black-and-white photo of pedestrians crossing a striped crosswalk, blurred in motion" loading="lazy" /><figcaption>click to expand</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/two_men_walking_street.jpg" alt="Black-and-white candid photo of two older men walking and talking on a cobblestone street" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to expand</figcaption></figure>
           </div>
         </div>
 
@@ -654,7 +754,7 @@
       <!-- PROGRAMMATIC API -->
       <section data-od-id="programmatic">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Programmatic API</h2>
+          <h2 data-kui="fade-up on:enter">Programmatic API</h2>
           <p>The same registry, driven from JavaScript. <code>anim.play()</code> accepts a selector, an Element, or any iterable.</p>
         </div>
         <div class="matrix-group-controls">
@@ -739,6 +839,18 @@
         cards.forEach(function (card) { shuffleGrid.appendChild(card) })
       })
 
+      // flip-shuffle — filter by tone, same classic/futuristic split as flip-filter/masonry-reflow
+      var shuffleButtons = document.querySelectorAll('#shuffle-controls [data-filter]')
+      shuffleButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var wanted = button.dataset.filter
+          shuffleButtons.forEach(function (b) { b.classList.toggle('is-active', b === button) })
+          Array.prototype.slice.call(shuffleGrid.children).forEach(function (item) {
+            item.hidden = wanted !== 'all' && item.dataset.tone !== wanted
+          })
+        })
+      })
+
       // grid-to-list — toggle layout, then touch the DOM so the FLIP observer notices the resize
       var listGrid = document.querySelector('#list-grid')
       var listToggle = document.querySelector('#list-toggle')
@@ -748,7 +860,9 @@
         touchMutation(listGrid)
       })
 
-      // masonry-reflow — filter by orientation (native `hidden` trigger, real masonry columns)
+      // masonry-reflow — filter by tone, classic vs futuristic (native `hidden` trigger, real
+      // masonry columns). data-orientation (tall/wide) stays on each card for the CSS shape —
+      // it's a structural fact, not what this filter groups by.
       var masonryGrid = document.querySelector('#masonry-grid')
       var masonryButtons = document.querySelectorAll('#masonry-controls [data-filter]')
       masonryButtons.forEach(function (button) {
@@ -756,7 +870,7 @@
           var wanted = button.dataset.filter
           masonryButtons.forEach(function (b) { b.classList.toggle('is-active', b === button) })
           Array.prototype.slice.call(masonryGrid.children).forEach(function (item) {
-            item.hidden = wanted !== 'all' && item.dataset.orientation !== wanted
+            item.hidden = wanted !== 'all' && item.dataset.tone !== wanted
           })
         })
       })
@@ -834,5 +948,6 @@
     })()
   </script>
   <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
 </body>
 </html>

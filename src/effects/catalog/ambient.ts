@@ -17,6 +17,7 @@ const float = {
 const pulse = {
   duration: { type: 'time', default: '2.2s', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
+  scale: { type: 'number', default: '1.15', cssProperty: '--kui-pulse-scale', finite: true, minimum: 1 },
 } as const
 
 /**

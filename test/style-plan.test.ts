@@ -91,6 +91,16 @@ describe('planStyles — gates', () => {
     )
   })
 
+  it('defaults an unauthored scroll-timeline range to 0%-100%, not the view() named range', () => {
+    // `entry`/`cover` are view() progress timeline concepts — a scroll() timeline has no
+    // element-relative "entry" phase, only the scroller's own offset. Applying the view()
+    // default here made the range resolve as already fully elapsed, so the animation always
+    // rendered at its end state regardless of scroll position.
+    expect(plan('parallax-y', { timeline: 'scroll' }).properties['animation-range']).toBe(
+      '0% 100%',
+    )
+  })
+
   it('omits animation-range when the browser lacks support', () => {
     const result = plan('parallax-y', { timeline: 'view 10% 90%' }, { animationRange: false })
     expect(result.properties['animation-range']).toBeUndefined()

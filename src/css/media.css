@@ -31,7 +31,7 @@
     to { scale: 1; translate: 0 0; }
   }
   @keyframes kui-blur-up {
-    from { translate: 0 var(--kui-distance, 24px); filter: blur(16px); }
+    from { translate: 0 var(--kui-distance, 24px); filter: blur(var(--kui-blur, 16px)); }
     to { translate: 0 0; filter: blur(0); }
   }
   @keyframes kui-duotone-hover {

@@ -44,12 +44,21 @@ const fontWidthParams: ParameterSchema = {
 
 const fontSlantParams: ParameterSchema = {
   from: { type: 'angle', default: '0deg', cssProperty: '--kui-from-slant' },
-  to: { type: 'angle', default: '-10deg', cssProperty: '--kui-to-slant' },
+  to: { type: 'angle', default: '10deg', cssProperty: '--kui-to-slant' },
+}
+
+const textSweepParams: ParameterSchema = {
+  color: { type: 'color', default: 'currentColor', cssProperty: '--kui-sweep-color' },
+}
+
+const extrudeParams: ParameterSchema = {
+  angle: { type: 'angle', default: '-20deg', cssProperty: '--kui-from-angle' },
+  distance: { type: 'length', default: '32px', cssProperty: '--kui-distance' },
 }
 
 export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('text-shimmer', [CHANNEL.background], { reducedMotion: 'disable' }),
-  cssPrimitive('text-sweep', [CHANNEL.background]),
+  cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
   cssPrimitive('var-weight', ['font'], { parameters: fontWeightParams }),
   cssPrimitive('var-width', ['font'], { parameters: fontWidthParams }),
@@ -59,13 +68,18 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
   }),
   cssPrimitive('redaction-reveal', [CHANNEL.clip]),
-  cssPrimitive('text-3d-extrude', [CHANNEL.rotate, CHANNEL.translate]),
+  cssPrimitive('text-3d-extrude', [CHANNEL.rotate, CHANNEL.translate], { parameters: extrudeParams }),
 ]
 
 export const TEXT_CSS_PRESETS: Preset[] = [
   { name: 'gradient-shimmer', primitive: 'text-shimmer', keyframes: 'kui-gradient-shimmer' },
   { name: 'gradient-sweep', primitive: 'text-sweep', keyframes: 'kui-gradient-sweep' },
-  { name: 'highlight-sweep', primitive: 'text-sweep', keyframes: 'kui-highlight-sweep' },
+  {
+    name: 'highlight-sweep',
+    primitive: 'text-sweep',
+    keyframes: 'kui-highlight-sweep',
+    params: { color: 'gold' },
+  },
   { name: 'underline-draw', primitive: 'text-sweep', keyframes: 'kui-underline-draw' },
   { name: 'text-outline-fill', primitive: 'text-outline-fill', keyframes: 'kui-text-outline-fill' },
   { name: 'var-weight', primitive: 'var-weight', keyframes: 'kui-var-weight' },

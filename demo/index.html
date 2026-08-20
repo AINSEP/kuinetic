@@ -310,7 +310,9 @@
   @media (min-width: 720px) { .pillars { grid-template-columns: repeat(3, 1fr); } }
   /* Card itself follows the page theme (surface/border, like every other card on the page) —
      only the swatch is the solid-accent yellow box, black text, in both themes. */
-  .pillar { padding: 1.75rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+  .pillar { display: flex; flex-direction: column; padding: 1.75rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+  .pillar .kui-show-code-toggle { margin-top: auto; align-self: center; }
+  .pillar p { margin-bottom: 1.25rem; }
   /* Light mode only: the off-white --surface tint reads as a gray box against the paper-white
      page background — flatten to --bg so the card recedes and the border alone defines it. Dark
      mode keeps --surface, where it's a deliberate lighter step up from near-black. */
@@ -352,19 +354,43 @@
   .catalog-stat { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 2rem; }
   .catalog-stat .num { font-size: clamp(2.5rem, 3vw + 1rem, 3.5rem); font-weight: 510; letter-spacing: -0.02em; }
   .catalog-stat .num-note { margin-top: 0.5rem; color: var(--muted); max-width: 42ch; line-height: 1.6; }
-  .chips { margin-top: 2.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
-  .chip {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.78rem; padding: 0.35rem 0.7rem; border-radius: 9999px;
-    border: 1px solid var(--border); color: var(--muted); background: var(--surface);
-    text-decoration: none !important; cursor: default;
+  .catalog-demos { margin-top: 2.25rem; display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .catalog-demos { grid-template-columns: repeat(3, 1fr); } }
+  .catalog-demo { display: flex; flex-direction: column; }
+  .catalog-demo-kicker {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.75rem;
   }
-  .chip b { font-weight: inherit; color: inherit; }
-  .chip-icon { display: inline-flex; align-items: center; gap: 0.4rem; }
-  .chip-icon svg, .chip-icon img { width: 14px; height: 14px; flex: none; border-radius: 3px; object-fit: cover; display: block; }
-  .chip-action { font: inherit; cursor: pointer; }
-  .chip-action:hover { color: var(--fg); border-color: var(--fg); }
-  .chip[data-kui*="drag"] { cursor: grab; touch-action: none; }
+  .catalog-demo-kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .catalog-demo-preview {
+    position: relative; aspect-ratio: 4 / 3; overflow: clip;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .catalog-demo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Bottom-anchored scrim + overlay, same idea as the gallery's .g-tag but big enough to carry
+     the effect's own live text/number instead of a static label. */
+  .catalog-demo-overlay {
+    position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 1rem; background: linear-gradient(to top, rgb(0 0 0 / 0.78), rgb(0 0 0 / 0) 62%);
+  }
+  .catalog-demo-headline { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; }
+  .catalog-demo-count {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 2rem; font-weight: 700;
+    color: #ffffff; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .catalog-demo-count-note {
+    margin-top: 0.2rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; color: rgb(255 255 255 / 0.7); text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .catalog-demo-combo-row { display: flex; align-items: baseline; gap: 0.6rem; }
+  .catalog-demo-combo-row .catalog-demo-headline { font-size: 1.05rem; }
+  .catalog-demo-label {
+    margin-top: 0.85rem; margin-bottom: 1.25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem; color: var(--muted); text-align: center;
+  }
+  .catalog-demo .kui-show-code-toggle { margin-top: auto; }
 
   /* ---------- install ---------- */
   .install-card {
@@ -406,6 +432,176 @@
   }
   .kui-replay-fab:hover { transform: scale(1.06); }
   .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* "Show code" button and modal */
+.kui-show-code-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 200px;
+  align-self: center;
+  margin-inline: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.4rem 0.5rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+
+.kui-show-code-toggle:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+/* Light mode only: black button by default, flips to the site's yellow accent on hover. Dark
+   mode keeps the shared yellow/black button above (both rules), untouched. */
+:root[data-theme='light'] .kui-show-code-toggle {
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
+}
+
+:root[data-theme='light'] .kui-show-code-toggle:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+figure .kui-show-code-toggle {
+  margin: 0;
+}
+
+.matrix-group > .kui-show-code-toggle {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.kui-code-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  place-items: center;
+  padding: 2rem;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.kui-code-modal {
+  position: relative;
+  max-width: 720px;
+  max-height: 80vh;
+  width: 100%;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+
+.kui-code-modal-header {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.9rem -0.9rem 0.6rem 0;
+}
+
+.kui-code-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+.kui-code-modal-close:hover {
+  color: var(--fg);
+}
+
+.kui-code-tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.kui-code-tryit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.kui-code-tryit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kui-code-tryit-copy,
+.kui-code-tryit-apply,
+.kui-code-tryit-reset {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.kui-code-tryit-copy {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem;
+  color: var(--muted);
+}
+
+.kui-code-tryit-copy.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.kui-code-tryit-copy:hover,
+.kui-code-tryit-apply:hover,
+.kui-code-tryit-reset:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.kui-code-modal pre {
+  margin: 0;
+  padding: 0;
+}
+
+.kui-code-modal code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
 </style>
 </head>
 <body>
@@ -522,8 +718,8 @@
       <!-- CODE PROOF -->
       <section class="proof" id="proof" data-od-id="proof">
         <div>
-          <h2 data-kui="text-reveal-mask 700ms" data-kui-on="enter">One attribute. One compiled animation.</h2>
-          <p>
+          <h2 data-kui="text-reveal-mask 700ms on:enter">One attribute. One compiled animation.</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
             Author the effect name, timing, and parameters directly on the element. The parser
             resolves it once against a channel model that keeps unrelated effects from fighting
             over the same CSS property, then hands the rest to the browser's own compositor.
@@ -535,7 +731,7 @@
   without a conflict.
 &lt;/h2&gt;</code></pre>
           <div class="proof-divider proof-render">
-            <h3 data-kui="fade-up 800ms" data-kui-on="enter">Disjoint channels compose without a conflict.</h3>
+            <h3 data-kui="fade-blur-up 800ms on:enter">Disjoint channels compose without a conflict.</h3>
           </div>
         </div>
       </section>
@@ -543,20 +739,20 @@
       <!-- PILLARS -->
       <section data-od-id="pillars">
         <div class="pillars-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Three things it actually does</h2>
+          <h2 data-kui="fade-up on:enter">Three things it actually does</h2>
         </div>
         <div class="pillars" data-kui-stagger="100ms">
-          <div class="pillar" data-kui="fade-right 500ms" data-kui-on="enter">
+          <div class="pillar" data-kui="fade-right 500ms on:enter" data-show-code>
             <div class="pillar-swatch" data-kui="tilt-3d maxAngle:24 perspective:500px">tilt-3d</div>
             <h3>CSS-native</h3>
             <p>Entrances, 3D tilt, and reveals run as real <code>@keyframes</code> on the compositor thread. They keep running if a script is slow, blocked, or never loads at all.</p>
           </div>
-          <div class="pillar" data-kui="fade-up 500ms 60ms" data-kui-on="enter">
+          <div class="pillar" data-kui="fade-up 500ms 60ms on:enter" data-show-code>
             <div class="pillar-swatch" data-kui="beam-border">beam-border</div>
             <h3>JavaScript only where necessary</h3>
             <p>Drag, gesture, text-splitting, and scroll-position effects are JS-prepared — every other primitive in the catalog needs none of it.</p>
           </div>
-          <div class="pillar" data-kui="fade-left 500ms 120ms" data-kui-on="enter">
+          <div class="pillar" data-kui="fade-left 500ms 120ms on:enter" data-show-code>
             <div class="pillar-swatch" data-kui="border-glow" style="--kui-border-glow-color: #ff3b30">border-glow</div>
             <h3>Scroll-driven, not scroll-listened</h3>
             <p>Pins, parallax, and scrollytelling prefer native <code>animation-timeline: view()</code>, falling back to one shared scheduler rather than a listener per effect.</p>
@@ -568,22 +764,22 @@
       <section id="gallery" data-od-id="gallery">
         <div class="gallery-head">
           <div>
-            <h2 data-kui="fade-up" data-kui-on="enter">Animated on real content, not just typography</h2>
-            <p>Three photographs, three live effects — a scroll-linked parallax drift, a slow
+            <h2 data-kui="fade-up on:enter">Animated on real content, not just typography</h2>
+            <p data-kui="fade-up 700ms 90ms on:enter">Three photographs, three live effects — a scroll-linked parallax drift, a slow
               ken-burns zoom, and a diagonal wipe reveal. All compiled CSS, all playing on their
               own — nothing here waits for a hover.</p>
           </div>
         </div>
         <div class="gallery" data-kui-stagger="80ms">
-          <div class="g-card g-wide g-parallax" data-kui="fade-up 500ms" data-kui-on="enter">
+          <div class="g-card g-wide g-parallax" data-kui="fade-up 500ms on:enter">
             <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" data-kui="parallax-y distance:120px timeline:view" />
             <span class="g-tag">parallax-y</span>
           </div>
-          <div class="g-card" data-kui="fade-up 500ms 60ms" data-kui-on="enter">
+          <div class="g-card" data-kui="fade-up 500ms 60ms on:enter">
             <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" data-kui="ken-burns 9000ms" />
             <span class="g-tag">ken-burns</span>
           </div>
-          <div class="g-card" data-kui="fade-up 500ms 120ms" data-kui-on="enter">
+          <div class="g-card" data-kui="fade-up 500ms 120ms on:enter">
             <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" data-kui="wipe-diagonal 900ms" />
             <span class="g-tag">wipe-diagonal</span>
           </div>
@@ -595,49 +791,44 @@
         <div class="catalog-stat">
           <div>
             <p class="num">~<span>237</span> named effects</p>
-            <p class="num-note">from 29 primitives across 15 catalog categories — entrance, scroll mechanics, 3D, text, forms, navigation, gestures, and more.</p>
+            <p class="num-note" data-kui="blur-in 600ms, scramble 1500ms 600ms">from 29 primitives across 15 catalog categories — entrance, scroll mechanics, 3D, text, forms, navigation, gestures, and more.</p>
           </div>
         </div>
-        <div class="chips" data-kui="flip-reorder" data-kui-stagger="35ms" aria-label="Sample of named effects in the catalog — hover a chip to preview its effect">
-          <span class="chip" data-kui="fade-up 500ms" data-kui-on="hover">fade-up</span>
-          <span class="chip" data-kui="slide-left 500ms" data-kui-on="hover">slide-left</span>
-          <span class="chip" data-kui="zoom-in 500ms" data-kui-on="hover">zoom-in</span>
-          <span class="chip" data-kui="bounce-in-up 600ms" data-kui-on="hover">bounce-in-up</span>
-          <span class="chip" data-kui="blur-in 500ms" data-kui-on="hover">blur-in</span>
-          <span class="chip" data-kui="parallax-y distance:10px timeline:view" title="parallax-y is scroll-position-linked (timeline:view) and only supports manual activation — it can't be gated to hover">parallax-y</span>
-          <span class="chip" data-kui="reveal-once" data-kui-on="hover">reveal-once</span>
-          <span class="chip" title="Needs a dedicated tall scroll runway to pin against — see it live in scroll.html">pin-section</span>
-          <span class="chip" title="Needs a wide multi-item track to scroll through — see it live in scroll.html">horizontal-scroll</span>
-          <span class="chip" data-kui="split-chars 400ms" data-kui-on="hover">split-chars</span>
-          <span class="chip" data-kui="text-reveal-mask 500ms" data-kui-on="hover">text-reveal-mask</span>
-          <span class="chip" data-kui="typewriter" data-kui-on="hover">typewriter</span>
-          <span class="chip" data-kui="scramble" data-kui-on="hover">scramble</span>
-          <span class="chip" data-kui="underline-draw 500ms" data-kui-on="hover" title="draw-stroke isn't wired up in this build of the library — showing underline-draw, the same stroke-drawing family">draw-stroke</span>
-          <span class="chip chip-icon">
-            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-              <path fill="currentColor" d="M8 0C12.42 0 16 3.58 16 8C16 12.42 12.42 16 8 16C3.58 16 0 12.42 0 8C0 3.58 3.58 0 8 0Z" data-kui="icon-morph to:'M2 2L14 2L14 14L2 14Z'" />
-            </svg>
-            icon-morph
-          </span>
-          <span class="chip">count-up <b data-kui="count-up 1200ms to:237" data-kui-on="hover">0</b></span>
-          <span class="chip chip-icon">
-            <svg width="14" height="14" viewBox="0 0 32 32" aria-hidden="true">
-              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-opacity="0.25" stroke-width="3" fill="none" />
-              <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="3" fill="none" transform="rotate(-90 16 16)" style="--kui-path-length: 81.7" data-kui="progress-ring 1200ms" data-kui-on="hover" />
-            </svg>
-            progress-ring
-          </span>
-          <span class="chip chip-icon"><img src="./assets/nike_shoe.jpg" alt="" data-kui="ken-burns 3000ms on:hover" /> ken-burns</span>
-          <span class="chip" data-kui="wipe-circle 500ms" data-kui-on="hover">wipe-circle</span>
-          <span class="chip chip-icon"><img src="./assets/kuinetic_spray.jpg" alt="" data-kui="duotone-hover on:hover" /> duotone-hover</span>
-          <span class="chip" data-kui="magnetic">magnetic</span>
-          <span class="chip" data-kui="tilt-3d maxAngle:18">tilt-3d</span>
-          <span class="chip" data-kui="beam-border">beam-border</span>
-          <span class="chip" data-kui="shine-sweep">shine-sweep</span>
-          <button type="button" class="chip chip-action" id="chip-shuffle" title="Click to shuffle — watch flip-reorder animate every chip to its new spot">flip-reorder</button>
-          <span class="chip" data-kui="card-flip-x on:hover">card-flip-x</span>
-          <span class="chip" data-kui="drag-inertia">drag-inertia</span>
-          <span class="chip" data-kui="elastic-pull">elastic-pull</span>
+        <div class="catalog-demos" data-kui-stagger="100ms" aria-label="Three effects from the catalog, playing as each card scrolls into view">
+          <div class="catalog-demo" data-kui="fade-right 500ms on:enter" data-show-code>
+            <p class="catalog-demo-kicker">Text</p>
+            <div class="catalog-demo-preview">
+              <img src="./assets/futuristic_visor_hud.jpg" alt="Astronaut in a white spacesuit helmet, a glowing cyan HUD readout across the visor, blurred string lights behind" data-kui="wipe-diagonal 900ms on:enter" />
+              <div class="catalog-demo-overlay">
+                <span class="catalog-demo-headline" data-kui="typewriter on:enter">Animate.</span>
+              </div>
+            </div>
+            <p class="catalog-demo-label">typewriter</p>
+          </div>
+          <div class="catalog-demo" data-kui="fade-up 500ms 60ms on:enter" data-show-code>
+            <p class="catalog-demo-kicker">Number</p>
+            <div class="catalog-demo-preview">
+              <img src="./assets/orange_visor.jpg" alt="Woman in profile wearing a mirrored wraparound visor, lit in a bold orange-to-red gradient" />
+              <div class="catalog-demo-overlay">
+                <span class="catalog-demo-count" data-kui="count-up 1200ms to:237 on:enter">0</span>
+                <span class="catalog-demo-count-note">named effects</span>
+              </div>
+            </div>
+            <p class="catalog-demo-label">count-up</p>
+          </div>
+          <div class="catalog-demo" data-kui="fade-left 500ms 120ms on:enter" data-show-code>
+            <p class="catalog-demo-kicker">Combo · launch countdown</p>
+            <div class="catalog-demo-preview">
+              <img src="./assets/vr_headset_dark_studio.jpg" alt="Woman kneeling on a checkered floor wearing a VR headset, arms raised, in a dark studio lit by two strip lights" />
+              <div class="catalog-demo-overlay">
+                <div class="catalog-demo-combo-row">
+                  <span class="catalog-demo-headline" data-kui="fade-blur-up 2200ms on:enter">Launching</span>
+                  <span class="catalog-demo-count" data-kui="count-down 1200ms 500ms from:237 to:0 on:enter">237</span>
+                </div>
+              </div>
+            </div>
+            <p class="catalog-demo-label">fade-blur-up + count-down · delayed 500ms</p>
+          </div>
         </div>
       </section>
 
@@ -645,18 +836,24 @@
       <section id="install" data-od-id="install">
         <div class="install-card">
           <div>
-            <h2 data-kui="fade-up" data-kui-on="enter">Ship it in two lines.</h2>
-            <p>Standalone, MIT-licensed, framework-agnostic. No product or CMS coupling — drop the
+            <h2 data-kui="fade-up on:enter">Ship it in two lines.</h2>
+            <p data-kui="fade-up 700ms 90ms on:enter">Standalone, MIT-licensed, framework-agnostic. No product or CMS coupling — drop the
               two files in and start authoring <code>data-kui</code> attributes.</p>
           </div>
           <div>
-            <div class="install-snip">
+            <div class="install-snip" data-kui="slide-left 700ms on:enter">
               <div class="install-snip-row">
                 <code id="npm-cmd">npm install kuinetic</code>
                 <button type="button" class="copy-btn" data-copy-target="npm-cmd">Copy</button>
               </div>
             </div>
-            <div class="install-snip install-code">
+            <div class="install-snip" data-kui="bounce-in 700ms 100ms on:enter">
+              <div class="install-snip-row">
+                <code id="all-js-cmd">&lt;script src="./kuinetic.all.js"&gt;&lt;/script&gt;</code>
+                <button type="button" class="copy-btn" data-copy-target="all-js-cmd">Copy</button>
+              </div>
+            </div>
+            <div class="install-snip install-code" data-kui="slide-up 700ms 200ms on:enter">
               <pre><code>&lt;link rel="stylesheet" href="./kuinetic.css"&gt;
 &lt;script src="./kuinetic.js"&gt;&lt;/script&gt;
 &lt;script&gt;
@@ -737,23 +934,6 @@
     })
   </script>
   <script src="./replay.js"></script>
-  <script>
-    // Shuffle the chip row — the flip-reorder effect on .chips notices the DOM
-    // reorder itself and animates every chip to its new position.
-    var shuffleBtn = document.getElementById('chip-shuffle')
-    if (shuffleBtn) {
-      shuffleBtn.addEventListener('click', function () {
-        var container = document.querySelector('.chips')
-        var items = Array.prototype.slice.call(container.children)
-        for (var i = items.length - 1; i > 0; i--) {
-          var j = Math.floor(Math.random() * (i + 1))
-          var tmp = items[i]
-          items[i] = items[j]
-          items[j] = tmp
-        }
-        items.forEach(function (el) { container.appendChild(el) })
-      })
-    }
-  </script>
+  <script src="./show-code.js"></script>
 </body>
 </html>

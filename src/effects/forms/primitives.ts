@@ -12,8 +12,12 @@ import { cssPrimitive } from '../shared.js'
  * `:not(:placeholder-shown)`) that the browser already tracks and already re-fires on every state
  * change in both directions. Re-deriving that with a JS listener would be strictly worse: slower,
  * one more thing to clean up, and it would still just toggle a class the browser already toggles
- * for free. Those five are `inertInstance()` — no JS work at all — with the entire animation as a
- * plain CSS `transition` scoped under the compiled `[data-kui-fx~='name']` marker in forms.css.
+ * for free. The entire animation is a plain CSS `transition` scoped under the compiled
+ * `[data-kui-fx~='name']` marker in forms.css. Three of the five (`label-float`,
+ * `input-underline-grow`, `checkbox-draw`) are `inertInstance()` — no JS work at all.
+ * `toggle-morph` and `radio-fill` need one JS write on load — see `prepareSiblingScale` — because
+ * their `scale` param has to reach a sibling element that CSS custom properties can't inherit
+ * across.
  *
  * The rest genuinely need JS: `strength-meter` and `range-fill` compute a value from input;
  * `submit-to-spinner-to-check` and `step-progress` are multi-stage state machines a single
@@ -43,6 +47,41 @@ export const NATIVE_STATE_PRIMITIVE: Primitive = {
   reducedMotion: 'disable',
   prepare: () => inertInstance(),
 }
+
+/**
+ * A resolved param is only ever written inline onto the element carrying `data-kui-fx` (see
+ * `compile.ts`'s `resolveParams`/`applyStylePlan`) — but `toggle-morph`'s `.kui-track` and
+ * `radio-fill`'s `.kui-dot` are general siblings of that element, not descendants, so a custom
+ * property set there never reaches them: CSS custom properties inherit down the DOM tree, not
+ * across `~`. Copying the one resolved value onto the sibling's own inline style is the smallest
+ * fix that keeps the rest of the native-state group free of JS.
+ */
+function prepareSiblingScale(cssProperty: string): (el: Element, params: EffectParams) => Cleanup {
+  return (el, params) => {
+    const sibling = el.nextElementSibling as HTMLElement | null
+    sibling?.style.setProperty(cssProperty, String(params.num('scale', 1)))
+    return () => sibling?.style.removeProperty(cssProperty)
+  }
+}
+
+function siblingScalePrimitive(id: string, cssProperty: string): Primitive {
+  return {
+    id,
+    renderer: 'javascript',
+    channels: [CHANNEL.translate, CHANNEL.scale, CHANNEL.opacity, CHANNEL.stroke, CHANNEL.color],
+    parameters: { scale: { type: 'number', default: '1', cssProperty } },
+    supportedTimelines: ['time'],
+    supportedActivations: ['load'],
+    defaultActivation: 'load',
+    perfClass: 'compositor',
+    reducedMotion: 'disable',
+    prepare: deferPrepare(prepareSiblingScale(cssProperty)),
+  }
+}
+
+export const TOGGLE_MORPH_PRIMITIVE: Primitive = siblingScalePrimitive('toggle-morph', '--kui-toggle-scale')
+
+export const RADIO_FILL_PRIMITIVE: Primitive = siblingScalePrimitive('radio-fill', '--kui-radio-scale')
 
 // --- focus-ring-grow, validate-shake, validate-check: css-keyframes, activation-triggered ---
 
@@ -180,7 +219,7 @@ function prepareStepProgress(el: Element, params: EffectParams): Cleanup {
 export const STEP_PROGRESS_PRIMITIVE = jsInputPrimitive(
   'step-progress',
   ['state'],
-  { steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, integer: true } },
+  { steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, maximum: 20, integer: true } },
   deferPrepare(prepareStepProgress),
 )
 

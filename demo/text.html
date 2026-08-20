@@ -22,6 +22,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<!-- Roboto Flex carries real wght/wdth/slnt axes. Inter (the page font) ships wght only, so
+     `font-stretch` on it animates its computed value while painting nothing — the variable-font
+     cards below need a font that actually has the axes they are demonstrating. -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./kuinetic.css" />
 <link rel="stylesheet" href="./system.css" />
 <script defer src="./nav.js"></script>
@@ -98,6 +102,12 @@
   :root[data-theme='dark'] .demo-card figcaption {
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
+  /* redaction-reveal's bar is a fixed #111 (real ink is black regardless of theme) — fine on
+     the "paper" card's light-mode white, invisible on its dark-mode near-black twin. Flip to
+     the accent fill there, same "ink/paper" logic as everything else on this page. */
+  :root[data-theme='dark'] [data-kui-fx~='redaction-reveal']::before {
+    background: var(--accent);
+  }
   .demo-card[tabindex] { cursor: pointer; }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -113,6 +123,11 @@
   .demo-card-text .stage {
     font-size: clamp(1.05rem, 0.55vw + 0.92rem, 1.3rem); font-weight: 600;
     line-height: 1.35; letter-spacing: -0.01em; max-width: 30ch;
+  }
+  /* Only these three cards switch face — the rest of the page stays on Inter. */
+  .demo-card-text.is-variable .stage {
+    font-family: 'Roboto Flex', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-size: clamp(1.15rem, 0.7vw + 0.98rem, 1.5rem);
   }
   .demo-card-text.is-mono .stage {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500;
@@ -136,24 +151,19 @@
   .demo-card-wide .marquee-viewport .stage[data-kui-fx~="marquee"] {
     animation-iteration-count: infinite;
   }
-  /* marquee-scroll-linked bug: kuinetic.css has no [data-kui-fx~=marquee-scroll-linked] rule at
-     all (only [data-kui-fx~=marquee] exists, and CSS `~=` requires an exact whitespace-token
-     match — "marquee-scroll-linked" never matches the token "marquee"), so this card never gets
-     `width:max-content`/`will-change:translate`, which the translate:-50% keyframe needs to move
-     by exactly one copy-width. Separately, the library sets `animation-timeline: scroll()` (bare,
-     via inline style), which per spec binds to the *nearest* ancestor scroll container — and
-     `.marquee-viewport` right above this element is `overflow:hidden`, which itself qualifies as
-     a scroll container. Since .marquee-viewport itself never scrolls, the timeline is pinned at
-     0% forever and the row never moves — "does nothing". `scroll-progress-bar`/`scroll-progress-ring`
-     on scroll.html work because they're direct children of <body>, with no overflow:hidden
-     ancestor between them and the true document scroller, so `scroll()` correctly reaches the
-     page. Page-level workaround: supply the missing sizing and force the timeline source past the
-     local overflow:hidden wrapper to the document root (needs !important to beat the library's
-     inline `animation-timeline: scroll()`, which is written via el.style.setProperty with normal
-     priority). */
+  /* kuinetic.css already covers [data-kui-fx~="marquee-scroll-linked"] for width/will-change —
+     a prior comment here claiming that selector was missing was wrong, the library already
+     matches both `marquee` and `marquee-scroll-linked`.
+     The real, remaining bug: `scroll()`'s default "nearest ancestor scroll container" resolution
+     gets trapped before it ever reaches the page. Two separate wrappers between this stage and
+     <body> both qualify as scroll containers — `.marquee-viewport` (overflow:hidden above) and
+     `.demo-card` (overflow:clip) — and CSS offers no way to opt just one axis out: setting only
+     overflow-x non-visible forces overflow-y to compute as `auto` instead of `visible` (an
+     Overflow-spec rule to avoid an escape hatch on one axis only), so it's still a container.
+     `scroll(root)` sidesteps the whole nearest-ancestor search by naming the true scroller
+     directly; needs !important to beat the library's own inline `animation-timeline: scroll()`,
+     written via el.style.setProperty at normal priority. */
   .demo-card-wide .marquee-viewport .stage[data-kui-fx~="marquee-scroll-linked"] {
-    width: max-content;
-    will-change: translate;
     animation-timeline: scroll(root) !important;
   }
 </style>
@@ -265,8 +275,8 @@
       <!-- SEGMENTATION & REVEALS -->
       <section id="matrix" data-od-id="segmentation">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Segmentation &amp; reveals</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Segmentation &amp; reveals</h2>
+          <p data-kui="split-chars 700ms">
             <code>split-text</code>, parameterized by unit (chars/words/lines) and direction, plus
             the reveal-direction presets built on the same primitive. Scroll to trigger —
             <code>on:enter</code>, the library default.
@@ -276,15 +286,15 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Segmentation — 3</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="split-chars 700ms">Every character finds its own delay.</p></div>
               <figcaption>data-kui="split-chars 700ms"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="split-words 600ms">Words arrive one at a time, in order.</p></div>
               <figcaption>data-kui="split-words 600ms"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="split-lines 650ms" style="max-width: 26ch">Lines are measured after wrapping, then revealed as whole units, top to bottom.</p></div>
               <figcaption>data-kui="split-lines 650ms"</figcaption>
             </figure>
@@ -294,15 +304,15 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Reveals — 3</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-reveal-up 600ms">Words rise into place from below.</p></div>
               <figcaption>data-kui="text-reveal-up 600ms"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-reveal-down 600ms">Words settle down from above.</p></div>
               <figcaption>data-kui="text-reveal-down 600ms"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-reveal-mask 700ms" style="max-width: 26ch">Each line unmasks from a clipped sliver into full view.</p></div>
               <figcaption>data-kui="text-reveal-mask 700ms"</figcaption>
             </figure>
@@ -313,17 +323,17 @@
       <!-- CONTINUOUS MOTION -->
       <section data-od-id="motion">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Continuous motion</h2>
-          <p>Runs the moment the page loads, and never stops — <code>on:load</code>.</p>
+          <h2 data-kui="fade-up on:enter">Continuous motion</h2>
+          <p data-kui="fade-up 700ms expo-in">Runs the moment the page loads, and never stops — <code>on:load</code>.</p>
         </div>
         <div class="matrix-group">
           <p class="matrix-group-label">Motion — 2</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-wave on:load">This sentence never sits still.</p></div>
               <figcaption>data-kui="text-wave on:load"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-jitter on:load">A nervous little tremor, per letter.</p></div>
               <figcaption>data-kui="text-jitter on:load"</figcaption>
             </figure>
@@ -334,17 +344,17 @@
       <!-- TYPING -->
       <section data-od-id="typing">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Typing</h2>
-          <p>A caret, a cursor, a sentence assembling itself in real time.</p>
+          <h2 data-kui="fade-up on:enter">Typing</h2>
+          <p data-kui="typewriter">A caret, a cursor, a sentence assembling itself in real time.</p>
         </div>
         <div class="matrix-group">
           <p class="matrix-group-label">Typing — 2</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="typewriter">This line types itself out, once.</p></div>
               <figcaption>data-kui="typewriter"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="typewriter-loop on:load">Typed, deleted, retyped, forever.</p></div>
               <figcaption>data-kui="typewriter-loop on:load"</figcaption>
             </figure>
@@ -355,21 +365,21 @@
       <!-- RESOLVE -->
       <section data-od-id="resolve">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Resolve</h2>
-          <p>Character-by-character decode from a scrambled charset to the real text.</p>
+          <h2 data-kui="fade-up on:enter">Resolve</h2>
+          <p data-kui="glitch 2000ms">Character-by-character decode from a scrambled charset to the real text.</p>
         </div>
         <div class="matrix-group">
           <p class="matrix-group-label">Resolve — 3</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
-              <div class="stage-wrap"><p class="stage" data-kui="scramble">RESOLVING FROM NOISE</p></div>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><p class="stage" style="max-width: 26ch" data-kui="scramble">This sentence resolves itself, one flickering letter at a time.</p></div>
               <figcaption>data-kui="scramble"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text is-mono">
+            <figure class="demo-card demo-card-text is-mono" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="decode">01000100 01000101 01000011 01001111 01000100 01000101</p></div>
               <figcaption>data-kui="decode"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="glitch">SIGNAL LOCK ACQUIRED</p></div>
               <figcaption>data-kui="glitch"</figcaption>
             </figure>
@@ -380,26 +390,26 @@
       <!-- COLOR & LINE -->
       <section data-od-id="color-line">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Color &amp; line</h2>
-          <p>Paint and stroke, layered onto text without touching layout.</p>
+          <h2 data-kui="fade-up on:enter">Color &amp; line</h2>
+          <p data-kui="bounce-in 600ms, text-outline-fill 1100ms 600ms">Paint and stroke, layered onto text without touching layout.</p>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Color — 4</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="gradient-shimmer on:load">A sheen that never stops sweeping.</p></div>
               <figcaption>data-kui="gradient-shimmer on:load"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text" tabindex="0">
+            <figure class="demo-card demo-card-text" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="gradient-sweep 900ms on:hover">Hover to sweep a gradient across me.</p></div>
               <figcaption>data-kui="gradient-sweep 900ms on:hover" — point at me</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text" tabindex="0">
-              <div class="stage-wrap"><p class="stage" data-kui="highlight-sweep 500ms on:hover">Hover for a highlighter to sweep behind me.</p></div>
-              <figcaption>data-kui="highlight-sweep 500ms on:hover" — point at me</figcaption>
+            <figure class="demo-card demo-card-text" tabindex="0" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="highlight-sweep 500ms color:white on:hover">Hover for a highlighter to sweep behind me.</p></div>
+              <figcaption>data-kui="highlight-sweep 500ms color:white on:hover" — point at me</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-outline-fill 700ms">Outline first, then fills solid.</p></div>
               <figcaption>data-kui="text-outline-fill 700ms"</figcaption>
             </figure>
@@ -409,7 +419,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Line — 1</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text" tabindex="0">
+            <figure class="demo-card demo-card-text" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" style="display: inline-block" data-kui="underline-draw 500ms on:hover">Hover to draw my underline.</p></div>
               <figcaption>data-kui="underline-draw 500ms on:hover" — point at me</figcaption>
             </figure>
@@ -420,26 +430,28 @@
       <!-- VARIABLE FONT -->
       <section data-od-id="variable-font">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Variable font</h2>
-          <p>
-            Animates standard <code>font-weight</code>/<code>font-stretch</code>/<code>font-style</code> —
-            smoother still with an actual variable-font file loaded.
+          <h2 data-kui="fade-up on:enter">Variable font</h2>
+          <p data-kui="text-reveal-up 600ms, var-slant 700ms 600ms on:hover">
+            Animates standard <code>font-weight</code>/<code>font-stretch</code>/<code>font-style</code>.
+            These three cards render in Roboto Flex, which carries real <code>wght</code>,
+            <code>wdth</code> and <code>slnt</code> axes — a font without the matching axis animates
+            the computed value but paints no change, so the width and slant cards need it.
           </p>
         </div>
         <div class="matrix-group">
           <p class="matrix-group-label">Variable font — 3</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text" tabindex="0">
+            <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="var-weight 700ms on:hover">Weight, thin to bold.</p></div>
               <figcaption>data-kui="var-weight 700ms on:hover" — point at me</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text" tabindex="0">
+            <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="var-width 700ms on:hover">Width, condensed to wide.</p></div>
               <figcaption>data-kui="var-width 700ms on:hover" — point at me</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text" tabindex="0">
-              <div class="stage-wrap"><p class="stage" data-kui="var-slant 2000ms on:hover">Slant, upright to oblique.</p></div>
-              <figcaption>data-kui="var-slant 2000ms on:hover" — point at me</figcaption>
+            <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="var-slant 700ms on:hover">Slant, upright to oblique.</p></div>
+              <figcaption>data-kui="var-slant 700ms on:hover" — point at me</figcaption>
             </figure>
           </div>
         </div>
@@ -448,13 +460,13 @@
       <!-- STRUCTURAL -->
       <section data-od-id="structural">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Structural</h2>
-          <p>Larger structural moves — cyclers, marquees, redaction, extrusion.</p>
+          <h2 data-kui="fade-up on:enter">Structural</h2>
+          <p data-kui="redaction-reveal 900ms">Larger structural moves — cyclers, marquees, redaction, extrusion.</p>
         </div>
         <div class="matrix-group">
           <p class="matrix-group-label">Structural — 5</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap">
                 <p
                   class="stage"
@@ -464,7 +476,7 @@
               <figcaption>data-kui="word-cycler words:designers|developers|… interval:1800ms"</figcaption>
             </figure>
 
-            <figure class="demo-card demo-card-wide">
+            <figure class="demo-card demo-card-wide" data-show-code>
               <div class="marquee-viewport">
                 <div class="stage" data-kui="marquee 14s on:load">
                   <span>DESIGNIMATION&nbsp;·&nbsp;DECLARATIVE ANIMATION&nbsp;·&nbsp;NATIVE CSS FIRST&nbsp;·&nbsp;</span>
@@ -476,22 +488,22 @@
               <figcaption>data-kui="marquee 14s" — infinite, time-driven</figcaption>
             </figure>
 
-            <figure class="demo-card demo-card-wide">
+            <figure class="demo-card demo-card-wide" data-show-code>
               <div class="marquee-viewport">
                 <div class="stage" data-kui="marquee-scroll-linked timeline:scroll">
-                  <span>SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
-                  <span aria-hidden="true">SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
+                  <span>SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
+                  <span aria-hidden="true">SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;SCROLL TO DRIVE THIS ROW&nbsp;·&nbsp;</span>
                 </div>
               </div>
               <figcaption>data-kui="marquee-scroll-linked timeline:scroll"</figcaption>
             </figure>
 
-            <figure class="demo-card demo-card-text">
-              <div class="stage-wrap"><p class="stage" style="font-size: 2rem" data-kui="redaction-reveal 900ms">CLASSIFIED</p></div>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap" style="justify-content: center"><p class="stage" style="font-size: 2rem" data-kui="redaction-reveal 900ms">CLASSIFIED</p></div>
               <figcaption>data-kui="redaction-reveal 900ms"</figcaption>
             </figure>
 
-            <figure class="demo-card demo-card-text">
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" style="font-size: 3rem; font-weight: 800" data-kui="text-3d-extrude 700ms">DEPTH</p></div>
               <figcaption>data-kui="text-3d-extrude 700ms"</figcaption>
             </figure>
@@ -537,5 +549,6 @@
     })()
   </script>
   <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
 </body>
 </html>

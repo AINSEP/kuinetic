@@ -19,7 +19,9 @@
   function prettyPrint(el, depth) {
     const indent = '  '.repeat(depth)
     const tag = el.tagName.toLowerCase()
-    const attrs = [...el.attributes].map((a) => `${a.name}="${a.value}"`).join(' ')
+    const attrs = [...el.attributes]
+      .filter(a => a.name !== 'data-show-code')
+      .map((a) => `${a.name}="${a.value}"`).join(' ')
     const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`
 
     if (VOID_TAGS.has(tag)) return `${indent}${openTag.slice(0, -1)} />`
@@ -49,7 +51,10 @@
     const dialog = document.createElement('div')
     dialog.className = 'kui-code-modal'
     dialog.setAttribute('role', 'dialog')
-    dialog.setAttribute('aria-modal', 'true')
+    // Deliberately NOT `aria-modal`. The panel is draggable precisely so the page behind it stays
+    // watchable while you edit a `data-kui` value — claiming modality would tell assistive tech the
+    // rest of the document is inert when it is still live, scrollable, and hoverable.
+    dialog.setAttribute('aria-modal', 'false')
     dialog.setAttribute('aria-label', 'Element source')
 
     const closeBtn = document.createElement('button')
@@ -58,9 +63,13 @@
     closeBtn.setAttribute('aria-label', 'Close')
     closeBtn.textContent = '×'
 
+    const grip = document.createElement('span')
+    grip.className = 'kui-code-modal-grip'
+    grip.textContent = 'Element source — drag to move'
+
     const header = document.createElement('div')
     header.className = 'kui-code-modal-header'
-    header.appendChild(closeBtn)
+    header.append(grip, closeBtn)
 
     const tryIt = document.createElement('div')
     tryIt.className = 'kui-code-tryit'
@@ -100,6 +109,62 @@
     let targetEl = null
     let originalValue = ''
 
+    /**
+     * Drag-to-move, so the panel can be parked off to one side and the effect it edits stays in
+     * view. The offset is a `transform` rather than `left`/`top` because the dialog is centred by
+     * the backdrop's grid — writing `left` would first have to undo that centring, while a
+     * translate composites on top of whatever the grid resolved and survives a viewport resize.
+     * It persists across opens on purpose: once parked clear of the demo, it stays parked.
+     */
+    let dragX = 0
+    let dragY = 0
+    // How much of the panel must stay on screen, so it can never be dragged fully out of reach.
+    const KEEP_VISIBLE = 140
+
+    function applyOffset() {
+      dialog.style.transform = dragX || dragY ? `translate(${dragX}px, ${dragY}px)` : ''
+    }
+
+    function startDrag(e) {
+      // The close button lives in the same header; let it be a button first and a handle never.
+      if (e.target.closest('button')) return
+
+      const rect = dialog.getBoundingClientRect()
+      // getBoundingClientRect() reports the *transformed* box, so back the current offset out to
+      // recover where the grid actually placed the panel. That base never moves during a drag.
+      const baseLeft = rect.left - dragX
+      const baseTop = rect.top - dragY
+      const grabX = e.clientX - dragX
+      const grabY = e.clientY - dragY
+
+      const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
+
+      function onMove(ev) {
+        dragX = clamp(
+          ev.clientX - grabX,
+          KEEP_VISIBLE - baseLeft - rect.width,
+          window.innerWidth - KEEP_VISIBLE - baseLeft,
+        )
+        dragY = clamp(ev.clientY - grabY, -baseTop, window.innerHeight - 44 - baseTop)
+        applyOffset()
+      }
+      function onUp() {
+        header.classList.remove('is-dragging')
+        header.removeEventListener('pointermove', onMove)
+        header.removeEventListener('pointerup', onUp)
+        header.removeEventListener('pointercancel', onUp)
+      }
+
+      header.setPointerCapture(e.pointerId)
+      header.classList.add('is-dragging')
+      header.addEventListener('pointermove', onMove)
+      header.addEventListener('pointerup', onUp)
+      header.addEventListener('pointercancel', onUp)
+      // Without this a drag that starts on the label text selects it instead of moving the panel.
+      e.preventDefault()
+    }
+    header.addEventListener('pointerdown', startDrag)
+
     function applyValue(value) {
       if (!targetEl) return
       targetEl.setAttribute('data-kui', value)
@@ -112,23 +177,45 @@
       window.__kui.activate(targetEl)
     }
 
+    // The backdrop itself is `pointer-events: none` (see system.css/style.css) so the page stays
+    // clickable underneath — which means a plain `backdrop.addEventListener('click', ...)` would
+    // never fire; the backdrop never receives the click to begin with. Closing on an outside click
+    // instead listens on `document` for any pointerdown that lands outside the dialog. It's added
+    // only while open and removed on close, so it never runs the rest of the time.
+    function onOutsidePointerDown(e) {
+      if (!dialog.contains(e.target)) close()
+    }
+
     function close() {
       backdrop.style.display = 'none'
+      document.removeEventListener('pointerdown', onOutsidePointerDown, true)
     }
     function open(liveEl, sourceEl) {
-      targetEl = liveEl
-      originalValue = sourceEl.getAttribute('data-kui') ?? ''
+      targetEl = liveEl.hasAttribute('data-kui') ? liveEl : (liveEl.querySelector('[data-kui]') || liveEl)
+      const targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
+      
+      originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
       code.textContent = prettyPrint(sourceEl, 0)
       input.value = originalValue
       backdrop.style.display = 'grid'
+      // The stored offset was clamped against the viewport it was dragged in; re-clamp against the
+      // current one so a resize between opens can't leave the panel parked past the edge.
+      const rect = dialog.getBoundingClientRect()
+      const baseLeft = rect.left - dragX
+      const baseTop = rect.top - dragY
+      dragX = Math.min(Math.max(dragX, KEEP_VISIBLE - baseLeft - rect.width), window.innerWidth - KEEP_VISIBLE - baseLeft)
+      dragY = Math.min(Math.max(dragY, -baseTop), window.innerHeight - 44 - baseTop)
+      applyOffset()
       closeBtn.focus()
+      // Deferred one tick: the click that opened the modal (on the "Show code" button, which sits
+      // outside `dialog`) is still bubbling when `open()` runs. Adding this listener synchronously
+      // would risk it seeing that same click's mouseup/pointerdown pair on some browsers and
+      // closing the modal it just opened.
+      setTimeout(() => document.addEventListener('pointerdown', onOutsidePointerDown, true))
     }
     closeBtn.addEventListener('click', close)
-    backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) close()
-    })
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !backdrop.hidden) close()
+      if (e.key === 'Escape' && backdrop.style.display !== 'none') close()
     })
 
     applyBtn.addEventListener('click', () => applyValue(input.value))
@@ -166,33 +253,62 @@
     button.textContent = 'Show code'
     button.addEventListener('click', () => modal.open(liveEl, sourceEl))
 
-    // Append inside the card's own container (figure, .text-demo, or whatever wraps it), not as
-    // a sibling of the animated element itself — in a CSS grid layout (every showcase page's
-    // .grid), a sibling insertion becomes its own independent grid cell instead of sitting under
-    // the card it belongs to.
-    const card = liveEl.closest('figure, .text-demo') ?? liveEl.parentElement
-    card.appendChild(button)
+    const caption = liveEl.querySelector('figcaption, .demo-card-caption')
+    if (caption) {
+      caption.style.flexDirection = 'column'
+      caption.style.alignItems = 'flex-start'
+      caption.style.gap = '0.7rem'
+      caption.appendChild(button)
+    } else {
+      const card = liveEl.closest('figure, .text-demo, .pillar, .g-card, [data-show-code]') ?? liveEl.parentElement
+      card.appendChild(button)
+    }
+  }
+
+  /**
+   * A hand-authored button (`data-show-code-target="some-id"`) that opens the modal for a whole
+   * container — the demo grid it names, not itself — instead of the auto-mounted per-card
+   * toggle. For a container whose children each carry their own click behavior (flip-reorder's
+   * "click to bring forward", expand-to-modal's "click to expand"), a per-card toggle nested
+   * inside that same card double-fires: the click bubbles to the card's own listener too, so
+   * "Show code" also reorders or expands the card underneath it. One button outside every card
+   * sidesteps that entirely, and shows the whole block's markup at once instead of just one card.
+   */
+  function mountTargetButton(button, doc) {
+    const targetId = button.getAttribute('data-show-code-target')
+    const liveTarget = document.getElementById(targetId)
+    if (!liveTarget) return null
+    const sourceTarget = doc.getElementById(targetId) || liveTarget
+    return { button, liveTarget, sourceTarget }
   }
 
   async function init() {
-    const liveEls = [...document.querySelectorAll('[data-kui]')]
-    if (liveEls.length === 0) return
+    const liveEls = [...document.querySelectorAll('[data-show-code]')]
+    const targetButtons = [...document.querySelectorAll('[data-show-code-target]')]
+    if (liveEls.length === 0 && targetButtons.length === 0) return
 
-    let sourceEls
+    let doc
     try {
       const res = await fetch(location.pathname)
       if (!res.ok) throw new Error('HTTP ' + res.status)
       const html = await res.text()
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      sourceEls = [...doc.querySelectorAll('[data-kui]')]
+      doc = new DOMParser().parseFromString(html, 'text/html')
     } catch (e) {
-      return // no pristine source available — fail quiet, no broken buttons
+      console.warn('show-code.js: Failed to fetch pristine source, falling back to live DOM.', e)
+      doc = document // fallback: getElementById/querySelectorAll both still work against it
     }
+    const sourceEls = [...doc.querySelectorAll('[data-show-code]')]
 
     const modal = buildModal()
     liveEls.forEach((liveEl, i) => {
-      const source = sourceEls[i]
+      const source = sourceEls[i] || liveEl
       if (source) mountToggle(liveEl, source, modal)
+    })
+
+    targetButtons.forEach((button) => {
+      const mounted = mountTargetButton(button, doc)
+      if (!mounted) return
+      mounted.button.addEventListener('click', () => modal.open(mounted.liveTarget, mounted.sourceTarget))
     })
   }
 

@@ -4,7 +4,9 @@
  * The native-state group (label-float, input-underline-grow, toggle-morph, checkbox-draw,
  * radio-fill) assumes one DOM shape: the `data-kui` form control, immediately followed by the
  * element it drives, as a sibling. That is the whole contract — `:focus`/`:checked`/
- * `:not(:placeholder-shown)` on the control plus a general sibling combinator, no JS at all.
+ * `:not(:placeholder-shown)` on the control plus a general sibling combinator, no JS for three of
+ * the five; `toggle-morph`/`radio-fill` add one JS write to carry `--kui-toggle-scale`/
+ * `--kui-radio-scale` onto the sibling (see `prepareSiblingScale` in primitives.ts).
  */
 @layer kui.effects {
   /* --- label-float: input immediately followed by its <label> --- */
@@ -85,7 +87,23 @@
   [data-kui-fx~='strength-meter'][data-kui-strength-level='1'] ~ .kui-meter > *:nth-child(-n + 1),
   [data-kui-fx~='strength-meter'][data-kui-strength-level='2'] ~ .kui-meter > *:nth-child(-n + 2),
   [data-kui-fx~='strength-meter'][data-kui-strength-level='3'] ~ .kui-meter > *:nth-child(-n + 3),
-  [data-kui-fx~='strength-meter'][data-kui-strength-level='4'] ~ .kui-meter > *:nth-child(-n + 4) {
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='4'] ~ .kui-meter > *:nth-child(-n + 4),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='5'] ~ .kui-meter > *:nth-child(-n + 5),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='6'] ~ .kui-meter > *:nth-child(-n + 6),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='7'] ~ .kui-meter > *:nth-child(-n + 7),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='8'] ~ .kui-meter > *:nth-child(-n + 8),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='9'] ~ .kui-meter > *:nth-child(-n + 9),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='10'] ~ .kui-meter > *:nth-child(-n + 10),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='11'] ~ .kui-meter > *:nth-child(-n + 11),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='12'] ~ .kui-meter > *:nth-child(-n + 12),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='13'] ~ .kui-meter > *:nth-child(-n + 13),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='14'] ~ .kui-meter > *:nth-child(-n + 14),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='15'] ~ .kui-meter > *:nth-child(-n + 15),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='16'] ~ .kui-meter > *:nth-child(-n + 16),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='17'] ~ .kui-meter > *:nth-child(-n + 17),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='18'] ~ .kui-meter > *:nth-child(-n + 18),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='19'] ~ .kui-meter > *:nth-child(-n + 19),
+  [data-kui-fx~='strength-meter'][data-kui-strength-level='20'] ~ .kui-meter > *:nth-child(-n + 20) {
     opacity: 1;
     background: var(--kui-meter-on, #2e9e5b);
   }
@@ -93,22 +111,24 @@
   /* --- toggle-morph: checkbox immediately followed by a `.kui-track` containing a `.kui-thumb` --- */
   [data-kui-fx~='toggle-morph'] ~ .kui-track {
     display: inline-block;
-    width: 40px;
-    height: 22px;
+    width: calc(40px * var(--kui-toggle-scale, 1));
+    height: calc(22px * var(--kui-toggle-scale, 1));
     border-radius: 999px;
     background: var(--dim, #9a8d80);
     transition: background-color 200ms ease-out;
     position: relative;
   }
 
+  /* thumb inset (2px) and travel distance (18px) scale with the track so the geometry — thumb
+     diameter + 2 * inset = track height — stays proportional at any --kui-toggle-scale. */
   [data-kui-fx~='toggle-morph'] ~ .kui-track .kui-thumb {
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
+    top: calc(2px * var(--kui-toggle-scale, 1));
+    left: calc(2px * var(--kui-toggle-scale, 1));
+    width: calc(18px * var(--kui-toggle-scale, 1));
+    height: calc(18px * var(--kui-toggle-scale, 1));
     border-radius: 50%;
-    background: #fff;
+    background: var(--kui-thumb-color, #fff);
     translate: 0 0;
     transition: translate 200ms ease-out;
   }
@@ -118,7 +138,7 @@
   }
 
   [data-kui-fx~='toggle-morph']:checked ~ .kui-track .kui-thumb {
-    translate: 18px 0;
+    translate: calc(18px * var(--kui-toggle-scale, 1)) 0;
   }
 
   /* --- checkbox-draw: checkbox immediately followed by an inline <svg><path> checkmark --- */
@@ -135,8 +155,8 @@
   /* --- radio-fill: radio immediately followed by a `.kui-dot` --- */
   [data-kui-fx~='radio-fill'] ~ .kui-dot {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: calc(10px * var(--kui-radio-scale, 1));
+    height: calc(10px * var(--kui-radio-scale, 1));
     border-radius: 50%;
     background: var(--accent, #d2691e);
     scale: 0;
@@ -206,7 +226,21 @@
   [data-kui-fx~='step-progress'][data-kui-step='2'] > *:nth-child(-n + 3),
   [data-kui-fx~='step-progress'][data-kui-step='3'] > *:nth-child(-n + 4),
   [data-kui-fx~='step-progress'][data-kui-step='4'] > *:nth-child(-n + 5),
-  [data-kui-fx~='step-progress'][data-kui-step='5'] > *:nth-child(-n + 6) {
+  [data-kui-fx~='step-progress'][data-kui-step='5'] > *:nth-child(-n + 6),
+  [data-kui-fx~='step-progress'][data-kui-step='6'] > *:nth-child(-n + 7),
+  [data-kui-fx~='step-progress'][data-kui-step='7'] > *:nth-child(-n + 8),
+  [data-kui-fx~='step-progress'][data-kui-step='8'] > *:nth-child(-n + 9),
+  [data-kui-fx~='step-progress'][data-kui-step='9'] > *:nth-child(-n + 10),
+  [data-kui-fx~='step-progress'][data-kui-step='10'] > *:nth-child(-n + 11),
+  [data-kui-fx~='step-progress'][data-kui-step='11'] > *:nth-child(-n + 12),
+  [data-kui-fx~='step-progress'][data-kui-step='12'] > *:nth-child(-n + 13),
+  [data-kui-fx~='step-progress'][data-kui-step='13'] > *:nth-child(-n + 14),
+  [data-kui-fx~='step-progress'][data-kui-step='14'] > *:nth-child(-n + 15),
+  [data-kui-fx~='step-progress'][data-kui-step='15'] > *:nth-child(-n + 16),
+  [data-kui-fx~='step-progress'][data-kui-step='16'] > *:nth-child(-n + 17),
+  [data-kui-fx~='step-progress'][data-kui-step='17'] > *:nth-child(-n + 18),
+  [data-kui-fx~='step-progress'][data-kui-step='18'] > *:nth-child(-n + 19),
+  [data-kui-fx~='step-progress'][data-kui-step='19'] > *:nth-child(-n + 20) {
     opacity: 1;
     background: var(--accent, #d2691e);
   }

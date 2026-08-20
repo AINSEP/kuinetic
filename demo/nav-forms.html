@@ -45,6 +45,13 @@
     aspect-ratio: 4 / 5; background: var(--bg);
   }
   .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* Unlike the other showcase pages, this hero has no photo to fill a forced 4:5 box — it's a
+     small mock nav/list/button cluster (see .hero-media-frame below), so at the single-column
+     mobile width the box stays exactly as wide as the viewport while the aspect-ratio keeps
+     demanding 5/4 of that in height, leaving the sparse content stranded in a mostly-empty panel
+     that can run past 600px tall on a phone. Below the two-column breakpoint, let height come
+     from the content + its own padding instead. */
+  @media (max-width: 899px) { .demo-hero .hero-media { aspect-ratio: auto; } }
 
   /* This page's hero skips photography on purpose, same call as text.html — a nav/forms page's
      "visual anchor" is a live miniature of the chrome it demos below, built from the same
@@ -66,7 +73,13 @@
   /* ---------- demo grid / cards ---------- */
   .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
   .matrix-group .demo-grid { margin-top: 0; }
-  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+  /* tailwind.css deliberately skips Preflight here (see tailwind-entry.css) so style.css/system.css
+     stay the source of truth for resets — but that also means the UA default `figure { margin: 1em
+     40px }` never gets zeroed out. Left alone, that eats 80px of width from every card's grid track,
+     which is invisible on the photo-filled reference pages but shrinks this page's own denser
+     content (the drawer demo's button, the radio-fill join group) enough to clip against
+     overflow:clip below. */
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); margin: 0; }
   .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
   .demo-card figcaption {
     flex: 1 0 auto; display: flex; align-items: center;
@@ -109,6 +122,20 @@
      fill — swap it for a translucent accent-ink so it keeps its "secondary text" weight but
      stays legible against yellow instead of fighting it. */
   #navigation .demo-grid > .demo-card:nth-child(odd) .filler { color: var(--accent-ink); opacity: 0.72; }
+  /* .btn-ghost sets its own text color from daisyUI's --color-base-content (reskinned to var(--fg)
+     below), not from the card it sits in — so on an odd/ink card it ignores the card's ink
+     override and renders in the page's normal --fg instead, which is near-white in dark mode and
+     washes out against the lime fill. Force it to the card's own ink color instead. */
+  #navigation .demo-grid > .demo-card:nth-child(odd) .btn-ghost { color: var(--accent-ink); }
+  /* Same root cause, the other direction: daisyUI's `bg-base-200` utility paints its own
+     --color-base-200 fill (reskinned to var(--surface) below, which equals var(--bg) — solid
+     black in dark mode) directly over whatever the card underneath was doing. On an odd/ink card
+     that solid black fill hides the lime entirely, and the card's own ink-black text sits on top
+     of it — black-on-black, unreadable specifically in dark mode (light mode's fill is white, so
+     the same black text still read fine there, which is why this only showed up on one theme).
+     The card's own ink fill already supplies exactly the tinted surface daisyUI's utility was
+     meant to add, so drop the utility's paint on odd cards instead of layering a second one. */
+  #navigation .demo-grid > .demo-card:nth-child(odd) .bg-base-200 { background-color: transparent; }
 
   /* ---------- daisyUI reskin: paper-white / near-black / acid-lime, not daisyUI's default
      indigo/blue ----------
@@ -186,6 +213,16 @@
        own [data-kui-fx~=label-float] ~ label rule — margin-top (not translate) does the resting
        vertical centering here so it never collides with that rule's translate-only float. */
   }
+
+  /* ---------- validate-check ---------- */
+  /* At rest the checkmark path is undrawn (that's the effect's whole point — it draws in on
+     click), which left nothing but a bare label on the page: no box to read as "this is a
+     checkbox" before you've clicked it. The frame gives the rest state a boundary to sit in. */
+  .validate-check-frame {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 2.25rem; height: 2.25rem; border-radius: 6px; border: 2px solid #000;
+  }
+  :root[data-theme='dark'] .validate-check-frame { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -311,8 +348,8 @@
       <!-- NAVIGATION -->
       <section id="navigation" data-od-id="navigation">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Navigation</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Navigation</h2>
+          <p data-kui="bounce-in 600ms">
             All 8 <code>M</code> names from the <a href="./docs.html?doc=catalog">catalog</a> —
             menus, scroll-driven chrome, and hover panels — dressed in daisyUI's
             <code>navbar</code>, <code>menu</code>, and <code>btn</code> components. kUInetic
@@ -324,8 +361,8 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Menus — 2</p>
           <div class="demo-grid">
-            <figure class="demo-card">
-              <div class="demo-card-body">
+            <figure class="demo-card" data-show-code>
+              <div class="demo-card-body flex items-center">
                 <ul class="menu w-full rounded-box bg-base-200 p-2 text-sm" data-kui-stagger="90ms">
                   <li data-kui="menu-stagger-open"><a>Home</a></li>
                   <li data-kui="menu-stagger-open"><a>Products</a></li>
@@ -336,7 +373,7 @@
               <figcaption>data-kui="menu-stagger-open" — scroll to trigger</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body relative flex min-h-[150px] items-center justify-center overflow-hidden">
                 <button type="button" class="btn btn-primary btn-sm" data-kui-menu-open>Open menu</button>
                 <div
@@ -354,7 +391,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Scroll-driven chrome — 3</p>
           <div class="demo-grid">
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="scroll-box rounded-box border border-base-300">
                   <div class="mini-header" data-kui="header-shrink offset:80">Mini header — scroll me</div>
@@ -364,7 +401,7 @@
               <figcaption>data-kui="header-shrink offset:80" — scroll the box</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="scroll-box rounded-box border border-base-300">
                   <div class="mini-header" data-kui="header-hide-on-scroll">Mini header — scroll me</div>
@@ -374,7 +411,7 @@
               <figcaption>data-kui="header-hide-on-scroll" — scroll, then scroll back up</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="scroll-box rounded-box border border-base-300">
                   <div class="filler">Scroll this box down to reveal the "back to top" control in the corner.</div>
@@ -395,7 +432,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Hover panels &amp; drawer — 3</p>
           <div class="demo-grid">
-            <figure class="demo-card demo-card--pop">
+            <figure class="demo-card demo-card--pop" data-show-code>
               <div class="demo-card-body flex min-h-[140px] items-center">
                 <span class="relative inline-block" data-kui-hover-panel>
                   <button type="button" class="btn btn-ghost btn-sm">Account</button>
@@ -412,7 +449,7 @@
               <figcaption>data-kui="dropdown-open 350ms" — point at Account</figcaption>
             </figure>
 
-            <figure class="demo-card demo-card--pop md:col-span-2">
+            <figure class="demo-card demo-card--pop md:col-span-2" data-show-code>
               <div class="demo-card-body flex min-h-[140px] items-center">
                 <span class="relative inline-block" data-kui-hover-panel>
                   <button type="button" class="btn btn-ghost btn-sm">Products</button>
@@ -427,7 +464,7 @@
               <figcaption>data-kui="mega-menu-drop" — point at Products</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="relative h-[140px] overflow-hidden rounded-box border border-base-300">
                   <button type="button" class="btn btn-primary btn-sm m-3" data-kui-drawer-open>Open drawer</button>
@@ -447,8 +484,8 @@
       <!-- FORMS & INPUTS -->
       <section id="forms" data-od-id="forms">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Forms &amp; inputs</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Forms &amp; inputs</h2>
+          <p data-kui="blur-in 700ms expo-in">
             All 12 <code>O</code> names — floating labels, validation, selection controls, and
             submission feedback — inside daisyUI's <code>input</code>, <code>fieldset</code>, and
             <code>label</code> components. Where a primitive needs its own sibling markup (the
@@ -460,7 +497,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Text fields — 4</p>
           <div class="demo-grid">
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="field max-w-xs">
                   <input id="ff-name" class="input w-full" placeholder=" " data-kui="label-float" />
@@ -470,7 +507,7 @@
               <figcaption>data-kui="label-float" — click into the field</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="max-w-xs">
                   <input
@@ -485,14 +522,14 @@
               <figcaption>data-kui="input-underline-grow" — click into the field</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <input id="ff-focus" class="input w-full max-w-xs" placeholder="Focus me" data-kui="focus-ring-grow 350ms" />
               </div>
               <figcaption>data-kui="focus-ring-grow 350ms" — click into the field</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <input
                   id="ff-shake"
@@ -509,25 +546,27 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Inline feedback — 2</p>
           <div class="demo-grid">
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body flex min-h-[60px] items-center gap-3">
-                <svg
-                  viewBox="0 0 24 24"
-                  class="h-7 w-7 shrink-0 cursor-pointer fill-none"
-                  style="stroke: var(--accent); stroke-width: 2.5"
-                  data-kui="validate-check 500ms on:click"
-                  role="button"
-                  tabindex="0"
-                  aria-label="Draw the checkmark"
-                >
-                  <path d="M4 12l5 5L20 6" />
-                </svg>
+                <span class="validate-check-frame">
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5 shrink-0 cursor-pointer fill-none"
+                    style="stroke: var(--accent); stroke-width: 2.5"
+                    data-kui="validate-check 500ms on:click"
+                    role="button"
+                    tabindex="0"
+                    aria-label="Draw the checkmark"
+                  >
+                    <path d="M4 12l5 5L20 6" />
+                  </svg>
+                </span>
                 <span class="badge badge-outline text-xs">Click to draw the check</span>
               </div>
               <figcaption>data-kui="validate-check 500ms on:click"</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <input id="ff-strength" class="input w-full max-w-xs" type="password" placeholder="Password" data-kui="strength-meter" />
                 <div class="kui-meter mt-2 flex max-w-xs gap-1">
@@ -546,7 +585,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Selection controls — 3</p>
           <div class="demo-grid">
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <label class="label flex w-fit cursor-pointer items-center gap-3">
                   <input type="checkbox" class="sr-only" data-kui="toggle-morph" />
@@ -557,7 +596,7 @@
               <figcaption>data-kui="toggle-morph" — click the switch</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <label class="label flex w-fit cursor-pointer items-center gap-3">
                   <input type="checkbox" class="sr-only" data-kui="checkbox-draw" />
@@ -570,7 +609,7 @@
               <figcaption>data-kui="checkbox-draw" — click the checkbox</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body">
                 <div class="join">
                   <label class="label join-item flex cursor-pointer items-center gap-2 border border-base-300 px-3 py-2">
@@ -597,14 +636,14 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Progress &amp; submission — 3</p>
           <div class="demo-grid">
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body flex min-h-[60px] items-center">
                 <input type="range" min="0" max="100" value="40" class="w-full max-w-[260px]" data-kui="range-fill" />
               </div>
               <figcaption>data-kui="range-fill" — drag the slider</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body flex min-h-[60px] items-center">
                 <div class="flex max-w-[260px] flex-1 gap-2" data-kui="step-progress steps:4">
                   <span class="h-[6px] flex-1 rounded-full"></span>
@@ -616,7 +655,7 @@
               <figcaption>data-kui="step-progress steps:4" — click the bar to advance</figcaption>
             </figure>
 
-            <figure class="demo-card">
+            <figure class="demo-card" data-show-code>
               <div class="demo-card-body flex min-h-[60px] items-center">
                 <button type="button" class="btn btn-primary min-w-[150px]" data-kui="submit-to-spinner-to-check load:900ms hold:1200ms">
                   <span class="kui-stage-idle">Submit</span>
@@ -656,7 +695,7 @@
     for (const wrapper of document.querySelectorAll('[data-kui-hover-panel]')) {
       const panel = wrapper.querySelector('[data-kui]')
       wrapper.addEventListener('mouseenter', () => {
-        window.__kui.play(panel, panel.getAttribute('data-kui'))
+        window.__kui.play(panel, panel.getAttribute('data-kui-fx'))
       })
     }
   </script>
@@ -684,5 +723,6 @@
     })()
   </script>
   <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
 </body>
 </html>

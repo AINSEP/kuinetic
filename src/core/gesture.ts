@@ -133,6 +133,7 @@ export function recognise(
   let origin: Sample | null = null
   let active = false
   let longPressTimer: number | null = null
+  let longPressFired = false
 
   function sampleOf(event: PointerEvent): Sample {
     return { x: event.clientX, y: event.clientY, time: deps.now() }
@@ -154,12 +155,16 @@ export function recognise(
     origin = sampleOf(event)
     samples = [origin]
     active = false
+    longPressFired = false
     // Without this, resistance (elastic-pull) or inertia/axis-locking (throwable, drag-x) can
     // move the element out from under the real cursor; native hit-testing would then deliver the
     // eventual pointerup to whatever is now underneath instead of this element.
     el.setPointerCapture?.(event.pointerId)
     if (longPressMs > 0) {
-      longPressTimer = deps.setTimer(() => handlers.onLongPress?.(origin!), longPressMs)
+      longPressTimer = deps.setTimer(() => {
+        longPressFired = true
+        handlers.onLongPress?.(origin!)
+      }, longPressMs)
     }
   }
 
@@ -191,9 +196,15 @@ export function recognise(
       handlers.onEnd?.(vector, sample)
       const direction = swipeDirection(vector, swipeVelocity)
       if (direction) handlers.onSwipe?.(direction, vector)
+    } else if (longPressFired) {
+      // A long-press that never crossed the drag threshold leaves `active` false, so the branch
+      // above never runs — without this, a handler that sets an engaged state in `onLongPress`
+      // (`pressable`'s `data-kui-pressed`) has no matching release call and stays stuck engaged.
+      handlers.onEnd?.(vector, sample)
     }
     origin = null
     active = false
+    longPressFired = false
     samples = []
   }
 

@@ -63,6 +63,15 @@
     // --- dropdown state ---
     var open = null
     var pinned = false
+    var closeTimer = null
+    var HOVER_CLOSE_DELAY = 5000
+
+    function clearCloseTimer() {
+      if (closeTimer) {
+        clearTimeout(closeTimer)
+        closeTimer = null
+      }
+    }
 
     function closeDropdownDom(g) {
       g.trigger.setAttribute('aria-expanded', 'false')
@@ -70,6 +79,7 @@
     }
 
     function openDropdown(id) {
+      clearCloseTimer()
       if (open === id) return
       var previous = open ? findGroup(open) : null
       if (previous) closeDropdownDom(previous)
@@ -82,6 +92,7 @@
     }
 
     function closeDropdown(id) {
+      clearCloseTimer()
       if (open !== id) return
       var g = findGroup(id)
       if (g) closeDropdownDom(g)
@@ -100,14 +111,24 @@
 
     function hoverOpenDropdown(id) {
       if (!canHover) return
-      if (open === id && pinned) return
+      clearCloseTimer()
+      if (open === id) return
       openDropdown(id)
       pinned = false
     }
 
+    // Mouse leaving the trigger/menu doesn't close right away — it waits HOVER_CLOSE_DELAY in
+    // case that was just the small gap between the trigger and the menu below it, or the user
+    // glancing away for a second. Moving back in (hoverOpenDropdown) cancels this timer. A
+    // click-pinned dropdown is left alone here — it only closes on an explicit outside click
+    // or Escape, same as before.
     function hoverCloseDropdown(id) {
       if (!canHover) return
-      if (open === id && !pinned) closeDropdown(id)
+      if (open !== id || pinned) return
+      clearCloseTimer()
+      closeTimer = setTimeout(function () {
+        closeDropdown(id)
+      }, HOVER_CLOSE_DELAY)
     }
 
     // --- mobile panel + hamburger breakpoint ---

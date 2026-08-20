@@ -50,13 +50,19 @@ describe('forms catalog', () => {
     expect(missing).toEqual([])
   })
 
-  it('gives the five native-state presets an inert instance — the browser drives them, not JS', () => {
+  it('gives label-float/input-underline-grow/checkbox-draw an inert instance — the browser drives them, not JS', () => {
     const registry = createRegistry()
-    const names = ['label-float', 'input-underline-grow', 'toggle-morph', 'checkbox-draw', 'radio-fill']
+    const names = ['label-float', 'input-underline-grow', 'checkbox-draw']
     for (const name of names) {
       const resolved = registry.resolve(name)
       expect(resolved?.primitive.id).toBe('native-state')
     }
+  })
+
+  it('gives toggle-morph/radio-fill their own primitive, for the sibling-scale write their shared scale param needs', () => {
+    const registry = createRegistry()
+    expect(registry.resolve('toggle-morph')?.primitive.id).toBe('toggle-morph')
+    expect(registry.resolve('radio-fill')?.primitive.id).toBe('radio-fill')
   })
 })
 

@@ -7,28 +7,34 @@
 :root,
 :root[data-theme='light'] {
   --bg: #ffffff;
-  --surface: #f6f6f4;
-  --fg: #08090a;
-  --muted: oklch(46% 0.017 75);
+  --surface: #ffffff;
+  --fg: #000000;
+  --muted: #666666;
   --border: #e4e4e2;
-  --accent: #e4f222;
-  --accent-ink: #08090a;
+  --accent: #d0d300;
+  --accent-ink: #000000;
   --accent-text: #8a6d00;
   --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
   color-scheme: light;
 }
 :root[data-theme='dark'] {
-  --bg: #08090a;
-  --surface: #0f1011;
+  --bg: #000000;
+  --surface: #000000;
   --fg: #ffffff;
   --muted: #8a8f98;
-  --border: #23252a;
+  --border: #333333;
   --accent: #e4f222;
-  --accent-ink: #08090a;
+  --accent-ink: #000000;
   --accent-text: #e4f222;
   --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
   color-scheme: dark;
 }
+
+/* `border-draw` paints with `--kui-border-draw-color`, which falls back to the site `--accent` —
+   acid-lime here, and near-invisible as a 2px stroke on a white light-mode card. Point it at the
+   ink colour instead: `--fg` is already black in light mode and white in dark, so the stroke reads
+   as deliberate in both themes without a second rule. */
+:root { --kui-border-draw-color: var(--fg); }
 
 :root[data-theme='dark'] main h1,
 :root[data-theme='dark'] main h2 { color: var(--accent); }
@@ -192,13 +198,19 @@ button, a.btn { font-family: inherit; cursor: pointer; }
   display: inline-flex; align-items: center; gap: 0.5rem;
   padding: 0.8rem 1.4rem;
   border-radius: 6px;
-  font-size: 0.95rem; font-weight: 590;
+  font-size: 0.95rem; font-weight: 700;
   text-decoration: none !important;
   border: 1px solid transparent;
   white-space: nowrap;
 }
 .btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
 .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+
+/* Hero CTA only, light mode only: black fill + white text instead of the lime/black accent
+   fill — dark mode, and every other .btn-primary on the page (demo buttons, in-card CTAs),
+   stay untouched. */
+:root[data-theme='light'] .demo-hero-actions .btn-primary { background: #000000; color: #ffffff; }
+:root[data-theme='light'] .demo-hero-actions .btn-primary:hover { background: #222222; }
 .btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); position: relative; overflow: hidden; }
 .btn-ghost:hover { border-color: var(--fg); }
 
@@ -227,3 +239,191 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
 }
 .kui-replay-fab:hover { transform: scale(1.06); }
 .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* "Show code" button and modal */
+.kui-show-code-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 200px;
+  align-self: center;
+  margin-inline: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.4rem 0.5rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+
+.kui-show-code-toggle:hover {
+  filter: brightness(1.1);
+}
+
+:root[data-theme='dark'] .kui-show-code-toggle:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+  filter: none;
+}
+
+figure .kui-show-code-toggle {
+  margin: 0;
+}
+
+.matrix-group > .kui-show-code-toggle {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.kui-code-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  place-items: center;
+  padding: 2rem;
+  /* Undimmed and click-through on purpose: the whole point of the draggable panel is to edit a
+     `data-kui` value and watch the real element behind it react, which a dimming, event-swallowing
+     overlay makes impossible. Escape and the × still close it; the panel itself re-enables its own
+     pointer events below. */
+  pointer-events: none;
+  background: none;
+}
+
+.kui-code-modal {
+  position: relative;
+  max-width: 720px;
+  max-height: 80vh;
+  width: 100%;
+  overflow: auto;
+  pointer-events: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+
+.kui-code-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* The header is the drag handle. `touch-action: none` keeps a touch drag from being stolen by
+     the browser's own pan gesture before the pointermove handler ever sees it. */
+  cursor: grab;
+  touch-action: none;
+  margin: -0.9rem -0.9rem 0.6rem 0;
+}
+
+.kui-code-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+.kui-code-modal-close:hover {
+  color: var(--fg);
+}
+
+.kui-code-modal-grip {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  /* The whole header is the drag handle, so the label just has to advertise it. */
+  cursor: grab;
+  user-select: none;
+}
+
+.kui-code-modal-header.is-dragging,
+.kui-code-modal-header.is-dragging .kui-code-modal-grip {
+  cursor: grabbing;
+}
+
+.kui-code-tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.kui-code-tryit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.kui-code-tryit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kui-code-tryit-copy,
+.kui-code-tryit-apply,
+.kui-code-tryit-reset {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.kui-code-tryit-copy {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem;
+  color: var(--muted);
+}
+
+.kui-code-tryit-copy.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.kui-code-tryit-copy:hover,
+.kui-code-tryit-apply:hover,
+.kui-code-tryit-reset:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.kui-code-modal pre {
+  margin: 0;
+  padding: 0;
+}
+
+.kui-code-modal code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: none;
+  border: none;
+  padding: 0;
+}

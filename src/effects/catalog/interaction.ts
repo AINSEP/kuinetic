@@ -41,12 +41,16 @@ const hoverTiming: ParameterSchema = {
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 
-function hoverPrimitive(id: string, channels: string[]): Primitive {
+const liftParams: ParameterSchema = {
+  distance: { type: 'length', default: '6px', cssProperty: '--kui-lift-distance' },
+}
+
+function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSchema = {}): Primitive {
   return {
     id,
     renderer: 'javascript' as Renderer,
     channels,
-    parameters: hoverTiming,
+    parameters: { ...hoverTiming, ...extraParams },
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
@@ -62,8 +66,8 @@ function hoverPrimitive(id: string, channels: string[]): Primitive {
 }
 
 export const HOVER_PRIMITIVES: Primitive[] = [
-  hoverPrimitive('lift', ['translate']),
-  hoverPrimitive('lift-shadow', ['translate', 'shadow']),
+  hoverPrimitive('lift', ['translate'], liftParams),
+  hoverPrimitive('lift-shadow', ['translate', 'shadow'], liftParams),
   hoverPrimitive('shine-sweep', ['sweep']),
   hoverPrimitive('split-flap', ['rotate']),
   hoverPrimitive('border-draw', ['border']),
@@ -127,6 +131,13 @@ const springParams: ParameterSchema = {
     minimum: 0.1,
     maximum: 1_000,
   },
+  mass: {
+    type: 'number',
+    default: '1',
+    cssProperty: '--kui-mass',
+    finite: true,
+    minimum: 0.1,
+  },
 }
 
 function pointerPrimitive(
@@ -158,6 +169,7 @@ function springFrom(params: EffectParams): SpringConfig {
     ...DEFAULT_SPRING,
     stiffness: params.num('stiffness', DEFAULT_SPRING.stiffness),
     damping: params.num('damping', DEFAULT_SPRING.damping),
+    mass: params.num('mass', DEFAULT_SPRING.mass),
   }
 }
 

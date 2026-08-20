@@ -1,24 +1,30 @@
 /* Showcase chrome only — none of the animation lives here. */
 
 :root {
-  --ink: #f3ece4;
-  --dim: #9a8d80;
-  --bg: #0f0d0c;
-  --panel: #171413;
-  --accent: #d2691e;
-  --line: #2a2422;
+  --ink: #ffffff;
+  --dim: #8a8f98;
+  --bg: #000000;
+  --panel: #000000;
+  --accent: #e4f222;
+  --line: #333333;
   color-scheme: dark;
 }
 
 :root[data-theme='light'] {
-  --ink: #221c18;
-  --dim: #71645b;
+  --ink: #000000;
+  --dim: #666666;
   --bg: #ffffff;
-  --panel: #f5f1ea;
-  --accent: #a94f13;
-  --line: #ded4ca;
+  --panel: #ffffff;
+  --accent: #d0d300;
+  --line: #e4e4e2;
   color-scheme: light;
 }
+
+/* `border-draw` paints with `--kui-border-draw-color`, which falls back to the site `--accent` —
+   acid-lime here, and near-invisible as a 2px stroke on a white light-mode card. Point it at the
+   ink colour instead: `--ink` is already black in light mode and white in dark, so the stroke reads
+   as deliberate in both themes without a second rule. */
+:root { --kui-border-draw-color: var(--ink); }
 
 * {
   box-sizing: border-box;
@@ -582,26 +588,32 @@ a:focus-visible {
 
 /* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo). */
 .kui-show-code-toggle {
-  display: inline-block;
-  margin-top: 0.7rem;
-  margin-right: 0.5rem;
-  font-size: 0.78rem;
-  padding: 0.3rem 0.65rem;
-  color: var(--dim);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.4rem 0.5rem;
+  color: #000000;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
 }
 
 .kui-show-code-toggle:hover {
-  color: var(--ink);
-  border-color: var(--accent);
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
 }
 
-/* figures already have their own padding-free layout (image + figcaption flush to the edges) —
-   give the button breathing room there specifically. */
 figure .kui-show-code-toggle {
-  margin: 0.7rem 0.9rem 0.9rem;
+  margin: 0;
 }
 
 .kui-code-modal-backdrop {
@@ -612,7 +624,12 @@ figure .kui-show-code-toggle {
   z-index: 100;
   place-items: center;
   padding: 2rem;
-  background: rgb(0 0 0 / 0.5);
+  /* Undimmed and click-through on purpose: the whole point of the draggable panel is to edit a
+     `data-kui` value and watch the real element behind it react, which a dimming, event-swallowing
+     overlay makes impossible. Escape and the × still close it; the panel itself re-enables its own
+     pointer events below. */
+  pointer-events: none;
+  background: none;
 }
 
 .kui-code-modal {
@@ -621,7 +638,8 @@ figure .kui-show-code-toggle {
   max-height: 80vh;
   width: 100%;
   overflow: auto;
-  background: var(--panel);
+  pointer-events: auto;
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1.5rem;
@@ -630,7 +648,13 @@ figure .kui-show-code-toggle {
 
 .kui-code-modal-header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* The header is the drag handle. `touch-action: none` keeps a touch drag from being stolen by
+     the browser's own pan gesture before the pointermove handler ever sees it. */
+  cursor: grab;
+  touch-action: none;
   /* negative margin pulls the button back into the dialog's own padding, so it sits in the
      same snug corner it occupied when it was absolutely positioned, instead of a full 1.5rem
      inset that reads like an empty row. */
@@ -652,6 +676,21 @@ figure .kui-show-code-toggle {
 
 .kui-code-modal-close:hover {
   color: var(--ink);
+}
+
+.kui-code-modal-grip {
+  color: var(--dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  /* The whole header is the drag handle, so the label just has to advertise it. */
+  cursor: grab;
+  user-select: none;
+}
+
+.kui-code-modal-header.is-dragging,
+.kui-code-modal-header.is-dragging .kui-code-modal-grip {
+  cursor: grabbing;
 }
 
 .kui-code-tryit {

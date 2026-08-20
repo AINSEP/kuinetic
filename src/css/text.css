@@ -204,7 +204,7 @@
     background-image: linear-gradient(
       100deg,
       transparent 30%,
-      color-mix(in srgb, currentColor 70%, transparent) 50%,
+      color-mix(in srgb, var(--kui-sweep-color, currentColor) 70%, transparent) 50%,
       transparent 70%
     );
     background-size: 260% 100%;
@@ -223,7 +223,10 @@
   }
 
   [data-kui-fx~='highlight-sweep'] {
-    background-image: linear-gradient(90deg, color-mix(in srgb, gold 55%, transparent) 0 100%);
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--kui-sweep-color, currentColor) 55%, transparent) 0 100%
+    );
     background-repeat: no-repeat;
     background-size: 0% 100%;
     padding: 0 0.05em;
@@ -236,7 +239,10 @@
   }
 
   [data-kui-fx~='underline-draw'] {
-    background-image: linear-gradient(currentColor, currentColor);
+    background-image: linear-gradient(
+      var(--kui-sweep-color, currentColor),
+      var(--kui-sweep-color, currentColor)
+    );
     background-repeat: no-repeat;
     background-position: 0 100%;
     background-size: 0% 2px;
@@ -282,12 +288,17 @@
     }
   }
 
+  /* `oblique <angle>` leans right for POSITIVE angles. A negative angle asks for a backslant,
+   * which no shipping browser renders and no common variable font carries on its `slnt` axis
+   * (that axis is negative-for-rightward, the opposite sign convention) — so a negative default
+   * animated the computed value while painting glyph-for-glyph identical to upright. The default
+   * is positive for that reason; authors who genuinely want a backslant can still pass one. */
   @keyframes kui-var-slant {
     from {
       font-style: oblique var(--kui-from-slant, 0deg);
     }
     to {
-      font-style: oblique var(--kui-to-slant, -10deg);
+      font-style: oblique var(--kui-to-slant, 10deg);
     }
   }
 
@@ -328,6 +339,20 @@
 
   /* --- redaction-reveal --- */
 
+  /* The compiler writes `animation-name`/`animation-duration`/etc. as an inline style on the
+     authored element itself — it has no way to target a pseudo-element directly. The black bar
+     is `::before`, so the keyframe below animates this registered custom property on the real
+     element instead of `clip-path` directly; custom properties inherit into pseudo-elements by
+     default, so `::before`'s own `clip-path` (which just reads the property back via `var()`)
+     picks up the live animated value every frame. Without this bridge the keyframe's `clip-path`
+     applied to the real (textual, backgroundless) element instead — invisible there — and the
+     bar's own static `clip-path: inset(0)` never moved, leaving the text permanently redacted. */
+  @property --kui-redaction-x {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 0%;
+  }
+
   [data-kui-fx~='redaction-reveal'] {
     position: relative;
     display: inline-block;
@@ -337,13 +362,13 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: #111;
-    clip-path: inset(0 0 0 0);
+    background: var(--kui-bar-color, #111);
+    clip-path: inset(0 0 0 var(--kui-redaction-x));
   }
 
   @keyframes kui-redaction-reveal {
     to {
-      clip-path: inset(0 0 0 100%);
+      --kui-redaction-x: 100%;
     }
   }
 
@@ -360,10 +385,13 @@
       6px 6px 8px rgb(0 0 0 / 0.35);
   }
 
+  /* -6deg/12px read as barely-there at normal reading speed — the static text-shadow stack
+     above is the loud part, so the motion needs enough amplitude to actually register against
+     it, not just be technically present. */
   @keyframes kui-text-3d-extrude {
     from {
-      rotate: -6deg;
-      translate: 0 12px;
+      rotate: var(--kui-from-angle, -20deg);
+      translate: 0 var(--kui-distance, 32px);
     }
     to {
       rotate: 0deg;

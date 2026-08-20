@@ -308,7 +308,7 @@
       opacity: 0.6;
     }
     50% {
-      scale: 1.15;
+      scale: var(--kui-pulse-scale, 1.15);
       opacity: 1;
     }
   }

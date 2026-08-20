@@ -46,10 +46,12 @@
 
   [data-kui-fx~='confetti-burst'] {
     --kui-feedback-burst-duration: 900ms;
+    --kui-pop-scale: 1.15;
   }
 
   [data-kui-fx~='count-bump'] {
     --kui-feedback-pop-duration: 280ms;
+    --kui-pop-scale: 1.3;
   }
 
   [data-kui-fx~='count-compact'] {
@@ -169,6 +171,11 @@
 
   [data-kui-fx~='heart-burst'] {
     --kui-feedback-burst-duration: 700ms;
+    --kui-pop-scale: 1.4;
+  }
+
+  [data-kui-fx~='highlight-sweep'] {
+    --kui-sweep-color: gold;
   }
 
   [data-kui-fx~='line-grid-drift'] {

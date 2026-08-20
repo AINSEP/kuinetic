@@ -44,6 +44,30 @@
     aspect-ratio: 4 / 5; background: var(--surface);
   }
   .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* This hero skips photography for the same reason text.html's does: the subject is numbers, so
+     the visual anchor is four live counters rather than a stock image. It reuses the fixed "ink"
+     pairing (acid-lime fill, near-black text, same hex in both themes) that the odd demo-cards
+     below already use, because .hero-media's shared grey --surface has nothing covering it once
+     the photo is gone and would otherwise read as grey-on-grey. Equal specificity to
+     `.demo-hero .hero-media` (two classes each), so it wins on source order. */
+  .hero-media.hero-media-stats {
+    display: flex; flex-direction: column; justify-content: center;
+    gap: clamp(0.9rem, 2vw, 1.6rem); padding: clamp(1.75rem, 3vw, 2.75rem);
+    background: var(--accent); color: var(--accent-ink);
+  }
+  .hero-stat b {
+    display: block; font-size: clamp(1.9rem, 2.6vw + 1rem, 3rem); font-weight: 800;
+    line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums;
+  }
+  /* Class selector, deliberately never `.hero-stat span` — the same trap documented for
+     .stat-body below: a descendant type selector also reaches each counter's own
+     accessible-layer spans, and this page's unlayered CSS beats their `@layer kui.effects`
+     display rules regardless of specificity. */
+  .hero-stat-label {
+    display: block; margin-top: 0.35rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; letter-spacing: 0.02em; opacity: 0.72;
+  }
 
   /* ---------- section heads ---------- */
   .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
@@ -168,7 +192,8 @@
   /* ---------- cursor (section I) — a live zone, not an artifact, so it stays visually distinct
      (dashed border) from the solid-border demo-card components above ---------- */
   .cursor-zone {
-    display: grid; place-items: center; min-height: 150px; padding: 1rem;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.85rem;
+    min-height: 150px; padding: 1rem;
     border-radius: 14px; border: 1px dashed var(--border); background: var(--bg);
     color: var(--muted); font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     text-align: center;
@@ -274,20 +299,31 @@
           </div>
           <p class="demo-hero-note" data-kui="fade-up 900ms 220ms"><span class="dot"></span> Scroll for the counters, then hover or Tab through the cards below.</p>
         </div>
-        <div class="hero-media">
-          <img
-            src="./assets/luxury_watch.jpg"
-            alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal"
-            data-kui="blur-in 2000ms on:load"
-          />
+        <div class="hero-media hero-media-stats">
+          <div class="hero-stat" data-kui="lift" tabindex="0">
+            <b data-kui="count-up 1800ms on:load to:2450">0</b>
+            <span class="hero-stat-label">data-kui="count-up" · card: "lift" — hover or Tab</span>
+          </div>
+          <div class="hero-stat" data-kui="shine-sweep" tabindex="0">
+            <b data-kui="count-currency 1800ms 140ms on:load to:4820 decimals:0">0</b>
+            <span class="hero-stat-label">data-kui="count-currency" · card: "shine-sweep" — hover or Tab</span>
+          </div>
+          <div class="hero-stat" data-kui="icon-wiggle" tabindex="0">
+            <b data-kui="count-compact 1800ms 280ms on:load to:128400">0</b>
+            <span class="hero-stat-label">data-kui="count-compact" · card: "icon-wiggle" — hover or Tab</span>
+          </div>
+          <div class="hero-stat">
+            <b data-kui="count-percent 1800ms 420ms on:load to:0.94">0</b>
+            <span class="hero-stat-label">data-kui="count-percent"</span>
+          </div>
         </div>
       </section>
 
       <!-- NUMBERS & DATA VIZ (catalog section F, 13 names) -->
       <section id="matrix" data-od-id="numbers">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Numbers &amp; data viz</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Numbers &amp; data viz</h2>
+          <p data-kui="bounce-in 600ms">
             All 13 names in <a href="./docs.html?doc=catalog">catalog section F</a> — count
             formats, SVG progress geometry, and bar/segment/rating fills. Counters expose their
             final value to assistive tech and never spam <code>aria-live</code> mid-animation.
@@ -298,27 +334,27 @@
           <p class="matrix-group-label">Counters — 6</p>
           <p class="note">Scroll each card into view to trigger its count.</p>
           <div class="demo-grid" data-kui-stagger="80ms">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="count-up 1800ms to:2450">0</b></div>
               <p class="demo-card-caption">data-kui="count-up 1800ms to:2450"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="count-down 1800ms from:500 to:0">0</b></div>
               <p class="demo-card-caption">data-kui="count-down 1800ms from:500 to:0"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="count-currency 1800ms to:4820 decimals:0">0</b></div>
               <p class="demo-card-caption">data-kui="count-currency 1800ms to:4820 decimals:0"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="count-percent 1800ms to:0.94">0</b></div>
               <p class="demo-card-caption">data-kui="count-percent 1800ms to:0.94"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="count-compact 1800ms to:128400">0</b></div>
               <p class="demo-card-caption">data-kui="count-compact 1800ms to:128400"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="odometer-roll 2000ms to:4820">0</b></div>
               <p class="demo-card-caption">data-kui="odometer-roll 2000ms to:4820"</p>
             </div>
@@ -327,13 +363,13 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Rings, gauges &amp; sweeps — 4</p>
-          <p class="note">
+          <p class="note" data-kui="bounce-in">
             Author-supplied SVG geometry: <code>stroke-dasharray</code> and
             <code>--kui-path-length</code> match the shape's own circumference or arc length, the
             same convention <code>scroll-progress-ring</code> uses.
           </p>
           <div class="demo-grid demo-grid--paper" data-kui-stagger="100ms">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body">
                 <svg class="meter-ring" width="110" height="110" viewBox="0 0 100 100">
                   <circle class="meter-track" cx="50" cy="50" r="42" stroke-width="10" />
@@ -348,7 +384,7 @@
               </div>
               <p class="demo-card-caption">data-kui="progress-ring"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body">
                 <svg class="meter-gauge" width="110" height="70" viewBox="0 0 100 60">
                   <path class="meter-track" d="M10,50 A40,40 0 0 1 90,50" stroke-width="10" />
@@ -363,7 +399,7 @@
               </div>
               <p class="demo-card-caption">data-kui="gauge-sweep"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body">
                 <svg class="meter-donut" width="110" height="110" viewBox="0 0 100 100">
                   <circle class="meter-track" cx="50" cy="50" r="38" stroke-width="18" />
@@ -378,7 +414,7 @@
               </div>
               <p class="demo-card-caption">data-kui="donut-sweep"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body">
                 <svg class="meter-spark" width="140" height="60" viewBox="0 0 100 40">
                   <path class="track" d="M0,30 L20,10 L40,25 L60,5 L80,20 L100,8" />
@@ -398,7 +434,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Bars, segments &amp; ratings — 3</p>
           <div class="demo-grid demo-grid--paper" data-kui-stagger="100ms">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body" style="flex-direction: column; align-items: stretch;">
                 <div class="meter-bar-track">
                   <div class="meter-bar-fill" data-kui="progress-bar 1200ms"></div>
@@ -406,7 +442,7 @@
               </div>
               <p class="demo-card-caption">data-kui="progress-bar"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body" style="flex-direction: column; align-items: stretch;">
                 <div class="meter-segments-track" data-kui-stagger="90ms">
                   <i data-kui="progress-segments 350ms"></i>
@@ -418,7 +454,7 @@
               </div>
               <p class="demo-card-caption">data-kui="progress-segments" (staggered)</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="meter-body">
                 <div class="star-rating" aria-label="3.5 out of 5 stars">
                   <span class="empty" aria-hidden="true">★★★★★</span>
@@ -434,8 +470,8 @@
       <!-- HOVER & POINTER (catalog section I, 20 names) -->
       <section data-od-id="hover">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Hover &amp; pointer</h2>
-          <p>
+          <h2 data-kui="fade-up on:enter">Hover &amp; pointer</h2>
+          <p data-kui="fade-up 700ms expo-in">
             All 20 names in <a href="./docs.html?doc=catalog">catalog section I</a>, grouped
             exactly as the catalog groups them — button, border, link, icon, card, and cursor.
             Every hover effect below ships a <code>:focus-visible</code> equivalent, so Tab works
@@ -446,23 +482,23 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Buttons — 5</p>
           <div class="demo-grid">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="lift">Lift</button></div>
               <p class="demo-card-caption">data-kui="lift" — hover or Tab</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="lift-shadow">Lift + shadow</button></div>
               <p class="demo-card-caption">data-kui="lift-shadow"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="magnetic">Magnetic</button></div>
               <p class="demo-card-caption">data-kui="magnetic" — move close</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="shine-sweep">Shine sweep</button></div>
               <p class="demo-card-caption">data-kui="shine-sweep"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="split-flap">Split flap</button></div>
               <p class="demo-card-caption">data-kui="split-flap"</p>
             </div>
@@ -472,15 +508,15 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Borders — 3</p>
           <div class="demo-grid">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="border-draw">Border draw</button></div>
               <p class="demo-card-caption">data-kui="border-draw"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="border-glow">Border glow</button></div>
               <p class="demo-card-caption">data-kui="border-glow"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="fx-btn" data-kui="beam-border">Beam border</button></div>
               <p class="demo-card-caption">data-kui="beam-border"</p>
             </div>
@@ -498,15 +534,15 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Icons — 3</p>
           <div class="demo-grid">
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="icon-btn" data-kui="icon-wiggle" aria-label="icon-wiggle">⚑</button></div>
               <p class="demo-card-caption">data-kui="icon-wiggle"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="icon-btn" data-kui="icon-spin" aria-label="icon-spin">⚙</button></div>
               <p class="demo-card-caption">data-kui="icon-spin"</p>
             </div>
-            <div class="demo-card">
+            <div class="demo-card" data-show-code>
               <div class="fx-body"><button class="icon-btn" data-kui="icon-bounce" aria-label="icon-bounce">▲</button></div>
               <p class="demo-card-caption">data-kui="icon-bounce"</p>
             </div>
@@ -517,11 +553,11 @@
           <p class="matrix-group-label">Card tilt — 2</p>
           <p class="note">Move the pointer over each card, or Tab to it.</p>
           <div class="demo-grid" data-kui-stagger="120ms">
-            <figure class="demo-card" data-kui="tilt-3d" tabindex="0">
+            <figure class="demo-card" data-kui="tilt-3d" tabindex="0" data-show-code>
               <img src="./assets/azzaro_cologne.jpg" alt="Matte black Azzaro cologne bottle with a diamond-quilted band, wisps of smoke curling beside sprigs of juniper" loading="lazy" />
               <figcaption>data-kui="tilt-3d"</figcaption>
             </figure>
-            <figure class="demo-card tilt-parallax-card" data-kui="tilt-parallax" tabindex="0">
+            <figure class="demo-card tilt-parallax-card" data-kui="tilt-parallax" tabindex="0" data-show-code>
               <div class="tilt-media">
                 <img src="./assets/mens_accessories_flatlay.jpg" alt="Black leather brogues, belt, sunglasses, bow tie, cufflinks, and wristwatch arranged as a flat lay on a light textured sheet" loading="lazy" />
                 <b data-depth="24">tilt-parallax</b>
@@ -536,11 +572,11 @@
           <p class="matrix-group-label">Cursor — 5</p>
           <p class="note">Each zone spawns its own follower — move the pointer across, or Tab in.</p>
           <div class="demo-grid">
-            <div class="cursor-zone" data-kui="cursor-follow" tabindex="0">cursor-follow</div>
-            <div class="cursor-zone" data-kui="cursor-lag" tabindex="0">cursor-lag</div>
-            <div class="cursor-zone" data-kui="cursor-label" tabindex="0">cursor-label</div>
-            <div class="cursor-zone" data-kui="cursor-spotlight" tabindex="0">cursor-spotlight</div>
-            <div class="cursor-zone" data-kui="cursor-invert" tabindex="0">cursor-invert</div>
+            <div class="cursor-zone" data-kui="cursor-follow" tabindex="0" data-show-code>cursor-follow</div>
+            <div class="cursor-zone" data-kui="cursor-lag" tabindex="0" data-show-code>cursor-lag</div>
+            <div class="cursor-zone" data-kui="cursor-label" tabindex="0" data-show-code>cursor-label</div>
+            <div class="cursor-zone" data-kui="cursor-spotlight" tabindex="0" data-show-code>cursor-spotlight</div>
+            <div class="cursor-zone" data-kui="cursor-invert" tabindex="0" data-show-code>cursor-invert</div>
           </div>
         </div>
       </section>
@@ -583,5 +619,6 @@
     })()
   </script>
   <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
 </body>
 </html>

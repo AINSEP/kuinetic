@@ -201,7 +201,7 @@
   }
 
   /* ---------- horizontal scroll (Section C) ---------- */
-  .track-stage { height: 300vh; margin-top: 2rem; }
+  .track-stage { height: 400vh; margin-top: 2rem; }
   .track-viewport { position: sticky; top: 0; height: 100vh; display: grid; align-content: center; overflow: hidden; }
   .track { display: flex; gap: 1.5rem; width: max-content; padding: 0 4rem; }
   .track figure { width: 380px; flex: none; border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface); }
@@ -390,7 +390,7 @@
       <!-- SECTION B: SCROLL REVEAL & PARALLAX -->
       <section id="matrix" data-od-id="reveal-parallax">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Scroll reveal &amp; parallax</h2>
+          <h2 data-kui="fade-up on:enter">Scroll reveal &amp; parallax</h2>
           <p>
             Catalog section B — 12 named effects. Nine are live below; three
             (<code>reveal-repeat</code>, <code>scroll-skew</code>, <code>reveal-direction-aware</code>) are
@@ -405,11 +405,11 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Reveal &amp; fade — 2</p>
           <div class="demo-grid">
-            <figure class="demo-card" data-kui="reveal-once">
+            <figure class="demo-card" data-kui="reveal-once" data-show-code>
               <img src="./assets/scenic_lake_reflection.jpg" alt="A calm alpine lake with a mirror-still reflection of the mountains above it" loading="lazy" />
               <figcaption>data-kui="reveal-once"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="scroll-fade timeline:view">
+            <figure class="demo-card" data-kui="scroll-fade timeline:view" data-show-code>
               <img src="./assets/scenic_desert_dunes.jpg" alt="Rolling desert sand dunes with strong shadow texture" loading="lazy" />
               <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
             </figure>
@@ -420,31 +420,31 @@
           <p class="matrix-group-label">Parallax — 5</p>
           <p class="matrix-group-note">Each frame clips a deliberately oversized image so the transform never reveals a bare edge — the amount and direction of oversize differs per effect (see the CSS comments in this page's <code>&lt;style&gt;</code> block).</p>
           <div class="demo-grid">
-            <figure class="parallax-card">
+            <figure class="parallax-card" data-show-code>
               <div class="parallax-frame">
                 <img data-kui="parallax-y distance:120px timeline:view" src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
               </div>
               <figcaption>parallax-y — distance:120px</figcaption>
             </figure>
-            <figure class="parallax-card">
+            <figure class="parallax-card" data-show-code>
               <div class="parallax-frame is-x">
                 <img data-kui="parallax-x distance:100px timeline:view" src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
               </div>
               <figcaption>parallax-x — distance:100px</figcaption>
             </figure>
-            <figure class="parallax-card">
+            <figure class="parallax-card" data-show-code>
               <div class="parallax-frame is-scale">
                 <img data-kui="parallax-scale scale:1.25 timeline:view" src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
               </div>
               <figcaption>parallax-scale — scale:1.25</figcaption>
             </figure>
-            <figure class="parallax-card">
+            <figure class="parallax-card" data-show-code>
               <div class="parallax-frame is-rotate">
                 <img data-kui="parallax-rotate angle:10deg timeline:view" src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
               </div>
               <figcaption>parallax-rotate — angle:10deg</figcaption>
             </figure>
-            <figure class="parallax-card">
+            <figure class="parallax-card" data-show-code>
               <div class="parallax-frame">
                 <img data-kui="depth-layer timeline:view" src="./assets/scenic_valley_mist.jpg" alt="A misty mountain valley with layered ridgelines fading into fog" loading="lazy" />
               </div>
@@ -457,7 +457,7 @@
       <!-- SECTION C: SCROLL MECHANICS -->
       <section data-od-id="scroll-mechanics">
         <div class="section-head">
-          <h2 data-kui="fade-up" data-kui-on="enter">Scroll mechanics</h2>
+          <h2 data-kui="fade-up on:enter">Scroll mechanics</h2>
           <p>
             Catalog section C — 11 named effects, all backed by real primitives. Ten are demonstrated below;
             <code>video-scrub</code> is verified in <code>kuinetic.js</code> (the same <code>media-scrub</code>
@@ -490,13 +490,13 @@
               <p class="mono-note">data-kui="pin-until offset:6rem"</p>
             </aside>
             <div class="pin-until-content">
-              <figure class="pin-until-block">
+              <figure class="pin-until-block" data-show-code>
                 <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
               </figure>
-              <figure class="pin-until-block">
+              <figure class="pin-until-block" data-show-code>
                 <img src="./assets/scenic_terraced_rice_fields.jpg" alt="Green terraced rice fields carved into a hillside" loading="lazy" />
               </figure>
-              <figure class="pin-until-block">
+              <figure class="pin-until-block" data-show-code>
                 <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
               </figure>
             </div>
@@ -517,25 +517,25 @@
           <p class="matrix-group-note" style="margin-top:2rem;">stacking-cards — the pin primitive applied per card, each at its own <code>offset</code>, so the stack builds up naturally as you scroll.</p>
           <div class="stack-group">
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:1rem">
+              <figure class="stack-card" data-kui="stacking-cards offset:1rem" data-show-code>
                 <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
                 <figcaption>offset:1rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:2.25rem">
+              <figure class="stack-card" data-kui="stacking-cards offset:2.25rem" data-show-code>
                 <img src="./assets/scenic_redwood_forest.jpg" alt="Tall old-growth redwood trees with sunbeams through the canopy" loading="lazy" />
                 <figcaption>offset:2.25rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:3.5rem">
+              <figure class="stack-card" data-kui="stacking-cards offset:3.5rem" data-show-code>
                 <img src="./assets/scenic_sahara_dunes.jpg" alt="Sahara desert dune ridgelines lit in warm sunset tones" loading="lazy" />
                 <figcaption>offset:3.5rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:4.75rem">
+              <figure class="stack-card" data-kui="stacking-cards offset:4.75rem" data-show-code>
                 <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
                 <figcaption>offset:4.75rem</figcaption>
               </figure>
@@ -561,31 +561,51 @@
           <p class="matrix-group-label">Horizontal travel — 1</p>
           <div class="track-stage">
             <div class="track-viewport">
-              <div class="track" data-kui="horizontal-scroll distance:250vh">
-                <figure>
+              <div class="track" data-kui="horizontal-scroll distance:300vh">
+                <figure data-show-code>
                   <img src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
                   <figcaption>Alps</figcaption>
                 </figure>
-                <figure>
+                <figure data-show-code>
                   <img src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
                   <figcaption>Amalfi coast</figcaption>
                 </figure>
-                <figure>
+                <figure data-show-code>
                   <img src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
                   <figcaption>Canyon falls</figcaption>
                 </figure>
-                <figure>
+                <figure data-show-code>
                   <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
                   <figcaption>Aurora</figcaption>
                 </figure>
-                <figure>
+                <figure data-show-code>
                   <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
                   <figcaption>City nights</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/scenic_norway_fjord.jpg" alt="A deep Norwegian fjord flanked by sheer rock walls" loading="lazy" />
+                  <figcaption>Fjord</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/scenic_sahara_dunes.jpg" alt="Wind-carved Sahara dunes running to the horizon" loading="lazy" />
+                  <figcaption>Sahara</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/scenic_redwood_forest.jpg" alt="Redwood trunks rising through low forest mist" loading="lazy" />
+                  <figcaption>Redwoods</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline curving around a shallow bay" loading="lazy" />
+                  <figcaption>Turquoise bay</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/scenic_volcano_eruption.jpg" alt="A volcano erupting at night with lava lighting the ash plume" loading="lazy" />
+                  <figcaption>Eruption</figcaption>
                 </figure>
               </div>
             </div>
           </div>
-          <p class="note">data-kui="horizontal-scroll distance:250vh" — a JS orchestrator translates the track directly; nothing here is a native scroll container.</p>
+          <p class="note">data-kui="horizontal-scroll distance:300vh" — a JS orchestrator translates the track directly; nothing here is a native scroll container.</p>
         </div>
 
         <div class="matrix-group">
@@ -643,42 +663,42 @@
           <p class="matrix-group-note">scroll-snap-x / scroll-snap-y just set <code>scroll-snap-type</code>/<code>-align</code> — these are real independently-scrollable containers, not JS-driven like the horizontal track above. Drag or scroll them directly.</p>
 
           <div class="snap-x-row" data-kui="scroll-snap-x">
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_slot_canyon.jpg" alt="A narrow slot canyon with warm glowing sandstone walls and light beams" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_glacier_ice.jpg" alt="A glacier landscape of blue-white ice under a cold sky" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
           </div>
 
           <div class="snap-y-panel" data-kui="scroll-snap-y">
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_grand_canyon_vista.jpg" alt="An epic, vast canyon vista stretching to the horizon" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
               <figcaption>scroll-snap-y — 2 of 4</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
               <figcaption>scroll-snap-y — 3 of 4</figcaption>
             </figure>
-            <figure>
+            <figure data-show-code>
               <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
               <figcaption>scroll-snap-y — 4 of 4</figcaption>
             </figure>
@@ -724,5 +744,7 @@
       })
     })()
   </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
 </body>
 </html>
