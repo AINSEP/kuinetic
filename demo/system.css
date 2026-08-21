@@ -11,7 +11,15 @@
   --fg: #000000;
   --muted: #666666;
   --border: #e4e4e2;
-  --accent: #d0d300;
+  /* One brand yellow, both themes. This was #d0d300 in light and #e4f222 in dark, which meant the
+     site had two different yellows depending on the page: `index.html` declares its own tokens and
+     has always used #e4f222 in *both*, so the hero the owner points at as "the" yellow was never
+     the one the other seven pages were painting. The darker value read as olive next to it.
+
+     `--accent` is the fill token — things that carry `--accent-ink` (black) on top, where #e4f222
+     measures 17:1. Accent-coloured *text on a light background* is a different job and keeps its
+     own darker token below; that separation is what makes one shared fill value safe here. */
+  --accent: #e4f222;
   --accent-ink: #000000;
   --accent-text: #8a6d00;
   --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
