@@ -4313,6 +4313,9 @@
       font-size: 0.75rem;
     }
   }
+  .text-wrap {
+    text-wrap: wrap;
+  }
   .text-base-content {
     color: var(--color-base-content);
   }
