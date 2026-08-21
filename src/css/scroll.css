@@ -124,6 +124,52 @@
     stroke-dasharray: var(--kui-path-length, 100);
   }
 
+  /* --- media-scrub's `target:` form: a stack of frames, one visible ---
+   *
+   * `media-scrub target:'…'` stamps `data-kui-step-state` onto the elements it was pointed at —
+   * the same contract `step-progress` and `scrollytelling-step` use, because a frame sequence is a
+   * stepped thing and `before`/`active`/`after` already names the three positions a frame can be
+   * in. Only `active` shows: unlike a progress bar, everything up to here is *not* wanted.
+   *
+   * Painting is opt-in for the same reason it is in `forms.css`: `target:` marks whatever the
+   * author points it at, and a bare `[data-kui-step-state]` rule once painted a background behind
+   * four lines of body copy on `demo/scroll.html`. So the shipped look applies only inside a
+   * container that asked for it — a `media-scrub` element whose children are its frames, or
+   * anything a page marks `.kui-frame-stack` when the frames are not direct children.
+   *
+   * `:has()` rather than setting `position: relative` on every scrub element: in the `src:` form
+   * the effect sits on the `<img>` itself, and forcing a position on it would quietly override a
+   * page that had absolutely positioned its own scrub image.
+   *
+   * Keyed on the *effect* names, not the primitive id. `data-kui-fx` carries what the author wrote
+   * — `sequence-scrub` — and never the primitive it resolves to, so `[data-kui-fx~='media-scrub']`
+   * matches nothing at all. It is an easy mistake because `forms.css` keys on `step-progress`,
+   * which happens to be spelled the same as both. Every preset on this primitive is listed; a new
+   * one needs adding here, which `test/css-invariants.test.ts` now enforces.
+   */
+  [data-kui-fx~='sequence-scrub']:has(> [data-kui-step-state]),
+  [data-kui-fx~='video-scrub']:has(> [data-kui-step-state]),
+  .kui-frame-stack {
+    position: relative;
+  }
+
+  [data-kui-fx~='sequence-scrub'] > [data-kui-step-state],
+  [data-kui-fx~='video-scrub'] > [data-kui-step-state],
+  .kui-frame-stack > [data-kui-step-state] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+  }
+
+  [data-kui-fx~='sequence-scrub'] > [data-kui-step-state='active'],
+  [data-kui-fx~='video-scrub'] > [data-kui-step-state='active'],
+  .kui-frame-stack > [data-kui-step-state='active'] {
+    opacity: 1;
+  }
+
   /*
    * Native timelines only. Without them the runtime falls back to an `on:enter` reveal, which is
    * a documented behavioural difference (no scrubbing, no reverse), not an equivalent.

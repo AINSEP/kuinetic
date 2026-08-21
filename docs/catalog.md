@@ -176,9 +176,42 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > in automatically.
 >
 > Same parameter, same validation, on `scroll-spy` (`target:#nav-link-features` — marks the nav link
-> for this section with `data-kui-active`) and on `step-progress` in section O. A selector that
-> matches `<html>` or `<body>` is rejected with a warning rather than stamping the whole document,
-> and so is one that does not parse.
+> for this section with `data-kui-active`), on `step-progress` in section O, and on `sequence-scrub`
+> below. A selector that matches `<html>` or `<body>` is rejected with a warning rather than
+> stamping the whole document, and so is one that does not parse.
+
+> **`sequence-scrub target:` — prefer authored frames over a `src:` pattern.**
+>
+> A frame sequence has two forms. Point `target:` at images that already exist and the scrub reveals
+> one at a time:
+>
+> ```html
+> <div class="stage" data-kui="sequence-scrub target:'.stage img' distance:220vh">
+>   <img src="./frames/0.jpg" alt="A landing page fading up from grayscale as you scroll">
+>   <img src="./frames/1.jpg" alt="">
+>   <img src="./frames/2.jpg" alt="">
+> </div>
+> ```
+>
+> The older form rewrites one element's `src` from an `{i}` placeholder —
+> `sequence-scrub frames:5 src:./frames/{i}.jpg` — and it is still there for sequences too long to
+> author as tags. Everywhere else, prefer `target:`, for four reasons:
+>
+> 1. **The frames are loaded before the scrub starts.** `src:` fetches each frame at the moment
+>    scrolling reaches it, so the first pass through is always cold. Measured on `demo/scroll.html`
+>    before the switch: zero frames present at load, all five fetched mid-scroll.
+> 2. **Per-frame `alt`, `srcset`, `<picture>`,** and any filenames at all — not just a numbered run.
+> 3. **No `{i}`,** so nothing needs an exception in the CSS-escape guard on `data-kui` values.
+> 4. **No URL to validate.** `src:` is an author-supplied URL template, so it carries a same-origin
+>    check to stop a CMS-authored `data-kui` becoming a tracking pixel or an internal-host probe.
+>    Real `<img>` tags are already covered by the page's own CSP.
+>
+> `frames:` is ignored when `target:` is set — the frame count is the number of elements you wrote,
+> and a second source of truth for one number can only ever disagree. Frames are marked with the
+> same `data-kui-step-state` contract as above, because a frame sequence *is* a stepped thing. The
+> shipped stacking (absolutely positioned, `object-fit: cover`, only `active` visible) applies to
+> the direct children of a `sequence-scrub`/`video-scrub` element, or to anything inside
+> `.kui-frame-stack` when the frames are not direct children.
 
 ---
 

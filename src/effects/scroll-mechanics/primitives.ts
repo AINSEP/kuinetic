@@ -237,6 +237,81 @@ function trackTravel(node: HTMLElement, authored: string, doc: Document): number
  * @overallScore 100
  */
 function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  // `target:` wins when both are authored. The two forms are mutually exclusive — one rewrites a
+  // single element's `src`, the other reveals one of several elements that already exist — so
+  // there is no coherent "both" to honour, and silently doing the `src:` thing while the author
+  // wrote a selector would be the more surprising of the two.
+  const selector = resolveTarget(params.text('target'), ctx, 'media-scrub')
+  if (selector) return prepareTargetScrub(el, params, ctx, selector)
+  return prepareSrcScrub(el, params, ctx)
+}
+
+/**
+ * Scrub by revealing one of a set of elements that are already in the document.
+ *
+ * Preferred over the `src:` form wherever the frame count is small enough to author. Four things
+ * the pattern form cannot do:
+ *
+ * 1. **The frames are loaded before the scrub starts.** `src:` fetches each frame at the moment
+ *    scrolling reaches it — measured on `demo/scroll.html`: zero frames present before the scrub,
+ *    all five fetched during it. On a real connection the first pass shows stale frames.
+ * 2. **No `{i}` templating**, so the CSS-escape guard on `data-kui` values needs no exception.
+ * 3. **No URL to validate.** `mediaSrcPattern` exists only because `src:` is an author-supplied URL
+ *    template that could be pointed anywhere; real `<img>` tags are already covered by the page's
+ *    own CSP and review. The whole threat model is absent here.
+ * 4. Per-frame `alt`, `srcset`, `<picture>`, and any filenames at all — not just a numbered run.
+ *
+ * `src:` stays for the case this cannot serve: a two-hundred-frame sequence, where authoring two
+ * hundred tags is worse than a pattern.
+ *
+ * Marking reuses `data-kui-step-state` rather than inventing a frame attribute, because a frame
+ * sequence *is* a stepped thing and `before`/`active`/`after` already names exactly the three
+ * positions a frame can hold.
+ *
+ * @complexity O(n) per frame *change* in matched elements; O(1) on frames that do not change index.
+ * @overallScore 100
+ */
+function prepareTargetScrub(
+  el: Element,
+  params: EffectParams,
+  ctx: PrepareContext,
+  selector: string,
+): Cleanup {
+  const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
+  /*
+   * Counted once at setup, and `frames:` is ignored in this form: the number of frames is the
+   * number of elements you wrote, so making the author state it again is a second source of truth
+   * that can only ever disagree. Same reasoning that gives `scrollytelling-step` an explicit
+   * `steps:` — there the children are not knowable, here they are.
+   *
+   * Re-counting per frame was the alternative and is exactly the per-frame `querySelectorAll` that
+   * `scroll-spy`'s own note calls out as pure waste. A list rendered after setup wants a re-run of
+   * the effect, not a query on every scroll frame.
+   */
+  const frames = Math.max(1, ctx.doc.querySelectorAll(selector).length)
+  let lastIndex: number | undefined
+
+  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
+    writeProgress(ctx, progress)
+    const index = Math.min(frames - 1, Math.floor(progress * frames))
+    if (index === lastIndex) return
+    lastIndex = index
+    marker.mark(index)
+  })
+
+  // Stamp the first frame at setup rather than waiting for the first scroll callback, so the set
+  // is never briefly all-unstyled — the same flash `scrollytelling-step` authors avoid
+  // by hand-authoring `data-kui-step` in their markup.
+  marker.mark(0)
+
+  return () => {
+    untrack()
+    marker.restore()
+  }
+}
+
+/** Scrub by rewriting one element's `src` from a `{i}` pattern. See `prepareTargetScrub`. */
+function prepareSrcScrub(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const frames = Math.max(1, Math.round(params.num('frames', 1)))
   const pattern = mediaSrcPattern(params.text('src'), ctx)
   const media = el as HTMLMediaElement & HTMLImageElement
@@ -466,6 +541,8 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       ...distanceParam,
       frames: { type: 'number', default: '1', cssProperty: '--kui-frames' },
       src: { type: 'text', default: '', cssProperty: '--kui-src' },
+      // The preferred form. `frames:`/`src:` remain for sequences too long to author as tags.
+      target: { type: 'text', default: '', cssProperty: '--kui-target' },
     },
     prepare: deferPrepare(prepareMediaScrub),
     perfClass: 'paint',

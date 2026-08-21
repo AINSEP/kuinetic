@@ -15,6 +15,7 @@ import { NUMBERS_PRESETS } from '../src/effects/catalog/numbers.js'
 import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { FORMS_PRESETS } from '../src/effects/forms/index.js'
 import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { SCROLL_PRESETS } from '../src/effects/scroll-mechanics/presets.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
@@ -346,5 +347,37 @@ describe('CSS layering', () => {
 
   it.each(EFFECT_FILES)('keeps every rule in %s inside the effects layer', (file) => {
     expect(SOURCES.get(file)).toContain('@layer kui.effects {')
+  })
+})
+
+describe('media-scrub frame stacking', () => {
+  /*
+   * `data-kui-fx` carries the *effect* name the author wrote, never the primitive it resolves to.
+   * The first version of the frame-stack rules keyed on `[data-kui-fx~='media-scrub']`, which is a
+   * primitive id and therefore matches nothing — the frames rendered unstacked and unhidden, and
+   * the demo showed a wrongly-sized still. Nothing in the suite caught it; a browser did.
+   *
+   * Easy mistake to repeat, because the one existing precedent (`forms.css`, keyed on
+   * `step-progress`) happens to have a preset and a primitive of the same name, so it reads as if
+   * primitive ids are what belong in these selectors.
+   */
+  // Comments stripped before scanning: the note above these rules in `scroll.css` quotes the
+  // wrong selector in order to warn about it, and a raw substring search cannot tell the warning
+  // from the mistake.
+  const scrollCss = (SOURCES.get('scroll.css') ?? '').replace(/\/\*[\s\S]*?\*\//g, '')
+  const scrubEffects = SCROLL_PRESETS.filter((preset) => preset.primitive === 'media-scrub').map(
+    (preset) => preset.name,
+  )
+
+  it('has at least one preset to guard, so this suite cannot pass vacuously', () => {
+    expect(scrubEffects.length).toBeGreaterThan(0)
+  })
+
+  it.each(scrubEffects)('stacks frames for the %s effect name', (name) => {
+    expect(scrollCss).toContain(`[data-kui-fx~='${name}'] > [data-kui-step-state]`)
+  })
+
+  it('never keys those rules on the primitive id, which cannot match', () => {
+    expect(scrollCss).not.toContain(`[data-kui-fx~='media-scrub']`)
   })
 })

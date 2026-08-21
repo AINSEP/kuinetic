@@ -776,9 +776,11 @@
      element as sequence-scrub — see the markup. It used to be a hand-written
      `filter: grayscale(calc(100% - var(--kui-progress) * 100%))` right here, which is the exact
      shape of thing this page exists to argue you should not have to write. */
-  .scrub-viewport img {
-    display: block; width: 100%; height: 100%; object-fit: cover;
-  }
+  /* No `.scrub-viewport img` rule any more. Stacking the frames and showing one is the library's
+     job now — `src/css/scroll.css` positions and hides
+     `[data-kui-fx~='media-scrub'] > [data-kui-step-state]`, which these five images are. Restating
+     it here would be a page hand-writing what the effect already owns, and would drift the moment
+     the shipped default changed. */
 
   /* ---------- scroll-spy (Section C) ---------- */
   .spy-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
@@ -1558,10 +1560,24 @@
           <!-- Same `data-show-code-target` shape as the horizontal track, and for the same reason:
                the effect is on an image inside an `overflow: clip` sticky viewport, so an
                auto-mounted chip would be laid out inside the clip and never seen. -->
-          <p class="kui-contract"><code>data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh, scroll-desaturate timeline:pin"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
           <div class="scrub-stage" id="scrub-demo" data-show-code-key="scrub-stage scrub-viewport">
-            <div class="scrub-viewport">
-              <img data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin" src="./assets/webdesign/webdesign_scrub_0.jpg" alt="Five different landing pages swapping in frame by frame as you scroll, fading from grayscale to full colour" loading="lazy" />
+            <!-- Five authored frames rather than one `<img>` whose `src` is rewritten from a
+                 `{i}` pattern. The pattern form fetched each frame at the moment scrolling
+                 reached it — measured on this page: zero frames present before the scrub, all
+                 five fetched during it — so the first pass through was always cold. These load
+                 with the page. No `loading="lazy"`, deliberately: lazy frames would reintroduce
+                 the exact problem.
+
+                 Only the first frame carries alt text. The five are one picture as far as a
+                 reader is concerned, and only ever one is visible, so describing each would read
+                 out five descriptions of a single element. -->
+            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh, scroll-desaturate timeline:pin">
+              <img src="./assets/webdesign/webdesign_scrub_0.jpg" alt="Five different landing pages swapping in frame by frame as you scroll, fading from grayscale to full colour" />
+              <img src="./assets/webdesign/webdesign_scrub_1.jpg" alt="" />
+              <img src="./assets/webdesign/webdesign_scrub_2.jpg" alt="" />
+              <img src="./assets/webdesign/webdesign_scrub_3.jpg" alt="" />
+              <img src="./assets/webdesign/webdesign_scrub_4.jpg" alt="" />
             </div>
           </div>
         </div>

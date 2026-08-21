@@ -165,3 +165,131 @@ describe('scroll-progress — target:', () => {
   })
 })
 
+
+describe('media-scrub — target:', () => {
+  const FRAMES =
+    '<div class="stage" data-kui="sequence-scrub distance:400px target:\'.stage img\'">' +
+    '<img src="a.jpg"><img src="b.jpg"><img src="c.jpg"><img src="d.jpg"></div>'
+  const states = (): string[] =>
+    [...document.querySelectorAll('.stage img')].map(
+      (node) => node.getAttribute('data-kui-step-state') ?? '',
+    )
+
+  it('reveals one authored frame at a time instead of rewriting a src', () => {
+    const animator = build(FRAMES)
+    stubRect(el('.stage'), 0)
+    animator.start()
+
+    scheduler.emit(0)
+    expect(states()).toEqual(['active', 'after', 'after', 'after'])
+
+    stubRect(el('.stage'), -200)
+    scheduler.emit(200, 1)
+    expect(states()).toEqual(['before', 'before', 'active', 'after'])
+  })
+
+  it('never touches any frame\'s src, which is the whole point of the form', () => {
+    // The `src:` form fetches each frame at the moment scrolling reaches it, so the first pass
+    // through a scrub is always cold. Authored frames load with the page; if this form ever
+    // started rewriting src it would have reintroduced exactly the problem it exists to solve.
+    const animator = build(FRAMES)
+    stubRect(el('.stage'), -400)
+    animator.start()
+    scheduler.emit(400)
+    const sources = [...document.querySelectorAll('.stage img')].map((n) => n.getAttribute('src'))
+    expect(sources).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'])
+  })
+
+  it('takes the frame count from the match, ignoring a frames: that disagrees', () => {
+    // Two sources of truth for one number can only ever drift. The frames are the tags you wrote.
+    const animator = build(
+      '<div class="stage" data-kui="sequence-scrub distance:400px frames:99 target:\'.stage img\'">' +
+        '<img src="a.jpg"><img src="b.jpg"></div>',
+    )
+    stubRect(el('.stage'), -399)
+    animator.start()
+    scheduler.emit(399)
+    // With frames:99 honoured this would still be on frame 0 of 99; with 2 it is the last one.
+    expect(states()).toEqual(['before', 'active'])
+  })
+
+  it('marks the first frame at setup, so the stack is never briefly all-hidden', () => {
+    // Every frame is `opacity: 0` until one is marked `active`, so waiting for the first scroll
+    // callback would show an empty box on load.
+    const animator = build(FRAMES)
+    stubRect(el('.stage'), 0)
+    animator.start()
+    expect(states()[0]).toBe('active')
+  })
+
+  it('prefers target: over src: when an author writes both', () => {
+    const animator = build(
+      '<div class="stage" data-kui="sequence-scrub distance:400px frames:4 src:frame-{i}.jpg target:\'.stage img\'">' +
+        '<img src="a.jpg"><img src="b.jpg"></div>',
+    )
+    stubRect(el('.stage'), 0)
+    animator.start()
+    scheduler.emit(0)
+    expect(states()).toEqual(['active', 'after'])
+    expect(el('.stage').getAttribute('src')).toBeNull()
+  })
+
+  it('warns and ignores a document-wide target rather than stamping every element', () => {
+    const animator = build(
+      '<div class="stage" data-kui="sequence-scrub distance:400px target:\'body\'">' +
+        '<img src="a.jpg"></div>',
+    )
+    stubRect(el('.stage'), 0)
+    animator.start()
+    scheduler.emit(0)
+    expect(reporter.messages.join()).toContain('matches the whole document')
+    expect(document.body.getAttribute('data-kui-step-state')).toBeNull()
+  })
+
+  it('gives frames back their original step-state on teardown', () => {
+    const animator = build(FRAMES)
+    stubRect(el('.stage'), -200)
+    animator.start()
+    scheduler.emit(200)
+    expect(states()).not.toEqual(['', '', '', ''])
+    animator.destroy()
+    expect(states()).toEqual(['', '', '', ''])
+  })
+})
+
+describe('media-scrub — target: edge cases', () => {
+  it('does no work on frames that do not change the index', () => {
+    // The guard exists because frames are continuous and the index is not: re-stamping every
+    // matched element on every scroll frame is the per-frame waste scroll-spy's note calls out.
+    // Asserted by hand-editing a stamp and checking a same-index frame does not restore it.
+    const animator = build(
+      '<div class="stage" data-kui="sequence-scrub distance:400px target:\'.stage img\'">' +
+        '<img src="a.jpg"><img src="b.jpg"></div>',
+    )
+    stubRect(el('.stage'), 0)
+    animator.start()
+    scheduler.emit(0)
+
+    const first = document.querySelector('.stage img')!
+    expect(first.getAttribute('data-kui-step-state')).toBe('active')
+    first.setAttribute('data-kui-step-state', 'sentinel')
+
+    // Same frame index, a slightly different scroll position.
+    stubRect(el('.stage'), -10)
+    scheduler.emit(10, 1)
+    expect(first.getAttribute('data-kui-step-state')).toBe('sentinel')
+  })
+
+  it('survives a valid target that matches nothing, rather than dividing by zero', () => {
+    // `resolveTarget` rejects the invalid and the over-broad, but ".stage .missing" is neither —
+    // it is simply a selector for elements that are not there, which a typo produces easily.
+    const animator = build(
+      '<div class="stage" data-kui="sequence-scrub distance:400px target:\'.stage .missing\'">' +
+        '<img src="a.jpg"></div>',
+    )
+    stubRect(el('.stage'), -200)
+    animator.start()
+    expect(() => scheduler.emit(200)).not.toThrow()
+    expect(el('.stage').style.getPropertyValue('--kui-progress')).toBe('0.5000')
+  })
+})
