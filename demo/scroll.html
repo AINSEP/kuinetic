@@ -783,21 +783,41 @@
   /* ---------- scroll-spy (Section C) ---------- */
   .spy-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
   @media (min-width: 800px) { .spy-layout { grid-template-columns: 200px 1fr; gap: 2.5rem; } }
+  /* A bullet list, not a bordered card. The card drew a second container beside the tiled section
+     stack, so the group had two boxes competing for the same "this is the thing" reading, to hold
+     four words. Dropping it also drops the indent that made the list look nested under something.
+
+     The 5px accent dot is not a new invention: it is the same marker `.rev-notes li::before` uses
+     everywhere else on this page, so the nav now rhymes with the prose rather than introducing a
+     third list style. */
   .spy-nav {
-    align-self: start; position: sticky; top: 6rem; display: flex; flex-direction: column; gap: 0.35rem;
-    padding: 1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+    align-self: start; position: sticky; top: 6rem;
+    display: flex; flex-direction: column; gap: 0.1rem;
   }
   .spy-nav a {
-    font-size: 0.88rem; padding: 0.5rem 0.6rem; border-radius: 7px; color: var(--muted);
-    text-decoration: none !important; transition: color 150ms ease, background-color 150ms ease;
+    display: flex; align-items: center; gap: 0.7rem;
+    font-size: 0.9rem; padding: 0.42rem 0; color: var(--muted);
+    text-decoration: none !important;
+    /* No transition, and that is the fix for "sometimes two options animate at once". The old rule
+       faded `color` over 150ms, so on every handoff the outgoing link was still accent-coloured
+       while the incoming one was already turning accent — for 150ms the nav genuinely showed two
+       lit entries. The underlying state was never wrong (verified: exactly one
+       `data-kui-active='true'` at 17 scroll positions); the crossfade was inventing the overlap.
+
+       Crossfading mutually-exclusive states always shows both. A "you are here" marker has to
+       snap. */
   }
-  /* A "you are here" marker has one job, so it gets more than a colour swap. The old rule was
-     `--accent-text` on `--bg`, which in light mode is dark gold on near-white: legible, but no
-     louder than a hover, and colour-only signalling fails anyone who cannot separate the two.
-     The bar on the leading edge is the part you can see from the corner of your eye. */
-  .spy-nav a[data-kui-active='true'] {
-    color: var(--accent-text); font-weight: 600; background: var(--bg);
-    box-shadow: inset 3px 0 0 0 var(--accent);
+  .spy-nav a:hover { color: var(--fg); }
+  .spy-nav a::before {
+    content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor; opacity: 0.4;
+  }
+  .spy-nav a[data-kui-active='true'] { color: var(--accent-text); font-weight: 600; }
+  /* The ring is what carries the marker from the corner of the eye, now that there is no card and
+     no inset bar. Colour alone would fail anyone who cannot separate accent from muted. */
+  .spy-nav a[data-kui-active='true']::before {
+    background: var(--accent); opacity: 1;
+    box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 26%, transparent);
   }
   /* `gap: 0`, and it is load-bearing rather than cosmetic. `scroll-spy` marks a section while
      `0 < progress < 1` — that is, while the section contains the top edge of the scrollport. Tiled
