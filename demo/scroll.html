@@ -211,11 +211,37 @@
   .demo-card:hover .kui-show-code-toggle,
   .spy-section:hover .kui-show-code-toggle { opacity: 1; }
 
-  /* The pin-section caption is painted with --accent in dark mode, where an accent chip would be
-     invisible against it. */
+  /* These caption bars are dark in light mode — black, or a 0.55 scrim over a screenshot — so the
+     chip's default `--accent-text` (#8a6d00, the dark token meant for light backgrounds) lands at
+     roughly 3:1 on them. On a dark surface the bright `--accent` is the right end of the pair, and
+     runs about 11:1. The chip's colour follows the surface it sits on, not the page theme. */
+  .demo-card figcaption .kui-show-code-toggle,
+  .parallax-card figcaption .kui-show-code-toggle,
+  .pin-section-figure figcaption .kui-show-code-toggle,
+  .stack-card figcaption .kui-show-code-toggle,
+  .spy-section figcaption .kui-show-code-toggle {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  /* Dark mode paints these caption bars with --accent, and the chip's own colour is --accent-text,
+     which in dark mode *is* --accent. Same yellow on same yellow: the button was rendering at full
+     opacity and was simply invisible. Every surface below is one that this page paints with the
+     accent, so the chip falls back to the bar's own ink — `currentColor` is --accent-ink there, and
+     legible on it by construction. */
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle,
+  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle,
   :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle {
     color: currentColor;
     border-color: color-mix(in srgb, currentColor 45%, transparent);
+  }
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible,
+  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle:focus-visible,
+  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle:focus-visible {
+    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
   }
 
   /* `.kui-has-toggle` stacks the caption so a 200px-wide button has somewhere to go. A chip does
@@ -948,19 +974,24 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Reveal, fade &amp; skew — 3</p>
           <div class="demo-grid">
-            <figure class="demo-card" style="--ar: 736 / 505" data-kui="reveal-once" data-show-code>
-              <img src="./assets/webdesign/modera-furniture-spatial-ui.jpg" alt="The MODERA furniture store as a spatial interface — a translucent glass shopping panel floating in a dark room above a low leather sofa, showing an armchair listing, a Great Value Deals card, and a team panel" loading="lazy" />
+            <figure class="demo-card" style="--ar: 1200 / 900" data-kui="reveal-once" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night">
+                <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
+                <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
+              </video>
               <figcaption>data-kui="reveal-once"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 650 / 412" data-kui="scroll-fade timeline:view" data-show-code>
-              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
+            <figure class="demo-card" style="--ar: 736 / 505" data-kui="scroll-fade timeline:view" data-show-code>
+              <img src="./assets/webdesign/modera-furniture-spatial-ui.jpg" alt="The MODERA furniture store as a spatial interface — a translucent glass shopping panel floating in a dark room above a low leather sofa, showing an armchair listing, a Great Value Deals card, and a team panel" loading="lazy" />
               <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 736 / 615" data-kui="scroll-skew from:20deg to:0deg timeline:view" data-show-code>
-              <img src="./assets/webdesign/glass-ui-concepts.jpg" alt="Three stacked glass-material cards labelled Frosted (Concept), Clear (iOS) and Blur (One UI), each blurring a rain-streaked window and a desk of books behind it to a different degree" loading="lazy" />
+            <figure class="demo-card" style="--ar: 650 / 412" data-kui="scroll-skew from:20deg to:0deg timeline:view" data-show-code>
+              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
               <figcaption>data-kui="scroll-skew from:20deg to:0deg timeline:view"</figcaption>
             </figure>
           </div>
+        </div>
         </div>
 
         <div class="matrix-group">

@@ -284,14 +284,11 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   filter: none;
 }
 
-/* On a surface already painted with the accent, an accent chip disappears. Fall back to the bar's
-   own ink there — `currentColor` is the caption's text colour, which is legible on it by
-   construction. */
-.kui-show-code-toggle.is-on-accent,
-[style*='--accent'] .kui-show-code-toggle.is-on-accent {
-  color: currentColor;
-  border-color: color-mix(in srgb, currentColor 45%, transparent);
-}
+/* On a surface already painted with the accent, an accent chip is the same colour as the thing
+   behind it and disappears completely. There is no way to detect that from here — the page decides
+   what its own captions look like — so the page owns the override, scoped to the exact selector
+   that paints the surface. `currentColor` is the caption's own text colour, which is legible on it
+   by construction. See `scroll.html`'s dark-mode caption rules for the worked example. */
 
 /* The caption layout show-code.js used to write as inline styles. Identical result, but now an
    ordinary rule, so a page can override it with its own selector instead of fighting inline. */
