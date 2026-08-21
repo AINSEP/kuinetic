@@ -140,4 +140,34 @@
   [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-back {
     rotate: y 0deg;
   }
+
+  /*
+   * --- flip-card, before the runtime has touched anything ---
+   *
+   * Every rule above is scoped to `data-kui-fx`, which the runtime stamps when it starts. Between
+   * first paint and that moment the two faces are ordinary block elements, so the back face renders
+   * *underneath* the front as a second copy of the card — on a card holding two video posters that
+   * is a very visible flash, and it is the author's page that looks broken, not ours.
+   *
+   * These rules key off `data-kui`, the attribute the author wrote, which is in the markup from the
+   * first byte and needs no JavaScript to exist. They set structure only — one grid cell, one
+   * visible face — and deliberately do not set the transition, so nothing can animate before the
+   * library is ready to drive it.
+   *
+   * `~=` matches whitespace-separated tokens, so this still holds for `flip-card duration:900ms`
+   * and for a composed `fade-up, flip-card`.
+   */
+  [data-kui~='flip-card'] {
+    display: grid;
+    perspective: var(--kui-perspective, 1600px);
+  }
+
+  [data-kui~='flip-card'] > .kui-face-front,
+  [data-kui~='flip-card'] > .kui-face-back {
+    grid-area: 1 / 1;
+    backface-visibility: hidden;
+  }
+
+  [data-kui~='flip-card'] > .kui-face-front { rotate: y 0deg; }
+  [data-kui~='flip-card'] > .kui-face-back { rotate: y 180deg; }
 }

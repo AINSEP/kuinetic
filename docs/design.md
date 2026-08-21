@@ -45,7 +45,7 @@ So why does this project still exist? Three reasons, and none of them is "GSAP i
    whole configuration. No JS file to write, own, or debug. GSAP is fundamentally a JavaScript API
    — even the simplest GSAP animation is a `.js` file someone writes and maintains.
 3. **A catalog, not an engine.** GSAP gives you the primitives to build any of these effects; it
-   does not ship ~237 ready-made, ready-to-drop-onto-an-element named animations. Even on a GSAP
+   does not ship 251 ready-made, ready-to-drop-onto-an-element named animations. Even on a GSAP
    project, someone still designs and hand-writes the equivalent of this catalog, in JS, per
    project. This project's bet is that a maintained, pre-built catalog behind a stable attribute
    grammar is worth more than direct access to a more general engine — for the specific slice of
@@ -107,7 +107,10 @@ concatenate; the cascade discards one. And two animations writing the same prope
 rather than blend.
 
 **Fix:** every primitive declares the CSS properties it owns. Modern CSS made `translate`,
-`rotate`, and `scale` independent properties, which yields five disjoint channels:
+`rotate`, and `scale` independent properties, which yields five disjoint channels. A sixth, `skew`,
+has no independent property to lean on — CSS never gave skew one the way it did
+translate/rotate/scale — so it claims the `transform` shorthand outright instead, and nothing else
+in the catalog may write `transform`:
 
 | Channel | Property | Example primitives |
 |---|---|---|
@@ -116,6 +119,7 @@ rather than blend.
 | scale | `scale` | zoom, pop, ken-burns |
 | rotation | `rotate` | spin, tilt-2d, wiggle |
 | filter | `filter` | blur, brightness, saturate |
+| skew | `transform` | scroll-skew |
 
 Compiler resolution order for a comma list:
 
@@ -173,7 +177,7 @@ interface Effect {
   name: string
   renderer: 'css-keyframes' | 'waapi' | 'javascript'
   channels: Channel[]                                    // for conflict detection
-  supportedTimelines: Array<'time' | 'view' | 'scroll' | 'pointer'>
+  supportedTimelines: Array<'time' | 'view' | 'scroll' | 'pointer' | 'pin'>
   parameters: ParameterSchema
   perfClass: 'compositor' | 'paint' | 'layout' | 'continuous' | 'dom-transform'
   reducedMotion: 'shorten' | 'crossfade' | 'disable'     // per-effect, not global
@@ -250,7 +254,7 @@ The build-time template scanner becomes an **optional optimizer, not a correctne
 It breaks on dynamic names, CMS markup, JSX abstractions, `.play()` aliases, A/B tests, custom
 template languages, and out-of-graph monorepo templates. Ship a safelist + extraction callback.
 
-**Do not create 237 runtime chunks.** ~237 names come from 29 primitives — ship a compressed
+**Do not create one runtime chunk per name.** 251 named effects come from 29 primitive families — ship a compressed
 alias table (names → primitive + defaults), CSS per primitive/category, and lazy chunks only
 for expensive JS. Fifteen small requests can lose to one 10KB stylesheet. **Generate the full
 catalog CSS and measure gzip/Brotli before designing any splitting.**
@@ -354,7 +358,7 @@ Classify every effect by `perfClass` and attach automated layout/paint/long-task
 
 Names are additive: adding a new named effect is a row in an alias table (name → primitive +
 defaults), not new code, provided the underlying primitive and parameter schema already exist.
-That's why the catalog can carry ~237 names from only 29 primitives.
+That's why the catalog can carry 251 named effects from only 29 primitive families.
 
 Deliberately out of scope:
 - **Accessible UI components.** Accordion, carousel, and menu components own their own state,

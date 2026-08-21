@@ -20,7 +20,9 @@
     const indent = '  '.repeat(depth)
     const tag = el.tagName.toLowerCase()
     const attrs = [...el.attributes]
-      .filter(a => a.name !== 'data-show-code')
+      // Every `data-show-code*` attribute is this tool's own wiring — `data-show-code`,
+      // `-target`, `-key`. None of it belongs in the markup someone is about to copy.
+      .filter(a => !a.name.startsWith('data-show-code'))
       .map((a) => `${a.name}="${a.value}"`).join(' ')
     const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`
 
@@ -42,6 +44,48 @@
     }
     if (childLines.length === 0) return `${indent}${openTag}</${tag}>`
     return [indent + openTag, ...childLines, `${indent}</${tag}>`].join('\n')
+  }
+
+  /**
+   * Which lines in a printed source block are load-bearing.
+   *
+   * Always the `data-kui` line, because that is the whole effect. Beyond that, an effect with a
+   * markup contract can name the tokens that matter with `data-show-code-key` on its container —
+   * `flip-card` needs `kui-face-front`, `kui-face-back`, and a `kui-flip-control` outside both, and
+   * nothing in a wall of monospace tells you which of those class names you are allowed to rename
+   * and which one the stylesheet is actually selecting on.
+   */
+  function keyTokensFor(sourceEl) {
+    const declared = (sourceEl.getAttribute('data-show-code-key') || '').trim()
+    return declared ? declared.split(/\s+/) : []
+  }
+
+  function isKeyLine(line, tokens) {
+    if (/\bdata-kui\s*=/.test(line)) return true
+    return tokens.some((token) => line.includes(token))
+  }
+
+  /**
+   * Write the printed source into the `<code>` node as text nodes and `<mark>`s.
+   *
+   * Never `innerHTML`: this string is built from real page markup, so injecting it as HTML would
+   * both re-parse the demo's own tags and hand any authored attribute value a way into the DOM.
+   * One node per line keeps it plain text all the way down.
+   */
+  function renderSource(code, text, tokens) {
+    code.replaceChildren()
+    const lines = text.split('\n')
+    lines.forEach((line, index) => {
+      const suffix = index < lines.length - 1 ? '\n' : ''
+      if (isKeyLine(line, tokens)) {
+        const mark = document.createElement('mark')
+        mark.className = 'kui-code-key'
+        mark.textContent = line
+        code.append(mark, document.createTextNode(suffix))
+      } else {
+        code.append(document.createTextNode(line + suffix))
+      }
+    })
   }
 
   function buildModal() {
@@ -103,11 +147,15 @@
 
     tryIt.append(input, copyBtn, applyBtn, resetBtn)
 
+    const legend = document.createElement('p')
+    legend.className = 'kui-code-legend'
+    legend.hidden = true
+
     const pre = document.createElement('pre')
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    dialog.append(header, tryIt, pre)
+    dialog.append(header, tryIt, legend, pre)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
 
@@ -200,7 +248,12 @@
       const targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
       
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
-      code.textContent = prettyPrint(sourceEl, 0)
+      const tokens = keyTokensFor(sourceEl)
+      renderSource(code, prettyPrint(sourceEl, 0), tokens)
+      legend.hidden = tokens.length === 0
+      legend.textContent = tokens.length
+        ? 'Red lines are the contract — the effect selects on those exact names. Everything else is yours to rename.'
+        : ''
       input.value = originalValue
       backdrop.style.display = 'grid'
       // The stored offset was clamped against the viewport it was dragged in; re-clamp against the

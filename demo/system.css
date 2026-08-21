@@ -238,36 +238,59 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
 .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* "Show code" button and modal */
+/* ---------- "Show code": one chip, every page ----------
+   This shipped as a 200px-wide filled --accent block, which is fine on a page mounting three or
+   four of them and wrong on a page mounting thirty over full-bleed screenshots whose entire job is
+   to be looked at. At that density a chartreuse slab per card stops reading as a control and
+   becomes the loudest colour on the page, above the work it is captioning.
+
+   So: an outline chip in accent at rest, filling with accent on hover and focus. The accent
+   becomes the *feedback* rather than the default, which is the only place a colour that strong
+   earns its keep. `--accent-text` rather than `--accent` for the label, because raw #d0d300 on
+   white is about 1.6:1 — the darker token exists for exactly this and already flips to the bright
+   value in dark mode, so one declaration covers both themes.
+
+   This lives here, not on one page, because a control that means the same thing everywhere should
+   look the same everywhere. A page that genuinely needs a different treatment overrides it. */
 .kui-show-code-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  max-width: 200px;
+  width: auto;
   align-self: center;
-  margin-inline: auto;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 0.4rem 0.5rem;
-  color: var(--accent-ink);
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  color: var(--accent-text);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent-text) 55%, transparent);
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
-.kui-show-code-toggle:hover {
-  filter: brightness(1.1);
-}
-
-:root[data-theme='dark'] .kui-show-code-toggle:hover {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #000000;
+.kui-show-code-toggle:hover,
+.kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
   filter: none;
+}
+
+/* On a surface already painted with the accent, an accent chip disappears. Fall back to the bar's
+   own ink there — `currentColor` is the caption's text colour, which is legible on it by
+   construction. */
+.kui-show-code-toggle.is-on-accent,
+[style*='--accent'] .kui-show-code-toggle.is-on-accent {
+  color: currentColor;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
 }
 
 /* The caption layout show-code.js used to write as inline styles. Identical result, but now an
@@ -415,9 +438,30 @@ figure .kui-show-code-toggle {
   border-color: var(--accent);
 }
 
+/* The one line of prose in the panel, so "red" does not have to be guessed at. Hidden entirely
+   when nothing on screen is marked, rather than left as an explanation of an absent thing. */
+.kui-code-legend {
+  margin: 0 0 0.7rem;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .kui-code-modal pre {
   margin: 0;
   padding: 0;
+}
+
+/* `<mark>` for the semantics — this is highlighted text, and a screen reader should say so — but
+   the UA's yellow block fill is wrong inside a code panel, so it is reset to a coloured line. */
+.kui-code-key {
+  background: none;
+  color: #d0343a;
+  font-weight: 600;
+}
+
+:root[data-theme='dark'] .kui-code-key {
+  color: #ff7b72;
 }
 
 .kui-code-modal code {

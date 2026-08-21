@@ -200,35 +200,23 @@
   }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---------- "Show code" as a chip, not a slab ----------
-     system.css ships this toggle as a 200px-wide filled --accent block. That is correct on a page
-     that mounts three or four of them. This page mounts thirty-odd, most of them over full-bleed
-     screenshots whose entire job is to be looked at — and at that density a chartreuse slab per
-     card stops reading as a control and becomes the loudest colour on the page, above the work it
-     is captioning. Same affordance, quieter rest state: an outline chip that takes currentColor
-     from whichever bar it lands in, and fills with --accent only on hover/focus. The accent
-     becomes the feedback rather than the default, which is also the only place premium UI spends
-     a colour that strong. Scoped to `main` on this page; every other demo keeps the slab. */
-  main .kui-show-code-toggle {
-    width: auto; max-width: none; align-self: center; margin-inline: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 0.3rem 0.7rem; border-radius: 999px;
-    color: inherit; background: transparent; opacity: 0.75;
-    border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
-    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
-  }
+  /* The chip treatment itself now lives in system.css, so every demo page gets the same control.
+     What stays here is the density behaviour: at thirty-odd chips on one page they rest at 75% and
+     only the hovered card's chip comes up to full strength, so the control is discoverable without
+     thirty of them competing for attention at once. */
+  main .kui-show-code-toggle { opacity: 0.75; }
   main .kui-show-code-toggle:hover,
   main .kui-show-code-toggle:focus-visible,
-  :root[data-theme='dark'] main .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] main .kui-show-code-toggle:focus-visible {
-    opacity: 1; color: var(--accent-ink); background: var(--accent); border-color: var(--accent); filter: none;
-  }
-  /* A card only has to be hovered for its own chip to come up to full strength — so the control is
-     discoverable without thirty of them competing for attention at rest. */
   figure:hover .kui-show-code-toggle,
   .demo-card:hover .kui-show-code-toggle,
   .spy-section:hover .kui-show-code-toggle { opacity: 1; }
+
+  /* The pin-section caption is painted with --accent in dark mode, where an accent chip would be
+     invisible against it. */
+  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle {
+    color: currentColor;
+    border-color: color-mix(in srgb, currentColor 45%, transparent);
+  }
 
   /* `.kui-has-toggle` stacks the caption so a 200px-wide button has somewhere to go. A chip does
      not need its own line, and stacking is what turned every caption on this page into a two-row
@@ -846,7 +834,7 @@
              is `aria-pressed` on the control, read with `:has()`, so the button's accessibility
              state and the card's visual state are the same fact rather than two that can drift. -->
         <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
-          <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card">
+          <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
             <div class="kui-face-front">
               <div class="video-frame" data-yt-id="EcbgbKtOELY">
               <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />

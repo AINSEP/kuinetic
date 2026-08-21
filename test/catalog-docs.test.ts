@@ -25,7 +25,20 @@ import { createRegistry } from '../src/effects/index.js'
  * Both directions are asserted here so neither can drift again without a red test.
  */
 
-const catalog = readFileSync(fileURLToPath(new URL('../docs/catalog.md', import.meta.url)), 'utf8')
+const read = (path: string): string =>
+  readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
+
+const catalog = read('docs/catalog.md')
+
+/**
+ * Every document that states the catalog's size in prose.
+ *
+ * The catalog's own totals table is checked further down, but the number also appears in the
+ * README, the tutorial, and the architecture doc — and those had all been sitting at "~237" while
+ * the library shipped 251, because nothing compared them to anything. A count in prose is a claim,
+ * and a wrong one is the first thing a reader can catch you on.
+ */
+const COUNTED_DOCS = ['README.md', 'docs/getting-started.md', 'docs/design.md']
 
 /**
  * Sections that list *primitive* ids or aggregate counts rather than effect names. Including them
@@ -125,6 +138,24 @@ describe('docs/catalog.md against the live registry', () => {
       .filter((name) => !documented.has(name))
       .sort((a, b) => a.localeCompare(b))
     expect(undocumented).toEqual([])
+  })
+
+  it('every prose claim about the catalog size agrees with the registry', () => {
+    const wrong: string[] = []
+    for (const path of COUNTED_DOCS) {
+      const text = read(path)
+      // Bounded rather than `\d+`: an unbounded quantifier in a global scan is what the
+      // slow-regex rule objects to, and no honest catalog count needs six digits.
+      const claims = [...text.matchAll(/(\d{1,5}) named effects/g)]
+      // A doc that stopped stating a count at all would otherwise pass by saying nothing.
+      expect(claims.length, `${path} states no effect count`).toBeGreaterThan(0)
+      for (const claim of claims) {
+        if (Number(claim[1]) !== registered.size) {
+          wrong.push(`${path}: claims ${claim[1]} named effects, registry has ${registered.size}`)
+        }
+      }
+    }
+    expect(wrong).toEqual([])
   })
 
   it('the totals table agrees with the registry', () => {
