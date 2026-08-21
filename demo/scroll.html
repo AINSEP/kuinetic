@@ -1029,7 +1029,12 @@
           <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
             <div class="kui-face-front">
               <div class="video-frame" data-yt-id="EcbgbKtOELY">
-              <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
+              <!-- `eager` + `fetchpriority="high"`, because this is the largest element in the
+                   first viewport — it is the LCP candidate for the whole page. It was `lazy`,
+                   which tells the browser to *deprioritise* the one image the visitor is waiting
+                   on. `reveals.html` and `interactive.html` both leave their heroes at the default
+                   (eager), so this page was the odd one out rather than the convention. -->
+              <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="eager" fetchpriority="high" />
               <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
                 <svg viewBox="0 0 68 48" aria-hidden="true">
                   <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
@@ -1040,7 +1045,10 @@
             </div>
             <div class="kui-face-back">
               <div class="video-frame" data-yt-id="f2mGqlLLqok">
-              <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
+              <!-- The flip card's back face is also in the first viewport (it is a 3D face, not a
+                   hidden element), so it loads with the front. `eager` without `fetchpriority`:
+                   it should not be lazy, but it must not compete with the face actually showing. -->
+              <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="eager" />
               <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
                 <svg viewBox="0 0 68 48" aria-hidden="true">
                   <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
