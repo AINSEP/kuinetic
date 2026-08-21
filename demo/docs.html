@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kui="smooth-scroll-to">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -60,9 +60,7 @@
   }
 
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-
+    
   body {
     margin: 0;
     background: var(--bg);
@@ -118,11 +116,9 @@
     position: absolute; top: -1.5px; left: 50%;
     width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%;
     background: var(--accent);
+    /* transform-origin only — the spin is `data-kui="orbit 3.5s"` on the element. */
     transform-origin: 2.5px 11.5px;
-    animation: logo-orbit 3.5s linear infinite;
   }
-  @keyframes logo-orbit { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
   .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .wordmark b { font-weight: 800; }
 
@@ -205,15 +201,18 @@
      a reading indicator — plain ink (black in light, white in dark) is the quieter, more common
      treatment (Medium and most blog readers do the same) and it's the one thing on the page that
      should never compete for attention with the actual accent uses. */
+  /* Box only — position, size, colour, and which edge it grows from. The fill itself is
+     `data-kui="scroll-progress-bar timeline:scroll"` on the element, the same preset scroll.html
+     uses for its vertical rail. This used to be ~18 lines of hand-written scroll listener + rAF
+     + `bar.style.transform = 'scaleX(ratio)'`, reimplementing a preset the library already
+     shipped. The `prefers-reduced-motion` rule that sat here was also dead: it set
+     `transition: none` on an element that never declared a transition. */
   .doc-progress {
     position: fixed; top: 0; left: 0; z-index: 110;
     width: 100%; height: 3px;
     background: var(--fg);
-    transform: scaleX(0);
     transform-origin: 0 50%;
-    will-change: transform;
   }
-  @media (prefers-reduced-motion: reduce) { .doc-progress { transition: none; } }
 
   /* ---------- docs viewer ---------- */
   /* Longhand on purpose: this element also carries .wrap (which sets the left/right padding).
@@ -331,12 +330,12 @@
 </head>
 <body>
 
-  <div id="doc-progress" class="doc-progress" aria-hidden="true"></div>
+  <div id="doc-progress" class="doc-progress" data-kui="scroll-progress-bar timeline:scroll" aria-hidden="true"></div>
 
   <header class="site-header" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
     <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
@@ -453,29 +452,6 @@
         paint(next)
         try { localStorage.setItem(KEY, next) } catch (e) {}
       })
-    })()
-  </script>
-  <script>
-    // Reading progress — thin bar fixed to the top edge, filling as the user scrolls through the
-    // document. Independent of the doc fetch below: it should track whatever's on the page
-    // (including the error state) rather than depend on the markdown having loaded.
-    ;(function () {
-      var bar = document.getElementById('doc-progress')
-      var ticking = false
-      function update() {
-        ticking = false
-        var scrollable = document.documentElement.scrollHeight - window.innerHeight
-        var ratio = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0
-        bar.style.transform = 'scaleX(' + ratio + ')'
-      }
-      function onScroll() {
-        if (ticking) return
-        ticking = true
-        requestAnimationFrame(update)
-      }
-      window.addEventListener('scroll', onScroll, { passive: true })
-      window.addEventListener('resize', onScroll)
-      update()
     })()
   </script>
   <script>

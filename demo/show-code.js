@@ -32,6 +32,11 @@
         const text = node.textContent.trim()
         if (text) childLines.push('  '.repeat(depth + 1) + text)
       } else if (node.nodeType === Node.ELEMENT_NODE) {
+        // A hand-authored `.kui-show-code-toggle` is page chrome, not demo markup. When the
+        // button sits *inside* the container it targets — which is the natural place for it
+        // when the container is a two-column layout and the button belongs beside the copy —
+        // printing it makes the source look like the effect requires its own button.
+        if (node.classList.contains('kui-show-code-toggle')) continue
         childLines.push(prettyPrint(node, depth + 1))
       }
     }
@@ -255,9 +260,12 @@
 
     const caption = liveEl.querySelector('figcaption, .demo-card-caption')
     if (caption) {
-      caption.style.flexDirection = 'column'
-      caption.style.alignItems = 'flex-start'
-      caption.style.gap = '0.7rem'
+      // A class, not three inline styles. Inline styles sit above every stylesheet selector, so
+      // the old version made the caption's layout unrestylable — a page could not lay its own
+      // caption out as a row without `!important`. Same reasoning the preset defaults use: put
+      // it in the cascade and an ordinary selector can win. `.kui-has-toggle` in system.css
+      // reproduces exactly what these three lines used to set.
+      caption.classList.add('kui-has-toggle')
       caption.appendChild(button)
     } else {
       const card = liveEl.closest('figure, .text-demo, .pillar, .g-card, [data-show-code]') ?? liveEl.parentElement

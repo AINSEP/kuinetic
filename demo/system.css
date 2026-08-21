@@ -40,8 +40,6 @@
 :root[data-theme='dark'] main h2 { color: var(--accent); }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 body {
   margin: 0;
@@ -110,11 +108,12 @@ button, a.btn { font-family: inherit; cursor: pointer; }
   width: 5px; height: 5px; margin-left: -2.5px;
   border-radius: 50%;
   background: var(--accent);
+  /* transform-origin only. The rotation itself is `data-kui="orbit 3.5s"` on the element —
+     the hand-written @keyframes that used to live here was duplicated verbatim in index.html and
+     docs.html, and reduced-motion had to be re-declared by hand in all three. The library's own
+     policy layer handles that now. */
   transform-origin: 2.5px 11.5px;
-  animation: logo-orbit 3.5s linear infinite;
 }
-@keyframes logo-orbit { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
 .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
 .wordmark b { font-weight: 800; }
 
@@ -235,9 +234,7 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
   background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
   box-shadow: var(--shadow-float);
-  transition: transform 150ms ease, box-shadow 150ms ease;
 }
-.kui-replay-fab:hover { transform: scale(1.06); }
 .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* "Show code" button and modal */
@@ -271,6 +268,14 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   border-color: #ffffff;
   color: #000000;
   filter: none;
+}
+
+/* The caption layout show-code.js used to write as inline styles. Identical result, but now an
+   ordinary rule, so a page can override it with its own selector instead of fighting inline. */
+.kui-has-toggle {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
 }
 
 figure .kui-show-code-toggle {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kui="smooth-scroll-to">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -243,6 +243,10 @@
   /* ---------- page-specific: tabs (flip-indicator) ---------- */
   .tabs { margin-top: 2.5rem; }
   .matrix-group .tabs { margin-top: 0; }
+  /* The reset above assumes .tabs is a matrix-group's first child, same as .accordion's own
+     reset — true everywhere else, but this one group stacks the accordion directly above the
+     tabs, so both landing on margin-top:0 left them touching with no gap between them. */
+  .matrix-group .accordion + .tabs { margin-top: 2rem; }
   .tablist { position: relative; display: inline-flex; gap: 0.2rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
   .tab-indicator { position: absolute; top: 0.3rem; left: 0.3rem; height: calc(100% - 0.6rem); border-radius: 999px; background: var(--accent); z-index: 0; }
   .tab-btn { position: relative; z-index: 1; padding: 0.55rem 1.15rem; border-radius: 999px; border: none; background: none; font: inherit; font-size: 0.85rem; font-weight: 590; color: var(--muted); }
@@ -257,7 +261,7 @@
   <header class="site-header" data-od-id="header" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
     <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
@@ -383,42 +387,6 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Draggable · axis — 3</p>
-          <div class="gesture-grid">
-            <figure class="gesture-arena" data-show-code>
-              <div class="gesture-stage">
-                <div class="gesture-chip" data-kui="drag">
-                  <div class="gesture-chip-media">
-                    <img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" />
-                  </div>
-                </div>
-              </div>
-              <figcaption>data-kui="drag" — drag it anywhere</figcaption>
-            </figure>
-            <figure class="gesture-arena" data-show-code>
-              <div class="gesture-stage">
-                <div class="gesture-chip" data-kui="drag-x">
-                  <div class="gesture-chip-media">
-                    <img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" />
-                  </div>
-                </div>
-              </div>
-              <figcaption>data-kui="drag-x" — horizontal only</figcaption>
-            </figure>
-            <figure class="gesture-arena" data-show-code>
-              <div class="gesture-stage">
-                <div class="gesture-chip" data-kui="drag-y">
-                  <div class="gesture-chip-media">
-                    <img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" />
-                  </div>
-                </div>
-              </div>
-              <figcaption>data-kui="drag-y" — vertical only</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="matrix-group">
           <p class="matrix-group-label">Draggable · momentum — 2</p>
           <div class="gesture-grid">
             <figure class="gesture-arena" data-show-code>
@@ -451,7 +419,7 @@
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="elastic-pull">
                   <div class="gesture-chip-media">
-                    <img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" />
+                    <img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" />
                   </div>
                 </div>
               </div>
@@ -471,11 +439,47 @@
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="snap-back">
                   <div class="gesture-chip-media">
-                    <img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" />
+                    <img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" />
                   </div>
                 </div>
               </div>
               <figcaption>data-kui="snap-back" — stiff spring</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draggable · axis — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag" — drag it anywhere</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-x">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-x" — horizontal only</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-y">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-y" — vertical only</figcaption>
             </figure>
           </div>
         </div>
@@ -487,7 +491,7 @@
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="swipe">
                   <div class="gesture-chip-media">
-                    <img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" />
+                    <img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" />
                   </div>
                 </div>
               </div>
@@ -513,7 +517,7 @@
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="long-press">
                   <div class="gesture-chip-media">
-                    <img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" />
+                    <img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" />
                   </div>
                 </div>
               </div>
@@ -539,7 +543,7 @@
               <div class="gesture-stage">
                 <div class="gesture-chip" data-kui="magnetic-snap">
                   <div class="gesture-chip-media">
-                    <img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" />
+                    <img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" />
                   </div>
                 </div>
               </div>
@@ -547,6 +551,7 @@
             </figure>
           </div>
         </div>
+
       </section>
 
       <!-- LAYOUT & FLIP -->
@@ -573,12 +578,12 @@
           <div class="demo-grid" id="filter-gallery" data-kui="flip-filter">
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card" data-tone="classic"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>classic</figcaption></figure>
-            <figure class="demo-card" data-tone="futuristic"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card" data-tone="classic"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>classic</figcaption></figure>
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>futuristic</figcaption></figure>
-            <figure class="demo-card" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card" data-tone="classic"><img src="./assets/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>classic</figcaption></figure>
-            <figure class="demo-card" data-tone="futuristic"><img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>futuristic</figcaption></figure>
           </div>
         </div>
 
@@ -589,9 +594,9 @@
             <button type="button" class="kui-show-code-toggle" data-show-code-target="reorder-grid">Show code</button>
           </div>
           <div class="demo-grid" id="reorder-grid" data-kui="flip-reorder">
-            <figure class="demo-card" tabindex="0"><img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
           </div>
         </div>
@@ -608,10 +613,10 @@
                  "order: N" — a label that names what the card actually shows and travels with it as
                  flip-sort reorders by data-size is what lets a viewer tell "this one" from "that
                  one" mid-sort, which neither the earlier borrowed effect names nor a bare number did. -->
-            <figure class="demo-card" data-size="80"><img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>black helmet</figcaption></figure>
+            <figure class="demo-card" data-size="80"><img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>black helmet</figcaption></figure>
             <figure class="demo-card" data-size="120"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><figcaption>pink bubblegum</figcaption></figure>
             <figure class="demo-card" data-size="18"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>silver mesh</figcaption></figure>
-            <figure class="demo-card" data-size="260"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>red visor</figcaption></figure>
+            <figure class="demo-card" data-size="260"><img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>red visor</figcaption></figure>
           </div>
         </div>
 
@@ -628,7 +633,7 @@
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
             <figure class="demo-card" data-tone="classic"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
             <figure class="demo-card" data-tone="classic"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
-            <figure class="demo-card" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
           </div>
         </div>
 
@@ -639,10 +644,10 @@
             <button type="button" class="kui-show-code-toggle" data-show-code-target="list-grid">Show code</button>
           </div>
           <div class="demo-grid" id="list-grid" data-kui="grid-to-list">
-            <figure class="demo-card"><img src="./assets/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
-            <figure class="demo-card"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
           </div>
         </div>
 
@@ -658,11 +663,11 @@
                is-wide classes above — that's a structural fact about each card, unrelated to what
                it's filtered by. data-tone is the independent filter axis. All six portrait (is-tall). -->
           <div class="masonry-grid" id="masonry-grid" data-kui="masonry-reflow">
-            <figure class="demo-card is-tall" data-orientation="tall" data-tone="classic"><img src="./assets/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" /><figcaption>classic</figcaption></figure>
-            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
-            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten liquid gold dripping over the eyes and mouth, bold red lips" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="classic"><img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/futurism/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten liquid gold dripping over the eyes and mouth, bold red lips" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>futuristic</figcaption></figure>
-            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
+            <figure class="demo-card is-tall" data-orientation="tall" data-tone="futuristic"><img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card is-tall" data-orientation="tall" data-tone="classic"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><figcaption>classic</figcaption></figure>
           </div>
         </div>
@@ -677,7 +682,7 @@
             <figure class="demo-card" tabindex="0"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>click to expand</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>click to expand</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><figcaption>click to expand</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to expand</figcaption></figure>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kui="smooth-scroll-to">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -58,14 +58,14 @@
   }
 
   /* ---------- demo grid / cards ---------- */
-  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.5rem; }
   .matrix-group .demo-grid { margin-top: 0; }
   /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
      align-items:stretch adds to this card to match the tallest card in its row (e.g. a
      neighbor whose caption wraps to two lines). Without this, the card's own --surface
      background shows through as a sliver below a figcaption sized only to its own content. */
   .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
-  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; flex: none; }
   /* Light mode: solid black caption strip, white text. Dark mode (below) flips to the
      acid-lime accent with black text — accent-ink and accent are the same literal color in
      both themes, so this pairing has to be spelled out per-theme rather than read off tokens
@@ -87,7 +87,7 @@
   <header class="site-header" data-od-id="header" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
     <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
@@ -205,25 +205,25 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Fade — 5</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="fade-in" data-show-code>
-              <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" loading="lazy" />
-              <figcaption>data-kui="fade-in"</figcaption>
+            <figure class="demo-card" data-kui="fade-in 2000ms" data-show-code>
+              <img src="./assets/modeling/modeling_09.jpg" alt="Side-profile portrait in red-toned light, red headphones and a swept-up updo" loading="lazy" />
+              <figcaption>data-kui="fade-in 2000ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="fade-up" data-show-code>
-              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
-              <figcaption>data-kui="fade-up"</figcaption>
+            <figure class="demo-card" data-kui="fade-up 2000ms" data-show-code>
+              <img src="./assets/modeling/akira-pantsuit.jpg" alt="Studio portrait in a cropped vest, tie, and voluminous wide-leg trousers with tan lace-up boots" loading="lazy" />
+              <figcaption>data-kui="fade-up 2000ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="fade-down" data-show-code>
-              <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" loading="lazy" />
-              <figcaption>data-kui="fade-down"</figcaption>
+            <figure class="demo-card" data-kui="fade-down 2000ms" data-show-code>
+              <img src="./assets/modeling/stripe-suit.jpg" alt="Street-style portrait in a structured pinstripe blazer dress and white gloves" loading="lazy" />
+              <figcaption>data-kui="fade-down 2000ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="fade-left" data-show-code>
-              <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
-              <figcaption>data-kui="fade-left"</figcaption>
+            <figure class="demo-card" data-kui="fade-left 2000ms" data-show-code>
+              <img src="./assets/modeling/modeling_16.jpg" alt="Portrait in an emerald blazer and afro, dramatic window-shadow lighting against green" loading="lazy" />
+              <figcaption>data-kui="fade-left 2000ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="fade-right" data-show-code>
-              <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
-              <figcaption>data-kui="fade-right"</figcaption>
+            <figure class="demo-card" data-kui="fade-right 2000ms" data-show-code>
+              <img src="./assets/modeling/modeling_06.jpg" alt="Black-and-white beauty close-up, hand at chin, statement drop earrings" loading="lazy" />
+              <figcaption>data-kui="fade-right 2000ms"</figcaption>
             </figure>
           </div>
         </div>
@@ -231,21 +231,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Slide — 4</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="slide-up" data-show-code>
-              <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
-              <figcaption>data-kui="slide-up"</figcaption>
+            <figure class="demo-card" data-kui="slide-up distance:480px" data-show-code>
+              <img src="./assets/modeling/modeling_20.jpg" alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting" loading="lazy" />
+              <figcaption>data-kui="slide-up distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-down" data-show-code>
+            <figure class="demo-card" data-kui="slide-down distance:480px" data-show-code>
               <img src="./assets/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" loading="lazy" />
-              <figcaption>data-kui="slide-down"</figcaption>
+              <figcaption>data-kui="slide-down distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-left" data-show-code>
+            <figure class="demo-card" data-kui="slide-left distance:480px" data-show-code>
               <img src="./assets/green_monochrome.jpg" alt="Portrait in a green jumpsuit against a matching green backdrop, one leg raised" loading="lazy" />
-              <figcaption>data-kui="slide-left"</figcaption>
+              <figcaption>data-kui="slide-left distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-right" data-show-code>
+            <figure class="demo-card" data-kui="slide-right distance:480px" data-show-code>
               <img src="./assets/orange_visor.jpg" alt="Model wearing a mirrored visor, lit in orange and blue" loading="lazy" />
-              <figcaption>data-kui="slide-right"</figcaption>
+              <figcaption>data-kui="slide-right distance:480px"</figcaption>
             </figure>
           </div>
         </div>
@@ -253,21 +253,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Logical (RTL-aware) — 4</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="slide-inline-start" data-show-code>
-              <img src="./assets/yellow_mc.png" alt="Editorial fashion portrait in monochrome mustard-gold, oversized coat" loading="lazy" />
-              <figcaption>data-kui="slide-inline-start"</figcaption>
+            <figure class="demo-card" data-kui="slide-inline-start distance:480px" data-show-code>
+              <img src="./assets/yellow_mc.jpg" alt="Editorial fashion portrait in monochrome mustard-gold, oversized coat" loading="lazy" />
+              <figcaption>data-kui="slide-inline-start distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-inline-end" data-show-code>
-              <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
-              <figcaption>data-kui="slide-inline-end"</figcaption>
+            <figure class="demo-card" data-kui="slide-inline-end distance:480px" data-show-code>
+              <img src="./assets/modeling/modeling_10.jpg" alt="Portrait dripping in glossy pink paint, eyes closed, dramatic pink backdrop" loading="lazy" />
+              <figcaption>data-kui="slide-inline-end distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-block-start" data-show-code>
+            <figure class="demo-card" data-kui="slide-block-start distance:480px" data-show-code>
               <img src="./assets/pink_mc.jpg" alt="Editorial fashion portrait in monochrome pink, blowing a bubblegum bubble" loading="lazy" />
-              <figcaption>data-kui="slide-block-start"</figcaption>
+              <figcaption>data-kui="slide-block-start distance:480px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="slide-block-end" data-show-code>
-              <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
-              <figcaption>data-kui="slide-block-end"</figcaption>
+            <figure class="demo-card" data-kui="slide-block-end distance:480px" data-show-code>
+              <img src="./assets/modeling/modeling_11.jpg" alt="Portrait in a blue uniform and cap, a giant blue butterfly covering the eyes" loading="lazy" />
+              <figcaption>data-kui="slide-block-end distance:480px"</figcaption>
             </figure>
           </div>
         </div>
@@ -275,21 +275,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Zoom — 4</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="zoom-in" data-show-code>
-              <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
-              <figcaption>data-kui="zoom-in"</figcaption>
+            <figure class="demo-card" data-kui="zoom-in scale:0.05" data-show-code>
+              <img src="./assets/modeling/modeling_12.jpg" alt="Bold black and yellow face paint with cat-eye glasses, red lips" loading="lazy" />
+              <figcaption>data-kui="zoom-in scale:0.05"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="zoom-in-up" data-show-code>
-              <img src="./assets/gucci_nail_polish.jpg" alt="Gucci nail polish bottles, one pouring lacquer over the other against a lilac backdrop" loading="lazy" />
-              <figcaption>data-kui="zoom-in-up"</figcaption>
+            <figure class="demo-card" data-kui="zoom-in-up scale:0.05 distance:150px" data-show-code>
+              <img src="./assets/modeling/white-shades.jpg" alt="Beauty portrait in a white knit wrap and mirrored white sunglasses, bold red lips" loading="lazy" />
+              <figcaption>data-kui="zoom-in-up scale:0.05 distance:150px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="zoom-in-down" data-show-code>
+            <figure class="demo-card" data-kui="zoom-in-down scale:0.05 distance:150px" data-show-code>
               <img src="./assets/tech_helmet.jpg" alt="Profile portrait in a glossy black tech visor and wired headphones, red accent light" loading="lazy" />
-              <figcaption>data-kui="zoom-in-down"</figcaption>
+              <figcaption>data-kui="zoom-in-down scale:0.05 distance:150px"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="pop-in" data-show-code>
-              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
-              <figcaption>data-kui="pop-in"</figcaption>
+            <figure class="demo-card" data-kui="pop-in scale:0.05" data-show-code>
+              <img src="./assets/modeling/spotted-shirt.jpg" alt="Street portrait in a bold swirl-print turtleneck sweater" loading="lazy" />
+              <figcaption>data-kui="pop-in scale:0.05"</figcaption>
             </figure>
           </div>
         </div>
@@ -298,11 +298,11 @@
           <p class="matrix-group-label">Flip — 2</p>
           <div class="demo-grid" data-kui-stagger="90ms">
             <figure class="demo-card" data-kui="flip-in-x" data-show-code>
-              <img src="./assets/earpods.jpg" alt="Leather AirPods case, open, with both earbuds resting on a leather backdrop" loading="lazy" />
+              <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" />
               <figcaption>data-kui="flip-in-x"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="flip-in-y" data-show-code>
-              <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
+              <img src="./assets/modeling/modeling_18.jpg" alt="Portrait in an orange coat and beanie, tinted square sunglasses against an orange backdrop" loading="lazy" />
               <figcaption>data-kui="flip-in-y"</figcaption>
             </figure>
           </div>
@@ -312,11 +312,11 @@
           <p class="matrix-group-label">Rotate — 5</p>
           <div class="demo-grid" data-kui-stagger="90ms">
             <figure class="demo-card" data-kui="rotate-in" data-show-code>
-              <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
+              <img src="./assets/modeling/silver-glitter.jpg" alt="Beauty portrait in a rhinestone-mesh hood and matching bodysuit, bold red lips" loading="lazy" />
               <figcaption>data-kui="rotate-in"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="rotate-in-left" data-show-code>
-              <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
+              <img src="./assets/modeling/modeling_07.jpg" alt="Portrait lit entirely in purple, beret and round sunglasses against a striped backdrop" loading="lazy" />
               <figcaption>data-kui="rotate-in-left"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="rotate-in-right" data-show-code>
@@ -328,7 +328,7 @@
               <figcaption>data-kui="roll-in"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="swing-in" data-show-code>
-              <img src="./assets/orange_visor.jpg" alt="Model wearing a mirrored visor, lit in orange and blue" loading="lazy" />
+              <img src="./assets/modeling/modeling_21.jpg" alt="Side profile beauty portrait lit in magenta, glossy pink jacket and diamond earring" loading="lazy" />
               <figcaption>data-kui="swing-in"</figcaption>
             </figure>
           </div>
@@ -337,9 +337,9 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Blur — 1</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="blur-in" data-show-code>
-              <img src="./assets/perfume_bottle.jpg" alt="Amber perfume bottle staged with dried flowers between a plaster arch and stone" loading="lazy" />
-              <figcaption>data-kui="blur-in"</figcaption>
+            <figure class="demo-card" data-kui="blur-in 2000ms" data-show-code>
+              <img src="./assets/modeling/vase-dress.jpg" alt="Editorial gown printed with Picasso-style linework, styled beside a matching painted vase" loading="lazy" />
+              <figcaption>data-kui="blur-in 2000ms"</figcaption>
             </figure>
           </div>
         </div>
@@ -348,11 +348,11 @@
           <p class="matrix-group-label">Combo presets — 2</p>
           <div class="demo-grid" data-kui-stagger="90ms">
             <figure class="demo-card" data-kui="fade-blur-up" data-show-code>
-              <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
+              <img src="./assets/modeling/modeling_13.jpg" alt="Side profile portrait in yellow duotone, checkered turtleneck sweater" loading="lazy" />
               <figcaption>data-kui="fade-blur-up"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="fade-blur-in" data-show-code>
-              <img src="./assets/jewelry_black.jpg" alt="Stacked diamond rings on dark draped fabric" loading="lazy" />
+              <img src="./assets/modeling/modeling_01.jpg" alt="Black-and-white portrait, red silk blindfold and red gloves framing the face" loading="lazy" />
               <figcaption>data-kui="fade-blur-in"</figcaption>
             </figure>
           </div>
@@ -361,24 +361,24 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Character easing — 5</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card" data-kui="bounce-in" data-show-code>
-              <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
-              <figcaption>data-kui="bounce-in"</figcaption>
+            <figure class="demo-card" data-kui="bounce-in 1500ms" data-show-code>
+              <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" loading="lazy" />
+              <figcaption>data-kui="bounce-in 1500ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="bounce-in-up" data-show-code>
-              <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
-              <figcaption>data-kui="bounce-in-up"</figcaption>
+            <figure class="demo-card" data-kui="bounce-in-up 2000ms" data-show-code>
+              <img src="./assets/modeling/modeling_15.jpg" alt="Glossy red paint mask over the eyes, black lips, black gloves against red" loading="lazy" />
+              <figcaption>data-kui="bounce-in-up 2000ms"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="bounce-in-down" data-show-code>
-              <img src="./assets/motion_blur_model.jpg" alt="Long-exposure portrait dissolving into streaks of warm and cool light" loading="lazy" />
+              <img src="./assets/modeling/white-shades.jpg" alt="Beauty portrait in a white knit wrap and mirrored white sunglasses, bold red lips" loading="lazy" />
               <figcaption>data-kui="bounce-in-down"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="back-in-up" data-show-code>
-              <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" loading="lazy" />
+              <img src="./assets/modeling/black-and-yellow.jpg" alt="Runway look in black silk with a gold ginkgo-leaf print, wide draped trousers" loading="lazy" />
               <figcaption>data-kui="back-in-up"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="back-in-down" data-show-code>
-              <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" loading="lazy" />
+              <img src="./assets/modeling/modeling_05.jpg" alt="Black-and-white profile portrait in a wide-brim red hat and red cloak" loading="lazy" />
               <figcaption>data-kui="back-in-down"</figcaption>
             </figure>
           </div>
@@ -392,16 +392,16 @@
           <p data-kui="fade-up 700ms, blur-in 500ms">Two or three effects in one attribute. They compile into a single declaration with parallel value lists, and are only allowed when the CSS channels they own are disjoint.</p>
         </div>
         <div class="demo-grid" data-kui-stagger="90ms">
-          <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms" data-show-code>
-            <img src="./assets/water_splash.jpg" alt="A single water splash frozen mid-motion on pure black" loading="lazy" />
-            <figcaption>slide-up 900ms, blur-in 600ms</figcaption>
+          <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms 1800ms" data-show-code>
+            <img src="./assets/modeling/modeling_10.jpg" alt="Portrait dripping in glossy pink paint, eyes closed, dramatic pink backdrop" loading="lazy" />
+            <figcaption>slide-up 900ms, blur-in 600ms 1800ms — blur waits a full beat after the slide finishes</figcaption>
           </figure>
           <figure class="demo-card" data-kui="fade-up 900ms, zoom-in 700ms" data-show-code>
-            <img src="./assets/jewelry_black.jpg" alt="Stacked diamond rings on dark draped fabric" loading="lazy" />
+            <img src="./assets/modeling/modeling_04.jpg" alt="Red silk fabric swept across the eyes, bold red lips exposed below" loading="lazy" />
             <figcaption>fade-up 900ms, zoom-in 700ms</figcaption>
           </figure>
           <figure class="demo-card" data-kui="slide-right 900ms, blur-in 500ms, zoom-in 700ms" data-show-code>
-            <img src="./assets/architectural_shadow.jpg" alt="Black-and-white study of crossed staircase shadows against a stark wall" loading="lazy" />
+            <img src="./assets/modeling/modeling_11.jpg" alt="Portrait in a blue uniform and cap, a giant blue butterfly covering the eyes" loading="lazy" />
             <figcaption>three disjoint channels</figcaption>
           </figure>
         </div>
@@ -415,16 +415,16 @@
         </div>
         <div class="demo-grid" data-kui-stagger="90ms">
           <figure class="demo-card" data-kui="fade-up 800ms distance:140px" data-show-code>
-            <img src="./assets/perfume_bottle.jpg" alt="Amber perfume bottle staged with dried flowers between a plaster arch and stone" loading="lazy" />
+            <img src="./assets/modeling/modeling_03.jpg" alt="Portrait lit entirely in gold, tinted round sunglasses and a black turtleneck" loading="lazy" />
             <figcaption>distance:140px</figcaption>
           </figure>
           <figure class="demo-card" data-kui="fade-up 800ms expo-out distance:140px" data-show-code>
-            <img src="./assets/light_art.jpg" alt="Tangled white and gold light-trail streaks against near-black" loading="lazy" />
+            <img src="./assets/modeling/modeling_12.jpg" alt="Bold black and yellow face paint with cat-eye glasses, red lips" loading="lazy" />
             <figcaption>expo-out easing</figcaption>
           </figure>
-          <figure class="demo-card" data-kui="rotate-in 900ms angle:-25deg" data-show-code>
-            <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" loading="lazy" />
-            <figcaption>angle:-25deg</figcaption>
+          <figure class="demo-card" data-kui="rotate-in 900ms angle:-90deg" data-show-code>
+            <img src="./assets/modeling/orange-mc-visor.jpg" alt="Neon-lit portrait in orange and blue, angular mirrored visor glasses" loading="lazy" />
+            <figcaption>angle:-90deg</figcaption>
           </figure>
         </div>
       </section>
@@ -437,15 +437,19 @@
         </div>
         <div class="demo-grid" data-kui-stagger="90ms">
           <figure class="demo-card" data-kui="zoom-in 400ms on:hover" data-show-code>
-            <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
+            <img src="./assets/modeling/modeling_19.jpg" alt="Side profile portrait lit entirely in green, curly hair and bare shoulder" loading="lazy" />
             <figcaption>on:hover — point at me</figcaption>
           </figure>
           <figure class="demo-card" data-kui="swing-in 600ms on:click" tabindex="0" data-show-code>
-            <img src="./assets/luxury_watch.jpg" alt="Mesh-strap watch resting on slate, sunburst flaring off the crystal" loading="lazy" />
+            <img src="./assets/modeling/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" loading="lazy" />
             <figcaption>on:click — click me</figcaption>
           </figure>
+          <figure class="demo-card" data-kui="blur-out 700ms on:click" tabindex="0" data-show-code>
+            <img src="./assets/modeling/spotted-shirt.jpg" alt="Street portrait in a bold swirl-print turtleneck sweater" loading="lazy" />
+            <figcaption>on:click — click to toggle the blur</figcaption>
+          </figure>
           <figure class="demo-card" id="load-fade" data-kui="fade-in 600ms on:load" data-show-code>
-            <img src="./assets/designer_audio.jpg" alt="Over-ear headphones in gunmetal and brown leather, Aethelred Audio branding" loading="lazy" />
+            <img src="./assets/modeling/modeling_17.jpg" alt="Portrait in black wind-swept fabric wrapped over the eyes, bold red lips against a red backdrop" loading="lazy" />
             <figcaption>on:load — already ran</figcaption>
           </figure>
         </div>

@@ -9,7 +9,8 @@
  *
  * Elements driven by a native scroll/view CSS timeline (parallax-y and friends) are skipped:
  * they're already continuously live, driven by scroll position rather than a discrete trigger —
- * there's nothing to "replay". Elements gated on hover/focus/click are reset but not
+ * there's nothing to "replay", because scrolling back up already replays them, backwards.
+ * Elements gated on hover/focus/click are reset but not
  * synthetically activated: forcing them to play without the real interaction that defines them
  * (a flip nobody hovered, a sweep nobody's cursor triggered) would read as broken, not replayed.
  * Resetting still clears their state so the next real hover/click looks fresh.
@@ -37,12 +38,18 @@
       kui.reset(el)
       kui.process(el)
     }
+    // Progress-linked effects are skipped, not reset. Resetting one in place does nothing — its
+    // position IS the scroll position, so it resolves straight back to where it already was — and
+    // moving the page under the reader is not what a replay button means.
   }
 
   function mountReplayButton() {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'kui-replay-fab'
+    // Grow-on-hover comes from the library's `pop` preset rather than a hand-written
+    // `transition: transform` + `:hover { transform: scale() }` pair in each page's CSS.
+    button.setAttribute('data-kui', 'pop')
     button.setAttribute('aria-label', 'Replay every effect on this page')
     button.innerHTML = REPLAY_ICON
     button.addEventListener('click', replayInPlace)

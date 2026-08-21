@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kui="smooth-scroll-to">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -66,9 +66,7 @@
   :root[data-theme='dark'] .catalog-stat .num { color: var(--accent); }
 
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-
+    
   body {
     margin: 0;
     background: var(--bg);
@@ -142,11 +140,9 @@
     width: 5px; height: 5px; margin-left: -2.5px;
     border-radius: 50%;
     background: var(--accent);
+    /* transform-origin only — the spin is `data-kui="orbit 3.5s"` on the element. */
     transform-origin: 2.5px 11.5px;
-    animation: logo-orbit 3.5s linear infinite;
   }
-  @keyframes logo-orbit { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .logo-dot { animation: none; } }
   .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
   .wordmark b { font-weight: 800; }
 
@@ -259,6 +255,11 @@
   }
   @media (min-width: 900px) { .hero { grid-template-columns: 1.1fr 0.9fr; gap: 3rem; } }
   .hero-media { perspective: 1200px; }
+  .hero-media-credit {
+    margin: 0 0 0.6rem; font-size: 16px; color: var(--fg); text-align: right;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  :root[data-theme='dark'] .hero-media-credit { color: var(--accent); }
   .flip-card {
     position: relative; width: 100%; aspect-ratio: 4 / 5;
     transform-style: preserve-3d; cursor: pointer;
@@ -282,10 +283,21 @@
     line-height: 1.6;
     color: var(--muted);
   }
-  .hero .lede code {
+  .hero .lede code, .hero-facts code {
     font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px;
     background: var(--surface); border: 1px solid var(--border); color: var(--fg);
+    white-space: nowrap;
   }
+  .hero-facts {
+    margin: 1.5rem 0 0; padding: 0; list-style: none;
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .hero-facts li {
+    display: flex; align-items: center; gap: 0.65rem;
+    font-size: clamp(1.05rem, 0.4vw + 1rem, 1.25rem); line-height: 1.5; color: var(--muted);
+  }
+  .hero-facts li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg); flex: none; }
+  :root[data-theme='dark'] .hero-facts li::before { background: var(--accent); }
   .hero-actions { margin-top: 2.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .hero-note { margin-top: 1.75rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -428,10 +440,8 @@
     width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
     background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
     box-shadow: var(--shadow-float);
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-  .kui-replay-fab:hover { transform: scale(1.06); }
-  .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    }
+    .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* "Show code" button and modal */
 .kui-show-code-toggle {
   display: flex;
@@ -472,6 +482,15 @@
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
+}
+
+/* show-code.js used to set this caption layout as three inline styles; it now adds
+   `.kui-has-toggle` instead so a page can override it in the cascade. This page does not load
+   system.css, where the shared rule lives, so it carries its own identical copy. */
+.kui-has-toggle {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
 }
 
 figure .kui-show-code-toggle {
@@ -609,7 +628,7 @@ figure .kui-show-code-toggle {
   <header class="site-header" data-od-id="header" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="#top" class="logo" aria-label="kUInetic home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
     <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
@@ -690,20 +709,23 @@ figure .kui-show-code-toggle {
       <section class="hero" data-od-id="hero">
         <div class="hero-copy">
           <p class="kicker">Declarative web animation</p>
-          <h1 data-kui="typewriter">CSS animations using HTML attributes.</h1>
+          <h1 data-kui="text-reveal-down 1200ms">CSS animations using HTML attributes.</h1>
           <p class="lede" data-kui="fade-up 700ms 90ms">
-            <code>data-kui</code> compiles into real <code>@keyframes</code> and native scroll-driven
-            timelines — no animation loop, no runtime once it's compiled. JavaScript is reserved for
-            the handful of effects that genuinely can't be done any other way: dragging, text
-            splitting, reading scroll position.
+            <code>data-kui</code> compiles into real <code>@keyframes</code> and native scroll-driven timelines.
           </p>
-          <div class="hero-actions" data-kui="fade-up 700ms 180ms">
+          <ul class="hero-facts">
+            <li data-kui="fade-up 700ms 160ms">Just an attribute — <code>data-kui="blur-in 1000ms"</code></li>
+            <li data-kui="fade-up 700ms 220ms">No animation loop.</li>
+            <li data-kui="fade-up 700ms 280ms">No runtime once it's compiled.</li>
+          </ul>
+          <div class="hero-actions" data-kui="fade-up 700ms 340ms">
             <a href="#gallery" class="btn btn-primary">See it on real content</a>
             <a href="#proof" class="btn btn-ghost" data-kui="shine-sweep">Read the proof →</a>
           </div>
-          <p class="hero-note" data-kui="fade-up 700ms 260ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
+          <p class="hero-note" data-kui="fade-up 700ms 400ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
         </div>
         <div class="hero-media" data-kui="fade-left 700ms 120ms">
+          <p class="hero-media-credit" data-kui="typewriter on:enter">Made by Leon Aburime</p>
           <div class="flip-card" data-kui="card-flip-y on:hover">
             <div class="flip-face flip-front">
               <img src="./assets/autumn_model_finished.jpg" alt="Close portrait in monochrome yellow, autumn leaves resting over closed eyes" />
@@ -726,7 +748,7 @@ figure .kui-show-code-toggle {
           </p>
         </div>
         <div class="proof-card">
-          <pre><code>&lt;h2 data-kui="fade-up 800ms"&gt;
+          <pre data-kui="blur-in 800ms on:enter"><code>&lt;h2 data-kui="fade-blur-up 800ms"&gt;
   Disjoint channels compose
   without a conflict.
 &lt;/h2&gt;</code></pre>
@@ -772,15 +794,15 @@ figure .kui-show-code-toggle {
         </div>
         <div class="gallery" data-kui-stagger="80ms">
           <div class="g-card g-wide g-parallax" data-kui="fade-up 500ms on:enter">
-            <img src="./assets/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" data-kui="parallax-y distance:120px timeline:view" />
+            <img src="./assets/product/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" data-kui="parallax-y distance:120px timeline:view" />
             <span class="g-tag">parallax-y</span>
           </div>
           <div class="g-card" data-kui="fade-up 500ms 60ms on:enter">
-            <img src="./assets/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" data-kui="ken-burns 9000ms" />
+            <img src="./assets/product/kuinetic_spray.jpg" alt="Frosted pump-bottle product shot resting on a driftwood branch" data-kui="ken-burns 9000ms" />
             <span class="g-tag">ken-burns</span>
           </div>
           <div class="g-card" data-kui="fade-up 500ms 120ms on:enter">
-            <img src="./assets/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" data-kui="wipe-diagonal 900ms" />
+            <img src="./assets/product/nike_shoe.jpg" alt="Red running shoe suspended against a near-black backdrop" data-kui="wipe-diagonal 900ms" />
             <span class="g-tag">wipe-diagonal</span>
           </div>
         </div>
@@ -798,7 +820,7 @@ figure .kui-show-code-toggle {
           <div class="catalog-demo" data-kui="fade-right 500ms on:enter" data-show-code>
             <p class="catalog-demo-kicker">Text</p>
             <div class="catalog-demo-preview">
-              <img src="./assets/futuristic_visor_hud.jpg" alt="Astronaut in a white spacesuit helmet, a glowing cyan HUD readout across the visor, blurred string lights behind" data-kui="wipe-diagonal 900ms on:enter" />
+              <img src="./assets/futurism/futuristic_visor_hud.jpg" alt="Astronaut in a white spacesuit helmet, a glowing cyan HUD readout across the visor, blurred string lights behind" data-kui="wipe-diagonal 900ms on:enter" />
               <div class="catalog-demo-overlay">
                 <span class="catalog-demo-headline" data-kui="typewriter on:enter">Animate.</span>
               </div>
@@ -819,7 +841,7 @@ figure .kui-show-code-toggle {
           <div class="catalog-demo" data-kui="fade-left 500ms 120ms on:enter" data-show-code>
             <p class="catalog-demo-kicker">Combo · launch countdown</p>
             <div class="catalog-demo-preview">
-              <img src="./assets/vr_headset_dark_studio.jpg" alt="Woman kneeling on a checkered floor wearing a VR headset, arms raised, in a dark studio lit by two strip lights" />
+              <img src="./assets/futurism/vr_headset_dark_studio.jpg" alt="Woman kneeling on a checkered floor wearing a VR headset, arms raised, in a dark studio lit by two strip lights" />
               <div class="catalog-demo-overlay">
                 <div class="catalog-demo-combo-row">
                   <span class="catalog-demo-headline" data-kui="fade-blur-up 2200ms on:enter">Launching</span>

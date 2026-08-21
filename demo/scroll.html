@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-kui="smooth-scroll-to">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,47 +26,127 @@
 <link rel="stylesheet" href="./system.css" />
 <script defer src="./nav.js"></script>
 <style>
+  /* ---------- resets ----------
+     Nearly every demo card on this page is a <figure>, and neither system.css nor kuinetic.css
+     resets it — so the UA default `margin: 1em 40px` was still in force. In the grid that meant
+     each 286px column held a 183px card floating in ~100px of phantom gutter, which read as
+     broken spacing rather than as a margin. Zero it once here and every grid on the page snaps
+     back to the gap it actually declares. */
+  figure { margin: 0; }
+
   /* ---------- demo hero ---------- */
   .demo-hero {
-    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
-    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(3rem, 5vw, 5rem);
+    text-align: center;
   }
-  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
-  .demo-hero .hero-copy { max-width: 46rem; }
-  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
-  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
-  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero .kicker { display: block; }
+  .demo-hero h1 {
+    margin: 0 auto; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02;
+    letter-spacing: -0.03em; max-width: 18ch;
+  }
+  .demo-hero .lede {
+    margin: 0.85rem auto 0; max-width: 46ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem);
+    line-height: 1.6; color: var(--muted);
+  }
+  .demo-hero .hero-video {
+    margin: 2rem auto 0; max-width: 50rem; overflow: clip; border-radius: 14px; box-shadow: var(--shadow-float);
+  }
+  .demo-hero-actions { margin-top: 1.75rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1rem; }
+  .demo-hero-note { margin: 1.25rem auto 0; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
-  .demo-hero .hero-media {
-    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
-    aspect-ratio: 4 / 5; background: var(--surface);
+
+  /* ---------- showcase: the page's focal reference, pinned while its notes scroll past ----------
+     Earlier this was a full-bleed band that cover-cropped the shot across ~1200px of stage. The
+     source is 1200x960, so that both upscaled it (visibly soft) and hid most of the composition
+     behind the crop. Showing the whole frame at or under its native width fixes both. */
+  .showcase { border-top: none; padding-top: 0; }
+  .showcase-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+  @media (min-width: 900px) {
+    .showcase-grid { grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 1fr); gap: clamp(2rem, 4vw, 3.5rem); }
   }
-  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* sticky needs a non-stretched grid item — the default `align-items: stretch` would make this
+     column as tall as the copy beside it, leaving the pin nothing to travel within */
+  .showcase-media { align-self: start; }
+  .showcase-media img {
+    display: block; width: 100%; max-width: 1200px; height: auto;
+    border-radius: 14px; border: 1px solid var(--border); box-shadow: var(--shadow-float);
+  }
+  .showcase-media figcaption {
+    margin-top: 0.7rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem; color: var(--muted); line-height: 1.5;
+  }
+  .showcase-copy h2 { font-size: clamp(1.4rem, 1vw + 1.15rem, 1.95rem); letter-spacing: -0.02em; max-width: 20ch; }
+  .showcase-copy > p { margin-top: 0.7rem; color: var(--muted); line-height: 1.65; max-width: 44ch; }
+  /* the gaps between beats are what give the pinned image its scroll distance */
+  .showcase-beat { margin-top: clamp(2.75rem, 11vh, 6rem); }
+  .showcase-beat h3 { font-size: 1.02rem; letter-spacing: -0.01em; }
+  .showcase-beat p { margin-top: 0.45rem; color: var(--muted); line-height: 1.65; max-width: 44ch; }
 
   /* ---------- section heads ---------- */
   .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
   .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 60ch; line-height: 1.6; }
+  .mechanics-list {
+    margin: 0.75rem 0 0; padding: 0; list-style: none; max-width: 60ch;
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .mechanics-list li { line-height: 1.5; padding-left: 1.1rem; position: relative; }
+  .mechanics-list li::before { content: '—'; position: absolute; left: 0; color: var(--muted); }
+  .mechanics-list strong { font-weight: 600; }
+  .pin-copy .mechanics-list { font-size: 0.92rem; gap: 0.9rem; }
 
   /* ---------- matrix groups (grouped by primitive family, mirrors catalog.md order) ---------- */
   .matrix-group { margin-top: 2.5rem; }
   .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  /* 1.44rem is exactly twice the 0.72rem this used to be. At that size the tracking has to come
+     down — 0.08em was set for a caption-sized label and reads as gappy once the glyphs are large —
+     and the label stops being a quiet marker above the grid, so it needs more room beneath it. */
+  /* A rule running out from the label. Each of these families owns several hundred vh of pinned
+     stage, so by the time you reach the next one you have scrolled through two or three full
+     screens of demo with no structural marker in between — the label was doing the work of a
+     chapter heading while dressed as a caption. The hairline gives the eye something that reads
+     as "new section" at a glance, at the cost of one pseudo-element. */
   .matrix-group-label {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
-    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+    display: flex; align-items: center; gap: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.44rem;
+    letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.25rem;
+  }
+  .matrix-group-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
   }
   .matrix-group-note { margin: -0.4rem 0 0.85rem; font-size: 0.85rem; color: var(--muted); line-height: 1.6; max-width: 60ch; }
 
+  /* ---------- chrome ----------
+     The nav stays put. It was tried two ways first: hidden past the first screen, then
+     hide-on-scroll-down / show-on-scroll-up. The second one measurably worked — the flag cleared,
+     translate returned to none, and elementFromPoint confirmed nothing covered it — and it was
+     still wrong, because a 0.28s slide-in on a page you are already scrolling reads as "the nav
+     is missing". A navigation bar that has to be summoned is worse than one that takes up 58px.
+     The dial is a different case and still goes: it duplicates the red rail exactly, so past the
+     first screen there is no argument for two progress indicators competing. */
+  :root[data-dial='hidden'] .progress-ring-wrap { display: none; }
+
   /* ---------- demo grid / cards (entrance-style, simple flat cards) ---------- */
-  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  /* Two up, not four. At four columns these landed as ~265px near-square thumbnails, which is
+     too small to read a website's type or layout — and reading them is the entire point. */
+  /* align-items:start, not the default stretch. Every card now carries its own screenshot's
+     aspect ratio, so cards in a row have genuinely different heights — stretching would pad the
+     shorter one out by growing its caption bar into a several-hundred-pixel slab. */
+  /* Wider gaps than a static grid needs, because these cards move. With the transform on the
+     card instead of a clipped image, every effect travels into the space around it — at the old
+     1.5rem gap the scale card grew over three neighbours and parallax-x slid a third of the way
+     into the next column. The gap is the travel budget, so distances stay under it. */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 3rem 2rem; align-items: start; }
+  @media (min-width: 760px) { .demo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .matrix-group .demo-grid { margin-top: 0; }
   /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
      align-items:stretch adds to this card to match the tallest card in its row. Without this, the
      card's own --surface background shows through as a sliver below a figcaption sized only to its
      own content. */
   .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
-  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  /* same rule as the parallax frames: the card takes the screenshot's own ratio so the whole
+     landing page is visible in place, without anyone having to open the viewer */
+  .demo-card img,
+  .demo-card video { display: block; width: 100%; aspect-ratio: var(--ar, 16 / 10); object-fit: cover; flex: none; }
   .demo-card figcaption,
   .parallax-card figcaption {
     flex: 1 0 auto; display: flex; align-items: center;
@@ -78,7 +158,72 @@
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
   .demo-card[tabindex] { cursor: pointer; }
+  /* Rounded and inset rather than full-bleed. This caption is separated from the card it labels
+     by the pin's ~1700px spacer, so by the time you reach it the demo is long gone and a
+     hard-edged black band just reads as an unexplained rule across the page. Rounding it to the
+     same radius as the figures either side makes it read as a caption belonging to something. */
+  .pin-section-figure figcaption {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+    margin-top: 0.85rem; border-radius: 10px;
+    padding: 0.7rem 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink);
+  }
+  /* This caption is nearly a full content column wide. Stacked — which is what show-code.js's
+     `.kui-has-toggle` gives every other card — the label sat top-left and the button floated in
+     the middle of a very wide black slab with nothing else in it. At this width a row reads as a
+     toolbar instead: label at one end, button at the other, and the bar is only as tall as it
+     needs to be. Narrow screens fall back to the stacked default. */
+  @media (min-width: 640px) {
+    .pin-section-figure figcaption.kui-has-toggle {
+      flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .pin-section-figure figcaption.kui-has-toggle .kui-show-code-toggle {
+      align-self: auto; margin: 0;
+    }
+  }
+  :root[data-theme='dark'] .pin-section-figure figcaption {
+    color: var(--accent-ink); background: var(--accent);
+  }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- "Show code" as a chip, not a slab ----------
+     system.css ships this toggle as a 200px-wide filled --accent block. That is correct on a page
+     that mounts three or four of them. This page mounts thirty-odd, most of them over full-bleed
+     screenshots whose entire job is to be looked at — and at that density a chartreuse slab per
+     card stops reading as a control and becomes the loudest colour on the page, above the work it
+     is captioning. Same affordance, quieter rest state: an outline chip that takes currentColor
+     from whichever bar it lands in, and fills with --accent only on hover/focus. The accent
+     becomes the feedback rather than the default, which is also the only place premium UI spends
+     a colour that strong. Scoped to `main` on this page; every other demo keeps the slab. */
+  main .kui-show-code-toggle {
+    width: auto; max-width: none; align-self: center; margin-inline: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.3rem 0.7rem; border-radius: 999px;
+    color: inherit; background: transparent; opacity: 0.75;
+    border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  }
+  main .kui-show-code-toggle:hover,
+  main .kui-show-code-toggle:focus-visible,
+  :root[data-theme='dark'] main .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] main .kui-show-code-toggle:focus-visible {
+    opacity: 1; color: var(--accent-ink); background: var(--accent); border-color: var(--accent); filter: none;
+  }
+  /* A card only has to be hovered for its own chip to come up to full strength — so the control is
+     discoverable without thirty of them competing for attention at rest. */
+  figure:hover .kui-show-code-toggle,
+  .demo-card:hover .kui-show-code-toggle,
+  .spy-section:hover .kui-show-code-toggle { opacity: 1; }
+
+  /* `.kui-has-toggle` stacks the caption so a 200px-wide button has somewhere to go. A chip does
+     not need its own line, and stacking is what turned every caption on this page into a two-row
+     block — and, on the glass pills over the stacking cards and the snap-y panel, pushed the
+     button clean outside the pill it was supposed to sit in. Label left, chip right, one line. */
+  main .kui-has-toggle {
+    display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+    gap: 0.75rem; flex-wrap: wrap;
+  }
 
   /* ================================================================================
      Scroll-page-specific: everything below needs real height/width to actually scroll,
@@ -86,9 +231,27 @@
      ================================================================================ */
 
   /* ---------- fixed progress chrome: live examples of scroll-progress-bar / -ring ---------- */
+  /* Hide the native scrollbar so the rail is the only progress indicator on screen. The rail is
+     a fill — its length is progress × 100vh — while a native scrollbar is a thumb, whose top is
+     progress × (track height − thumb height). Those two formulas can never land on the same
+     value at the same scroll position, so with both visible the rail reads as a second, slightly
+     wrong scrollbar instead of the intended one. Hiding the native track removes the mismatch
+     and makes the rail the single source of truth. The trade-off is real, not free: this loses
+     drag-to-scroll on the native thumb and the thumb-size cue for how long the document is. */
+  html, body {
+    scrollbar-width: none; /* Firefox, legacy Edge */
+    -ms-overflow-style: none; /* old IE/Edge */
+  }
+  html::-webkit-scrollbar, body::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+  /* A rail down the right edge rather than a bar across the top, filling top-down. One red in
+     both themes — red holds its own against the white page and the black one equally, so it
+     needs no per-theme override the way a black hairline did. */
   #progress-bar {
-    position: fixed; inset: 0 0 auto; height: 3px;
-    background: var(--accent); transform-origin: left center; z-index: 100;
+    position: fixed; top: 0; right: 0; bottom: auto; left: auto;
+    width: 3px; height: 100dvh;
+    background: #e0242b; transform-origin: center top; z-index: 100;
   }
   .progress-ring-wrap {
     position: fixed; left: 1.25rem; bottom: 1.25rem; z-index: 60;
@@ -104,48 +267,223 @@
 
   /* ---------- parallax cards (Section B) ---------- */
   .parallax-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
-  .parallax-frame { position: relative; height: 230px; overflow: clip; flex: none; }
-  .parallax-frame img { position: absolute; inset: -20% 0; width: 100%; height: 140%; object-fit: cover; }
-  /* parallax-x travels horizontally, so the oversize has to be on the inline axis instead */
-  .parallax-frame.is-x img { inset: 0 -20%; width: 140%; height: 100%; }
-  /* parallax-scale grows from within its own box — no oversize needed, a gap would show at scale:1 */
-  .parallax-frame.is-scale img { inset: 0; width: 100%; height: 100%; }
-  /* parallax-rotate needs slack in both axes so a rotated corner never shows the frame's edge */
-  .parallax-frame.is-rotate img { inset: -16%; width: 132%; height: 132%; }
+  /* The oversize has to be at least as large as the travel, or the transform slides the image
+     clear of its own slack and the bare frame shows as a white band. The old flat -20%/140%
+     gave 46px of slack on a 230px frame while `distance:120px` asked for 120px of travel, so
+     parallax-y and parallax-x both leaked an edge. Deriving the oversize from a --travel that
+     mirrors the declared `distance:` makes the two impossible to drift apart again. */
+  /* Show the whole site, not a band of it. Every frame takes its own screenshot's aspect ratio
+     via --ar, so `cover` has nothing left to crop, and the parallax rides the card rather than
+     an oversized image inside a clipping window. That window version can only ever reveal a
+     slice of a landing page — which defeats the reason real sites are on this page at all.
+     Moving the transform up one level costs nothing and shows the entire design. */
+  .parallax-frame { position: relative; aspect-ratio: var(--ar, 16 / 10); overflow: clip; flex: none; }
+  .parallax-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* a full-page screenshot runs two or three screens tall, so at full column width it becomes a
+     ~970px monolith — narrowing its card keeps the entire page visible at a sane height */
+  /* An explicit width, not max-width. Left to stretch-plus-max-width the card resolved its
+     height first and then let the frame's aspect-ratio solve width backwards from it, landing
+     at 221px instead of 380. Fixing the inline size makes the ratio resolve the way round we
+     actually want: width in, height out. */
+  .parallax-card.is-tall { width: min(380px, 100%); margin-inline: auto; }
+  /* Travel is ±distance, not 0→distance — measured -200px to +200px at distance:200px — so the
+     clearance has to exist on both sides, not just below. The card rests mid-margin and moves
+     into its own reserved space; the notes column beside it is align-self:center, so it stays
+     optically level with the card's resting position rather than pinned to a much taller row. */
+  .parallax-card.is-tall { margin-block: 13rem; }
+  .parallax-card.is-solo[data-kui*='depth-layer'] { margin-block: 10rem; }
+  /* rotate and scale ride the card, so give them a little room to move into and something to
+     pivot around — a card that tilts flush against its neighbours reads as a layout bug */
+  .parallax-card.is-rotate, .parallax-card.is-scale { transform-origin: center center; }
+  /* Scale and rotate were stuck at 1.05 and 3deg — invisible — only because a neighbour sat
+     32px away. Give them a row to themselves at a narrower width and the leftover column
+     becomes travel room, so both can run near the library's own 1.2 / 12deg defaults. */
+  @media (min-width: 760px) {
+    .parallax-card.is-solo { grid-column: 1 / -1; width: min(560px, 100%); margin-inline: auto; }
+  }
+  /* Clearance has to cover both neighbours moving at once: the depth-layer card above travels
+     44px down while this one grows ~38px up. Row gap alone left them meeting in the middle. */
+  .parallax-card.is-scale { margin-block: 2.75rem; }
+  .parallax-card.is-rotate { margin-block: 3rem; }
+
+  /* ---------- notes column beside the tall card ---------- */
+  .parallax-notes { align-self: center; }
+  .parallax-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1.15rem; max-width: 34ch; }
+  .parallax-notes li { position: relative; padding-left: 1.2rem; line-height: 1.6; color: var(--muted); }
+  .parallax-notes li::before {
+    content: ''; position: absolute; left: 0; top: 0.6em;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  .parallax-notes strong { color: var(--fg); font-weight: 600; }
+
+  /* ---------- section-head notes: bullets that arrive from the right ---------- */
+  .head-notes { margin-top: 0.9rem; }
+  .head-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.9rem; max-width: 64ch; }
+  .head-notes li { position: relative; padding-left: 1.2rem; line-height: 1.6; color: var(--muted); }
+  .head-notes li::before {
+    content: ''; position: absolute; left: 0; top: 0.6em;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  .head-notes strong { color: var(--fg); font-weight: 600; }
+
+  /* ---------- reversing notes ----------
+     These use view timelines rather than on:enter. An `on:enter` reveal fires once and stays
+     fired — scroll back up and it is simply still there. A view timeline maps the element's
+     travel through the viewport onto the animation, so scrolling up literally runs it backwards
+     and the note leaves again. The `entry 0% cover 35%` range in data-kui-timeline is what keeps
+     that readable: the effect finishes early instead of only reaching full opacity as the text
+     leaves the top of the screen. */
+  .rev-notes { margin: -0.2rem 0 0.9rem; max-width: 62ch; }
+  /* The -0.2rem above is tuned for notes that sit under a `.matrix-group-label`, where pulling
+     them up tightens the pair. Directly after a figure it does the opposite: the caption bar is a
+     full-bleed black slab, and a negative margin slides the first bullet's line box up underneath
+     it so the text renders clipped behind the bar. Reset it, and give the bar real clearance —
+     it is the heaviest element on the page and needs to not touch what follows. */
+  figure + .rev-notes,
+  .pin-until-layout + .rev-notes,
+  .stack-group + .rev-notes { margin-top: 2.75rem; }
+  .rev-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+  .rev-notes li { position: relative; padding-left: 1.15rem; line-height: 1.6; font-size: 0.9rem; color: var(--muted); }
+  .rev-notes li::before {
+    content: ''; position: absolute; left: 0; top: 0.6em;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  }
+  .rev-notes strong { color: var(--fg); font-weight: 600; }
+  .rev-notes code { font-size: 0.86em; }
+
+  /* ---------- pinned rotate finale ----------
+     Layout only. The half-turn is `parallax-rotate from:-180deg angle:0deg timeline:pin` on the
+     element itself — a view timeline stalls the moment an element is pinned, and `timeline:pin`
+     is the library's answer to exactly that. This block used to carry the rotation as a
+     hand-written `rotate: calc(-180deg + var(--kui-progress) * 180deg)`, which meant copying the
+     data-kui attribute off this page got you a pinned card that did not turn. */
+  .rotate-stage { position: relative; min-height: 300vh; margin-top: 2.5rem; }
+  .rotate-pin-card { width: min(560px, 100%); margin-inline: auto; }
+
+  /* ---------- reserved video slots ---------- */
+  .video-slots { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+  @media (min-width: 760px) { .video-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .video-slot {
+    aspect-ratio: 16 / 9; border-radius: 12px; display: grid; place-items: center; text-align: center;
+    padding: 1rem; border: 1px dashed var(--border); background: var(--surface); color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.7;
+  }
+  .video-slot span { display: block; }
+  .video-slot .slot-num { font-size: 1.4rem; color: var(--fg); opacity: 0.25; margin-bottom: 0.35rem; }
+
+  /* ---------- hero video ---------- */
+  .video-frame { position: relative; aspect-ratio: 16 / 9; overflow: clip; cursor: pointer; background: #000; flex: none; }
+  .video-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .video-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+  .yt-play {
+    position: absolute; inset: 0; margin: auto; width: 68px; height: 48px;
+    border: 0; background: none; padding: 0; cursor: pointer;
+  }
+  .yt-play-bg { fill: #f00; transition: fill 180ms ease; }
+  .video-frame:hover .yt-play-bg, .yt-play:focus-visible .yt-play-bg { fill: #ff1a1a; }
+  .yt-play-tri { fill: #fff; }
+  .yt-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 
   /* ---------- pinning group (Section C) ---------- */
+  /* 300vh, not 320: the card is pinned for its declared `distance:200vh` and is itself one
+     viewport tall, so 300vh is exactly the room the sequence needs. The extra 20vh was empty
+     stage the card had already finished with — dead space with a border around it. */
   .pin-section-stage {
-    position: relative; min-height: 320vh; margin-top: 2rem;
+    position: relative; min-height: 300vh; margin-top: 2rem;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   }
+  /* This card holds the viewport for the whole 200vh pin, so it has to BE the viewport.
+     Sized to its own content it was ~430px tall in a 723px window: the composition sat
+     jammed under the sticky header with ~40% of the screen empty below it. min-height +
+     align-content:center makes the leftover space symmetric instead of all bottom. */
   .pin-section-card {
-    position: relative; height: 100vh; overflow: clip;
-    display: grid; place-items: center; text-align: center;
+    position: relative; overflow: clip; background: var(--surface);
+    min-height: 100dvh; box-sizing: border-box;
+    display: grid; grid-template-columns: 1fr;
+    align-content: center; align-items: center; gap: 2rem;
+    /* Was 6.5rem on top to clear the sticky pill header. The header now hides itself on the way
+       down and only returns when you scroll back up, and you are always scrolling down while
+       this card is pinned — so it is never there to clear. Symmetric padding puts the
+       composition in the middle of the viewport instead of pushed 3rem below centre. */
+    padding: 3.5rem clamp(1.25rem, 3vw, 2.5rem) 3.5rem;
   }
-  .pin-section-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .pin-section-card::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgb(8 9 10 / 0.15), rgb(8 9 10 / 0.55));
+  /* reclaim .wrap's own gutter so the video gets the full 1200px — a pure inset pull,
+     no 100vw, so it can never introduce a horizontal scrollbar */
+  @media (min-width: 768px) { .pin-section-stage { margin-inline: -2.5rem; } }
+  @media (min-width: 800px) {
+    .pin-section-card {
+      grid-template-columns: minmax(0, 1.75fr) minmax(14rem, 1fr);
+      gap: clamp(1.75rem, 3vw, 3rem);
+    }
   }
-  .pin-section-card .pin-copy {
-    position: relative; z-index: 1; color: #fff; padding: 0 1.5rem; max-width: 30ch;
-    opacity: calc(0.25 + var(--kui-progress, 0) * 0.75);
-    translate: 0 calc(var(--kui-progress, 0) * -40px);
+  .pin-section-media { min-width: 0; }
+  .pin-section-media .video-frame {
+    /* cap by available height on short/wide viewports so the 16:9 frame can never
+       outgrow the pin and push the copy off-screen */
+    width: min(100%, calc((100dvh - 10rem) * 16 / 9));
+    margin-inline: auto; border-radius: 14px; box-shadow: var(--shadow-float);
   }
-  .pin-section-card .pin-copy p.kicker { color: rgb(255 255 255 / 0.75); }
-  .pin-section-card .pin-copy h3 { font-size: clamp(1.6rem, 1vw + 1.4rem, 2.4rem); letter-spacing: -0.02em; }
+  .pin-section-card .pin-copy { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+  /* The staggered reveal is `fade-up timeline:pin` per item plus `data-kui-stagger` on the list —
+     see the markup. It used to live here as a per-child `--step` ladder driving opacity and
+     translate off `calc(var(--kui-progress) - var(--step))`, six hand-tuned magic numbers deep,
+     none of which an author could get by copying the data-kui attribute. */
 
   .pin-until-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
   @media (min-width: 800px) { .pin-until-layout { grid-template-columns: 0.85fr 1.15fr; gap: 2.5rem; } }
   .pin-until-aside {
-    align-self: start; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+    align-self: start; padding: 1.65rem; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--surface); box-shadow: var(--shadow-float);
   }
-  .pin-until-aside h4 { font-size: 1.15rem; letter-spacing: -0.01em; }
+  .pin-until-aside .kicker {
+    display: block; margin-bottom: 0.55rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text);
+  }
+  .pin-until-aside h4 { font-size: 1.3rem; letter-spacing: -0.015em; line-height: 1.2; }
   .pin-until-aside p { margin-top: 0.6rem; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
-  .pin-until-aside .mono-note { margin-top: 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; color: var(--muted); }
+  /* The data-kui line is the thing this whole panel exists to show, so it stops being a floating
+     grey mono paragraph and becomes a real code block — a bordered strip the eye lands on. The
+     "Show code" chip hangs directly off its bottom edge, joined to it rather than merely near it,
+     because it opens that exact snippet. Proximity is the only thing telling anyone the two
+     belong together, so it has to be unambiguous. */
+  .pin-until-aside .mono-note {
+    margin: 1.35rem 0 0; padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border); border-bottom: none;
+    border-radius: 8px 8px 0 0; background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem;
+    color: var(--fg); overflow-x: auto;
+  }
+  .pin-until-aside .kui-show-code-toggle {
+    display: flex; width: 100%; max-width: none; justify-content: center;
+    margin: 0; padding: 0.5rem 0.7rem; opacity: 1;
+    border-radius: 0 0 8px 8px; border: 1px solid var(--border); color: var(--muted);
+  }
+  .pin-until-aside .kui-show-code-toggle:hover,
+  .pin-until-aside .kui-show-code-toggle:focus-visible { color: var(--accent-ink); }
+
   .pin-until-content { display: grid; gap: 1.5rem; }
-  .pin-until-block { border-radius: 12px; overflow: clip; border: 1px solid var(--border); }
+  .pin-until-block {
+    position: relative; border-radius: 14px; overflow: clip; border: 1px solid var(--border);
+  }
   .pin-until-block img { display: block; width: 100%; height: 62vh; max-height: 460px; object-fit: cover; }
+  /* Each block is one stop on the itinerary the panel opposite is describing, so each one says
+     which stop it is. Before this they were three unlabelled screenshots and a sentence claiming
+     there were three of something. Overlaid on a bottom scrim rather than in a bar underneath —
+     the bar is what the removed per-card toggles used to need, and without them there is nothing
+     left to justify interrupting three full-bleed images with three strips of white. */
+  .pin-until-block figcaption {
+    position: absolute; inset: auto 0 0 0; z-index: 1;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 2.75rem 1.15rem 0.95rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem;
+    letter-spacing: 0.02em; color: rgb(255 255 255 / 0.92);
+    background: linear-gradient(180deg, transparent, rgb(8 9 10 / 0.72));
+  }
+  .pin-until-block .stop-num {
+    font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px;
+    color: var(--accent-ink); background: var(--accent); font-weight: 700;
+  }
 
   .pin-spacer-demo { margin-top: 2rem; }
   .pin-spacer-track { position: relative; min-height: 260vh; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -153,10 +491,33 @@
     position: relative; height: 70vh; overflow: clip; border-radius: 0;
     display: grid; place-items: center;
   }
-  .pin-spacer-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .pin-spacer-card::after { content: ''; position: absolute; inset: 0; background: rgb(8 9 10 / 0.4); }
-  .pin-spacer-card .pin-copy { position: relative; z-index: 1; color: #fff; text-align: center; }
-  .pin-spacer-card .pin-copy .mono { display: block; font-size: 0.78rem; letter-spacing: 0.04em; color: rgb(255 255 255 / 0.75); margin-top: 0.5rem; }
+  .pin-spacer-card img,
+  .pin-spacer-card video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* Was a flat 0.4 wash over the whole frame, which dimmed the artwork everywhere and protected
+     the caption nowhere in particular. Directional instead: near-clear across the top two-thirds
+     so the bust keeps its contrast, deepening into the lower-left corner where the caption
+     actually sits. Same trick the spy sections and the stacking-card pills use. */
+  .pin-spacer-card::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgb(8 9 10 / 0.28) 0%, rgb(8 9 10 / 0.12) 42%, rgb(8 9 10 / 0.78) 100%),
+      linear-gradient(90deg, rgb(8 9 10 / 0.45), transparent 55%);
+  }
+  /* Overlaid in the lower left rather than centred. At twice the old size this is a caption with
+     some presence, and centring something that large over the middle of the video would sit on
+     top of the composition it is labelling. Absolute, so it opts out of the card's
+     `place-items: center` without disturbing anything else in there. */
+  .pin-spacer-card .pin-copy {
+    position: absolute; left: clamp(1.25rem, 3vw, 2.5rem); bottom: clamp(1.25rem, 3vw, 2.5rem);
+    right: auto; top: auto; z-index: 1; color: #fff; text-align: left; max-width: min(90%, 46ch);
+  }
+  /* 1.56rem is exactly twice the 0.78rem it replaces. A drop shadow because this now sits over
+     moving video rather than a still, so the contrast behind any given character changes as it
+     plays and the flat 0.4 scrim underneath is no longer enough on its own. */
+  .pin-spacer-card .pin-copy .mono {
+    display: block; font-size: 1.56rem; letter-spacing: 0.02em; line-height: 1.3;
+    color: #fff; margin-top: 0; text-shadow: 0 1px 12px rgb(0 0 0 / 0.55);
+  }
   /* Makes the JS-inserted spacer node visible for teaching purposes — this dashed box IS the
      `distance`-tall <div data-kui-spacer> the pin primitive creates automatically after the card. */
   .pin-spacer-track [data-kui-spacer] { outline: 1px dashed var(--border); outline-offset: -1px; }
@@ -184,20 +545,53 @@
   /* ---------- scrollytelling (Section C) ---------- */
   .story { position: relative; min-height: 280vh; margin-top: 2rem; overflow: clip; border-radius: 14px; border: 1px solid var(--border); }
   .story > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .story::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(8 9 10 / 0.35), rgb(8 9 10 / 0.75)); }
+  /* The copy sits in the left third, so the scrim runs left-to-right, not top-to-bottom. A flat
+     vertical wash had to be dark enough for the worst pixel anywhere in the frame, which meant
+     dimming the whole sky to protect four lines occupying a quarter of it. */
+  .story::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      linear-gradient(90deg, rgb(8 9 10 / 0.9) 0%, rgb(8 9 10 / 0.78) 30%, rgb(8 9 10 / 0.32) 58%, rgb(8 9 10 / 0.1) 78%, rgb(8 9 10 / 0.3) 100%),
+      linear-gradient(180deg, rgb(8 9 10 / 0.3), transparent 30%, rgb(8 9 10 / 0.45));
+  }
   .story-pin {
     position: sticky; top: 0; height: 100vh;
-    display: grid; align-content: center; gap: 1rem; padding: 0 2rem;
+    display: grid; align-content: center; justify-items: start;
+    gap: 1.15rem; padding: 0 clamp(2rem, 5vw, 4.5rem);
   }
+  /* Inactive lines were held at 40% white, which over a cloudscape is legible enough to compete
+     and not legible enough to read — four half-lit sentences at once, none of them the one the
+     scroll position is on. Dropped to 14% and pushed slightly out of focus, so the deck reads as
+     one live line with three ghosts around it, which is what a scrollytelling step *is*. */
   .story-pin p {
-    position: relative; z-index: 1; margin: 0; font-size: clamp(1.2rem, 1vw + 1rem, 1.7rem);
-    color: rgb(255 255 255 / 0.4); transition: color 240ms ease; max-width: 34ch;
+    position: relative; z-index: 1; margin: 0;
+    font-size: clamp(1.25rem, 1.1vw + 1rem, 1.9rem); line-height: 1.35; letter-spacing: -0.01em;
+    color: rgb(255 255 255 / 0.14); filter: blur(1.5px);
+    transform: translateY(0.15rem); max-width: 30ch;
+    transition: color 320ms ease, filter 320ms ease, transform 320ms ease;
   }
   .story[data-kui-step='0'] .story-pin p:nth-child(1),
   .story[data-kui-step='1'] .story-pin p:nth-child(2),
   .story[data-kui-step='2'] .story-pin p:nth-child(3),
   .story[data-kui-step='3'] .story-pin p:nth-child(4) {
-    color: #fff;
+    color: #fff; filter: none; transform: none;
+  }
+  /* Four dots driven by the same `data-kui-step` attribute selector as the copy — the note under
+     this demo claims the primitive writes that attribute and plain CSS reads it, and a second
+     independent thing reacting to it is what makes the claim visible rather than asserted. */
+  .story-dots { position: relative; z-index: 1; display: flex; gap: 0.55rem; margin-top: 1.9rem; }
+  .story-dots span {
+    width: 34px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.3);
+    transition: background-color 320ms ease;
+  }
+  .story[data-kui-step='0'] .story-dots span:nth-child(1),
+  .story[data-kui-step='1'] .story-dots span:nth-child(2),
+  .story[data-kui-step='2'] .story-dots span:nth-child(3),
+  .story[data-kui-step='3'] .story-dots span:nth-child(4) {
+    background: var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .story-pin p { filter: none; transform: none; color: rgb(255 255 255 / 0.35); }
   }
 
   /* ---------- horizontal scroll (Section C) ---------- */
@@ -214,9 +608,12 @@
     position: sticky; top: 10vh; height: 80vh; max-height: 560px;
     border-radius: 14px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
   }
+  /* The grayscale->colour wipe is `scroll-desaturate timeline:pin`, composed onto the same
+     element as sequence-scrub — see the markup. It used to be a hand-written
+     `filter: grayscale(calc(100% - var(--kui-progress) * 100%))` right here, which is the exact
+     shape of thing this page exists to argue you should not have to write. */
   .scrub-viewport img {
     display: block; width: 100%; height: 100%; object-fit: cover;
-    filter: grayscale(calc(100% - var(--kui-progress, 0) * 100%));
   }
 
   /* ---------- scroll-spy (Section C) ---------- */
@@ -237,9 +634,20 @@
     display: flex; align-items: flex-end;
   }
   .spy-section img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .spy-section::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgb(8 9 10 / 0.7)); }
-  .spy-section .spy-label { position: relative; z-index: 1; padding: 1.5rem; color: #fff; }
-  .spy-section .spy-label .kicker { color: rgb(255 255 255 / 0.75); }
+  /* Ramped harder and started lower than the old `transparent 40% -> 0.7` stop. Four of these
+     sections are near-black screenshots where that was plenty; the Saxe commerce shot is a cream
+     hero, and white label text landed on it at roughly 0.45 of scrim — visible, but nowhere near
+     a contrast ratio anyone should ship. The scrim has to clear the brightest image in the set,
+     not the average one. */
+  .spy-section::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 38%, rgb(8 9 10 / 0.55) 68%, rgb(8 9 10 / 0.92) 100%);
+  }
+  .spy-section .spy-label {
+    position: relative; z-index: 1; padding: 1.5rem; color: #fff;
+    text-shadow: 0 1px 10px rgb(0 0 0 / 0.4);
+  }
+  .spy-section .spy-label .kicker { color: rgb(255 255 255 / 0.8); }
   .spy-section .spy-label h4 { font-size: 1.5rem; letter-spacing: -0.01em; }
 
   /* ---------- native scroll-snap (Section C) ---------- */
@@ -273,7 +681,7 @@
 </head>
 <body>
 
-  <div id="progress-bar" data-kui="scroll-progress-bar timeline:scroll" aria-hidden="true"></div>
+  <div id="progress-bar" data-kui="scroll-progress-bar-y timeline:scroll" aria-hidden="true"></div>
   <div class="progress-ring-wrap" aria-hidden="true">
     <svg viewBox="0 0 44 44" width="46" height="46">
       <circle class="ring-track" cx="22" cy="22" r="18" />
@@ -284,7 +692,7 @@
   <header class="site-header" data-od-id="header" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
-      <span class="logo-mark" aria-hidden="true"><span class="logo-dot"></span></span>
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
     <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
@@ -363,27 +771,88 @@
 
       <!-- HERO -->
       <section class="demo-hero" data-od-id="hero">
-        <div class="hero-copy">
-          <p class="kicker">CSS Animations · Scroll</p>
-          <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
-          <p class="lede" data-kui="fade-up 700ms 90ms">
-            Everything on this page reads real scroll position, not a fixed timer. Some effects use
-            <code>data-kui-timeline</code> — a native CSS <code>view()</code>/<code>scroll()</code> timeline that
-            reverses the instant you scroll back up. Others need real measurement — pinning,
-            scrollytelling, horizontal tracks — so they run through the library's shared JS orchestrator instead.
-          </p>
-          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
-            <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
-            <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+        <p class="kicker" data-kui="fade-up 700ms">CSS Animations · Scroll</p>
+        <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
+
+        <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
+          <div class="video-frame" data-yt-id="EcbgbKtOELY">
+            <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
+            <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
+              <svg viewBox="0 0 68 48" aria-hidden="true">
+                <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+              </svg>
+            </button>
           </div>
-          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> The bar above the header and the ring in the lower-left corner are both live — watch them as you scroll this page.</p>
         </div>
-        <div class="hero-media">
-          <img
-            src="./assets/scenic_volcano_eruption.jpg"
-            alt="Volcán de Fuego erupting at night, glowing lava fountains arcing over the silhouetted cone under a dense, star-filled sky"
-            data-kui="blur-in 2000ms on:load"
-          />
+
+        <p class="lede" data-kui="fade-up 700ms 160ms">Real scroll position drives every effect below — no fixed timers, no faked progress.</p>
+        <div class="demo-hero-actions" data-kui="fade-up 700ms 220ms">
+          <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
+          <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+        </div>
+        <p class="demo-hero-note" data-kui="fade-up 700ms 280ms"><span class="dot"></span> The bar above and the ring below-left are both live.</p>
+      </section>
+
+      <!-- SHOWCASE — the page's focal reference, directly under the hero so the first thing past
+           the fold is a real website rather than a control. The shot stays pinned at full size
+           while the notes about it scroll past, which is both the point being made and a live
+           use of the pin primitive the page goes on to document. -->
+      <section class="showcase" data-od-id="marquee" aria-labelledby="showcase-title">
+        <div class="showcase-grid">
+          <figure class="showcase-media" data-kui="pin-until offset:6rem">
+            <img
+              src="./assets/webdesign/eosai-dark-hero.jpg"
+              alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet, with a lone figure at the water's edge for scale"
+              loading="eager"
+            />
+            <figcaption>EOSAI — agency homepage · held by data-kui="pin-until offset:6rem"</figcaption>
+          </figure>
+
+          <div class="showcase-copy">
+            <p class="kicker">Reference</p>
+            <h2 id="showcase-title">A hero gets one job: make you stop.</h2>
+            <p>
+              The whole frame stays pinned while these notes scroll past it, so you can keep
+              looking at the thing being described. Four decisions are doing the work.
+            </p>
+
+            <div class="showcase-beat">
+              <h3>It spends everything on one image</h3>
+              <p>
+                No feature grid, no logo wall, no three-column value props. One picture and four
+                words. A visitor decides whether to keep scrolling long before they finish reading,
+                so the first viewport is the only real estate that always gets seen.
+              </p>
+            </div>
+
+            <div class="showcase-beat">
+              <h3>The type ranks itself</h3>
+              <p>
+                "Imagining beyond" sits in plain white; "reality." switches to warm gold. Same size,
+                same line — but your eye lands on the last word first. That is hierarchy built from
+                colour alone, costing no extra space.
+              </p>
+            </div>
+
+            <div class="showcase-beat">
+              <h3>Contrast is protected, not assumed</h3>
+              <p>
+                The headline sits on the darkest part of the sky, and the paragraph under it never
+                crosses onto the bright planet. Text over an image only stays readable when the
+                image is composed around it.
+              </p>
+            </div>
+
+            <div class="showcase-beat">
+              <h3>One next step, stated twice</h3>
+              <p>
+                A single "View our work" button, and a small "Scroll" cue in the corner. Two exits,
+                both obvious. A hero that offers five things to do is a hero that gets none of them
+                done.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -391,65 +860,150 @@
       <section id="matrix" data-od-id="reveal-parallax">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Scroll reveal &amp; parallax</h2>
-          <p>
-            Catalog section B — 12 named effects. Nine are live below; three
-            (<code>reveal-repeat</code>, <code>scroll-skew</code>, <code>reveal-direction-aware</code>) are
-            documented in the catalog but not yet wired into the shipped library — <code>reveal-repeat</code>
-            was removed as byte-identical to <code>reveal-once</code> once the activation binder stopped
-            re-observing after first entry, and the other two have no registered primitive to grep for.
-            <code>parallax-*</code> and <code>scroll-*</code> use <code>data-kui-timeline</code>, not
-            <code>data-kui-on</code> — progress-linked, so they reverse on scroll-up by design.
-          </p>
+          <div class="head-notes">
+            <ul>
+              <!-- Four entrances cycle through the list, so it samples the catalog again — safe this
+                   time because a keyframe lands on the resting state, unlike parallax's ±travel that
+                   never settles. Reversal comes from data-kui-timeline, not the effect. -->
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">12 effects in catalog section B. Nine are live below.</li>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Three aren't shipped yet</strong> — <code>reveal-repeat</code>, <code>scroll-skew</code>, <code>reveal-direction-aware</code>.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong><code>reveal-repeat</code> was dropped</strong> — byte-identical to <code>reveal-once</code> once the binder stopped re-observing after first entry.</li>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>Scroll effects are progress-linked</strong>, not event-fired — so they run backwards when you scroll back up.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Everything below reverses</strong> if you scroll back up through it — that is the timeline, not a replay.</li>
+            </ul>
+          </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Reveal &amp; fade — 2</p>
           <div class="demo-grid">
-            <figure class="demo-card" data-kui="reveal-once" data-show-code>
-              <img src="./assets/scenic_lake_reflection.jpg" alt="A calm alpine lake with a mirror-still reflection of the mountains above it" loading="lazy" />
+            <figure class="demo-card" style="--ar: 630 / 472" data-kui="reveal-once" data-show-code>
+              <img src="./assets/webdesign/crextio-hr-dashboard.jpg" alt="The Crextio HR dashboard — a welcome screen for onboarding staff, with hiring KPI rings, a time tracker, and a September calendar of team meetings" loading="lazy" />
               <figcaption>data-kui="reveal-once"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="scroll-fade timeline:view" data-show-code>
-              <img src="./assets/scenic_desert_dunes.jpg" alt="Rolling desert sand dunes with strong shadow texture" loading="lazy" />
+            <figure class="demo-card" style="--ar: 650 / 412" data-kui="scroll-fade timeline:view" data-show-code>
+              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
               <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
             </figure>
           </div>
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Parallax — 5</p>
-          <p class="matrix-group-note">Each frame clips a deliberately oversized image so the transform never reveals a bare edge — the amount and direction of oversize differs per effect (see the CSS comments in this page's <code>&lt;style&gt;</code> block).</p>
+          <p class="matrix-group-label">Same effects, different elements &mdash; 2</p>
+          <p class="matrix-group-note">A still on the left, a video on the right, and nothing about either
+            primitive knows or cares which is which. The left card composes an entrance with a blur, the right
+            one uses a scroll primitive instead &mdash; both scrub with scroll position and run backwards on the
+            way up. The video is <code>muted</code>, <code>loop</code>, <code>playsinline</code> and
+            <code>preload="none"</code>, and only starts once it is actually on screen.</p>
           <div class="demo-grid">
-            <figure class="parallax-card" data-show-code>
-              <div class="parallax-frame">
-                <img data-kui="parallax-y distance:120px timeline:view" src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
-              </div>
-              <figcaption>parallax-y — distance:120px</figcaption>
+            <figure class="demo-card" style="--ar: 808 / 632" data-kui="fade-up, blur-in timeline:view" data-show-code>
+              <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe, with a 47.2% Reality stat and a client avatar row" loading="lazy" />
+              <figcaption>data-kui="fade-up, blur-in timeline:view"</figcaption>
             </figure>
-            <figure class="parallax-card" data-show-code>
-              <div class="parallax-frame is-x">
-                <img data-kui="parallax-x distance:100px timeline:view" src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
-              </div>
-              <figcaption>parallax-x — distance:100px</figcaption>
+            <figure class="demo-card" style="--ar: 646 / 404" data-kui="parallax-scale from:0.2 scale:1 timeline:view" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+              </video>
+              <figcaption>data-kui="parallax-scale from:0.2 scale:1 timeline:view"</figcaption>
             </figure>
-            <figure class="parallax-card" data-show-code>
-              <div class="parallax-frame is-scale">
-                <img data-kui="parallax-scale scale:1.25 timeline:view" src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Parallax — 5</p>
+          <div class="demo-grid">
+            <figure class="parallax-card is-tall" data-kui="parallax-y distance:200px timeline:view" data-show-code>
+              <div class="parallax-frame" style="--ar: 941 / 1672">
+                <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio, from the serif PORTFOLIO masthead through selected works, services and contact" loading="lazy" />
               </div>
-              <figcaption>parallax-scale — scale:1.25</figcaption>
+              <figcaption>parallax-y — distance:200px</figcaption>
             </figure>
-            <figure class="parallax-card" data-show-code>
-              <div class="parallax-frame is-rotate">
-                <img data-kui="parallax-rotate angle:10deg timeline:view" src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
+
+            <!-- The section's explainer, moved out of a paragraph above the grid and in beside the
+                 tall card. Same points, four beats instead of one block, each arriving on its own
+                 as you reach it — which is also the plainest possible demo of a staggered reveal. -->
+            <div class="parallax-notes">
+              <ul>
+                <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Nothing is cropped.</strong> Every card takes its own screenshot's aspect ratio.</li>
+                <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong>Whole pages, readable in place.</strong> No need to open anything.</li>
+                <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>The transform rides the card</strong> — not an oversized image behind a window, which could only ever show a slice.</li>
+                <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Click any shot</strong> to open it larger.</li>
+              </ul>
+            </div>
+
+            <figure class="parallax-card is-solo" data-kui="parallax-x distance:190px timeline:view" data-show-code>
+              <div class="parallax-frame" style="--ar: 1150 / 718">
+                <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" />
               </div>
-              <figcaption>parallax-rotate — angle:10deg</figcaption>
+              <figcaption>parallax-x — distance:190px</figcaption>
             </figure>
-            <figure class="parallax-card" data-show-code>
-              <div class="parallax-frame">
-                <img data-kui="depth-layer timeline:view" src="./assets/scenic_valley_mist.jpg" alt="A misty mountain valley with layered ridgelines fading into fog" loading="lazy" />
+            <figure class="parallax-card is-solo" data-kui="depth-layer distance:150px timeline:view" data-show-code>
+              <div class="parallax-frame" style="--ar: 1200 / 960">
+                <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
               </div>
-              <figcaption>depth-layer — distance:200px (same primitive as parallax-y, more travel)</figcaption>
+              <figcaption>depth-layer — distance:150px</figcaption>
             </figure>
+
+            <!-- scale and rotate get rows of their own. Both grow past their own edges as they
+                 run, so a neighbour in the next column is the thing that was forcing them down to
+                 values you could not see. Alone on a row, the empty column is the travel room. -->
+            <figure class="parallax-card is-solo is-scale" data-kui="parallax-scale from:0.25 scale:1.18 timeline:view" data-show-code>
+              <div class="parallax-frame" style="--ar: 645 / 396">
+                <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring, with 27K/876K/20K stat counters along the bottom" loading="lazy" />
+              </div>
+              <figcaption>parallax-scale — from:0.25 scale:1.18</figcaption>
+            </figure>
+          </div>
+
+          <!-- Pinned rotate. The card is held on screen for 200vh and unwinds a half turn while
+               it sits there, so the rotation has real distance to happen over instead of the
+               second or two an unpinned card spends crossing the viewport. -->
+          <p class="matrix-group-note" style="margin-top:2.5rem;">parallax-rotate, pinned — half a turn unwound across a 200vh hold.</p>
+          <div class="rotate-stage">
+            <figure class="parallax-card rotate-pin-card" data-kui="pin-section distance:200vh, parallax-rotate from:-180deg angle:0deg timeline:pin" data-show-code>
+              <div class="parallax-frame" style="--ar: 617 / 450">
+                <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
+              </div>
+              <figcaption>pin-section distance:200vh, parallax-rotate from:-180deg angle:0deg timeline:pin</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Entrances on a view timeline &mdash; 4</p>
+          <div class="demo-grid">
+            <figure class="demo-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view" data-show-code>
+              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+              <figcaption>data-kui="fade-up timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 1188 / 668" data-kui="fade-right timeline:view" data-show-code>
+              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
+              <figcaption>data-kui="fade-right timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 734 / 442" data-kui="zoom-in timeline:view" data-show-code>
+              <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
+              <figcaption>data-kui="zoom-in timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 632 / 418" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/iris-ai-motion-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The IRIS_AI homepage animating — strands of golden fibre scattering and resolving into a radial burst behind the headline Where AI merges with your vision">
+                <source src="./assets/webdesign/iris-ai-motion.webm" type="video/webm" />
+                <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
+              </video>
+              <figcaption>data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Video — 3 slots reserved</p>
+          <p class="matrix-group-note">Landscape tiles held for the next three walkthroughs.</p>
+          <div class="video-slots">
+            <div class="video-slot"><span class="slot-num">1</span><span>YouTube video goes here</span><span>16 / 9</span></div>
+            <div class="video-slot"><span class="slot-num">2</span><span>YouTube video goes here</span><span>16 / 9</span></div>
+            <div class="video-slot"><span class="slot-num">3</span><span>YouTube video goes here</span><span>16 / 9</span></div>
           </div>
         </div>
       </section>
@@ -458,85 +1012,132 @@
       <section data-od-id="scroll-mechanics">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Scroll mechanics</h2>
-          <p>
-            Catalog section C — 11 named effects, all backed by real primitives. Ten are demonstrated below;
-            <code>video-scrub</code> is verified in <code>kuinetic.js</code> (the same <code>media-scrub</code>
-            primitive as <code>sequence-scrub</code>, just fed a <code>&lt;video&gt;</code> instead of a frame
-            pattern) but is left unwired here — this pass sourced photography, not video footage, and wiring a
-            real <code>&lt;video&gt;</code> element in in place of a frame sequence is a small, well-understood follow-up.
-            Everything here needs the shared JS orchestrator: measurement, resize invalidation, cleanup.
-          </p>
+          <p>Catalog section C — 11 named effects, all real primitives through the shared JS orchestrator.</p>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Pinning — 4</p>
 
-          <p class="matrix-group-note" style="margin-top:0.85rem;">pin-section — the default carries an auto-inserted spacer, so a pin longer than its containing block still reserves scroll room.</p>
-          <div class="pin-section-stage">
-            <div class="pin-section-card" data-kui="pin-section distance:200vh">
-              <img src="./assets/scenic_grand_canyon_vista.jpg" alt="An epic, vast canyon vista stretching to the horizon" loading="lazy" />
-              <div class="pin-copy">
-                <p class="kicker">data-kui="pin-section distance:200vh"</p>
-                <h3>Pinned while the section passes.</h3>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-section</code></strong> holds an element still while the page keeps moving under it.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It inserts a spacer automatically, so a pin longer than its own container still reserves the scroll room it needs.</li>
+            </ul>
+          </div>
+          <figure class="pin-section-figure" data-show-code>
+            <div class="pin-section-stage">
+              <div class="pin-section-card" data-kui="pin-section distance:200vh">
+                <div class="pin-section-media">
+                  <div class="video-frame" data-yt-id="f2mGqlLLqok">
+                    <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                      <svg viewBox="0 0 68 48" aria-hidden="true">
+                        <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                        <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="pin-copy">
+                  <ul class="mechanics-list" data-kui-stagger="90ms">
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Pinning (4)</strong> — <code>pin-section</code>, <code>pin-until</code>, <code>pin-spacer</code>, <code>stacking-cards</code></li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Scrollytelling (1)</strong> — a stepped narrative synced to one pinned scroll</li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Horizontal travel (1)</strong> — vertical scroll drives horizontal motion</li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Media scrub (1)</strong> — a frame sequence scrubbed by scroll position</li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Navigation (1)</strong> — <code>scroll-spy</code> highlights the active section in the nav</li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Native CSS passthroughs (2)</strong> — <code>scroll-snap-x</code>/<code>-y</code>, no JS involved</li>
+                  </ul>
+                </div>
               </div>
             </div>
-          </div>
+            <figcaption>data-kui="pin-section distance:200vh"</figcaption>
+          </figure>
 
-          <p class="matrix-group-note" style="margin-top:2rem;">pin-until — spacer:false. No spacer is inserted; the sticky panel relies on its own naturally taller sibling for scroll room, the classic sticky-sidebar pattern.</p>
-          <div class="pin-until-layout">
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-until</code></strong> is the sticky-sidebar pattern — no spacer inserted.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">It borrows its scroll room from a naturally taller sibling instead of reserving its own.</li>
+            </ul>
+          </div>
+          <!-- One "Show code" for the whole pattern, in the sticky panel, directly under the
+               data-kui line it belongs to. Each block used to carry its own `data-show-code`,
+               which mounted three identical toggles into three otherwise-empty caption bars —
+               three buttons opening three near-identical snippets of the same one effect, and a
+               blank strip under every screenshot to hold them. The effect lives on the aside, so
+               the control does too. `data-show-code-target` opens the whole layout at once. -->
+          <div class="pin-until-layout" id="pin-until-demo">
             <aside class="pin-until-aside" data-kui="pin-until offset:6rem">
+              <p class="kicker">pin-until</p>
               <h4>Three stops, one scroll.</h4>
               <p>This panel sticks at <code>offset:6rem</code> while the itinerary beside it scrolls past underneath. Nothing here is JS-positioned besides <code>position:sticky</code> itself — the height comes from the content on the right.</p>
               <p class="mono-note">data-kui="pin-until offset:6rem"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button>
             </aside>
             <div class="pin-until-content">
-              <figure class="pin-until-block" data-show-code>
-                <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
+              <figure class="pin-until-block">
+                <img src="./assets/webdesign/coders-project-dashboard.jpg" alt="The Coders project management dashboard — a Gantt-style task timeline beside a team panel and a dark file preview card holding an abstract 3D orb" loading="lazy" />
+                <figcaption><span class="stop-num">01</span> Coders — project management</figcaption>
               </figure>
-              <figure class="pin-until-block" data-show-code>
-                <img src="./assets/scenic_terraced_rice_fields.jpg" alt="Green terraced rice fields carved into a hillside" loading="lazy" />
+              <figure class="pin-until-block">
+                <img src="./assets/webdesign/crextio-hr-dashboard.jpg" alt="The Crextio HR dashboard — a welcome screen for onboarding staff, with hiring KPI rings, a time tracker, and a September calendar of team meetings" loading="lazy" />
+                <figcaption><span class="stop-num">02</span> Crextio — HR</figcaption>
               </figure>
-              <figure class="pin-until-block" data-show-code>
-                <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
+              <figure class="pin-until-block">
+                <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT" loading="lazy" />
+                <figcaption><span class="stop-num">03</span> Abstract — agency</figcaption>
               </figure>
             </div>
           </div>
 
-          <p class="matrix-group-note" style="margin-top:2rem;">pin-spacer — same primitive as pin-section, spelled out explicitly: the dashed box below the photo is the real <code>&lt;div data-kui-spacer&gt;</code> the primitive inserts into the DOM.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-spacer</code></strong> is the same primitive as <code>pin-section</code>, named for what it does.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The dashed box below is the real <code>&lt;div data-kui-spacer&gt;</code> — an actual node in the DOM, not a drawing of one.</li>
+            </ul>
+          </div>
           <div class="pin-spacer-demo">
             <div class="pin-spacer-track">
               <div class="pin-spacer-card" data-kui="pin-spacer distance:120vh">
-                <img src="./assets/scenic_slot_canyon.jpg" alt="A narrow slot canyon with warm glowing sandstone walls and light beams" loading="lazy" />
+                <video data-autoplay-in-view poster="./assets/webdesign/museum-ancient-art-hero-poster.jpg" muted loop playsinline preload="none"
+                       aria-label="The Lourve Museum of Ancient Art homepage — a bronze bust lit behind a glowing white ring, under a serif Museum of Ancient Art headline">
+                  <source src="./assets/webdesign/museum-ancient-art-hero.webm" type="video/webm" />
+                  <source src="./assets/webdesign/museum-ancient-art-hero.mp4" type="video/mp4" />
+                </video>
                 <div class="pin-copy">
-                  <span class="mono">data-kui="pin-spacer distance:120vh"</span>
+                  <span class="mono" data-kui="typewriter on:enter">data-kui="pin-spacer distance:120vh"</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <p class="matrix-group-note" style="margin-top:2rem;">stacking-cards — the pin primitive applied per card, each at its own <code>offset</code>, so the stack builds up naturally as you scroll.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong><code>stacking-cards</code></strong> is the pin primitive applied once per card.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Each card pins at its own <code>offset</code>, so the deck builds itself as you scroll.</li>
+            </ul>
+          </div>
           <div class="stack-group">
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:1rem" data-show-code>
-                <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
+                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
                 <figcaption>offset:1rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:2.25rem" data-show-code>
-                <img src="./assets/scenic_redwood_forest.jpg" alt="Tall old-growth redwood trees with sunbeams through the canopy" loading="lazy" />
+                <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT and a Join Us button" loading="lazy" />
                 <figcaption>offset:2.25rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:3.5rem" data-show-code>
-                <img src="./assets/scenic_sahara_dunes.jpg" alt="Sahara desert dune ridgelines lit in warm sunset tones" loading="lazy" />
+                <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
                 <figcaption>offset:3.5rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:4.75rem" data-show-code>
-                <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
+                <img src="./assets/webdesign/future-ai-robot-hero.jpg" alt="A dark AI agency homepage — an armoured robot figure beside the display headline FUTURE IS WAITING, with Technology and Innovation cards below" loading="lazy" />
                 <figcaption>offset:4.75rem</figcaption>
               </figure>
             </div>
@@ -546,15 +1147,21 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Scrollytelling — 1</p>
           <div class="story" data-kui="scrollytelling-step distance:200vh steps:4" data-kui-step="0">
-            <img src="./assets/scenic_glacier_ice.jpg" alt="A glacier landscape of blue-white ice under a cold sky" loading="lazy" />
+            <img src="./assets/webdesign/cloudpath-hand-sky.jpg" alt="A render of a figure walking a glowing path through cloud toward an open hand in the sky" loading="lazy" />
             <div class="story-pin">
-              <p>One — the compiler reads the attribute.</p>
-              <p>Two — parameters are validated before they reach CSS.</p>
-              <p>Three — channels decide whether effects may compose.</p>
-              <p>Four — the browser owns the frame loop.</p>
+              <p>One — a visitor decides in about a second.</p>
+              <p>Two — so the first screen carries the whole offer.</p>
+              <p>Three — everything after it earns attention or loses it.</p>
+              <p>Four — motion is how you spend that attention.</p>
+              <div class="story-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
             </div>
           </div>
-          <p class="note">The primitive writes <code>data-kui-step</code> onto the section itself; the highlight above is a plain attribute selector.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%">The primitive writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The highlight above is a plain CSS attribute selector reading that value — no JavaScript of your own.</li>
+            </ul>
+          </div>
         </div>
 
         <div class="matrix-group">
@@ -563,49 +1170,54 @@
             <div class="track-viewport">
               <div class="track" data-kui="horizontal-scroll distance:300vh">
                 <figure data-show-code>
-                  <img src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
-                  <figcaption>Alps</figcaption>
+                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
+                  <figcaption>EOSAI — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
-                  <figcaption>Amalfi coast</figcaption>
+                  <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio" loading="lazy" />
+                  <figcaption>Marlowe — portfolio</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_waterfall_canyon.jpg" alt="A tall waterfall cascading through a narrow canyon" loading="lazy" />
-                  <figcaption>Canyon falls</figcaption>
+                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
+                  <figcaption>Saxe — commerce</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
-                  <figcaption>Aurora</figcaption>
+                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
+                  <figcaption>ZROBIM — architecture</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
-                  <figcaption>City nights</figcaption>
+                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
+                  <figcaption>NUORBIT — marketplace</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_norway_fjord.jpg" alt="A deep Norwegian fjord flanked by sheer rock walls" loading="lazy" />
-                  <figcaption>Fjord</figcaption>
+                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline “We start from zero”" loading="lazy" />
+                  <figcaption>Zenrixa — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_sahara_dunes.jpg" alt="Wind-carved Sahara dunes running to the horizon" loading="lazy" />
-                  <figcaption>Sahara</figcaption>
+                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
+                  <figcaption>CoStar — lending</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_redwood_forest.jpg" alt="Redwood trunks rising through low forest mist" loading="lazy" />
-                  <figcaption>Redwoods</figcaption>
+                  <img src="./assets/webdesign/skyway-gateway-clouds.jpg" alt="A render of a monolithic gateway standing above the clouds, lit gold from within" loading="lazy" />
+                  <figcaption>Gateway — concept art</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline curving around a shallow bay" loading="lazy" />
-                  <figcaption>Turquoise bay</figcaption>
+                  <img src="./assets/webdesign/render-cloud-cantilever.jpg" alt="A render of stacked glass floors cantilevered out over cloud, warm light inside" loading="lazy" />
+                  <figcaption>Cantilever — concept art</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/scenic_volcano_eruption.jpg" alt="A volcano erupting at night with lava lighting the ash plume" loading="lazy" />
-                  <figcaption>Eruption</figcaption>
+                  <img src="./assets/webdesign/skyway-tower-clouds.jpg" alt="A render of a cantilevered glass tower rising out of cloud, a lone figure on the walkway below" loading="lazy" />
+                  <figcaption>Skyway — concept art</figcaption>
                 </figure>
               </div>
             </div>
           </div>
-          <p class="note">data-kui="horizontal-scroll distance:300vh" — a JS orchestrator translates the track directly; nothing here is a native scroll container.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>Vertical scroll drives horizontal motion.</strong> Nothing here is a native scroll container.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">A shared JS orchestrator translates the track, so the travel stays locked to page position rather than to a timer.</li>
+            </ul>
+          </div>
         </div>
 
         <div class="matrix-group">
@@ -616,43 +1228,49 @@
             below, not a filter effect. <code>src</code> is a JS-only <code>text</code> param, so the value never
             reaches a stylesheet — it goes straight to <code>&lt;img&gt;.src</code> — which is why the shared
             CSS-escape guard on <code>data-kui</code> values leaves braces alone for this one param. The
-            grayscale→color wipe is layered on top from the same real <code>--kui-progress</code> the primitive
-            publishes, so both mechanisms are visible scrolling through this one element.
+            grayscale→color wipe is a second effect composed onto the same element —
+            <code>scroll-desaturate timeline:pin</code> — reading the same <code>--kui-progress</code> the
+            scrub publishes, so both mechanisms are visible scrolling through this one element.
           </p>
           <div class="scrub-stage">
             <div class="scrub-viewport">
-              <img data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh" src="./assets/scenic_scrub_0.jpg" alt="A sequence of five landscape photos swapping in frame by frame as you scroll, fading from grayscale to full color" loading="lazy" />
+              <img data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin" src="./assets/webdesign/webdesign_scrub_0.jpg" alt="Five different landing pages swapping in frame by frame as you scroll, fading from grayscale to full colour" loading="lazy" />
             </div>
           </div>
-          <p class="note">data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh"</p>
+          <p class="note">data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin"</p>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Navigation — 1</p>
-          <p class="matrix-group-note">scroll-spy writes <code>data-kui-active</code> onto the tracked section and mirrors it onto whatever <code>target</code> selector you point at — here, the matching nav link.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scroll-spy</code></strong> marks the section you are currently looking at.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at — here, the matching nav link.</li>
+            </ul>
+          </div>
           <div class="spy-layout">
-            <nav class="spy-nav" aria-label="Jump to region">
-              <a id="spy-link-mountains" href="#spy-mountains">Mountains</a>
-              <a id="spy-link-coasts" href="#spy-coasts">Coasts</a>
-              <a id="spy-link-deserts" href="#spy-deserts">Deserts</a>
-              <a id="spy-link-forests" href="#spy-forests">Forests</a>
+            <nav class="spy-nav" aria-label="Jump to category">
+              <a id="spy-link-agency" href="#spy-agency">Agency</a>
+              <a id="spy-link-commerce" href="#spy-commerce">Commerce</a>
+              <a id="spy-link-portfolio" href="#spy-portfolio">Portfolio</a>
+              <a id="spy-link-product" href="#spy-product">Product</a>
             </nav>
             <div class="spy-sections">
-              <section id="spy-mountains" class="spy-section" data-kui="scroll-spy target:#spy-link-mountains">
-                <img src="./assets/scenic_mountain_range.jpg" alt="A sweeping alpine mountain range under dramatic light" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Region</p><h4>Mountains</h4></div>
+              <section id="spy-agency" class="spy-section" data-kui="scroll-spy target:#spy-link-agency">
+                <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline “We start from zero”" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Category</p><h4>Agency</h4></div>
               </section>
-              <section id="spy-coasts" class="spy-section" data-kui="scroll-spy target:#spy-link-coasts">
-                <img src="./assets/scenic_coastline_cliffs.jpg" alt="A long panoramic coastline with steep cliffs meeting the ocean" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Region</p><h4>Coasts</h4></div>
+              <section id="spy-commerce" class="spy-section" data-kui="scroll-spy target:#spy-link-commerce">
+                <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Category</p><h4>Commerce</h4></div>
               </section>
-              <section id="spy-deserts" class="spy-section" data-kui="scroll-spy target:#spy-link-deserts">
-                <img src="./assets/scenic_desert_dunes.jpg" alt="Rolling desert sand dunes with strong shadow texture" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Region</p><h4>Deserts</h4></div>
+              <section id="spy-portfolio" class="spy-section" data-kui="scroll-spy target:#spy-link-portfolio">
+                <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Category</p><h4>Portfolio</h4></div>
               </section>
-              <section id="spy-forests" class="spy-section" data-kui="scroll-spy target:#spy-link-forests">
-                <img src="./assets/scenic_redwood_forest.jpg" alt="Tall old-growth redwood trees with sunbeams through the canopy" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Region</p><h4>Forests</h4></div>
+              <section id="spy-product" class="spy-section" data-kui="scroll-spy target:#spy-link-product">
+                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Category</p><h4>Product</h4></div>
               </section>
             </div>
           </div>
@@ -660,46 +1278,51 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Native CSS passthroughs — 2</p>
-          <p class="matrix-group-note">scroll-snap-x / scroll-snap-y just set <code>scroll-snap-type</code>/<code>-align</code> — these are real independently-scrollable containers, not JS-driven like the horizontal track above. Drag or scroll them directly.</p>
+                    <div class="rev-notes">
+            <ul>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two are pure CSS</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Real independently-scrollable containers, unlike the JS-driven track above. Drag or scroll them directly.</li>
+            </ul>
+          </div>
 
           <div class="snap-x-row" data-kui="scroll-snap-x">
             <figure data-show-code>
-              <img src="./assets/scenic_tropical_island.jpg" alt="A tropical island with palm trees and a white sand beach" loading="lazy" />
+              <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_alpine_lake.jpg" alt="A deep turquoise alpine lake ringed by mountains" loading="lazy" />
+              <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_slot_canyon.jpg" alt="A narrow slot canyon with warm glowing sandstone walls and light beams" loading="lazy" />
+              <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_snow_peak.jpg" alt="A single dramatic snow-capped mountain peak against a clear sky" loading="lazy" />
+              <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_glacier_ice.jpg" alt="A glacier landscape of blue-white ice under a cold sky" loading="lazy" />
+              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
           </div>
 
           <div class="snap-y-panel" data-kui="scroll-snap-y">
             <figure data-show-code>
-              <img src="./assets/scenic_grand_canyon_vista.jpg" alt="An epic, vast canyon vista stretching to the horizon" loading="lazy" />
+              <img src="./assets/webdesign/coders-project-dashboard.jpg" alt="The Coders project management dashboard — a Gantt-style task timeline beside a team panel and a dark file preview card with an abstract 3D orb" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_aurora_borealis.jpg" alt="The aurora borealis glowing green over a mountain landscape" loading="lazy" />
+              <img src="./assets/webdesign/skyway-gateway-clouds.jpg" alt="A render of a monolithic gateway standing above the clouds, lit gold from within" loading="lazy" />
               <figcaption>scroll-snap-y — 2 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_turquoise_coast.jpg" alt="A turquoise coastline with cliffs meeting bright blue-green water" loading="lazy" />
+              <img src="./assets/webdesign/render-lakeside-monolith.jpg" alt="A render of a minimal lit monolith beside still water at dusk, with a slender tree" loading="lazy" />
               <figcaption>scroll-snap-y — 3 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/scenic_city_skyline_night.jpg" alt="A city skyline at dusk with lights on across a wide urban panorama" loading="lazy" />
+              <img src="./assets/webdesign/cloudpath-hand-sky.jpg" alt="A render of a figure walking a glowing path through cloud toward an open hand in the sky" loading="lazy" />
               <figcaption>scroll-snap-y — 4 of 4</figcaption>
             </figure>
           </div>
@@ -744,7 +1367,82 @@
       })
     })()
   </script>
+  <script>
+    // Lite YouTube embed: swap the poster image for a real iframe only on click
+    ;(function () {
+      document.querySelectorAll('.video-frame').forEach(function (frame) {
+        var play = frame.querySelector('.yt-play')
+        if (!play) return
+        play.addEventListener('click', function () {
+          var id = frame.getAttribute('data-yt-id')
+          var iframe = document.createElement('iframe')
+          iframe.src = 'https://www.youtube.com/embed/' + id + '?autoplay=1'
+          iframe.title = frame.querySelector('img').alt
+          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+          iframe.allowFullscreen = true
+          frame.replaceChildren(iframe)
+        })
+      })
+    })()
+  </script>
+  <script>
+    // Hide the progress dial past the first screen — it duplicates the red rail, so keeping both
+    // means two indicators saying the same thing. Position alone decides it; there is no
+    // direction tracking here any more, because the nav that needed it no longer hides.
+    // Passive listener and one dataset write per state change, so it never competes with the
+    // scroll-driven animations for frame budget.
+    ;(function () {
+      var root = document.documentElement
+      var hidden = false
+      function sync() {
+        var next = window.scrollY > window.innerHeight * 0.6
+        if (next === hidden) return
+        hidden = next
+        if (next) root.dataset.dial = 'hidden'
+        else delete root.dataset.dial
+      }
+      window.addEventListener('scroll', sync, { passive: true })
+      sync()
+    })()
+  </script>
+  <script>
+    // Play a decorative loop only while it is actually on screen.
+    //
+    // These started as plain `autoplay preload="metadata"`. Three of them on a page that already
+    // runs 25 view-timeline bullets, several parallax cards, a frame-scrub sequence and a 320vh
+    // pinned section was enough to wedge the renderer outright — Chrome pauses an offscreen
+    // autoplaying video but still fetches and decodes it, so the cost lands at load, all at once.
+    //
+    // `preload="none"` plus an observer moves that cost to the moment a video is worth playing,
+    // and pausing on exit keeps at most one or two decoding at a time. Reduced motion opts out
+    // entirely and keeps the poster frame, since a looping video is motion nobody asked for.
+    ;(function () {
+      var vids = document.querySelectorAll('video[data-autoplay-in-view]')
+      if (!vids.length) return
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduce || !('IntersectionObserver' in window)) return
+
+      var io = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (e) {
+            var v = e.target
+            if (e.isIntersecting) {
+              // load() is implicit on play() with preload="none"; ignore the rejection a
+              // pause-during-load race produces, it is not an error worth surfacing.
+              var r = v.play()
+              if (r && r.catch) r.catch(function () {})
+            } else if (!v.paused) {
+              v.pause()
+            }
+          })
+        },
+        { threshold: 0.25 },
+      )
+      for (var i = 0; i < vids.length; i++) io.observe(vids[i])
+    })()
+  </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>
+  <script src="./lightbox.js"></script>
 </body>
 </html>
