@@ -205,11 +205,31 @@ button, a.btn { font-family: inherit; cursor: pointer; }
 .btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
 .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
 
-/* Hero CTA only, light mode only: black fill + white text instead of the lime/black accent
-   fill — dark mode, and every other .btn-primary on the page (demo buttons, in-card CTAs),
-   stay untouched. */
+/* Hero CTA pair. The primary is the neutral high-contrast fill so the accent stays reserved for
+   the docs CTA standing next to it: black on light, white on dark. Every other .btn-primary on
+   the page (demo buttons, in-card CTAs) keeps the accent fill and is untouched.
+
+   The dark half is new. It mirrors the light rule that was already here, and it exists because the
+   docs CTA stopped being a ghost: base `.btn-primary` is already `--accent`, so without this the
+   hero showed two identical yellow buttons in dark mode and no hierarchy at all. */
 :root[data-theme='light'] .demo-hero-actions .btn-primary { background: #000000; color: #ffffff; }
 :root[data-theme='light'] .demo-hero-actions .btn-primary:hover { background: #222222; }
+:root[data-theme='dark'] .demo-hero-actions .btn-primary { background: #ffffff; color: #000000; }
+:root[data-theme='dark'] .demo-hero-actions .btn-primary:hover { background: #e6e6e6; }
+
+/* A solid accent button that stays accent everywhere, unlike `.btn-primary`, which the hero rule
+   above deliberately neutralises. Used for the "Read the catalog docs" CTA on all seven demo
+   pages, which was a `.btn-ghost`: a transparent fill with a body-coloured label, i.e. black text
+   on the page background inside a hairline box. That reads as a bordered paragraph rather than a
+   control, and it is the weakest thing on a page whose one job is to send you to the docs.
+
+   Identical in both themes on purpose — the accent pair is built to carry black ink in both
+   (`--accent-ink` is #000 in light and dark), so one rule is correct for each rather than a
+   theme-specific fudge. Measured: #d0d300 light and #e4f222 dark, black on each, both far past
+   the 4.5:1 floor. */
+.btn-accent { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
+.btn-accent:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+
 .btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); position: relative; overflow: hidden; }
 .btn-ghost:hover { border-color: var(--fg); }
 

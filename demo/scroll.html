@@ -412,9 +412,35 @@
      full-bleed black slab, and a negative margin slides the first bullet's line box up underneath
      it so the text renders clipped behind the bar. Reset it, and give the bar real clearance —
      it is the heaviest element on the page and needs to not touch what follows. */
+  /* An effect boundary, not just clearance. Every one of these selectors is the same relationship:
+     one effect's demo ending, and the next effect's notes beginning, inside a single group. Margin
+     alone left `stacking-cards`' notes reading as a caption on the `pin-spacer` video above them —
+     which is what the owner reported, and it was worst there because that demo ends on a full-bleed
+     dark video with no bottom edge of its own.
+
+     `.pin-spacer-demo` and `.track-stage` were missing from this list entirely, so those two kept
+     the -0.2rem *negative* margin tuned for notes under a group label, and were actively pulled up
+     into the demo above them.
+
+     Same vocabulary as `.matrix-group + .matrix-group`, one step lighter — that divides families,
+     this divides effects within one. `max-width` is lifted so the rule spans the column instead of
+     stopping at 62ch, and the measure moves to the list, which is the thing that actually needs
+     it. */
   figure + .rev-notes,
   .pin-until-layout + .rev-notes,
-  .stack-group + .rev-notes { margin-top: 2.75rem; }
+  .pin-spacer-demo + .rev-notes,
+  .track-stage + .rev-notes,
+  .stack-group + .rev-notes {
+    max-width: none;
+    margin-top: 3.75rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--border);
+  }
+  figure + .rev-notes ul,
+  .pin-until-layout + .rev-notes ul,
+  .pin-spacer-demo + .rev-notes ul,
+  .track-stage + .rev-notes ul,
+  .stack-group + .rev-notes ul { max-width: 62ch; }
   .rev-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
   .rev-notes li { position: relative; padding-left: 1.15rem; line-height: 1.6; font-size: 0.9rem; color: var(--muted); }
   .rev-notes li::before {
@@ -637,8 +663,14 @@
   .stack-group { margin-top: 2rem; }
   .stack-item { min-height: 92vh; display: flex; align-items: flex-start; justify-content: center; padding-top: 4vh; }
   .stack-item:first-child { min-height: 60vh; }
+  /* 16:10 rather than the old fixed `58vh`/`max-height: 460px`, which at 680px wide worked out to
+     1.48 — narrower than every card in the deck. The four portfolio shots run 1.50 to 1.78, so
+     `cover` was cropping the sides and taking the corner labels with them ("GHL Specialist" lost
+     its first word). 1.6 is the middle of the set: the two 16:9 cards give up a little width, the
+     1.50 one a little height, and the 1.62 one is untouched. Trimming a screenshot's edge beats
+     cutting through a wordmark. */
   .stack-card {
-    width: min(680px, 92%); height: 58vh; max-height: 460px;
+    width: min(680px, 92%); aspect-ratio: 16 / 10; max-height: 62vh;
     border-radius: 16px; overflow: clip; border: 1px solid var(--border);
     box-shadow: var(--shadow-float); position: relative;
   }
@@ -1074,7 +1106,7 @@
         <p class="lede" data-kui="fade-up 700ms 160ms">Real scroll position drives every effect below — no fixed timers, no faked progress.</p>
         <div class="demo-hero-actions" data-kui="fade-up 700ms 220ms">
           <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
-          <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
         </div>
         <p class="demo-hero-note" data-kui="fade-up 700ms 280ms"><span class="dot"></span> The bar above and the ring below-left are both live.</p>
       </section>
@@ -1409,28 +1441,36 @@
               <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Each card pins at its own <code>offset</code>, so the deck builds itself as you scroll.</li>
             </ul>
           </div>
+          <!-- One motif for the whole deck: four portfolio sites. The previous four were a car
+               configurator, an agency, a dev portfolio and an AI landing page — four unrelated
+               subjects, so the deck read as a pile of screenshots rather than a set.
+
+               Ordered light, light, dark, dark, so the deck darkens as it builds rather than
+               flickering between values card to card. Two of the four were vendor mockups floating
+               on grey backdrops and are cropped to the screen itself; a card showing someone
+               else's presentation chrome is not showing a website. -->
           <div class="stack-group">
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:1rem" data-show-code>
-                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
+                <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
                 <figcaption>offset:1rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:2.25rem" data-show-code>
-                <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT and a Join Us button" loading="lazy" />
+                <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
                 <figcaption>offset:2.25rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:3.5rem" data-show-code>
-                <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
+                <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
                 <figcaption>offset:3.5rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
               <figure class="stack-card" data-kui="stacking-cards offset:4.75rem" data-show-code>
-                <img src="./assets/webdesign/future-ai-robot-hero.jpg" alt="A dark AI agency homepage — an armoured robot figure beside the display headline FUTURE IS WAITING, with Technology and Innovation cards below" loading="lazy" />
+                <img src="./assets/webdesign/portfolio-yash-sharma.jpg" alt="Yash Sharma's creative portfolio homepage — a heavy white PORTFOLIO wordmark over a figure in a dark suit, with Creative scripted in yellow above it" loading="lazy" />
                 <figcaption>offset:4.75rem</figcaption>
               </figure>
             </div>
