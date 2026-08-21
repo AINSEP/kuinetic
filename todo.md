@@ -10,6 +10,15 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **`horizontal-scroll` is broken and it is a core bug — root-caused, not yet fixed.**
+      `trackProgress` caches an element's content offset from `getBoundingClientRect()`, which is
+      wrong for anything inside a `position: sticky` subtree: re-measure while it is stuck and the
+      cached offset becomes the current scroll position, so progress clamps to 0 for good.
+      Intermittent because the re-measure races the `pin` primitives' `ctx.invalidate()`.
+      Full write-up and fix direction in `docs/live-testing-backlog.md` under D4. Touches every
+      scroll-mechanics effect, so it needs browser re-verification of pinning, stacking-cards,
+      scrollytelling and sequence-scrub, not just the unit tests.
+
 - [ ] **`demo/docs.html` still hand-rolls its TOC tracker** (~line 320 and 556-599): builds nav
       links from `h2`s, runs a scroll+rAF loop on `getBoundingClientRect()`, toggles `.is-active`.
       That is `scroll-spy`'s job. Wrinkle: the headings are parsed from markdown at runtime, so it

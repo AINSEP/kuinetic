@@ -480,7 +480,11 @@
   .pin-until-block {
     position: relative; border-radius: 14px; overflow: clip; border: 1px solid var(--border);
   }
-  .pin-until-block img { display: block; width: 100%; height: 62vh; max-height: 460px; object-fit: cover; }
+  /* No fixed height and no `object-fit: cover`. Those cropped every screenshot to one arbitrary
+     62vh box — the Coders dashboard lost its left sidebar, its logo, and the whole bottom row — on
+     a page whose parallax section explicitly promises "Nothing is cropped. Every card takes its own
+     screenshot's aspect ratio." An itinerary of unequal-height blocks is the honest shape. */
+  .pin-until-block img { display: block; width: 100%; height: auto; }
   /* Each block is one stop on the itinerary the panel opposite is describing, so each one says
      which stop it is. Before this they were three unlabelled screenshots and a sentence claiming
      there were three of something. Overlaid on a bottom scrim rather than in a bar underneath —
@@ -1153,7 +1157,7 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Scrollytelling — 1</p>
           <div class="story" data-kui="scrollytelling-step distance:200vh steps:4" data-kui-step="0">
-            <img src="./assets/webdesign/cloudpath-hand-sky.jpg" alt="A render of a figure walking a glowing path through cloud toward an open hand in the sky" loading="lazy" />
+            <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
             <div class="story-pin">
               <p>One — a visitor decides in about a second.</p>
               <p>Two — so the first screen carries the whole offer.</p>
@@ -1176,44 +1180,44 @@
             <div class="track-viewport">
               <div class="track" data-kui="horizontal-scroll distance:300vh">
                 <figure data-show-code>
-                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
+                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" data-no-lightbox />
                   <figcaption>EOSAI — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio" loading="lazy" />
-                  <figcaption>Marlowe — portfolio</figcaption>
-                </figure>
-                <figure data-show-code>
-                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
+                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" data-no-lightbox />
                   <figcaption>Saxe — commerce</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
+                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" data-no-lightbox />
                   <figcaption>ZROBIM — architecture</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
+                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" data-no-lightbox />
                   <figcaption>NUORBIT — marketplace</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline “We start from zero”" loading="lazy" />
+                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" data-no-lightbox />
                   <figcaption>Zenrixa — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
+                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" data-no-lightbox />
                   <figcaption>CoStar — lending</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/skyway-gateway-clouds.jpg" alt="A render of a monolithic gateway standing above the clouds, lit gold from within" loading="lazy" />
-                  <figcaption>Gateway — concept art</figcaption>
+                  <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" data-no-lightbox />
+                  <figcaption>NeoVision — product</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/render-cloud-cantilever.jpg" alt="A render of stacked glass floors cantilevered out over cloud, warm light inside" loading="lazy" />
-                  <figcaption>Cantilever — concept art</figcaption>
+                  <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" data-no-lightbox />
+                  <figcaption>Morozov — portfolio</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/skyway-tower-clouds.jpg" alt="A render of a cantilevered glass tower rising out of cloud, a lone figure on the walkway below" loading="lazy" />
-                  <figcaption>Skyway — concept art</figcaption>
+                  <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" data-no-lightbox />
+                  <figcaption>CarSellCenter — configurator</figcaption>
+                </figure>
+                <figure data-show-code>
+                  <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" data-no-lightbox />
+                  <figcaption>Njey — technology</figcaption>
                 </figure>
               </div>
             </div>
@@ -1320,15 +1324,15 @@
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/webdesign/skyway-gateway-clouds.jpg" alt="A render of a monolithic gateway standing above the clouds, lit gold from within" loading="lazy" />
+              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
               <figcaption>scroll-snap-y — 2 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/webdesign/render-lakeside-monolith.jpg" alt="A render of a minimal lit monolith beside still water at dusk, with a slender tree" loading="lazy" />
+              <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
               <figcaption>scroll-snap-y — 3 of 4</figcaption>
             </figure>
             <figure data-show-code>
-              <img src="./assets/webdesign/cloudpath-hand-sky.jpg" alt="A render of a figure walking a glowing path through cloud toward an open hand in the sky" loading="lazy" />
+              <img src="./assets/webdesign/future-ai-robot-hero.jpg" alt="A dark AI agency homepage — an armoured robot figure beside the display headline FUTURE IS WAITING, with Technology and Innovation cards below" loading="lazy" />
               <figcaption>scroll-snap-y — 4 of 4</figcaption>
             </figure>
           </div>

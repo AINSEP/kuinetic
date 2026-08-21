@@ -71,6 +71,43 @@ synthetic events.
 - **Not covered by the existing `test/browser/scroll-nested.test.mjs`** — that test uses the
   `overflow:auto` variant, which is a genuinely different mechanism from this pinned-track one.
 
+- **ROOT-CAUSED 2026-08-21, in Chrome, by direct measurement.** `trackProgress`
+  (`src/effects/scroll-mechanics/tracker.ts`) caches the element's `contentTop` from
+  `getBoundingClientRect().top - scrollportTop + scrollTop`, against the scheduler's geometry
+  epoch. Its own comment claims *"Content offset is genuinely epoch-stable."* **It is not, for
+  anything inside a `position: sticky` subtree.** A stuck element's viewport rect stops reflecting
+  its position in the content flow, so re-measuring while it is stuck yields `contentTop ≈ the
+  current scroll position`.
+
+  Measured on `demo/scroll.html`, window 1398x872: scrollY 24328, the stage 1300px scrolled, the
+  sticky `.track-viewport` at `rect.top: 0`, `.track` at `rect.top: 272`. A re-measure there gives
+  `contentTop = 272 - 0 + 24328 = 24600`. Progress is then
+  `(24328 - 24600) / (3 x 872) = -0.104`, which `clamp01` floors to **0** — and stays 0 for the
+  whole stage, because every later frame reuses the same cached value. `translate` is therefore
+  written as `0px`: correctly computed from a wrong number, which is why the earlier note here
+  read the symptom as "progress works, translate doesn't".
+
+  **Why it is intermittent** (the owner's "broken half the time"): the epoch only advances on
+  resize or an explicit `ctx.invalidate()`. Whether the re-measure lands while the track is on
+  screen — and therefore stuck — is a race against the `pin` primitives, which call
+  `ctx.invalidate()` when they insert their spacers. Measured off screen, it works. Measured on
+  screen, it is dead until the next resize that happens to occur off screen.
+
+  Confirmed not to be the lightbox: the owner suspected the modal, and the images in the track now
+  carry `data-no-lightbox` anyway. Removing it changes nothing here.
+
+  **Fix direction.** Progress for an element in a sticky subtree cannot come from that element's
+  own position — a stuck element does not move, which is the same observation `timeline:pin`
+  exists for. `trackProgress` needs a geometry *source* distinct from the animated element:
+  walk up from `el`, and if `el` or any ancestor computes to `position: sticky`, measure
+  `contentTop` from that sticky element's parent (the box that actually scrolls) while still
+  taking `height` from `el` itself, so `resolveDistance`'s default is unchanged. `.track` would
+  then measure against `.track-stage`, which is never sticky.
+
+  This is core to every scroll-mechanics effect (pinning, scrollytelling, media scrub, horizontal
+  travel), so the change needs pin, `stacking-cards`, `scrollytelling-step`, and `sequence-scrub`
+  all re-verified in a real browser afterwards, not just the 821 unit tests.
+
 ### D5. Replay-all FAB doesn't actually replay declaratively-authored effects
 
 - **Found by:** owner (asked to verify the FAB visually), root-caused by direct testing.
