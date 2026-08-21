@@ -391,14 +391,41 @@
   .hero-flip { border-radius: 12px; }
   .hero-flip > .kui-face-front,
   .hero-flip > .kui-face-back { border-radius: 12px; overflow: clip; }
-  .kui-flip-control {
-    grid-area: 1 / 1; z-index: 2; justify-self: end; align-self: end;
-    margin: 0.85rem; display: flex; align-items: center; gap: 0.55rem;
-    padding: 0.4rem 0.5rem 0.4rem 0.85rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid rgb(255 255 255 / 0.25); background: rgb(8 9 10 / 0.62);
+  /* Both controls share one grid cell with the faces and one set of pill metrics, so they sit on
+     the same baseline and read as a pair rather than as two unrelated buttons that happen to be
+     near each other. Only the corner and the fill differ. */
+  .kui-flip-control,
+  .hero-flip-code {
+    grid-area: 1 / 1; z-index: 2; align-self: end; margin: 0.85rem;
+    display: flex; align-items: center; gap: 0.55rem;
+    /* Shared, because the Flip pill is taller than its own padding — its inner name chip sets the
+       height. Without this the two sit 6px apart and stop reading as a matched pair. */
+    min-height: 2.2rem; box-sizing: border-box;
+    border-radius: 999px; cursor: pointer;
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
     transition: background 180ms ease, border-color 180ms ease;
+  }
+  .kui-flip-control {
+    justify-self: end;
+    padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+    border: 1px solid rgb(255 255 255 / 0.25); background: rgb(8 9 10 / 0.62);
+  }
+  .hero-flip-code {
+    justify-self: start;
+    padding: 0.4rem 0.85rem;
+    letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;
+    border: 1px solid rgb(255 255 255 / 0.3); background: rgb(8 9 10 / 0.34);
+    color: rgb(255 255 255 / 0.86);
+  }
+  .hero-flip-code:hover, .hero-flip-code:focus-visible {
+    background: rgb(8 9 10 / 0.72); border-color: rgb(255 255 255 / 0.6); color: #fff;
+  }
+  /* Under ~520px the two pills would meet in the middle. Stack them at the bottom-left instead of
+     letting them collide — a control that overlaps another control is worse than one that moved. */
+  @media (max-width: 520px) {
+    .kui-flip-control, .hero-flip-code { justify-self: start; }
+    .kui-flip-control { margin-bottom: 3.1rem; }
   }
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -819,7 +846,7 @@
              is `aria-pressed` on the control, read with `:has()`, so the button's accessibility
              state and the card's visual state are the same fact rather than two that can drift. -->
         <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
-          <div class="hero-flip" data-kui="flip-card">
+          <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card">
             <div class="kui-face-front">
               <div class="video-frame" data-yt-id="EcbgbKtOELY">
               <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
@@ -842,6 +869,11 @@
               </button>
             </div>
             </div>
+            <!-- Two controls, opposite corners, so neither has to make room for the other. Flip
+                 is the primary action and carries the filled treatment; Show code is an outline of
+                 the same pill, which reads as secondary without needing to be smaller or dimmer
+                 enough to be hard to hit. -->
+            <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
             <button type="button" class="kui-flip-control" aria-pressed="false">
               <span class="flip-label">Flip</span>
               <span class="flip-side">Kole Jain</span>
@@ -1225,43 +1257,43 @@
             <div class="track-viewport">
               <div class="track" data-kui="horizontal-scroll distance:300vh">
                 <figure data-show-code>
-                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
                   <figcaption>EOSAI — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
                   <figcaption>Saxe — commerce</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" />
                   <figcaption>ZROBIM — architecture</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
                   <figcaption>NUORBIT — marketplace</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
                   <figcaption>Zenrixa — agency</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
                   <figcaption>CoStar — lending</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
                   <figcaption>NeoVision — product</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
                   <figcaption>Morozov — portfolio</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
                   <figcaption>CarSellCenter — configurator</figcaption>
                 </figure>
                 <figure data-show-code>
-                  <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" data-no-lightbox />
+                  <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
                   <figcaption>Njey — technology</figcaption>
                 </figure>
               </div>
