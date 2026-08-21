@@ -87,4 +87,57 @@
   [data-kui-fx~='loading-bar'] {
     transform-origin: left center;
   }
+
+  /*
+   * --- flip-card: a two-sided card that stays on the face you turned it to ---
+   *
+   * A transition, not a keyframe, because this is state rather than an animation — a one-shot
+   * keyframe has no way to come back. The state lives on `aria-pressed` on the control inside the
+   * card and is read with `:has()`, so the accessibility state *is* the visual state and the two
+   * cannot drift apart.
+   *
+   * Markup contract:
+   *
+   *   <div data-kui="flip-card">
+   *     <div class="kui-face-front"> ... </div>
+   *     <div class="kui-face-back"> ... </div>
+   *     <button type="button" class="kui-flip-control" aria-pressed="false">Flip</button>
+   *   </div>
+   *
+   * The faces are selected by class rather than by `:nth-child`, so the control (and anything else
+   * the author puts in the card) can sit anywhere in the source order without silently reversing
+   * which side is the front.
+   *
+   * Each face carries its own rotation instead of a shared inner wrapper turning both. That saves
+   * an element, and `backface-visibility: hidden` already guarantees only the face pointing at the
+   * viewer paints — the two are always exactly half a turn apart, so they can never both show.
+   *
+   * The control is deliberately *not* inside a face. A button on the front face would rotate away
+   * with it and become unclickable the moment you used it once.
+   */
+  [data-kui-fx~='flip-card'] {
+    display: grid;
+    perspective: var(--kui-perspective, 1600px);
+  }
+
+  [data-kui-fx~='flip-card'] > .kui-face-front,
+  [data-kui-fx~='flip-card'] > .kui-face-back {
+    grid-area: 1 / 1;
+    backface-visibility: hidden;
+    transition: rotate var(--kui-card-toggle-duration, 700ms) var(--kui-card-toggle-ease, ease-in-out);
+  }
+
+  /* Both faces need an explicit starting rotation. A transition cannot interpolate from `none`. */
+  [data-kui-fx~='flip-card'] > .kui-face-front { rotate: y 0deg; }
+  [data-kui-fx~='flip-card'] > .kui-face-back { rotate: y 180deg; }
+
+  /* Negative on the front so the pair turns the same way round, rather than passing through each
+     other in opposite directions. */
+  [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-front {
+    rotate: y -180deg;
+  }
+
+  [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-back {
+    rotate: y 0deg;
+  }
 }

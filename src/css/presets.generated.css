@@ -415,6 +415,11 @@
     --kui-reveal-ease: ease-out;
   }
 
+  [data-kui-fx~='flip-card'] {
+    --kui-card-toggle-duration: 700ms;
+    --kui-card-toggle-ease: ease-in-out;
+  }
+
   [data-kui-fx~='flip-filter'] {
     --kui-flip-container-duration: 400ms;
     --kui-flip-container-ease: ease-out;

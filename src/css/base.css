@@ -105,7 +105,9 @@
     [data-kui-rm][data-kui-fx~='strength-meter'] ~ .kui-meter > *,
     [data-kui-rm][data-kui-fx~='hamburger-to-x'] .kui-bar,
     [data-kui-rm][data-kui-fx~='play-to-pause'] .kui-bar,
-    [data-kui-rm][data-kui-fx~='plus-to-minus'] .kui-bar {
+    [data-kui-rm][data-kui-fx~='plus-to-minus'] .kui-bar,
+    [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-front,
+    [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-back {
       transition-duration: 1ms !important;
       transition-delay: 0ms !important;
     }

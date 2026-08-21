@@ -66,6 +66,10 @@ CSS-only — but a new JS primitive is a decision, not a default.
       `hamburger-to-x`, `play-to-pause`, `plus-to-minus`. All CSS. Verified rendering in Chrome,
       not from source comments.
 - [x] **`scroll-skew`** (section B), plus a demo card for it on `scroll.html`.
+- [x] **`flip-card`** (section N) — a genuinely two-sided card that stays on the face you turned it
+      to, which `card-flip-y` is not: that one is a one-shot entrance with nothing on the back. CSS
+      transition keyed off `aria-pressed` on the control inside the card, read with `:has()`. The
+      hero on `scroll.html` uses it to hold two YouTube talks in one slot.
 - [x] **`reveal-repeat` deleted from the docs.** It was removed from the library on purpose.
 - [x] **`test/catalog-docs.test.ts`** — diffs `docs/catalog.md` against `createRegistry().names()`
       in both directions, checks the planned names still carry their dagger and are still genuinely

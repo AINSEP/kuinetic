@@ -4,8 +4,11 @@ This catalog lists every named effect the library ships, grouped into fifteen se
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** ~237 named effects from **29 primitives**. Note that 48 names come from a single
-primitive (the entrance/exit matrix), so name count is not work count.
+**Counts:** **251** named effects, over **29 primitive families**. Note that 48 names come from a
+single family (the entrance/exit matrix), so name count is not work count. The families below are
+the architectural grouping, not registry ids — the registry holds more entries than that, because a
+family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
+`fade-up` apart from `zoom-in-up`.
 
 **Out of scope:** WebGL/particle rendering — canvas-based effects are supported only through an
 adapter that drives a user-supplied canvas, never as a built-in renderer.
@@ -23,7 +26,7 @@ of this document.
 
 ---
 
-## The 29 primitives
+## The 29 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -293,12 +296,33 @@ Primitives 1, 5, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 30 shipped, 2 planned
+## N. 3D & perspective — 31 shipped, 2 planned
 
 Primitives 14, 22.
 
-`card-flip-x` · `card-flip-y` · `cube-rotate` · `book-page-turn` · `fold-panel` ·
-`depth-layers-pointer`† · `perspective-grid`†
+`card-flip-x` · `card-flip-y` · `flip-card` · `cube-rotate` · `book-page-turn` ·
+`fold-panel` · `depth-layers-pointer`† · `perspective-grid`†
+
+> **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
+> reading twice. `card-flip-y` is an *entrance*: one keyframe, half a turn, played once, nothing on
+> the other side. `flip-card` is a component with a front, a back, and a state in between — which a
+> keyframe cannot express, because a one-shot animation has no way to come back.
+>
+> `flip-card` is a CSS transition keyed off `aria-pressed` on the control inside the card, read with
+> `:has()`. The accessibility state *is* the visual state, so the two cannot drift apart. Toggling
+> that attribute is yours to do — one line — the same as the icon toggles in section E.
+>
+> ```html
+> <div data-kui="flip-card">
+>   <div class="kui-face-front"> ... </div>
+>   <div class="kui-face-back"> ... </div>
+>   <button type="button" class="kui-flip-control" aria-pressed="false">Flip</button>
+> </div>
+> ```
+>
+> Faces are matched by class, not by position, so the control can sit anywhere in the source order.
+> Keep it outside both faces: a button on the front face rotates away with it and stops being
+> clickable the moment you use it once.
 
 > **† Not yet implemented.** `depth-layers-pointer` · `perspective-grid` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
@@ -331,9 +355,9 @@ Primitives 1, 10, 15.
 | K Feedback & status | 17 |
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
-| N 3D & perspective | 30 (+2 planned) |
+| N 3D & perspective | 31 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total shipped** | **250** |
+| **Total shipped** | **251** |
 | Documented but not yet shipped | 4 |
 
 Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.

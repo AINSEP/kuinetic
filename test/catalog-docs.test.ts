@@ -31,7 +31,7 @@ const catalog = readFileSync(fileURLToPath(new URL('../docs/catalog.md', import.
  * Sections that list *primitive* ids or aggregate counts rather than effect names. Including them
  * would compare the wrong vocabulary against the registry and produce noise in both directions.
  */
-const NON_CATALOG_SECTIONS = /^(Legend|Totals|The \d+ primitives)/
+const NON_CATALOG_SECTIONS = /^(Legend|Totals|The \d+ primitive)/
 
 /**
  * Every effect name the catalog lists, in document order.

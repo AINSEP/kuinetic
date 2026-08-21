@@ -37,6 +37,18 @@ function extractKeyframes(css: string): Map<string, Set<string>> {
 const keyframes = extractKeyframes(CSS)
 const registry = createRegistry()
 
+/**
+ * Section N presets that are state, not animation, and so deliberately have no `@keyframes` and no
+ * CSS-keyframes renderer.
+ *
+ * `flip-card` is a two-sided card that stays on the face you turned it to. A one-shot keyframe
+ * cannot express that — it has no way to come back — so the whole effect is a CSS transition in
+ * `three-d.css` keyed off `aria-pressed` on the control inside the card, and its primitive prepares
+ * to an inert instance. Named here rather than inferred, so a *new* preset that quietly stops
+ * declaring keyframes still fails the assertions below instead of being silently excused.
+ */
+const STATE_DRIVEN = new Set(['flip-card'])
+
 describe('three-d stylesheet', () => {
   it('parses the expected number of keyframe blocks', () => {
     // Guards against the extractor silently matching nothing, which would make every assertion
@@ -45,10 +57,20 @@ describe('three-d stylesheet', () => {
   })
 
   it('every v3 CSS preset references a keyframe block that exists', () => {
-    const missing = THREE_D_PRESETS.filter((preset) => !keyframes.has(preset.keyframes ?? '')).map(
-      (preset) => `${preset.name} -> ${preset.keyframes}`,
-    )
+    const missing = THREE_D_PRESETS.filter(
+      (preset) => !STATE_DRIVEN.has(preset.name) && !keyframes.has(preset.keyframes ?? ''),
+    ).map((preset) => `${preset.name} -> ${preset.keyframes}`)
     expect(missing).toEqual([])
+  })
+
+  it('the state-driven presets claim no keyframes at all', () => {
+    // The other half of the carve-out. A state preset that *did* name a keyframe block would be
+    // claiming an animation it does not have, and `css-invariants.test.ts` would then hunt for a
+    // block that never gets written.
+    const claiming = THREE_D_PRESETS.filter(
+      (preset) => STATE_DRIVEN.has(preset.name) && preset.keyframes !== undefined,
+    ).map((preset) => preset.name)
+    expect(claiming).toEqual([])
   })
 
   it('every keyframe block is referenced by a preset', () => {
@@ -125,9 +147,22 @@ describe('v3 registration', () => {
     }
   })
 
-  it('keeps every 3D effect on the CSS renderer', () => {
+  it('keeps every animated 3D effect on the CSS renderer', () => {
     for (const preset of THREE_D_PRESETS) {
+      if (STATE_DRIVEN.has(preset.name)) continue
       expect(registry.resolve(preset.name)!.primitive.renderer, preset.name).toBe('css-keyframes')
+    }
+  })
+
+  it('the state-driven presets render nothing themselves — the stylesheet does all of it', () => {
+    for (const name of STATE_DRIVEN) {
+      const resolved = registry.resolve(name)!
+      // `javascript` here means "the animator holds an inert handle", not "this ships a frame
+      // loop": the primitive's `prepare` returns `inertInstance()` and never touches the DOM. The
+      // registration exists to stamp `data-kui-fx` and resolve the timing params onto the card,
+      // which the faces then inherit — exactly the forms.css native-state arrangement.
+      expect(resolved.primitive.renderer, name).toBe('javascript')
+      expect(resolved.primitive.reducedMotion, name).toBe('disable')
     }
   })
 

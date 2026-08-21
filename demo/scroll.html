@@ -386,6 +386,28 @@
   .video-slot .slot-num { font-size: 1.4rem; color: var(--fg); opacity: 0.25; margin-bottom: 0.35rem; }
 
   /* ---------- hero video ---------- */
+  /* The card is `display: grid` from the library rule, so the control has to claim the same cell
+     as the faces or it lands in a second row and pushes the layout around. */
+  .hero-flip { border-radius: 12px; }
+  .hero-flip > .kui-face-front,
+  .hero-flip > .kui-face-back { border-radius: 12px; overflow: clip; }
+  .kui-flip-control {
+    grid-area: 1 / 1; z-index: 2; justify-self: end; align-self: end;
+    margin: 0.85rem; display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.85rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgb(255 255 255 / 0.25); background: rgb(8 9 10 / 0.62);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    transition: background 180ms ease, border-color 180ms ease;
+  }
+  .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
+  .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  /* The side label is the affordance doing the real work: "Flip" alone never says flip to *what*. */
+  .kui-flip-control .flip-side {
+    padding: 0.2rem 0.6rem; border-radius: 999px;
+    background: rgb(255 255 255 / 0.14); color: rgb(255 255 255 / 0.88);
+  }
+
   .video-frame { position: relative; aspect-ratio: 16 / 9; overflow: clip; cursor: pointer; background: #000; flex: none; }
   .video-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
   .video-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
@@ -792,14 +814,37 @@
         <p class="kicker" data-kui="fade-up 700ms">CSS Animations · Scroll</p>
         <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
 
+        <!-- Two videos, one slot. `flip-card` is the library's stateful two-sided card — not
+             `card-flip-y`, which is a one-shot entrance with nothing on the other side. The state
+             is `aria-pressed` on the control, read with `:has()`, so the button's accessibility
+             state and the card's visual state are the same fact rather than two that can drift. -->
         <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
-          <div class="video-frame" data-yt-id="EcbgbKtOELY">
-            <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
-            <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
-              <svg viewBox="0 0 68 48" aria-hidden="true">
-                <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-              </svg>
+          <div class="hero-flip" data-kui="flip-card">
+            <div class="kui-face-front">
+              <div class="video-frame" data-yt-id="EcbgbKtOELY">
+              <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
+              <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
+                <svg viewBox="0 0 68 48" aria-hidden="true">
+                  <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                  <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                </svg>
+              </button>
+            </div>
+            </div>
+            <div class="kui-face-back">
+              <div class="video-frame" data-yt-id="f2mGqlLLqok">
+              <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
+              <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                <svg viewBox="0 0 68 48" aria-hidden="true">
+                  <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                  <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                </svg>
+              </button>
+            </div>
+            </div>
+            <button type="button" class="kui-flip-control" aria-pressed="false">
+              <span class="flip-label">Flip</span>
+              <span class="flip-side">Kole Jain</span>
             </button>
           </div>
         </div>
@@ -891,9 +936,9 @@
               <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
               <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 736 / 615" data-kui="scroll-skew from:6deg to:0deg timeline:view" data-show-code>
+            <figure class="demo-card" style="--ar: 736 / 615" data-kui="scroll-skew from:20deg to:0deg timeline:view" data-show-code>
               <img src="./assets/webdesign/glass-ui-concepts.jpg" alt="Three stacked glass-material cards labelled Frosted (Concept), Clear (iOS) and Blur (One UI), each blurring a rain-streaked window and a desk of books behind it to a different degree" loading="lazy" />
-              <figcaption>data-kui="scroll-skew from:6deg to:0deg timeline:view"</figcaption>
+              <figcaption>data-kui="scroll-skew from:20deg to:0deg timeline:view"</figcaption>
             </figure>
           </div>
         </div>
@@ -1085,8 +1130,8 @@
             </aside>
             <div class="pin-until-content">
               <figure class="pin-until-block">
-                <img src="./assets/webdesign/coders-project-dashboard.jpg" alt="The Coders project management dashboard — a Gantt-style task timeline beside a team panel and a dark file preview card holding an abstract 3D orb" loading="lazy" />
-                <figcaption><span class="stop-num">01</span> Coders — project management</figcaption>
+                <img src="./assets/webdesign/inzoi-character-studio.jpg" alt="The inZOI character studio — a 3D avatar in a white dress posed against a pink sunset sky, with expression, background and lighting sliders down the left and a scrolling outfit library down the right" loading="lazy" />
+                <figcaption><span class="stop-num">01</span> inZOI — character studio</figcaption>
               </figure>
               <figure class="pin-until-block">
                 <img src="./assets/webdesign/modera-furniture-spatial-ui.jpg" alt="The MODERA furniture store as a spatial interface — a translucent glass shopping panel floating in a dark room above a low leather sofa, showing an armchair listing, a Great Value Deals card, and a team panel" loading="lazy" />
@@ -1320,7 +1365,7 @@
 
           <div class="snap-y-panel" data-kui="scroll-snap-y">
             <figure data-show-code>
-              <img src="./assets/webdesign/coders-project-dashboard.jpg" alt="The Coders project management dashboard — a Gantt-style task timeline beside a team panel and a dark file preview card with an abstract 3D orb" loading="lazy" />
+              <img src="./assets/webdesign/inzoi-character-studio.jpg" alt="The inZOI character studio — a 3D avatar in a white dress posed against a pink sunset sky, with expression, background and lighting sliders down the left and a scrolling outfit library down the right" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
             <figure data-show-code>
@@ -1378,9 +1423,15 @@
     })()
   </script>
   <script>
-    // Lite YouTube embed: swap the poster image for a real iframe only on click
+    // Lite YouTube embed: swap the poster image for a real iframe only on click.
+    // The facade is also kept so a flipped-away video can be torn back down to it — see below.
     ;(function () {
       document.querySelectorAll('.video-frame').forEach(function (frame) {
+        var facade = Array.prototype.slice.call(frame.childNodes)
+        frame.__restore = function () {
+          if (!frame.querySelector('iframe')) return
+          frame.replaceChildren.apply(frame, facade)
+        }
         var play = frame.querySelector('.yt-play')
         if (!play) return
         play.addEventListener('click', function () {
@@ -1392,6 +1443,45 @@
           iframe.allowFullscreen = true
           frame.replaceChildren(iframe)
         })
+      })
+    })()
+  </script>
+  <script>
+    // flip-card is CSS; the one thing it cannot do for itself is toggle the attribute. That is the
+    // author's line, the same as the icon toggles in catalog section E.
+    //
+    // The teardown is not optional. `backface-visibility` only stops a face being *painted* — a
+    // YouTube iframe on the side you just turned away keeps running, and keeps playing its audio,
+    // out of sight. Flipping restores whichever face is now hidden to its click-to-play poster.
+    ;(function () {
+      document.querySelectorAll('.kui-flip-control').forEach(function (control) {
+        var card = control.closest('[data-kui]')
+        if (!card) return
+        var sides = [
+          card.querySelector('.kui-face-front'),
+          card.querySelector('.kui-face-back'),
+        ]
+        // Just the presenter. The full title is already the button's accessible name via the
+        // poster's alt, and a chip carrying the whole thing spans half the card.
+        var names = sides.map(function (side) {
+          var img = side && side.querySelector('img')
+          if (!img) return ''
+          var parts = img.alt.split(' — ')
+          return parts[parts.length - 1]
+        })
+        var label = control.querySelector('.flip-side')
+        control.addEventListener('click', function () {
+          var flipped = control.getAttribute('aria-pressed') !== 'true'
+          control.setAttribute('aria-pressed', String(flipped))
+          var hidden = sides[flipped ? 0 : 1]
+          if (hidden) {
+            hidden.querySelectorAll('.video-frame').forEach(function (frame) {
+              if (frame.__restore) frame.__restore()
+            })
+          }
+          if (label) label.textContent = names[flipped ? 1 : 0]
+        })
+        if (label && names[0]) label.textContent = names[0]
       })
     })()
   </script>
