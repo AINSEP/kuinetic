@@ -801,9 +801,15 @@
 
   /* ---------- sequence-scrub (Section C) ---------- */
   .scrub-stage { height: 260vh; margin-top: 2rem; }
+  /* Sized to the frames rather than to the viewport, which is what removes the grey surround.
+     `height: 80vh` gave a box whose aspect changed with the window, so `contain` always had
+     leftover space to fill and that space was `--surface` — a grey border round every frame that
+     moved as you resized. All four frames are 16:9 now (the 1.60 one is padded by edge
+     replication, which continues its red gradient rather than banding against it), so a 16:9 box
+     is filled exactly: no crop, no bars, nothing to paint behind them. */
   .scrub-viewport {
-    position: sticky; top: 10vh; height: 80vh; max-height: 560px;
-    border-radius: 14px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
+    position: sticky; top: 10vh; aspect-ratio: 16 / 9; max-height: 80vh;
+    border-radius: 14px; overflow: clip;
   }
   /* `scroll-desaturate` used to be composed onto this element, wiping grayscale to colour across
      the scrub. It is gone at the owner's request: these frames are other people's work, and
