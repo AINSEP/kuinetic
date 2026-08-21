@@ -17,11 +17,34 @@ library should own it. Never call something "not the library's job" without grep
       contours collapsed to their partner's centroid. `npm run test:browser` is **59/59**; 11 unit
       tests added; coverage still 100/100/100/100. Write-up: `docs/live-testing-backlog.md` D7.
 
-- [ ] **Put the browser suite in the gate.** `npm test` is 888 tests at 100% coverage and green;
-      `npm run test:browser` is now 59/59 too — which means this is the moment to wire it in, while
-      it is green and the cost of keeping it green is zero. A gate that could not go red on D7 for
-      weeks is not a gate. Decide whether it runs on every commit or on a pre-push/CI hook — it
-      needs a Chromium and takes about a minute, so per-commit may be the wrong cadence.
+- [ ] **Fix the `gestures` browser flake — it blocks the gate below.** `test/browser/gestures.test.mjs`
+      failed 1 run in ~6 and passed the other 5, always the same 2 checks
+      (`elastic-pull spring-return moves smoothly and meaningfully back to the origin`). Wiring a
+      flaky suite into the gate teaches everyone to ignore the gate, which is the exact disease the
+      gate is meant to cure, so this comes first.
+
+- [ ] **Put the browser suite in the gate.** `npm test` is 901 tests at 100% coverage and green;
+      `npm run test:browser` is 59/59. Measured: the browser suite takes **23 seconds**, not the
+      minute this entry used to assume, so per-commit is realistic. A gate that could not go red on
+      D7 for weeks is not a gate. There is no CI and no husky here — "the gate" is a habit — so
+      this means adding a `gate` script, a pre-push hook, or a workflow (remote is
+      `github.com/AINSEP/kuinetic`). Do the flake above first.
+
+- [ ] **Answer the `horizontal-scroll` nesting question.** The owner asked whether
+      `<div class="track-stage"><div class="track-viewport"><div class="track" data-kui="…">` can
+      collapse to just the attribute. **Why three is needed today:** `prepareHorizontal` writes
+      `translate` and nothing else — no pinning, no clipping, no wrappers. So `.track-stage` is the
+      scroll distance, `.track-viewport` is the sticky+clipping window (without the clip a
+      `max-content` track gives the document a horizontal scrollbar, which this repo has shipped
+      once already), and `.track` is the row that moves. **One is impossible** — sticky needs a
+      taller ancestor. **Two may work:** `trackTravel` has a documented branch for a track that
+      clips its own children (`scrollWidth - clientWidth > 0`). Untested; needs a browser check.
+
+- [ ] **Log the `stacking-cards` progress gap.** The cards never publish `--kui-progress` or
+      `data-kui-pinned`. Confirmed **pre-existing** by `git stash`-ing the working tree and
+      re-measuring against HEAD, so it is not from this session's offset change. The sticky stack
+      itself works; only the flag is missing, and nothing on the page consumes it. Deserves a
+      D-entry in `docs/live-testing-backlog.md` rather than living only in a handoff.
 
 - [ ] **A browser suite for replay (D5).** `src/core/instances.ts` has the forward-restart path and
       the unit tests are at 100%, but that is exactly the evidence that failed to catch D5 the first
