@@ -10,6 +10,34 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **`path-morph` loses every subpath — a real correctness bug the unit suite cannot see.**
+      A square with a square hole morphs into one open outline: two `M` become one, two `Z` become
+      none. Any `blob-morph`/`icon-morph` on a shape with a hole or a counter renders wrong.
+      `test/browser/svg-morph-subpath.test.mjs` has been failing this whole time and nobody knew,
+      because `npm run test:browser` is not part of the gate. Write-up: `docs/live-testing-backlog.md`
+      D7.
+
+- [ ] **Put the browser suite in the gate.** `npm test` is 877 tests at 100% coverage and green;
+      `npm run test:browser` is 57/59 and has been red on D7. A gate that cannot go red on a real
+      bug is not a gate. Decide whether it runs on every commit or on a pre-push/CI hook — it needs
+      a Chromium and takes about a minute, so per-commit may be the wrong cadence.
+
+- [ ] **Decide what to do about 44 dead exports and 17 dead exported types** (`npm run lint:dead`).
+      These are not dead *code* — the code runs — they are `export` keywords on bindings that no
+      other module imports and that no published entry point re-exports. `package.json` exposes only
+      `.`, `./core`, `./effects` and `./css`, so `SCROLL_PRESETS`, `THREE_D_PRIMITIVES`,
+      `LAYOUT_PRESETS`, `NAV_JS_PRESETS` and the rest are unreachable from outside the package.
+      Either re-export them deliberately (if consumers should be able to introspect the catalog) or
+      drop the keyword. Right now `lint:dead` exits 1 as a matter of course, which trains everyone
+      to ignore it.
+
+- [ ] **Index page: a short "get the video off a page and onto your site" note.** Queued behind
+      finishing `scroll.html`, and to be written as part of the index-page overhaul rather than
+      bolted on before it. Plain-language, for a reader who has never opened a terminal: install
+      ffmpeg, point it at a video URL, get back an `.mp4`/`.webm` you can actually ship. Worth
+      writing because it is the exact thing this repo's own demo assets are made with, and the
+      pages are full of them with no explanation of where they came from.
+
 - [ ] **Visual regression captures — the next session's first job.** Today a single stray `</div>`
       ran two thirds of `scroll.html` full-bleed and gave the document a horizontal scrollbar, and
       nothing in the repo noticed. The owner caught it from a screenshot, two sessions later.
@@ -18,14 +46,11 @@ library should own it. Never call something "not the library's job" without grep
       baseline. Drive it through Claude in Chrome against the dev server on 8934 — not a
       hand-rolled playwright script, which the owner has objected to before.
 
-- [ ] **`horizontal-scroll` is broken and it is a core bug — root-caused, not yet fixed.**
-      `trackProgress` caches an element's content offset from `getBoundingClientRect()`, which is
-      wrong for anything inside a `position: sticky` subtree: re-measure while it is stuck and the
-      cached offset becomes the current scroll position, so progress clamps to 0 for good.
-      Intermittent because the re-measure races the `pin` primitives' `ctx.invalidate()`.
-      Full write-up and fix direction in `docs/live-testing-backlog.md` under D4. Touches every
-      scroll-mechanics effect, so it needs browser re-verification of pinning, stacking-cards,
-      scrollytelling and sequence-scrub, not just the unit tests.
+- [x] **`horizontal-scroll` is broken and it is a core bug.** Fixed 2026-08-21 — two causes, both
+      in shared code: `trackProgress` measuring geometry off an element frozen by an ancestor's
+      `position: sticky`, and `windowScrollRoot` never noticing that lazy-loaded media had moved
+      the whole page under its cached offsets. Full write-up, numbers and browser verification in
+      `docs/live-testing-backlog.md` under D4.
 
 - [ ] **`demo/docs.html` still hand-rolls its TOC tracker** (~line 320 and 556-599): builds nav
       links from `h2`s, runs a scroll+rAF loop on `getBoundingClientRect()`, toggles `.is-active`.

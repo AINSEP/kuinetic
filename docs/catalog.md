@@ -122,6 +122,64 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > `scroll-snap-*` are thin CSS passthroughs. Everything else needs the orchestrator:
 > measurement, resize invalidation, nested scroll containers, cleanup.
 
+> **`target:` — let the library mark the elements, so you write one rule instead of one per step.**
+>
+> `scrollytelling-step` publishes `data-kui-step` on the section, which is enough to style the
+> section itself. Styling *the step that is currently live* is the part CSS cannot express on its
+> own, and without help it costs one selector per step:
+>
+> ```css
+> /* four steps, one property group — and every line of it wrong the moment you add a fifth */
+> [data-kui-step='0'] li:nth-child(1),
+> [data-kui-step='1'] li:nth-child(2),
+> [data-kui-step='2'] li:nth-child(3),
+> [data-kui-step='3'] li:nth-child(4) { color: white; }
+> ```
+>
+> Point `target:` at the step elements and the library stamps `data-kui-step-state` on each of them
+> — `before`, `active`, or `after`:
+>
+> ```html
+> <section data-kui="scrollytelling-step distance:200vh steps:4 target:'.stops > li'">
+> ```
+> ```css
+> .stops li[data-kui-step-state='active'] { color: white; }        /* the live one   */
+> .stops li:not([data-kui-step-state='after']) { opacity: 1; }     /* everything done */
+> ```
+>
+> Two rules, and neither of them mentions how many steps there are.
+>
+> **Quote a selector containing spaces or commas.** The `data-kui` grammar separates parameters with
+> spaces and effects with commas, so `target:.stops > li` would parse `> li` as two stray tokens.
+> Quoting is the escape, and it lets one `target:` drive several parallel groups at once — the copy
+> and the progress dots beside it, say:
+>
+> ```html
+> target:'.stops > li, .dots > span'
+> ```
+>
+> Position is counted **within each matched element's parent**, so two sibling lists of four both
+> number 0–3 rather than 0–3 and 4–7.
+>
+> The live index is also published as `--kui-step`, a plain number, for the cases a selector cannot
+> reach — selectors match, they do not do arithmetic. Moving one element a fixed amount per step is
+> one rule instead of one rule per step:
+>
+> ```css
+> .frame img { transform: translateY(calc(var(--kui-step, 0) * -25%)); }
+> ```
+>
+> `data-kui-step-state` is a state contract, not a look: the library stamps it and styles nothing,
+> because `target:` marks whatever you point it at and that is as often a line of copy as a coloured
+> bar. To get the shipped segment styling — off state, lit state, the transition between them — put
+> `.kui-step-track` on the container holding them. `step-progress` in section O opts its own children
+> in automatically.
+>
+> Same parameter, same validation, on `scroll-spy` (`target:#nav-link-features` — marks the nav link
+> for this section with `data-kui-active`) and on `step-progress` in section O. A selector that
+> matches `<html>` or `<body>` is rejected with a warning rather than stamping the whole document,
+> and so is one that does not parse.
+
 ---
 
 ## D. Text & typography — 26 names
@@ -335,6 +393,25 @@ Primitives 1, 10, 15.
 `label-float` · `input-underline-grow` · `focus-ring-grow` · `validate-shake` ·
 `validate-check` · `strength-meter` · `toggle-morph` · `checkbox-draw` · `radio-fill` ·
 `range-fill` · `submit-to-spinner-to-check` · `step-progress`
+
+> **`step-progress`** is the click-driven half of the step pair — it advances its own index on
+> click and wraps, where `scrollytelling-step` in section C takes its index from scroll position.
+> Both publish `data-kui-step` and both mark their step elements with `data-kui-step-state`, so the
+> shipped styling serves either one:
+>
+> ```html
+> <div data-kui="step-progress steps:4">
+>   <span></span><span></span><span></span><span></span>
+> </div>
+> ```
+>
+> `target:` defaults to this element's own children here, because a stepper's segments normally
+> *are* its children. Name a selector when they are not — see section C for the full parameter,
+> including how to quote a selector containing spaces or commas.
+>
+> The library paints steps up to and including the live one with `--accent` and the rest with
+> `--dim`, which reads as a progress bar. For a position indicator — one lit segment — override
+> `[data-kui-step-state='before']` back to the off state in your own CSS.
 
 ---
 

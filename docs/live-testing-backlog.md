@@ -56,6 +56,34 @@ synthetic events.
 
 ### D4. `horizontal-scroll` (pinned-track variant) — progress tracks correctly, but the track never visually moves
 
+**FIXED 2026-08-21.** Two causes, both in shared code, both now closed:
+
+1. `trackProgress` measured `contentTop` from an element frozen by an ancestor's `position: sticky`
+   — the root cause written up below. `src/effects/scroll-mechanics/tracker.ts` now walks up from
+   the tracked element, and if anything in its ancestry computes to `sticky`, takes `contentTop`
+   from the outermost sticky element's parent (the box that actually scrolls) while still taking
+   `height` from the element itself. `.track` measures against `.track-stage`. Regression tests:
+   `test/scroll-mechanics.test.ts` → "inside a position: sticky subtree" (two cases — the sticky
+   one, and a non-sticky one that fails if the walk-up fires when it shouldn't). Verified failing
+   before the fix and passing after.
+
+2. Found while verifying the first: `windowScrollRoot.onResize` listened only for `window.resize`,
+   while `elementScrollRoot` had always also observed its element's box "for images loading, fonts
+   swapping, [or] content being inserted". On a page of lazy-loaded media those move content with
+   no resize event, so the page root was the one scroller whose cached geometry could go stale and
+   never be corrected. Measured on this page: `.track-stage` drifted ~840px between load and
+   arrival — a third of the effect's whole range. `src/core/scroll-scheduler.ts` now observes
+   `document.documentElement`. Tests in `test/scroll-scheduler-dom-roots.test.ts`.
+
+**Browser-verified** on `demo/scroll.html` at 1283x770: mid-stage `--kui-progress` 0.95,
+`translate: -3024px` (= track 4144px − viewport 1120px, exactly right), cards visibly travelling.
+Pinning, `pin-until`, `stacking-cards`, scrollytelling and `sequence-scrub` re-checked on the same
+page — all still publish progress. Note for whoever tests next: a **hidden Chrome tab freezes rAF**,
+so every one of these reads as dead until you take a screenshot to activate the tab. That cost an
+hour here and is not a bug.
+
+Original write-up, kept because the reasoning is the reusable part:
+
 - **Found by:** owner ("Horizontal scroll doesn't work"), confirmed by direct measurement.
 - **Source:** `src/effects/scroll-mechanics/presets.ts:22` (`horizontal-scroll` → primitive
   `horizontal-track`). **Different code path from the already-tested nested `overflow:auto`
@@ -165,6 +193,30 @@ multi-point sampling (not a single check) on `demo/showcase/reveals.html`'s
   right call site), it's just not sufficient on its own — the real fix belongs in
   `src/core/instances.ts` (`createCssInstance`, same file D2 already touched) or wherever CSS-tier
   install/activate actually applies the animation properties.
+
+### D7. `path-morph` flattens every multi-subpath shape into one open subpath
+
+- **Found by:** the coverage/quality audit, 2026-08-21. `npm run test:browser` has been red on this;
+  it is not part of `npm test`, so nothing in the normal gate ever said so.
+- **Failing suite:** `test/browser/svg-morph-subpath.test.mjs` — 2 of its 3 checks fail. Its own
+  sanity check passes, so the fixture is right and the morph is wrong.
+- **Symptom, measured.** Source is a square with a square hole: two subpaths, both closed
+  (`M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z`). The morph output is
+  `M15,15 C… C… C… C…` — **one** `M` where there were two, and **zero** `Z` where there were two.
+- **Consequence for users:** any `blob-morph` or `icon-morph` on a shape with a hole, a counter (the
+  inside of an `o`, `a`, `e`), or two disjoint pieces renders as a single open outline. Holes fill
+  in. This is the entire class of icon that morphing is most wanted for.
+- **Where to look.** `src/core/path-morph.ts` (309 lines). The *parser* already handles this
+  correctly and says so at line 63: `Z` "has to close the subpath here or the final side of every
+  closed shape is silently missing." So the loss is downstream — the resample/emit step almost
+  certainly concatenates every subpath's points into one polyline and emits a single `M` followed by
+  cubics, with no per-subpath `M`/`Z` re-emission. Fixing it means carrying subpath boundaries
+  through resampling and pairing subpaths between the two shapes (including the unequal-count case,
+  which needs a documented rule).
+- **Not covered by unit tests, and 100% coverage did not help.** `path-morph.ts` is at 100%
+  statements/branches/functions/lines. Every line runs; none of them is asserted against a
+  multi-subpath expectation. This is the clearest argument in the repo for why the browser suite
+  should be in the gate.
 
 ### D6. `flip-filter` never animates — `mutationWatcher` missing `subtree`
 
