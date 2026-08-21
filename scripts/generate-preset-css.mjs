@@ -27,17 +27,74 @@ function build() {
   )
 }
 
+/**
+ * The CSS timing functions a browser accepts verbatim. Everything else the library names —
+ * `back-out`, `expo-out`, `spring` — is a kUInetic token defined in `base.css` as
+ * `--kui-ease-<name>`, and has to be emitted as a `var()` reference.
+ *
+ * Writing the bare token instead produced `animation-timing-function: back-out`, which is not a
+ * valid value, so the browser threw the declaration away and fell back to the initial `ease`.
+ * Every "easing character" preset — `bounce-in`, `bounce-in-up`, `back-in-up`, `pop-in`,
+ * `swing-in` — therefore animated on the default curve and none of them actually bounced. This
+ * mirrors `easingValue()` in `src/core/compile.ts`, which already gets the inline
+ * `ease:back-out` grammar right; only this generated stylesheet was missing the same step.
+ */
+const NATIVE_EASINGS = new Set([
+  'linear',
+  'ease',
+  'ease-in',
+  'ease-out',
+  'ease-in-out',
+  'step-start',
+  'step-end',
+])
+
+function easingValue(value) {
+  if (NATIVE_EASINGS.has(value)) return value
+  if (value.includes('(')) return value
+  return `var(--kui-ease-${value}, ease-out)`
+}
+
+/**
+ * Timing parameters are namespaced per primitive at registration (`--kui-<primitive>-duration`
+ * and friends, see `registry.ts`'s `namespaceTiming`), and `compile.ts` emits them as
+ * `var(--kui-ambient-float-duration, 600ms)` — with a *hardcoded* fallback that knows nothing
+ * about the primitive. So a primitive's own declared default only ever took effect if some
+ * preset happened to restate it. It usually did not: `ambient-float` declares `4s`, no preset
+ * restated it, no rule was generated, and `float` animated at the 600ms fallback instead — a
+ * nearly 7x speed error that had been sitting in the shipped stylesheet. Same for every
+ * `ease` default in the ambient and drift families, which all rendered `ease-out` while
+ * declaring `ease-in-out`.
+ *
+ * Emitting the primitive's defaults here closes that gap in the one place that already exists
+ * for "preset parameter defaults, as ordinary overridable rules".
+ */
+const TIMING_PARAMS = ['duration', 'delay', 'ease']
+
 /** `--kui-distance: 100px;` lines for one resolved preset+primitive pair. */
 function declarationsFor(resolved) {
   const { preset, primitive } = resolved
-  if (!preset.params) return []
+  const params = preset.params ?? {}
 
-  return Object.entries(preset.params).flatMap(([name, value]) => {
+  const declaration = (name, value) => {
     const spec = primitive.parameters[name]
     // `text` parameters are JS-only and must never reach a stylesheet.
     if (!spec || spec.type === 'text') return []
+    if (spec.type === 'easing') return [`  ${spec.cssProperty}: ${easingValue(value)};`]
     return [`  ${spec.cssProperty}: ${value};`]
+  }
+
+  // The preset's own overrides win, so they are collected first and the primitive's defaults
+  // only fill in the timing params the preset left alone.
+  const fromPreset = Object.entries(params).flatMap(([name, value]) => declaration(name, value))
+  const fromPrimitive = TIMING_PARAMS.flatMap((name) => {
+    if (name in params) return []
+    const spec = primitive.parameters[name]
+    if (!spec || spec.default === undefined) return []
+    return declaration(name, spec.default)
   })
+
+  return [...fromPreset, ...fromPrimitive]
 }
 
 async function main() {

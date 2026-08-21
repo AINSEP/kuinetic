@@ -34,7 +34,7 @@
 
   @keyframes kui-parallax-scale {
     from {
-      scale: 1;
+      scale: var(--kui-from-scale, 1);
     }
     to {
       scale: var(--kui-to-scale, 1.2);
@@ -43,7 +43,7 @@
 
   @keyframes kui-parallax-rotate {
     from {
-      rotate: 0deg;
+      rotate: var(--kui-from-angle, 0deg);
     }
     to {
       rotate: var(--kui-to-angle, 12deg);
@@ -59,9 +59,35 @@
     }
   }
 
+  /* Colour drain, as a scroll-linked channel of its own. The catalog could already blur on
+     scroll but not desaturate, so a grayscale-to-colour wipe — one of the most common things
+     asked of a pinned or scrubbed image — had no spelling and had to be hand-written per page as
+     `filter: grayscale(calc(100% - var(--kui-progress) * 100%))`. Defaults run 100% -> 0%
+     (drained to full colour); reverse it by setting the two ends the other way round. */
+  @keyframes kui-desaturate {
+    from {
+      filter: grayscale(var(--kui-from-grayscale, 100%));
+    }
+    to {
+      filter: grayscale(var(--kui-to-grayscale, 0%));
+    }
+  }
+
   @keyframes kui-progress-x {
     from {
       scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+
+  /* The vertical twin of kui-progress-x, for a rail down the side of the page rather than a bar
+     across the top. Same primitive and the same scale channel — only the axis differs, so it
+     needs no new parameters and composes exactly like the horizontal one. */
+  @keyframes kui-progress-y {
+    from {
+      scale: 1 0;
     }
     to {
       scale: 1 1;

@@ -21,6 +21,15 @@ export function indexStaggerGroup(group: Element): void {
       index++
     }
   }
+  // The group size, published for `timeline: pin`. A time-driven stagger does not need it — the
+  // clock keeps running past the last item's delay, so everything finishes eventually. A scrub
+  // has no such luxury: its head travels exactly one `duration` between progress 0 and 1, so a
+  // staggered child sitting `i * stagger` further along would still be mid-animation when the
+  // scroll range ends, and the last child could never reach its final frame at all. Widening the
+  // head by the group's total stagger span fixes that, and the compiler cannot know the span
+  // because it compiles one element without reference to its siblings. Defaults to 1 in the
+  // `var()` fallback, where the extra term is zero and the head is plain `progress x duration`.
+  ;(group as HTMLElement).style.setProperty('--kui-stagger-count', String(Math.max(index, 1)))
 }
 
 /**

@@ -29,6 +29,19 @@
     translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
   }
 
+  /* `pop` is `lift`'s sibling on the scale channel. The family had no plain grow-on-hover, so
+     every page that wanted one hand-wrote `transition: transform` plus `:hover { transform:
+     scale(1.06) }` — two demo pages in this repo did exactly that, and neither could use `lift`
+     because `lift` translates. Separate primitive, not a parameter on `lift`: it claims a
+     different channel, so `channels.ts` can tell you when the two collide instead of letting
+     one silently overwrite the other's transform. */
+  [data-kui-fx~='pop'] {
+    transition: scale var(--kui-pop-duration, 220ms) var(--kui-pop-ease, ease-out);
+  }
+  [data-kui-fx~='pop']:focus-visible {
+    scale: var(--kui-pop-scale, 1.06);
+  }
+
   [data-kui-fx~='lift-shadow'] {
     transition:
       translate var(--kui-lift-shadow-duration, 220ms) var(--kui-lift-shadow-ease, ease-out),
@@ -240,6 +253,7 @@
      reach the identical state — grouped in one block so the two never drift apart. */
   @media (hover: hover) and (pointer: fine) {
     [data-kui-fx~='lift']:hover { translate: 0 calc(var(--kui-lift-distance, 6px) * -1); }
+    [data-kui-fx~='pop']:hover { scale: var(--kui-pop-scale, 1.06); }
     [data-kui-fx~='lift-shadow']:hover {
       translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
       box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);

@@ -218,12 +218,22 @@ describe('auto-height', () => {
   })
 
   it('restarts the height animation on each attribute toggle and cancels the running one on destroy', () => {
-    let latest: { fire: () => void } | undefined
+    // Registered by pushing `this` into a list rather than assigning it to an outer `latest`
+    // binding. Same reach, but it does not alias the instance to a variable — which is the thing
+    // `no-this-alias` exists to stop, because such an alias silently outlives whatever it named.
+    // Keeping every observer rather than only the most recent is also strictly more informative
+    // if this test ever grows a second one.
+    const observers: Array<{ fire: () => void }> = []
+    const latest = (): { fire: () => void } => {
+      const last = observers.at(-1)
+      if (!last) throw new Error('no MutationObserver was constructed')
+      return last
+    }
     class ControllableMutationObserver {
       private readonly callback: MutationCallback
       constructor(callback: MutationCallback) {
         this.callback = callback
-        latest = this
+        observers.push(this)
       }
       observe(): void {}
       disconnect(): void {}
@@ -251,12 +261,12 @@ describe('auto-height', () => {
     const instance = autoHeight.prepare!(el, params, fakeCtx())
     instance.activate()
 
-    latest!.fire()
+    latest().fire()
     expect(cancels).toHaveLength(1)
     expect(cancels[0]).not.toHaveBeenCalled()
 
     // A second toggle must cancel the animation the first toggle started, not just replace it.
-    latest!.fire()
+    latest().fire()
     expect(cancels).toHaveLength(2)
     expect(cancels[0]).toHaveBeenCalledOnce()
 

@@ -20,7 +20,7 @@ export interface ElementConfig {
 }
 
 const ACTIVATIONS = new Set<Activation>(['load', 'enter', 'hover', 'focus', 'click', 'manual'])
-const TIMELINES = new Set<Timeline>(['time', 'view', 'scroll', 'pointer'])
+const TIMELINES = new Set<Timeline>(['time', 'view', 'scroll', 'pointer', 'pin'])
 
 /**
  * Read the attributes this module consumes off a live element.

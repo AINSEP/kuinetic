@@ -45,6 +45,10 @@ const liftParams: ParameterSchema = {
   distance: { type: 'length', default: '6px', cssProperty: '--kui-lift-distance' },
 }
 
+const popParams: ParameterSchema = {
+  scale: { type: 'number', default: '1.06', cssProperty: '--kui-pop-scale', finite: true, minimum: 0 },
+}
+
 function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSchema = {}): Primitive {
   return {
     id,
@@ -67,6 +71,7 @@ function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSc
 
 export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('lift', ['translate'], liftParams),
+  hoverPrimitive('pop', ['scale'], popParams),
   hoverPrimitive('lift-shadow', ['translate', 'shadow'], liftParams),
   hoverPrimitive('shine-sweep', ['sweep']),
   hoverPrimitive('split-flap', ['rotate']),

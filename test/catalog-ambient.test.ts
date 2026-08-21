@@ -18,9 +18,9 @@ function ambientRegistry(): Registry {
 }
 
 describe('ambient catalog', () => {
-  it('registers all 14 section J names', () => {
+  it('registers all 15 section J names', () => {
     const registry = ambientRegistry()
-    expect(AMBIENT_PRESETS).toHaveLength(14)
+    expect(AMBIENT_PRESETS).toHaveLength(15)
     expect(AMBIENT_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
 

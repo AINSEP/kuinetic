@@ -29,6 +29,7 @@ export const SCROLL_PRESETS: Preset[] = [
   { name: 'scroll-spy', primitive: 'scroll-spy' },
 
   // --- native CSS passthroughs ---------------------------------------------------------------
+  { name: 'smooth-scroll-to', primitive: 'smooth-scroll' },
   { name: 'scroll-snap-x', primitive: 'scroll-snap', params: { axis: 'x' } },
   { name: 'scroll-snap-y', primitive: 'scroll-snap', params: { axis: 'y' } },
 ]

@@ -317,6 +317,22 @@ describe('recognise', () => {
     expect(onLongPress).not.toHaveBeenCalled()
   })
 
+  it('fires onEnd on release when a long-press never crossed the drag threshold', () => {
+    // Without a matching onEnd, a handler that sets an engaged state in onLongPress (pressable's
+    // data-kui-pressed) never gets its release call, because `active` stays false for a long-press
+    // that holds still and the main `if (active)` branch above never runs.
+    const el = document.createElement('div')
+    const onEnd = vi.fn()
+    const onLongPress = vi.fn()
+    recognise(el, { onEnd, onLongPress }, { longPressMs: 500 }, deps)
+    el.dispatchEvent(pointer('pointerdown', 0, 0))
+    runTimers()
+    expect(onLongPress).toHaveBeenCalledOnce()
+
+    el.dispatchEvent(pointer('pointerup', 0, 0))
+    expect(onEnd).toHaveBeenCalledOnce()
+  })
+
   it('ends the gesture on pointercancel, not just pointerup', () => {
     // A gesture interrupted by the browser otherwise leaves the recogniser permanently mid-drag.
     const el = document.createElement('div')

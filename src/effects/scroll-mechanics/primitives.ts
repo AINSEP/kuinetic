@@ -41,7 +41,12 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
     renderer: 'javascript',
     channels,
     parameters,
-    supportedTimelines: ['time', 'view', 'scroll'],
+    // `'pin'` is accepted but ignored: these primitives read scroll position themselves and are
+    // never driven by an `animation-timeline`. It is listed so that composing the driver with the
+    // effects it drives — `data-kui="pin-section distance:200vh, parallax-rotate ... "` plus
+    // `timeline:pin` — survives `compile.ts`'s `intersect`. Without it the intersection empties,
+    // `style-plan.ts` refuses the timeline, and the scrub silently degrades to a one-shot.
+    supportedTimelines: ['time', 'view', 'scroll', 'pin'],
     supportedActivations: ['manual', 'load', 'enter'],
     defaultActivation: 'load',
     perfClass,
@@ -384,6 +389,29 @@ function markLinks(
 }
 
 /**
+ * Enable native smooth scrolling on an element (usually `<html>`), so in-page anchor jumps and
+ * `scrollIntoView()` animate instead of teleporting.
+ *
+ * Same reasoning as `prepareSnap`: browser behaviour rather than animation, included so that
+ * "how motion is declared" has one answer. It earns its place more than snapping does, because
+ * the hand-written version is a *pair* — `scroll-behavior: smooth` plus a
+ * `prefers-reduced-motion` override — and the second half is the half people forget. Routing it
+ * through the library means the motion policy is applied by the same layer that handles it for
+ * every other effect, instead of each page remembering to write its own media query.
+ *
+ * `reducedMotion: 'disable'` on the primitive is what makes that work: under a reduced-motion
+ * preference the animator never runs `prepare` at all, so `scroll-behavior` is simply never set
+ * and the browser keeps its instant default.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function prepareSmoothScroll(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  ctx.style.set('scroll-behavior', params.text('behavior', 'smooth'))
+  return () => {}
+}
+
+/**
  * Enable native CSS scroll snapping on a container and its children.
  *
  * Included for vocabulary completeness — this is browser behaviour, not animation. Doing it here
@@ -466,6 +494,16 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
     },
     prepare: deferPrepare(prepareScrollSpy),
+  }),
+
+  scrollPrimitive({
+    id: 'smooth-scroll',
+    channels: ['layout'],
+    parameters: {
+      behavior: { type: 'keyword', default: 'smooth', cssProperty: '--kui-scroll-behavior', values: ['smooth', 'auto'] },
+    },
+    prepare: deferPrepare(prepareSmoothScroll),
+    perfClass: 'layout',
   }),
 
   scrollPrimitive({

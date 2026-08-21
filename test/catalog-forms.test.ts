@@ -9,10 +9,12 @@ import type { PrepareContext } from '../src/core/effect-context.js'
 import {
   FORMS_PRESETS,
   NATIVE_STATE_PRIMITIVE,
+  RADIO_FILL_PRIMITIVE,
   RANGE_FILL_PRIMITIVE,
   STEP_PROGRESS_PRIMITIVE,
   STRENGTH_METER_PRIMITIVE,
   SUBMIT_FLOW_PRIMITIVE,
+  TOGGLE_MORPH_PRIMITIVE,
   computeStrength,
   nextStep,
   nextSubmitStage,
@@ -115,6 +117,50 @@ describe('native-state', () => {
     expect(el.outerHTML).toBe('<input>')
 
     instance.destroy()
+  })
+})
+
+describe('toggle-morph / radio-fill (sibling scale)', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('writes the resolved scale onto the next sibling on activation and removes it on destroy', () => {
+    const el = document.createElement('input')
+    const sibling = document.createElement('span')
+    const container = document.createElement('div')
+    container.append(el, sibling)
+    document.body.append(container)
+
+    const instance = TOGGLE_MORPH_PRIMITIVE.prepare!(el, createParams({ scale: '1.5' }), fakeCtx(el))
+    instance.activate()
+    expect(sibling.style.getPropertyValue('--kui-toggle-scale')).toBe('1.5')
+
+    instance.destroy()
+    expect(sibling.style.getPropertyValue('--kui-toggle-scale')).toBe('')
+  })
+
+  it('defaults the scale to 1 when the param is not supplied', () => {
+    const el = document.createElement('input')
+    const sibling = document.createElement('span')
+    const container = document.createElement('div')
+    container.append(el, sibling)
+    document.body.append(container)
+
+    const instance = RADIO_FILL_PRIMITIVE.prepare!(el, createParams({}), fakeCtx(el))
+    instance.activate()
+    expect(sibling.style.getPropertyValue('--kui-radio-scale')).toBe('1')
+
+    instance.destroy()
+  })
+
+  it('is a clean no-op when the element carrying the attribute has no next sibling', () => {
+    const el = document.createElement('input')
+    document.body.append(el)
+
+    const instance = RADIO_FILL_PRIMITIVE.prepare!(el, createParams({ scale: '2' }), fakeCtx(el))
+    expect(() => instance.activate()).not.toThrow()
+    expect(() => instance.destroy()).not.toThrow()
   })
 })
 

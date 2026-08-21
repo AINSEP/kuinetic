@@ -82,6 +82,28 @@ describe('compile — single effect', () => {
   })
 })
 
+describe('compile — parallax-scale/parallax-rotate "from"', () => {
+  // `from` lets a scroll-driven scale/rotate sweep in from an authored starting point instead of
+  // the hardcoded resting value (scale 1 / rotate 0deg) — same --kui-from-* custom property the
+  // entrance primitives already use. Unlike the entrance params, no test resolved these to their
+  // custom property, so nothing would have failed if the cssProperty mapping broke.
+  it('does not inline parallax-scale defaults, so an unauthored "from" leaves --kui-from-scale unset', () => {
+    expect(run('parallax-scale').vars).toEqual({})
+  })
+
+  it('resolves parallax-scale "from" and "scale" to their own custom properties', () => {
+    const plan = run('parallax-scale from:0.5 scale:1.8')
+    expect(plan.vars['--kui-from-scale']).toBe('0.5')
+    expect(plan.vars['--kui-to-scale']).toBe('1.8')
+  })
+
+  it('resolves parallax-rotate "from" and "angle" to their own custom properties', () => {
+    const plan = run('parallax-rotate from:45deg angle:-30deg')
+    expect(plan.vars['--kui-from-angle']).toBe('45deg')
+    expect(plan.vars['--kui-to-angle']).toBe('-30deg')
+  })
+})
+
 describe('compile — unknown effects', () => {
   it('reports the name as unknown and stamps nothing', () => {
     const plan = run('flibbertigibbet')
@@ -263,7 +285,18 @@ describe('compile — reduced motion policy', () => {
 
 describe('compile — timeline support', () => {
   it('warns when a time-only effect is put on a view timeline', () => {
-    expect(run('fade-up', 'view').warnings.join()).toContain('does not support timeline "view"')
+    // `typewriter`, not `fade-up`: entrances now declare ['time', 'view', 'scroll'], so this
+    // needs an effect that is time-only by nature. A JS-tier text effect types on a clock and
+    // has no meaningful scroll-progress reading, so it is a stable fixture for "time-only".
+    expect(run('typewriter', 'view').warnings.join()).toContain('does not support timeline "view"')
+  })
+
+  it('does not warn for an entrance on a view timeline', () => {
+    // The entrance primitives used to omit `timelines` entirely and so inherited the ['time']
+    // default, which made the single most common scroll pattern — an entrance that scrubs with
+    // scroll and reverses on the way back up — unexpressible, and made it fail by warning
+    // rather than by working.
+    expect(run('fade-up', 'view').warnings).toEqual([])
   })
 
   it('does not warn for a scroll-linked effect on a view timeline', () => {
@@ -288,12 +321,14 @@ describe('compile — capability intersection across composed effects', () => {
 
   it('keeps a timeline intersection empty once it legitimately empties out', () => {
     // Regression: the accumulator was `length ? filter : copy`, so an empty intersection was
-    // indistinguishable from "no effect has contributed yet". fade-up (time) and parallax-scale
-    // (view/scroll) share nothing, but scroll-progress-ring then REPOPULATED the list with
-    // ['scroll', 'view'] — and style-plan.ts duly applied view() to fade-up, which is exactly
-    // the mismatch supportedTimelines exists to stop.
-    const plan = run('fade-up, parallax-scale, scroll-progress-ring', 'view')
-    expect(plan.fxNames).toEqual(['fade-up', 'parallax-scale', 'scroll-progress-ring'])
+    // indistinguishable from "no effect has contributed yet". typewriter (time) and
+    // parallax-scale (view/scroll) share nothing, but scroll-progress-ring then REPOPULATED the
+    // list with ['scroll', 'view'] — and style-plan.ts duly applied view() to the time-only
+    // effect, which is exactly the mismatch supportedTimelines exists to stop.
+    // Originally written with fade-up; entrances legitimately support view timelines now, so the
+    // case needs an effect that still empties the intersection for the assertion to mean anything.
+    const plan = run('typewriter, parallax-scale, scroll-progress-ring', 'view')
+    expect(plan.fxNames).toEqual(['typewriter', 'parallax-scale', 'scroll-progress-ring'])
     expect(plan.supportedTimelines).toEqual([])
   })
 

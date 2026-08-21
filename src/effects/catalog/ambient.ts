@@ -14,6 +14,14 @@ const float = {
   distance: { type: 'length', default: '14px', cssProperty: '--kui-distance' },
 } as const
 
+const orbit = {
+  duration: { type: 'time', default: '3.5s', cssProperty: '--kui-duration' },
+  // `linear` by default, unlike every other ambient primitive: a continuous rotation that eases
+  // visibly stutters once per revolution, because the ease restarts at each iteration boundary.
+  ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
+  angle: { type: 'angle', default: '360deg', cssProperty: '--kui-to-angle' },
+} as const
+
 const pulse = {
   duration: { type: 'time', default: '2.2s', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
@@ -34,6 +42,12 @@ export const AMBIENT_PRIMITIVES: Primitive[] = [
   }),
   cssPrimitive('ambient-float', [CHANNEL.translate], {
     parameters: float,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
+  cssPrimitive('ambient-orbit', [CHANNEL.rotate], {
+    parameters: orbit,
     defaultActivation: 'load',
     reducedMotion: 'disable',
     perfClass: 'continuous',
@@ -110,6 +124,7 @@ export const AMBIENT_PRESETS: Preset[] = [
     keyframes: 'kui-floating-shapes',
     params: { duration: '6s', distance: '10px' },
   },
+  { name: 'orbit', primitive: 'ambient-orbit', keyframes: 'kui-orbit' },
   { name: 'glow-pulse', primitive: 'ambient-pulse', keyframes: 'kui-glow-pulse' },
 ]
 

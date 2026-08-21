@@ -96,6 +96,7 @@ export function createCssInstance(
   el: Element,
   ledger: StyleLedger,
   animationNames: readonly string[],
+  scrubbed = false,
 ): EffectInstance {
   const ownedNames = new Set(animationNames)
   let settle: (() => void) | undefined
@@ -119,6 +120,17 @@ export function createCssInstance(
       finished = new Promise((resolve) => {
         settle = resolve
       })
+      // A scrubbed effect (`timeline: pin`) has no notion of starting. Its frame is a pure
+      // function of `--kui-progress` via the compiled negative `animation-delay`, so writing
+      // `running` here would not "begin" it — it would hand it to the document timeline and let
+      // it play forward in wall-clock time on top of the seek. It is also already at its correct
+      // first frame the moment the declaration lands, so there is nothing to restart. Settle
+      // `finished` immediately: a scrub never completes in the time sense, and leaving the
+      // promise open would strand `data-kui-state` on "running" for the life of the page.
+      if (scrubbed) {
+        settle?.()
+        return
+      }
       // A fresh instance's first activation always forces a restart, unconditionally — by the
       // time this runs, `reset()`'s ledger.restore() has already cleared and reinstall has
       // already rewritten `animation-name`, so the animation this instance is *replacing* may no

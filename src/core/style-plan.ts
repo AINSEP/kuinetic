@@ -9,10 +9,15 @@ import type { Activation, Channel, Timeline } from './types.js'
  * How the animation is started.
  *
  * - `native-timeline` — a scroll/view timeline drives progress; nothing to start.
+ * - `scrubbed` — `timeline: pin`. Held paused forever and seeked by `--kui-progress` through the
+ *   compiled `animation-delay`. Distinct from `deferred`, which is also paused but is waiting to
+ *   be *released* by an activation: a scrubbed animation must never be released, because
+ *   `animation-play-state: running` hands it back to the document timeline and it would play
+ *   forward in real time instead of tracking scroll.
  * - `immediate` — runs as soon as it is applied.
  * - `deferred` — held at its from-state until an activation fires.
  */
-export type Gate = 'native-timeline' | 'immediate' | 'deferred'
+export type Gate = 'native-timeline' | 'scrubbed' | 'immediate' | 'deferred'
 
 export interface StylePlan {
   /** Custom properties and animation longhands to write, in application order. */
@@ -47,7 +52,12 @@ export interface StylePlanInput {
 export function planStyles(input: StylePlanInput): StylePlan {
   const { plan, config, capabilities, respectReducedMotion } = input
   const reduce = respectReducedMotion && capabilities.reducedMotion
+  // No capability check: the scrub is a paused animation plus a negative `animation-delay`, both
+  // of which predate scroll-driven animations by a decade. `timeline: pin` therefore works in
+  // every browser that can run a CSS animation at all — strictly wider support than `view()`.
+  const scrubbed = config.timeline === 'pin' && plan.supportedTimelines.includes('pin')
   const useNativeTimeline =
+    !scrubbed &&
     supportsTimeline(config.timeline, capabilities) &&
     plan.supportedTimelines.includes(config.timeline)
 
@@ -57,6 +67,7 @@ export function planStyles(input: StylePlanInput): StylePlan {
   const hasCssAnimation = Object.keys(plan.declarations).length > 0
   const gate = resolveGate({
     useNativeTimeline,
+    scrubbed: scrubbed && hasCssAnimation,
     reduce,
     activation: config.activation,
     // JS effects are gated too. They emit no `animation` declaration, so only the play-state
@@ -71,7 +82,7 @@ export function planStyles(input: StylePlanInput): StylePlan {
     // already applied under reduced motion.
     unsupportedTransform: needsIndividualTransforms(plan.channels, capabilities),
   })
-  if (gate === 'deferred') properties['animation-play-state'] = 'paused'
+  if (gate === 'deferred' || gate === 'scrubbed') properties['animation-play-state'] = 'paused'
 
   return {
     properties,
@@ -126,6 +137,7 @@ function timelineProperties(
  */
 function resolveGate(input: {
   useNativeTimeline: boolean
+  scrubbed: boolean
   reduce: boolean
   activation: Activation
   hasWork: boolean
@@ -133,6 +145,11 @@ function resolveGate(input: {
   unsupportedTransform: boolean
 }): Gate {
   if (input.useNativeTimeline) return 'native-timeline'
+  // Ahead of the reduced-motion check, exactly as `native-timeline` is: both are progress-linked,
+  // and for both the reduced-motion decision belongs to the CSS policy layer (a `disable` effect
+  // is never bound at all — see `animator.ts`'s `openGate`). Returning `immediate` here instead
+  // would drop the pause and hand a scrub-seeked animation to the document timeline.
+  if (input.scrubbed) return 'scrubbed'
   if (!input.hasWork) return 'immediate'
   if (input.reduce || input.activation === 'load' || input.unsupportedTransform) return 'immediate'
   return 'deferred'

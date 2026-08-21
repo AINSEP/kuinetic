@@ -280,7 +280,9 @@ export class Animator {
         .split(',')
         .map((name) => name.trim())
         .filter(Boolean)
-      state.instances.push(createCssInstance(el, ledger, animationNames))
+      state.instances.push(
+        createCssInstance(el, ledger, animationNames, stylePlan.gate === 'scrubbed'),
+      )
     }
     state.instances.push(
       ...this.jsEffectPreparer.prepare({ el, plan, signal: controller.signal, ledger }),

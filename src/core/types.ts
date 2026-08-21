@@ -55,7 +55,18 @@ export type Activation = 'load' | 'enter' | 'hover' | 'focus' | 'click' | 'manua
  * *reverse when the user scrolls back*, which a time-based reveal does not. These are different
  * animation models, not fallbacks for each other. See docs/design.md §5.
  */
-export type Timeline = 'time' | 'view' | 'scroll' | 'pointer'
+/**
+ * `pin` is the odd one out and deliberately so. `view`/`scroll` map to a native CSS
+ * `animation-timeline`; `pin` has no native equivalent because CSS has no way to say "drive this
+ * from another element's published progress". A pinned element's `view()` timeline *stalls* — it
+ * stops travelling through the viewport, so its progress freezes for the whole hold, which is
+ * exactly the span an author wants to animate across. `pin` fills that hole: the animation is
+ * held paused and seeked with a negative `animation-delay` proportional to `--kui-progress`,
+ * which the scroll-mechanics primitives already publish every frame. Verified in Chrome:
+ * progress 0/0.25/0.5/0.75/1 renders -180/-135/-90/-45/0deg on a half-turn keyframe, re-seeks
+ * live on every variable change, and composes with `--kui-stagger`.
+ */
+export type Timeline = 'time' | 'view' | 'scroll' | 'pointer' | 'pin'
 
 export type Renderer = 'css-keyframes' | 'waapi' | 'javascript'
 

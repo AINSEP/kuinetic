@@ -1,5 +1,5 @@
 import { CHANNEL } from '../../core/types.js'
-import type { ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { ParameterSchema, Preset, Primitive, Timeline } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive as css } from '../shared.js'
 
@@ -16,16 +16,38 @@ const distance: ParameterSchema = {
   opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' },
 }
 
+/*
+ * Entrances accept a scroll/view timeline as well as the clock.
+ *
+ * `cssPrimitive` defaults `supportedTimelines` to `['time']` when a primitive names none, and all
+ * eight entrances below simply never named one — so `timeline:` was rejected by omission rather
+ * than by decision. The cost was invisible: `planStyles` saw an unsupported timeline, left
+ * `animation-timeline` at `auto`, and quietly degraded the effect to a one-shot `on:enter`
+ * observer. `fade-up timeline:view` therefore played once and stayed, which reads as "the
+ * animation does not reverse" rather than as "that combination is not supported".
+ *
+ * `'time'` stays first and stays the default, so this is additive: nothing changes for an
+ * entrance that does not ask for a timeline.
+ *
+ * `'pin'` is included for the same reason `'view'` is: an entrance scrubbed across a pinned
+ * hold is a thing authors want and had no way to spell. It needs nothing from the primitive —
+ * the whole mechanism is the compiled `animation-delay` — so supporting it is a matter of not
+ * rejecting it.
+ */
+const ENTRANCE_TIMELINES: Timeline[] = ['time', 'view', 'scroll', 'pin']
+
 export const PRIMITIVES: Primitive[] = [
   // --- entrance / exit -------------------------------------------------------------------
-  css('reveal', [CHANNEL.opacity, CHANNEL.translate], { parameters: distance }),
+  css('reveal', [CHANNEL.opacity, CHANNEL.translate], { timelines: ENTRANCE_TIMELINES, parameters: distance }),
 
   css('scale', [CHANNEL.scale], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: { scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' } },
   }),
 
   // Separate from `scale` because it claims translate as well and so composes differently.
   css('scale-move', [CHANNEL.scale, CHANNEL.translate], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: {
       ...distance,
       scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' },
@@ -33,10 +55,12 @@ export const PRIMITIVES: Primitive[] = [
   }),
 
   css('rotate', [CHANNEL.rotate], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: { angle: { type: 'angle', default: '-8deg', cssProperty: '--kui-from-angle' } },
   }),
 
   css('roll', [CHANNEL.rotate, CHANNEL.translate], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: {
       ...distance,
       angle: { type: 'angle', default: '-120deg', cssProperty: '--kui-from-angle' },
@@ -44,6 +68,7 @@ export const PRIMITIVES: Primitive[] = [
   }),
 
   css('flip-3d', [CHANNEL.rotate], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: {
       angle: { type: 'angle', default: '90deg', cssProperty: '--kui-from-angle' },
       perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
@@ -51,11 +76,13 @@ export const PRIMITIVES: Primitive[] = [
   }),
 
   css('blur', [CHANNEL.filter], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: { blur: { type: 'length', default: '12px', cssProperty: '--kui-blur' } },
   }),
 
   // Purpose-built combination: one keyframe, so opacity is written once instead of twice.
   css('reveal-blur', [CHANNEL.opacity, CHANNEL.translate, CHANNEL.filter], {
+    timelines: ENTRANCE_TIMELINES,
     parameters: { ...distance, blur: { type: 'length', default: '12px', cssProperty: '--kui-blur' } },
   }),
 
@@ -64,31 +91,55 @@ export const PRIMITIVES: Primitive[] = [
   // That is by design and is why `timeline:` is a different axis from `on:`.
   css('parallax', [CHANNEL.translate], {
     parameters: distance,
-    timelines: ['view', 'scroll'],
+    timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
     perfClass: 'compositor',
   }),
 
+  // `from` exists because the resting end was hardcoded (scale 1 / rotate 0deg), which fixed
+  // these to "grow slightly" and "tilt slightly" — a scroll-driven element that should sweep in
+  // from a quarter-size or from half a turn away had no way to say so. Same `--kui-from-*`
+  // properties the entrance primitives already use, so the two stay spellable the same way.
   css('parallax-scale', [CHANNEL.scale], {
-    parameters: { scale: { type: 'number', default: '1.2', cssProperty: '--kui-to-scale' } },
-    timelines: ['view', 'scroll'],
+    parameters: {
+      scale: { type: 'number', default: '1.2', cssProperty: '--kui-to-scale' },
+      from: { type: 'number', default: '1', cssProperty: '--kui-from-scale' },
+    },
+    timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
   }),
 
   css('parallax-rotate', [CHANNEL.rotate], {
-    parameters: { angle: { type: 'angle', default: '12deg', cssProperty: '--kui-to-angle' } },
-    timelines: ['view', 'scroll'],
+    parameters: {
+      angle: { type: 'angle', default: '12deg', cssProperty: '--kui-to-angle' },
+      from: { type: 'angle', default: '0deg', cssProperty: '--kui-from-angle' },
+    },
+    timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
   }),
 
   css('scroll-fade', [CHANNEL.opacity], {
     parameters: { opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' } },
-    timelines: ['view', 'scroll'],
+    timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
+  }),
+
+  // `filter`, not `opacity` — it collides with `blur`, and declaring the real channel is what
+  // makes `channels.ts` say so instead of letting the two silently overwrite each other's
+  // `filter` declaration.
+  css('desaturate', [CHANNEL.filter], {
+    parameters: {
+      from: { type: 'percentage', default: '100%', cssProperty: '--kui-from-grayscale' },
+      to: { type: 'percentage', default: '0%', cssProperty: '--kui-to-grayscale' },
+    },
+    timelines: ['view', 'scroll', 'pin'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+    perfClass: 'paint',
   }),
 
   css('progress', [CHANNEL.scale], {
@@ -212,7 +263,9 @@ const SCROLL: Preset[] = [
   p('parallax-rotate', 'parallax-rotate', 'kui-parallax-rotate'),
   p('depth-layer', 'parallax', 'kui-parallax-y', { distance: '200px' }),
   p('scroll-fade', 'scroll-fade', 'kui-scroll-fade'),
+  p('scroll-desaturate', 'desaturate', 'kui-desaturate'),
   p('scroll-progress-bar', 'progress', 'kui-progress-x'),
+  p('scroll-progress-bar-y', 'progress', 'kui-progress-y'),
   p('scroll-progress-ring', 'progress-stroke', 'kui-progress-ring'),
   // `reveal-repeat` was removed: it was byte-identical to `reveal-once`, and the activation
   // binder unobserves after first entry, so a repeating reveal is not implementable yet.

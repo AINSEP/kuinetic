@@ -150,11 +150,22 @@ describe('planStyles — timeline unsupported by the effect itself', () => {
   it('does not force a native timeline onto a time-only effect, even when the browser supports one', () => {
     // Regression: compile.ts's warnUnsupportedTimeline only warns, it doesn't change what's
     // compiled — style-plan.ts used to gate solely on browser capability (CAPS here has
-    // viewTimeline: true), so `fade-up timeline:view` silently got turned into a reversing
-    // view-timeline animation despite fade-up declaring only `supportedTimelines: ['time']`.
-    const result = plan('fade-up', { timeline: 'view' })
+    // viewTimeline: true), so a time-only effect asked for `timeline:view` silently got turned
+    // into a reversing view-timeline animation despite declaring `supportedTimelines: ['time']`.
+    // Fixture is `typewriter` rather than the original `fade-up`, which supports view now.
+    const result = plan('typewriter', { timeline: 'view' })
     expect(result.gate).not.toBe('native-timeline')
     expect(result.properties['animation-timeline']).toBeUndefined()
+  })
+
+  it('gives an entrance a native timeline when one is asked for', () => {
+    // The other half of the same rule: `supportedTimelines` must let an effect through, not just
+    // keep it out. Entrances inherited the ['time'] default by omission, so `fade-up
+    // timeline:view` left animation-timeline at `auto` and quietly degraded to a one-shot
+    // observer — visible to the author only as "it never reverses".
+    const result = plan('fade-up', { timeline: 'view' })
+    expect(result.gate).toBe('native-timeline')
+    expect(result.properties['animation-timeline']).toBe('view()')
   })
 
   it('still uses the native timeline when the composed effect does support it', () => {
@@ -164,9 +175,10 @@ describe('planStyles — timeline unsupported by the effect itself', () => {
   it('applies no native timeline when the composition supports none', () => {
     // Regression: compile.ts could not tell an empty timeline intersection from an
     // uninitialized one, so the third effect here repopulated it with ['scroll', 'view'] after
-    // fade-up + parallax-scale had already reduced it to nothing — and view() landed on fade-up.
-    const result = plan('fade-up, parallax-scale, scroll-progress-ring', { timeline: 'view' })
-    expect(result.attributes['data-kui-fx']).toBe('fade-up parallax-scale scroll-progress-ring')
+    // typewriter + parallax-scale had already reduced it to nothing — and view() landed on the
+    // time-only effect. Originally written with fade-up, which supports view timelines now.
+    const result = plan('typewriter, parallax-scale, scroll-progress-ring', { timeline: 'view' })
+    expect(result.attributes['data-kui-fx']).toBe('typewriter parallax-scale scroll-progress-ring')
     expect(result.gate).not.toBe('native-timeline')
     expect(result.properties['animation-timeline']).toBeUndefined()
   })
@@ -216,5 +228,58 @@ describe('planStyles — attributes', () => {
     const result = plan('slide-up, blur-in')
     expect(result.attributes['data-kui-fx']).toBe('slide-up blur-in')
     expect(result.attributes['data-kui-state']).toBe('ready')
+  })
+})
+
+describe('planStyles — timeline:pin (scrub)', () => {
+  it('holds a pinned scrub paused and binds no activation', () => {
+    const result = plan('parallax-rotate from:-180deg angle:0deg timeline:pin')
+    expect(result.gate).toBe('scrubbed')
+    expect(result.activation).toBeNull()
+    expect(result.properties['animation-play-state']).toBe('paused')
+  })
+
+  it('applies no native animation-timeline — the seek is the delay, not a timeline', () => {
+    const result = plan('parallax-rotate timeline:pin')
+    expect(result.properties['animation-timeline']).toBeUndefined()
+    expect(result.properties['animation-range']).toBeUndefined()
+  })
+
+  it('seeks the animation by progress through a negative delay', () => {
+    const result = plan('parallax-rotate timeline:pin')
+    expect(result.properties['animation-delay']).toContain('var(--kui-progress, 0)')
+    // Negative: progress 1 must land on the animation's final frame, not one duration past it.
+    expect(result.properties['animation-delay']).toContain('- var(--kui-progress, 0)')
+  })
+
+  it('widens the scrub head by the group stagger span so the last child still completes', () => {
+    // Without the `--kui-stagger-count` term a staggered child sits `i * stagger` beyond the head
+    // and the last one can never reach 100% — see stagger.ts.
+    const result = plan('fade-up timeline:pin')
+    expect(result.properties['animation-delay']).toContain('var(--kui-stagger-count, 1)')
+  })
+
+  it('leaves a non-pin timeline free of any progress term', () => {
+    for (const source of ['fade-up', 'fade-up timeline:view', 'parallax-rotate timeline:scroll']) {
+      expect(plan(source).properties['animation-delay']).not.toContain('--kui-progress')
+    }
+  })
+
+  it('scrubs the driver and the effect it drives when both sit on one element', () => {
+    // The composition this whole timeline exists for: the pin publishes progress, the CSS effect
+    // consumes it. `pin` must survive compile.ts's supportedTimelines intersection for this.
+    const result = plan('pin-section distance:200vh, parallax-rotate from:-180deg timeline:pin')
+    expect(result.gate).toBe('scrubbed')
+    expect(result.properties['animation-delay']).toContain('var(--kui-progress, 0)')
+  })
+
+  it('needs no browser capability — it outlives view() and scroll() support', () => {
+    const result = plan('parallax-rotate timeline:pin', {}, {
+      viewTimeline: false,
+      scrollTimeline: false,
+      animationRange: false,
+    })
+    expect(result.gate).toBe('scrubbed')
+    expect(result.properties['animation-play-state']).toBe('paused')
   })
 })

@@ -5,59 +5,157 @@
  * `!important`. Run `npm run generate:css` after changing any preset's params.
  */
 @layer kui.presets {
+  [data-kui-fx~='accordion-height'] {
+    --kui-auto-height-duration: 400ms;
+    --kui-auto-height-ease: ease-out;
+  }
+
+  [data-kui-fx~='aurora'] {
+    --kui-ambient-gradient-duration: 10s;
+    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-gradient-ease: ease-in-out;
+  }
+
   [data-kui-fx~='back-in-down'] {
     --kui-distance: 120px;
-    --kui-reveal-ease: expo-out;
+    --kui-reveal-ease: var(--kui-ease-expo-out, ease-out);
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
   }
 
   [data-kui-fx~='back-in-up'] {
     --kui-distance: 120px;
-    --kui-reveal-ease: expo-out;
+    --kui-reveal-ease: var(--kui-ease-expo-out, ease-out);
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+  }
+
+  [data-kui-fx~='badge-pop'] {
+    --kui-feedback-pop-duration: 420ms;
+    --kui-feedback-pop-delay: 0ms;
+    --kui-feedback-pop-ease: var(--kui-ease-back-out, ease-out);
+  }
+
+  [data-kui-fx~='beam-border'] {
+    --kui-beam-border-duration: 220ms;
+    --kui-beam-border-ease: ease-out;
+  }
+
+  [data-kui-fx~='beam-border-auto'] {
+    --kui-beam-border-auto-duration: 220ms;
+    --kui-beam-border-auto-ease: ease-out;
+  }
+
+  [data-kui-fx~='before-after-wipe'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
   }
 
   [data-kui-fx~='blob-morph'] {
     --kui-path-morph-duration: 800ms;
   }
 
+  [data-kui-fx~='blur-in'] {
+    --kui-blur-duration: 600ms;
+    --kui-blur-delay: 0ms;
+    --kui-blur-ease: ease-out;
+  }
+
+  [data-kui-fx~='blur-out'] {
+    --kui-blur-duration: 600ms;
+    --kui-blur-delay: 0ms;
+    --kui-blur-ease: ease-out;
+  }
+
+  [data-kui-fx~='blur-up'] {
+    --kui-media-blur-up-duration: 600ms;
+    --kui-media-blur-up-delay: 0ms;
+    --kui-media-blur-up-ease: ease-out;
+  }
+
   [data-kui-fx~='bob'] {
     --kui-ambient-float-duration: 2s;
     --kui-distance: 8px;
+    --kui-ambient-float-delay: 0ms;
+    --kui-ambient-float-ease: ease-in-out;
   }
 
   [data-kui-fx~='book-page-turn'] {
     --kui-from-angle: -160deg;
     --kui-flip-face-duration: 900ms;
+    --kui-flip-face-delay: 0ms;
+    --kui-flip-face-ease: ease-out;
+  }
+
+  [data-kui-fx~='border-draw'] {
+    --kui-border-draw-duration: 220ms;
+    --kui-border-draw-ease: ease-out;
+  }
+
+  [data-kui-fx~='border-glow'] {
+    --kui-border-glow-duration: 220ms;
+    --kui-border-glow-ease: ease-out;
   }
 
   [data-kui-fx~='bounce-in'] {
     --kui-from-scale: 0.3;
-    --kui-scale-ease: back-out;
+    --kui-scale-ease: var(--kui-ease-back-out, ease-out);
+    --kui-scale-duration: 600ms;
+    --kui-scale-delay: 0ms;
   }
 
   [data-kui-fx~='bounce-in-down'] {
     --kui-distance: 60px;
-    --kui-reveal-ease: back-out;
+    --kui-reveal-ease: var(--kui-ease-back-out, ease-out);
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
   }
 
   [data-kui-fx~='bounce-in-up'] {
     --kui-distance: 60px;
-    --kui-reveal-ease: back-out;
+    --kui-reveal-ease: var(--kui-ease-back-out, ease-out);
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+  }
+
+  [data-kui-fx~='card-flip-x'] {
+    --kui-flip-face-duration: 600ms;
+    --kui-flip-face-delay: 0ms;
+    --kui-flip-face-ease: ease-out;
+  }
+
+  [data-kui-fx~='card-flip-y'] {
+    --kui-flip-face-duration: 600ms;
+    --kui-flip-face-delay: 0ms;
+    --kui-flip-face-ease: ease-out;
   }
 
   [data-kui-fx~='confetti-burst'] {
     --kui-feedback-burst-duration: 900ms;
     --kui-pop-scale: 1.15;
+    --kui-feedback-burst-delay: 0ms;
+    --kui-feedback-burst-ease: var(--kui-ease-back-out, ease-out);
+  }
+
+  [data-kui-fx~='copy-confirm'] {
+    --kui-feedback-confirm-duration: 1400ms;
+    --kui-feedback-confirm-delay: 0ms;
+    --kui-feedback-confirm-ease: linear;
   }
 
   [data-kui-fx~='count-bump'] {
     --kui-feedback-pop-duration: 280ms;
     --kui-pop-scale: 1.3;
+    --kui-feedback-pop-delay: 0ms;
+    --kui-feedback-pop-ease: var(--kui-ease-back-out, ease-out);
   }
 
   [data-kui-fx~='count-compact'] {
     --kui-from: 0;
     --kui-to: 128400;
     --kui-format: compact;
+    --kui-count-duration: 1600ms;
   }
 
   [data-kui-fx~='count-currency'] {
@@ -65,11 +163,13 @@
     --kui-to: 4820;
     --kui-format: currency;
     --kui-decimals: 0;
+    --kui-count-duration: 1600ms;
   }
 
   [data-kui-fx~='count-down'] {
     --kui-from: 100;
     --kui-to: 0;
+    --kui-count-duration: 1600ms;
   }
 
   [data-kui-fx~='count-percent'] {
@@ -77,15 +177,20 @@
     --kui-to: 0.82;
     --kui-format: percent;
     --kui-decimals: 0;
+    --kui-count-duration: 1600ms;
   }
 
   [data-kui-fx~='count-up'] {
     --kui-from: 0;
     --kui-to: 100;
+    --kui-count-duration: 1600ms;
   }
 
   [data-kui-fx~='cube-rotate'] {
     --kui-from-angle: 90deg;
+    --kui-flip-face-duration: 600ms;
+    --kui-flip-face-delay: 0ms;
+    --kui-flip-face-ease: ease-out;
   }
 
   [data-kui-fx~='cursor-follow'] {
@@ -108,8 +213,16 @@
     --kui-damping: 14;
   }
 
+  [data-kui-fx~='curtain-reveal'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
   [data-kui-fx~='curtain-wipe'] {
     --kui-wipe-duration: 800ms;
+    --kui-wipe-delay: 0ms;
+    --kui-wipe-ease: ease-out;
   }
 
   [data-kui-fx~='decode'] {
@@ -118,11 +231,21 @@
 
   [data-kui-fx~='depth-layer'] {
     --kui-distance: 200px;
+    --kui-parallax-duration: 600ms;
+    --kui-parallax-delay: 0ms;
+    --kui-parallax-ease: ease-out;
+  }
+
+  [data-kui-fx~='donut-sweep'] {
+    --kui-stroke-sweep-duration: 600ms;
+    --kui-stroke-sweep-delay: 0ms;
+    --kui-stroke-sweep-ease: ease-out;
   }
 
   [data-kui-fx~='dot-grid-drift'] {
     --kui-ambient-gradient-duration: 16s;
     --kui-ambient-gradient-ease: linear;
+    --kui-ambient-gradient-delay: 0ms;
   }
 
   [data-kui-fx~='drag-inertia'] {
@@ -137,6 +260,24 @@
     --kui-axis: y;
   }
 
+  [data-kui-fx~='drawer-slide'] {
+    --kui-drawer-slide-duration: 600ms;
+    --kui-drawer-slide-delay: 0ms;
+    --kui-drawer-slide-ease: ease-out;
+  }
+
+  [data-kui-fx~='dropdown-open'] {
+    --kui-panel-reveal-duration: 600ms;
+    --kui-panel-reveal-delay: 0ms;
+    --kui-panel-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='duotone-hover'] {
+    --kui-media-filter-duration: 600ms;
+    --kui-media-filter-delay: 0ms;
+    --kui-media-filter-ease: ease-out;
+  }
+
   [data-kui-fx~='elastic-pull'] {
     --kui-return: true;
     --kui-bounds: 80;
@@ -145,42 +286,284 @@
   [data-kui-fx~='expand-to-modal'] {
     --kui-flip-scale: true;
     --kui-flip-container-duration: 500ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-blur-in'] {
+    --kui-reveal-blur-duration: 600ms;
+    --kui-reveal-blur-delay: 0ms;
+    --kui-reveal-blur-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-blur-up'] {
+    --kui-reveal-blur-duration: 600ms;
+    --kui-reveal-blur-delay: 0ms;
+    --kui-reveal-blur-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-down'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-in'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-left'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-out'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-out-down'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-out-left'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-out-right'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-out-up'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-right'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-up'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-filter'] {
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-in-x'] {
+    --kui-flip-3d-duration: 600ms;
+    --kui-flip-3d-delay: 0ms;
+    --kui-flip-3d-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-in-y'] {
+    --kui-flip-3d-duration: 600ms;
+    --kui-flip-3d-delay: 0ms;
+    --kui-flip-3d-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-out-x'] {
+    --kui-flip-3d-duration: 600ms;
+    --kui-flip-3d-delay: 0ms;
+    --kui-flip-3d-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-out-y'] {
+    --kui-flip-3d-duration: 600ms;
+    --kui-flip-3d-delay: 0ms;
+    --kui-flip-3d-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-reorder'] {
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-shuffle'] {
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
+  [data-kui-fx~='flip-sort'] {
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
+  [data-kui-fx~='float'] {
+    --kui-ambient-float-duration: 4s;
+    --kui-ambient-float-delay: 0ms;
+    --kui-ambient-float-ease: ease-in-out;
   }
 
   [data-kui-fx~='floating-shapes'] {
     --kui-ambient-float-duration: 6s;
     --kui-distance: 10px;
+    --kui-ambient-float-delay: 0ms;
+    --kui-ambient-float-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='focus-ring-grow'] {
+    --kui-focus-ring-duration: 600ms;
+    --kui-focus-ring-delay: 0ms;
+    --kui-focus-ring-ease: ease-out;
   }
 
   [data-kui-fx~='fold-panel'] {
     --kui-from-angle: -90deg;
+    --kui-flip-face-duration: 600ms;
+    --kui-flip-face-delay: 0ms;
+    --kui-flip-face-ease: ease-out;
+  }
+
+  [data-kui-fx~='gauge-sweep'] {
+    --kui-stroke-sweep-duration: 600ms;
+    --kui-stroke-sweep-delay: 0ms;
+    --kui-stroke-sweep-ease: ease-out;
   }
 
   [data-kui-fx~='glitch'] {
     --kui-charset: symbols;
   }
 
+  [data-kui-fx~='glow-pulse'] {
+    --kui-ambient-pulse-duration: 2.2s;
+    --kui-ambient-pulse-delay: 0ms;
+    --kui-ambient-pulse-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='gradient-mesh'] {
+    --kui-ambient-gradient-duration: 10s;
+    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-gradient-ease: ease-in-out;
+  }
+
   [data-kui-fx~='gradient-rotate-border'] {
     --kui-ambient-gradient-duration: 6s;
     --kui-ambient-gradient-ease: linear;
+    --kui-ambient-gradient-delay: 0ms;
+  }
+
+  [data-kui-fx~='gradient-shimmer'] {
+    --kui-text-shimmer-duration: 600ms;
+    --kui-text-shimmer-delay: 0ms;
+    --kui-text-shimmer-ease: ease-out;
+  }
+
+  [data-kui-fx~='gradient-sweep'] {
+    --kui-text-sweep-duration: 600ms;
+    --kui-text-sweep-delay: 0ms;
+    --kui-text-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='grayscale-hover'] {
+    --kui-media-filter-duration: 600ms;
+    --kui-media-filter-delay: 0ms;
+    --kui-media-filter-ease: ease-out;
   }
 
   [data-kui-fx~='grid-to-list'] {
     --kui-flip-scale: true;
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='heart-burst'] {
     --kui-feedback-burst-duration: 700ms;
     --kui-pop-scale: 1.4;
+    --kui-feedback-burst-delay: 0ms;
+    --kui-feedback-burst-ease: var(--kui-ease-back-out, ease-out);
   }
 
   [data-kui-fx~='highlight-sweep'] {
     --kui-sweep-color: gold;
+    --kui-text-sweep-duration: 600ms;
+    --kui-text-sweep-delay: 0ms;
+    --kui-text-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='icon-bounce'] {
+    --kui-icon-bounce-duration: 220ms;
+    --kui-icon-bounce-ease: ease-out;
+  }
+
+  [data-kui-fx~='icon-morph'] {
+    --kui-path-morph-duration: 300ms;
+  }
+
+  [data-kui-fx~='icon-spin'] {
+    --kui-icon-spin-duration: 220ms;
+    --kui-icon-spin-ease: ease-out;
+  }
+
+  [data-kui-fx~='icon-wiggle'] {
+    --kui-icon-wiggle-duration: 220ms;
+    --kui-icon-wiggle-ease: ease-out;
+  }
+
+  [data-kui-fx~='image-parallax-frame'] {
+    --kui-media-parallax-frame-duration: 600ms;
+    --kui-media-parallax-frame-delay: 0ms;
+    --kui-media-parallax-frame-ease: ease-out;
+  }
+
+  [data-kui-fx~='ken-burns'] {
+    --kui-media-ken-burns-duration: 600ms;
+    --kui-media-ken-burns-delay: 0ms;
+    --kui-media-ken-burns-ease: ease-out;
+  }
+
+  [data-kui-fx~='ken-burns-out'] {
+    --kui-media-ken-burns-duration: 600ms;
+    --kui-media-ken-burns-delay: 0ms;
+    --kui-media-ken-burns-ease: ease-out;
+  }
+
+  [data-kui-fx~='lift'] {
+    --kui-lift-duration: 220ms;
+    --kui-lift-ease: ease-out;
+  }
+
+  [data-kui-fx~='lift-shadow'] {
+    --kui-lift-shadow-duration: 220ms;
+    --kui-lift-shadow-ease: ease-out;
+  }
+
+  [data-kui-fx~='lightbox-open'] {
+    --kui-media-lightbox-duration: 600ms;
+    --kui-media-lightbox-delay: 0ms;
+    --kui-media-lightbox-ease: ease-out;
   }
 
   [data-kui-fx~='line-grid-drift'] {
     --kui-ambient-gradient-duration: 16s;
     --kui-ambient-gradient-ease: linear;
+    --kui-ambient-gradient-delay: 0ms;
+  }
+
+  [data-kui-fx~='loading-bar'] {
+    --kui-bar-duration: 600ms;
+    --kui-bar-delay: 0ms;
+    --kui-bar-ease: ease-out;
+  }
+
+  [data-kui-fx~='long-press'] {
+    --kui-pressable-duration: 500ms;
   }
 
   [data-kui-fx~='magnetic-snap'] {
@@ -188,18 +571,99 @@
     --kui-radius: 160;
   }
 
+  [data-kui-fx~='marquee'] {
+    --kui-text-marquee-duration: 600ms;
+    --kui-text-marquee-delay: 0ms;
+    --kui-text-marquee-ease: ease-out;
+  }
+
+  [data-kui-fx~='marquee-scroll-linked'] {
+    --kui-text-marquee-duration: 600ms;
+    --kui-text-marquee-delay: 0ms;
+    --kui-text-marquee-ease: ease-out;
+  }
+
+  [data-kui-fx~='mask-reveal'] {
+    --kui-media-mask-duration: 600ms;
+    --kui-media-mask-delay: 0ms;
+    --kui-media-mask-ease: ease-out;
+  }
+
+  [data-kui-fx~='masonry-reflow'] {
+    --kui-flip-container-duration: 400ms;
+    --kui-flip-container-ease: ease-out;
+  }
+
   [data-kui-fx~='mega-menu-drop'] {
     --kui-panel-reveal-duration: 550ms;
+    --kui-panel-reveal-delay: 0ms;
+    --kui-panel-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='menu-fullscreen'] {
+    --kui-menu-fullscreen-duration: 600ms;
+    --kui-menu-fullscreen-delay: 0ms;
+    --kui-menu-fullscreen-ease: ease-out;
+  }
+
+  [data-kui-fx~='menu-stagger-open'] {
+    --kui-nav-reveal-duration: 600ms;
+    --kui-nav-reveal-delay: 0ms;
+    --kui-nav-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='noise-overlay'] {
     --kui-ambient-gradient-duration: 650ms;
     --kui-ambient-gradient-ease: steps(6);
+    --kui-ambient-gradient-delay: 0ms;
   }
 
   [data-kui-fx~='odometer-roll'] {
     --kui-from: 0;
     --kui-to: 4820;
+    --kui-count-odometer-duration: 1600ms;
+  }
+
+  [data-kui-fx~='orbit'] {
+    --kui-ambient-orbit-duration: 3.5s;
+    --kui-ambient-orbit-delay: 0ms;
+    --kui-ambient-orbit-ease: linear;
+  }
+
+  [data-kui-fx~='page-fade'] {
+    --kui-page-reveal-duration: 600ms;
+    --kui-page-reveal-delay: 0ms;
+    --kui-page-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='page-slide'] {
+    --kui-page-reveal-duration: 600ms;
+    --kui-page-reveal-delay: 0ms;
+    --kui-page-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='parallax-rotate'] {
+    --kui-parallax-rotate-duration: 600ms;
+    --kui-parallax-rotate-delay: 0ms;
+    --kui-parallax-rotate-ease: ease-out;
+  }
+
+  [data-kui-fx~='parallax-scale'] {
+    --kui-parallax-scale-duration: 600ms;
+    --kui-parallax-scale-delay: 0ms;
+    --kui-parallax-scale-ease: ease-out;
+  }
+
+  [data-kui-fx~='parallax-x'] {
+    --kui-parallax-duration: 600ms;
+    --kui-parallax-delay: 0ms;
+    --kui-parallax-ease: ease-out;
+  }
+
+  [data-kui-fx~='parallax-y'] {
+    --kui-parallax-duration: 600ms;
+    --kui-parallax-delay: 0ms;
+    --kui-parallax-ease: ease-out;
   }
 
   [data-kui-fx~='pin-section'] {
@@ -215,27 +679,115 @@
     --kui-spacer: false;
   }
 
+  [data-kui-fx~='pop'] {
+    --kui-pop-duration: 220ms;
+    --kui-pop-ease: ease-out;
+  }
+
   [data-kui-fx~='pop-in'] {
     --kui-from-scale: 0.6;
-    --kui-scale-ease: back-out;
+    --kui-scale-ease: var(--kui-ease-back-out, ease-out);
+    --kui-scale-duration: 600ms;
+    --kui-scale-delay: 0ms;
   }
 
   [data-kui-fx~='pop-out'] {
     --kui-from-scale: 0.6;
-    --kui-scale-ease: back-in;
+    --kui-scale-ease: var(--kui-ease-back-in, ease-out);
+    --kui-scale-duration: 600ms;
+    --kui-scale-delay: 0ms;
+  }
+
+  [data-kui-fx~='progress-bar'] {
+    --kui-meter-bar-duration: 600ms;
+    --kui-meter-bar-delay: 0ms;
+    --kui-meter-bar-ease: ease-out;
+  }
+
+  [data-kui-fx~='progress-indeterminate'] {
+    --kui-feedback-progress-track-duration: 1.4s;
+    --kui-feedback-progress-track-delay: 0ms;
+    --kui-feedback-progress-track-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='progress-ring'] {
+    --kui-stroke-sweep-duration: 600ms;
+    --kui-stroke-sweep-delay: 0ms;
+    --kui-stroke-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='progress-segments'] {
+    --kui-meter-segments-duration: 600ms;
+    --kui-meter-segments-delay: 0ms;
+    --kui-meter-segments-ease: ease-out;
   }
 
   [data-kui-fx~='pull-to-refresh'] {
     --kui-feedback-pull-duration: 900ms;
     --kui-feedback-pull-ease: ease-out;
+    --kui-feedback-pull-delay: 0ms;
+  }
+
+  [data-kui-fx~='range-fill'] {
+    --kui-range-fill-duration: 400ms;
+    --kui-range-fill-delay: 0ms;
+    --kui-range-fill-ease: ease-out;
+  }
+
+  [data-kui-fx~='redaction-reveal'] {
+    --kui-redaction-reveal-duration: 600ms;
+    --kui-redaction-reveal-delay: 0ms;
+    --kui-redaction-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='reveal-once'] {
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='ripple'] {
+    --kui-feedback-ripple-duration: 600ms;
+    --kui-feedback-ripple-delay: 0ms;
+    --kui-feedback-ripple-ease: ease-out;
+  }
+
+  [data-kui-fx~='roll-in'] {
+    --kui-roll-duration: 600ms;
+    --kui-roll-delay: 0ms;
+    --kui-roll-ease: ease-out;
+  }
+
+  [data-kui-fx~='roll-out'] {
+    --kui-roll-duration: 600ms;
+    --kui-roll-delay: 0ms;
+    --kui-roll-ease: ease-out;
+  }
+
+  [data-kui-fx~='rotate-in'] {
+    --kui-rotate-duration: 600ms;
+    --kui-rotate-delay: 0ms;
+    --kui-rotate-ease: ease-out;
   }
 
   [data-kui-fx~='rotate-in-left'] {
     --kui-from-angle: -45deg;
+    --kui-rotate-duration: 600ms;
+    --kui-rotate-delay: 0ms;
+    --kui-rotate-ease: ease-out;
   }
 
   [data-kui-fx~='rotate-in-right'] {
     --kui-from-angle: 45deg;
+    --kui-rotate-duration: 600ms;
+    --kui-rotate-delay: 0ms;
+    --kui-rotate-ease: ease-out;
+  }
+
+  [data-kui-fx~='rotate-out'] {
+    --kui-rotate-duration: 600ms;
+    --kui-rotate-delay: 0ms;
+    --kui-rotate-ease: ease-out;
   }
 
   [data-kui-fx~='rubber-band'] {
@@ -243,13 +795,50 @@
     --kui-bounds: 120;
   }
 
+  [data-kui-fx~='saturate-hover'] {
+    --kui-media-filter-duration: 600ms;
+    --kui-media-filter-delay: 0ms;
+    --kui-media-filter-ease: ease-out;
+  }
+
   [data-kui-fx~='scanline'] {
     --kui-ambient-gradient-duration: 3.5s;
     --kui-ambient-gradient-ease: linear;
+    --kui-ambient-gradient-delay: 0ms;
   }
 
   [data-kui-fx~='scramble'] {
     --kui-charset: upper;
+  }
+
+  [data-kui-fx~='scroll-desaturate'] {
+    --kui-desaturate-duration: 600ms;
+    --kui-desaturate-delay: 0ms;
+    --kui-desaturate-ease: ease-out;
+  }
+
+  [data-kui-fx~='scroll-fade'] {
+    --kui-scroll-fade-duration: 600ms;
+    --kui-scroll-fade-delay: 0ms;
+    --kui-scroll-fade-ease: ease-out;
+  }
+
+  [data-kui-fx~='scroll-progress-bar'] {
+    --kui-progress-duration: 600ms;
+    --kui-progress-delay: 0ms;
+    --kui-progress-ease: ease-out;
+  }
+
+  [data-kui-fx~='scroll-progress-bar-y'] {
+    --kui-progress-duration: 600ms;
+    --kui-progress-delay: 0ms;
+    --kui-progress-ease: ease-out;
+  }
+
+  [data-kui-fx~='scroll-progress-ring'] {
+    --kui-progress-stroke-duration: 600ms;
+    --kui-progress-stroke-delay: 0ms;
+    --kui-progress-stroke-ease: ease-out;
   }
 
   [data-kui-fx~='scroll-snap-x'] {
@@ -264,64 +853,123 @@
     --kui-steps: 4;
   }
 
+  [data-kui-fx~='shake-error'] {
+    --kui-feedback-shake-duration: 500ms;
+    --kui-feedback-shake-delay: 0ms;
+    --kui-feedback-shake-ease: linear;
+  }
+
+  [data-kui-fx~='shine-sweep'] {
+    --kui-shine-sweep-duration: 220ms;
+    --kui-shine-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='skeleton-shimmer'] {
+    --kui-feedback-shimmer-duration: 1.6s;
+    --kui-feedback-shimmer-delay: 0ms;
+    --kui-feedback-shimmer-ease: linear;
+  }
+
+  [data-kui-fx~='skeleton-to-content'] {
+    --kui-feedback-fade-duration: 600ms;
+    --kui-feedback-fade-delay: 0ms;
+    --kui-feedback-fade-ease: ease-out;
+  }
+
   [data-kui-fx~='slide-block-end'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-block-start'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-down'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-inline-end'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-inline-start'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-left'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-out-down'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-out-left'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-out-right'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-out-up'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-right'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='slide-up'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;
+    --kui-reveal-duration: 600ms;
+    --kui-reveal-delay: 0ms;
+    --kui-reveal-ease: ease-out;
   }
 
   [data-kui-fx~='snap-back'] {
@@ -329,37 +977,104 @@
     --kui-stiffness: 260;
   }
 
+  [data-kui-fx~='sparkline-draw'] {
+    --kui-stroke-sweep-duration: 600ms;
+    --kui-stroke-sweep-delay: 0ms;
+    --kui-stroke-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='spinner'] {
+    --kui-feedback-spin-duration: 900ms;
+    --kui-feedback-spin-delay: 0ms;
+    --kui-feedback-spin-ease: linear;
+  }
+
+  [data-kui-fx~='spinner-dots'] {
+    --kui-feedback-dot-pulse-duration: 1.2s;
+    --kui-feedback-dot-pulse-delay: 0ms;
+    --kui-feedback-dot-pulse-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='spinner-ring'] {
+    --kui-feedback-spin-duration: 900ms;
+    --kui-feedback-spin-delay: 0ms;
+    --kui-feedback-spin-ease: linear;
+  }
+
   [data-kui-fx~='split-chars'] {
     --kui-unit: chars;
     --kui-direction: fade;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
+  }
+
+  [data-kui-fx~='split-flap'] {
+    --kui-split-flap-duration: 220ms;
+    --kui-split-flap-ease: ease-out;
   }
 
   [data-kui-fx~='split-lines'] {
     --kui-unit: lines;
     --kui-direction: fade;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='split-words'] {
     --kui-unit: words;
     --kui-direction: fade;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='spotlight-follow'] {
     --kui-ambient-gradient-duration: 9s;
+    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-gradient-ease: ease-in-out;
   }
 
   [data-kui-fx~='stacking-cards'] {
     --kui-spacer: false;
   }
 
+  [data-kui-fx~='star-rating-fill'] {
+    --kui-meter-stars-duration: 600ms;
+    --kui-meter-stars-delay: 0ms;
+    --kui-meter-stars-ease: ease-out;
+  }
+
   [data-kui-fx~='starfield'] {
     --kui-ambient-gradient-duration: 40s;
     --kui-ambient-gradient-ease: linear;
+    --kui-ambient-gradient-delay: 0ms;
+  }
+
+  [data-kui-fx~='step-progress'] {
+    --kui-step-progress-duration: 400ms;
+    --kui-step-progress-delay: 0ms;
+    --kui-step-progress-ease: ease-out;
+  }
+
+  [data-kui-fx~='strength-meter'] {
+    --kui-strength-meter-duration: 400ms;
+    --kui-strength-meter-delay: 0ms;
+    --kui-strength-meter-ease: ease-out;
+  }
+
+  [data-kui-fx~='submit-to-spinner-to-check'] {
+    --kui-submit-flow-duration: 400ms;
+    --kui-submit-flow-delay: 0ms;
+    --kui-submit-flow-ease: ease-out;
   }
 
   [data-kui-fx~='swing-in'] {
     --kui-from-angle: -15deg;
-    --kui-rotate-ease: back-out;
+    --kui-rotate-ease: var(--kui-ease-back-out, ease-out);
+    --kui-rotate-duration: 600ms;
+    --kui-rotate-delay: 0ms;
   }
 
   [data-kui-fx~='swipe-x'] {
@@ -368,25 +1083,47 @@
 
   [data-kui-fx~='tab-indicator-slide'] {
     --kui-flip-indicator-duration: 300ms;
+    --kui-flip-indicator-ease: ease-out;
+  }
+
+  [data-kui-fx~='text-3d-extrude'] {
+    --kui-text-3d-extrude-duration: 600ms;
+    --kui-text-3d-extrude-delay: 0ms;
+    --kui-text-3d-extrude-ease: ease-out;
   }
 
   [data-kui-fx~='text-jitter'] {
     --kui-motion: jitter;
   }
 
+  [data-kui-fx~='text-outline-fill'] {
+    --kui-text-outline-fill-duration: 600ms;
+    --kui-text-outline-fill-delay: 0ms;
+    --kui-text-outline-fill-ease: ease-out;
+  }
+
   [data-kui-fx~='text-reveal-down'] {
     --kui-unit: words;
     --kui-direction: down;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='text-reveal-mask'] {
     --kui-unit: lines;
     --kui-direction: mask;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='text-reveal-up'] {
     --kui-unit: words;
     --kui-direction: up;
+    --kui-split-text-duration: 500ms;
+    --kui-split-text-delay: 0ms;
+    --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='text-wave'] {
@@ -398,8 +1135,16 @@
     --kui-damping: 18;
   }
 
+  [data-kui-fx~='toast-slide-in'] {
+    --kui-feedback-toast-duration: 420ms;
+    --kui-feedback-toast-delay: 0ms;
+    --kui-feedback-toast-ease: var(--kui-ease-back-out, ease-out);
+  }
+
   [data-kui-fx~='toast-slide-out'] {
     --kui-feedback-toast-ease: ease-in;
+    --kui-feedback-toast-duration: 420ms;
+    --kui-feedback-toast-delay: 0ms;
   }
 
   [data-kui-fx~='typewriter'] {
@@ -410,12 +1155,121 @@
     --kui-loop: true;
   }
 
+  [data-kui-fx~='underline-center'] {
+    --kui-underline-center-duration: 220ms;
+    --kui-underline-center-ease: ease-out;
+  }
+
+  [data-kui-fx~='underline-draw'] {
+    --kui-text-sweep-duration: 600ms;
+    --kui-text-sweep-delay: 0ms;
+    --kui-text-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='underline-slide'] {
+    --kui-underline-slide-duration: 220ms;
+    --kui-underline-slide-ease: ease-out;
+  }
+
+  [data-kui-fx~='validate-check'] {
+    --kui-validate-check-duration: 600ms;
+    --kui-validate-check-delay: 0ms;
+    --kui-validate-check-ease: ease-out;
+  }
+
+  [data-kui-fx~='validate-shake'] {
+    --kui-validate-shake-duration: 600ms;
+    --kui-validate-shake-delay: 0ms;
+    --kui-validate-shake-ease: ease-out;
+  }
+
+  [data-kui-fx~='var-slant'] {
+    --kui-var-slant-duration: 600ms;
+    --kui-var-slant-delay: 0ms;
+    --kui-var-slant-ease: ease-out;
+  }
+
+  [data-kui-fx~='var-weight'] {
+    --kui-var-weight-duration: 600ms;
+    --kui-var-weight-delay: 0ms;
+    --kui-var-weight-ease: ease-out;
+  }
+
+  [data-kui-fx~='var-width'] {
+    --kui-var-width-duration: 600ms;
+    --kui-var-width-delay: 0ms;
+    --kui-var-width-ease: ease-out;
+  }
+
   [data-kui-fx~='wave-blob'] {
     --kui-ambient-gradient-duration: 12s;
+    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-gradient-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='wipe-circle'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
+  [data-kui-fx~='wipe-diagonal'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
+  [data-kui-fx~='wipe-down'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
+  [data-kui-fx~='wipe-left'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
+  [data-kui-fx~='wipe-right'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
+  }
+
+  [data-kui-fx~='wipe-up'] {
+    --kui-media-wipe-duration: 600ms;
+    --kui-media-wipe-delay: 0ms;
+    --kui-media-wipe-ease: ease-out;
   }
 
   [data-kui-fx~='wobble'] {
     --kui-feedback-wobble-duration: 600ms;
     --kui-feedback-wobble-ease: ease-in-out;
+    --kui-feedback-wobble-delay: 0ms;
+  }
+
+  [data-kui-fx~='zoom-in'] {
+    --kui-scale-duration: 600ms;
+    --kui-scale-delay: 0ms;
+    --kui-scale-ease: ease-out;
+  }
+
+  [data-kui-fx~='zoom-in-down'] {
+    --kui-scale-move-duration: 600ms;
+    --kui-scale-move-delay: 0ms;
+    --kui-scale-move-ease: ease-out;
+  }
+
+  [data-kui-fx~='zoom-in-up'] {
+    --kui-scale-move-duration: 600ms;
+    --kui-scale-move-delay: 0ms;
+    --kui-scale-move-ease: ease-out;
+  }
+
+  [data-kui-fx~='zoom-out'] {
+    --kui-scale-duration: 600ms;
+    --kui-scale-delay: 0ms;
+    --kui-scale-ease: ease-out;
   }
 }

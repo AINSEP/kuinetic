@@ -77,9 +77,9 @@ function stubFrames(): { tick: (count: number) => void } {
 }
 
 describe('interaction catalog registration', () => {
-  it('registers 20 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
-    expect(INTERACTION_PRESETS).toHaveLength(20)
-    expect(HOVER_PRESETS).toHaveLength(12)
+  it('registers 21 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
+    expect(INTERACTION_PRESETS).toHaveLength(21)
+    expect(HOVER_PRESETS).toHaveLength(13)
     expect(POINTER_PRESETS).toHaveLength(7)
     const reg = registry()
     expect(INTERACTION_PRESETS.every((preset) => reg.has(preset.name))).toBe(true)

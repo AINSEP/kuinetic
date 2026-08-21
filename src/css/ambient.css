@@ -252,6 +252,22 @@
     }
   }
 
+  /* --- orbit: continuous rotation ---
+     `kui-spin` already existed in the built stylesheet but only as internal chrome for
+     `submit-to-spinner-to-check`'s loading spinner — not reachable from a `data-kui` value. So a
+     page that wanted something to turn forever had no preset to name and wrote its own
+     `@keyframes`, which is exactly what the demo nav's spinning logo dot did in three separate
+     files. `transform-origin` stays the author's business: what a thing orbits around is layout,
+     not motion. */
+  [data-kui-fx~='orbit'] {
+    --kui-fx-orbit-iterations: infinite;
+  }
+  @keyframes kui-orbit {
+    to {
+      rotate: var(--kui-to-angle, 360deg);
+    }
+  }
+
   /* --- float / bob / floating-shapes: one primitive, three amplitudes/timings --- */
 
   [data-kui-fx~='float'] {

@@ -207,7 +207,7 @@ function buildPlan(
       resolveParams(entry.spec.params, primitive.parameters, (m) => warnings.push(m)),
     )
 
-    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry)
+    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline)
     else plan.jsEffects.push(entry)
   }
 
@@ -267,14 +267,15 @@ function iterationCountProperty(presetName: string): string {
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function pushTrack(tracks: AnimationTracks, entry: Entry): void {
+function pushTrack(tracks: AnimationTracks, entry: Entry, timeline: Timeline): void {
   const { spec, resolved } = entry
   const id = resolved.primitive.id
   tracks.names.push(resolved.preset.keyframes ?? `kui-${resolved.preset.name}`)
   // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
-  tracks.durations.push(spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`)
-  tracks.delays.push(staggerDelay(spec.delay, id))
+  const duration = spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`
+  tracks.durations.push(duration)
+  tracks.delays.push(staggerDelay(spec.delay, id, timeline, duration))
   tracks.easings.push(easingValue(spec.easing, id))
   // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
   // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
@@ -315,12 +316,35 @@ function warnUnsupportedTimeline(
  * Fold stagger into the delay so the browser does the arithmetic; the scanner only writes each
  * child's index once.
  *
+ * On `timeline: 'pin'` the delay does double duty as the *scrub head*. The animation is held
+ * paused (see `style-plan.ts`'s `scrubbed` gate) and a negative delay of `progress x duration`
+ * seeks it to the matching frame — progress 0 leaves it at its from-state, progress 1 at its
+ * to-state, and every value between renders proportionally. This is why the delay needs the
+ * track's own duration expression: the seek has to be in that track's time base, or a composed
+ * effect whose neighbour has a different duration scrubs at the wrong rate.
+ *
+ * The stagger term survives untouched and keeps working, because a positive delay pushes an
+ * item *back* along the same head: at progress 0.5 with `--kui-stagger: 200ms` over a 1000ms
+ * track, index 0/1/2 render at 50%/30%/10%. That is the staggered scroll-scrub that pages
+ * previously had to hand-write as `calc((var(--kui-progress) - var(--step)) * 5)` per child.
+ *
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function staggerDelay(delay: string | undefined, primitiveId: string): string {
+function staggerDelay(
+  delay: string | undefined,
+  primitiveId: string,
+  timeline: Timeline,
+  duration: string,
+): string {
   const base = delay ?? `var(${timingProperty(primitiveId, 'delay')}, 0ms)`
-  return `calc(${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms))`
+  const staggered = `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
+  if (timeline !== 'pin') return `calc(${staggered})`
+  // The head spans one duration *plus* the group's whole stagger span, so the last-staggered
+  // child lands exactly on its final frame at progress 1 (see `stagger.ts`). Unstaggered, the
+  // `var()` fallbacks collapse the extra term to zero and this is `progress x duration`.
+  const span = `${duration} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
+  return `calc(${staggered} - var(--kui-progress, 0) * (${span}))`
 }
 
 function easingValue(easing: string | undefined, primitiveId: string): string {
