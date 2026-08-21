@@ -11,9 +11,11 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * `evenodd` fill) and counts subpath boundaries in the output, rather than trusting the leading
  * character.
  *
- * This is a defect-finding suite, not a passing regression guard: `src/core/path-morph.ts` is out
- * of scope for this dispatch (Programmer is forbidden from editing `src/`), so a failing check here
- * is expected and is reported to `docs/browser-findings.md` rather than fixed.
+ * It was written as a defect-finding suite and was red for its whole life — `src/core/path-morph.ts`
+ * was out of scope for the dispatch that added it. **It is now a passing regression guard**: the
+ * defect it found is D7, fixed 2026-08-21 by carrying subpath boundaries through parse, balancing
+ * segment counts per contour rather than globally, and re-emitting `M`/`Z` per contour. If this
+ * suite goes red again, holes have started filling in.
  */
 export const name = 'svg-morph-subpath'
 

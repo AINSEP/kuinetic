@@ -10,17 +10,23 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
-- [ ] **`path-morph` loses every subpath — a real correctness bug the unit suite cannot see.**
-      A square with a square hole morphs into one open outline: two `M` become one, two `Z` become
-      none. Any `blob-morph`/`icon-morph` on a shape with a hole or a counter renders wrong.
-      `test/browser/svg-morph-subpath.test.mjs` has been failing this whole time and nobody knew,
-      because `npm run test:browser` is not part of the gate. Write-up: `docs/live-testing-backlog.md`
-      D7.
+- [x] **`path-morph` loses every subpath — a real correctness bug the unit suite cannot see.**
+      Fixed 2026-08-21. Parse now carries subpath boundaries, segment balancing happens per contour
+      instead of globally, and serialisation re-emits `M` per contour plus `Z` for each closed one.
+      Unequal contour counts pair in document order, with the shorter shape gaining degenerate
+      contours collapsed to their partner's centroid. `npm run test:browser` is **59/59**; 11 unit
+      tests added; coverage still 100/100/100/100. Write-up: `docs/live-testing-backlog.md` D7.
 
-- [ ] **Put the browser suite in the gate.** `npm test` is 877 tests at 100% coverage and green;
-      `npm run test:browser` is 57/59 and has been red on D7. A gate that cannot go red on a real
-      bug is not a gate. Decide whether it runs on every commit or on a pre-push/CI hook — it needs
-      a Chromium and takes about a minute, so per-commit may be the wrong cadence.
+- [ ] **Put the browser suite in the gate.** `npm test` is 888 tests at 100% coverage and green;
+      `npm run test:browser` is now 59/59 too — which means this is the moment to wire it in, while
+      it is green and the cost of keeping it green is zero. A gate that could not go red on D7 for
+      weeks is not a gate. Decide whether it runs on every commit or on a pre-push/CI hook — it
+      needs a Chromium and takes about a minute, so per-commit may be the wrong cadence.
+
+- [ ] **A browser suite for replay (D5).** `src/core/instances.ts` has the forward-restart path and
+      the unit tests are at 100%, but that is exactly the evidence that failed to catch D5 the first
+      time — the JS looked right and the browser disagreed. Nothing in `test/browser/` exercises
+      the replay FAB. Until it does, D5 is "believed fixed", not "verified fixed".
 
 - [ ] **Decide what to do about 44 dead exports and 17 dead exported types** (`npm run lint:dead`).
       These are not dead *code* — the code runs — they are `export` keywords on bindings that no

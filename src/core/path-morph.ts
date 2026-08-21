@@ -24,8 +24,28 @@ export interface Cubic {
   to: Point
 }
 
-export interface ParseResult {
+/**
+ * One subpath: a run of segments, plus whether the author closed it.
+ *
+ * A `d` string is not one contour — `M ... Z M ... Z` is a shape with a hole, and an icon with a
+ * counter (the inside of an `o`, `a`, `e`) is the common case. Flattening the runs together turns
+ * a hole into a detour line across the glyph, so the boundary has to survive parsing.
+ */
+export interface Subpath {
   segments: Cubic[]
+  /**
+   * True when the author wrote an explicit `Z`/`z`. Kept separate from the geometry because
+   * `closeSubpath` already materialises the closing side as a real segment — this flag is what
+   * decides whether `Z` is re-emitted, which is what `fill-rule` needs to punch the hole.
+   */
+  closed: boolean
+}
+
+export interface ParseResult {
+  /** Every segment in document order, with subpath boundaries flattened away. */
+  segments: Cubic[]
+  /** The same segments grouped by subpath. This is the form morphing needs. */
+  subpaths: Subpath[]
   /** Present when the path could not be normalised; the caller should warn and not morph. */
   reason?: string
 }
@@ -44,12 +64,17 @@ const UNSUPPORTED = /[AaSsQqTt]/
  */
 export function parsePath(d: string): ParseResult {
   if (UNSUPPORTED.test(d)) {
-    return { segments: [], reason: 'arc and shorthand commands (A S Q T) are not supported' }
+    return {
+      segments: [],
+      subpaths: [],
+      reason: 'arc and shorthand commands (A S Q T) are not supported',
+    }
   }
 
   const tokens = [...d.matchAll(COMMAND)].map((m) => m[1] ?? m[2]!)
   const state: PathState = {
-    segments: [],
+    subpaths: [],
+    open: undefined,
     current: { x: 0, y: 0 },
     start: { x: 0, y: 0 },
     command: '',
@@ -71,38 +96,74 @@ export function parsePath(d: string): ParseResult {
     // return the same index it was given and this loop would spin forever, growing `segments`
     // without bound — a real DoS on any untrusted `d` string. The SVG spec requires a path to
     // start with a moveto, so rejecting here is also spec-correct, not just a safety valve.
-    if (!state.command) return { segments: [], reason: 'path must start with a command letter' }
+    if (!state.command) {
+      return { segments: [], subpaths: [], reason: 'path must start with a command letter' }
+    }
     index = consume(tokens, index, state)
   }
 
-  if (state.segments.length === 0) return { segments: [], reason: 'no drawable segments' }
-  return { segments: state.segments }
+  // A subpath is only ever created when a segment lands in it, so an empty list here means the
+  // path drew nothing — `M0,0` on its own, or `M0,0 Z`.
+  if (state.subpaths.length === 0) {
+    return { segments: [], subpaths: [], reason: 'no drawable segments' }
+  }
+  return { segments: state.subpaths.flatMap((sub) => sub.segments), subpaths: state.subpaths }
 }
 
 interface PathState {
-  segments: Cubic[]
+  subpaths: Subpath[]
+  /**
+   * The subpath currently accepting segments, or `undefined` when the pen is between subpaths
+   * (before the first drawing command, or just after a `Z` or a `M`). Deferring creation until a
+   * segment actually arrives is what keeps `M0,0 Z` from producing an empty contour.
+   */
+  open: Subpath | undefined
   current: Point
   start: Point
   command: string
+}
+
+/**
+ * Append a segment to the open subpath, starting one if the pen is between subpaths.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function pushSegment(state: PathState, segment: Cubic): void {
+  if (!state.open) {
+    state.open = { segments: [], closed: false }
+    state.subpaths.push(state.open)
+  }
+  state.open.segments.push(segment)
 }
 
 /** Numbers each command consumes per repetition. */
 const ARITY: Record<string, number> = { m: 2, l: 2, h: 1, v: 1, c: 6, z: 0 }
 
 /**
- * Close the current subpath with a line back to its start.
+ * Close the current subpath with a line back to its start, and mark it closed.
  *
- * A no-op when the pen is already at the start, so `M0,0 L10,0 L0,0 Z` does not gain a
- * zero-length segment that would later be split into a visible kink.
+ * The closing *line* is skipped when the pen is already at the start, so `M0,0 L10,0 L0,0 Z` does
+ * not gain a zero-length segment that would later be split into a visible kink. The closed *flag*
+ * is set either way — the author wrote `Z`, and that is what decides whether `Z` comes back out
+ * during serialisation, independently of whether a segment was needed to get there.
+ *
+ * Clearing `open` is what makes the next drawing command start a fresh subpath, which is the
+ * spec's behaviour for a command following `Z` with no intervening `M`.
  *
  * @complexity O(1) time and space.
  * @overallScore 100
  */
 function closeSubpath(state: PathState): void {
-  const { current, start } = state
-  if (Math.abs(current.x - start.x) < 1e-6 && Math.abs(current.y - start.y) < 1e-6) return
-  state.segments.push(lineToCubic(current, start))
+  const { current, start, open } = state
+  // `Z` before anything was drawn (`M0,0 Z`) has no contour to close.
+  if (!open) return
+  if (Math.abs(current.x - start.x) >= 1e-6 || Math.abs(current.y - start.y) >= 1e-6) {
+    open.segments.push(lineToCubic(current, start))
+  }
+  open.closed = true
   state.current = { ...start }
+  state.open = undefined
 }
 
 /**
@@ -126,12 +187,15 @@ function consume(tokens: string[], index: number, state: PathState): number {
   if (key === 'm') {
     state.current = next
     state.start = next
+    // A moveto ends the current contour and begins a new one. Leaving `open` set here is exactly
+    // the bug that flattened `M...Z M...Z` into a single run.
+    state.open = undefined
     // A subsequent implicit repetition of `m` is a lineto, per the SVG spec.
     state.command = relative ? 'l' : 'L'
     return index + arity
   }
 
-  state.segments.push(straightOrCubic({ key, args, from: state.current, relative }, next))
+  pushSegment(state, straightOrCubic({ key, args, from: state.current, relative }, next))
   state.current = next
   return index + arity
 }
@@ -260,6 +324,118 @@ function round(value: number): number {
   return Math.round(value * 100) / 100
 }
 
+/**
+ * Serialise grouped subpaths, re-emitting one `M` per contour and a `Z` for each closed one.
+ *
+ * This is the counterpart to the boundary tracking in `parsePath`: emitting a single leading `M`
+ * and never a `Z` is what turned a square-with-a-hole into one open outline, because `fill-rule`
+ * has no second contour to subtract.
+ *
+ * Every subpath reaching here holds at least one segment — they are only created when a segment
+ * lands in one, and `normaliseCount` never shrinks a list — so the head is indexed directly.
+ *
+ * @complexity O(n) time and space in total segment count.
+ * @overallScore 100
+ */
+function subpathsToPathData(subpaths: readonly Subpath[]): string {
+  const parts: string[] = []
+  for (const sub of subpaths) {
+    const head = sub.segments[0]!
+    parts.push(`M${round(head.from.x)},${round(head.from.y)}`)
+    for (const s of sub.segments) {
+      parts.push(
+        `C${round(s.c1.x)},${round(s.c1.y)} ${round(s.c2.x)},${round(s.c2.y)} ${round(s.to.x)},${round(s.to.y)}`,
+      )
+    }
+    if (sub.closed) parts.push('Z')
+  }
+  return parts.join(' ')
+}
+
+/**
+ * The mean of a subpath's segment start points.
+ *
+ * Used as the collapse point for a contour that has no partner, so it grows out of — or shrinks
+ * into — the middle of the shape it is standing in for, rather than flying in from the origin.
+ *
+ * Subpaths always carry at least one segment by construction, so there is no empty case to guard.
+ *
+ * @complexity O(n) time, O(1) space.
+ * @overallScore 100
+ */
+function centroidOf(subpath: Subpath): Point {
+  let x = 0
+  let y = 0
+  for (const s of subpath.segments) {
+    x += s.from.x
+    y += s.from.y
+  }
+  return { x: x / subpath.segments.length, y: y / subpath.segments.length }
+}
+
+/**
+ * Build a stand-in contour with the same segment count as `partner`, collapsed to a single point.
+ *
+ * @complexity O(n) time and space in the partner's segment count.
+ * @overallScore 100
+ */
+function collapsedLike(partner: Subpath): Subpath {
+  const at = centroidOf(partner)
+  return {
+    segments: partner.segments.map(() => ({
+      from: { ...at },
+      c1: { ...at },
+      c2: { ...at },
+      to: { ...at },
+    })),
+    closed: partner.closed,
+  }
+}
+
+/**
+ * Pair two shapes' contours and balance each pair's segment count.
+ *
+ * **The pairing rule, which is a genuine design decision and not an obvious one.** Contours are
+ * paired *in document order* — the first `M` of one shape morphs to the first `M` of the other.
+ * Document order is predictable and matches how authors write the outer contour first; pairing by
+ * area or proximity would be cleverer and would silently re-order under an author's edit.
+ *
+ * When the counts differ, the shorter shape gains **degenerate contours collapsed to the centroid
+ * of their partner**, so a square-with-a-hole morphing to a plain square shrinks the hole into the
+ * middle of the square rather than dropping it abruptly or dragging it from the origin.
+ *
+ * A pair is emitted as closed only when **both** sides are closed. A closed contour's final side
+ * is already a real segment, so this costs no geometry — but emitting `Z` for a pair whose start
+ * shape is an open curve would draw a closing line that the author never wrote, visible from the
+ * first frame.
+ *
+ * @param a - Contours of the start shape.
+ * @param b - Contours of the end shape.
+ * @returns Two equal-length contour lists whose corresponding subpaths have equal segment counts.
+ * @complexity O(n^2) worst case in segment count via `normaliseCount`; runs once per morph setup,
+ *   never per frame.
+ * @overallScore 100
+ */
+function normaliseSubpaths(
+  a: readonly Subpath[],
+  b: readonly Subpath[],
+): { from: Subpath[]; to: Subpath[] } {
+  const count = Math.max(a.length, b.length)
+  const from: Subpath[] = []
+  const to: Subpath[] = []
+
+  for (let i = 0; i < count; i++) {
+    const left = a[i] ?? collapsedLike(b[i]!)
+    const right = b[i] ?? collapsedLike(a[i]!)
+    const target = Math.max(left.segments.length, right.segments.length)
+    const closed = left.closed && right.closed
+    from.push({ segments: normaliseCount(left.segments, target), closed })
+    to.push({ segments: normaliseCount(right.segments, target), closed })
+  }
+
+  return { from, to }
+}
+
 export interface Morph {
   /** Path data at `t` in [0, 1]. */
   at(t: number): string
@@ -284,16 +460,25 @@ export function createMorph(
   if (a.reason) return { reason: `start path: ${a.reason}` }
   if (b.reason) return { reason: `end path: ${b.reason}` }
 
-  const count = Math.max(a.segments.length, b.segments.length)
-  const from = normaliseCount(a.segments, count)
-  const to = normaliseCount(b.segments, count)
+  // Balancing happens per contour, not across the whole flattened list. A global count would let
+  // the outer square's segments pair with the hole's, so the two contours would swap places
+  // mid-morph even once the boundaries were being emitted correctly.
+  const { from, to } = normaliseSubpaths(a.subpaths, b.subpaths)
+  const count = from.reduce((total, sub) => total + sub.segments.length, 0)
 
   return {
     morph: {
       segmentCount: count,
       at(t) {
         const clamped = Math.min(1, Math.max(0, t))
-        return toPathData(from.map((segment, i) => lerpCubic(segment, to[i]!, clamped)))
+        return subpathsToPathData(
+          from.map((sub, i) => ({
+            segments: sub.segments.map((segment, j) =>
+              lerpCubic(segment, to[i]!.segments[j]!, clamped),
+            ),
+            closed: sub.closed,
+          })),
+        )
       },
     },
   }

@@ -184,6 +184,105 @@ describe('createMorph', () => {
   })
 })
 
+const HOLED = 'M10,10 L90,10 L90,90 L10,90 Z M30,30 L70,30 L70,70 L30,70 Z'
+const SMALLER_HOLED = 'M15,15 L85,15 L85,85 L15,85 Z M40,40 L60,40 L60,60 L40,60 Z'
+const PLAIN = 'M15,15 L85,15 L85,85 L15,85 Z'
+
+/** Count of subpath-start / subpath-close commands, matching the browser suite's own counters. */
+const moveToCount = (d: string): number => (d.match(/M/g) ?? []).length
+const closeCount = (d: string): number => (d.match(/Z/g) ?? []).length
+
+describe('subpaths (D7)', () => {
+  it('groups a square-with-a-hole into two closed subpaths', () => {
+    const { subpaths } = parsePath(HOLED)
+    expect(subpaths).toHaveLength(2)
+    expect(subpaths.map((s) => s.closed)).toEqual([true, true])
+    // Four sides each: three explicit linetos plus the side Z draws back to the start.
+    expect(subpaths.map((s) => s.segments.length)).toEqual([4, 4])
+  })
+
+  it('still exposes the flattened segment list alongside the grouped one', () => {
+    const { segments, subpaths } = parsePath(HOLED)
+    expect(segments).toHaveLength(8)
+    expect(segments).toEqual(subpaths.flatMap((s) => s.segments))
+  })
+
+  it('marks a subpath the author never closed as open', () => {
+    const { subpaths } = parsePath('M0,0 L10,0 L10,10')
+    expect(subpaths).toHaveLength(1)
+    expect(subpaths[0]?.closed).toBe(false)
+  })
+
+  it('marks a subpath closed even when Z needed no closing segment', () => {
+    // The pen is already home, so no segment is added — but the author still wrote Z, and that is
+    // what decides whether the contour is re-emitted closed.
+    const { subpaths } = parsePath('M0,0 L10,0 L0,0 Z')
+    expect(subpaths[0]?.closed).toBe(true)
+    expect(subpaths[0]?.segments).toHaveLength(2)
+  })
+
+  it('starts a new subpath when drawing resumes after Z with no intervening moveto', () => {
+    // Per the spec the pen returns to the subpath start and a following command begins a new
+    // contour there.
+    const { subpaths } = parsePath('M0,0 L10,0 Z L0,10')
+    expect(subpaths).toHaveLength(2)
+    expect(subpaths[1]?.segments[0]?.from).toEqual({ x: 0, y: 0 })
+    expect(subpaths[1]?.closed).toBe(false)
+  })
+
+  it('reports a moveto closed immediately as undrawable rather than emitting an empty contour', () => {
+    expect(parsePath('M0,0 Z').reason).toBe('no drawable segments')
+  })
+
+  it('preserves both subpath boundaries and both closures through a morph', () => {
+    // The D7 regression itself: this used to come out as one M and zero Z, so every icon with a
+    // hole or a counter rendered as a single filled outline.
+    const { morph } = createMorph(HOLED, SMALLER_HOLED)
+    for (const t of [0, 0.5, 1]) {
+      const d = morph!.at(t)
+      expect(moveToCount(d), `t=${t}`).toBe(2)
+      expect(closeCount(d), `t=${t}`).toBe(2)
+    }
+  })
+
+  it('balances segment counts per contour, so the hole cannot pair with the outer edge', () => {
+    // A plain square (4 segments) against a hexagonal hole (6) must grow the *square's own*
+    // contour to 6, not borrow segments across the boundary.
+    const { morph } = createMorph(
+      'M0,0 L10,0 L10,10 L0,10 Z M2,2 L4,2 L6,4 L6,6 L4,8 L2,6 Z',
+      HOLED,
+    )
+    const d = morph!.at(0)
+    expect(moveToCount(d)).toBe(2)
+    // 6 for the hexagon's contour, and the outer square grown from 4 to match its partner's 4.
+    expect(morph!.segmentCount).toBe(10)
+  })
+
+  it('collapses an unpartnered contour into the centroid of the one it stands in for', () => {
+    // Morphing a holed square to a plain one: the hole has no partner, so it shrinks into the
+    // middle of itself rather than being dropped or dragged in from the origin.
+    const { morph } = createMorph(HOLED, PLAIN)
+    const end = morph!.at(1)
+    expect(moveToCount(end)).toBe(2)
+    // The hole's own centroid: the mean of (30,30) (70,30) (70,70) (30,70).
+    expect(end).toContain('M50,50')
+  })
+
+  it('grows an unpartnered contour out of the centroid in the other direction too', () => {
+    const { morph } = createMorph(PLAIN, HOLED)
+    expect(morph!.at(0)).toContain('M50,50')
+    // And it has genuinely arrived by the end.
+    expect(morph!.at(1)).toContain('M30,30')
+  })
+
+  it('does not close a pair whose start shape is open', () => {
+    // Emitting Z here would draw a closing line across the curve that the author never wrote, and
+    // it would be visible from the very first frame.
+    const { morph } = createMorph(CURVE, SQUARE)
+    expect(closeCount(morph!.at(0))).toBe(0)
+  })
+})
+
 describe('toPathData', () => {
   it('emits an empty string for no segments', () => {
     expect(toPathData([])).toBe('')

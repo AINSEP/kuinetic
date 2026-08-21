@@ -22,9 +22,17 @@ synthetic events.
   long real-world press with drift; not yet reproduced there specifically.
 - **Owner's words:** "when I don't drag and hold it, it's just messed up... it pushes away
   somehow... not smooth and buggy."
-- **Not fixed yet.** `docs/browser-findings.md` has the original automated write-up.
+- **FIXED** in `fa1f1d4`, "capture the pointer so drift doesn't misroute release".
+  `src/core/gesture.ts` now calls `setPointerCapture` on gesture start and `releasePointerCapture`
+  on end. Guarded by `test/browser/gestures.test.mjs`, which drives real `page.mouse` events rather
+  than synthetic ones. `docs/browser-findings.md` has the original automated write-up.
 
 ### D2. `card-flip-y` click activation doesn't toggle
+
+**FIXED** in `a273761`, "a second click reverses a finished CSS effect". A repeat `activate()` on
+the same instance now calls `.reverse()` on any owned animation sitting `finished`, because writing
+`animation-play-state: running` to an already-running declaration is a no-op the browser ignores.
+Guarded by `test/browser/click-toggle.test.mjs`.
 
 - **Found by:** owner, live click test; independently reproduced programmatically (2 real clicks,
   state read between).
@@ -38,6 +46,13 @@ synthetic events.
   `getAttribute('data-dsg-state')` and `getAttribute('style')`.
 
 ### D3. `parallax-y` (and likely `parallax-x`, `depth-layer` — same keyframe/mechanism) freezes mid-scroll
+
+**FIXED** in `c274104`, "parallax-y freezes when its wrapper uses overflow:hidden" —
+`animation-timeline: view()` resolves against the element's *nearest scroll-container ancestor*,
+and an `overflow: hidden` wrapper silently becomes one, so the timeline was measuring a box that
+never scrolled. Guarded by `test/browser/parallax-timeline.test.mjs`, which samples `translate` at
+several scroll positions and asserts every sample differs — a naive `translate !== '0px'` check
+would have passed on the broken code, since the frozen value was non-zero.
 
 - **Found by:** owner ("is the parallax even working? i dont think it is"), confirmed by direct
   measurement.
@@ -189,14 +204,54 @@ multi-point sampling (not a single check) on `demo/showcase/reveals.html`'s
   or driving it through the Web Animations API (`getAnimations()` → `.cancel()` the stale one,
   then let the fresh instance's own animation start cleanly) rather than relying on identical
   declarative CSS properties to self-restart.
-- **Not yet fixed.** `d229b39`'s `replay.js` change is still correct/worth keeping (it's the
-  right call site), it's just not sufficient on its own — the real fix belongs in
-  `src/core/instances.ts` (`createCssInstance`, same file D2 already touched) or wherever CSS-tier
-  install/activate actually applies the animation properties.
+- **Fixed in source; not yet browser-verified.** `src/core/instances.ts` now has
+  `restartCssAnimation`, and `createCssInstance.activate()` drives the branch off a structural
+  `activatedBefore` flag rather than re-deriving staleness from browser state: a *fresh* instance's
+  first activation unconditionally forces the restart (clear `animation-name`, force a layout read,
+  reapply), while a *repeat* activation on the same instance takes D2's `.reverse()` path. That is
+  exactly the forward-replay mechanism this entry asked for, and `d229b39`'s `replay.js` change is
+  the right call site for it.
+
+  **The caveat is the point of this whole session, so it is written down rather than assumed:**
+  this was confirmed by reading source and by unit tests at 100% coverage, which is precisely the
+  evidence that was insufficient the first time — the original D5 was a bug where the JS looked
+  right and the browser disagreed. There is no `test/browser/` suite for replay. Until one exists
+  and passes, treat this as "believed fixed", not "verified fixed". That suite is the cheapest way
+  to close this entry properly.
 
 ### D7. `path-morph` flattens every multi-subpath shape into one open subpath
 
-- **Found by:** the coverage/quality audit, 2026-08-21. `npm run test:browser` has been red on this;
+**FIXED 2026-08-21.** `npm run test:browser` is now **59/59**; `test/browser/svg-morph-subpath.test.mjs`
+has flipped from a defect-finding suite to a passing regression guard.
+
+Three changes in `src/core/path-morph.ts`, all needed:
+
+1. **Parse keeps the boundaries.** `ParseResult` gained `subpaths: Subpath[]` (`{ segments, closed }`)
+   alongside the existing flat `segments`, which is unchanged for every current caller. A `M` now
+   ends the open contour, and `Z` records `closed: true` *even when it needed no closing segment* —
+   the pen already being home says nothing about whether the author asked for closure. Drawing
+   after a `Z` with no intervening `M` opens a fresh contour at the subpath start, per the spec.
+2. **Balancing is per contour, not global.** `normaliseSubpaths` pairs contours and grows each pair
+   to its own `max`. A global count let the outer square's segments pair with the hole's, so the
+   two contours swapped places mid-morph even once boundaries were being emitted.
+3. **Serialisation re-emits `M` per contour and `Z` per closed one.** Without the `Z`, `fill-rule`
+   has no second contour to subtract and the hole fills in.
+
+**The pairing rule, documented because it was a real decision:** contours pair *in document order*
+— predictable, and matches authors writing the outer contour first; pairing by area or proximity
+would silently re-order under an edit. On unequal counts the shorter shape gains degenerate
+contours **collapsed to the centroid of their partner**, so a holed square morphing to a plain one
+shrinks the hole into its own middle rather than dropping it or dragging it from the origin. A pair
+emits `Z` only when **both** sides are closed: a closed contour's final side is already a real
+segment, so this costs no geometry, but closing a pair whose start shape is an open curve would
+draw a line the author never wrote, visible from the first frame.
+
+Eleven unit tests added under `describe('subpaths (D7)')`, including both centroid directions and
+the per-contour balancing case. Coverage stays at 100/100/100/100.
+
+Original write-up below.
+
+- **Found by:** the coverage/quality audit, 2026-08-21. `npm run test:browser` had been red on this;
   it is not part of `npm test`, so nothing in the normal gate ever said so.
 - **Failing suite:** `test/browser/svg-morph-subpath.test.mjs` — 2 of its 3 checks fail. Its own
   sanity check passes, so the fixture is right and the morph is wrong.
