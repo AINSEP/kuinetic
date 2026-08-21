@@ -73,6 +73,18 @@
     }
   }
 
+  /* The scroll-linked skew: content leans into the direction of travel and straightens up as it
+     settles. `transform` rather than an independent property because CSS has no `skew:` — see the
+     `skew` primitive in `catalog/core.ts` for why that makes it its own channel. */
+  @keyframes kui-scroll-skew {
+    from {
+      transform: skewY(var(--kui-from-skew, 8deg));
+    }
+    to {
+      transform: skewY(var(--kui-to-skew, 0deg));
+    }
+  }
+
   @keyframes kui-progress-x {
     from {
       scale: 0 1;

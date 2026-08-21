@@ -15,6 +15,7 @@ import { NUMBERS_PRESETS } from '../src/effects/catalog/numbers.js'
 import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { FORMS_PRESETS } from '../src/effects/forms/index.js'
 import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
 
@@ -54,6 +55,7 @@ const EFFECT_FILES = [
   'three-d.css',
   'media.css',
   'text.css',
+  'svg.css',
 ]
 
 /**
@@ -83,6 +85,7 @@ const ALL_PRESETS = [
   ...TEXT_PRESETS,
   ...FORMS_PRESETS,
   ...NAVIGATION_PRESETS,
+  ...SVG_PRESETS,
   ...THREE_D_PRESETS,
 ]
 

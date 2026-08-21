@@ -77,13 +77,13 @@ Primitives 1–4. All `css`. The largest name group, the smallest amount of code
 
 ---
 
-## B. Scroll reveal & parallax — 10 shipped, 3 planned
+## B. Scroll reveal & parallax — 12 shipped, 1 planned
 
 Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:enter`.
 
-`reveal-once` · `reveal-repeat`† · `parallax-y` · `parallax-x` · `parallax-scale` ·
-`parallax-rotate` · `depth-layer` · `scroll-progress-bar` · `scroll-progress-ring` ·
-`scroll-fade` · `scroll-desaturate` · `scroll-skew`† · `reveal-direction-aware`†
+`reveal-once` · `parallax-y` · `parallax-x` · `parallax-scale` · `parallax-rotate` ·
+`depth-layer` · `scroll-progress-bar` · `scroll-progress-bar-y` · `scroll-progress-ring` ·
+`scroll-fade` · `scroll-desaturate` · `scroll-skew` · `reveal-direction-aware`†
 
 > `parallax-*` and `scroll-*` use `data-kui-timeline`, not `data-kui-on` — they are
 > progress-linked and reverse on scroll-up by design.
@@ -96,17 +96,25 @@ Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:ent
 > timeline:pin"` holds a card still and unwinds half a turn across the hold. `timeline:pin` needs
 > no browser scroll-timeline support — it is a paused animation and a negative delay.
 
-> **† Not yet implemented.** `reveal-repeat` · `scroll-skew` · `reveal-direction-aware` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
+> `scroll-skew` writes the `transform` shorthand, because CSS never gave skew an independent
+> property beside `translate`/`rotate`/`scale`. It is the only effect in the catalog that touches
+> `transform`, and it declares its own `skew` channel to keep it that way.
+
+> **† Not yet implemented.** `reveal-direction-aware` needs to know which way the page is
+> travelling, which no CSS timeline exposes — it would be the library's first JS scroll-direction
+> primitive, so it is a decision rather than an oversight. `reveal-repeat` used to be listed here
+> and has been removed outright: it was byte-identical to `reveal-once` once the activation binder
+> stopped re-observing after first entry.
 
 ---
 
-## C. Scroll mechanics — 11 names
+## C. Scroll mechanics — 12 names
 
 Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 
-`pin-section` · `pin-until` · `pin-spacer` · `scrollytelling-step` · `stacking-cards` ·
-`horizontal-scroll` · `sequence-scrub` · `video-scrub` · `scroll-snap-x` · `scroll-snap-y` ·
-`scroll-spy`
+`pin-section` · `pin-until` · `pin-spacer` · `scroll-progress` · `scrollytelling-step` ·
+`stacking-cards` · `horizontal-scroll` · `sequence-scrub` · `video-scrub` · `scroll-snap-x` ·
+`scroll-snap-y` · `scroll-spy`
 
 > `scroll-snap-*` are thin CSS passthroughs. Everything else needs the orchestrator:
 > measurement, resize invalidation, nested scroll containers, cleanup.
@@ -134,19 +142,50 @@ Primitives 17–19, 13, 23, 24.
 
 ---
 
-## E. SVG & icons — 2 shipped, 15 planned
+## E. SVG & icons — 17 names
 
-Primitives 15, 16.
+Primitives 15, 16. All CSS except the two morphs.
 
-`draw-stroke`† · `draw-signature`† · `draw-underline`† · `checkmark-draw`† · `cross-draw`† ·
-`hamburger-to-x`† · `play-to-pause`† · `plus-to-minus`† · `heart-fill`† · `bookmark-fill`† ·
-`icon-morph` · `blob-morph` · `logo-build`† · `chart-line-draw`† · `chart-bar-grow`† ·
-`chart-area-fill`† · `gradient-stroke`†
+`draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
+`chart-line-draw` · `gradient-stroke` · `heart-fill` · `bookmark-fill` · `chart-area-fill` ·
+`chart-bar-grow` · `logo-build` · `hamburger-to-x` · `play-to-pause` · `plus-to-minus` ·
+`icon-morph` · `blob-morph`
+
+> **The draws** animate `stroke-dashoffset` from the shape's own length down to zero. Set the
+> length with `length:` — `data-kui="checkmark-draw length:48"` — or with `--kui-path-length` in
+> your own CSS. The library never measures your SVG: `getTotalLength()` is a layout read on every
+> element on every mount, to recover a number already sitting in your markup.
+
+> **`gradient-stroke`** travels the stroke *colour* between `--kui-stroke-from`, `--kui-stroke-via`,
+> and `--kui-stroke-to`, and loops. The literal reading of the name — an animated
+> `<linearGradient>` paint server — is not reachable from CSS scoped to the path, because the
+> gradient is a separate element in `<defs>`. It owns the `stroke` channel, so it will not compose
+> with a draw; the conflict detector says so rather than silently dropping one.
+
+> **The three icon toggles** are state, not a one-shot animation, so they work like the
+> native-state group in section O: a CSS transition keyed off an attribute you already have to set
+> for accessibility. No JS, and no second source of truth for "is the menu open".
+>
+> | | attribute | markup it expects |
+> |---|---|---|
+> | `hamburger-to-x` | `aria-expanded` | three `.kui-bar` children |
+> | `play-to-pause` | `aria-pressed` (`true` = playing, so the icon shows pause) | two `.kui-bar` children |
+> | `plus-to-minus` | `aria-expanded` (`true` = open, so the icon shows minus) | two `.kui-bar` children |
+>
+> ```html
+> <button data-kui="hamburger-to-x" aria-expanded="false" aria-label="Menu">
+>   <span class="kui-bar"></span><span class="kui-bar"></span><span class="kui-bar"></span>
+> </button>
+> ```
+>
+> `--kui-bar-gap` is how far an outer bar travels to meet the centre. Set it to match your own
+> bar spacing.
+
+> **`logo-build`** goes on the *parts* of a mark, with `data-kui-stagger` on their wrapper. That
+> stagger is what makes it a build rather than one more scale-in.
 
 > `icon-morph` / `blob-morph` use primitive 16 (arbitrary path interpolation). The named
 > icon pairs are precomputed matched-point-count morphs — cheap and exact.
-
-> **† Not yet implemented.** `draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` · `hamburger-to-x` · `play-to-pause` · `plus-to-minus` · `heart-fill` · `bookmark-fill` · `logo-build` · `chart-line-draw` · `chart-bar-grow` · `chart-area-fill` · `gradient-stroke` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
 ---
 
@@ -186,14 +225,14 @@ Primitive 28. `js`. One technique unlocks the whole group.
 
 ---
 
-## I. Hover & pointer — 21 names
+## I. Hover & pointer — 22 names
 
 Primitives 21, 22, plus CSS.
 
 | Group | Names |
 |---|---|
 | button | `lift` `lift-shadow` `pop` `magnetic` `shine-sweep` `split-flap` |
-| border | `border-draw` `border-glow` `beam-border` |
+| border | `border-draw` `border-glow` `beam-border` `beam-border-auto` |
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
 | card | `tilt-3d` `tilt-parallax` |
@@ -280,22 +319,22 @@ Primitives 1, 10, 15.
 | Section | Names |
 |---|---|
 | A Entrance/exit | 48 |
-| B Scroll reveal & parallax | 10 (+3 planned) |
-| C Scroll mechanics | 11 |
+| B Scroll reveal & parallax | 12 (+1 planned) |
+| C Scroll mechanics | 12 |
 | D Text & typography | 26 |
-| E SVG & icons | 2 (+15 planned) |
+| E SVG & icons | 17 |
 | F Numbers & data viz | 13 |
 | G Media & images | 17 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 21 |
+| I Hover & pointer | 22 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
 | N 3D & perspective | 30 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total shipped** | **234** |
-| Documented but not yet shipped | 21 |
+| **Total shipped** | **250** |
+| Documented but not yet shipped | 4 |
 
 Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a

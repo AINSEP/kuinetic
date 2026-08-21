@@ -3,7 +3,9 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
+import { CHANNEL, inertInstance } from '../../core/types.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
+import { cssPrimitive } from '../shared.js'
 
 /**
  * SVG shape morphing.
@@ -68,6 +70,68 @@ function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): C
   }
 }
 
+/**
+ * A stroke draw: `stroke-dashoffset` from the shape's own length down to zero.
+ *
+ * `length` exists so the geometry can be written where the effect is —
+ * `data-kui="checkmark-draw length:48"` — instead of forcing every author to hand-set
+ * `--kui-path-length` in a separate stylesheet for an effect that is otherwise one attribute. The
+ * library still never *measures* the path: `getTotalLength()` is a layout read on every element on
+ * every mount, to recover a number the author already has sitting in their SVG.
+ */
+const PATH_DRAW_PRIMITIVE: Primitive = cssPrimitive('path-draw', [CHANNEL.stroke], {
+  parameters: {
+    length: { type: 'number', default: '100', cssProperty: '--kui-path-length', finite: true },
+  },
+})
+
+/**
+ * A clip-path wipe over a shape that is already painted — the author stacks a filled copy over an
+ * outline copy and this reveals the filled one. Same mechanism as `star-rating-fill`.
+ */
+const SHAPE_FILL_PRIMITIVE: Primitive = cssPrimitive('shape-fill', [CHANNEL.clip])
+
+/** A bar scaling up off its baseline. Separate from `shape-fill` so the two can compose. */
+const BAR_GROW_PRIMITIVE: Primitive = cssPrimitive('bar-grow', [CHANNEL.scale])
+
+/** A mark assembling part by part — opacity, scale, and a slight turn, meant to be staggered. */
+const LOGO_BUILD_PRIMITIVE: Primitive = cssPrimitive('logo-assemble', [
+  CHANNEL.opacity,
+  CHANNEL.scale,
+  CHANNEL.rotate,
+])
+
+/**
+ * The icon toggles (`hamburger-to-x`, `play-to-pause`, `plus-to-minus`).
+ *
+ * These are state, not a one-shot animation, and a keyframe cannot express state that has to
+ * travel back again. Like the native-state group in `forms.css`, the whole effect is a CSS
+ * transition in `svg.css` keyed off an attribute the browser and the author already maintain —
+ * `aria-expanded` / `aria-pressed` — so `prepare` has nothing to do at runtime and returns an inert
+ * instance. The only reason it is registered at all is to get `data-kui-fx` stamped on the element
+ * and the timing parameters resolved onto it, which the parts then inherit.
+ *
+ * `reducedMotion: 'disable'` for the same reason forms' native-state family uses it: the motion
+ * lands on descendants, not on the element carrying the marker, so `base.css`'s policy layer
+ * handles it through the `transition-duration` entries scoped to these names rather than the
+ * `animation-*` ones.
+ */
+const ICON_TOGGLE_PRIMITIVE: Primitive = {
+  id: 'icon-toggle',
+  renderer: 'javascript',
+  channels: [CHANNEL.translate, CHANNEL.rotate, CHANNEL.scale, CHANNEL.opacity, CHANNEL.clip],
+  parameters: {
+    duration: { type: 'time', default: '260ms', cssProperty: '--kui-duration' },
+    ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  },
+  supportedTimelines: ['time'],
+  supportedActivations: ['load'],
+  defaultActivation: 'load',
+  perfClass: 'compositor',
+  reducedMotion: 'disable',
+  prepare: () => inertInstance(),
+}
+
 export const SVG_PRIMITIVES: Primitive[] = [
   {
     id: 'path-morph',
@@ -88,11 +152,41 @@ export const SVG_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
     prepare: deferPrepare(prepareMorph),
   },
+  PATH_DRAW_PRIMITIVE,
+  SHAPE_FILL_PRIMITIVE,
+  BAR_GROW_PRIMITIVE,
+  LOGO_BUILD_PRIMITIVE,
+  ICON_TOGGLE_PRIMITIVE,
 ]
 
 export const SVG_PRESETS: Preset[] = [
   { name: 'icon-morph', primitive: 'path-morph' },
   { name: 'blob-morph', primitive: 'path-morph', params: { duration: '800ms' } },
+
+  // Stroke draws. One keyframe block each rather than one shared block, matching the
+  // progress-ring/gauge-sweep/donut-sweep/sparkline-draw group in numbers.ts: identical bodies
+  // today, but each name is free to diverge and a consumer can restyle one without the others.
+  { name: 'draw-stroke', primitive: 'path-draw', keyframes: 'kui-draw-stroke', params: { duration: '800ms', ease: 'ease-in-out' } },
+  { name: 'draw-signature', primitive: 'path-draw', keyframes: 'kui-draw-signature', params: { duration: '1600ms', ease: 'ease-in-out' } },
+  { name: 'draw-underline', primitive: 'path-draw', keyframes: 'kui-draw-underline', params: { duration: '420ms' } },
+  { name: 'checkmark-draw', primitive: 'path-draw', keyframes: 'kui-checkmark-draw', params: { duration: '320ms' } },
+  { name: 'cross-draw', primitive: 'path-draw', keyframes: 'kui-cross-draw', params: { duration: '260ms' } },
+  { name: 'chart-line-draw', primitive: 'path-draw', keyframes: 'kui-chart-line-draw', params: { duration: '1200ms', ease: 'ease-in-out' } },
+  { name: 'gradient-stroke', primitive: 'path-draw', keyframes: 'kui-gradient-stroke', params: { duration: '2400ms', ease: 'ease-in-out' } },
+
+  // Fills.
+  { name: 'heart-fill', primitive: 'shape-fill', keyframes: 'kui-heart-fill', params: { duration: '420ms' } },
+  { name: 'bookmark-fill', primitive: 'shape-fill', keyframes: 'kui-bookmark-fill', params: { duration: '360ms' } },
+  { name: 'chart-area-fill', primitive: 'shape-fill', keyframes: 'kui-chart-area-fill', params: { duration: '900ms' } },
+  { name: 'chart-bar-grow', primitive: 'bar-grow', keyframes: 'kui-chart-bar-grow', params: { duration: '700ms', ease: 'back-out' } },
+
+  { name: 'logo-build', primitive: 'logo-assemble', keyframes: 'kui-logo-build', params: { duration: '520ms', ease: 'back-out' } },
+
+  // Icon toggles — no `keyframes`, because their motion is a CSS transition in svg.css keyed off
+  // aria state, not a compiled animation. Same shape as forms.ts's native-state presets.
+  { name: 'hamburger-to-x', primitive: 'icon-toggle' },
+  { name: 'play-to-pause', primitive: 'icon-toggle' },
+  { name: 'plus-to-minus', primitive: 'icon-toggle' },
 ]
 
 /**

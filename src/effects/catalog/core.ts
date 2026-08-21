@@ -142,6 +142,23 @@ export const PRIMITIVES: Primitive[] = [
     perfClass: 'paint',
   }),
 
+  /*
+   * `transform`, not one of the independent transform properties, because CSS never shipped a
+   * standalone `skew:`. That is also why `skew` is its own channel rather than folded in with
+   * `rotate`: writing `transform` replaces the entire shorthand, so a skew composed with anything
+   * else that wrote `transform` would silently win. Nothing else in the catalog does — every other
+   * transform in the library goes through `translate`/`rotate`/`scale` — so the shorthand is free.
+   */
+  css('skew', [CHANNEL.skew], {
+    parameters: {
+      from: { type: 'angle', default: '8deg', cssProperty: '--kui-from-skew' },
+      to: { type: 'angle', default: '0deg', cssProperty: '--kui-to-skew' },
+    },
+    timelines: ['view', 'scroll', 'pin'],
+    activations: ['manual'],
+    reducedMotion: 'disable',
+  }),
+
   css('progress', [CHANNEL.scale], {
     timelines: ['scroll', 'view'],
     activations: ['manual'],
@@ -264,6 +281,7 @@ const SCROLL: Preset[] = [
   p('depth-layer', 'parallax', 'kui-parallax-y', { distance: '200px' }),
   p('scroll-fade', 'scroll-fade', 'kui-scroll-fade'),
   p('scroll-desaturate', 'desaturate', 'kui-desaturate'),
+  p('scroll-skew', 'skew', 'kui-scroll-skew'),
   p('scroll-progress-bar', 'progress', 'kui-progress-x'),
   p('scroll-progress-bar-y', 'progress', 'kui-progress-y'),
   p('scroll-progress-ring', 'progress-stroke', 'kui-progress-ring'),

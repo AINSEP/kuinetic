@@ -1,0 +1,245 @@
+/*
+ * SVG and icon effects (catalog section E).
+ *
+ * Two families here, and they use two different mechanisms for a reason.
+ *
+ * The draws and the fills are ordinary CSS keyframes. A draw animates `stroke-dashoffset` from
+ * the shape's own length down to zero — the same technique `progress-ring`, `sparkline-draw`, and
+ * `scroll-progress-ring` already use, so this file is deliberately the same shape as the stroke
+ * block at the top of `numbers.css`. The author sets `--kui-path-length` to the real geometry of
+ * their own `<path>` (or passes `length:` in `data-kui`); the library never measures SVG itself,
+ * because measuring means `getTotalLength()` — a layout read on every element, every mount, to
+ * recover a number the author already knows.
+ *
+ * The three icon toggles are not animations. They are *state*, and a one-shot keyframe cannot
+ * express state that has to travel back again. So they follow the native-state group in
+ * `forms.css`: a plain CSS transition scoped under the compiled `[data-kui-fx~='name']` marker,
+ * driven by an attribute the author has to set for accessibility anyway — `aria-expanded` on a
+ * disclosure button, `aria-pressed` on a toggle. No JS, and no second source of truth for "is the
+ * menu open": the accessibility attribute *is* the state. An author who wires this up correctly
+ * gets the animation for free, and one who skips the attribute has a broken button either way.
+ *
+ * Each toggle assumes one markup shape, documented above its own block. That is the same contract
+ * `forms.css` states at the top of the file — a named icon effect cannot animate parts it cannot
+ * select, so the parts have to be agreed on somewhere.
+ */
+@layer kui.effects {
+  /* --- Stroke draws: dashoffset from the path's own length to zero --- */
+
+  @keyframes kui-draw-stroke {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes kui-draw-signature {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes kui-draw-underline {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes kui-checkmark-draw {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes kui-cross-draw {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes kui-chart-line-draw {
+    from { stroke-dashoffset: var(--kui-path-length, 100); }
+    to { stroke-dashoffset: 0; }
+  }
+
+  /*
+   * Every draw needs `stroke-dasharray` set to the full path length so there is exactly one dash
+   * and one gap to slide, and `fill: none` so an unclosed path does not paint its interior while
+   * the outline is still being drawn.
+   */
+  [data-kui-fx~='draw-stroke'],
+  [data-kui-fx~='draw-signature'],
+  [data-kui-fx~='draw-underline'],
+  [data-kui-fx~='checkmark-draw'],
+  [data-kui-fx~='cross-draw'],
+  [data-kui-fx~='chart-line-draw'] {
+    stroke-dasharray: var(--kui-path-length, 100);
+    fill: none;
+  }
+
+  /*
+   * `gradient-stroke` travels the stroke *colour* rather than the dash.
+   *
+   * The obvious reading of the name — an SVG `<linearGradient>` paint server whose stops animate —
+   * is not reachable from here: the gradient is a separate element in `<defs>`, and a rule scoped
+   * to the element carrying `data-kui-fx` cannot select it. Animating `stroke` between three
+   * colour stops is the version CSS can actually deliver, and it reads as the same thing on a
+   * single-colour stroke.
+   *
+   * It owns the `stroke` channel, so it does not compose with a draw — `data-kui="draw-stroke,
+   * gradient-stroke"` is rejected by the conflict detector rather than silently dropping one of
+   * them. Paint the stroke with a real gradient paint server if you need both at once.
+   */
+  @keyframes kui-gradient-stroke {
+    from { stroke: var(--kui-stroke-from, currentColor); }
+    50% { stroke: var(--kui-stroke-via, currentColor); }
+    to { stroke: var(--kui-stroke-to, currentColor); }
+  }
+  [data-kui-fx~='gradient-stroke'] {
+    --kui-fx-gradient-stroke-iterations: infinite;
+  }
+
+  /* --- Fills: a clip-path wipe over a shape that is already painted --- */
+
+  /*
+   * `heart-fill` and `bookmark-fill` reveal an already-filled shape from the bottom up, the same
+   * mechanism as `star-rating-fill` in numbers.css. The author stacks a filled copy over an
+   * outline copy; this animates the filled one.
+   */
+  @keyframes kui-heart-fill {
+    from { clip-path: inset(100% 0 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  @keyframes kui-bookmark-fill {
+    from { clip-path: inset(100% 0 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+
+  /* An area chart wipes in along its own axis — left to right, not bottom up. */
+  @keyframes kui-chart-area-fill {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+
+  /* A bar grows from its baseline, never from its centre — same rule as `progress-bar`. */
+  @keyframes kui-chart-bar-grow {
+    from { scale: 1 0; }
+    to { scale: 1 1; }
+  }
+  [data-kui-fx~='chart-bar-grow'] {
+    transform-origin: bottom center;
+  }
+
+  /*
+   * `logo-build` assembles a mark part by part: each piece drops in slightly small and slightly
+   * turned. It is meant to go on the *parts* with `data-kui-stagger` on their wrapper, which is
+   * what makes it a build rather than one more scale-in.
+   */
+  @keyframes kui-logo-build {
+    from {
+      opacity: 0;
+      scale: 0.62;
+      rotate: -8deg;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+      rotate: 0deg;
+    }
+  }
+
+  /*
+   * --- Icon toggles: native state, CSS transitions, no JS ---
+   *
+   * Timing comes from `--kui-icon-toggle-duration` / `--kui-icon-toggle-ease`, which the generated
+   * preset stylesheet sets on the element itself. Custom properties inherit down the tree, so the
+   * parts pick them up without the library writing anything to them — the reason these can use
+   * descendants where `forms.css`'s sibling satellites needed a JS assist.
+   */
+
+  /*
+   * hamburger-to-x — three bars inside the control:
+   *
+   *   <button data-kui="hamburger-to-x" aria-expanded="false" aria-label="Menu">
+   *     <span class="kui-bar"></span>
+   *     <span class="kui-bar"></span>
+   *     <span class="kui-bar"></span>
+   *   </button>
+   *
+   * `--kui-bar-gap` is the distance from the middle bar to an outer one, so the two surviving bars
+   * meet in the centre before they rotate. The author sets it to match their own bar spacing.
+   */
+  [data-kui-fx~='hamburger-to-x'] .kui-bar {
+    transition:
+      translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      opacity var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] .kui-bar:nth-child(1) {
+    translate: 0 var(--kui-bar-gap, 6px);
+    rotate: 45deg;
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] .kui-bar:nth-child(2) {
+    opacity: 0;
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] .kui-bar:nth-child(3) {
+    translate: 0 calc(var(--kui-bar-gap, 6px) * -1);
+    rotate: -45deg;
+  }
+
+  /*
+   * play-to-pause — two bars that live as the pause icon and fold into a triangle for play:
+   *
+   *   <button data-kui="play-to-pause" aria-pressed="false" aria-label="Play">
+   *     <span class="kui-bar"></span>
+   *     <span class="kui-bar"></span>
+   *   </button>
+   *
+   * `aria-pressed="true"` means "playing", so the control shows pause — two upright bars, the
+   * resting geometry. Released, the bars skew and close into a play triangle. Clip-path does the
+   * triangle: skewing alone leaves two parallelograms, not a wedge.
+   */
+  [data-kui-fx~='play-to-pause'] .kui-bar {
+    transition:
+      translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      clip-path var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) .kui-bar:nth-child(1) {
+    translate: var(--kui-bar-gap, 4px) 0;
+    clip-path: polygon(0 0, 100% 25%, 100% 75%, 0 100%);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) .kui-bar:nth-child(2) {
+    translate: calc(var(--kui-bar-gap, 4px) * -1) 0;
+    clip-path: polygon(0 25%, 100% 50%, 100% 50%, 0 75%);
+  }
+
+  /*
+   * plus-to-minus — two crossed bars; the upright one collapses away:
+   *
+   *   <button data-kui="plus-to-minus" aria-expanded="false" aria-label="Expand">
+   *     <span class="kui-bar"></span>
+   *     <span class="kui-bar"></span>
+   *   </button>
+   *
+   * The whole control turns a quarter-turn as one limb collapses, so a plus does not simply lose
+   * an arm — it rotates into the minus. `aria-expanded="true"` is the collapsed-to-minus state,
+   * matching the usual accordion reading: the content is open, so the affordance is "close".
+   *
+   * Which bar collapses matters and is not the obvious one. At rest bar 1 is horizontal and bar 2
+   * is turned upright. Once the control itself rotates 90deg those swap: bar 1 is now the upright
+   * one. Collapsing bar 2 would leave a vertical line, not a minus — so bar 1 is the one that goes.
+   */
+  [data-kui-fx~='plus-to-minus'] {
+    transition: rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='plus-to-minus'] .kui-bar {
+    transition: scale var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='plus-to-minus'] .kui-bar:nth-child(2) {
+    rotate: 90deg;
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] {
+    rotate: 90deg;
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] .kui-bar:nth-child(1) {
+    scale: 0;
+  }
+}

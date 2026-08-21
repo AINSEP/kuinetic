@@ -88,6 +88,12 @@
     --kui-flip-face-ease: ease-out;
   }
 
+  [data-kui-fx~='bookmark-fill'] {
+    --kui-shape-fill-duration: 360ms;
+    --kui-shape-fill-delay: 0ms;
+    --kui-shape-fill-ease: ease-out;
+  }
+
   [data-kui-fx~='border-draw'] {
     --kui-border-draw-duration: 220ms;
     --kui-border-draw-ease: ease-out;
@@ -129,6 +135,30 @@
     --kui-flip-face-duration: 600ms;
     --kui-flip-face-delay: 0ms;
     --kui-flip-face-ease: ease-out;
+  }
+
+  [data-kui-fx~='chart-area-fill'] {
+    --kui-shape-fill-duration: 900ms;
+    --kui-shape-fill-delay: 0ms;
+    --kui-shape-fill-ease: ease-out;
+  }
+
+  [data-kui-fx~='chart-bar-grow'] {
+    --kui-bar-grow-duration: 700ms;
+    --kui-bar-grow-ease: var(--kui-ease-back-out, ease-out);
+    --kui-bar-grow-delay: 0ms;
+  }
+
+  [data-kui-fx~='chart-line-draw'] {
+    --kui-path-draw-duration: 1200ms;
+    --kui-path-draw-ease: ease-in-out;
+    --kui-path-draw-delay: 0ms;
+  }
+
+  [data-kui-fx~='checkmark-draw'] {
+    --kui-path-draw-duration: 320ms;
+    --kui-path-draw-delay: 0ms;
+    --kui-path-draw-ease: ease-out;
   }
 
   [data-kui-fx~='confetti-burst'] {
@@ -184,6 +214,12 @@
     --kui-from: 0;
     --kui-to: 100;
     --kui-count-duration: 1600ms;
+  }
+
+  [data-kui-fx~='cross-draw'] {
+    --kui-path-draw-duration: 260ms;
+    --kui-path-draw-delay: 0ms;
+    --kui-path-draw-ease: ease-out;
   }
 
   [data-kui-fx~='cube-rotate'] {
@@ -258,6 +294,24 @@
 
   [data-kui-fx~='drag-y'] {
     --kui-axis: y;
+  }
+
+  [data-kui-fx~='draw-signature'] {
+    --kui-path-draw-duration: 1600ms;
+    --kui-path-draw-ease: ease-in-out;
+    --kui-path-draw-delay: 0ms;
+  }
+
+  [data-kui-fx~='draw-stroke'] {
+    --kui-path-draw-duration: 800ms;
+    --kui-path-draw-ease: ease-in-out;
+    --kui-path-draw-delay: 0ms;
+  }
+
+  [data-kui-fx~='draw-underline'] {
+    --kui-path-draw-duration: 420ms;
+    --kui-path-draw-delay: 0ms;
+    --kui-path-draw-ease: ease-out;
   }
 
   [data-kui-fx~='drawer-slide'] {
@@ -465,6 +519,12 @@
     --kui-text-shimmer-ease: ease-out;
   }
 
+  [data-kui-fx~='gradient-stroke'] {
+    --kui-path-draw-duration: 2400ms;
+    --kui-path-draw-ease: ease-in-out;
+    --kui-path-draw-delay: 0ms;
+  }
+
   [data-kui-fx~='gradient-sweep'] {
     --kui-text-sweep-duration: 600ms;
     --kui-text-sweep-delay: 0ms;
@@ -483,11 +543,22 @@
     --kui-flip-container-ease: ease-out;
   }
 
+  [data-kui-fx~='hamburger-to-x'] {
+    --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-ease: ease-out;
+  }
+
   [data-kui-fx~='heart-burst'] {
     --kui-feedback-burst-duration: 700ms;
     --kui-pop-scale: 1.4;
     --kui-feedback-burst-delay: 0ms;
     --kui-feedback-burst-ease: var(--kui-ease-back-out, ease-out);
+  }
+
+  [data-kui-fx~='heart-fill'] {
+    --kui-shape-fill-duration: 420ms;
+    --kui-shape-fill-delay: 0ms;
+    --kui-shape-fill-ease: ease-out;
   }
 
   [data-kui-fx~='highlight-sweep'] {
@@ -560,6 +631,12 @@
     --kui-bar-duration: 600ms;
     --kui-bar-delay: 0ms;
     --kui-bar-ease: ease-out;
+  }
+
+  [data-kui-fx~='logo-build'] {
+    --kui-logo-assemble-duration: 520ms;
+    --kui-logo-assemble-ease: var(--kui-ease-back-out, ease-out);
+    --kui-logo-assemble-delay: 0ms;
   }
 
   [data-kui-fx~='long-press'] {
@@ -677,6 +754,16 @@
 
   [data-kui-fx~='pin-until'] {
     --kui-spacer: false;
+  }
+
+  [data-kui-fx~='play-to-pause'] {
+    --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-ease: ease-out;
+  }
+
+  [data-kui-fx~='plus-to-minus'] {
+    --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-ease: ease-out;
   }
 
   [data-kui-fx~='pop'] {
@@ -839,6 +926,12 @@
     --kui-progress-stroke-duration: 600ms;
     --kui-progress-stroke-delay: 0ms;
     --kui-progress-stroke-ease: ease-out;
+  }
+
+  [data-kui-fx~='scroll-skew'] {
+    --kui-skew-duration: 600ms;
+    --kui-skew-delay: 0ms;
+    --kui-skew-ease: ease-out;
   }
 
   [data-kui-fx~='scroll-snap-x'] {

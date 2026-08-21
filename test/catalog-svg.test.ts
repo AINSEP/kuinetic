@@ -58,11 +58,85 @@ function svgPath(d: string): SVGPathElement {
 }
 
 describe('svg catalog registration', () => {
-  it('registers path-morph with its two presets', () => {
-    expect(SVG_PRIMITIVES).toHaveLength(1)
-    expect(SVG_PRIMITIVES[0]?.id).toBe('path-morph')
+  it('registers every section E primitive, and every section E name resolves', () => {
+    expect(SVG_PRIMITIVES.map((primitive) => primitive.id)).toEqual([
+      'path-morph',
+      'path-draw',
+      'shape-fill',
+      'bar-grow',
+      'logo-assemble',
+      'icon-toggle',
+    ])
     const reg = registry()
     for (const preset of SVG_PRESETS) expect(reg.has(preset.name)).toBe(true)
+  })
+
+  /**
+   * The whole point of this section landing. Every one of these names was documented in
+   * `docs/catalog.md` and registered nowhere, so an author copying `data-kui="checkmark-draw"` out
+   * of the catalog got silence. Asserting resolution by name — not just "the array is non-empty" —
+   * is what makes deleting one of them a test failure rather than a quiet regression to that state.
+   */
+  it('resolves all fifteen names section E documents', () => {
+    const reg = registry()
+    const documented = [
+      'draw-stroke',
+      'draw-signature',
+      'draw-underline',
+      'checkmark-draw',
+      'cross-draw',
+      'hamburger-to-x',
+      'play-to-pause',
+      'plus-to-minus',
+      'heart-fill',
+      'bookmark-fill',
+      'icon-morph',
+      'blob-morph',
+      'logo-build',
+      'chart-line-draw',
+      'chart-bar-grow',
+      'chart-area-fill',
+      'gradient-stroke',
+    ]
+    expect(documented.filter((name) => !reg.has(name))).toEqual([])
+  })
+
+  it('every draw carries a length parameter, so the geometry can be written in data-kui', () => {
+    const reg = registry()
+    const draw = reg.resolve('checkmark-draw')!
+    expect(draw.primitive.parameters.length?.cssProperty).toBe('--kui-path-length')
+    // Not namespaced per primitive the way duration/delay/ease are — the stylesheet reads the
+    // bare property, and so does numbers.css for the stroke draws that came before these.
+    expect(draw.primitive.parameters.duration?.cssProperty).toBe('--kui-path-draw-duration')
+  })
+
+  /**
+   * The icon toggles animate through a CSS transition keyed off `aria-expanded`/`aria-pressed`,
+   * not through a compiled animation, so they must not claim a `keyframes` name — a preset that
+   * did would make `css-invariants.test.ts` hunt for a block that does not exist. The inert
+   * instance is the other half: registration exists only to stamp `data-kui-fx` and resolve the
+   * timing parameters onto the control, which the parts then inherit.
+   */
+  it('icon toggles claim no keyframes and prepare to an inert instance', () => {
+    const reg = registry()
+    for (const name of ['hamburger-to-x', 'play-to-pause', 'plus-to-minus']) {
+      const resolved = reg.resolve(name)!
+      expect(resolved.preset.keyframes).toBeUndefined()
+      expect(resolved.primitive.renderer).toBe('javascript')
+      expect(resolved.primitive.reducedMotion).toBe('disable')
+
+      const el = document.createElement('button')
+      const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
+      instance.activate()
+      expect(el.attributes).toHaveLength(0) // nothing written by prepare — it is inert
+      instance.destroy()
+    }
+  })
+
+  it('gradient-stroke owns the stroke channel, so it cannot silently compose with a draw', () => {
+    const reg = registry()
+    expect(reg.resolve('gradient-stroke')!.primitive.channels).toContain('stroke')
+    expect(reg.resolve('draw-stroke')!.primitive.channels).toContain('stroke')
   })
 })
 

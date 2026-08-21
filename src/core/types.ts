@@ -30,6 +30,13 @@ export const CHANNEL = {
   color: 'color',
   stroke: 'stroke',
   text: 'text',
+  /**
+   * Skew is the one transform CSS never gave an independent property to — there is no `skew:`
+   * beside `translate:`/`rotate:`/`scale:`, so it can only be written through the `transform`
+   * shorthand. That makes it its own channel: anything writing `transform` clobbers the whole
+   * shorthand, and nothing else in the catalog writes `transform` at all.
+   */
+  skew: 'skew',
 } as const
 
 /**

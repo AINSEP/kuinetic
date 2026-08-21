@@ -32,6 +32,12 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   ],
   color: ['color'],
   stroke: ['stroke-dashoffset', 'stroke-dasharray', 'stroke'],
+  /**
+   * `skew` claims the whole `transform` shorthand, because CSS never gave skew an independent
+   * property the way it did `translate`/`rotate`/`scale`. Anything that writes `transform` replaces
+   * all of it, so nothing else in the catalog is allowed to — `scroll-skew` is the only member.
+   */
+  skew: ['transform'],
   text: ['letter-spacing', 'word-spacing', 'font-variation-settings'],
   font: ['font-weight', 'font-stretch', 'font-style'],
   shadow: ['box-shadow'],

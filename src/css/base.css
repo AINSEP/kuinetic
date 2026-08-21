@@ -80,6 +80,12 @@
      * separate from `count-odometer`'s own JS tween duration, which `ctx.reducedMotion` already
      * shortens in `prepare`.
      *
+     * The three `.kui-bar` entries are the icon toggles in svg.css. Their motion lands on parts the
+     * *author* writes inside the control, not on the control itself, so the bare `[data-kui-rm]`
+     * selector never reaches it. They are scoped by effect name for the same reason as everything
+     * above: an unscoped `[data-kui-rm] .kui-bar` would shorten any consumer element that happened
+     * to be called `.kui-bar` under any marked element.
+     *
      * `test/reduced-motion-coverage.test.ts` statically checks this list against every
      * transition-declaring `[data-kui-fx~='name'] ~ selector` rule in forms.css (and any sibling
      * stylesheet using the same pattern) in both directions, so a new native-state satellite added
@@ -96,7 +102,10 @@
     [data-kui-rm][data-kui-fx~='toggle-morph'] ~ .kui-track .kui-thumb,
     [data-kui-rm][data-kui-fx~='checkbox-draw'] ~ svg path,
     [data-kui-rm][data-kui-fx~='radio-fill'] ~ .kui-dot,
-    [data-kui-rm][data-kui-fx~='strength-meter'] ~ .kui-meter > * {
+    [data-kui-rm][data-kui-fx~='strength-meter'] ~ .kui-meter > *,
+    [data-kui-rm][data-kui-fx~='hamburger-to-x'] .kui-bar,
+    [data-kui-rm][data-kui-fx~='play-to-pause'] .kui-bar,
+    [data-kui-rm][data-kui-fx~='plus-to-minus'] .kui-bar {
       transition-duration: 1ms !important;
       transition-delay: 0ms !important;
     }
