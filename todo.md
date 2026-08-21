@@ -10,6 +10,14 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **Visual regression captures — the next session's first job.** Today a single stray `</div>`
+      ran two thirds of `scroll.html` full-bleed and gave the document a horizontal scrollbar, and
+      nothing in the repo noticed. The owner caught it from a screenshot, two sessions later.
+      `test/demo-markup.test.ts` now catches that specific class, but a *rendered* baseline is what
+      catches the rest: a set of screenshots per demo page, per theme, diffed against a committed
+      baseline. Drive it through Claude in Chrome against the dev server on 8934 — not a
+      hand-rolled playwright script, which the owner has objected to before.
+
 - [ ] **`horizontal-scroll` is broken and it is a core bug — root-caused, not yet fixed.**
       `trackProgress` caches an element's content offset from `getBoundingClientRect()`, which is
       wrong for anything inside a `position: sticky` subtree: re-measure while it is stuck and the
