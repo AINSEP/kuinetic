@@ -115,11 +115,22 @@ in the catalog may write `transform`:
 | Channel | Property | Example primitives |
 |---|---|---|
 | opacity | `opacity` | fade |
-| position | `translate` | slide, parallax, float |
+| translate | `translate` | slide, parallax, float |
 | scale | `scale` | zoom, pop, ken-burns |
-| rotation | `rotate` | spin, tilt-2d, wiggle |
+| rotate | `rotate` | spin, tilt-2d, wiggle |
 | filter | `filter` | blur, brightness, saturate |
 | skew | `transform` | scroll-skew |
+| clip | `clip-path` | wipes, curtains, heart-fill |
+| background | `background-*` | gradient mesh, aurora, range-fill |
+| color | `color` | text colour transitions |
+| stroke | `stroke`, `stroke-dasharray`, `stroke-dashoffset` | SVG draws, progress ring, gradient-stroke |
+| text | `letter-spacing`, `word-spacing`, `font-variation-settings` | tracking, variable-font axes |
+
+Third-party primitives register their own channel names, so `Channel` keeps an open `string` arm —
+the union above documents the built-ins without closing the set. The one rule a new channel has to
+respect is the one `skew` illustrates: two channel names must never map onto the same physical
+property, or the compiler will wave through a pair it believes is disjoint and the browser will
+silently drop one of them.
 
 Compiler resolution order for a comma list:
 

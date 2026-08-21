@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { CHANNEL } from '../src/core/types.js'
 import { createRegistry } from '../src/effects/index.js'
 
 /**
@@ -156,6 +157,23 @@ describe('docs/catalog.md against the live registry', () => {
       }
     }
     expect(wrong).toEqual([])
+  })
+
+  it('design.md enumerates exactly the channels the source declares', () => {
+    // The channel table is not illustrative — it is the reference for the composition model, and a
+    // channel missing from it reads as "this cannot collide with anything", which is the one wrong
+    // conclusion the model exists to prevent. It had six of eleven rows.
+    const design = read('docs/design.md')
+    const header = '| Channel | Property | Example primitives |'
+    const start = design.indexOf(header)
+    expect(start, 'design.md has no channel table').toBeGreaterThan(-1)
+    const table = design.slice(start, design.indexOf('\n\n', start))
+    const listed = new Set(
+      [...table.matchAll(/^\| ([a-z]{1,20}) \|/gm)].map((match) => match[1]!),
+    )
+    const declared = new Set(Object.keys(CHANNEL))
+    expect([...declared].filter((name) => !listed.has(name)), 'missing from design.md').toEqual([])
+    expect([...listed].filter((name) => !declared.has(name)), 'in design.md but not in CHANNEL').toEqual([])
   })
 
   it('the totals table agrees with the registry', () => {

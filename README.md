@@ -11,7 +11,7 @@ wherever CSS can do it. Standalone, MIT, npm + CDN, framework-agnostic. No produ
 ```
 
 251 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
-gesture-driven motion. 100% branch/statement/function/line test coverage, 788 tests.
+gesture-driven motion. 100% branch/statement/function/line test coverage, over 800 tests.
 
 ## Install
 

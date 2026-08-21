@@ -14,7 +14,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–O sections below — see [Gestures & physics](#gestures--physics) at the end
+outside the lettered A–O sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document.
 
 ## Legend
