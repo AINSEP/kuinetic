@@ -38,7 +38,13 @@
         // button sits *inside* the container it targets — which is the natural place for it
         // when the container is a two-column layout and the button belongs beside the copy —
         // printing it makes the source look like the effect requires its own button.
+        //
+        // `.kui-contract` is the same category one level up: the bar that *displays* the
+        // `data-kui` string next to that button. Printing it puts a second copy of the attribute
+        // in the source as literal text, on a line that then matches `isKeyLine` and gets
+        // highlighted — so the reader is told the page's own caption is part of the contract.
         if (node.classList.contains('kui-show-code-toggle')) continue
+        if (node.classList.contains('kui-contract')) continue
         childLines.push(prettyPrint(node, depth + 1))
       }
     }
@@ -75,9 +81,11 @@
   function renderSource(code, text, tokens) {
     code.replaceChildren()
     const lines = text.split('\n')
+    let marked = 0
     lines.forEach((line, index) => {
       const suffix = index < lines.length - 1 ? '\n' : ''
       if (isKeyLine(line, tokens)) {
+        marked += 1
         const mark = document.createElement('mark')
         mark.className = 'kui-code-key'
         mark.textContent = line
@@ -86,6 +94,7 @@
         code.append(document.createTextNode(line + suffix))
       }
     })
+    return marked
   }
 
   function buildModal() {
@@ -249,10 +258,13 @@
       
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
       const tokens = keyTokensFor(sourceEl)
-      renderSource(code, prettyPrint(sourceEl, 0), tokens)
-      legend.hidden = tokens.length === 0
-      legend.textContent = tokens.length
-        ? 'Red lines are the contract — the effect selects on those exact names. Everything else is yours to rename.'
+      // Gated on what actually got marked, not on whether the element declared key tokens. The
+      // `data-kui` line is always marked, so a block with no `data-show-code-key` still opened with
+      // yellow lines in it and no sentence anywhere saying what yellow meant.
+      const marked = renderSource(code, prettyPrint(sourceEl, 0), tokens)
+      legend.hidden = marked === 0
+      legend.textContent = marked
+        ? 'Yellow lines are the contract — the effect selects on those exact names. Everything else is yours to rename.'
         : ''
       input.value = originalValue
       backdrop.style.display = 'grid'

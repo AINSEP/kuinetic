@@ -246,9 +246,29 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
 
    So: an outline chip in accent at rest, filling with accent on hover and focus. The accent
    becomes the *feedback* rather than the default, which is the only place a colour that strong
-   earns its keep. `--accent-text` rather than `--accent` for the label, because raw #d0d300 on
-   white is about 1.6:1 — the darker token exists for exactly this and already flips to the bright
-   value in dark mode, so one declaration covers both themes.
+   earns its keep.
+
+   ---------- `--kui-chip-ink`: the resting colour follows the surface, not the theme ----------
+
+   The chip's resting colour used to be `--accent-text` unconditionally, on the reasoning that raw
+   #d0d300 on white is about 1.6:1 and the darker token exists for exactly that. True — and it
+   silently assumed the chip sits on white. It usually does not. Every demo page mounts most of its
+   chips inside a caption bar the page paints `--accent-ink` (black) in light mode, and #8a6d00 on
+   black measures **4.27:1** — technically passing, and the owner's read was "barely readable",
+   which for a 0.68rem uppercase 500-weight label at that size is the correct read. #8a6d00 is the
+   *dark* end of the accent pair. On a dark surface the bright end is the right one, and it runs
+   about 11:1.
+
+   So the resting ink is a variable with the white-background value as its default, and a surface
+   that is not white sets it. One declaration on the rule that already paints the surface, rather
+   than a page restating the whole chip — which is how `scroll.html` ended up carrying twenty-odd
+   lines of chip overrides that no other page got, leaving six pages with a 4.27:1 chip and, in dark
+   mode, an `--accent` chip on an `--accent` bar at 1:1. Invisible.
+
+   Two values cover every surface in this design system:
+     --kui-chip-ink: var(--accent)      on a dark surface  (light-mode caption bars)
+     --kui-chip-ink: currentColor       on an accent surface (dark-mode caption bars), because the
+                                        caption's own ink is legible on it by construction
 
    This lives here, not on one page, because a control that means the same thing everywhere should
    look the same everywhere. A page that genuinely needs a different treatment overrides it. */
@@ -264,14 +284,43 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.3rem 0.7rem;
-  color: var(--accent-text);
+  color: var(--kui-chip-ink, var(--accent-text));
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--accent-text) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+/* The caption bar every demo page paints, in one place instead of seven.
+   Light mode paints it black, so the chip on it takes the bright accent. Dark mode paints it with
+   the accent itself, where a yellow chip is the same colour as the bar — `currentColor` there is
+   the caption's own `--accent-ink`, legible on it by construction. Scoped to `figcaption` and the
+   glass pills rather than applied globally, because a chip on the page background must keep the
+   white-background default. */
+figcaption .kui-show-code-toggle,
+.kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: var(--accent);
+}
+
+:root[data-theme='dark'] figcaption .kui-show-code-toggle,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: currentColor;
+}
+
+/* Hover has the same problem one step further on. The generic hover below fills the chip with
+   `--accent` — which in dark mode is what the bar is already painted, so hovering made the chip
+   disappear instead of confirming the pointer was on it. On these surfaces the fill inverts:
+   accent ink behind, accent label on top. */
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
+  color: var(--accent);
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
 }
 
 .kui-show-code-toggle:hover,
@@ -435,8 +484,9 @@ figure .kui-show-code-toggle {
   border-color: var(--accent);
 }
 
-/* The one line of prose in the panel, so "red" does not have to be guessed at. Hidden entirely
-   when nothing on screen is marked, rather than left as an explanation of an absent thing. */
+/* The one line of prose in the panel, so the highlight colour does not have to be guessed at.
+   Hidden entirely when nothing on screen is marked, rather than left as an explanation of an
+   absent thing. */
 .kui-code-legend {
   margin: 0 0 0.7rem;
   font-size: 0.76rem;
@@ -450,15 +500,19 @@ figure .kui-show-code-toggle {
 }
 
 /* `<mark>` for the semantics — this is highlighted text, and a screen reader should say so — but
-   the UA's yellow block fill is wrong inside a code panel, so it is reset to a coloured line. */
+   the UA's yellow block fill is wrong inside a code panel, so it is reset to a coloured line.
+
+   The colour is the site accent, not the red this shipped with. Red on a code panel is the one
+   thing every editor, linter, and diff on the reader's screen already uses to mean *broken*, and
+   these lines are the opposite — they are the part that has to stay exactly as written. The accent
+   pair carries it in both themes without a second thought about contrast: `--accent-text` is the
+   darkened #8a6d00 (about 5:1 on the light panel's white) and flips to the bright #e4f222 in dark
+   mode, where the panel is black. Raw `--accent` in light mode would be #d0d300 on white — 1.6:1,
+   and unreadable. */
 .kui-code-key {
   background: none;
-  color: #d0343a;
+  color: var(--accent-text);
   font-weight: 600;
-}
-
-:root[data-theme='dark'] .kui-code-key {
-  color: #ff7b72;
 }
 
 .kui-code-modal code {

@@ -71,7 +71,11 @@
     border-radius: 14px; overflow: clip;
     border: 1px solid var(--border); box-shadow: var(--shadow-float);
   }
-  .showcase-media img { display: block; width: 100%; max-width: 1200px; height: auto; }
+  /* `video` alongside `img` since the reference became a moving one. Both are laid out by their own
+     intrinsic ratio — no fixed height, no `object-fit: cover` — for the same reason the parallax
+     section states out loud: nothing on this page is cropped to a box someone picked. */
+  .showcase-media img,
+  .showcase-media video { display: block; width: 100%; max-width: 1200px; height: auto; }
   .showcase-media figcaption {
     margin-top: 0.7rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.75rem; color: var(--muted); line-height: 1.5;
@@ -110,7 +114,21 @@
 
   /* ---------- matrix groups (grouped by primitive family, mirrors catalog.md order) ---------- */
   .matrix-group { margin-top: 2.5rem; }
-  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  /* A real boundary between families, not just more margin.
+     Every group in Section C owns two to four full screens of pinned stage, so consecutive labels
+     can be three thousand pixels apart with nothing structural in between. The only thing marking
+     a new family was the hairline trailing off the label — a rule that starts halfway across the
+     page and runs one way — and the owner's read was that you can only tell where a section starts
+     because something pins. Correct: the pin was doing the divider's job.
+
+     A full-width rule with real air on both sides of it is the divider. The label drops its own
+     trailing hairline where this applies, because two rules forty pixels apart is decoration, not
+     structure — the first group in each section keeps the trailing hairline, since it has no rule
+     above it to inherit. */
+  .matrix-group + .matrix-group {
+    margin-top: 5rem; padding-top: 3.25rem; border-top: 1px solid var(--border);
+  }
+  .matrix-group + .matrix-group > .matrix-group-label::after { display: none; }
   /* 1.44rem is exactly twice the 0.72rem this used to be. At that size the tracking has to come
      down — 0.08em was set for a caption-sized label and reads as gappy once the glyphs are large —
      and the label stops being a quiet marker above the grid, so it needs more room beneath it. */
@@ -172,32 +190,10 @@
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
   .demo-card[tabindex] { cursor: pointer; }
-  /* Rounded and inset rather than full-bleed. This caption is separated from the card it labels
-     by the pin's ~1700px spacer, so by the time you reach it the demo is long gone and a
-     hard-edged black band just reads as an unexplained rule across the page. Rounding it to the
-     same radius as the figures either side makes it read as a caption belonging to something. */
-  .pin-section-figure figcaption {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
-    margin-top: 0.85rem; border-radius: 10px;
-    padding: 0.7rem 1rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink);
-  }
-  /* This caption is nearly a full content column wide. Stacked — which is what show-code.js's
-     `.kui-has-toggle` gives every other card — the label sat top-left and the button floated in
-     the middle of a very wide black slab with nothing else in it. At this width a row reads as a
-     toolbar instead: label at one end, button at the other, and the bar is only as tall as it
-     needs to be. Narrow screens fall back to the stacked default. */
-  @media (min-width: 640px) {
-    .pin-section-figure figcaption.kui-has-toggle {
-      flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem;
-    }
-    .pin-section-figure figcaption.kui-has-toggle .kui-show-code-toggle {
-      align-self: auto; margin: 0;
-    }
-  }
-  :root[data-theme='dark'] .pin-section-figure figcaption {
-    color: var(--accent-ink); background: var(--accent);
-  }
+  /* This caption is a `.kui-contract` — see that component below. It used to be a bespoke bar here,
+     and the last round of work on it went the wrong way: the fix for "a 34-character label floating
+     in a very wide black slab" was to spread the label and the button to opposite ends of the slab,
+     which kept the slab. The slab was the problem. Nothing else here needs restating. */
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* The chip treatment itself now lives in system.css, so every demo page gets the same control.
@@ -211,38 +207,17 @@
   .demo-card:hover .kui-show-code-toggle,
   .spy-section:hover .kui-show-code-toggle { opacity: 1; }
 
-  /* These caption bars are dark in light mode — black, or a 0.55 scrim over a screenshot — so the
-     chip's default `--accent-text` (#8a6d00, the dark token meant for light backgrounds) lands at
-     roughly 3:1 on them. On a dark surface the bright `--accent` is the right end of the pair, and
-     runs about 11:1. The chip's colour follows the surface it sits on, not the page theme. */
-  .demo-card figcaption .kui-show-code-toggle,
-  .parallax-card figcaption .kui-show-code-toggle,
-  .pin-section-figure figcaption .kui-show-code-toggle,
-  .stack-card figcaption .kui-show-code-toggle,
-  .spy-section figcaption .kui-show-code-toggle {
-    color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  }
+  /* Twenty-odd lines of chip colour overrides used to live here — bright accent on the light-mode
+     black bars, `currentColor` on the dark-mode accent bars, plus an inverted hover for the latter.
+     All of it was right, and all of it was scoped to this one page, while six other demo pages
+     painted byte-identical caption bars and got none of it. They shipped a 4.27:1 chip in light
+     mode and an invisible accent-on-accent chip in dark.
 
-  /* Dark mode paints these caption bars with --accent, and the chip's own colour is --accent-text,
-     which in dark mode *is* --accent. Same yellow on same yellow: the button was rendering at full
-     opacity and was simply invisible. Every surface below is one that this page paints with the
-     accent, so the chip falls back to the bar's own ink — `currentColor` is --accent-ink there, and
-     legible on it by construction. */
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle,
-  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle,
-  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle {
-    color: currentColor;
-    border-color: color-mix(in srgb, currentColor 45%, transparent);
-  }
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible,
-  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .parallax-card figcaption .kui-show-code-toggle:focus-visible,
-  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .pin-section-figure figcaption .kui-show-code-toggle:focus-visible {
-    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
-  }
+     It is `--kui-chip-ink` in system.css now, set by the surface rather than restated per page.
+     What is left here is the one surface system.css cannot know about: `.kui-contract` is this
+     page's own component, and its `<p>` form is not a `figcaption`, so it has to opt in by name. */
+  main .kui-contract .kui-show-code-toggle { --kui-chip-ink: var(--accent); }
+  :root[data-theme='dark'] main .kui-contract .kui-show-code-toggle { --kui-chip-ink: currentColor; }
 
   /* `.kui-has-toggle` stacks the caption so a 200px-wide button has somewhere to go. A chip does
      not need its own line, and stacking is what turned every caption on this page into a two-row
@@ -252,6 +227,55 @@
     display: flex; flex-direction: row; align-items: center; justify-content: space-between;
     gap: 0.75rem; flex-wrap: wrap;
   }
+
+  /* ---------- the contract bar ----------
+     One shape for the same sentence: "this attribute is the whole effect, and here is its source."
+
+     The page had grown three versions of it. Under the pin-section demo, a black slab running the
+     full 1200px content column to hold a 34-character string. In the pin-until aside, a bordered
+     code block with a full-width button welded to its underside — two stacked boxes, both wider and
+     louder than the caption bars on every card above them. Under the scrub, a bare grey paragraph
+     with no control at all. Three sizes, three treatments, one meaning.
+
+     This is that meaning, once. `inline-flex` is the load-bearing choice: the bar is exactly as wide
+     as the attribute it prints and no wider, which is the whole answer to "it's unnecessarily long".
+     Everything else is deliberately the caption treatment the demo cards already use — black with
+     white mono in light mode, accent with black ink in dark — so it reads as the same family rather
+     than a fourth thing. */
+  main .kui-contract {
+    display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
+    /* `nowrap`, deliberately. With wrapping on, the pin-until aside — a ~405px column — was one
+       character short of fitting `data-kui="pin-until offset:6rem"` and its chip on one line, so
+       the chip dropped to a second row and the bar became a two-row block again: the exact shape
+       this component replaced. The code shrinks instead (see the `code` rule below), because a
+       contract you scroll is still one bar, and a contract that wraps is two. */
+    flex-wrap: nowrap; gap: 0.85rem;
+    max-width: 100%; margin: 1.35rem 0 0;
+    padding: 0.45rem 0.5rem 0.45rem 0.95rem;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; line-height: 1.5;
+    color: #ffffff; background: var(--accent-ink);
+  }
+  :root[data-theme='dark'] main .kui-contract { color: var(--accent-ink); background: var(--accent); }
+  /* The attribute scrolls inside the bar rather than wrapping it into a two-line block: on a narrow
+     screen `sequence-scrub frames:5 src:... distance:220vh, scroll-desaturate timeline:pin` is
+     longer than the viewport, and wrapping a code contract mid-token is how people mistype it. */
+  main .kui-contract code {
+    min-width: 8ch; overflow-x: auto; white-space: nowrap;
+    font: inherit; color: inherit; background: none; border: none; padding: 0;
+    /* The scrollbar is the browser's own and appears under the code on a track that is only ever
+       one line tall, which on macOS overlays the last few pixels of the glyphs. Padding under the
+       text gives it somewhere to sit. */
+    padding-bottom: 0.15rem;
+    scrollbar-width: thin;
+  }
+  /* Same reasoning as the caption bars above: these surfaces are dark in light mode and accent in
+     dark mode, so the chip follows the surface it sits on rather than the page theme. */
+  /* Colour comes from `--kui-chip-ink` above; only the layout differs here. The contract bar is
+     always full strength — it is one deliberate control per demo, not one of thirty card chips the
+     density rule dims. */
+  main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
 
   /* ================================================================================
      Scroll-page-specific: everything below needs real height/width to actually scroll,
@@ -388,17 +412,6 @@
   .rotate-stage { position: relative; min-height: 300vh; margin-top: 2.5rem; }
   .rotate-pin-card { width: min(560px, 100%); margin-inline: auto; }
 
-  /* ---------- reserved video slots ---------- */
-  .video-slots { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 1.5rem; }
-  @media (min-width: 760px) { .video-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .video-slot {
-    aspect-ratio: 16 / 9; border-radius: 12px; display: grid; place-items: center; text-align: center;
-    padding: 1rem; border: 1px dashed var(--border); background: var(--surface); color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.7;
-  }
-  .video-slot span { display: block; }
-  .video-slot .slot-num { font-size: 1.4rem; color: var(--fg); opacity: 0.25; margin-bottom: 0.35rem; }
-
   /* ---------- hero video ---------- */
   /* The card is `display: grid` from the library rule, so the control has to claim the same cell
      as the faces or it lands in a second row and pushes the layout around. */
@@ -518,26 +531,19 @@
     letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text);
   }
   .pin-until-aside h4 { font-size: 1.3rem; letter-spacing: -0.015em; line-height: 1.2; }
-  .pin-until-aside p { margin-top: 0.6rem; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
-  /* The data-kui line is the thing this whole panel exists to show, so it stops being a floating
-     grey mono paragraph and becomes a real code block — a bordered strip the eye lands on. The
-     "Show code" chip hangs directly off its bottom edge, joined to it rather than merely near it,
-     because it opens that exact snippet. Proximity is the only thing telling anyone the two
-     belong together, so it has to be unambiguous. */
-  .pin-until-aside .mono-note {
-    margin: 1.35rem 0 0; padding: 0.6rem 0.8rem;
-    border: 1px solid var(--border); border-bottom: none;
-    border-radius: 8px 8px 0 0; background: var(--bg);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem;
-    color: var(--fg); overflow-x: auto;
-  }
-  .pin-until-aside .kui-show-code-toggle {
-    display: flex; width: 100%; max-width: none; justify-content: center;
-    margin: 0; padding: 0.5rem 0.7rem; opacity: 1;
-    border-radius: 0 0 8px 8px; border: 1px solid var(--border); color: var(--muted);
-  }
-  .pin-until-aside .kui-show-code-toggle:hover,
-  .pin-until-aside .kui-show-code-toggle:focus-visible { color: var(--accent-ink); }
+  /* `:not(.kui-contract)` because the contract bar is also a `<p>` in here, and this selector and
+     `main .kui-contract` are both 0-1-1 — a specificity tie the later one wins, and this one is
+     later. The bar was therefore rendering at 0.92rem in `--muted` grey inside a black bar sized
+     for 0.76rem white, which is why it read as bigger and duller than the identical bar above it.
+     Excluding it here rather than raising the component's specificity keeps the exception where
+     the conflict is. */
+  .pin-until-aside p:not(.kui-contract) { margin-top: 0.6rem; color: var(--muted); line-height: 1.6; font-size: 0.92rem; }
+  /* The data-kui line and its "Show code" chip are one `.kui-contract` now. They were previously a
+     bordered code strip with a full-width button welded to its underside: two stacked boxes, each
+     the full width of the aside, together taller and heavier than the heading above them. Joined
+     was the right instinct — they do belong together — but the join was made by stacking, which is
+     what made it oversized. One bar, sized to the attribute, does the same job in a third the space
+     and matches every other caption on the page. */
 
   .pin-until-content { display: grid; gap: 1.5rem; }
   .pin-until-block {
@@ -623,56 +629,112 @@
     color: #fff; background: rgb(8 9 10 / 0.55); backdrop-filter: blur(6px);
   }
 
-  /* ---------- scrollytelling (Section C) ---------- */
-  .story { position: relative; min-height: 280vh; margin-top: 2rem; overflow: clip; border-radius: 14px; border: 1px solid var(--border); }
-  .story > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  /* The copy sits in the left third, so the scrim runs left-to-right, not top-to-bottom. A flat
-     vertical wash had to be dark enough for the worst pixel anywhere in the frame, which meant
-     dimming the whole sky to protect four lines occupying a quarter of it. */
-  .story::after {
-    content: ''; position: absolute; inset: 0;
-    background:
-      linear-gradient(90deg, rgb(8 9 10 / 0.9) 0%, rgb(8 9 10 / 0.78) 30%, rgb(8 9 10 / 0.32) 58%, rgb(8 9 10 / 0.1) 78%, rgb(8 9 10 / 0.3) 100%),
-      linear-gradient(180deg, rgb(8 9 10 / 0.3), transparent 30%, rgb(8 9 10 / 0.45));
+  /* ---------- scrollytelling (Section C) ----------
+     Rebuilt 2026-08-21. The previous version laid four lines of white copy directly over a
+     full-bleed screenshot stretched to 280vh. Two things were wrong with it and the owner caught
+     both: the picture and the words were each unreadable, and neither was the fault of the effect.
+
+     The picture: a 1188x668 landscape shot `object-fit: cover`-ed into a ~1200x2300 box is scaled
+     about 3.5x and cropped to a vertical sliver of its own middle. What was on screen was a purple
+     blur. You could not tell it had ever been a website, which is a problem on a page whose whole
+     argument is "look at real websites".
+
+     The words: three of the four lines sat at 14% white over that blur, and the live one sat on
+     whatever pixels happened to be behind it. The 14% was a deliberate ghosting choice and it is
+     defensible over a calm image; over a high-contrast one it just reads as broken.
+
+     So the copy comes off the image entirely. Two columns: words on a solid dark panel where
+     nothing competes with them, picture in its own frame beside them. That also fixes the thing
+     that was never communicated at all — that the words and the picture are advancing *together*.
+     You could not see that before, because the picture never visibly changed. */
+  .story {
+    position: relative; min-height: 280vh; margin-top: 2rem;
+    border-radius: 16px; border: 1px solid var(--border);
+    background: #0a0b0c; overflow: clip;
   }
   .story-pin {
-    position: sticky; top: 0; height: 100vh;
-    display: grid; align-content: center; justify-items: start;
-    gap: 1.15rem; padding: 0 clamp(2rem, 5vw, 4.5rem);
+    position: sticky; top: 0; min-height: 100vh;
+    display: grid; align-content: center; gap: clamp(1.75rem, 4vw, 3rem);
+    padding: clamp(2rem, 5vh, 3.5rem) clamp(1.5rem, 4vw, 3.5rem);
   }
-  /* Inactive lines were held at 40% white, which over a cloudscape is legible enough to compete
-     and not legible enough to read — four half-lit sentences at once, none of them the one the
-     scroll position is on. Dropped to 14% and pushed slightly out of focus, so the deck reads as
-     one live line with three ghosts around it, which is what a scrollytelling step *is*. */
-  .story-pin p {
-    position: relative; z-index: 1; margin: 0;
-    font-size: clamp(1.25rem, 1.1vw + 1rem, 1.9rem); line-height: 1.35; letter-spacing: -0.01em;
-    color: rgb(255 255 255 / 0.14); filter: blur(1.5px);
-    transform: translateY(0.15rem); max-width: 30ch;
-    transition: color 320ms ease, filter 320ms ease, transform 320ms ease;
+  @media (min-width: 900px) {
+    .story-pin { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); align-items: center; }
   }
-  .story[data-kui-step='0'] .story-pin p:nth-child(1),
-  .story[data-kui-step='1'] .story-pin p:nth-child(2),
-  .story[data-kui-step='2'] .story-pin p:nth-child(3),
-  .story[data-kui-step='3'] .story-pin p:nth-child(4) {
-    color: #fff; filter: none; transform: none;
+  .story-copy { display: grid; align-content: center; justify-items: start; gap: 1rem; }
+  .story-copy .kicker { color: var(--accent); }
+
+  /* An `<ol>`, because four numbered stops through one page is an ordered list and nothing else.
+     It also makes the step selectors below `li:nth-child(n)`, which cannot drift the way the old
+     `p:nth-child(n)` did the moment anyone added a heading above the lines. */
+  .story-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.15rem; }
+  .story-lines li {
+    position: relative; padding-left: 1.1rem;
+    font-size: clamp(1.1rem, 0.7vw + 0.95rem, 1.5rem); line-height: 1.35; letter-spacing: -0.01em;
+    /* 45%, not the old 14%. On a solid #0a0b0c panel this is about 4.8:1 — dim enough to read as
+       clearly secondary, legible enough that it is not text you have to take on faith. And no
+       `blur()`: blurred body text is indistinguishable from a rendering fault, and it was doing
+       the ghosting work that opacity alone does more calmly. */
+    color: rgb(255 255 255 / 0.45);
+    transition: color 320ms ease;
   }
-  /* Four dots driven by the same `data-kui-step` attribute selector as the copy — the note under
-     this demo claims the primitive writes that attribute and plain CSS reads it, and a second
-     independent thing reacting to it is what makes the claim visible rather than asserted. */
-  .story-dots { position: relative; z-index: 1; display: flex; gap: 0.55rem; margin-top: 1.9rem; }
-  .story-dots span {
-    width: 34px; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.3);
+  /* The live line is marked twice — full white *and* an accent rule down its left edge — so the
+     signal does not rest on colour alone. */
+  .story-lines li::before {
+    content: ''; position: absolute; left: 0; top: 0.28em; bottom: 0.28em; width: 2px;
+    border-radius: 1px; background: transparent;
     transition: background-color 320ms ease;
   }
-  .story[data-kui-step='0'] .story-dots span:nth-child(1),
-  .story[data-kui-step='1'] .story-dots span:nth-child(2),
-  .story[data-kui-step='2'] .story-dots span:nth-child(3),
-  .story[data-kui-step='3'] .story-dots span:nth-child(4) {
-    background: var(--accent);
+  /* Two rules, because the library marks the step elements. This was eight selectors — one per
+     step per property group — enumerating `[data-kui-step='2'] li:nth-child(3)` by hand, which is
+     what "the child at the current index" costs in CSS with no help. Every one of them was wrong
+     the moment a fifth stop was added or anything was inserted above the list. `target:` on the
+     attribute is what buys this: see `data-kui` on `.story` below. */
+  .story-lines li[data-kui-step-state='active'] { color: #fff; }
+  .story-lines li[data-kui-step-state='active']::before { background: var(--accent); }
+
+  /* The third independent consumer of `data-kui-step`, and the reason this demo proves anything.
+     The image is one gapless strip of the same page's four screens, each exactly a quarter of its
+     height — cut that way on purpose so the step maths is `-25%` per step and not a table of
+     hand-measured offsets. The window is one panel tall, so each step shows one screen, whole. */
+  .story-frame {
+    margin: 0; aspect-ratio: 1200 / 648; overflow: clip;
+    /* `min-height: 0` is doing real work. A grid item defaults to `min-height: auto`, which means
+       it may not be smaller than its content — and the content here is an image four panels tall.
+       Left at auto, the frame ignored its own `aspect-ratio`, grew to the full strip, and showed
+       three screens at once, which is the opposite of one-step-one-screen. */
+    min-height: 0; min-width: 0;
+    border-radius: 12px; border: 1px solid rgb(255 255 255 / 0.12);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
   }
+  .story-frame img {
+    display: block; width: 100%; height: auto;
+    transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* One rule at any step count, because the primitive publishes the live index as a number as well
+     as an attribute. This was three `[data-kui-step='N']` rules with -25/-50/-75 written out — the
+     same enumeration the copy lines had, in the one place `target:` cannot help, since the frame is
+     a window onto the strip rather than one of the steps. `calc()` on a unitless custom property is
+     what closes it. */
+  .story-frame img { transform: translateY(calc(var(--kui-step, 0) * -25%)); }
+
+  /* The dots are the library's stepped-segment component now — `forms.css` styles anything
+     carrying `data-kui-step-state`, and the same `target:` that marks the copy lines marks these.
+     What is left here is geometry and the one deliberate departure from the shipped default: that
+     default lights `before` as well as `active`, which reads as a progress bar. Four stops through
+     one page is a position, so only the live one is lit. */
+  .story-dots {
+    display: flex; gap: 0.55rem; margin-top: 0.5rem;
+    /* `forms.css` paints the off state `var(--dim, #9a8d80)` — a warm grey from the old system,
+       which is what an undefined `--dim` gets you. Aliasing it here rather than page-wide keeps
+       the fallback scoped to the one component using it. */
+    --dim: #ffffff;
+  }
+  .story-dots span { width: 34px; height: 4px; border-radius: 2px; }
+  /* Page CSS is unlayered, so this beats `@layer kui.effects` without needing specificity. */
+  .story-dots span[data-kui-step-state='before'] { opacity: 0.35; background: var(--dim); }
+  /* The step still changes — it is scroll position, not decoration — but nothing eases toward it. */
   @media (prefers-reduced-motion: reduce) {
-    .story-pin p { filter: none; transform: none; color: rgb(255 255 255 / 0.35); }
+    .story-lines li, .story-lines li::before, .story-frame img, .story-dots span { transition: none; }
   }
 
   /* ---------- horizontal scroll (Section C) ---------- */
@@ -915,14 +977,24 @@
                  Putting the radius, border, and shadow on a wrapper with `overflow: clip` keeps the
                  corners honest for the whole hold. -->
             <div class="showcase-frame">
-              <img
-                src="./assets/webdesign/eosai-dark-hero.jpg"
-                alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet, with a lone figure at the water's edge for scale"
-                loading="eager"
+              <!-- A moving reference, not a still one. The point this section argues is that a hero
+                   gets one job — make you stop — and a spatial interface assembling itself in a
+                   real room makes it in a way a screenshot cannot. `preload="none"` plus a poster
+                   because this sits directly under the fold: the poster is the first paint, and the
+                   2MB of video is only fetched once the frame is actually on screen. `muted` is not
+                   optional for autoplay, and the source has no audio track at all. -->
+              <video
+                data-autoplay-in-view
+                poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg"
+                muted loop playsinline preload="none"
                 data-kui="parallax-scale from:1 scale:1.06 timeline:pin"
-              />
+                aria-label="A spatial clinic-scheduling interface by fuselab creative — translucent patient cards and a weekly availability grid floating in a sunlit living room, panels sliding and resolving as a doctor's calendar fills in"
+              >
+                <source src="./assets/webdesign/fuselab-spatial-clinic.webm" type="video/webm" />
+                <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
+              </video>
             </div>
-            <figcaption>EOSAI — agency homepage · held by data-kui="pin-until offset:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
+            <figcaption>fuselab creative — spatial clinic scheduler · held by data-kui="pin-until offset:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
           </figure>
 
           <div class="showcase-copy">
@@ -1005,11 +1077,11 @@
               <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe, with a 47.2% Reality stat and a client avatar row" loading="lazy" />
               <figcaption>data-kui="fade-up, blur-in timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 646 / 404" data-kui="parallax-scale from:0.2 scale:1 timeline:view" data-show-code>
-              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
-                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
-                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
-                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+            <figure class="demo-card" style="--ar: 632 / 418" data-kui="parallax-scale from:0.2 scale:1 timeline:view" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/iris-ai-motion-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The IRIS_AI homepage animating — strands of golden fibre scattering and resolving into a radial burst behind the headline Where AI merges with your vision">
+                <source src="./assets/webdesign/iris-ai-motion.webm" type="video/webm" />
+                <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
               </video>
               <figcaption>data-kui="parallax-scale from:0.2 scale:1 timeline:view"</figcaption>
             </figure>
@@ -1087,30 +1159,21 @@
               <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
               <figcaption>data-kui="fade-right timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 734 / 442" data-kui="zoom-in timeline:view" data-show-code>
-              <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
+            <figure class="demo-card" style="--ar: 692 / 400" data-kui="zoom-in timeline:view" data-show-code>
+              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
               <figcaption>data-kui="zoom-in timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 632 / 418" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view" data-show-code>
-              <video data-autoplay-in-view poster="./assets/webdesign/iris-ai-motion-poster.jpg" muted loop playsinline preload="none"
-                     aria-label="The IRIS_AI homepage animating — strands of golden fibre scattering and resolving into a radial burst behind the headline Where AI merges with your vision">
-                <source src="./assets/webdesign/iris-ai-motion.webm" type="video/webm" />
-                <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
+            <figure class="demo-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
               </video>
               <figcaption>data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view"</figcaption>
             </figure>
           </div>
         </div>
 
-        <div class="matrix-group">
-          <p class="matrix-group-label">Video — 3 slots reserved</p>
-          <p class="matrix-group-note">Landscape tiles held for the next three walkthroughs.</p>
-          <div class="video-slots">
-            <div class="video-slot"><span class="slot-num">1</span><span>YouTube video goes here</span><span>16 / 9</span></div>
-            <div class="video-slot"><span class="slot-num">2</span><span>YouTube video goes here</span><span>16 / 9</span></div>
-            <div class="video-slot"><span class="slot-num">3</span><span>YouTube video goes here</span><span>16 / 9</span></div>
-          </div>
-        </div>
       </section>
 
       <!-- SECTION C: SCROLL MECHANICS -->
@@ -1130,6 +1193,15 @@
             </ul>
           </div>
           <figure class="pin-section-figure" data-show-code>
+            <!-- The caption goes FIRST, which `<figcaption>` explicitly allows, because last put it
+                 on the wrong side of a 1700px spacer. By the time you reached it the pinned card had
+                 been gone for two full screens, and a bar reading `data-kui="pin-section"` floating
+                 alone under a section rule is a label for nothing. Above the stage it is the last
+                 thing you read before the pin starts, which is when knowing what is about to happen
+                 is worth something. A control that names an effect has to be next to that effect —
+                 if a reader could plausibly be unsure which animation a bar belongs to, the bar is
+                 in the wrong place. -->
+            <figcaption class="kui-contract"><code>data-kui="pin-section distance:200vh"</code></figcaption>
             <div class="pin-section-stage">
               <div class="pin-section-card" data-kui="pin-section distance:200vh">
                 <div class="pin-section-media">
@@ -1155,7 +1227,6 @@
                 </div>
               </div>
             </div>
-            <figcaption>data-kui="pin-section distance:200vh"</figcaption>
           </figure>
 
                     <div class="rev-notes">
@@ -1174,9 +1245,8 @@
             <aside class="pin-until-aside" data-kui="pin-until offset:6rem">
               <p class="kicker">pin-until</p>
               <h4>Three stops, one scroll.</h4>
-              <p>This panel sticks at <code>offset:6rem</code> while the itinerary beside it scrolls past underneath. Nothing here is JS-positioned besides <code>position:sticky</code> itself — the height comes from the content on the right.</p>
-              <p class="mono-note">data-kui="pin-until offset:6rem"</p>
-              <button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button>
+              <p>This panel sticks at <code>offset:6rem</code> while the itinerary beside it scrolls past underneath.</p>
+              <p class="kui-contract"><code>data-kui="pin-until offset:6rem"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
             </aside>
             <div class="pin-until-content">
               <figure class="pin-until-block">
@@ -1200,7 +1270,11 @@
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The dashed box below is the real <code>&lt;div data-kui-spacer&gt;</code> — an actual node in the DOM, not a drawing of one.</li>
             </ul>
           </div>
-          <div class="pin-spacer-demo">
+          <!-- This demo had the attribute on screen — the typewriter line inside the card — but no
+               way to open its source at all, which made it the one pinning demo you could not copy.
+               The bar goes above the stage for the same reason as `pin-section`'s. -->
+          <p class="kui-contract"><code>data-kui="pin-spacer distance:120vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-spacer-demo">Show code</button></p>
+          <div class="pin-spacer-demo" id="pin-spacer-demo" data-show-code-key="pin-spacer-track">
             <div class="pin-spacer-track">
               <div class="pin-spacer-card" data-kui="pin-spacer distance:120vh">
                 <video data-autoplay-in-view poster="./assets/webdesign/museum-ancient-art-hero-poster.jpg" muted loop playsinline preload="none"
@@ -1251,66 +1325,95 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Scrollytelling — 1</p>
-          <div class="story" data-kui="scrollytelling-step distance:200vh steps:4" data-kui-step="0">
-            <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
-            <div class="story-pin">
-              <p>One — a visitor decides in about a second.</p>
-              <p>Two — so the first screen carries the whole offer.</p>
-              <p>Three — everything after it earns attention or loses it.</p>
-              <p>Four — motion is how you spend that attention.</p>
-              <div class="story-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-            </div>
-          </div>
                     <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%">The primitive writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
-              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The highlight above is a plain CSS attribute selector reading that value — no JavaScript of your own.</li>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scrollytelling-step</code></strong> writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">Three separate things below read that one attribute with plain CSS selectors — the live line, the accent rule beside it, and the screen the frame is showing. No JavaScript of your own.</li>
             </ul>
+          </div>
+          <p class="kui-contract"><code>data-kui="scrollytelling-step distance:200vh steps:4 target:'.story-lines &gt; li, .story-dots &gt; span'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="story-demo">Show code</button></p>
+          <!-- The copy is four stops through one real page and the frame shows the matching screen,
+               so the words and the picture are never describing different things. The image is a
+               single strip cut to exactly four equal panels — see `.story-frame` in the stylesheet
+               for why that matters. -->
+          <div class="story" id="story-demo" data-show-code-key="story-lines story-frame story-dots" data-kui="scrollytelling-step distance:200vh steps:4 target:'.story-lines > li, .story-dots > span'" data-kui-step="0">
+            <div class="story-pin">
+              <div class="story-copy">
+                <p class="kicker">One page, four stops</p>
+                <ol class="story-lines">
+                  <li>One — the hero spends everything on a single promise.</li>
+                  <li>Two — then it explains itself, once.</li>
+                  <li>Three — then it says what it stands for.</li>
+                  <li>Four — then it shows you who is behind it.</li>
+                </ol>
+                <!-- `.kui-step-track` opts these four into the library's shipped segment styling.
+                     The same `target:` marks them and the copy lines; only these asked to be
+                     painted, because only these are bars. -->
+                <div class="story-dots kui-step-track" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              </div>
+              <figure class="story-frame">
+                <img src="./assets/webdesign/decenter-fourstop-page.jpg" alt="The DECENTER website in four screens — a REVOLUTIONARY SERVICES hero over a starfield, a STORY SUMMARY screen with a video panel, an OUR MISSION screen behind a red-and-grey photo grid, and an OUR FAST GROWING TEAM screen of four staff portraits" loading="lazy" />
+              </figure>
+            </div>
           </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Horizontal travel — 1</p>
-          <div class="track-stage">
+          <!-- One "Show code" for the mechanism, not ten for the pictures inside it.
+               Every figure in the track used to carry its own `data-show-code`, which mounted ten
+               chips that each opened a `<figure><img></figure>` with no `data-kui` in it at all —
+               the modal's "try it" box came up empty, because there was no effect on those nodes to
+               try. The effect is three nested boxes and one attribute, and none of that was
+               reachable from anywhere on the page. `data-show-code-target` on the stage prints the
+               whole structure, and `data-show-code-key` marks the two class names the CSS is
+               actually selecting on, so the height-plus-sticky-plus-max-content arrangement reads
+               as the contract it is rather than as incidental markup. -->
+          <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
+          <div class="track-stage" id="horizontal-track-demo" data-show-code-key="track-stage track-viewport">
             <div class="track-viewport">
               <div class="track" data-kui="horizontal-scroll distance:300vh">
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
                   <figcaption>EOSAI — agency</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
                   <figcaption>Saxe — commerce</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" />
                   <figcaption>ZROBIM — architecture</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
                   <figcaption>NUORBIT — marketplace</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
                   <figcaption>Zenrixa — agency</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
                   <figcaption>CoStar — lending</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
+                  <img src="./assets/webdesign/logitech-z150-dark-product.jpg" alt="A Logitech Z150 speaker product page in near-black — the speaker lit from the left on a dark stage, with a price-and-add-to-cart card, a Clear Stereo Sound waveform panel, and an Easy Controls dial" loading="lazy" />
+                  <figcaption>Logitech — product</figcaption>
+                </figure>
+                <figure>
                   <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
                   <figcaption>NeoVision — product</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
                   <figcaption>Morozov — portfolio</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
                   <figcaption>CarSellCenter — configurator</figcaption>
                 </figure>
-                <figure data-show-code>
+                <figure>
                   <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
                   <figcaption>Njey — technology</figcaption>
                 </figure>
@@ -1337,12 +1440,15 @@
             <code>scroll-desaturate timeline:pin</code> — reading the same <code>--kui-progress</code> the
             scrub publishes, so both mechanisms are visible scrolling through this one element.
           </p>
-          <div class="scrub-stage">
+          <!-- Same `data-show-code-target` shape as the horizontal track, and for the same reason:
+               the effect is on an image inside an `overflow: clip` sticky viewport, so an
+               auto-mounted chip would be laid out inside the clip and never seen. -->
+          <p class="kui-contract"><code>data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
+          <div class="scrub-stage" id="scrub-demo" data-show-code-key="scrub-stage scrub-viewport">
             <div class="scrub-viewport">
               <img data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin" src="./assets/webdesign/webdesign_scrub_0.jpg" alt="Five different landing pages swapping in frame by frame as you scroll, fading from grayscale to full colour" loading="lazy" />
             </div>
           </div>
-          <p class="note">data-kui="sequence-scrub frames:5 src:./assets/webdesign/webdesign_scrub_{i}.jpg distance:220vh, scroll-desaturate timeline:pin"</p>
         </div>
 
         <div class="matrix-group">
@@ -1390,43 +1496,50 @@
             </ul>
           </div>
 
-          <div class="snap-x-row" data-kui="scroll-snap-x">
-            <figure data-show-code>
+          <!-- Same correction as the horizontal track. Every figure in these two containers used to
+               carry its own `data-show-code`, and every one of those chips opened a
+               `<figure><img></figure>` with no `data-kui` anywhere in it — the effect is on the
+               container, not the cards. Nine chips, none of them attached to the thing they named.
+               One bar per container, targeting the container, says exactly what runs and where. -->
+          <p class="kui-contract"><code>data-kui="scroll-snap-x"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-x-demo">Show code</button></p>
+          <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x">
+            <figure>
               <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
               <figcaption>scroll-snap-x</figcaption>
             </figure>
           </div>
 
-          <div class="snap-y-panel" data-kui="scroll-snap-y">
-            <figure data-show-code>
+          <p class="kui-contract"><code>data-kui="scroll-snap-y"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-y-demo">Show code</button></p>
+          <div class="snap-y-panel" id="snap-y-demo" data-kui="scroll-snap-y">
+            <figure>
               <img src="./assets/webdesign/inzoi-character-studio.jpg" alt="The inZOI character studio — a 3D avatar in a white dress posed against a pink sunset sky, with expression, background and lighting sliders down the left and a scrolling outfit library down the right" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
               <figcaption>scroll-snap-y — 2 of 4</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
               <figcaption>scroll-snap-y — 3 of 4</figcaption>
             </figure>
-            <figure data-show-code>
+            <figure>
               <img src="./assets/webdesign/future-ai-robot-hero.jpg" alt="A dark AI agency homepage — an armoured robot figure beside the display headline FUTURE IS WAITING, with Technology and Innovation cards below" loading="lazy" />
               <figcaption>scroll-snap-y — 4 of 4</figcaption>
             </figure>

@@ -76,6 +76,23 @@
   :root[data-theme='dark'] .demo-card figcaption {
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
+  /* Every `data-show-code` card's toggle (`.kui-show-code-toggle`, styled once in system.css) gets
+     mounted straight into this figcaption. Its default colour is `--accent-text`, which in dark
+     mode *is* `--accent` (#e4f222) — the same value this rule just painted the figcaption's own
+     background with above. Same yellow on same yellow: on every one of this page's ~28 cards, the
+     chip was rendering at full opacity and was simply invisible in dark mode. Same fix as
+     `scroll.html`'s figcaption chip (its worked example): fall back to `currentColor`, which here
+     is this rule's own `--accent-ink`, legible on the `--accent` bar by construction. Light mode is
+     unaffected — the bar there is `--accent-ink` (black) and the chip's default `--accent-text`
+     reads fine on it — so only the dark-mode override needs to move. */
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle {
+    color: currentColor;
+    border-color: color-mix(in srgb, currentColor 55%, transparent);
+  }
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible {
+    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
+  }
   .demo-card[tabindex] { cursor: pointer; }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -204,8 +221,25 @@
      + `tabindex` + the keydown handler in the demo-glue script keep it keyboard operable without that. */
   .heart-btn { display: inline-block; font-size: 1.9rem; cursor: pointer; line-height: 1; }
   .heart-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .confetti-dot { display: inline-block; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); cursor: pointer; }
-  .confetti-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* `confetti-burst`'s own keyframe (`kui-confetti-burst`, feedback.css) opens at `scale: 0.6;
+     opacity: 0` — a "burst into existence" effect, the same "hidden until played" shape as
+     `kui-ripple` and `kui-toast-slide-in` just above in that file. An `on:click`-activated effect
+     sits paused at that from-frame until fired (see `style-plan.ts`'s `deferred` gate), so putting
+     `on:click` directly on the dot (as this markup used to) left the *entire clickable target* at
+     `opacity: 0` until someone found and clicked an invisible 30px circle — indistinguishable from
+     the effect never firing at all. `heart-burst`'s keyframe never touches opacity, which is why
+     the identical `on:click`-on-the-target pattern works fine one card over. Same fix this page
+     already uses for `ripple`: a real, always-visible trigger button plays the effect on a
+     separate `on:manual` target via `kui.play()` in the script below, instead of the effect gating
+     its own click. `.confetti-trigger` is that always-visible surface; `.confetti-dot` is the
+     effect target nested inside it, sized/positioned to fill it. */
+  .confetti-trigger {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface); cursor: pointer;
+  }
+  .confetti-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .confetti-dot { position: absolute; inset: 3px; border-radius: 50%; }
 
   /* --- copy confirm --- */
   .copy-row { position: relative; display: flex; align-items: center; gap: 0.6rem; }
@@ -608,7 +642,9 @@
             <figure class="demo-card tone-b" data-kui="fade-up" data-show-code>
               <div class="feedback-body">
                 <div class="feedback-stage">
-                  <div class="confetti-dot" data-kui="confetti-burst on:click" role="button" tabindex="0" aria-label="Celebrate"></div>
+                  <button type="button" class="confetti-trigger" id="btn-confetti" aria-label="Celebrate">
+                    <span class="confetti-dot" id="confetti-dot" data-kui="confetti-burst on:manual" aria-hidden="true"></span>
+                  </button>
                 </div>
               </div>
               <figcaption>data-kui="confetti-burst" — click me</figcaption>
@@ -746,14 +782,23 @@
           kui.play('#copy-confirm-label', 'copy-confirm')
         })
 
+        // confetti-burst's own keyframe opens at `opacity: 0` (see the `.confetti-trigger` comment
+        // in <style> above), so the dot is `on:manual` rather than self-triggering `on:click` — the
+        // always-visible `.confetti-trigger` button is the thing a visitor actually clicks, same
+        // split as the ripple-surface/ripple-dot pair above.
+        on('btn-confetti', 'click', function () {
+          kui.play('#confetti-dot', 'confetti-burst')
+        })
+
         on('btn-pull', 'click', function () {
           kui.play('#pull-surface', 'pull-to-refresh')
         })
 
-        // .heart-btn and .confetti-dot are divs (role="button"), not real <button>s, so
-        // Enter/Space do not dispatch a native click the way they would on one — this restores
-        // that for both.
-        document.querySelectorAll('.heart-btn, .confetti-dot').forEach(function (el) {
+        // .heart-btn is a div (role="button"), not a real <button>, so Enter/Space do not dispatch
+        // a native click the way they would on one — this restores that. .confetti-trigger no
+        // longer needs the same shim: it's a real <button> now (see the markup fix above), which
+        // gets Enter/Space activation for free.
+        document.querySelectorAll('.heart-btn').forEach(function (el) {
           el.addEventListener('keydown', function (evt) {
             if (evt.key === 'Enter' || evt.key === ' ') {
               evt.preventDefault()
