@@ -51,6 +51,25 @@ describe('createCssInstance ownership', () => {
     await expect(instance.finished).resolves.toBeUndefined()
   })
 
+  it('settles a scrubbed instance immediately and never touches its play state', async () => {
+    // `timeline: pin` compiles to a paused animation seeked by `--kui-progress`, so it has no
+    // notion of "starting". Writing `running` on activate would hand it to the document timeline
+    // and let it play forward in wall-clock time on top of the seek. And because a scrub never
+    // completes in the time sense, `finished` has to resolve at once or `data-kui-state` is
+    // stranded on "running" for the life of the page.
+    const el = document.createElement('div')
+    const owned = fakeAnimation('kui-in-up')
+    Object.defineProperty(owned, 'finished', { value: new Promise<void>(() => {}) })
+    withAnimations(el, [owned])
+
+    const ledger = createStyleLedger(el)
+    const instance = createCssInstance(el, ledger, ['kui-in-up'], true)
+    instance.activate()
+
+    await expect(instance.finished).resolves.toBeUndefined()
+    expect(el.style.animationPlayState).toBe('')
+  })
+
   it('cancels and finishes only owned animations', () => {
     const el = document.createElement('div')
     const owned = fakeAnimation('kui-in-up')

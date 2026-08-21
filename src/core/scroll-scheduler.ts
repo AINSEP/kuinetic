@@ -214,7 +214,22 @@ export function windowScrollRoot(win: Window): ScrollRoot {
       viewportLeft: 0,
     }),
     onScroll: (handler) => listen(win, 'scroll', handler),
-    onResize: (handler) => listen(win, 'resize', handler),
+    /*
+     * The document's own height counts as a resize, not just the window's.
+     *
+     * `elementScrollRoot` has observed its element's size since it was written, for the reason
+     * stated three doc comments down: "images loading, fonts swapping, a container changing size,
+     * or content being inserted". Every one of those applies at least as strongly to the page
+     * itself, and the page root was the one that only listened for `window.resize` — so on any
+     * document with lazy-loaded media below the fold, every cached content offset silently drifted
+     * by however much the page grew after it was measured, with no epoch bump to correct it.
+     *
+     * Measured on `demo/scroll.html` (32,000px of lazy screenshots): the horizontal track's stage
+     * moved ~840px between page load and reaching it, which is a third of that effect's whole
+     * scroll range. Nothing was wrong with the maths; the number it was doing the maths on was
+     * taken before forty images existed.
+     */
+    onResize: (handler) => observeSize(win.document.documentElement, win, handler),
   }
 }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tracker.js'
+import { domPosition, progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tracker.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
@@ -56,6 +56,81 @@ describe('trackProgress — default distance', () => {
 
     stubRect(target, -100, 200)
     sched.emit(100, 1) // epoch bump forces a re-measure at the new position
+
+    expect(seen.at(-1)).toBeCloseTo(0.5)
+  })
+})
+
+describe('domPosition', () => {
+  it('reads the resolved position through the element\'s own view', () => {
+    const node = document.createElement('div')
+    node.style.position = 'sticky'
+    document.body.append(node)
+    expect(domPosition(node)).toBe('sticky')
+  })
+
+  it('answers "static" for an element whose document has no view', () => {
+    // A document from `createHTMLDocument`/`DOMParser` has `defaultView === null`, and so does any
+    // element inside it. `getComputedStyle` is only reachable through a window, so without this
+    // guard the sticky walk-up would throw on markup parsed but never attached — which is exactly
+    // what `show-code.js` does to every demo page on load.
+    const detached = document.implementation.createHTMLDocument('')
+    expect(detached.defaultView).toBeNull()
+    expect(domPosition(detached.createElement('div'))).toBe('static')
+  })
+})
+
+describe('trackProgress — inside a position: sticky subtree', () => {
+  // The `horizontal-scroll` shape: a tall stage, a sticky viewport inside it, and the tracked
+  // element inside that. Once the viewport is stuck, the track's own rect stops describing where
+  // it lives in the document, so a re-measure taken at that moment used to cache a `contentTop`
+  // of roughly the current scroll position — pinning progress to 0 for the rest of the stage.
+  // Numbers below are the measured demo case scaled down; see docs/live-testing-backlog.md D4.
+  it('measures the scrolling ancestor, not the element frozen by the sticky', () => {
+    document.body.innerHTML =
+      '<div class="stage"><div class="viewport"><div class="track"></div></div></div>'
+    const stage = document.querySelector('.stage') as HTMLElement
+    const viewport = document.querySelector('.viewport') as HTMLElement
+    const track = document.querySelector('.track') as HTMLElement
+    viewport.style.position = 'sticky'
+
+    const sched = fakeScheduler()
+    const seen: number[] = []
+    const ctx = { scheduler: sched, rootFor: () => fakeRoot } as unknown as PrepareContext
+    trackProgress(track, ctx, { distance: '600px' }, (progress) => seen.push(progress))
+
+    // Off screen, nothing is stuck and every rect agrees about where the stage is.
+    stubRect(stage, 900, 1600)
+    stubRect(viewport, 900, 800)
+    stubRect(track, 900, 300)
+    sched.emit(0)
+    expect(seen.at(-1)).toBe(0)
+
+    // 1200px in. The viewport is stuck at the top, so `track.top` reads 250 — where it is parked,
+    // not how far down the document it sits. `stage.top` still tells the truth.
+    stubRect(stage, -300, 1600)
+    stubRect(viewport, 0, 800)
+    stubRect(track, 250, 300)
+    sched.emit(1200, 1) // epoch bump: the re-measure that used to poison the cache
+
+    expect(seen.at(-1)).toBeCloseTo(0.5)
+  })
+
+  it('leaves an element outside any sticky subtree measuring itself', () => {
+    document.body.innerHTML = '<div class="stage"><div class="track"></div></div>'
+    const stage = document.querySelector('.stage') as HTMLElement
+    const track = document.querySelector('.track') as HTMLElement
+
+    const sched = fakeScheduler()
+    const seen: number[] = []
+    const ctx = { scheduler: sched, rootFor: () => fakeRoot } as unknown as PrepareContext
+    trackProgress(track, ctx, { distance: '600px' }, (progress) => seen.push(progress))
+
+    // The stage is deliberately somewhere else entirely: if the walk-up fired here, progress
+    // would come out of these numbers instead of the track's own.
+    stubRect(stage, -5000, 1600)
+    stubRect(track, -300, 300)
+    sched.emit(0)
 
     expect(seen.at(-1)).toBeCloseTo(0.5)
   })
@@ -154,48 +229,6 @@ describe('pin', () => {
     expect(document.querySelector('[data-kui-spacer]')).toBeNull()
     expect(el().hasAttribute('data-kui-pinned')).toBe(false)
     expect(scheduler.subscriberCount()).toBe(0)
-  })
-})
-
-describe('scroll-progress', () => {
-  it('publishes a discrete step index for scrollytelling', () => {
-    const animator = build('<div data-kui="scrollytelling-step distance:400px steps:4"></div>')
-    stubRect(el(), 0)
-    animator.start()
-
-    scheduler.emit(0)
-    expect(el().getAttribute('data-kui-step')).toBe('0')
-
-    stubRect(el(), -300)
-    scheduler.emit(300, 1)
-    expect(el().getAttribute('data-kui-step')).toBe('3')
-  })
-
-  it('clamps the final step rather than going one past the end', () => {
-    const animator = build('<div data-kui="scrollytelling-step distance:400px steps:4"></div>')
-    stubRect(el(), -400)
-    animator.start()
-    scheduler.emit(400)
-    expect(el().getAttribute('data-kui-step')).toBe('3')
-  })
-
-  it('omits the step attribute when steps is 0', () => {
-    const animator = build('<div data-kui="scroll-progress"></div>')
-    stubRect(el(), 0)
-    animator.start()
-    scheduler.emit(0)
-    expect(el().hasAttribute('data-kui-step')).toBe(false)
-  })
-
-  it('removes the step attribute on destroy', () => {
-    const animator = build('<div data-kui="scrollytelling-step distance:400px steps:4"></div>')
-    stubRect(el(), -300)
-    animator.start()
-    scheduler.emit(300)
-    expect(el().hasAttribute('data-kui-step')).toBe(true)
-
-    animator.destroy()
-    expect(el().hasAttribute('data-kui-step')).toBe(false)
   })
 })
 
@@ -371,6 +404,32 @@ describe('media-scrub', () => {
     // `./` is stripped by URL resolution, same as any browser normalizing a relative path.
     expect((el('img') as HTMLImageElement).src).toContain('assets/scenic_scrub_0.jpg')
     expect(reporter.messages.join()).not.toContain('same-origin')
+  })
+})
+
+// The preset name is `smooth-scroll-to`; `smooth-scroll` is the primitive behind it.
+describe('smooth-scroll-to', () => {
+  // Registered, shipped, and documented in the catalog, but with no test at all until now —
+  // `prepareSmoothScroll` was the one uncovered function in the whole category.
+  it('sets scroll-behavior on the element it is applied to', () => {
+    const animator = build('<div data-kui="smooth-scroll-to"></div>')
+    animator.start()
+    expect(el().style.scrollBehavior).toBe('smooth')
+  })
+
+  it('takes an authored behavior', () => {
+    const animator = build('<div data-kui="smooth-scroll-to behavior:auto"></div>')
+    animator.start()
+    expect(el().style.scrollBehavior).toBe('auto')
+  })
+
+  it('restores the original scroll-behavior on destroy', () => {
+    const animator = build('<div data-kui="smooth-scroll-to" style="scroll-behavior: auto"></div>')
+    animator.start()
+    expect(el().style.scrollBehavior).toBe('smooth')
+
+    animator.destroy()
+    expect(el().style.scrollBehavior).toBe('auto')
   })
 })
 

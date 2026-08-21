@@ -29,6 +29,14 @@ export const domGeometry: Measurer = (el) => {
   return { top: rect.top, height: rect.height }
 }
 
+/** Resolved `position` for one element. Injected for the same reason `Measurer` is. */
+export type PositionReader = (el: Element) => string
+
+export const domPosition: PositionReader = (el) => {
+  const view = el.ownerDocument?.defaultView
+  return view ? view.getComputedStyle(el).position : 'static'
+}
+
 export interface TrackOptions {
   /**
    * Scroll distance the effect spans, as an authored CSS length. Defaults to the element's own
@@ -36,6 +44,36 @@ export interface TrackOptions {
    */
   distance?: string
   measure?: Measurer
+  positionOf?: PositionReader
+}
+
+/**
+ * The element whose position honestly describes how far `el` has travelled through the scroller.
+ *
+ * Usually `el` itself. The exception is a `position: sticky` subtree, and it is not a small one.
+ * Sticky exists precisely to stop an element moving relative to the viewport, so once it is stuck
+ * neither it nor anything inside it reports a rect that still says where it sits in the content
+ * flow — `rect.top` becomes "where it is parked", not "how far down the document it lives".
+ * Re-measure while stuck and `contentTop` comes back as roughly the *current scroll position*,
+ * which makes progress negative, `clamp01` floors it to 0, and — because the measurement is cached
+ * for the whole epoch — it stays 0 for the rest of the effect's life.
+ *
+ * `preparePin` already dodges this for the element it makes sticky itself, by tracking the parent.
+ * This is the same move generalised to anything nested *inside* someone else's sticky subtree,
+ * which is exactly what `horizontal-scroll`'s track and `sequence-scrub`'s image are.
+ *
+ * The outermost sticky ancestor is the one to escape from: its parent is the box that actually
+ * scrolls. For the demo's `.track`, that walk lands on `.track-stage`, which is never stuck.
+ *
+ * @complexity O(d) time in the element's depth, once per geometry epoch; O(1) space.
+ * @overallScore 100
+ */
+function geometrySource(el: Element, positionOf: PositionReader): Element {
+  let outermostSticky: Element | null = null
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    if (positionOf(node) === 'sticky') outermostSticky = node
+  }
+  return outermostSticky?.parentElement ?? el
 }
 
 export type ProgressHandler = (progress: number, frame: ScrollFrame) => void
@@ -62,6 +100,7 @@ export function trackProgress(
   onProgress: ProgressHandler,
 ): Cleanup {
   const measure = options.measure ?? domGeometry
+  const positionOf = options.positionOf ?? domPosition
   let scrollTop = 0
 
   let scrollportTop = 0
@@ -71,14 +110,20 @@ export function trackProgress(
    *
    * Two things are going on. First, the epoch only advances on resize, so caching `rect.top` —
    * the one number that changes on every scroll — would freeze progress at its first-frame value.
-   * Content offset is genuinely epoch-stable. Second, `measure` is viewport-relative while
-   * `scrollTop` is local to the resolved root, so subtracting the scrollport's own viewport
-   * offset converts between the two; without it, every nested `overflow: auto` container is wrong
-   * by exactly the scroller's position on screen.
+   * Content offset is epoch-stable *for an element that moves with the content*. Second, `measure`
+   * is viewport-relative while `scrollTop` is local to the resolved root, so subtracting the
+   * scrollport's own viewport offset converts between the two; without it, every nested
+   * `overflow: auto` container is wrong by exactly the scroller's position on screen.
+   *
+   * The "moves with the content" caveat is load-bearing and used to be missing — see
+   * `geometrySource`. Height still comes from `el` itself, so `resolveDistance`'s default and its
+   * percentage basis are unchanged.
    */
   const geometry = createMeasureCache(() => {
     const box = measure(el)
-    return { contentTop: box.top - scrollportTop + scrollTop, height: box.height }
+    const source = geometrySource(el, positionOf)
+    const top = source === el ? box.top : measure(source).top
+    return { contentTop: top - scrollportTop + scrollTop, height: box.height }
   })
 
   return ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {

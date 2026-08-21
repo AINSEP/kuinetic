@@ -266,6 +266,45 @@ describe('step-progress', () => {
     el.dispatchEvent(new Event('click'))
     expect(el.hasAttribute('data-kui-step')).toBe(false)
   })
+
+  it('marks its own children by default, so the shipped CSS needs no selector', () => {
+    document.body.innerHTML = '<div id="bar"><i></i><i></i><i></i></div>'
+    const el = document.getElementById('bar')!
+    const instance = STEP_PROGRESS_PRIMITIVE.prepare!(el, createParams({ steps: '3' }), fakeCtx(el))
+    instance.activate()
+
+    const states = (): (string | null)[] =>
+      [...el.children].map((c) => c.getAttribute('data-kui-step-state'))
+    expect(states()).toEqual(['active', 'after', 'after'])
+
+    el.dispatchEvent(new Event('click'))
+    expect(states()).toEqual(['before', 'active', 'after'])
+
+    instance.destroy()
+    expect(states()).toEqual([null, null, null])
+  })
+
+  it('marks a named target when the segments live outside the control', () => {
+    document.body.innerHTML = '<button id="bar"></button><ol class="legend"><li></li><li></li></ol>'
+    const el = document.getElementById('bar')!
+    const instance = STEP_PROGRESS_PRIMITIVE.prepare!(
+      el,
+      createParams({ steps: '2', target: '.legend > li' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+
+    const states = (): (string | null)[] =>
+      [...document.querySelectorAll('.legend li')].map((c) =>
+        c.getAttribute('data-kui-step-state'),
+      )
+    expect(states()).toEqual(['active', 'after'])
+    // The control itself is not a segment, so it must not be marked as one.
+    expect(el.hasAttribute('data-kui-step-state')).toBe(false)
+
+    el.dispatchEvent(new Event('click'))
+    expect(states()).toEqual(['before', 'active'])
+  })
 })
 
 describe('submit-flow', () => {

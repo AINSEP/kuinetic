@@ -210,37 +210,45 @@
     }
   }
 
-  /* --- step-progress: container with N segment children, filled up to data-kui-step --- */
+  /* --- stepped effects: the segments a step index marks ---
+   *
+   * Keyed on `data-kui-step-state`, which `step-progress` (click-driven, here) and
+   * `scroll-progress` (scroll-driven, backs `scrollytelling-step`) both stamp onto their step
+   * elements. Keying it on `[data-kui-fx~='step-progress']` instead meant this component could only
+   * ever serve one of the two primitives that produce a step index, and the scroll one had to have
+   * its indicator hand-written on the page.
+   *
+   * It also replaces twenty near-identical `[data-kui-step='N'] > *:nth-child(-n + N+1)` rules —
+   * one per supported step count, which is what "select the child at the current index" costs in
+   * CSS without help. That ladder capped the effect at twenty steps by construction; this does not
+   * care how many there are.
+   *
+   * `before` and `active` are both lit, so the default reading is a progress bar. For a position
+   * indicator — one live segment, as `demo/scroll.html`'s scrollytelling dots want — a page selects
+   * `[data-kui-step-state='active']` alone and overrides `before`.
+   *
+   * Painting is opt-in, and that distinction is load-bearing. `target:` marks whatever the author
+   * points it at, which is not always a row of coloured bars — on `demo/scroll.html` it is also
+   * four lines of copy. A bare `[data-kui-step-state]` rule painted a background behind every one
+   * of them. So the attribute is the *state contract*, free for anyone to style, and the shipped
+   * look applies only inside a container that asked for it: a `step-progress` element, whose
+   * children are its segments by definition, or anything a page marks `.kui-step-track`.
+   */
   [data-kui-fx~='step-progress'] {
     cursor: pointer;
   }
 
-  [data-kui-fx~='step-progress'] > * {
+  [data-kui-fx~='step-progress'] > [data-kui-step-state],
+  .kui-step-track > [data-kui-step-state] {
     background: var(--dim, #9a8d80);
     opacity: 0.35;
     transition: opacity 200ms ease-out, background-color 200ms ease-out;
   }
 
-  [data-kui-fx~='step-progress'][data-kui-step='0'] > *:nth-child(-n + 1),
-  [data-kui-fx~='step-progress'][data-kui-step='1'] > *:nth-child(-n + 2),
-  [data-kui-fx~='step-progress'][data-kui-step='2'] > *:nth-child(-n + 3),
-  [data-kui-fx~='step-progress'][data-kui-step='3'] > *:nth-child(-n + 4),
-  [data-kui-fx~='step-progress'][data-kui-step='4'] > *:nth-child(-n + 5),
-  [data-kui-fx~='step-progress'][data-kui-step='5'] > *:nth-child(-n + 6),
-  [data-kui-fx~='step-progress'][data-kui-step='6'] > *:nth-child(-n + 7),
-  [data-kui-fx~='step-progress'][data-kui-step='7'] > *:nth-child(-n + 8),
-  [data-kui-fx~='step-progress'][data-kui-step='8'] > *:nth-child(-n + 9),
-  [data-kui-fx~='step-progress'][data-kui-step='9'] > *:nth-child(-n + 10),
-  [data-kui-fx~='step-progress'][data-kui-step='10'] > *:nth-child(-n + 11),
-  [data-kui-fx~='step-progress'][data-kui-step='11'] > *:nth-child(-n + 12),
-  [data-kui-fx~='step-progress'][data-kui-step='12'] > *:nth-child(-n + 13),
-  [data-kui-fx~='step-progress'][data-kui-step='13'] > *:nth-child(-n + 14),
-  [data-kui-fx~='step-progress'][data-kui-step='14'] > *:nth-child(-n + 15),
-  [data-kui-fx~='step-progress'][data-kui-step='15'] > *:nth-child(-n + 16),
-  [data-kui-fx~='step-progress'][data-kui-step='16'] > *:nth-child(-n + 17),
-  [data-kui-fx~='step-progress'][data-kui-step='17'] > *:nth-child(-n + 18),
-  [data-kui-fx~='step-progress'][data-kui-step='18'] > *:nth-child(-n + 19),
-  [data-kui-fx~='step-progress'][data-kui-step='19'] > *:nth-child(-n + 20) {
+  [data-kui-fx~='step-progress'] > [data-kui-step-state='before'],
+  [data-kui-fx~='step-progress'] > [data-kui-step-state='active'],
+  .kui-step-track > [data-kui-step-state='before'],
+  .kui-step-track > [data-kui-step-state='active'] {
     opacity: 1;
     background: var(--accent, #d2691e);
   }

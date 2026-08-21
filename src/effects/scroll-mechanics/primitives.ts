@@ -6,6 +6,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import type { AttributeLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
+import { createStepMarker, resolveTarget } from '../step-marking.js'
 import { trackProgress } from './tracker.js'
 
 /**
@@ -136,18 +137,46 @@ function insertSpacer(node: HTMLElement, distance: string, ctx: PrepareContext):
  */
 function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const steps = Math.max(0, Math.round(params.num('steps', 0)))
+  /*
+   * `target` names the step elements, and there is deliberately no default for it.
+   *
+   * Unlike `step-progress`, whose children *are* its segments, this primitive is applied to a
+   * section whose children are layout — `.story`'s only child is the sticky wrapper. Guessing
+   * would mark the wrong nodes silently, so an author who wants the children marked says which.
+   */
+  const selector = resolveTarget(params.text('target'), ctx, 'scrollytelling-step')
+  const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
+  // The step attribute is authored on the demo element in real markup (`data-kui-step="0"`, to
+  // avoid a flash of unstyled steps before hydration), so removing it on teardown destroyed the
+  // consumer's own value. Same defect the scroll-spy ledgers were introduced to close.
+  const self = createAttributeLedger(el)
+  // Frames are continuous; the step index is not. Re-stamping an unchanged index — and, worse,
+  // re-querying the target set for it — was per-frame work with no per-frame result.
+  let lastIndex: number | undefined
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
     writeProgress(ctx, progress)
-    if (steps > 0) {
-      const index = Math.min(steps - 1, Math.floor(progress * steps))
-      el.setAttribute('data-kui-step', String(index))
-    }
+    if (steps === 0) return
+    const index = Math.min(steps - 1, Math.floor(progress * steps))
+    if (index === lastIndex) return
+    lastIndex = index
+    self.set('data-kui-step', String(index))
+    /*
+     * The index as a number as well as an attribute, because they answer different questions.
+     *
+     * The attribute is for selecting — "style the section differently on step 3". The custom
+     * property is for *arithmetic*, which selectors cannot do: `demo/scroll.html` moves one frame
+     * by a quarter of its height per step, which as attribute selectors is one rule per step and
+     * as a number is `translateY(calc(var(--kui-step) * -25%))` — one rule, at any step count.
+     */
+    ctx.style.set('--kui-step', String(index))
+    if (selector) marker.mark(index)
   })
 
   return () => {
     untrack()
-    el.removeAttribute('data-kui-step')
+    self.restore()
+    marker.restore()
   }
 }
 
@@ -278,7 +307,7 @@ function applyFrame(media: HTMLMediaElement & HTMLImageElement, write: FrameWrit
  * @overallScore 100
  */
 function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const selector = spyTarget(params.text('target'), ctx)
+  const selector = resolveTarget(params.text('target'), ctx, 'scroll-spy')
   /*
    * One ledger per element ever written, rather than a bare Set of touched elements.
    *
@@ -316,59 +345,12 @@ function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext
   }
 }
 
-/**
- * Resolve the `target` selector once at setup, rejecting both the unusable and the over-broad.
- *
- * Two distinct failures, one warning channel. An invalid selector thrown from inside the shared
- * scheduler's frame callback would skip every other subscriber on that root, not just this one.
- * An over-broad one is worse for being silent: `target:*` is perfectly valid syntax, so a
- * syntax-only check passed it straight through to stamp `data-kui-active` onto every element in
- * the document, on every frame.
- *
- * Rejecting rather than silently narrowing is the honest response, because there is no narrower
- * selector that could be meant. scroll-spy's contract — see `demo/scroll.html`, where each
- * section carries `target:#spy-link-<region>` — is "mark the nav link for this section". A
- * selector reaching `<html>` or `<body>` is not naming a link, it is naming the page, and
- * guessing which of its thousands of descendants the author meant would be worse than saying so.
- *
- * @complexity O(1) time and space; `matches` walks the selector, not the document.
- * @overallScore 100
+/*
+ * `spyTarget` and its `selectorBreadth` helper used to live here. They now live in
+ * `effects/step-marking.ts` as `resolveTarget`/`selectorBreadth`, because `scroll-progress` and
+ * forms' `step-progress` need exactly the same guard for exactly the same `target:` param, and one
+ * validated selector convention across the library is the whole point of the parameter.
  */
-function spyTarget(selector: string, ctx: PrepareContext): string {
-  if (!selector) return selector
-  const breadth = selectorBreadth(selector, ctx.doc)
-  if (breadth === 'invalid') {
-    ctx.warn(`scroll-spy target "${selector}" is not a valid selector and will be ignored`)
-    return ''
-  }
-  if (breadth === 'document-wide') {
-    ctx.warn(`scroll-spy target "${selector}" matches the whole document and will be ignored`)
-    return ''
-  }
-  return selector
-}
-
-/**
- * Classify a selector by asking the document root whether it matches, not by parsing the string.
- *
- * Testing the two elements every over-broad selector must necessarily hit catches `*`, `:root`,
- * `html`, `body` and compounds like `*, a` with one rule and no bespoke parser — while leaving a
- * deliberately scoped wildcard such as `.spy-nav > *` working, which a syntactic ban on `*` would
- * not. `matches` throws on invalid syntax exactly as `querySelectorAll` did, so the same call
- * still answers the validity question.
- *
- * @complexity O(1) time and space.
- * @overallScore 100
- */
-function selectorBreadth(selector: string, doc: Document): 'invalid' | 'document-wide' | 'ok' {
-  try {
-    if (doc.documentElement.matches(selector)) return 'document-wide'
-    if (doc.body?.matches(selector)) return 'document-wide'
-    return 'ok'
-  } catch {
-    return 'invalid'
-  }
-}
 
 function markLinks(
   doc: Document,
@@ -460,6 +442,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     parameters: {
       ...distanceParam,
       steps: { type: 'number', default: '0', cssProperty: '--kui-steps' },
+      // Same name, same shape and the same validation as scroll-spy's: one `target:` convention
+      // across the library rather than a second word for "the elements this effect marks".
+      target: { type: 'text', default: '', cssProperty: '--kui-target' },
     },
     prepare: deferPrepare(prepareProgress),
   }),

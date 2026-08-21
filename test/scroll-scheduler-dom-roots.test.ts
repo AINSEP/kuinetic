@@ -28,11 +28,25 @@ describe('windowScrollRoot', () => {
     })
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  /** The page root reads the document off the window it was handed, so the fake has to carry one. */
+  const fakeWindow = (
+    addEventListener = vi.fn(),
+    removeEventListener = vi.fn(),
+  ): Window =>
+    ({
+      addEventListener,
+      removeEventListener,
+      document: { documentElement: document.documentElement },
+    }) as unknown as Window
+
   it('attaches and detaches real scroll and resize listeners', () => {
     const addEventListener = vi.fn()
     const removeEventListener = vi.fn()
-    const win = { addEventListener, removeEventListener } as unknown as Window
-    const root = windowScrollRoot(win)
+    const root = windowScrollRoot(fakeWindow(addEventListener, removeEventListener))
 
     const stopScroll = root.onScroll(() => {})
     expect(addEventListener).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
@@ -42,6 +56,40 @@ describe('windowScrollRoot', () => {
     const stopResize = root.onResize(() => {})
     expect(addEventListener).toHaveBeenCalledWith('resize', expect.any(Function), { passive: true })
     stopResize()
+    expect(removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
+  })
+
+  // A window `resize` event is not the only thing that moves page content. Lazy images loading and
+  // fonts swapping change the document's height with no resize event at all, and every content
+  // offset `trackProgress` caches is measured against that height — so without this the page root
+  // was the one scroller whose cached geometry could silently go stale and never be corrected.
+  // `elementScrollRoot` has observed its element's box for exactly this reason since it was written.
+  it('observes the document element, so lazy content growth invalidates cached geometry', () => {
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+    class FakeResizeObserver {
+      observe = observe
+      disconnect = disconnect
+      unobserve = vi.fn()
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const stop = windowScrollRoot(fakeWindow()).onResize(() => {})
+    expect(observe).toHaveBeenCalledWith(document.documentElement)
+
+    stop()
+    expect(disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to window-resize only when ResizeObserver is unavailable', () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const addEventListener = vi.fn()
+    const removeEventListener = vi.fn()
+    const root = windowScrollRoot(fakeWindow(addEventListener, removeEventListener))
+
+    const stop = root.onResize(() => {})
+    expect(addEventListener).toHaveBeenCalledWith('resize', expect.any(Function), { passive: true })
+    expect(() => stop()).not.toThrow()
     expect(removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function))
   })
 })

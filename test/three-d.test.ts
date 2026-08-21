@@ -166,6 +166,27 @@ describe('v3 registration', () => {
     }
   })
 
+  it('the state-driven presets\' prepare is genuinely inert, not merely declared inert', async () => {
+    // The assertions above read the primitive's *metadata*. That is not the same claim: a
+    // `renderer: 'javascript'` primitive is still handed to the animator, which calls every hook
+    // on the instance it returns. So call it. `prepare` here ignores all three arguments by
+    // construction, which is why passing none is safe and is itself part of what is being checked.
+    for (const name of STATE_DRIVEN) {
+      const prepare = registry.resolve(name)!.primitive.prepare!
+      const instance = (prepare as unknown as () => ReturnType<typeof prepare>)()
+
+      expect(() => {
+        instance.activate()
+        instance.cancel()
+        instance.finish()
+        instance.destroy()
+      }, name).not.toThrow()
+      // Already settled, so the animator's `finished` bookkeeping cannot strand `data-kui-state`
+      // on "running" for the life of the page.
+      await expect(instance.finished).resolves.toBeUndefined()
+    }
+  })
+
   it('registers no duplicate names across all packages', () => {
     const names = registry.names()
     expect(new Set(names).size).toBe(names.length)

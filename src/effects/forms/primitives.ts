@@ -2,7 +2,9 @@ import { CHANNEL, inertInstance } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { createAttributeLedger } from '../../core/owned-styles.js'
 import { cssPrimitive } from '../shared.js'
+import { createStepMarker, resolveTarget } from '../step-marking.js'
 
 /**
  * Form and input primitives (catalog section O).
@@ -200,10 +202,27 @@ export function nextStep(step: number, total: number): number {
   return total > 0 ? (step + 1) % total : 0
 }
 
-function prepareStepProgress(el: Element, params: EffectParams): Cleanup {
+function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const total = Math.max(1, Math.round(params.num('steps', 4)))
+  /*
+   * `target` defaults to this element's own children, which is the shape every stepper already
+   * has: a bar with N segments inside it. Naming a selector is for the case where the segments
+   * live somewhere else — a legend beside the bar, say.
+   *
+   * Marking them is what lets one stylesheet rule serve any step count. Before this, the shipped
+   * CSS enumerated `[data-kui-step='0'] > *:nth-child(-n+1)` twenty times over to cover
+   * `steps: 1..20`, and a twenty-first step would simply not have rendered.
+   */
+  const selector = resolveTarget(params.text('target'), ctx, 'step-progress')
+  const marker = createStepMarker(() =>
+    selector ? ctx.doc.querySelectorAll(selector) : el.children,
+  )
+  const self = createAttributeLedger(el)
   let step = 0
-  const render = (): void => el.setAttribute('data-kui-step', String(step))
+  const render = (): void => {
+    self.set('data-kui-step', String(step))
+    marker.mark(step)
+  }
   const advance = (): void => {
     step = nextStep(step, total)
     render()
@@ -212,14 +231,18 @@ function prepareStepProgress(el: Element, params: EffectParams): Cleanup {
   render()
   return () => {
     el.removeEventListener('click', advance)
-    el.removeAttribute('data-kui-step')
+    self.restore()
+    marker.restore()
   }
 }
 
 export const STEP_PROGRESS_PRIMITIVE = jsInputPrimitive(
   'step-progress',
   ['state'],
-  { steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, maximum: 20, integer: true } },
+  {
+    steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, maximum: 20, integer: true },
+    target: { type: 'text', default: '', cssProperty: '--kui-target' },
+  },
   deferPrepare(prepareStepProgress),
 )
 
