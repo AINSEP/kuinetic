@@ -267,8 +267,29 @@
     /* The scrollbar is the browser's own and appears under the code on a track that is only ever
        one line tall, which on macOS overlays the last few pixels of the glyphs. Padding under the
        text gives it somewhere to sit. */
-    padding-bottom: 0.15rem;
+    padding-bottom: 0.3rem;
     scrollbar-width: thin;
+
+    /* The scroll had no affordance, which made a correct decision look like a bug: the one bar on
+       this page that overflows — `sequence-scrub`'s, by 48px at 1097px wide — read as an attribute
+       truncated mid-token rather than one you can drag.
+
+       Two earlier attempts failed in the browser and are recorded so they are not retried.
+       `::-webkit-scrollbar-thumb` draws nothing once `scrollbar-width` is set, because Chrome then
+       takes the standard styling path and ignores the legacy pseudo-elements. `scrollbar-color`
+       does apply (verified: computed `srgb 1 1 1 / 0.45`) but changes nothing here, because macOS
+       overlay scrollbars reserve no space and paint only *while* scrolling — measured
+       `offsetHeight - clientHeight === 0`. No CSS promotes an overlay scrollbar to a classic one.
+
+       So the affordance is a fade at the scroll edge instead. The `padding-right` is what makes it
+       self-cancelling, and it is the whole trick: mask percentages on a scroll container resolve
+       against the padding box, which is fixed, not against the scrolled content. A contract that
+       fits ends 1.75rem before that edge, so the gradient lands on padding and is invisible. A
+       contract that overflows gets the fade over real glyphs — and once you scroll to the end, the
+       last token clears the edge again and the fade goes away, which reads as "that is all of it".
+       No JS, no width measuring, correct at both ends of the scroll. */
+    padding-right: 1.75rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
   }
   /* Same reasoning as the caption bars above: these surfaces are dark in light mode and accent in
      dark mode, so the chip follows the surface it sits on rather than the page theme. */
@@ -770,25 +791,80 @@
     font-size: 0.88rem; padding: 0.5rem 0.6rem; border-radius: 7px; color: var(--muted);
     text-decoration: none !important; transition: color 150ms ease, background-color 150ms ease;
   }
-  .spy-nav a[data-kui-active='true'] { color: var(--accent-text); font-weight: 600; background: var(--bg); }
-  .spy-sections { display: grid; gap: 1.25rem; }
+  /* A "you are here" marker has one job, so it gets more than a colour swap. The old rule was
+     `--accent-text` on `--bg`, which in light mode is dark gold on near-white: legible, but no
+     louder than a hover, and colour-only signalling fails anyone who cannot separate the two.
+     The bar on the leading edge is the part you can see from the corner of your eye. */
+  .spy-nav a[data-kui-active='true'] {
+    color: var(--accent-text); font-weight: 600; background: var(--bg);
+    box-shadow: inset 3px 0 0 0 var(--accent);
+  }
+  /* `gap: 0`, and it is load-bearing rather than cosmetic. `scroll-spy` marks a section while
+     `0 < progress < 1` — that is, while the section contains the top edge of the scrollport. Tiled
+     contiguously, exactly one section contains that edge at any moment, so exactly one link is
+     ever marked. With a 1.25rem gap there were scroll windows belonging to *no* section, and the
+     nav went blank: measured live, the group opened with `nav=[NONE]` while the Agency card filled
+     68% of the screen, and mid-group two links lit at once. The section's own copy promises it
+     "marks the section you are currently looking at", so a blank nav made the page's own claim
+     false. Tiling is the fix that works with the effect's definition instead of against it. */
+  .spy-sections { display: grid; gap: 0; border-radius: 14px; overflow: clip; border: 1px solid var(--border); }
+  /* 68vh here MUST match `distance:68vh` in each section's `data-kui`. `scroll-spy`'s `distance`
+     defaults to 100vh (`distanceParam`, src/effects/scroll-mechanics/primitives.ts:26) and that
+     default is what marks a section active — not the section's own height. Authored at 68vh with
+     the default left in place, every section stayed marked for 100vh of scrolling while the next
+     one began after 68vh, so two links lit at once through a 246px overlap. Measured before the
+     fix: `Commerce` stayed lit from its own seam to roughly +250px into `Portfolio`.
+
+     Changing one number without the other silently reintroduces that. If this height changes,
+     change the four `distance:` values with it. */
   .spy-section {
-    position: relative; min-height: 68vh; border-radius: 14px; overflow: clip; border: 1px solid var(--border);
+    position: relative; min-height: 68vh; overflow: clip;
     display: flex; align-items: flex-end;
   }
-  .spy-section img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  /* Ramped harder and started lower than the old `transparent 40% -> 0.7` stop. Four of these
-     sections are near-black screenshots where that was plenty; the Saxe commerce shot is a cream
-     hero, and white label text landed on it at roughly 0.45 of scrim — visible, but nowhere near
-     a contrast ratio anyone should ship. The scrim has to clear the brightest image in the set,
-     not the average one. */
+  /* The seam between tiled panes. A border on each section would double up at every join. */
+  .spy-section + .spy-section { border-top: 1px solid var(--border); }
+  /* `object-position: top`, because every image in this set is a screenshot of a web page, and the
+     top of a web page is the part that was designed to introduce it. `cover` crops height here for
+     all four, and the default centre crop was worst on the Portfolio card: that asset is a
+     941x1672 full-page capture (aspect 0.56) in a 1.48 box, so centring threw away roughly the top
+     third and landed on an arbitrary slice of the works grid. Top-anchoring shows the masthead,
+     which is what the other three cards show and what makes them read as one set. */
+  .spy-section img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: top;
+  }
+  /* Lightened once the label became a frosted plate (see `.spy-label`). The previous ramp —
+     `transparent 38% -> 0.55 -> 0.92` — existed to drag the *brightest* asset in the set up to a
+     shippable contrast ratio for white text laid straight on it. The plate carries that job now,
+     and it carries it for any asset, so the scrim no longer has to be sized for the worst case.
+
+     Which matters, because the old ramp was dimming the bottom half of every screenshot on a page
+     whose entire subject is those screenshots. What is left is only enough to ground the plate and
+     stop the card bleeding into the one tiled beneath it. */
   .spy-section::after {
     content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, transparent 38%, rgb(8 9 10 / 0.55) 68%, rgb(8 9 10 / 0.92) 100%);
+    background: linear-gradient(180deg, transparent 55%, rgb(8 9 10 / 0.16) 80%, rgb(8 9 10 / 0.42) 100%);
   }
+  /* A frosted plate rather than text sitting straight on the scrim, and the reason is specific:
+     every asset in this set is a screenshot of a web page, so each one has *its own typography* in
+     it. Once `object-position: top` brought the Portfolio card's cream masthead into the bottom of
+     the frame, the word "Portfolio" landed directly on that page's own body copy — two texts
+     overlapping, both unreadable. A gradient cannot fix that, because the problem is not luminance
+     but competing glyphs; it only ever worked here by accident, on the assets that happened to be
+     dark and empty at the bottom.
+
+     `backdrop-filter: blur()` is what actually solves it — it destroys the legibility of whatever
+     is underneath, so the underlying page stops competing for the eye, and the contrast becomes a
+     property of the plate instead of a property of the asset. Robust for any screenshot dropped in
+     later, which the scrim never was.
+
+     Same treatment as `.snap-y-panel figcaption` further down this file, deliberately: two labels
+     over imagery on one page should be the same object. */
   .spy-section .spy-label {
-    position: relative; z-index: 1; padding: 1.5rem; color: #fff;
-    text-shadow: 0 1px 10px rgb(0 0 0 / 0.4);
+    position: relative; z-index: 1; margin: 1.25rem; padding: 0.85rem 1.15rem;
+    border-radius: 12px; color: #fff;
+    background: rgb(8 9 10 / 0.58); backdrop-filter: blur(10px);
+    border: 1px solid rgb(255 255 255 / 0.12);
   }
   .spy-section .spy-label .kicker { color: rgb(255 255 255 / 0.8); }
   .spy-section .spy-label h4 { font-size: 1.5rem; letter-spacing: -0.01em; }
@@ -797,6 +873,14 @@
   .snap-x-row {
     display: flex; gap: 1rem; margin-top: 2rem; padding-bottom: 0.75rem;
     overflow-x: auto; scroll-padding-inline: 1.5rem;
+    /* Measured: 2164px of cards in a 1017px box, so more than half the row is off-screen and the
+       only hint was one card bleeding past the edge. Same fade as the contract bar above, for the
+       same reason and by the same mechanism — one page should not solve "this scrolls sideways"
+       two different ways. The trailing padding is what lets the fade cancel itself at the end of
+       the travel; see the long note on `main .kui-contract code`. */
+    scrollbar-width: thin;
+    padding-right: 2rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent 100%);
   }
   .snap-x-row figure {
     flex: none; width: min(78vw, 420px); scroll-snap-stop: always;
@@ -1430,16 +1514,19 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Media scrub — 1 of 2</p>
-          <p class="matrix-group-note">
-            sequence-scrub's <code>frames:</code>/<code>src:</code> params swap in one real still per fifth of the
-            scroll range via a <code>{i}</code> placeholder in the <code>src</code> pattern — five distinct photos
-            below, not a filter effect. <code>src</code> is a JS-only <code>text</code> param, so the value never
-            reaches a stylesheet — it goes straight to <code>&lt;img&gt;.src</code> — which is why the shared
-            CSS-escape guard on <code>data-kui</code> values leaves braces alone for this one param. The
-            grayscale→color wipe is a second effect composed onto the same element —
-            <code>scroll-desaturate timeline:pin</code> — reading the same <code>--kui-progress</code> the
-            scrub publishes, so both mechanisms are visible scrolling through this one element.
-          </p>
+          <!-- Was a ten-line `.matrix-group-note` paragraph carrying six inline `<code>` spans,
+               including the CSS-escape-guard rationale for `src`. Both sibling groups in this
+               section explain themselves with `.rev-notes` bullets, so this one was the odd
+               component out *and* the densest copy on the page. The escape-guard reasoning is not
+               lost — it lives where it is actionable, in `mediaSrcPattern`'s own doc comment in
+               `src/effects/scroll-mechanics/primitives.ts`. A demo page's job is to make you want
+               to try the attribute, not to document the parser. -->
+          <div class="rev-notes">
+            <ul>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Five real photographs, not a filter.</strong> <code>frames:5</code> plus an <code>{i}</code> placeholder in <code>src:</code> swaps in one still per fifth of the scroll range.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Two effects on one element.</strong> The grayscale→colour wipe is a separate <code>scroll-desaturate</code>, reading the same <code>--kui-progress</code> the scrub publishes.</li>
+            </ul>
+          </div>
           <!-- Same `data-show-code-target` shape as the horizontal track, and for the same reason:
                the effect is on an image inside an `overflow: clip` sticky viewport, so an
                auto-mounted chip would be laid out inside the clip and never seen. -->
@@ -1467,19 +1554,19 @@
               <a id="spy-link-product" href="#spy-product">Product</a>
             </nav>
             <div class="spy-sections">
-              <section id="spy-agency" class="spy-section" data-kui="scroll-spy target:#spy-link-agency">
+              <section id="spy-agency" class="spy-section" data-kui="scroll-spy target:#spy-link-agency distance:68vh">
                 <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline “We start from zero”" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Category</p><h4>Agency</h4></div>
               </section>
-              <section id="spy-commerce" class="spy-section" data-kui="scroll-spy target:#spy-link-commerce">
+              <section id="spy-commerce" class="spy-section" data-kui="scroll-spy target:#spy-link-commerce distance:68vh">
                 <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Category</p><h4>Commerce</h4></div>
               </section>
-              <section id="spy-portfolio" class="spy-section" data-kui="scroll-spy target:#spy-link-portfolio">
+              <section id="spy-portfolio" class="spy-section" data-kui="scroll-spy target:#spy-link-portfolio distance:68vh">
                 <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Category</p><h4>Portfolio</h4></div>
               </section>
-              <section id="spy-product" class="spy-section" data-kui="scroll-spy target:#spy-link-product">
+              <section id="spy-product" class="spy-section" data-kui="scroll-spy target:#spy-link-product distance:68vh">
                 <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Category</p><h4>Product</h4></div>
               </section>
@@ -1505,23 +1592,23 @@
           <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x">
             <figure>
               <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
-              <figcaption>scroll-snap-x</figcaption>
+              <figcaption>scroll-snap-x — 1 of 5</figcaption>
             </figure>
             <figure>
               <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
-              <figcaption>scroll-snap-x</figcaption>
+              <figcaption>scroll-snap-x — 2 of 5</figcaption>
             </figure>
             <figure>
               <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
-              <figcaption>scroll-snap-x</figcaption>
+              <figcaption>scroll-snap-x — 3 of 5</figcaption>
             </figure>
             <figure>
               <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
-              <figcaption>scroll-snap-x</figcaption>
+              <figcaption>scroll-snap-x — 4 of 5</figcaption>
             </figure>
             <figure>
               <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
-              <figcaption>scroll-snap-x</figcaption>
+              <figcaption>scroll-snap-x — 5 of 5</figcaption>
             </figure>
           </div>
 
