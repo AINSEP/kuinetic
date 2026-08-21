@@ -259,8 +259,9 @@
   }
   :root[data-theme='dark'] main .kui-contract { color: var(--accent-ink); background: var(--accent); }
   /* The attribute scrolls inside the bar rather than wrapping it into a two-line block: on a narrow
-     screen `sequence-scrub frames:5 src:... distance:220vh, scroll-desaturate timeline:pin` is
-     longer than the viewport, and wrapping a code contract mid-token is how people mistype it. */
+     screen a contract like `scrollytelling-step distance:200vh steps:4 target:'.story-lines > li,
+     .story-dots > span'` is longer than the viewport, and wrapping a code contract mid-token is how
+     people mistype it. */
   main .kui-contract code {
     min-width: 8ch; overflow-x: auto; white-space: nowrap;
     font: inherit; color: inherit; background: none; border: none; padding: 0;
@@ -804,15 +805,19 @@
     position: sticky; top: 10vh; height: 80vh; max-height: 560px;
     border-radius: 14px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
   }
-  /* The grayscale->colour wipe is `scroll-desaturate timeline:pin`, composed onto the same
-     element as sequence-scrub — see the markup. It used to be a hand-written
-     `filter: grayscale(calc(100% - var(--kui-progress) * 100%))` right here, which is the exact
-     shape of thing this page exists to argue you should not have to write. */
-  /* No `.scrub-viewport img` rule any more. Stacking the frames and showing one is the library's
-     job now — `src/css/scroll.css` positions and hides
-     `[data-kui-fx~='media-scrub'] > [data-kui-step-state]`, which these five images are. Restating
-     it here would be a page hand-writing what the effect already owns, and would drift the moment
-     the shipped default changed. */
+  /* `scroll-desaturate` used to be composed onto this element, wiping grayscale to colour across
+     the scrub. It is gone at the owner's request: these frames are other people's work, and
+     desaturating someone's art direction to demonstrate a filter shows the filter at the cost of
+     the thing it is drawn over. The frames render at their own colour now.
+
+     Stacking and revealing is still the library's job — `src/css/scroll.css` positions and hides
+     `[data-kui-fx~='sequence-scrub'] > [data-kui-step-state]`. The one thing overridden here is
+     the fit, because the shipped default is `cover`, which is right for a frame sequence of one
+     continuous subject and wrong for this: these are four whole website screenshots at 1.60-1.78
+     against a 1.81 viewport, so `cover` was cutting the bottom off the 1.60 one and taking the
+     "Dua Lipa" wordmark with it. `contain` shows each screen entire; the two or three per cent of
+     letterboxing on the others is invisible against the surface behind them. */
+  .scrub-viewport img { object-fit: contain; }
 
   /* ---------- scroll-spy (Section C) ---------- */
   .spy-layout { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-top: 2rem; }
@@ -1396,7 +1401,7 @@
             </aside>
             <div class="pin-until-content">
               <figure class="pin-until-block">
-                <img src="./assets/webdesign/inzoi-character-studio.jpg" alt="The inZOI character studio — a 3D avatar in a white dress posed against a pink sunset sky, with expression, background and lighting sliders down the left and a scrolling outfit library down the right" loading="lazy" />
+                <img src="./assets/webdesign/scrub-daniel-lee.jpg" alt="The Daniel Lee mentorship site — a monochrome portrait beside the headline 9+ years of experience, with risk-management stats and 01/02/03 mentor tabs" loading="lazy" />
                 <figcaption><span class="stop-num">01</span> inZOI — character studio</figcaption>
               </figure>
               <figure class="pin-until-block">
@@ -1448,30 +1453,36 @@
                Ordered light, light, dark, dark, so the deck darkens as it builds rather than
                flickering between values card to card. Two of the four were vendor mockups floating
                on grey backdrops and are cropped to the screen itself; a card showing someone
-               else's presentation chrome is not showing a website. -->
+               else's presentation chrome is not showing a website.
+
+               The offsets start at 5.5rem because `header.site-header` is sticky and occupies
+               16-74px — measured, not guessed. At the old 1rem/2.25rem/3.5rem the first three
+               cards pinned entirely *behind* the nav and only the fourth cleared it. 5.5rem (88px)
+               leaves 14px of air below the header; the 1.25rem step between cards is unchanged, so
+               the stagger reads exactly as before, just below the chrome instead of under it. -->
           <div class="stack-group">
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:1rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset:5.5rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
-                <figcaption>offset:1rem</figcaption>
+                <figcaption>offset:5.5rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:2.25rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset:6.75rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
-                <figcaption>offset:2.25rem</figcaption>
+                <figcaption>offset:6.75rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:3.5rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset:8rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
-                <figcaption>offset:3.5rem</figcaption>
+                <figcaption>offset:8rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:4.75rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset:9.25rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-yash-sharma.jpg" alt="Yash Sharma's creative portfolio homepage — a heavy white PORTFOLIO wordmark over a figure in a dark suit, with Creative scripted in yellow above it" loading="lazy" />
-                <figcaption>offset:4.75rem</figcaption>
+                <figcaption>offset:9.25rem</figcaption>
               </figure>
             </div>
           </div>
@@ -1593,14 +1604,14 @@
                to try the attribute, not to document the parser. -->
           <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Five real screens, not a filter.</strong> <code>target:</code> points at five <code>&lt;img&gt;</code> tags that are already on the page, and the scrub reveals one per fifth of the range — so every frame is loaded before you reach it.</li>
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Two effects on one element.</strong> The grayscale→colour wipe is a separate <code>scroll-desaturate</code>, reading the same <code>--kui-progress</code> the scrub publishes.</li>
+              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Four real screens, not a filter.</strong> <code>target:</code> points at four <code>&lt;img&gt;</code> tags that are already on the page, and the scrub reveals one per quarter of the range — so every frame is loaded before you reach it.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Scroll position is the only input. Nothing here is on a timer, so scrubbing backwards runs it backwards.</li>
             </ul>
           </div>
           <!-- Same `data-show-code-target` shape as the horizontal track, and for the same reason:
                the effect is on an image inside an `overflow: clip` sticky viewport, so an
                auto-mounted chip would be laid out inside the clip and never seen. -->
-          <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh, scroll-desaturate timeline:pin"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
           <div class="scrub-stage" id="scrub-demo" data-show-code-key="scrub-stage scrub-viewport">
             <!-- Five authored frames rather than one `<img>` whose `src` is rewritten from a
                  `{i}` pattern. The pattern form fetched each frame at the moment scrolling
@@ -1612,12 +1623,11 @@
                  Only the first frame carries alt text. The five are one picture as far as a
                  reader is concerned, and only ever one is visible, so describing each would read
                  out five descriptions of a single element. -->
-            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh, scroll-desaturate timeline:pin">
-              <img src="./assets/webdesign/scrub-daniel-lee.jpg" alt="Five different landing pages swapping in frame by frame as you scroll, fading from grayscale to full colour" />
-              <img src="./assets/webdesign/scrub-creative-agency.jpg" alt="" />
-              <img src="./assets/webdesign/scrub-artex-studio.jpg" alt="" />
-              <img src="./assets/webdesign/scrub-ox-soundtrack.jpg" alt="" />
-              <img src="./assets/webdesign/scrub-neo-hoodie.jpg" alt="" />
+            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh">
+              <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
+              <img src="./assets/webdesign/scrub-compton.jpg" alt="" data-no-lightbox />
+              <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
+              <img src="./assets/webdesign/scrub-hendrix.jpg" alt="" data-no-lightbox />
             </div>
           </div>
         </div>
@@ -1699,7 +1709,7 @@
           <p class="kui-contract"><code>data-kui="scroll-snap-y"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-y-demo">Show code</button></p>
           <div class="snap-y-panel" id="snap-y-demo" data-kui="scroll-snap-y">
             <figure>
-              <img src="./assets/webdesign/inzoi-character-studio.jpg" alt="The inZOI character studio — a 3D avatar in a white dress posed against a pink sunset sky, with expression, background and lighting sliders down the left and a scrolling outfit library down the right" loading="lazy" />
+              <img src="./assets/webdesign/scrub-daniel-lee.jpg" alt="The Daniel Lee mentorship site — a monochrome portrait beside the headline 9+ years of experience, with risk-management stats and 01/02/03 mentor tabs" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
             <figure>
