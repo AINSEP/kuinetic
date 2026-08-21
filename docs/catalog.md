@@ -77,16 +77,26 @@ Primitives 1–4. All `css`. The largest name group, the smallest amount of code
 
 ---
 
-## B. Scroll reveal & parallax — 12 names
+## B. Scroll reveal & parallax — 10 shipped, 3 planned
 
 Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:enter`.
 
-`reveal-once` · `reveal-repeat` · `parallax-y` · `parallax-x` · `parallax-scale` ·
+`reveal-once` · `reveal-repeat`† · `parallax-y` · `parallax-x` · `parallax-scale` ·
 `parallax-rotate` · `depth-layer` · `scroll-progress-bar` · `scroll-progress-ring` ·
-`scroll-fade` · `scroll-skew` · `reveal-direction-aware`
+`scroll-fade` · `scroll-desaturate` · `scroll-skew`† · `reveal-direction-aware`†
 
 > `parallax-*` and `scroll-*` use `data-kui-timeline`, not `data-kui-on` — they are
 > progress-linked and reverse on scroll-up by design.
+
+> **Animating across a pin.** A `view` timeline stalls the moment an element is pinned — a stuck
+> element stops travelling through the viewport, so its progress freezes for exactly the span you
+> wanted to animate over. Use `timeline:pin` there instead: it seeks the animation from the
+> `--kui-progress` the pinning primitive publishes, so the driver and the effect it drives can sit
+> on one element. `data-kui="pin-section distance:200vh, parallax-rotate from:-180deg angle:0deg
+> timeline:pin"` holds a card still and unwinds half a turn across the hold. `timeline:pin` needs
+> no browser scroll-timeline support — it is a paused animation and a negative delay.
+
+> **† Not yet implemented.** `reveal-repeat` · `scroll-skew` · `reveal-direction-aware` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
 ---
 
@@ -124,17 +134,19 @@ Primitives 17–19, 13, 23, 24.
 
 ---
 
-## E. SVG & icons — 17 names
+## E. SVG & icons — 2 shipped, 15 planned
 
 Primitives 15, 16.
 
-`draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
-`hamburger-to-x` · `play-to-pause` · `plus-to-minus` · `heart-fill` · `bookmark-fill` ·
-`icon-morph` · `blob-morph` · `logo-build` · `chart-line-draw` · `chart-bar-grow` ·
-`chart-area-fill` · `gradient-stroke`
+`draw-stroke`† · `draw-signature`† · `draw-underline`† · `checkmark-draw`† · `cross-draw`† ·
+`hamburger-to-x`† · `play-to-pause`† · `plus-to-minus`† · `heart-fill`† · `bookmark-fill`† ·
+`icon-morph` · `blob-morph` · `logo-build`† · `chart-line-draw`† · `chart-bar-grow`† ·
+`chart-area-fill`† · `gradient-stroke`†
 
 > `icon-morph` / `blob-morph` use primitive 16 (arbitrary path interpolation). The named
 > icon pairs are precomputed matched-point-count morphs — cheap and exact.
+
+> **† Not yet implemented.** `draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` · `hamburger-to-x` · `play-to-pause` · `plus-to-minus` · `heart-fill` · `bookmark-fill` · `logo-build` · `chart-line-draw` · `chart-bar-grow` · `chart-area-fill` · `gradient-stroke` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
 ---
 
@@ -174,13 +186,13 @@ Primitive 28. `js`. One technique unlocks the whole group.
 
 ---
 
-## I. Hover & pointer — 20 names
+## I. Hover & pointer — 21 names
 
 Primitives 21, 22, plus CSS.
 
 | Group | Names |
 |---|---|
-| button | `lift` `lift-shadow` `magnetic` `shine-sweep` `split-flap` |
+| button | `lift` `lift-shadow` `pop` `magnetic` `shine-sweep` `split-flap` |
 | border | `border-draw` `border-glow` `beam-border` |
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
@@ -191,13 +203,18 @@ Primitives 21, 22, plus CSS.
 
 ---
 
-## J. Ambient backgrounds — 14 names
+## J. Ambient backgrounds — 15 names
 
 Primitives 8, 9, 11, 12. Almost entirely `css`.
 
 `gradient-mesh` · `aurora` · `gradient-rotate-border` · `noise-overlay` · `scanline` ·
-`dot-grid-drift` · `line-grid-drift` · `floating-shapes` · `float` · `bob` · `starfield` ·
+`dot-grid-drift` · `line-grid-drift` · `floating-shapes` · `float` · `bob` · `orbit` · `starfield` ·
 `glow-pulse` · `spotlight-follow` · `wave-blob`
+
+> `orbit` spins forever: `data-kui="orbit 3.5s"`, `angle:` for a partial turn. It defaults to
+> `linear` easing rather than the section's usual `ease-in-out`, because an eased rotation
+> visibly stutters once per revolution at the iteration boundary. Set `transform-origin`
+> yourself — what a thing orbits around is layout, not motion.
 
 > Continuous ambient motion is `reducedMotion: 'disable'`, not `'shorten'` — a 1ms aurora
 > is meaningless.
@@ -215,14 +232,16 @@ Primitives 9, 10, 13, 15.
 
 ---
 
-## L. Page transitions — 6 names
+## L. Page transitions — 5 shipped, 1 planned
 
 Primitives 1, 5, plus the View Transitions API.
 
-`page-fade` · `page-slide` · `curtain-wipe` · `page-morph` · `loading-bar` · `smooth-scroll-to`
+`page-fade` · `page-slide` · `curtain-wipe` · `page-morph`† · `loading-bar` · `smooth-scroll-to`
 
-> `page-morph` is a View Transitions shared-element handoff; it degrades to `page-fade`
+> `page-morph`† is a View Transitions shared-element handoff; it degrades to `page-fade`
 > where unsupported.
+
+> **† Not yet implemented.** `page-morph` is documented here but is not registered in `src/effects` — `data-kui` will not resolve it. Verified against the live registry.
 
 ---
 
@@ -235,12 +254,14 @@ Primitives 1, 5, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 7 names
+## N. 3D & perspective — 30 shipped, 2 planned
 
 Primitives 14, 22.
 
 `card-flip-x` · `card-flip-y` · `cube-rotate` · `book-page-turn` · `fold-panel` ·
-`depth-layers-pointer` · `perspective-grid`
+`depth-layers-pointer`† · `perspective-grid`†
+
+> **† Not yet implemented.** `depth-layers-pointer` · `perspective-grid` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
 ---
 
@@ -259,21 +280,22 @@ Primitives 1, 10, 15.
 | Section | Names |
 |---|---|
 | A Entrance/exit | 48 |
-| B Scroll reveal & parallax | 12 |
+| B Scroll reveal & parallax | 10 (+3 planned) |
 | C Scroll mechanics | 11 |
 | D Text & typography | 26 |
-| E SVG & icons | 17 |
+| E SVG & icons | 2 (+15 planned) |
 | F Numbers & data viz | 13 |
 | G Media & images | 17 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 20 |
-| J Ambient backgrounds | 14 |
+| I Hover & pointer | 21 |
+| J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
-| L Page transitions | 6 |
+| L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
-| N 3D & perspective | 7 |
+| N 3D & perspective | 30 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total** | **237** |
+| **Total shipped** | **234** |
+| Documented but not yet shipped | 21 |
 
 Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a

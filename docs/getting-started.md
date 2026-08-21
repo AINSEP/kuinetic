@@ -118,6 +118,8 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
 | `on:` | activation: `load` `enter` `hover` `focus` `click` `manual` | `fade-up on:hover` |
+| `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
+| `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `data-kui-threshold` | how much of the element must be visible before `on:enter` fires | `data-kui-threshold="30%"` |
 | `data-kui-stagger` | delay increment applied to matched children in a group | `data-kui-stagger="60ms"` |
 
