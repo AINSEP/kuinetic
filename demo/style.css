@@ -665,10 +665,14 @@ figure .kui-show-code-toggle {
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
 }
 
+/* Three equal-weight tracks with the label in the middle one, rather than flex: the label is then
+   centred on the dialog itself and does not shift when the close button changes size. Under
+   `space-between` it sat hard left, and under the `flex-end` the inline copies used it sat jammed
+   against the ×; neither read as a title. */
 .kui-code-modal-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   /* The header is the drag handle. `touch-action: none` keeps a touch drag from being stolen by
      the browser's own pan gesture before the pointermove handler ever sees it. */
@@ -696,6 +700,9 @@ figure .kui-show-code-toggle {
 .kui-code-modal-close:hover {
   color: var(--ink);
 }
+
+.kui-code-modal-header > .kui-code-modal-grip { grid-column: 2; }
+.kui-code-modal-header > .kui-code-modal-close { grid-column: 3; justify-self: end; }
 
 .kui-code-modal-grip {
   color: var(--dim);

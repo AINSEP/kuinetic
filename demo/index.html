@@ -928,11 +928,17 @@
     box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
   }
 
+  /* Middle track holds the label, so it centres on the dialog rather than sitting jammed against
+     the × the way `justify-content: flex-end` left it. Matches system.css. */
   .kui-code-modal-header {
-    display: flex;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
     margin: -0.9rem -0.9rem 0.6rem 0;
   }
+
+  .kui-code-modal-header > .kui-code-modal-grip { grid-column: 2; }
+  .kui-code-modal-header > .kui-code-modal-close { grid-column: 3; justify-self: end; }
 
   .kui-code-modal-close {
     width: 2rem;
