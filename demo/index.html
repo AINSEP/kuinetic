@@ -746,6 +746,15 @@
   .slice-stack { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 100%; }
   .slice-badge { position: relative; display: inline-grid; place-items: center; padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
   .slice-badge i { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+  .slice-puck {
+    display: inline-grid; place-items: center; width: 5.4rem; height: 5.4rem; border-radius: 50%;
+    border: 1px solid var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent);
+    color: var(--accent-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+    /* `touch-action: none` or the browser scrolls the page instead of handing us the pointer. */
+    cursor: grab; touch-action: none; user-select: none;
+  }
+  .slice-puck:active { cursor: grabbing; }
   .slice-field { position: relative; width: 100%; padding-top: 1.1rem; }
   .slice-field input { width: 100%; font: inherit; font-size: 0.82rem; color: var(--fg); background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 0.3rem 0; }
   .slice-field input:focus { outline: none; border-bottom-color: var(--accent); }
@@ -1295,15 +1304,17 @@
             </span>
           </a>
 
-          <a class="slice" href="./scroll.html" data-kui="fade-up 500ms on:enter">
-            <span class="slice-media">
-              <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" style="position:absolute; inset:-15% 0; height:130%" data-kui="parallax-y distance:90px timeline:view" />
+          <span class="slice">
+            <span class="slice-media is-composed">
+              <!-- A real gesture, not a picture of one: pull the puck and the spring returns it.
+                   Deliberately not an <a>: a drag inside a link fights the link on every release. -->
+              <span class="slice-puck" data-kui="elastic-pull">Drag me</span>
             </span>
             <span class="slice-body">
-              <span class="slice-cat">Scroll reveal <b>12</b></span>
-              <span class="slice-fx">parallax-y timeline:view</span>
+              <span class="slice-cat">Gestures &amp; physics <b>13</b></span>
+              <span class="slice-fx">elastic-pull</span>
             </span>
-          </a>
+          </span>
 
           <a class="slice" href="./scroll.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media">
@@ -1324,11 +1335,11 @@
 
           <a class="slice" href="./text.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media is-composed">
-              <span class="slice-word" data-kui="scramble 1600ms on:enter">DECLARATIVE</span>
+              <span class="slice-word" data-kui="scramble 1600ms, blur-in 900ms on:enter">DECLARATIVE</span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Text &amp; typography <b>26</b></span>
-              <span class="slice-fx">scramble</span>
+              <span class="slice-fx">scramble, blur-in</span>
             </span>
           </a>
 
@@ -1349,13 +1360,13 @@
           <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
-                <span class="slice-num" data-kui="count-up 1600ms to:252 on:enter">0</span>
+                <span class="slice-num" data-kui="count-up 1600ms to:252, zoom-in 900ms scale:0.6 on:enter">0</span>
                 <span class="slice-num-note">named effects</span>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Numbers &amp; data <b>13</b></span>
-              <span class="slice-fx">count-up to:252</span>
+              <span class="slice-fx">count-up to:252, zoom-in</span>
             </span>
           </a>
 
