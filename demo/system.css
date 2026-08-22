@@ -543,9 +543,15 @@ figure .kui-show-code-toggle {
    deleted at all: the mark no longer needs a caption to explain it.
 
    The letters go back to plain `--fg`, so contrast is the panel's own black-on-white or
-   white-on-black and never a question. The band carries the accent instead, at an alpha low enough
-   to stay behind the text: 32% of #e4f222 on the light panel's white, and 22% in dark mode, where
-   the same wash over black would otherwise crush the glyphs. `box-decoration-break: clone` so a
+   white-on-black and never a question. The band carries the accent instead, at 32% of #e4f222
+   on the light panel's white.
+
+   Dark mode cannot reuse that percentage: `--accent` is itself a near-white, high-luminance
+   yellow-green, so mixing it into black scales its luminance down along with everything else —
+   at 22% the band measured under 2:1 contrast against the panel's own black, i.e. next to
+   invisible, not "crushed glyphs" (the white text sitting on top of it was never the problem).
+   45% clears roughly 3:1 against black, which is what a highlighter band needs to read as a
+   band at all; white text on top of it still clears 5:1. `box-decoration-break: clone` so a
    line long enough to wrap gets the padding and radius on every fragment rather than one long
    band with two square ends in the middle of the text. */
 .kui-code-key {
@@ -560,7 +566,7 @@ figure .kui-show-code-toggle {
 }
 
 :root[data-theme='dark'] .kui-code-key {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .kui-code-modal code {

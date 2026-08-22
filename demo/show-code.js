@@ -16,6 +16,19 @@
   const CHECK_ICON =
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.7 4.3a1 1 0 0 1 0 1.4l-6.5 6.5a1 1 0 0 1-1.4 0L2.3 8.7a1 1 0 1 1 1.4-1.4L6.5 10.1l5.8-5.8a1 1 0 0 1 1.4 0Z"/></svg>'
 
+  /**
+   * Returns an array of `{ text, isTag }` line records rather than a plain string. `isTag` marks
+   * a line that came from an element's own opening tag (or a collapsed void/empty element) — the
+   * only place a real `data-kui` *attribute* or a class-token contract can ever live. Every other
+   * line is a text node a human typed as a caption.
+   *
+   * That distinction is what `isKeyLine` needs. A caption like `<figcaption>data-kui="flip-shuffle"
+   * — flick to reorder</figcaption>` prints a text line that reads `data-kui="flip-shuffle" —
+   * flick to reorder` — a plain string match for `data-kui=` lights that up exactly like the real
+   * attribute on the real tag, because to a string search the two are identical text. Keeping the
+   * line's origin (tag vs. text) alongside it is what lets the highlighter tell them apart; a
+   * caption can say anything it wants about `data-kui` without ever being mistaken for it.
+   */
   function prettyPrint(el, depth) {
     const indent = '  '.repeat(depth)
     const tag = el.tagName.toLowerCase()
@@ -26,13 +39,13 @@
       .map((a) => `${a.name}="${a.value}"`).join(' ')
     const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`
 
-    if (VOID_TAGS.has(tag)) return `${indent}${openTag.slice(0, -1)} />`
+    if (VOID_TAGS.has(tag)) return [{ text: `${indent}${openTag.slice(0, -1)} />`, isTag: true }]
 
     const childLines = []
     for (const node of el.childNodes) {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent.trim()
-        if (text) childLines.push('  '.repeat(depth + 1) + text)
+        if (text) childLines.push({ text: '  '.repeat(depth + 1) + text, isTag: false })
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         // A hand-authored `.kui-show-code-toggle` is page chrome, not demo markup. When the
         // button sits *inside* the container it targets — which is the natural place for it
@@ -41,15 +54,18 @@
         //
         // `.kui-contract` is the same category one level up: the bar that *displays* the
         // `data-kui` string next to that button. Printing it puts a second copy of the attribute
-        // in the source as literal text, on a line that then matches `isKeyLine` and gets
-        // highlighted — so the reader is told the page's own caption is part of the contract.
+        // in the source as literal text.
         if (node.classList.contains('kui-show-code-toggle')) continue
         if (node.classList.contains('kui-contract')) continue
-        childLines.push(prettyPrint(node, depth + 1))
+        childLines.push(...prettyPrint(node, depth + 1))
       }
     }
-    if (childLines.length === 0) return `${indent}${openTag}</${tag}>`
-    return [indent + openTag, ...childLines, `${indent}</${tag}>`].join('\n')
+    if (childLines.length === 0) return [{ text: `${indent}${openTag}</${tag}>`, isTag: true }]
+    return [
+      { text: indent + openTag, isTag: true },
+      ...childLines,
+      { text: `${indent}</${tag}>`, isTag: false },
+    ]
   }
 
   /**
@@ -67,8 +83,12 @@
   }
 
   function isKeyLine(line, tokens) {
-    if (/\bdata-kui\s*=/.test(line)) return true
-    return tokens.some((token) => line.includes(token))
+    // Only an element's own opening tag can carry `data-kui` or a class-token contract. A text
+    // line can say the words `data-kui=` — that is exactly the caption bug this guards against —
+    // but it can never be the attribute, so it is never a key line regardless of what it says.
+    if (!line.isTag) return false
+    if (/\bdata-kui\s*=/.test(line.text)) return true
+    return tokens.some((token) => line.text.includes(token))
   }
 
   /**
@@ -78,9 +98,8 @@
    * both re-parse the demo's own tags and hand any authored attribute value a way into the DOM.
    * One node per line keeps it plain text all the way down.
    */
-  function renderSource(code, text, tokens) {
+  function renderSource(code, lines, tokens) {
     code.replaceChildren()
-    const lines = text.split('\n')
     let marked = 0
     lines.forEach((line, index) => {
       const suffix = index < lines.length - 1 ? '\n' : ''
@@ -88,10 +107,10 @@
         marked += 1
         const mark = document.createElement('mark')
         mark.className = 'kui-code-key'
-        mark.textContent = line
+        mark.textContent = line.text
         code.append(mark, document.createTextNode(suffix))
       } else {
-        code.append(document.createTextNode(line + suffix))
+        code.append(document.createTextNode(line.text + suffix))
       }
     })
     return marked
