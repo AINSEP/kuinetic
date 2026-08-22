@@ -1,0 +1,1910 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CSS animations using HTML attributes · basic</title>
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 252 named effects from 30 primitives. JavaScript only for the handful of effects that genuinely need it." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<script defer src="./nav.js"></script>
+<style>
+  :root,
+  :root[data-theme='light'] {
+    --bg: #ffffff;
+    --surface: #f6f6f4;
+    --fg: #08090a;
+    --muted: oklch(46% 0.017 75);
+    --border: #e4e4e2;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Bright acid-lime text on white is a contrast failure (~1.2:1). A plain color-mix(accent,
+       black) darkens it while keeping green as the dominant channel, which reads as olive/green
+       rather than yellow — this is a dedicated dark gold instead, red channel now dominant, ~4.9:1
+       on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
+       accents) where it sits on a dark or neutral surface instead. */
+    --accent-text: #8a6d00;
+    /* Semantic pair, used only by the compose playground's verdict. Green/red rather than the
+       brand accent because "these compose" and "these collide" is a status, not a brand moment,
+       and the accent already means "this is the effect name". */
+    --ok: #1b7f3b;
+    --warn: #b3261e;
+    --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    --bg: #08090a;
+    --surface: #0f1011;
+    --fg: #ffffff;
+    --muted: #8a8f98;
+    --border: #23252a;
+    --accent: #e4f222;
+    --accent-ink: #08090a;
+    /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
+       here — matches --accent exactly. */
+    --accent-text: #e4f222;
+    /* Lightened for the near-black canvas — the light-mode pair is ~4.5:1 on white and ~2:1 here. */
+    --ok: #4ade80;
+    --warn: #f87171;
+    --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+
+  /* The stage tokens. The hero and the ticker under it are a distinct *surface* from the rest of
+     the page — a panel you land on — but they follow the theme like everything else.
+
+     An earlier version painted them near-black in both themes, on the reasoning that acid-lime is
+     ~1.2:1 on white and needs a dark surface to be the brand colour. That reasoning was half right
+     and the conclusion was wrong: only lime *text* fails on white, `--accent-text` already exists
+     for exactly that, and lime as a *fill* is fine on paper — the primary button and the install
+     card have always proved it. The cost was the whole first screen ignoring the theme toggle that
+     sits in its own header, which is the worst place on the page to break that promise.
+
+     Named separately from --fg/--bg rather than reassigned, so a component moved onto the stage
+     does not silently inherit a second definition of "foreground". */
+  .stage {
+    --s-bg: var(--surface);
+    --s-fg: var(--fg);
+    --s-muted: var(--muted);
+    --s-border: var(--border);
+    /* Texture strength differs per theme: a white speck reads on near-black and vanishes on
+       paper. */
+    --s-texture-opacity: 0.09;
+    --s-inset: rgb(8 9 10 / 0.04);
+    --s-hairline: rgb(8 9 10 / 0.12);
+    background: var(--s-bg);
+    color: var(--s-fg);
+  }
+  :root[data-theme='dark'] .stage {
+    --s-texture-opacity: 0.055;
+    --s-inset: rgb(255 255 255 / 0.035);
+    --s-hairline: rgb(255 255 255 / 0.14);
+  }
+
+  /* Dark mode only: acid-lime reads with excellent contrast on the near-black canvas (unlike on
+     paper-white, where the source system explicitly bans it as running text) — so every section
+     heading goes full accent in dark mode, each the sole accent-as-text use in its own section.
+     `main h1` is deliberately absent: the h1 now lives on the stage, which is already near-black
+     in both themes and paints its own accent rules below. */
+  :root[data-theme='dark'] main h2 { color: var(--accent); }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv01' on, 'ss03' on, 'zero' on;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  .wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+  @media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
+
+  /* No rule between sections. A ticker separates every one of them, and a hairline drawn directly
+     under a band of moving names is a second divider doing the first one's job — which is what it
+     looked like: a stray line hanging under the marquee. The alternation carries the seam now.
+
+     The tickers are the off-white stripes and the content sections are white, so no two adjacent
+     blocks ever share a background and the rhythm holds without a single border. */
+  section { padding: clamp(4.5rem, 6vw + 1.5rem, 8rem) 0; }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 510; }
+  p { margin: 0; }
+
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  a { color: inherit; }
+  a:not(.btn):not(.nav-link):not(.chip) {
+    text-decoration: underline;
+    text-decoration-color: var(--border);
+    text-underline-offset: 3px;
+  }
+
+  button, a.btn { font-family: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- header / nav ---------- */
+  .site-header {
+    position: sticky;
+    top: 1rem;
+    z-index: 100;
+    margin: 1rem auto 0;
+    max-width: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    box-shadow: var(--shadow-float);
+  }
+  /* The header follows the page theme, full stop. It used to be force-painted dark in light mode
+     so it would sit on the near-black hero; the hero is theme-aware now, so it has nothing to
+     match and every reason to obey the toggle it contains. */
+
+  .logo { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none !important; }
+  .logo-mark {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 20px; height: 20px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    flex: none;
+  }
+  .logo-dot {
+    position: absolute; top: -1.5px; left: 50%;
+    width: 5px; height: 5px; margin-left: -2.5px;
+    border-radius: 50%;
+    background: var(--accent);
+    /* transform-origin only — the spin is `data-kui="orbit 3.5s"` on the element. */
+    transform-origin: 2.5px 11.5px;
+  }
+  .wordmark { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .wordmark b { font-weight: 800; }
+
+  .nav-links { display: flex; align-items: center; gap: 1.25rem; font-size: 0.9rem; }
+  /* The unconditional display:flex above is an author rule, so it always beats the UA's
+     [hidden]{display:none} at equal specificity regardless of source order (author origin wins
+     over user-agent origin outright) — without this, nav.js setting .hidden=true on mobile close
+     never actually hides the panel. */
+  .nav-links[hidden] { display: none; }
+  .kui-nav-dropdown { position: relative; }
+  .kui-nav-dropdown-trigger {
+    font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
+    background: none; border: none; padding: 0; cursor: pointer;
+  }
+  .kui-nav-dropdown-trigger:hover,
+  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+  .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
+  .kui-nav-coming-soon {
+    display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+    font-style: italic; color: var(--muted); opacity: 0.7;
+  }
+  /* The menu panel keeps the page's own theme, not the header's stage paint — it is a surface you
+     read, not chrome you glance past, and inverting it would put light text on a light panel. */
+  .kui-nav-dropdown-menu {
+    position: absolute; top: calc(100% + 0.7rem); left: 0; flex-direction: column;
+    min-width: 160px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 0.35rem; box-shadow: var(--shadow-float);
+    color: var(--fg);
+  }
+  .kui-nav-dropdown-menu a {
+    display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
+    font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
+  }
+  .kui-nav-dropdown-menu a:hover,
+  .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
+  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  .kui-nav-toggle {
+    display: none; width: 2.4rem; height: 2.4rem; padding: 0;
+    color: currentColor; background: none; border: none; flex: none;
+  }
+  .kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { opacity: 0.7; }
+  /* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
+     overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
+     silently ships with no links at desktop widths too. Forcing display here makes the nav
+     correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
+  @media (min-width: 721px) { .nav-links[hidden] { display: flex; } }
+  @media (max-width: 720px) {
+    .kui-nav-toggle { display: grid; place-items: center; }
+    /* Fixed full-viewport layer behind the open mobile panel, in front of the page — without it,
+       whatever section happens to be scrolled behind the header (e.g. a solid-accent card) shows
+       through around the panel's edges, and there's no reliable "outside" target to click to
+       close it. See nav.js's setMobileOpen/backdrop wiring. */
+    .kui-nav-backdrop {
+      position: fixed; inset: 0; z-index: 1;
+      background: color-mix(in srgb, var(--bg) 70%, transparent);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+    }
+    .nav-links {
+      position: absolute; top: calc(100% + 0.6rem); left: 0; right: 0; z-index: 2;
+      flex-direction: column; align-items: stretch; gap: 0.2rem;
+      padding: 0.9rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: var(--shadow-float); color: var(--fg);
+    }
+    :root[data-theme='light'] .site-header .nav-links { color: var(--fg); }
+    :root[data-theme='light'] .site-header .nav-links .kui-nav-dropdown-trigger { color: var(--fg); }
+    .nav-links .kui-nav-dropdown-trigger { display: flex; align-items: center; width: 100%; min-height: 44px; }
+    .nav-links .kui-nav-dropdown-menu { position: static; box-shadow: none; margin-top: 0.1rem; padding: 0.3rem; }
+    .nav-links .kui-nav-dropdown-menu a { min-height: 44px; display: flex; align-items: center; }
+  }
+  @media (max-width: 420px) {
+    .site-header { gap: 0.65rem; padding: 0.5rem 0.5rem 0.5rem 1rem; }
+    .site-header > .nav-cta { display: none; }
+  }
+
+  .theme-toggle {
+    width: 2.4rem; height: 2.4rem;
+    border-radius: 50%;
+    border: none;
+    background: var(--fg);
+    color: var(--bg);
+    display: grid; place-items: center;
+    padding: 0;
+    flex: none;
+  }
+  .theme-toggle:hover { opacity: 0.85; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.85rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.95rem; font-weight: 590;
+    text-decoration: none !important;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
+  .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+  .btn-ghost { background: transparent; color: var(--fg); border-color: var(--border); position: relative; overflow: hidden; }
+  .btn-ghost:hover { border-color: var(--fg); }
+  /* On the stage the ghost button's page-theme border is a near-invisible dark line on near-black.
+     It borrows the stage's own border and foreground instead of the page's. */
+  .stage .btn-ghost { color: var(--s-fg); border-color: var(--s-border); }
+  .stage .btn-ghost:hover { border-color: var(--s-fg); }
+
+  /* ---------- kicker / eyebrow ---------- */
+  .kicker {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .stage .kicker { color: var(--s-muted); }
+
+  /* ---------- HERO — the stage ---------- */
+  .hero-stage {
+    /* Pure white at the top, so nothing competes with the headline. `.stage` defaults `--s-bg` to
+       `--surface`; the hero is the one stage that wants the page background instead. The ticker
+       below deliberately keeps `--surface`. */
+    --s-bg: var(--bg);
+    position: relative;
+    overflow: clip;
+    padding-top: clamp(5.5rem, 5vw + 3.5rem, 7.5rem);
+    padding-bottom: clamp(3.5rem, 5vw, 5.5rem);
+    /* Pulled up under the floating header so the stage starts at the very top of the document
+       rather than below a white strip the header is sitting on. */
+    margin-top: calc(-1 * (1rem + 3.4rem));
+  }
+  /* The drifting dot grid is `data-kui="dot-grid-drift"` — the page using its own catalog for its
+     own texture. It sits behind everything at z-index 0; the content layer is explicitly raised. */
+  .hero-grid-texture {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    color: var(--s-fg);
+    opacity: var(--s-texture-opacity);
+    /* A hard bottom fade so the texture belongs to the stage and does not run into the seam. */
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+  }
+  .hero-inner { position: relative; z-index: 1; }
+
+  .hero {
+    display: grid; grid-template-columns: 1fr; gap: clamp(2.5rem, 5vw, 4rem);
+    align-items: center;
+  }
+  /* The media column is the wider of the two on purpose. The card is the star of the page and the
+     copy is its caption — sized the other way round, the headline runs to five lines and the card
+     shrinks to a thumbnail floating in the gutter. */
+  @media (min-width: 1000px) { .hero { grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr); } }
+
+  .hero h1 {
+    margin-top: 1.25rem;
+    /* 15ch, not 13: at 13 the headline breaks to five lines on a desktop viewport and the hero
+       stops fitting in the first screen, which is the one thing this section cannot afford. */
+    max-width: 15ch;
+    font-size: clamp(2.6rem, 1.1rem + 3.4vw, 4.35rem);
+    font-weight: 560;
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+  }
+  /* `--accent-text`, not `--accent`: this is lime as *text*, which is ~1.2:1 on paper. The token
+     resolves to a dark gold in light mode and to the lime itself in dark. */
+  .hero h1 em { font-style: normal; color: var(--accent-text); }
+
+  /* The attribute chip — the page's focal motif. Everything kUInetic does is this string, so the
+     string is set at headline scale rather than buried in a paragraph, and the same mono-plus-
+     accent-band treatment is repeated at every section that shows an attribute. */
+  .attr-chip {
+    display: inline-flex; align-items: baseline; flex-wrap: wrap;
+    margin-top: 1.5rem; padding: 0.7rem 1.1rem;
+    border: 1px solid var(--s-hairline);
+    border-radius: 10px;
+    background: var(--s-inset);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(0.9rem, 0.5rem + 0.95vw, 1.2rem);
+    line-height: 1.3;
+    color: var(--s-fg);
+    white-space: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .attr-chip .attr-key { color: var(--s-muted); }
+  /* The cycling effect name is the one thing on the stage wearing the accent as a fill. Its box is
+     min-width'd so the chip does not jump a few pixels wider every time a longer name swaps in. */
+  .attr-chip .attr-value {
+    display: inline-block; min-width: 11ch;
+    padding: 0.05em 0.35em; margin: 0 0.1em;
+    border-radius: 3px;
+    background: var(--accent); color: var(--accent-ink);
+    font-weight: 600;
+  }
+  /* Deliberately NOT display:flex. A flex `gap` applies between every child, so the inline <b>
+     wrapping the effect name got the same 0.5rem on both sides as the dot did and the sentence
+     read "word-cycler , one of the 252". This is running text with one inline marker in it. */
+  .attr-caption {
+    margin-top: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; letter-spacing: 0.04em;
+    color: var(--s-muted);
+  }
+  .attr-caption b { color: var(--accent-text); font-weight: 500; }
+  /* A live dot rather than an arrow glyph: the arrow has to point at a chip whose position moves
+     with the line wrap, and it renders as a stray letter in some mono stacks. A pulsing dot says
+     "this is running" from anywhere on the line. */
+  .attr-caption .live-dot {
+    display: inline-block; vertical-align: middle;
+    width: 6px; height: 6px; margin-right: 0.5rem;
+    border-radius: 50%; background: var(--accent);
+  }
+
+  .hero .lede {
+    margin-top: 1.5rem; max-width: 50ch;
+    font-size: clamp(1rem, 0.35vw + 0.95rem, 1.12rem);
+    line-height: 1.65;
+    color: var(--s-muted);
+  }
+  .hero .lede strong { color: var(--s-fg); font-weight: 510; }
+
+  .hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem; }
+  .hero-note {
+    margin-top: 1.5rem; font-size: 0.82rem; color: var(--s-muted);
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  }
+  .hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+
+  /* ---------- hero flip card ---------- */
+  .hero-media { min-width: 0; }
+  .hero-media-credit {
+    margin: 0 0 0.7rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    /* Plain foreground in light mode — the dark-gold `--accent-text` reads as a muted caption
+       next to a black headline, and this is a signature, not metadata. Dark mode keeps the accent,
+       where lime is legible and the page's other headings already use it. */
+    font-size: 0.95rem; text-align: right; color: var(--fg);
+  }
+  :root[data-theme='dark'] .hero-media-credit { color: var(--accent); }
+  /* The card is `display: grid` from the library's own rule, so any control has to claim the same
+     grid cell as the faces or it lands in a second row and pushes the layout around. */
+  /* In light mode this card is the one dark mass on a pale panel, which is a stronger focal pull
+     than dark-on-dark ever was — so the shadow only has to seat it, not separate it. */
+  .hero-flip {
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgb(8 9 10 / 0.22);
+  }
+  :root[data-theme='dark'] .hero-flip { box-shadow: 0 30px 70px rgb(0 0 0 / 0.55); }
+  .hero-flip > .kui-face-front,
+  .hero-flip > .kui-face-back {
+    border-radius: 14px; overflow: clip;
+    border: 1px solid var(--s-hairline);
+    background: #000;
+  }
+  .hero-flip .video-frame { position: relative; aspect-ratio: 16 / 10; overflow: clip; background: #000; }
+  /* `cover`, never `contain` and never a stretch: the two sources are 4:3 and 16:9 and they share
+     one box, so one of them has to be cropped. Cropping keeps both at their true proportions. */
+  .hero-flip .video-frame video,
+  .hero-flip .video-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* Both controls share one grid cell with the faces and one set of pill metrics, so they sit on
+     the same baseline and read as a pair rather than as two unrelated buttons that happen to be
+     near each other. Only the corner and the fill differ. */
+  .kui-flip-control,
+  .hero-flip-code {
+    grid-area: 1 / 1; z-index: 2; align-self: end; margin: 0.85rem;
+    display: flex; align-items: center; gap: 0.55rem;
+    /* Shared, because the Flip pill is taller than its own padding — its inner name chip sets the
+       height. Without this the two sit 6px apart and stop reading as a matched pair. */
+    min-height: 2.2rem; box-sizing: border-box;
+    border-radius: 999px; cursor: pointer;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    transition: background 180ms ease, border-color 180ms ease;
+  }
+  .kui-flip-control {
+    justify-self: end;
+    padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+    border: 1px solid rgb(255 255 255 / 0.25); background: rgb(8 9 10 / 0.62);
+  }
+  .hero-flip-code {
+    justify-self: start;
+    padding: 0.4rem 0.85rem;
+    letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;
+    border: 1px solid rgb(255 255 255 / 0.3); background: rgb(8 9 10 / 0.34);
+    color: rgb(255 255 255 / 0.86);
+  }
+  .hero-flip-code:hover, .hero-flip-code:focus-visible {
+    background: rgb(8 9 10 / 0.72); border-color: rgb(255 255 255 / 0.6); color: #fff;
+  }
+  /* Under ~520px the two pills would meet in the middle. Stack them at the bottom-left instead of
+     letting them collide — a control that overlaps another control is worse than one that moved. */
+  @media (max-width: 520px) {
+    .kui-flip-control, .hero-flip-code { justify-self: start; }
+    .kui-flip-control { margin-bottom: 3.1rem; }
+  }
+  .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
+  .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .hero-media-caption {
+    margin-top: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; line-height: 1.6; color: var(--s-muted);
+  }
+  /* Was a hardcoded translucent white, which was correct only while the stage was permanently
+     near-black. On the light stage it is white-on-off-white. */
+  .hero-media-caption b { color: var(--s-fg); font-weight: 500; }
+
+  /* ---------- ticker ---------- */
+  /* The 252 claim, made viscerally instead of numerically. It is also the marquee primitive
+     demonstrating itself, and it seals the bottom of the stage. */
+  /* No border. The band separates itself: off-white against white on both sides, with a white
+     content section above and below every one of them. A hairline on top of that is a second
+     divider doing the first one's job, and it read as a stray rule hanging under the marquee.
+     `overflow: clip` stays and is load-bearing — the row is `width: max-content` and would hand
+     the document a horizontal scrollbar without it. */
+  .ticker {
+    padding: 0;
+    overflow: clip;
+  }
+  .ticker-row { display: flex; width: max-content; padding: 0.9rem 0; }
+  .ticker-row span {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem; letter-spacing: 0.06em;
+    color: var(--s-muted); white-space: nowrap;
+  }
+  .ticker-row b { color: var(--accent-text); font-weight: 500; }
+
+  /* ---------- section heading ---------- */
+  .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
+  .section-head p { margin-top: 0.9rem; color: var(--muted); max-width: 50ch; line-height: 1.7; }
+  .section-head .kicker { margin-bottom: 1rem; }
+  .catalog-more { margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+  /* A ghost button works on the stage, where the surface is already dark. Out here it is a hairline
+     outline on white — it reads as disabled next to the filled primary beside it. Filled with the
+     foreground instead: black on white, white on near-black. */
+  .catalog-more .btn-ghost { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .catalog-more .btn-ghost:hover { background: color-mix(in srgb, var(--fg) 82%, var(--bg)); border-color: transparent; }
+
+  /* ---------- install ---------- */
+  .install-card {
+    display: grid; gap: 2.5rem; grid-template-columns: 1fr; background: var(--accent);
+    border: 1px solid var(--accent); border-radius: 16px; padding: clamp(1.75rem, 3.5vw, 3.25rem);
+  }
+  @media (min-width: 860px) { .install-card { grid-template-columns: 1fr 1fr; } }
+  .install-card h2 {
+    font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 18ch;
+    color: var(--accent-ink) !important; /* sits on a permanently yellow card — must win over the dark-mode heading rule */
+  }
+  .install-card > div > p { margin-top: 1.15rem; color: var(--accent-ink); line-height: 1.7; max-width: 44ch; }
+  .install-snip { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; margin-top: 1.5rem; }
+  .install-snip-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .install-snip code { font-size: 0.85rem; color: var(--fg); }
+  .install-snip + .install-snip { margin-top: 0.75rem; }
+  .copy-btn {
+    flex: none; font-size: 0.75rem; font-weight: 590; color: var(--muted);
+    background: none; border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.65rem;
+  }
+  .copy-btn:hover { color: var(--fg); border-color: var(--fg); }
+  .copy-btn.is-copied { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .install-code pre { margin: 0; font-size: 0.82rem; line-height: 1.7; overflow-x: auto; color: var(--muted); }
+
+  /* ---------- footer ---------- */
+  footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
+  .foot-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+  .foot-note { font-size: 0.85rem; color: var(--muted); }
+  .back-top { font-size: 0.85rem; color: var(--muted); text-decoration: none !important; }
+  .back-top:hover { color: var(--fg); }
+
+  /* ---------- replay fab ---------- */
+  .kui-replay-fab {
+    position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60;
+    width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
+    background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
+    box-shadow: var(--shadow-float);
+  }
+  .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- the attribute line, shared by both playgrounds ----------
+     The same mono-plus-accent-band treatment as the hero chip, at body scale. Repeating it is the
+     point: wherever this page shows you an attribute, it looks like this, so the eye learns one
+     shape and the sections stop reading as unrelated demos. */
+  .attr-line {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(0.82rem, 0.4vw + 0.74rem, 0.98rem);
+    line-height: 1.9;
+    color: var(--muted);
+    overflow-wrap: break-word;
+  }
+  .attr-line .v {
+    padding: 0.12em 0.4em; border-radius: 3px;
+    background: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
+
+  /* Both playgrounds share one two-column shape: controls left, the thing they drive right. */
+  .play-grid { display: grid; gap: 2rem; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 900px) {
+    .play-grid { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 3rem; }
+  }
+  .play-stage {
+    padding: 1.25rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  }
+  :root[data-theme='light'] .play-stage { background: var(--bg); }
+
+  /* ---------- section 3: change the attribute ---------- */
+  .lab-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.75rem; }
+  .lab-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem;
+    padding: 0.4rem 0.8rem; border-radius: 999px;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .lab-chip:hover { border-color: var(--fg); color: var(--fg); }
+  .lab-chip[aria-pressed='true'] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
+  /* The picture and the attribute that produced it are one card, not a caption floating above a
+     frame — the bar is attached to the thing it describes, which is how every demo page in the
+     showcase already presents an effect. */
+  .lab-card {
+    /* `perspective` on an element applies to its DESCENDANTS' transforms, never to its own — so
+       the library setting it on the rotating element itself does nothing for that element's own
+       rotation. `fold-panel` therefore tipped from -90deg with no perspective at all, which is a
+       pure vertical squash rather than a panel folding towards you. The parent is where it has to
+       live, which is why the old hero put it on `.hero-media` by hand. */
+    perspective: 1400px;
+    max-width: 26rem; margin-inline: auto;
+    border-radius: 12px; overflow: clip; background: #000;
+    box-shadow: 0 20px 48px rgb(8 9 10 / 0.18);
+  }
+  :root[data-theme='dark'] .lab-card { box-shadow: 0 20px 48px rgb(0 0 0 / 0.5); }
+  /* Portrait, because the picture is. A 4:3 box around a tall photograph crops the subject to a
+     band and gives `slat-assemble` a short, wide slat that reads as a smear rather than a slat. */
+  .lab-frame { aspect-ratio: 3 / 4; overflow: clip; background: #000; }
+  .lab-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* Centred and stacked rather than side-by-side: at the card's ~416px the attribute and the chip
+     wrap anyway, and a wrapped space-between row leaves the chip stranded on the left. */
+  .lab-bar {
+    display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+    padding: 0.75rem 0.9rem 0.85rem; background: #08090a; text-align: center;
+  }
+  /* The bar is permanently near-black in both themes, so the attribute line on it needs the light
+     palette rather than the page's. */
+  .lab-bar .attr-line { color: #8a8f98; line-height: 1.5; }
+  .lab-bar .kui-show-code-toggle { --kui-chip-ink: var(--accent); }
+  .lab-bar .kui-show-code-toggle:hover,
+  .lab-bar .kui-show-code-toggle:focus-visible {
+    color: var(--accent-ink); background: var(--accent); border-color: var(--accent);
+  }
+
+  /* ---------- section 4: effects compose ---------- */
+  .compose-list { list-style: none; margin: 1.75rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+  .compose-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+    transition: border-color 160ms ease;
+  }
+  .compose-row:hover { border-color: var(--fg); }
+  .compose-row input { accent-color: var(--accent); width: 1rem; height: 1rem; flex: none; cursor: pointer; }
+  .compose-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
+  /* The channel list is the whole explanation, so it is on screen permanently rather than in a
+     tooltip: you can see *why* two effects collide before you tick the box that makes them. */
+  .compose-ch {
+    margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem; color: var(--muted); text-align: right;
+  }
+  .compose-verdict {
+    margin-top: 1rem; padding: 0.7rem 0.9rem; border-radius: 8px; border: 1px solid;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; line-height: 1.6;
+  }
+  .compose-verdict[data-ok='true'] {
+    color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+    background: color-mix(in srgb, var(--ok) 8%, transparent);
+  }
+  .compose-verdict[data-ok='false'] {
+    color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+  }
+  .compose-frame {
+    margin-top: 1rem; min-height: 9rem; display: grid; place-items: center;
+    border-radius: 10px; background: var(--surface); padding: 1.5rem;
+  }
+  :root[data-theme='dark'] .compose-frame { background: #0b0c0d; }
+  .compose-target {
+    font-size: clamp(1.35rem, 1vw + 1.1rem, 1.9rem); font-weight: 560; letter-spacing: -0.02em;
+    text-align: center; max-width: 18ch;
+  }
+
+  /* ---------- section 5: the slices ---------- */
+  /* A contact sheet, not a set of set-pieces. Every category gets one small live moment built from
+     the assets of the page that owns it, so clicking through is a continuation rather than a jump
+     to somewhere unrelated. Small on purpose: fourteen loud tiles is a fairground. */
+  .view-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; margin-top: 3rem; }
+  @media (min-width: 760px) { .view-grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
+  .view-card {
+    margin: 0; overflow: clip; border-radius: 14px;
+    border: 1px solid var(--border); background: var(--surface);
+  }
+  .view-card img, .view-card video {
+    display: block; width: 100%; aspect-ratio: var(--ar, 16 / 10); object-fit: cover;
+  }
+  .view-card figcaption {
+    padding: 0.7rem 0.9rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere;
+  }
+
+  .g-tag {
+    position: absolute; left: 0.8rem; bottom: 0.8rem; z-index: 1;
+    padding: 0.3rem 0.65rem; border-radius: 999px;
+    background: rgb(8 9 10 / 0.62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem; color: #fff; border: 1px solid rgb(255 255 255 / 0.22);
+  }
+
+  .slices { margin-top: 2.5rem; display: grid; gap: 1.25rem; grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 660px) { .slices { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1020px) { .slices { grid-template-columns: repeat(4, 1fr); } }
+  .slice {
+    display: flex; flex-direction: column; overflow: clip;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    text-decoration: none !important; color: inherit;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+  :root[data-theme='light'] .slice { background: var(--bg); }
+  .slice:hover, .slice:focus-visible { border-color: var(--fg); box-shadow: var(--shadow-float); }
+  .slice-media {
+    position: relative; aspect-ratio: 1 / 1; overflow: clip;
+    background: var(--surface); display: grid; place-items: center; padding: 0;
+  }
+  :root[data-theme='dark'] .slice-media { background: #0b0c0d; }
+  .slice-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* The non-photographic categories — text, SVG, ambient, feedback, nav, forms — get a padded
+     composition instead of a picture. That is not a compromise: those pages have no photography
+     either, so the tile is an honest preview of what is actually behind the link. */
+  .slice-media.is-composed { padding: 1.1rem; }
+  .slice-body { padding: 0.8rem 0.9rem 0.95rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .slice-cat {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .slice-cat b { color: var(--accent-text); font-weight: 600; flex: none; }
+  .slice-fx {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.79rem; color: var(--fg); overflow-wrap: anywhere;
+  }
+
+  /* per-tile compositions */
+  .slice-word { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.02em; }
+  .slice-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .slice-num-note { margin-top: 0.35rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .slice-aurora { position: absolute; inset: 0; }
+  .slice-snap { display: flex; gap: 0.5rem; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; align-items: center; padding: 0 0.75rem; }
+  .slice-snap::-webkit-scrollbar { display: none; }
+  .slice-snap img { flex: none; width: 82%; height: 76%; border-radius: 8px; object-fit: cover; scroll-snap-stop: always; }
+  .slice-stack { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 100%; }
+  .slice-badge { position: relative; display: inline-grid; place-items: center; padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
+  .slice-badge i { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+  .slice-puck {
+    display: inline-grid; place-items: center; width: 5.4rem; height: 5.4rem; border-radius: 50%;
+    border: 1px solid var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent);
+    color: var(--accent-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+    /* `touch-action: none` or the browser scrolls the page instead of handing us the pointer. */
+    cursor: grab; touch-action: none; user-select: none;
+  }
+  .slice-puck:active { cursor: grabbing; }
+  .slice-field { position: relative; width: 100%; padding-top: 1.1rem; }
+  .slice-field input { width: 100%; font: inherit; font-size: 0.82rem; color: var(--fg); background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 0.3rem 0; }
+  .slice-field input:focus { outline: none; border-bottom-color: var(--accent); }
+  .slice-field label { position: absolute; left: 0; top: 1.4rem; font-size: 0.82rem; color: var(--muted); pointer-events: none; }
+  /* Anchored to the top of its tile. Centred, the trigger sat at 115px of a 263px box and the
+     97px panel finished 22px from the clipped edge — fitting by luck rather than by design. */
+  .slice-menu { position: relative; width: 100%; align-self: start; }
+  .slice-menu-trigger { width: 100%; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.7rem; text-align: left; }
+  /* `display: flex` unconditionally, as an author rule, so it beats the UA's `[hidden]{display:none}`
+     only when we also clear `hidden` — and never leaves the panel as a `display: inline` <span>,
+     which is what it was: the items ran together on one line the moment it opened. */
+  .slice-menu-panel { position: absolute; top: calc(100% + 0.35rem); left: 0; right: 0; z-index: 2; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.35rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: var(--shadow-float); }
+  .slice-menu-panel[hidden] { display: none; }
+  .slice-menu-panel span { display: block; padding: 0.3rem 0.45rem; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; color: var(--muted); }
+  .slice-acc { display: block; width: 100%; text-align: left; }
+  .slice-acc-btn { width: 100%; font: inherit; font-size: 0.78rem; font-weight: 560; color: var(--fg); background: transparent; border: 0; padding: 0; display: flex; justify-content: space-between; gap: 0.5rem; }
+  /* No `height: 0` / `[data-open] { height: auto }` pair here on purpose. The library ships the
+     collapsed state itself now (`src/css/layout.css`) — this tile is what proved it did not, and
+     every consumer was writing the same two rules by hand. Only the type styling is the page's. */
+  /* `display: block` is the page's job, not the library's: `accordion-height` claims
+     `overflow` and `height`, and neither applies to an inline box. This tile is a
+     <span> inside a <span>, so both have to be blockified here. */
+  .slice-acc-panel { display: block; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+  .slice-acc-panel > span { display: block; padding-top: 0.5rem; }
+  .slice-svg { width: 78%; height: auto; }
+  .slice-svg path { stroke: var(--accent-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- show-code chip ----------
+     The one accent-outline chip, copied verbatim from `demo/system.css` because this page does not
+     load it. This page used to restyle the chip wholesale — a filled black pill in light mode, a
+     filled yellow one in dark — which made the same control mean the same thing and look different
+     here than on every other page in the showcase. See CLAUDE.md: styled once, never per page. */
+  .kui-show-code-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    align-self: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.7rem;
+    color: var(--kui-chip-ink, var(--accent-text));
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex: none;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  }
+
+  figcaption .kui-show-code-toggle,
+  .kui-has-toggle .kui-show-code-toggle {
+    --kui-chip-ink: var(--accent);
+  }
+
+  :root[data-theme='dark'] figcaption .kui-show-code-toggle,
+  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
+    --kui-chip-ink: currentColor;
+  }
+
+  :root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
+  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
+    color: var(--accent);
+    background: var(--accent-ink);
+    border-color: var(--accent-ink);
+  }
+
+  .kui-show-code-toggle:hover,
+  .kui-show-code-toggle:focus-visible,
+  :root[data-theme='dark'] .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: var(--accent);
+    filter: none;
+  }
+
+  /* The `.pillar` swatch is painted solid `--accent`, so a chip *on the card below it* is fine —
+     but the card is `--bg`/`--surface`, where the light-mode default gold is the correct ink. No
+     override needed here; the exception in system.css is for chips sitting on the accent itself. */
+
+  /* show-code.js used to set this caption layout as three inline styles; it now adds
+     `.kui-has-toggle` instead so a page can override it in the cascade. This page does not load
+     system.css, where the shared rule lives, so it carries its own identical copy. */
+  .kui-has-toggle {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+  }
+
+  figure .kui-show-code-toggle {
+    margin: 0;
+  }
+
+  .matrix-group > .kui-show-code-toggle {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .kui-code-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    place-items: center;
+    padding: 2rem;
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .kui-code-modal {
+    position: relative;
+    max-width: 720px;
+    max-height: 80vh;
+    width: 100%;
+    overflow: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+  }
+
+  .kui-code-modal-header {
+    display: flex;
+    justify-content: flex-end;
+    margin: -0.9rem -0.9rem 0.6rem 0;
+  }
+
+  .kui-code-modal-close {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--muted);
+    background: none;
+    border: none;
+  }
+
+  .kui-code-modal-close:hover {
+    color: var(--fg);
+  }
+
+  .kui-code-tryit {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .kui-code-tryit-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .kui-code-tryit-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .kui-code-tryit-copy,
+  .kui-code-tryit-apply,
+  .kui-code-tryit-reset {
+    flex: none;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.65rem;
+  }
+
+  .kui-code-tryit-copy {
+    display: grid;
+    place-items: center;
+    padding: 0.4rem;
+    color: var(--muted);
+  }
+
+  .kui-code-tryit-copy.is-copied {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .kui-code-tryit-copy:hover,
+  .kui-code-tryit-apply:hover,
+  .kui-code-tryit-reset:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+
+  .kui-code-modal pre {
+    margin: 0;
+    padding: 0;
+  }
+
+  .kui-code-modal code {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--fg);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  /* ---------- BASIC VARIANT ----------
+     Same page, no off-white. Only the surfaces that paint whole SECTIONS go flat; cards, tiles and
+     menus keep `--surface` so they stay legible against the page. Compare against index.html to
+     choose between banded and flat. */
+  .ticker { --s-bg: var(--bg); }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="#top" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </header>
+
+  <main id="top">
+
+    <!-- HERO — the stage.
+         Full-bleed and near-black in both themes, because that is the surface the brand's acid
+         lime was chosen for. It sits outside `.wrap` and carries its own, so the paint reaches the
+         viewport edge while the content stays on the same 1200px measure as every section below. -->
+    <section class="hero-stage stage" data-od-id="hero">
+      <div class="hero-grid-texture" aria-hidden="true" data-kui="dot-grid-drift 26s"></div>
+      <div class="wrap hero-inner">
+        <div class="hero">
+          <div class="hero-copy">
+            <p class="kicker" data-kui="fade-up 600ms">252 effects · 30 primitives · one attribute</p>
+            <h1 data-kui="text-reveal-up 900ms 80ms">Animate anything with <em>one</em> HTML attribute.</h1>
+
+            <!-- The focal motif. The effect name cycles through six real catalog entries, so the
+                 thing you are reading is the thing you would type — and the cycling is itself
+                 `word-cycler`, one of the names it cycles past. -->
+            <p class="attr-chip" data-kui="fade-up 700ms 320ms">
+              <span class="attr-key">data-kui=&quot;</span><span
+                class="attr-value"
+                data-kui="word-cycler words:fade-blur-up|slat-assemble|text-reveal-up|parallax-scale|word-cycler|count-up interval:2000ms"
+              >fade-blur-up</span><span class="attr-key">&nbsp;800ms&quot;</span>
+            </p>
+            <p class="attr-caption" data-kui="fade-up 700ms 400ms"><span class="live-dot" data-kui="glow-pulse 2s" aria-hidden="true"></span> Live — that name is cycling with <b>word-cycler</b>, one of the 252</p>
+
+            <p class="lede" data-kui="fade-up 700ms 460ms">
+              It compiles to real <strong>@keyframes</strong> and native scroll-driven timelines. No animation
+              loop, no per-effect scroll listener, and <strong>no runtime at all</strong> for roughly 70% of the catalog.
+            </p>
+
+            <div class="hero-actions" data-kui="fade-up 700ms 540ms">
+              <a href="#catalog" class="btn btn-primary">See what it can do</a>
+              <a href="#install" class="btn btn-ghost" data-kui="shine-sweep">Install in two lines →</a>
+            </div>
+            <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
+          </div>
+
+          <!-- Two real websites, one slot. `flip-card` is the library's stateful two-sided card —
+               not `card-flip-y`, which is a one-shot entrance with nothing on the other side. The
+               state is `aria-pressed` on the control, read with `:has()`, so the button's
+               accessibility state and the card's visual state are the same fact rather than two
+               that can drift. -->
+          <div class="hero-media" data-kui="fade-left 800ms 200ms">
+            <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
+                 observer fires immediately anyway, and if the hero is ever pushed below the fold
+                 the line types when it is read rather than into an empty screen. -->
+            <p class="hero-media-credit" data-kui="typewriter on:enter">Made by Leon Aburime</p>
+            <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
+              <!-- Museum leads, not the spatial clinic. Both are strong references, but the front
+                   face is the page's first impression at roughly 460px wide: the museum shot is a
+                   lit subject on near-black with one glowing ring, which resolves instantly at that
+                   size, while the clinic is a dim room full of 4px UI text that reads as a grey
+                   rectangle until you lean in. It is also natively 16:9 against this card's 16:10,
+                   so it loses the least to the crop. -->
+              <div class="kui-face-front" data-flip-name="Museum of Ancient Art">
+                <div class="video-frame">
+                  <!-- The largest element in the first viewport, so it is this page's LCP
+                       candidate: `preload="metadata"` rather than `none` gets the first frame on
+                       screen without waiting for the observer, and the poster covers the gap. -->
+                  <video
+                    data-autoplay-in-view
+                    poster="./assets/webdesign/museum-ancient-art-hero-poster.jpg"
+                    muted loop playsinline preload="metadata"
+                    aria-label="The Lourve Museum of Ancient Art homepage — a bronze bust lit behind a glowing white ring, under a serif Museum of Ancient Art headline"
+                  >
+                    <source src="./assets/webdesign/museum-ancient-art-hero.webm" type="video/webm" />
+                    <source src="./assets/webdesign/museum-ancient-art-hero.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+              <div class="kui-face-back" data-flip-name="fuselab creative">
+                <div class="video-frame">
+                  <!-- The back face is also in the first viewport — it is a 3D face, not a hidden
+                       element — but nothing is looking at it until you flip. `preload="none"` keeps
+                       its 2.1MB off the critical path; the flip control starts it. -->
+                  <video
+                    data-autoplay-in-view
+                    poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg"
+                    muted loop playsinline preload="none"
+                    aria-label="A spatial clinic-scheduling interface by fuselab creative — translucent patient cards and a weekly availability grid floating in a sunlit living room, panels sliding and resolving as a doctor's calendar fills in"
+                  >
+                    <source src="./assets/webdesign/fuselab-spatial-clinic.webm" type="video/webm" />
+                    <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              </div>
+              <!-- Two controls, opposite corners, so neither has to make room for the other. Flip
+                   is the primary action and carries the filled treatment; Show code is an outline
+                   of the same pill, which reads as secondary without needing to be smaller or
+                   dimmer enough to be hard to hit. -->
+              <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
+              <!-- The pill used to carry the name of the face you would flip TO, which reads as a
+                   label for the face you are looking AT — wrong either way round. The button is now
+                   just the verb; the caption below names what is actually on screen. -->
+              <button type="button" class="kui-flip-control" aria-pressed="false">
+                <span class="flip-label">Flip</span>
+              </button>
+            </div>
+            <p class="hero-media-caption">
+              <b>Now showing: <span id="flip-now">Museum of Ancient Art</span></b> · data-kui=&quot;flip-card&quot; — a transition rather than a
+              keyframe, so the card stays on the face you turned it to.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The 252 claim, made viscerally rather than numerically — and the marquee primitive
+         demonstrating itself while it does. The second row is the duplicate the seamless loop
+         needs; it is `aria-hidden` so a screen reader reads the list once. -->
+    <section class="ticker stage" aria-label="Entrance and exit names — the vocabulary the playground below draws from" data-od-id="ticker">
+      <div class="ticker-row" data-kui="marquee 42s on:load">
+        <span>fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- CHANGE THE ATTRIBUTE — playground 1.
+           The old version of this section was a static code block beside a static result. It made
+           the claim; it did not let you test it. Here the chips rewrite `data-kui` on one element
+           and the runtime recompiles in place, which is the same claim with the proof attached. -->
+      <section id="lab" data-od-id="lab">
+        <div class="play-grid">
+          <div>
+            <p class="kicker">Try it</p>
+            <h2 data-kui="text-reveal-mask 700ms on:enter">Change the attribute. Watch it change.</h2>
+            <p data-kui="fade-up 700ms 90ms on:enter">
+              One element, one attribute. Each chip writes a different value onto the same frame and
+              the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.
+            </p>
+            <p data-kui="fade-up 700ms 150ms on:enter">
+              The line above the picture is not a caption. It is the attribute that is on the element
+              right now, and it is the whole of what you would have to write.
+            </p>
+            <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="45ms">
+              <!-- `wipe-circle` leads: it is the one that reads instantly at this size and it is
+                   not on reveals.html, so the first thing you see here is something you have not
+                   already seen. The eight after `fold-panel` are the names the rest of the
+                   showcase barely touches — counted, not guessed.
+
+                   Each chip carries its own `fade-up`, and the container carries the stagger, so
+                   the rows wash upward in sequence rather than appearing all at once. Flex rows
+                   are not addressable in CSS, so a per-chip stagger is what "per line" actually
+                   looks like once it wraps. -->
+              <button type="button" class="lab-chip" aria-pressed="true" data-kui="fade-up 500ms on:enter" data-fx="wipe-circle 1500ms">wipe-circle</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in 1500ms">bounce-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-blur-up 1500ms">fade-blur-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="blur-in 1500ms">blur-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in 1500ms">zoom-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="roll-in 1500ms">roll-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-y 1500ms">flip-in-y</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="curtain-reveal 1500ms">curtain-reveal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slat-assemble 1500ms">slat-assemble</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-up 1500ms">wipe-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-right 1500ms">wipe-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="mask-reveal 1500ms">mask-reveal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="blur-up 1500ms">blur-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fold-panel 1500ms">fold-panel</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="swing-in 1500ms">swing-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-up 1500ms">back-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="pop-in 1500ms">pop-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-x 1500ms">flip-in-x</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
+
+            </div>
+          </div>
+          <div class="lab-card">
+            <!-- The attribute sits on the frame, not the <img>. `slat-assemble` builds a stage of
+                 slats *around* the picture it is given, so it needs a wrapper — and every entrance
+                 works on a wrapper too, so one target keeps every chip on the same footing. -->
+            <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
+              <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" />
+            </div>
+            <div class="lab-bar">
+              <p class="attr-line">data-kui="<span class="v" id="lab-attr">wipe-circle 1500ms</span>"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="lab-target">Show code</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="ticker stage" aria-label="Effects that sit on different channels, and so compose without colliding" data-od-id="ticker-compose">
+      <div class="ticker-row" data-kui="marquee 38s on:load">
+        <span>tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- EFFECTS COMPOSE — playground 2.
+           The channel model is the genuinely novel thing in this library and it used to get one
+           sentence. Two effects can share one compiled animation only if the CSS properties they
+           own are disjoint; otherwise one silently overwrites the other. Here you build the comma
+           list yourself and the page answers from the real registry. -->
+      <section id="compose" data-od-id="compose">
+        <div class="play-grid">
+          <div>
+            <p class="kicker">The channel model</p>
+            <h2 data-kui="text-reveal-mask 700ms on:enter">Effects compose. Until they collide.</h2>
+            <p data-kui="fade-up 700ms 90ms on:enter">
+              Every effect declares the CSS properties it owns — its <em>channels</em>. Tick any set
+              whose channels don't overlap and they compile into one animation. Tick two that want
+              the same property and the library says so, instead of letting one quietly win.
+            </p>
+            <p data-kui="fade-up 700ms 150ms on:enter">
+              The channels beside each name are read from the registry this page is running, not
+              typed into it — so they cannot drift from what the library actually does.
+            </p>
+            <ul class="compose-list">
+              <li><label class="compose-row"><input type="checkbox" data-fx="fade-up" checked /><span class="compose-name">fade-up</span><span class="compose-ch" data-ch-for="fade-up">opacity · translate</span></label></li>
+              <li><label class="compose-row"><input type="checkbox" data-fx="blur-in" /><span class="compose-name">blur-in</span><span class="compose-ch" data-ch-for="blur-in">filter</span></label></li>
+              <li><label class="compose-row"><input type="checkbox" data-fx="zoom-in" /><span class="compose-name">zoom-in</span><span class="compose-ch" data-ch-for="zoom-in">scale</span></label></li>
+              <li><label class="compose-row"><input type="checkbox" data-fx="rotate-in" /><span class="compose-name">rotate-in</span><span class="compose-ch" data-ch-for="rotate-in">rotate</span></label></li>
+              <li><label class="compose-row"><input type="checkbox" data-fx="fade-blur-up" /><span class="compose-name">fade-blur-up</span><span class="compose-ch" data-ch-for="fade-blur-up">opacity · translate · filter</span></label></li>
+            </ul>
+          </div>
+          <div class="play-stage">
+            <p class="attr-line">data-kui="<span class="v" id="compose-attr">fade-up 900ms</span>"</p>
+            <p class="compose-verdict" id="compose-verdict" data-ok="true" role="status">Composes — no two of these claim the same channel.</p>
+            <div class="compose-frame">
+              <p class="compose-target" id="compose-target" data-kui="fade-up 900ms">Disjoint channels compose without a conflict.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="ticker stage" aria-label="One name from each corner of the catalog" data-od-id="ticker-catalog">
+      <div class="ticker-row" data-kui="marquee 46s on:load">
+        <span>text-reveal-mask&nbsp;·&nbsp;scramble&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>var-weight</b>&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;count-up&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;flip-shuffle&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;parallax-rotate&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">text-reveal-mask&nbsp;·&nbsp;scramble&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>var-weight</b>&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;count-up&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;flip-shuffle&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;parallax-rotate&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- THE SLICES — one live moment per catalog category.
+           Deliberately small and deliberately many. Each tile is built from the assets of the demo
+           page it links to, so following the link is a continuation rather than a jump somewhere
+           unrelated — the picture you clicked is the picture you land next to. -->
+      <section id="catalog" data-od-id="catalog">
+        <div class="section-head">
+          <p class="kicker">The catalog</p>
+          <h2 data-kui="fade-up on:enter">A slice of every category</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">252 named effects from 30 primitives, in 15 categories. Every tile below is
+            running the effect it names, on the same assets as the page it opens. Two categories
+            have no tile: page transitions needs a navigation to happen to, and gestures needs a
+            finger. The number on each tile is how many names that category ships.</p>
+        </div>
+
+        <div class="slices" data-kui-stagger="60ms">
+
+          <a class="slice" href="./reveals.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media">
+              <img src="./assets/modeling/akira-pantsuit.jpg" alt="Studio portrait in a cropped vest, tie, and voluminous wide-leg trousers with tan lace-up boots" loading="lazy" data-kui="bounce-in 900ms on:enter" />
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Entrance &amp; exit <b>48</b></span>
+              <span class="slice-fx">bounce-in</span>
+            </span>
+          </a>
+
+          <span class="slice">
+            <span class="slice-media is-composed">
+              <!-- A real gesture, not a picture of one: pull the puck and the spring returns it.
+                   Deliberately not an <a>: a drag inside a link fights the link on every release. -->
+              <span class="slice-puck" data-kui="elastic-pull">Drag me</span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Gestures &amp; physics <b>13</b></span>
+              <span class="slice-fx">elastic-pull</span>
+            </span>
+          </span>
+
+          <a class="slice" href="./scroll.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media">
+              <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
+              <span class="slice-snap" data-kui="scroll-snap-x">
+                <!-- Not the three film pages: those now carry the view-timeline group lower down,
+                     and no page should show the same picture twice. -->
+                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards" loading="lazy" />
+                <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light" loading="lazy" />
+                <img src="./assets/webdesign/logitech-z150-dark-product.jpg" alt="A Logitech Z150 speaker product page in near-black — the speaker lit from the left on a dark stage" loading="lazy" />
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Scroll mechanics <b>12</b></span>
+              <span class="slice-fx">scroll-snap-x</span>
+            </span>
+          </a>
+
+          <a class="slice" href="./text.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <span class="slice-word" data-kui="scramble 1600ms, blur-in 900ms on:enter">DECLARATIVE</span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Text &amp; typography <b>26</b></span>
+              <span class="slice-fx">scramble, blur-in</span>
+            </span>
+          </a>
+
+          <a class="slice" href="./docs.html?doc=catalog" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <!-- pathLength="100" so the library's `--kui-path-length` default of 100 is exactly
+                   right without measuring the path in JS. -->
+              <svg class="slice-svg" viewBox="0 0 100 60" fill="none" aria-hidden="true">
+                <path d="M6 42 C 22 6, 34 54, 50 30 S 78 6, 94 22" pathLength="100" data-kui="draw-stroke 1600ms on:enter" />
+              </svg>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">SVG &amp; icons <b>17</b></span>
+              <span class="slice-fx">draw-stroke</span>
+            </span>
+          </a>
+
+          <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <span class="slice-stack">
+                <span class="slice-num" data-kui="count-up 1600ms to:252, zoom-in 900ms scale:0.6 on:enter">0</span>
+                <span class="slice-num-note">named effects</span>
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Numbers &amp; data <b>13</b></span>
+              <span class="slice-fx">count-up to:252, zoom-in</span>
+            </span>
+          </a>
+
+          <span class="slice" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media" data-kui="slat-assemble 1100ms axis:vertical on:enter">
+              <img src="./assets/modeling/modeling_05.jpg" alt="Black-and-white profile portrait in a wide-brim red hat and red cloak" loading="lazy" />
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Media &amp; images <b>18</b></span>
+              <span class="slice-fx"><a href="./reveals.html">slat-assemble</a></span>
+            </span>
+          </span>
+
+          <span class="slice" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <span class="slice-acc">
+                <button type="button" class="slice-acc-btn" aria-expanded="false" aria-controls="slice-acc-panel">
+                  What is a FLIP? <span aria-hidden="true">+</span>
+                </button>
+                <span class="slice-acc-panel" id="slice-acc-panel" data-kui="accordion-height">
+                  <span>Measure, invert, play — the browser animates a layout change it already did.</span>
+                </span>
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Layout &amp; FLIP <b>9</b></span>
+              <span class="slice-fx"><a href="./interactive.html">accordion-height</a></span>
+            </span>
+          </span>
+
+          <!-- data-hover.html, not interactive.html: that is where `tilt-3d` is actually demoed. -->
+          <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media">
+              <img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" data-kui="tilt-3d maxAngle:18 perspective:600px" />
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Hover &amp; pointer <b>22</b></span>
+              <span class="slice-fx">tilt-3d — point at it</span>
+            </span>
+          </a>
+
+          <a class="slice" href="./ambient-feedback.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media">
+              <span class="slice-aurora" data-kui="aurora 14s"></span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Ambient <b>15</b></span>
+              <span class="slice-fx">aurora</span>
+            </span>
+          </a>
+
+          <a class="slice" href="./ambient-feedback.html" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <span class="slice-stack">
+                <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true" data-kui="spinner-ring 1s">
+                  <circle cx="20" cy="20" r="16" stroke="currentColor" stroke-opacity="0.18" stroke-width="4" />
+                  <path d="M20 4a16 16 0 0 1 16 16" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+                </svg>
+                <span class="slice-badge">Saved <i data-kui="badge-pop 600ms on:enter" aria-hidden="true"></i></span>
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Feedback &amp; status <b>17</b></span>
+              <span class="slice-fx">spinner-ring + badge-pop</span>
+            </span>
+          </a>
+
+          <span class="slice" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <span class="slice-menu">
+                <button type="button" class="slice-menu-trigger" aria-expanded="false" aria-haspopup="true">Products ▾</button>
+                <span class="slice-menu-panel" data-kui="dropdown-open on:manual" hidden>
+                  <span>Overview</span><span>Pricing</span><span>Changelog</span>
+                </span>
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Navigation <b>8</b></span>
+              <span class="slice-fx"><a href="./nav-forms.html">dropdown-open</a></span>
+            </span>
+          </span>
+
+          <!-- The docs, not a demo page: `card-flip-y` is not shown on any of the seven. Same gap
+               as the SVG tile above — see the handoff; it is a showcase hole, not a broken link. -->
+          <a class="slice" href="./docs.html?doc=catalog" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media">
+              <img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" data-kui="card-flip-y 1000ms on:enter" />
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">3D &amp; perspective <b>6</b></span>
+              <span class="slice-fx">card-flip-y</span>
+            </span>
+          </a>
+
+          <span class="slice" data-kui="fade-up 500ms on:enter">
+            <span class="slice-media is-composed">
+              <!-- The whole `label-float` contract: the control, then its <label> as a sibling. -->
+              <span class="slice-field">
+                <input id="slice-email" type="email" placeholder=" " data-kui="label-float" />
+                <label for="slice-email">Email address</label>
+              </span>
+            </span>
+            <span class="slice-body">
+              <span class="slice-cat">Forms &amp; inputs <b>12</b></span>
+              <span class="slice-fx"><a href="./nav-forms.html">label-float — click it</a></span>
+            </span>
+          </span>
+
+        </div>
+
+        <div class="catalog-more">
+          <a href="./reveals.html" class="btn btn-primary">Open the effect pages</a>
+          <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+        </div>
+      </section>
+    </div>
+
+    <section class="ticker stage" aria-label="The scroll-driven names, every one of them a native timeline" data-od-id="ticker-timeline">
+      <div class="ticker-row" data-kui="marquee 40s on:load">
+        <span>pin-section&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;horizontal-scroll&nbsp;·&nbsp;sequence-scrub&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;<b>scroll-progress-bar</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;parallax-x&nbsp;·&nbsp;<b>parallax-scale</b>&nbsp;·&nbsp;scroll-fade&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;scroll-snap-x&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">pin-section&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;horizontal-scroll&nbsp;·&nbsp;sequence-scrub&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;<b>scroll-progress-bar</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;parallax-x&nbsp;·&nbsp;<b>parallax-scale</b>&nbsp;·&nbsp;scroll-fade&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;scroll-snap-x&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- ENTRANCES ON A VIEW TIMELINE — lifted from scroll.html's matrix, same four cards.
+           Everything above this point fires once on a clock or an observer. These four are bound
+           to `timeline:view`: their progress IS the element's position in the viewport, so they
+           run backwards when you scroll back up. That is the thing no `on:` trigger can do, and
+           it is the note the page should end on before the install block. -->
+      <section id="view-timeline" data-od-id="view-timeline">
+        <div class="section-head">
+          <p class="kicker">Scroll-driven</p>
+          <h2 data-kui="fade-up on:enter">View Timeline Animation</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">Same entrance names as everywhere else on this page. The only difference is
+            <code>timeline:view</code>, which hands the clock to the browser's own
+            <code>animation-timeline: view()</code>. Scroll back up and both play in reverse — the
+            one thing no <code>on:</code> trigger can do.</p>
+        </div>
+        <div class="view-grid">
+          <figure class="view-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
+            <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+            <figcaption>data-kui="fade-up timeline:view"</figcaption>
+          </figure>
+          <!-- Three entrances composed on one element: disjoint channels (translate, rotate,
+               filter), so they compile into a single animation instead of fighting. The compose
+               playground further up is the same fact with the checkboxes attached. -->
+          <figure class="view-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view">
+            <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                   aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+              <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+              <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+            </video>
+          </figure>
+        </div>
+      </section>
+    </div>
+
+    <section class="ticker stage" aria-label="Gesture and physics names, the part that needs a pointer" data-od-id="ticker-install">
+      <div class="ticker-row" data-kui="marquee 44s on:load">
+        <span>drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- INSTALL -->
+      <section id="install" data-od-id="install">
+        <div class="install-card">
+          <div>
+            <h2 data-kui="fade-up on:enter">Ship it in two lines.</h2>
+            <p data-kui="fade-up 700ms 90ms on:enter">Standalone, MIT-licensed, framework-agnostic. No product or CMS coupling — drop the
+              two files in and start authoring <code>data-kui</code> attributes.</p>
+          </div>
+          <div>
+            <div class="install-snip" data-kui="slide-left 700ms on:enter">
+              <div class="install-snip-row">
+                <code id="npm-cmd">npm install kuinetic</code>
+                <button type="button" class="copy-btn" data-copy-target="npm-cmd">Copy</button>
+              </div>
+            </div>
+            <div class="install-snip" data-kui="bounce-in 700ms 100ms on:enter">
+              <div class="install-snip-row">
+                <code id="all-js-cmd">&lt;script src="./kuinetic.all.js"&gt;&lt;/script&gt;</code>
+                <button type="button" class="copy-btn" data-copy-target="all-js-cmd">Copy</button>
+              </div>
+            </div>
+            <div class="install-snip install-code" data-kui="slide-up 700ms 200ms on:enter">
+              <pre><code>&lt;link rel="stylesheet" href="./kuinetic.css"&gt;
+&lt;script src="./kuinetic.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  kuinetic.kuinetic({ observe: true }).start()
+&lt;/script&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    // Copy-to-clipboard
+    document.querySelectorAll('.copy-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.dataset.copyTarget)
+        if (!target) return
+        var text = target.textContent
+        var done = function () {
+          var original = btn.textContent
+          btn.textContent = 'Copied'
+          btn.classList.add('is-copied')
+          setTimeout(function () {
+            btn.textContent = original
+            btn.classList.remove('is-copied')
+          }, 1500)
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, done)
+        } else {
+          var ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          try { document.execCommand('copy') } catch (e) {}
+          document.body.removeChild(ta)
+          done()
+        }
+      })
+    })
+  </script>
+  <script>
+    // flip-card is CSS; the one thing it cannot do for itself is toggle the attribute. That is the
+    // author's line, the same as the icon toggles in catalog section E.
+    //
+    // Playing both faces is waste, not just inefficiency: `backface-visibility` only stops a face
+    // being *painted*, so a video on the side you turned away keeps decoding out of sight. The
+    // control plays whichever face is now facing the viewer and pauses the other.
+    ;(function () {
+      document.querySelectorAll('.kui-flip-control').forEach(function (control) {
+        var card = control.closest('[data-kui]')
+        if (!card) return
+        var sides = [
+          card.querySelector('.kui-face-front'),
+          card.querySelector('.kui-face-back'),
+        ]
+        // The presenter's name, authored on the face rather than parsed back out of the video's
+        // accessible label — the label is a full scene description, and slicing prose to build a
+        // chip breaks the moment somebody improves the description.
+        var names = sides.map(function (side) {
+          return (side && side.getAttribute('data-flip-name')) || ''
+        })
+        var label = document.getElementById('flip-now')
+        control.addEventListener('click', function () {
+          var flipped = control.getAttribute('aria-pressed') !== 'true'
+          control.setAttribute('aria-pressed', String(flipped))
+
+          var shownIndex = flipped ? 1 : 0
+          var hiddenIndex = flipped ? 0 : 1
+          var shown = sides[shownIndex]
+          var hidden = sides[hiddenIndex]
+
+          var shownVideo = shown && shown.querySelector('video')
+          var hiddenVideo = hidden && hidden.querySelector('video')
+          if (hiddenVideo && !hiddenVideo.paused) hiddenVideo.pause()
+          if (shownVideo) {
+            var r = shownVideo.play()
+            if (r && r.catch) r.catch(function () {})
+          }
+
+          // The caption names the face now facing the viewer — the one you can actually see.
+          if (label) label.textContent = names[shownIndex]
+        })
+      })
+    })()
+  </script>
+  <script>
+    // Chrome pauses an offscreen autoplaying video but still fetches and decodes it, so without an
+    // observer the cost of every video on the page lands at load, all at once. Reduced motion opts
+    // out entirely and keeps the poster frame, since a looping video is motion nobody asked for.
+    //
+    // The hero's back face is deliberately excluded: it is technically on screen (a 3D face is not
+    // a hidden element), so the observer would start it, and nothing is looking at it until the
+    // flip control asks for it.
+    ;(function () {
+      var vids = document.querySelectorAll('video[data-autoplay-in-view]:not(.kui-face-back video)')
+      if (!vids.length) return
+      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (reduce || !('IntersectionObserver' in window)) return
+
+      var io = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (e) {
+            var v = e.target
+            if (e.isIntersecting) {
+              // load() is implicit on play() with a lazy preload; ignore the rejection a
+              // pause-during-load race produces, it is not an error worth surfacing.
+              var r = v.play()
+              if (r && r.catch) r.catch(function () {})
+            } else if (!v.paused) {
+              v.pause()
+            }
+          })
+        },
+        { threshold: 0.25 },
+      )
+      for (var i = 0; i < vids.length; i++) io.observe(vids[i])
+    })()
+  </script>
+  <script>
+    // --- Playground 1: change the attribute -------------------------------------------------
+    //
+    // The whole mechanism is `reset()` + `process()`, the same pair `replay.js` uses. `process()`
+    // short-circuits when an element's configuration hasn't changed, so `reset()` — which releases
+    // the installed state — is what makes re-running a *different* attribute on the same element
+    // actually recompile rather than no-op.
+    ;(function () {
+      var target = document.getElementById('lab-target')
+      var label = document.getElementById('lab-attr')
+      var chips = document.querySelectorAll('.lab-chip')
+      if (!target || !label || !chips.length) return
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var fx = chip.getAttribute('data-fx')
+          chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+          label.textContent = fx
+          target.setAttribute('data-kui', fx)
+          var kui = window.__kui
+          if (!kui || typeof kui.reset !== 'function') return
+          // `reset()` releases the installed state and `process()` re-plans — but `process()`
+          // leaves the effect GATED on its activation trigger, which here is `on:enter`. The
+          // element never left the viewport, so the observer never re-fires, and the animation
+          // sits installed at `playState: paused, currentTime: 0` forever.
+          //
+          // That is invisible for `blur-in` or `fade-blur-up`, whose frame 0 still shows the
+          // picture (just soft or offset) — and total for `wipe-up`/`wipe-right`, whose frame 0 is
+          // `inset(100% ...)`, i.e. nothing at all. Hence "those two are broken" when in fact none
+          // of them were running. A click IS the activation; say so.
+          kui.reset(target)
+          kui.process(target)
+          kui.activate(target)
+        })
+      })
+    })()
+  </script>
+  <script>
+    // --- Playground 2: effects compose ------------------------------------------------------
+    //
+    // The channel sets come from `createRegistry()` — the same registry the running animator uses —
+    // rather than being retyped into this page. A hardcoded copy would be a second source of truth
+    // for the one fact this section exists to teach, and it would go stale the first time a
+    // primitive's channels changed.
+    //
+    // `findConflicts` is internal, so the disjointness test is done here. It is four lines and the
+    // data it runs on is real, which is the part that matters.
+    ;(function () {
+      var boxes = document.querySelectorAll('.compose-row input[type=checkbox]')
+      var attr = document.getElementById('compose-attr')
+      var verdict = document.getElementById('compose-verdict')
+      var target = document.getElementById('compose-target')
+      if (!boxes.length || !attr || !verdict || !target) return
+
+      var registry = null
+      try { registry = window.kuinetic.createRegistry() } catch (e) {}
+
+      function channelsOf(name) {
+        if (!registry) return null
+        var resolved = registry.resolve(name)
+        return resolved ? resolved.primitive.channels : null
+      }
+
+      // Print the real channel list beside each name, replacing the markup's fallback copy.
+      document.querySelectorAll('.compose-ch').forEach(function (el) {
+        var ch = channelsOf(el.getAttribute('data-ch-for'))
+        if (ch) el.textContent = ch.join(' · ')
+      })
+
+      /** First pair of effects claiming the same channel, or null when the list composes. */
+      function firstConflict(names) {
+        var owner = {}
+        for (var i = 0; i < names.length; i++) {
+          var ch = channelsOf(names[i]) || []
+          for (var j = 0; j < ch.length; j++) {
+            if (owner[ch[j]]) return { channel: ch[j], a: owner[ch[j]], b: names[i] }
+            owner[ch[j]] = names[i]
+          }
+        }
+        return null
+      }
+
+      function apply() {
+        var names = []
+        boxes.forEach(function (b) { if (b.checked) names.push(b.getAttribute('data-fx')) })
+
+        if (names.length === 0) {
+          attr.textContent = '—'
+          verdict.setAttribute('data-ok', 'true')
+          verdict.textContent = 'Nothing selected. Tick an effect to build the attribute.'
+          return
+        }
+
+        var value = names.map(function (n) { return n + ' 900ms' }).join(', ')
+        attr.textContent = value
+
+        var clash = firstConflict(names)
+        if (clash) {
+          verdict.setAttribute('data-ok', 'false')
+          verdict.textContent =
+            'Collision — "' + clash.a + '" and "' + clash.b + '" both animate ' + clash.channel +
+            '. The library warns and refuses to compose them; one would silently overwrite the other.'
+          // Deliberately NOT applied to the element. Showing the broken result would teach the
+          // opposite lesson: the point is that the library stops this before it renders.
+          return
+        }
+
+        verdict.setAttribute('data-ok', 'true')
+        verdict.textContent =
+          names.length === 1
+            ? 'One effect — nothing to collide with.'
+            : 'Composes — no two of these ' + names.length + ' claim the same channel.'
+
+        target.setAttribute('data-kui', value)
+        var kui = window.__kui
+        if (!kui || typeof kui.reset !== 'function') return
+        // Same gate as the chip playground above: ticking a box is the activation.
+        kui.reset(target)
+        kui.process(target)
+        kui.activate(target)
+      }
+
+      boxes.forEach(function (b) { b.addEventListener('change', apply) })
+      apply()
+    })()
+  </script>
+  <script>
+    // Small controls the slice tiles need. `dropdown-open` and `accordion-height` are both CSS or
+    // JS-prepared effects whose *state* is the author's to toggle — the same division as the flip
+    // card above and the icon toggles in catalog section E.
+    ;(function () {
+      var menu = document.querySelector('.slice-menu')
+      if (menu) {
+        var trigger = menu.querySelector('.slice-menu-trigger')
+        var panel = menu.querySelector('.slice-menu-panel')
+        // Clearing `hidden` is not enough. `dropdown-open` is authored `on:manual`, so the runtime
+        // installs it and waits — exactly what `nav.js` does for the header menus, which is why it
+        // follows that with `kui().play(...)`. Without the play the panel simply appeared.
+        var setOpen = function (open) {
+          trigger.setAttribute('aria-expanded', String(open))
+          panel.hidden = !open
+          if (open && window.__kui && typeof window.__kui.play === 'function') {
+            window.__kui.play(panel, 'dropdown-open')
+          }
+        }
+        trigger.addEventListener('click', function () {
+          setOpen(trigger.getAttribute('aria-expanded') !== 'true')
+        })
+        // No `mouseleave` close. The tile is 263px square and the menu element is only as wide as
+        // its trigger, so any drift of the pointer shut the panel again the moment it opened —
+        // which reads as "the dropdown does not work". Click to open, click to close, and a click
+        // anywhere else on the document closes it.
+        document.addEventListener('click', function (event) {
+          if (!menu.contains(event.target)) setOpen(false)
+        })
+      }
+
+      var accBtn = document.querySelector('.slice-acc-btn')
+      if (accBtn) {
+        var accPanel = document.getElementById('slice-acc-panel')
+        accBtn.addEventListener('click', function () {
+          var open = accBtn.getAttribute('aria-expanded') !== 'true'
+          accBtn.setAttribute('aria-expanded', String(open))
+          if (open) accPanel.setAttribute('data-open', '')
+          else accPanel.removeAttribute('data-open')
+        })
+      }
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>
