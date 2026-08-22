@@ -260,14 +260,25 @@
 
   /* --- text-outline-fill --- */
 
+  /*
+   * The outline has to be painted by something the fill animation cannot drag along with it.
+   * `-webkit-text-stroke: 1px currentColor` plus an animated `color` is the obvious spelling and it
+   * silently produces a plain fade: `currentColor` *is* `color`, so the stroke resolves to the same
+   * interpolated value as the glyph body and the two come up from transparent together. There is
+   * never a frame with an outline and no fill — which is the entire effect.
+   *
+   * So `color` stays put, opaque, and only the fill is animated, through `-webkit-text-fill-color`.
+   * The stroke reads a stable `currentColor` throughout. `gradient-shimmer` already relies on the
+   * same split a little further up this file, for the same reason.
+   */
   [data-kui-fx~='text-outline-fill'] {
     -webkit-text-stroke: 1px currentColor;
-    color: transparent;
+    -webkit-text-fill-color: transparent;
   }
 
   @keyframes kui-text-outline-fill {
     to {
-      color: currentColor;
+      -webkit-text-fill-color: currentColor;
     }
   }
 
