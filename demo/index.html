@@ -126,8 +126,13 @@
   }
   @media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
 
-  section { padding: clamp(4.5rem, 6vw + 1.5rem, 8rem) 0; border-top: 1px solid var(--border); }
-  .hero-stage, .ticker { border-top: none; }
+  /* No rule between sections. A ticker separates every one of them, and a hairline drawn directly
+     under a band of moving names is a second divider doing the first one's job — which is what it
+     looked like: a stray line hanging under the marquee. The alternation carries the seam now.
+
+     The tickers are the off-white stripes and the content sections are white, so no two adjacent
+     blocks ever share a background and the rhythm holds without a single border. */
+  section { padding: clamp(4.5rem, 6vw + 1.5rem, 8rem) 0; }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 510; }
   p { margin: 0; }
@@ -304,6 +309,10 @@
 
   /* ---------- HERO — the stage ---------- */
   .hero-stage {
+    /* Pure white at the top, so nothing competes with the headline. `.stage` defaults `--s-bg` to
+       `--surface`; the hero is the one stage that wants the page background instead. The ticker
+       below deliberately keeps `--surface`. */
+    --s-bg: var(--bg);
     position: relative;
     overflow: clip;
     padding-top: clamp(5.5rem, 5vw + 3.5rem, 7.5rem);
@@ -490,8 +499,13 @@
   /* ---------- ticker ---------- */
   /* The 252 claim, made viscerally instead of numerically. It is also the marquee primitive
      demonstrating itself, and it seals the bottom of the stage. */
+  /* No border. The band separates itself: off-white against white on both sides, with a white
+     content section above and below every one of them. A hairline on top of that is a second
+     divider doing the first one's job, and it read as a stray rule hanging under the marquee.
+     `overflow: clip` stays and is load-bearing — the row is `width: max-content` and would hand
+     the document a horizontal scrollbar without it. */
   .ticker {
-    padding: 0; border-block: 1px solid var(--s-border);
+    padding: 0;
     overflow: clip;
   }
   .ticker-row { display: flex; width: max-content; padding: 0.9rem 0; }
@@ -1152,15 +1166,14 @@
     <!-- The 252 claim, made viscerally rather than numerically — and the marquee primitive
          demonstrating itself while it does. The second row is the duplicate the seamless loop
          needs; it is `aria-hidden` so a screen reader reads the list once. -->
-    <section class="ticker stage" aria-label="A sample of the effect catalog" data-od-id="ticker">
-      <div class="ticker-row" data-kui="marquee 42s">
-        <span>fade-blur-up&nbsp;·&nbsp;<b>slat-assemble</b>&nbsp;·&nbsp;parallax-scale&nbsp;·&nbsp;text-reveal-mask&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;scramble&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>tilt-3d</b>&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;beam-border&nbsp;·&nbsp;stacking-cards&nbsp;·&nbsp;<b>cursor-spotlight</b>&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;aurora&nbsp;·&nbsp;confetti-burst&nbsp;·&nbsp;<b>horizontal-scroll</b>&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;var-weight&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;<b>video-scrub</b>&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;</span>
-        <span aria-hidden="true">fade-blur-up&nbsp;·&nbsp;<b>slat-assemble</b>&nbsp;·&nbsp;parallax-scale&nbsp;·&nbsp;text-reveal-mask&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;scramble&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>tilt-3d</b>&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;beam-border&nbsp;·&nbsp;stacking-cards&nbsp;·&nbsp;<b>cursor-spotlight</b>&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;aurora&nbsp;·&nbsp;confetti-burst&nbsp;·&nbsp;<b>horizontal-scroll</b>&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;var-weight&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;<b>video-scrub</b>&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;</span>
+    <section class="ticker stage" aria-label="Entrance and exit names — the vocabulary the playground below draws from" data-od-id="ticker">
+      <div class="ticker-row" data-kui="marquee 42s on:load">
+        <span>fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
       </div>
     </section>
 
     <div class="wrap">
-
       <!-- CHANGE THE ATTRIBUTE — playground 1.
            The old version of this section was a static code block beside a static result. It made
            the claim; it did not let you test it. Here the chips rewrite `data-kui` on one element
@@ -1210,7 +1223,7 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
-            
+
             </div>
           </div>
           <div class="lab-card">
@@ -1227,7 +1240,16 @@
           </div>
         </div>
       </section>
+    </div>
 
+    <section class="ticker stage" aria-label="Effects that sit on different channels, and so compose without colliding" data-od-id="ticker-compose">
+      <div class="ticker-row" data-kui="marquee 38s on:load">
+        <span>tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
       <!-- EFFECTS COMPOSE — playground 2.
            The channel model is the genuinely novel thing in this library and it used to get one
            sentence. Two effects can share one compiled animation only if the CSS properties they
@@ -1264,7 +1286,16 @@
           </div>
         </div>
       </section>
+    </div>
 
+    <section class="ticker stage" aria-label="One name from each corner of the catalog" data-od-id="ticker-catalog">
+      <div class="ticker-row" data-kui="marquee 46s on:load">
+        <span>text-reveal-mask&nbsp;·&nbsp;scramble&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>var-weight</b>&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;count-up&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;flip-shuffle&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;parallax-rotate&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">text-reveal-mask&nbsp;·&nbsp;scramble&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>var-weight</b>&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;count-up&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;flip-shuffle&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;parallax-rotate&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
       <!-- THE SLICES — one live moment per catalog category.
            Deliberately small and deliberately many. Each tile is built from the assets of the demo
            page it links to, so following the link is a continuation rather than a jump somewhere
@@ -1469,7 +1500,16 @@
           <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
         </div>
       </section>
+    </div>
 
+    <section class="ticker stage" aria-label="The scroll-driven names, every one of them a native timeline" data-od-id="ticker-timeline">
+      <div class="ticker-row" data-kui="marquee 40s on:load">
+        <span>pin-section&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;horizontal-scroll&nbsp;·&nbsp;sequence-scrub&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;<b>scroll-progress-bar</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;parallax-x&nbsp;·&nbsp;<b>parallax-scale</b>&nbsp;·&nbsp;scroll-fade&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;scroll-snap-x&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">pin-section&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;horizontal-scroll&nbsp;·&nbsp;sequence-scrub&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;<b>scroll-progress-bar</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;parallax-x&nbsp;·&nbsp;<b>parallax-scale</b>&nbsp;·&nbsp;scroll-fade&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;scroll-snap-x&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
       <!-- ENTRANCES ON A VIEW TIMELINE — lifted from scroll.html's matrix, same four cards.
            Everything above this point fires once on a clock or an observer. These four are bound
            to `timeline:view`: their progress IS the element's position in the viewport, so they
@@ -1501,7 +1541,16 @@
           </figure>
         </div>
       </section>
+    </div>
 
+    <section class="ticker stage" aria-label="Gesture and physics names, the part that needs a pointer" data-od-id="ticker-install">
+      <div class="ticker-row" data-kui="marquee 44s on:load">
+        <span>drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
       <!-- INSTALL -->
       <section id="install" data-od-id="install">
         <div class="install-card">
@@ -1533,8 +1582,8 @@
           </div>
         </div>
       </section>
-
     </div>
+
   </main>
 
   <footer data-od-id="footer">
