@@ -560,43 +560,6 @@
   }
   .ticker-row b { color: var(--accent-text); font-weight: 500; }
 
-  /* ---------- border spotlight ----------
-     `gradient-rotate-border` is named in the ticker above but, until now, was the one name in it
-     with nothing to show for itself on this page — genuinely demoed already at
-     ambient-feedback.html, just not here. Structure copied from there rather than reinvented:
-     `mask-composite: exclude` lands directly on the element carrying `data-kui`, which erases real
-     DOM children placed inside it too, not just its own background. So the ring is an empty
-     sibling absolutely filling the pad, and the photo is a second sibling inset by the ring's own
-     3px padding — nesting the photo inside the ring renders blank. */
-  .border-spotlight { max-width: 20rem; margin: 0 auto; text-align: center; }
-  .ambient-border-pad { position: relative; aspect-ratio: 4 / 3; }
-  .ambient-border-ring { position: absolute; inset: 0; }
-  .ambient-border-inner { position: absolute; inset: 3px; border-radius: 8px; overflow: clip; background: var(--surface); }
-  .ambient-border-inner img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  /* `.demo-card`'s figcaption bar, copied from the catalog pages (e.g. ambient-feedback.html) —
-     same dark-mode show-code-chip fix too: the chip's default colour is `--accent-text`, which in
-     dark mode *is* `--accent`, identical to the bar this rule paints, so the chip renders at full
-     opacity and is invisible until it falls back to `currentColor`. */
-  .demo-card {
-    display: flex; flex-direction: column; overflow: clip;
-    border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
-  }
-  .demo-card figcaption {
-    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
-  }
-  :root[data-theme='dark'] .demo-card figcaption {
-    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
-  }
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle {
-    color: currentColor;
-    border-color: color-mix(in srgb, currentColor 55%, transparent);
-  }
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible {
-    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
-  }
-
   /* ---------- section heading ---------- */
   .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
   .section-head p { margin-top: 0.9rem; color: var(--muted); max-width: 50ch; line-height: 1.7; }
@@ -1324,27 +1287,10 @@
 
     <section class="ticker stage" aria-label="Effects that sit on different channels, and so compose without colliding" data-od-id="ticker-compose">
       <div class="ticker-row" data-kui="marquee 38s">
-        <span>tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;<b>gradient-rotate-border</b>&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
-        <span aria-hidden="true">tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;<b>gradient-rotate-border</b>&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+        <span>tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">tilt-3d&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;cursor-spotlight&nbsp;·&nbsp;<b>glow-pulse</b>&nbsp;·&nbsp;float&nbsp;·&nbsp;bob&nbsp;·&nbsp;orbit&nbsp;·&nbsp;<b>beam-border</b>&nbsp;·&nbsp;gradient-rotate-border&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;spotlight-follow&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;floating-shapes&nbsp;·&nbsp;</span>
       </div>
     </section>
-
-    <div class="wrap">
-      <!-- BORDER SPOTLIGHT — `gradient-rotate-border` is named in the ticker above but, until
-           now, was the one name in it with nothing to show for itself on this page. -->
-      <section class="border-spotlight" data-od-id="border-spotlight">
-        <p class="kicker">One name from the ticker above</p>
-        <figure class="demo-card" data-show-code>
-          <div class="ambient-border-pad">
-            <div class="ambient-border-ring" data-kui="gradient-rotate-border"></div>
-            <div class="ambient-border-inner">
-              <img src="./assets/product/gold-white-earpods.jpg" alt="An open white marble-finish wireless earbuds case with gold trim and corner detailing, resting on linen with dried foliage" loading="lazy" />
-            </div>
-          </div>
-          <figcaption>data-kui="gradient-rotate-border"</figcaption>
-        </figure>
-      </section>
-    </div>
 
     <div class="wrap">
       <!-- EFFECTS COMPOSE — playground 2.
