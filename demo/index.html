@@ -668,6 +668,14 @@
      band and gives `slat-assemble` a short, wide slat that reads as a smear rather than a slat. */
   .lab-frame { aspect-ratio: 3 / 4; overflow: clip; background: #000; }
   .lab-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* Sizing only — the flip and the two-sided stacking are both the library's (`card-flip-y`).
+     `minmax(0, 1fr)` is the load-bearing half, and the `0` is the whole point: the library stacks
+     both faces in row 1, and a bare `1fr` track still carries an automatic minimum of its items'
+     max-content height — for these images that is their natural aspect height, 728px inside a
+     555px frame, so the row refused to shrink and `height: 100%` had nothing definite to resolve
+     against. Flooring the minimum at 0 pins the row to the frame instead, and `object-fit: cover`
+     then crops rather than overflows. */
+  .lab-flip { height: 100%; grid-template-rows: minmax(0, 1fr); }
   /* Centred and stacked rather than side-by-side: at the card's ~416px the attribute and the chip
      wrap anyway, and a wrapped space-between row leaves the chip stranded on the left. */
   .lab-bar {
@@ -1282,7 +1290,20 @@
                  slats *around* the picture it is given, so it needs a wrapper — and every entrance
                  works on a wrapper too, so one target keeps every chip on the same footing. -->
             <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
-              <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" />
+              <!-- Two effects, one picture, and they do not fight: the chips rewrite the entrance
+                   on the frame, while the card inside owns the flip. Nesting is what keeps them
+                   apart — a single element cannot hold a chip-driven `data-kui` and a second
+                   effect that must survive being overwritten.
+
+                   Two children under a `card-flip-y` is all a two-sided card takes — first is the
+                   front, second is the back, and the library stacks and pre-turns them (see
+                   three-d.css). Each hover lands on the other face and stays there. No button and
+                   no caption, deliberately: the picture is the only affordance there is, and a
+                   caption here would also become the back face. -->
+              <div class="lab-flip" data-kui="card-flip-y on:hover">
+                <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" />
+                <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Beauty portrait in profile against a pink backdrop, wearing a tall crown of pink ruffled fabric" />
+              </div>
             </div>
             <div class="lab-bar">
               <p class="attr-line">data-kui="<span class="v" id="lab-attr">wipe-circle 1500ms</span>"</p>

@@ -6,7 +6,7 @@
  * entrances, these are two-faced flips that stay flipped.
  *
  * INVARIANT: a keyframe may only write properties belonging to its primitive's declared channels.
- * `test/css-invariants-v3.test.ts` enforces this against these files.
+ * `test/css-invariants.test.ts` enforces this against these files.
  */
 @layer kui.effects {
   /*
@@ -77,6 +77,53 @@
   [data-kui-fx~='fold-panel'] {
     transform-style: preserve-3d;
     perspective: var(--kui-perspective, 1200px);
+  }
+
+  /*
+   * --- two-sided cards, by source order (channel: layout) ---
+   *
+   * `card-flip-x/-y` turns the element half a turn. Give it two children and it becomes a card
+   * with a front and a back for free: they are stacked in one grid cell, the second is pre-turned
+   * half a turn so it faces away, and `backface-visibility: hidden` means only whichever side
+   * currently points at the viewer paints. Authoring cost is the markup and nothing else —
+   *
+   *   <div data-kui="card-flip-y on:hover">
+   *     <img src="front.jpg" />
+   *     <img src="back.jpg" />
+   *   </div>
+   *
+   * First child is the front, second is the back. That is a deliberate trade and it has a real
+   * edge: `flip-card` a hundred lines below selects its faces by *class* precisely so a control or
+   * a caption can sit anywhere in the source order without silently reversing which side is which,
+   * and this rule gives that protection up to buy two bare tags and no page CSS. Put a third
+   * element in one of these and whatever lands second becomes the back face.
+   *
+   * `:has(> :nth-child(2))` is what keeps that trade contained. Without it, a one-sided
+   * `card-flip-y` — an `<img>` spinning on `on:enter`, which is how three-d.html, index.html and
+   * index-basic.html all use it — would inherit `backface-visibility: hidden` and vanish for the
+   * back half of its own rotation. The gate means the two-sided reading only ever switches on for
+   * an element that actually has a second child to read.
+   */
+  [data-kui-fx~='card-flip-x']:has(> :nth-child(2)),
+  [data-kui-fx~='card-flip-y']:has(> :nth-child(2)) {
+    display: grid;
+  }
+
+  [data-kui-fx~='card-flip-x']:has(> :nth-child(2)) > :first-child,
+  [data-kui-fx~='card-flip-x']:has(> :nth-child(2)) > :nth-child(2),
+  [data-kui-fx~='card-flip-y']:has(> :nth-child(2)) > :first-child,
+  [data-kui-fx~='card-flip-y']:has(> :nth-child(2)) > :nth-child(2) {
+    grid-area: 1 / 1;
+    backface-visibility: hidden;
+  }
+
+  /* Turned about the same axis the parent's keyframe turns, or the back would arrive mirrored. */
+  [data-kui-fx~='card-flip-x']:has(> :nth-child(2)) > :nth-child(2) {
+    rotate: x 180deg;
+  }
+
+  [data-kui-fx~='card-flip-y']:has(> :nth-child(2)) > :nth-child(2) {
+    rotate: y 180deg;
   }
 
   [data-kui-fx~='book-page-turn'] {
