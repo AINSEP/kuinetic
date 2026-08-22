@@ -64,8 +64,25 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('var-weight', ['font'], { parameters: fontWeightParams }),
   cssPrimitive('var-width', ['font'], { parameters: fontWidthParams }),
   cssPrimitive('var-slant', ['font'], { parameters: fontSlantParams }),
+  /*
+   * `defaultActivation: 'load'` for the same reason every ambient primitive declares it, and it
+   * was missing here: a marquee is continuous motion, so `reducedMotion: 'disable'` is only half
+   * the rule `ambient.ts` spells out — the other half is starting on `load` rather than waiting on
+   * a scroll-triggered `enter`.
+   *
+   * Without it, a bare `data-kui="marquee 42s"` resolved to `enter`, which `style-plan.ts`'s
+   * `resolveGate` sends down the `deferred` path and stamps `animation-play-state: paused`. It
+   * compiled correctly, reported `data-kui-state="ready"`, and never ran — measured on a marquee
+   * fully in view, so this was not an observer that had simply not fired yet. Every page carrying
+   * one had to know to write `on:load`, which is exactly the kind of thing an author cannot be
+   * expected to guess.
+   *
+   * `marquee-scroll-linked` is unaffected: its position comes from `animation-timeline: scroll()`,
+   * not from an activation.
+   */
   cssPrimitive('text-marquee', [CHANNEL.translate], {
     timelines: ['time', 'scroll'],
+    defaultActivation: 'load',
     reducedMotion: 'disable',
   }),
   cssPrimitive('redaction-reveal', [CHANNEL.clip]),
