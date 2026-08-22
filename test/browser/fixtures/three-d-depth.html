@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — three-d-depth fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * Deliberately no `perspective` anywhere in this fixture — not on `body`, not on `#stage`,
+       * not on any ancestor. `effect-sweep.html`'s `#stage` sets `perspective: 1200px` because most
+       * 3D effects there are `parallax-scale`/`tilt-3d`-style ones that genuinely expect an ambient
+       * perspective on a parent (the way `demo/index.html`'s `.lab-card` provides one for its own
+       * `.lab-frame` child). That is exactly the condition that would hide the bug this fixture
+       * exists to catch: `card-flip-x/-y`, `cube-rotate`, `book-page-turn`, `fold-panel`, and
+       * `flip-in/-out-x/-y` all shipped with `perspective` set on the *rotating element itself*,
+       * which the CSS Transforms spec never applies to that element's own transform — only to its
+       * children's. An ambient perspective on `#stage` would supply real depth from a completely
+       * different mechanism and the probe would look correctly foreshortened even with the old,
+       * broken CSS still in place. Testing these effects for self-sufficient depth means proving
+       * it with *no* ancestor perspective to lean on — which is also the real promise these
+       * presets make: an author gets a flipping card from the attribute alone, with no CSS of
+       * their own to write.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      #stage {
+        display: grid;
+        place-items: center;
+        width: 100vw;
+        height: 100vh;
+      }
+      #probe {
+        width: 220px;
+        height: 140px;
+        display: grid;
+        place-items: center;
+        background-color: #8b3a1a;
+        color: #fff;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><div id="probe">probe</div></div>
+    <!-- Untouched by the library — the suite drives this one directly to prove its own matrix
+         arithmetic before trusting it against anything kuinetic writes. -->
+    <div id="control" style="position: absolute; top: -9999px;">control</div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__registry = kuinetic.createRegistry()
+      window.__kui = kuinetic
+        .kuinetic({ reporter: kuinetic.silentReporter(), observe: true })
+        .start()
+    </script>
+  </body>
+</html>
