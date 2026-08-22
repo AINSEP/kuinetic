@@ -76,19 +76,56 @@
     }
   }
 
-  /* --- logical: --kui-dir is -1 under :dir(rtl) --- */
+  /* --- logical: --kui-dir is -1 under :dir(rtl) ---
+   * `kui-in-left` starts at +distance (see the comment above), so "start" must resolve to the
+   * same sign in LTR (`--kui-dir: 1`): +distance * dir. In RTL (`--kui-dir: -1`) that flips to
+   * -distance, matching `kui-in-right` — the start edge is physically on the right there.
+   * `inline-end` is the exact mirror. Get this backwards and `slide-inline-start` enters from the
+   * right in LTR while its name promises the left; a page tester caught it by measuring computed
+   * `translate` in a browser, since RTL had zero test coverage and logical-direction names are
+   * exactly the ones nobody double-checks by eye. */
   @keyframes kui-in-inline-start {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1) * -1) 0;
+      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1)) 0;
     }
   }
 
   @keyframes kui-in-inline-end {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1)) 0;
+      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1) * -1) 0;
     }
+  }
+
+  /*
+   * A deferred entrance is armed with its `--kui-distance` offset — `animation-name` plus
+   * `animation-play-state: paused` — the instant the runtime installs it, long before the trigger
+   * that actually plays it. `animator.ts`'s `openGate` calls `activate()` synchronously, same tick,
+   * for every gate except `deferred`, so `data-kui-state="ready"` is never even painted for those;
+   * only a `deferred` entrance (`on:enter`, `on:click`, ...) sits here, waiting, for however long
+   * the trigger takes — sometimes forever, if the visitor never scrolls or clicks that far.
+   *
+   * Every entrance built on `--kui-distance` also ships `cloak: true` (`Preset.cloak`), so it is
+   * already fully transparent for that whole wait — collapsing the offset to 0 here is invisible
+   * by construction, not a compromise; there is nothing to see either way. What it fixes is the
+   * box itself: parked at `translate: 24px 0` (or 100px, `slide-*`'s default) a horizontal
+   * entrance near the edge of its column still occupies that displaced position for
+   * scrollable-overflow purposes even though nothing is painted there. `div.install-snip`'s
+   * `slide-left` on index.html did exactly this: invisible, waiting, and still past the
+   * document's own right edge — permanently, until scrolling it into view triggered the play.
+   *
+   * `!important` is required: a paused CSS animation still supplies its 0%-keyframe value from
+   * the Animations origin, which ordinary author CSS cannot outrank regardless of layer or
+   * specificity — only `!important` sits above it. Overriding `--kui-distance` itself, rather than
+   * `translate` on each keyframe, reaches every current and future preset built on it from one
+   * declaration instead of an enumerated list of names: `kui-in-up`/`-down`/`-left`/`-right`/
+   * `-inline-start`/`-inline-end`, `kui-zoom-in-up`/`-down`, `kui-roll-in`, and `kui-fade-blur-up`
+   * all read it. The instant the trigger fires, `data-kui-state` becomes `"running"`, this rule
+   * stops matching, and the animation plays from its real, authored distance exactly as before.
+   */
+  [data-kui-state='ready'] {
+    --kui-distance: 0px !important;
   }
 
   /* --- scale (channel: scale) --- */
