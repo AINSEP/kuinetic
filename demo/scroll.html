@@ -38,7 +38,34 @@
   .demo-hero {
     padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(3rem, 5vw, 5rem);
     text-align: center;
+    position: relative;
   }
+  /*
+   * The ambient wash from index.html's hero, ported here.
+   *
+   * Two static radial gradients — depth that costs nothing and cannot fail. index.html spells the
+   * colour as a literal `rgb(228 242 34 / 0.30)`; that literal *is* `--accent`, so this mixes the
+   * token instead. A third hand-written yellow is exactly how this site ended up with two of them
+   * drifting apart, and a token cannot drift from itself.
+   *
+   * Bounded to the hero's own box (`inset: 0`) rather than bled to the viewport edge: this hero
+   * lives inside `.wrap`, and every full-bleed trick that reaches past it (`100vw`, negative
+   * viewport insets) risks the horizontal scrollbar this page has already shipped once.
+   */
+  .demo-hero-glow {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(60% 50% at 78% 22%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
+      radial-gradient(45% 40% at 8% 78%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 72%);
+  }
+  /* Dark ground takes the wash harder before it reads as lit at all. */
+  :root[data-theme='dark'] .demo-hero-glow {
+    background:
+      radial-gradient(60% 50% at 78% 22%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+      radial-gradient(45% 40% at 8% 78%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%);
+  }
+  /* The wash sits behind; everything the reader actually came for sits in front of it. */
+  .demo-hero > *:not(.demo-hero-glow) { position: relative; z-index: 1; }
   .demo-hero .kicker { display: block; }
   .demo-hero h1 {
     margin: 0 auto; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02;
@@ -1060,6 +1087,7 @@
 
       <!-- HERO -->
       <section class="demo-hero" data-od-id="hero">
+        <div class="demo-hero-glow" aria-hidden="true"></div>
         <p class="kicker" data-kui="fade-up 700ms">CSS Animations · Scroll</p>
         <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
 
@@ -1649,7 +1677,14 @@
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at — here, the matching nav link.</li>
             </ul>
           </div>
-          <div class="spy-layout">
+          <!-- Same `data-show-code-target` shape as the horizontal track and the pin demos, and
+               for the same reason: the effect here is five sibling sections plus the nav they
+               mark, so no single element carries it. `data-show-code-key` names the classes the
+               CSS actually selects on, plus `data-kui-active` — the attribute `scroll-spy` writes
+               onto the target, which is the whole contract of the effect and the one thing a
+               reader copying this needs to know exists. -->
+          <p class="kui-contract"><code>data-kui="scroll-spy target:#spy-link-bottle distance:68vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="spy-demo">Show code</button></p>
+          <div class="spy-layout" id="spy-demo" data-show-code-key="spy-layout spy-nav spy-sections spy-section data-kui-active">
             <nav class="spy-nav" aria-label="Jump to product">
               <a id="spy-link-bottle" href="#spy-bottle">Botole</a>
               <a id="spy-link-airpods-dark" href="#spy-airpods-dark">AirPods dark</a>
