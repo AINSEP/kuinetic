@@ -56,4 +56,176 @@
       filter: none;
     }
   }
+
+  /*
+   * --- slat-assemble ---
+   * `media.ts`'s `installSlatStage` builds this tree and hands it only three custom properties:
+   * `--kui-slat-count` (on the stage, inherited), `--kui-slat-index` and `--kui-i` (per slat,
+   * geometric position and stagger rank). Everything else — sizing, background slicing, timing,
+   * motion — lives here, keyed on plain classes and the two `data-kui-slat-*` attributes the JS
+   * sets once at build time. None of it keys on `[data-kui-fx]`: the authored `<figure>`/`<img>`
+   * are never touched or styled, only the synthetic stage this file fully owns, the same split as
+   * `.kui-split-item`/`.kui-split-decorative` above never reference `[data-kui-fx]` either.
+   */
+  /* `top`/`left`/`width`/`height` are not set here — `media-shared.ts`'s `syncStageToImage`
+     writes them inline, sized to the `<img>`'s own box rather than `el`'s full box, since `el`
+     can carry other content below the image (a figcaption, a label) that a flat `inset: 0` would
+     spill over. */
+  .kui-slat-stage {
+    position: absolute;
+    /* Clips the slats to the picture's own frame, which is what lets them travel a full slat-width
+       instead of the 40% they used to. At 40% a slat was still overlapping its own resting box, so
+       even with the source image hidden the strips only ever looked nudged. 100% was then tried and
+       is worse in the other direction: a slat displaced by its own full width starts entirely
+       outside the clip, so the frame is simply empty and the picture pops into existence — you
+       never see it chopped up, which is the whole thing being demonstrated. 38% is the value that
+       shows the break: every strip stays on screen and visibly out of line with its neighbours,
+       then closes. The clip stays regardless, because a `figure` has a caption under it and no
+       displacement should ever be painted over it. */
+    overflow: clip;
+  }
+
+  .kui-slat-item {
+    position: absolute;
+    background-repeat: no-repeat;
+    animation-duration: var(--kui-duration, 500ms);
+    animation-delay: calc(var(--kui-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 60ms));
+    animation-timing-function: var(--kui-ease, ease-out);
+    animation-fill-mode: both;
+  }
+
+  /* Only while actually running: promoting N layers permanently would strand them alive long
+     after the assemble finishes. `media.ts` toggles this class at activation and removes it once
+     `slatAssembleFinishMs` elapses (or `finish()` runs), the same transient-class shape
+     `word-cycler`'s swap transition above uses for its own brief state. */
+  .kui-slat-stage.kui-slat-animating .kui-slat-item {
+    will-change: transform;
+  }
+
+  /* Alternating fly-in side, from geometric parity alone — independent of `--kui-i`'s stagger
+     rank, so `from:` only ever changes *when* a slat lands, never which side it flies in from. */
+  .kui-slat-item:nth-child(odd) {
+    --kui-slat-sign: -1;
+  }
+  .kui-slat-item:nth-child(even) {
+    --kui-slat-sign: 1;
+  }
+
+  /*
+   * Sprite-sheet slicing, entirely in percentages relative to each slat's own box — never the
+   * image's natural size — so this needs no `naturalWidth`/`naturalHeight` and stays correct
+   * across a responsive resize with no JS involved. Background-size scales the *whole* image to
+   * `--kui-slat-count` times this slat's own width (vertical) or height (horizontal), i.e. back
+   * to the stage's full size; background-position then walks the 0%–100% range that shifts the
+   * image left/up by exactly one slat-width/-height per step, so slat `i` of `N` shows precisely
+   * the `i`th strip. See `installSlatStage` in `media-shared.ts` for the worked derivation.
+   */
+  .kui-slat-stage[data-kui-slat-axis='vertical'] .kui-slat-item {
+    top: 0;
+    height: 100%;
+    /* The +1px is a seam closer, not a fudge. `100% / count` almost never lands on a whole pixel —
+       a 415px-wide stage over 8 slats is 51.875px each — and the leftover fraction renders as a
+       hairline of backdrop between neighbours once they have landed, visible as faint rules across
+       the finished picture. Overlapping each slat by a pixel covers it. The background is not
+       re-registered to match, deliberately: a 1px shift inside a 52px strip is invisible, whereas
+       the gap it removes is not. */
+    width: calc(100% / var(--kui-slat-count, 8) + 1px);
+    left: calc(var(--kui-slat-index, 0) * 100% / var(--kui-slat-count, 8));
+    background-size: calc(var(--kui-slat-count, 8) * 100%) 100%;
+    background-position-x: calc(
+      var(--kui-slat-index, 0) * 100% / (var(--kui-slat-count, 8) - 1)
+    );
+  }
+
+  .kui-slat-stage[data-kui-slat-axis='horizontal'] .kui-slat-item {
+    left: 0;
+    width: 100%;
+    /* Same seam closer as the vertical axis above. */
+    height: calc(100% / var(--kui-slat-count, 8) + 1px);
+    top: calc(var(--kui-slat-index, 0) * 100% / var(--kui-slat-count, 8));
+    background-size: 100% calc(var(--kui-slat-count, 8) * 100%);
+    background-position-y: calc(
+      var(--kui-slat-index, 0) * 100% / (var(--kui-slat-count, 8) - 1)
+    );
+  }
+
+  /* `fold:true` needs `perspective` on the slats' direct parent (the stage) for their `rotate` to
+     read as a hinge rather than a flat spin — declared only there, never on the author's own
+     `<figure>`, so nothing about the author's element changes. */
+  .kui-slat-stage[data-kui-slat-fold='true'] {
+    perspective: 1200px;
+  }
+
+  .kui-slat-stage[data-kui-slat-axis='vertical']:not([data-kui-slat-fold='true']) .kui-slat-item {
+    animation-name: kui-slat-assemble-vertical;
+  }
+  .kui-slat-stage[data-kui-slat-axis='vertical'][data-kui-slat-fold='true'] .kui-slat-item {
+    animation-name: kui-slat-assemble-vertical-fold;
+  }
+  .kui-slat-stage[data-kui-slat-axis='horizontal']:not([data-kui-slat-fold='true']) .kui-slat-item {
+    animation-name: kui-slat-assemble-horizontal;
+  }
+  .kui-slat-stage[data-kui-slat-axis='horizontal'][data-kui-slat-fold='true'] .kui-slat-item {
+    animation-name: kui-slat-assemble-horizontal-fold;
+  }
+
+  @keyframes kui-slat-assemble-vertical {
+    from {
+      opacity: 0;
+      translate: 0 calc(var(--kui-slat-sign, 1) * 38%);
+    }
+    12% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes kui-slat-assemble-horizontal {
+    from {
+      opacity: 0;
+      translate: calc(var(--kui-slat-sign, 1) * 38%) 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes kui-slat-assemble-vertical-fold {
+    from {
+      opacity: 0;
+      translate: 0 calc(var(--kui-slat-sign, 1) * 38%);
+      rotate: y calc(var(--kui-slat-sign, 1) * 38deg);
+    }
+    12% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+      rotate: y 0deg;
+    }
+  }
+
+  @keyframes kui-slat-assemble-horizontal-fold {
+    from {
+      opacity: 0;
+      translate: calc(var(--kui-slat-sign, 1) * 38%) 0;
+      rotate: x calc(var(--kui-slat-sign, 1) * -38deg);
+    }
+    12% {
+      opacity: 1;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+      rotate: x 0deg;
+    }
+  }
 }

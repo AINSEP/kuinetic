@@ -974,6 +974,12 @@
     --kui-feedback-fade-ease: ease-out;
   }
 
+  [data-kui-fx~='slat-assemble'] {
+    --kui-slat-assemble-duration: 500ms;
+    --kui-slat-assemble-delay: 0ms;
+    --kui-slat-assemble-ease: ease-out;
+  }
+
   [data-kui-fx~='slide-block-end'] {
     --kui-distance: 100px;
     --kui-from-opacity: 1;

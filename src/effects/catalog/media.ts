@@ -1,14 +1,30 @@
 import { CHANNEL } from '../../core/types.js'
-import type { Preset, Primitive } from '../../core/types.js'
+import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { PrepareContext } from '../../core/effect-context.js'
+import { deferPrepare } from '../../core/instances.js'
+import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
+import { applySlatTimingVars, installSlatStage, slatAssembleFinishMs } from './media-shared.js'
+import type { SlatAxis, SlatFrom } from './media-shared.js'
+
+/**
+ * Media and image effects (catalog section G).
+ *
+ * Sixteen names are pure CSS — wipes, masks, ken-burns, filters, parallax, lightbox. One,
+ * `slat-assemble`, needs JS: it builds a synthetic slat tree at activation, the same
+ * `text-shared.ts` decomposition `text.ts` uses for `split-text` — `media-shared.ts` carries the
+ * DOM surgery and per-slat numbers, this file is orchestration only.
+ */
 
 const geometry = {
   distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
   scale: { type: 'number', default: '1.12', cssProperty: '--kui-to-scale' },
 } as const
 
-export const MEDIA_PRIMITIVES: Primitive[] = [
+// --- CSS-tier: wipes, masks, ken-burns, filters, parallax, lightbox ---
+
+export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('media-wipe', [CHANNEL.clip]),
   cssPrimitive('media-mask', ['mask'], { perfClass: 'paint' }),
   // Not `reducedMotion: 'disable'` — that policy means "no finite duration would make sense,
@@ -45,7 +61,7 @@ export const MEDIA_PRIMITIVES: Primitive[] = [
   }),
 ]
 
-export const MEDIA_PRESETS: Preset[] = [
+export const MEDIA_CSS_PRESETS: Preset[] = [
   { name: 'wipe-up', primitive: 'media-wipe', keyframes: 'kui-wipe-up' },
   { name: 'wipe-down', primitive: 'media-wipe', keyframes: 'kui-wipe-down' },
   { name: 'wipe-left', primitive: 'media-wipe', keyframes: 'kui-wipe-left' },
@@ -68,6 +84,119 @@ export const MEDIA_PRESETS: Preset[] = [
   { name: 'before-after-wipe', primitive: 'media-wipe', keyframes: 'kui-before-after-wipe' },
   { name: 'lightbox-open', primitive: 'media-lightbox', keyframes: 'kui-lightbox-open' },
 ]
+
+// --- JS-tier: slat-assemble ---
+
+const slatParams: ParameterSchema = {
+  slats: {
+    type: 'number',
+    default: '8',
+    cssProperty: '--kui-slats',
+    minimum: 2,
+    maximum: 24,
+    integer: true,
+  },
+  axis: {
+    type: 'keyword',
+    default: 'vertical',
+    cssProperty: '--kui-axis',
+    values: ['vertical', 'horizontal'],
+  },
+  from: {
+    type: 'keyword',
+    default: 'alternate',
+    cssProperty: '--kui-from',
+    values: ['alternate', 'start', 'end', 'edges', 'random-ish'],
+  },
+  fold: { type: 'keyword', default: 'false', cssProperty: '--kui-fold', values: ['true', 'false'] },
+  duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
+  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  stagger: { type: 'time', default: '60ms', cssProperty: '--kui-stagger' },
+}
+
+/**
+ * Slice a wrapped `<img>` into N background-sliced slats and fly them in staggered, landing
+ * assembled over the original picture.
+ *
+ * `slats` is clamped defensively even though the schema already rejects an out-of-range or
+ * non-integer value back to the default — the same double-check `scramble-text`'s `revealEvery`
+ * makes in `text.ts`, in case a future default ever moves outside `[2, 24]` unnoticed.
+ *
+ * Only `translate`/`rotate`/`opacity` ever animate (`media.css`'s keyframes) — never anything
+ * that triggers layout or paint — so raising `slats` raises composited-layer count, not per-frame
+ * work; see `installSlatStage` for why it is also not raising network/decode cost.
+ *
+ * @complexity O(n) time and space in slat count.
+ * @overallScore 100
+ */
+function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  const doc = el.ownerDocument
+  const count = Math.min(24, Math.max(2, Math.round(params.num('slats', 8))))
+  const axis = params.text('axis', 'vertical') as SlatAxis
+  const from = params.text('from', 'alternate') as SlatFrom
+  const fold = params.is('fold')
+
+  const node = el as HTMLElement
+  // The stage is `position: absolute; inset: 0` and needs `el` as its containing block — the
+  // same defensive claim `cursor-spotlight` makes on its own host in `interaction.ts`, never
+  // overriding an author who already positioned this element for their own layout.
+  if (ctx.win.getComputedStyle(node).position === 'static') ctx.style.set('position', 'relative')
+
+  const built = installSlatStage(el, doc, ctx.win, { count, axis, from, fold })
+  if (!built) return () => {}
+  const { stage } = built
+  applySlatTimingVars(stage, params)
+  stage.classList.add('kui-slat-animating')
+
+  // A `Promise` executor runs synchronously, so `settle` is always assigned before either closure
+  // below can run — the same pattern `prepareSplitText` uses for the identical reason.
+  let settle!: () => void
+  const finished = new Promise<void>((resolve) => {
+    settle = resolve
+  })
+  const land = (): void => {
+    stage.classList.remove('kui-slat-animating')
+    settle()
+  }
+  const timer = ctx.win.setTimeout(land, slatAssembleFinishMs(params, count))
+
+  return {
+    cleanup: () => {
+      ctx.win.clearTimeout(timer)
+      built.restore()
+    },
+    finished,
+    finish: () => {
+      ctx.win.clearTimeout(timer)
+      land()
+    },
+  }
+}
+
+export const MEDIA_JS_PRIMITIVES: Primitive[] = [
+  {
+    id: 'slat-assemble',
+    renderer: 'javascript',
+    channels: [CHANNEL.opacity, CHANNEL.translate, CHANNEL.rotate],
+    parameters: slatParams,
+    supportedTimelines: ['time'],
+    supportedActivations: ['load', 'enter', 'hover', 'focus', 'click', 'manual'],
+    defaultActivation: 'enter',
+    perfClass: 'dom-transform',
+    // Same reasoning as every JS-rendered primitive in `text.ts`: nothing here declares a CSS
+    // `animation-duration` the reduced-motion policy layer could shorten, and `disable` is what
+    // stops `installSlatStage`'s DOM surgery from ever running at all under reduced motion — the
+    // animator never calls `activate()`, so the wrapped `<img>` is simply left exactly as authored.
+    reducedMotion: 'disable',
+    prepare: deferPrepare(prepareSlatAssemble),
+  },
+]
+
+export const MEDIA_JS_PRESETS: Preset[] = [{ name: 'slat-assemble', primitive: 'slat-assemble' }]
+
+export const MEDIA_PRIMITIVES: Primitive[] = [...MEDIA_CSS_PRIMITIVES, ...MEDIA_JS_PRIMITIVES]
+export const MEDIA_PRESETS: Preset[] = [...MEDIA_CSS_PRESETS, ...MEDIA_JS_PRESETS]
 
 /**
  * Register catalog section G (media & images) into a registry.
