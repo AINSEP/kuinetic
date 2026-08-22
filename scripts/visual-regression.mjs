@@ -144,6 +144,58 @@ function baselinePath(canary, theme) {
   return `${BASELINE_DIR}/${canary.id}-${theme}.png`
 }
 
+/**
+ * Write a fresh baseline for one canary and report it.
+ *
+ * @returns The row to record for the summary and the diff report.
+ */
+function writeBaseline(canary, theme, png, target) {
+  writeFileSync(target, png)
+  console.log(`WROTE  ${canary.id} (${theme}) -> ${target}`)
+  return { canary, theme, status: 'updated' }
+}
+
+/**
+ * Compare one freshly captured canary against its baseline.
+ *
+ * Split out of `run` so the capture loop stays a loop and this stays the decision. The three ways
+ * a comparison can end — no baseline yet, the element changed size, or a real pixel diff — are
+ * each their own row `status`, because collapsing them into one "fail" loses the only thing that
+ * tells you whether to regenerate, look at the layout, or look at the render.
+ *
+ * A size change short-circuits rather than diffing: `pixelmatch` requires equal dimensions, and a
+ * canary that changed size has already told you what you needed to know.
+ *
+ * @returns The row to record for the summary and the diff report.
+ */
+function compareToBaseline(canary, theme, png, target) {
+  if (!existsSync(target)) {
+    console.log(`FAIL   ${canary.id} (${theme}) — no baseline; run with --update first`)
+    return { canary, theme, status: 'missing-baseline' }
+  }
+
+  const baseline = readPng(readFileSync(target))
+  const current = readPng(png)
+  if (baseline.width !== current.width || baseline.height !== current.height) {
+    console.log(
+      `FAIL   ${canary.id} (${theme}) — size changed: ${baseline.width}x${baseline.height} -> ${current.width}x${current.height}`,
+    )
+    return { canary, theme, status: 'size-mismatch', baseline, current }
+  }
+
+  const diff = new PNG({ width: baseline.width, height: baseline.height })
+  const diffPixels = pixelmatch(baseline.data, current.data, diff.data, baseline.width, baseline.height, {
+    threshold: PIXEL_THRESHOLD,
+  })
+  const totalPixels = baseline.width * baseline.height
+  const fraction = diffPixels / totalPixels
+  const pass = fraction <= MAX_DIFF_FRACTION
+  console.log(
+    `${pass ? 'PASS' : 'FAIL'}   ${canary.id} (${theme}) — ${diffPixels}/${totalPixels} px differ (${(fraction * 100).toFixed(2)}%, budget ${(MAX_DIFF_FRACTION * 100).toFixed(0)}%)`,
+  )
+  return { canary, theme, status: pass ? 'pass' : 'fail', diffPixels, totalPixels, fraction, baseline, current, diff }
+}
+
 async function run() {
   if (UPDATE) mkdirSync(BASELINE_DIR, { recursive: true })
   mkdirSync(ARTIFACT_DIR, { recursive: true })
@@ -157,38 +209,8 @@ async function run() {
     for (const canary of CANARIES) {
       const png = await captureCanary(page, canary)
       const target = baselinePath(canary, theme)
-
-      if (UPDATE) {
-        writeFileSync(target, png)
-        rows.push({ canary, theme, status: 'updated' })
-        console.log(`WROTE  ${canary.id} (${theme}) -> ${target}`)
-        continue
-      }
-
-      if (!existsSync(target)) {
-        rows.push({ canary, theme, status: 'missing-baseline' })
-        console.log(`FAIL   ${canary.id} (${theme}) — no baseline; run with --update first`)
-        continue
-      }
-
-      const baseline = readPng(readFileSync(target))
-      const current = readPng(png)
-      if (baseline.width !== current.width || baseline.height !== current.height) {
-        rows.push({ canary, theme, status: 'size-mismatch', baseline, current })
-        console.log(`FAIL   ${canary.id} (${theme}) — size changed: ${baseline.width}x${baseline.height} -> ${current.width}x${current.height}`)
-        continue
-      }
-
-      const diff = new PNG({ width: baseline.width, height: baseline.height })
-      const diffPixels = pixelmatch(baseline.data, current.data, diff.data, baseline.width, baseline.height, {
-        threshold: PIXEL_THRESHOLD,
-      })
-      const totalPixels = baseline.width * baseline.height
-      const fraction = diffPixels / totalPixels
-      const pass = fraction <= MAX_DIFF_FRACTION
-      rows.push({ canary, theme, status: pass ? 'pass' : 'fail', diffPixels, totalPixels, fraction, baseline, current, diff })
-      console.log(
-        `${pass ? 'PASS' : 'FAIL'}   ${canary.id} (${theme}) — ${diffPixels}/${totalPixels} px differ (${(fraction * 100).toFixed(2)}%, budget ${(MAX_DIFF_FRACTION * 100).toFixed(0)}%)`,
+      rows.push(
+        UPDATE ? writeBaseline(canary, theme, png, target) : compareToBaseline(canary, theme, png, target),
       )
     }
     await context.close()
