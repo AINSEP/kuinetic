@@ -156,15 +156,12 @@
 
     tryIt.append(input, copyBtn, applyBtn, resetBtn)
 
-    const legend = document.createElement('p')
-    legend.className = 'kui-code-legend'
-    legend.hidden = true
 
     const pre = document.createElement('pre')
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    dialog.append(header, tryIt, legend, pre)
+    dialog.append(header, tryIt, pre)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
 
@@ -258,14 +255,11 @@
       
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
       const tokens = keyTokensFor(sourceEl)
-      // Gated on what actually got marked, not on whether the element declared key tokens. The
-      // `data-kui` line is always marked, so a block with no `data-show-code-key` still opened with
-      // yellow lines in it and no sentence anywhere saying what yellow meant.
-      const marked = renderSource(code, prettyPrint(sourceEl, 0), tokens)
-      legend.hidden = marked === 0
-      legend.textContent = marked
-        ? 'Yellow lines are the contract — the effect selects on those exact names. Everything else is yours to rename.'
-        : ''
+      // The legend sentence that used to sit here is gone at the owner's request. It restated the
+      // same thirty words above every single code block on every page, which is how a caption stops
+      // being read at all. The highlight itself stays and does the work: a marked line is visibly a
+      // marked line, and one legend repeated forty times teaches nobody anything the fortieth time.
+      renderSource(code, prettyPrint(sourceEl, 0), tokens)
       input.value = originalValue
       backdrop.style.display = 'grid'
       // The stored offset was clamped against the viewport it was dragged in; re-clamp against the

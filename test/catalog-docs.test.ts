@@ -39,7 +39,18 @@ const catalog = read('docs/catalog.md')
  * the library shipped 251, because nothing compared them to anything. A count in prose is a claim,
  * and a wrong one is the first thing a reader can catch you on.
  */
-const COUNTED_DOCS = ['README.md', 'docs/getting-started.md', 'docs/design.md']
+const COUNTED_DOCS = [
+  'README.md',
+  'docs/getting-started.md',
+  'docs/design.md',
+  // The showcase landing page states the count twice — once in its `<meta name="description">`,
+  // once as the headline over the catalog section — and it was the one file left out of this list.
+  // It was still reading "~237" when the registry had passed 250, which is the exact drift the
+  // three entries above exist to prevent, sitting on the most-read page in the repo. A marketing
+  // number is a claim like any other. (The headline was `~<span>237</span> named effects`, which
+  // the contiguous match below could never have seen; it is one text run now.)
+  'demo/index.html',
+]
 
 /**
  * Sections that list *primitive* ids or aggregate counts rather than effect names. Including them

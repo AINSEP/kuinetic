@@ -42,6 +42,20 @@
    acid-lime here, and near-invisible as a 2px stroke on a white light-mode card. Point it at the
    ink colour instead: `--fg` is already black in light mode and white in dark, so the stroke reads
    as deliberate in both themes without a second rule. */
+/* Every pin on every page clears the floating header, set once.
+
+   The header is a sticky pill at `top: 16px` with a 58px box, so its underside is at 74px. A pin
+   defaults to `top: 0`, which parked pinned sections, videos and cards *under* that pill and held
+   them there for the whole pin — measured on `scroll.html`'s `pin-spacer` video and its
+   `pin-section` rotate card. The library's own default is `0px` and stays that way; `--kui-pin-offset`
+   is the hook it reads, and this is the one place the showcase answers it. 5.5rem = 88px, so 14px
+   of air below the pill.
+
+   Per-element `offset:` still wins, which is what `stacking-cards` uses for its per-card stagger.
+   Page-authored sticky viewports read the same token — see `.track-viewport` and `.scrub-viewport`
+   in scroll.html — so "how far down does a held thing sit" is one number for the whole showcase. */
+:root { --kui-pin-offset: 5.5rem; }
+
 :root { --kui-border-draw-color: var(--fg); }
 
 :root[data-theme='dark'] main h1,
@@ -512,35 +526,41 @@ figure .kui-show-code-toggle {
   border-color: var(--accent);
 }
 
-/* The one line of prose in the panel, so the highlight colour does not have to be guessed at.
-   Hidden entirely when nothing on screen is marked, rather than left as an explanation of an
-   absent thing. */
-.kui-code-legend {
-  margin: 0 0 0.7rem;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
 .kui-code-modal pre {
   margin: 0;
   padding: 0;
 }
 
-/* `<mark>` for the semantics — this is highlighted text, and a screen reader should say so — but
-   the UA's yellow block fill is wrong inside a code panel, so it is reset to a coloured line.
+/* `<mark>` for the semantics — this is highlighted text, and a screen reader should say so — and
+   now for the look as well: an actual highlighter band, not recoloured letters.
 
-   The colour is the site accent, not the red this shipped with. Red on a code panel is the one
-   thing every editor, linter, and diff on the reader's screen already uses to mean *broken*, and
-   these lines are the opposite — they are the part that has to stay exactly as written. The accent
-   pair carries it in both themes without a second thought about contrast: `--accent-text` is the
-   darkened #8a6d00 (about 5:1 on the light panel's white) and flips to the bright #e4f222 in dark
-   mode, where the panel is black. Raw `--accent` in light mode would be #d0d300 on white — 1.6:1,
-   and unreadable. */
+   This used to be `background: none` with `--accent-text` type, on the reasoning that a block fill
+   is wrong inside a code panel. It reads worse than that reasoning predicted. Recolouring letters
+   inside a panel that is *already* full of syntax-ish colour asks the eye to notice a hue shift in
+   a monospace line; a band behind the line is pre-attentive — you see which rows are marked before
+   you read a character of them. It is also the thing a highlighter actually is, which is the
+   metaphor the reader arrives with. That legibility difference is why the legend sentence could be
+   deleted at all: the mark no longer needs a caption to explain it.
+
+   The letters go back to plain `--fg`, so contrast is the panel's own black-on-white or
+   white-on-black and never a question. The band carries the accent instead, at an alpha low enough
+   to stay behind the text: 32% of #e4f222 on the light panel's white, and 22% in dark mode, where
+   the same wash over black would otherwise crush the glyphs. `box-decoration-break: clone` so a
+   line long enough to wrap gets the padding and radius on every fragment rather than one long
+   band with two square ends in the middle of the text. */
 .kui-code-key {
-  background: none;
-  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--fg);
   font-weight: 600;
+  border-radius: 3px;
+  padding: 0.1em 0.25em;
+  margin: 0 -0.25em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+:root[data-theme='dark'] .kui-code-key {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .kui-code-modal code {
