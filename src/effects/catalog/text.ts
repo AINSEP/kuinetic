@@ -325,9 +325,20 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
   // Without it a delayed scramble sits as a blank element instead of unresolved noise.
   render()
 
+  // The fallback passed to `stepMsFor` is a *per-tick* constant, and a flat one made an unauthored
+  // `scramble` cost time in proportion to its own text: the demo's 66-grapheme sentence ran
+  // 66 x 2 ticks at 40ms, over five seconds, and read as broken rather than deliberate. A resolve
+  // is one gesture with a length, not a per-character rate, so the default is expressed as a total
+  // — 700ms — spread across however many ticks this particular string happens to need.
+  //
+  // Passing it as the fallback rather than computing `stepMs` here keeps both authored spellings
+  // working untouched: `scramble 1500ms` still divides its own duration across the ticks, and
+  // `scramble step:10ms` still means 10ms per tick. Bypassing the helper broke the latter, silently,
+  // until test/catalog-text-js.test.ts caught it.
+  const totalTicks = Math.max(1, graphemes.length * revealEvery)
   const run = createStepRunner(ctx.win, {
     delayMs: params.timing.delayMs ?? 0,
-    stepMs: stepMsFor(params, graphemes.length * revealEvery, 40),
+    stepMs: stepMsFor(params, totalTicks, Math.max(1, 700 / totalTicks)),
     tick: () => {
       ticks++
       if (ticks % revealEvery === 0) resolved++
