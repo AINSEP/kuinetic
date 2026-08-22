@@ -39,6 +39,7 @@
     "lint": "eslint src test scripts",
     "lint:deps": "depcruise src --config .dependency-cruiser.cjs",
     "lint:dead": "knip",
+    "ci": "npm run typecheck && npm run lint && npm run lint:deps && npm run lint:dead && npm run test && npm run test:browser",
     "size": "npm run build:dist && size-limit",
     "build": "npm run generate:css && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --outfile=demo/kuinetic.js && esbuild src/css/index.css --bundle --outfile=demo/kuinetic.css && npx @tailwindcss/cli -i demo/tailwind-entry.css -o demo/tailwind.css && node scripts/build-standalone.mjs demo",
     "build:dist": "npm run clean:dist && npm run generate:css && esbuild src/index.ts src/core/index.ts src/effects/index.ts --bundle --format=esm --splitting --outdir=dist/esm --out-extension:.js=.mjs && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --outfile=dist/kuinetic.js && esbuild src/css/index.css --bundle --outfile=dist/kuinetic.css && tsc -p tsconfig.build.json && node scripts/build-standalone.mjs",

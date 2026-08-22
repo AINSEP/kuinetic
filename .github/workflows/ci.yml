@@ -1,0 +1,43 @@
+name: CI
+
+# There was no CI configuration in this repo before this file — `npm run ci` (package.json) is
+# the first place the full gate is composed, and this workflow is what actually runs it on push
+# and PR. See the tier ordering there: cheap static checks first, `vitest` next, the real-browser
+# suite last, because it is by far the slowest tier and the one most worth failing fast ahead of.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # `test:browser` drives `scripts/browser-harness.mjs`, which resolves Chromium through
+      # `playwright-core` (see its own comment: preference order is an installed `playwright-core`,
+      # then `playwright`, then `PLAYWRIGHT_MODULE`). `playwright-core` deliberately ships without a
+      # postinstall browser download — that's the difference from the full `playwright` package —
+      # so `npm ci` alone leaves no browser binary on the runner and every `test:browser` check
+      # would fail on "no visible change" for reasons that have nothing to do with the effects
+      # under test. `--with-deps` also pulls the system libraries (fonts, GTK, ...) a fresh Ubuntu
+      # runner needs to launch Chromium headless at all.
+      - name: Cache Playwright's Chromium download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
+      - name: Install the Chromium the browser-test tier drives
+        run: npx playwright-core install --with-deps chromium
+
+      - run: npm run ci
