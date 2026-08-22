@@ -40,6 +40,11 @@
        on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
        accents) where it sits on a dark or neutral surface instead. */
     --accent-text: #8a6d00;
+    /* The ticker's gilt edge. Deliberately its own token rather than reusing --accent-text: that
+       one is contracted for *text* and is picked for contrast against a reading background, while
+       this is a 1px rule whose only job is to look like metal. They happen to share a value in
+       light mode; they must not in dark, so they cannot be the same token. */
+    --ticker-edge: #8a6d00;
     /* Semantic pair, used only by the compose playground's verdict. Green/red rather than the
        brand accent because "these compose" and "these collide" is a status, not a brand moment,
        and the accent already means "this is the effect name". */
@@ -59,6 +64,11 @@
     /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
        here — matches --accent exactly. */
     --accent-text: #e4f222;
+    /* Not --accent-text here, which is acid lime on this canvas — a solid lime rule reads as neon
+       signage, the opposite of the gilt this is meant to be. This is a warm gold with the red
+       channel dominant, bright enough to register against #0f1011 without becoming a second
+       accent competing with the lime the page already uses for emphasis. */
+    --ticker-edge: #c8a63c;
     /* Lightened for the near-black canvas — the light-mode pair is ~4.5:1 on white and ~2:1 here. */
     --ok: #4ade80;
     --warn: #f87171;
@@ -126,12 +136,16 @@
   }
   @media (min-width: 768px) { .wrap { padding: 0 2.5rem; } }
 
-  /* No rule between sections. A ticker separates every one of them, and a hairline drawn directly
-     under a band of moving names is a second divider doing the first one's job — which is what it
-     looked like: a stray line hanging under the marquee. The alternation carries the seam now.
+  /* No rule on `section` itself. A ticker separates every one of them, and the tickers are the
+     off-white stripes against white content sections, so no two adjacent blocks ever share a
+     background and the rhythm holds without a border here.
 
-     The tickers are the off-white stripes and the content sections are white, so no two adjacent
-     blocks ever share a background and the rhythm holds without a single border. */
+     This used to also argue that the tickers themselves should carry no border, on the grounds
+     that a hairline under a band of moving names is a second divider doing the first one's job.
+     That argument was about a *neutral* rule and it was right about one — see `.ticker`, which now
+     carries a gold one. Gold frames the band rather than dividing the page, and it rhymes with the
+     colour of the highlighted names inside it. The seam is still carried by the alternation; the
+     gold is brand, not structure. */
   section { padding: clamp(4.5rem, 6vw + 1.5rem, 8rem) 0; }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 510; }
@@ -511,14 +525,32 @@
   /* ---------- ticker ---------- */
   /* The 252 claim, made viscerally instead of numerically. It is also the marquee primitive
      demonstrating itself, and it seals the bottom of the stage. */
-  /* No border. The band separates itself: off-white against white on both sides, with a white
-     content section above and below every one of them. A hairline on top of that is a second
-     divider doing the first one's job, and it read as a stray rule hanging under the marquee.
+  /* A gold rule top and bottom, at the owner's direction, reversing the earlier "no border" call.
+     Worth recording why the reversal is not simply undoing the old mistake.
+
+     The rule that was removed was a *neutral* hairline, and the objection to it was structural:
+     the band already separates itself (off-white against white, with a white content section
+     above and below every one), so a grey line was a second divider doing the first one's job and
+     read as a stray rule hanging under the marquee. That reasoning still holds, and this does not
+     answer it — it sits in the same place and has the same hard edges.
+
+     What changes is the job the line is doing. Grey is structure, and structure that restates
+     something already said is noise. Gold is brand: it frames the band rather than dividing the
+     page, and it rhymes with --accent-text, which is already the colour of the highlighted effect
+     names *inside* these tickers. So the edge and the words it contains are from the same
+     palette, which is the thing that makes it read as a deliberate band instead of a leftover.
+
+     If it ever reads as a stray rule again, the fix is the fade — transparent to gold to
+     transparent, so the line dissolves at both ends instead of terminating — not a return to no
+     border at all.
+
      `overflow: clip` stays and is load-bearing — the row is `width: max-content` and would hand
      the document a horizontal scrollbar without it. */
   .ticker {
     padding: 0;
     overflow: clip;
+    border-top: 1px solid var(--ticker-edge);
+    border-bottom: 1px solid var(--ticker-edge);
   }
   .ticker-row { display: flex; width: max-content; padding: 0.9rem 0; }
   .ticker-row span {
