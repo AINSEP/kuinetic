@@ -40,11 +40,13 @@ library should own it. Never call something "not the library's job" without grep
       taller ancestor. **Two may work:** `trackTravel` has a documented branch for a track that
       clips its own children (`scrollWidth - clientWidth > 0`). Untested; needs a browser check.
 
-- [ ] **Log the `stacking-cards` progress gap.** The cards never publish `--kui-progress` or
-      `data-kui-pinned`. Confirmed **pre-existing** by `git stash`-ing the working tree and
-      re-measuring against HEAD, so it is not from this session's offset change. The sticky stack
-      itself works; only the flag is missing, and nothing on the page consumes it. Deserves a
-      D-entry in `docs/live-testing-backlog.md` rather than living only in a handoff.
+- [ ] **Give `stacking-cards` a behavioural test.** This entry used to claim the cards never publish
+      `--kui-progress` or `data-kui-pinned`. **That was a false alarm** — scrolled in a foreground
+      browser on 2026-08-22, cards 1-3 all pin and all publish real progress. The original
+      measurement was taken in a *frozen background tab*, which reports exactly `pinned:false,
+      progress:0` for everything, which is precisely what the entry described. Nothing was ever
+      broken. What is missing is the test that would have said so: a browser-tier check that scrolls
+      the deck and asserts each card pins and its progress advances.
 
 - [ ] **A browser suite for replay (D5).** `src/core/instances.ts` has the forward-restart path and
       the unit tests are at 100%, but that is exactly the evidence that failed to catch D5 the first
