@@ -278,4 +278,30 @@
   [data-kui-fx~='flip-out-y'] {
     perspective: var(--kui-perspective, 1200px);
   }
+
+  /*
+   * `flip-in-x`/`-y` are `from`-only, unlike `flip-out-x`/`-y` above: their default 90deg is what
+   * paints while the animation sits paused, waiting for its activation trigger. At 90deg that is
+   * edge-on to the viewport — `rotateX` collapses the box to zero height, `rotateY` to zero
+   * width. So for the whole of that wait the element occupies no space in layout, which is the
+   * same defect `fold-panel` has (`three-d.css`) and the same one `[data-kui-state='ready']` was
+   * written for in the first place — see the `--kui-distance` rule near the top of this file and
+   * its account of `div.install-snip`'s `slide-left` sitting permanently past the document's right
+   * edge. A box with no area is also the ambiguous corner of the IntersectionObserver spec, which
+   * matters because `on:enter` is the default activation for every entrance with none named:
+   * Chromium resolves such a target's `intersectionRatio` to `1` and fires normally (measured), but
+   * WebKit and Gecko are unverified here. Giving the box real geometry retires the question instead
+   * of depending on the answer. `[data-kui-state='ready']` already handles this class of thing — see the
+   * `--kui-distance` rule near the top of this file — but it only ever reset the *translate*
+   * channel, since every preset built on it also owns `opacity` and stays invisible regardless.
+   * `flip-in-x`/`-y` own no opacity channel at all, so flattening the angle alone would leave the
+   * box fully visible at rest instead of hidden — this pairs the flattened angle with an explicit
+   * `opacity: 0` so the "waiting" look stays invisible (matching what `cloak` already promises
+   * pre-JS) while the geometry `IntersectionObserver` measures is real.
+   */
+  [data-kui-fx~='flip-in-x'][data-kui-state='ready'],
+  [data-kui-fx~='flip-in-y'][data-kui-state='ready'] {
+    --kui-from-angle: 0deg !important;
+    opacity: 0 !important;
+  }
 }

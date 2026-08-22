@@ -35,11 +35,32 @@
 
   /* A progress bar scales from its leading edge, not its centre — same rule as scroll-progress-bar. */
   @keyframes kui-progress-bar {
-    from { scale: 0 1; }
+    from { scale: var(--kui-bar-from, 0) 1; }
     to { scale: 1 1; }
   }
   [data-kui-fx~='progress-bar'] {
     transform-origin: left center;
+  }
+
+  /*
+   * `--kui-bar-from` (the `meter-bar` primitive's `from` parameter, `catalog/numbers.ts`) replaces
+   * the literal `0` this keyframe used to hardcode — same parameter, same reasoning, as
+   * `loading-bar`'s in three-d.css: an author previously had no way at all to change this preset's
+   * start scale, unlike `fold-panel`/`flip-in-*`'s already-authorable `angle:`.
+   *
+   * Gating that token back to `1` on `ready` (rather than overriding the `scale` property itself)
+   * is what fixes the `on:enter` wait: `--kui-bar-from: 1 !important` beats the paused animation's
+   * own 0%-keyframe value while the real animation still reads whatever the author authored once
+   * the trigger fires. `opacity: 0 !important` sits beside it because `progress-bar` owns no
+   * opacity channel of its own — flattening the scale alone would leave the bar sitting fully
+   * visible for the whole wait instead of hidden. Both revert together in the same
+   * `data-kui-state` attribute set (`animator.ts`'s `activate()`), so there is no frame where a
+   * visitor sees the wrong shape at full opacity. `cloak: true` on this preset keeps the pre-JS and
+   * post-JS "waiting" looks the same either side of this rule.
+   */
+  [data-kui-fx~='progress-bar'][data-kui-state='ready'] {
+    --kui-bar-from: 1 !important;
+    opacity: 0 !important;
   }
 
   /*

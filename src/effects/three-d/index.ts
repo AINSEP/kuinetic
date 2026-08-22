@@ -64,7 +64,13 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
 
   cssPrimitive('wipe', [CHANNEL.clip]),
 
-  cssPrimitive('bar', [CHANNEL.scale]),
+  // `from` gives `loading-bar` a real knob on its start scale — it had none before, unlike
+  // `flip-face`'s `angle:` two rows up. `--kui-bar-from` is also what the fold-panel-style
+  // `[data-kui-fx~='loading-bar'][data-kui-state='ready']` gate neutralizes in three-d.css; see
+  // that rule's comment for the on:enter fix this parameter doubles as.
+  cssPrimitive('bar', [CHANNEL.scale], {
+    parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
+  }),
 
   CARD_TOGGLE_PRIMITIVE,
 ]
@@ -80,18 +86,30 @@ export const THREE_D_PRESETS: Preset[] = [
     keyframes: 'kui-book-page-turn',
     params: { angle: '-160deg', duration: '900ms' },
   },
+  // `cloak: true`, unlike its `flip-face` siblings above: those are `to`-only keyframes, so their
+  // paused/waiting box is the ordinary, untransformed rest state. `fold-panel` is `from`-only —
+  // its `rotateX(-90deg)` (three-d.css) *is* the paused box, edge-on and zero-height, so it holds
+  // no space in layout for the whole wait; see the
+  // `[data-kui-fx~='fold-panel'][data-kui-state='ready']` rule in three-d.css for the other half
+  // of that fix. `cloak` only ever hid the pre-JS flash, not this, but adding it here keeps the
+  // pre-JS and post-JS "ready" appearances the same (invisible) instead of trading one flash for
+  // the other.
   {
     name: 'fold-panel',
     primitive: 'flip-face',
     keyframes: 'kui-fold-panel',
     params: { angle: '-90deg' },
+    cloak: true,
   },
 
   // --- page transitions ---
   { name: 'page-fade', primitive: 'page-reveal', keyframes: 'kui-page-fade' },
   { name: 'page-slide', primitive: 'page-reveal', keyframes: 'kui-page-slide' },
   { name: 'curtain-wipe', primitive: 'wipe', keyframes: 'kui-curtain-wipe', params: { duration: '800ms' } },
-  { name: 'loading-bar', primitive: 'bar', keyframes: 'kui-loading-bar' },
+  // `cloak: true` for the same reason as `fold-panel`: `kui-loading-bar`'s `from { scale: 0 1 }`
+  // (three-d.css) is a zero-width box, not just an invisible one — see that file's
+  // `[data-kui-fx~='loading-bar'][data-kui-state='ready']` rule.
+  { name: 'loading-bar', primitive: 'bar', keyframes: 'kui-loading-bar', cloak: true },
 
   // No `keyframes`: its motion is a CSS transition in three-d.css keyed off the control's
   // aria-pressed, not a compiled animation. Same shape as the icon toggles in svg.ts.

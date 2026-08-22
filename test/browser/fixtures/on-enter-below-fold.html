@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — on-enter-below-fold fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * A page tall enough that every probe below `#spacer` starts outside the viewport, and
+       * spaced far enough apart from each other (`gap`) that scrolling one into view does not
+       * incidentally carry its neighbours into view too — the suite scrolls to each in turn and
+       * needs its "still ready, off-screen" reading on the others to stay meaningful for as long
+       * as possible while it works through the list.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      #spacer {
+        height: 900vh;
+      }
+      .row {
+        height: 90vh;
+        display: grid;
+        place-items: center;
+      }
+      .probe {
+        width: 160px;
+        height: 100px;
+        background-color: #8b3a1a;
+      }
+      .probe img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="spacer"></div>
+
+    <!--
+      Bare `data-kui="name duration"`, no `on:` clause anywhere — `element-config.ts`'s
+      `activation: authored ?? 'enter'` means this is already `on:enter`, and that is the more
+      easily-missed way to hit the bug than an explicit `on:enter`, so it is the one this fixture
+      exercises.
+    -->
+    <div class="row"><div id="fold-panel" class="probe" data-kui="fold-panel 250ms"></div></div>
+    <!--
+      A `loading="lazy"` img *inside* the `data-kui` element, not on it — the exact shape
+      `demo/reveals.html`'s `<figure data-kui="flip-in-x">` uses. The image's own rendered rect is
+      squished by its rotated ancestor the same way the ancestor's own is, which is the second
+      symptom `#21` names: a native lazy-load image that never leaves the ancestor's collapsed
+      geometry never gets close enough, in rendered space, to cross the browser's lazy-load
+      distance threshold either.
+    -->
+    <div class="row"><div id="flip-in-x" class="probe" data-kui="flip-in-x 250ms"><img loading="lazy" src="../../../demo/assets/modeling/modeling_08.jpg" alt="" /></div></div>
+    <div class="row"><div id="flip-in-y" class="probe" data-kui="flip-in-y 250ms"><img loading="lazy" src="../../../demo/assets/modeling/modeling_18.jpg" alt="" /></div></div>
+    <div class="row"><div id="loading-bar" class="probe" data-kui="loading-bar 250ms"></div></div>
+    <div class="row"><div id="progress-bar" class="probe" data-kui="progress-bar 250ms"></div></div>
+    <div class="row"><div id="chart-bar-grow" class="probe" data-kui="chart-bar-grow 250ms"></div></div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

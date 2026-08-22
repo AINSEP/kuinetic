@@ -87,6 +87,38 @@
     transform-origin: top center;
   }
 
+  /*
+   * `fold-panel` is `from`-only, unlike its `flip-face` siblings above (`card-flip-x/-y`,
+   * `cube-rotate`, `book-page-turn`, all `to`-only) — its `rotateX(-90deg)` default *is* the box
+   * that paints while the animation sits paused, waiting for its activation trigger. That angle is
+   * edge-on to the viewport, collapsing the box to zero height, so for the whole of that wait the
+   * panel occupies no space in layout at all. That is the defect, and it is engine-independent —
+   * the same one `entrance.css`'s `--kui-distance` gate was written for, where a waiting
+   * `slide-left` sat permanently past the document's right edge.
+   *
+   * Resist the tempting stronger claim. A zero-area target is the ambiguous corner of the
+   * IntersectionObserver spec, and it would be tidy to say `on:enter` therefore never fires — but
+   * measured, Chromium resolves such a target's `intersectionRatio` to `1` and fires perfectly
+   * normally. WebKit and Gecko have not been checked. Real geometry retires the question rather
+   * than betting on the answer. (If a page ever looks like nothing triggers, check
+   * `document.hidden` first: a backgrounded tab freezes the rendering lifecycle and delivers no
+   * intersection callbacks at all, which stalls *every* `on:enter` on the page and mimics this
+   * bug convincingly.)
+   *
+   * Same fix shape as `entrance.css`'s `[data-kui-state='ready']` rule for `--kui-distance`, scoped
+   * to this one preset rather than folded into that shared rule because `--kui-from-angle` is also
+   * read by `to`-only siblings on this same primitive, where flattening it would do nothing useful
+   * and by `rotate-in`/`roll-in`/etc. in entrance.css, which this file has no business touching.
+   * `fold-panel` owns no opacity channel, so flattening the angle alone would leave the panel fully
+   * visible at rest instead of hidden — paired with an explicit `opacity: 0` to keep the "waiting"
+   * look invisible (matching what `cloak: true` on this preset now promises pre-JS) while the
+   * geometry `IntersectionObserver` measures is real.
+   */
+  [data-kui-fx~='fold-panel'][data-kui-state='ready'] {
+    --kui-from-angle: 0deg !important;
+    opacity: 0 !important;
+  }
+
   /* --- page transitions (channels: opacity, translate, clip) --- */
   @keyframes kui-page-fade {
     from {
@@ -112,12 +144,38 @@
 
   @keyframes kui-loading-bar {
     from {
-      scale: 0 1;
+      scale: var(--kui-bar-from, 0) 1;
     }
   }
 
   [data-kui-fx~='loading-bar'] {
     transform-origin: left center;
+  }
+
+  /*
+   * `--kui-bar-from` (the `bar` primitive's `from` parameter, `three-d/index.ts`) replaces the
+   * literal `0` `kui-loading-bar` used to hardcode. Two reasons stacked on top of each other:
+   *
+   * First, `fold-panel`/`flip-in-x`/`flip-in-y` already expose their collapsing value as an
+   * authorable `angle:` parameter; `loading-bar` exposed no way at all to change its start scale.
+   * That asymmetry, not just this bug, is what the parameter closes.
+   *
+   * Second, once there is a real parameter behind it, gating *that* token on `ready` — rather than
+   * the `scale` property itself — is what falls out for free: `--kui-bar-from: 1 !important` beats
+   * the paused animation's own 0%-keyframe value (only `!important` can, regardless of layer or
+   * specificity — a paused CSS animation still supplies that value from the Animations origin) and
+   * the real animation reads whatever the author authored the instant the trigger fires, same as
+   * `entrance.css`'s `--kui-distance` rule.
+   *
+   * `opacity: 0 !important` sits alongside it because `loading-bar` owns no opacity channel of its
+   * own: flattening the scale alone would leave the bar sitting fully visible, at full width, for
+   * the entire wait — trading the old invisible-forever bug for a visible-wrong-state one. Both
+   * revert together in the same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so
+   * a visitor never sees that half-fixed frame; they see nothing, then the real reveal.
+   */
+  [data-kui-fx~='loading-bar'][data-kui-state='ready'] {
+    --kui-bar-from: 1 !important;
+    opacity: 0 !important;
   }
 
   /*

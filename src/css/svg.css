@@ -112,11 +112,35 @@
 
   /* A bar grows from its baseline, never from its centre — same rule as `progress-bar`. */
   @keyframes kui-chart-bar-grow {
-    from { scale: 1 0; }
+    from { scale: 1 var(--kui-bar-from, 0); }
     to { scale: 1 1; }
   }
   [data-kui-fx~='chart-bar-grow'] {
     transform-origin: bottom center;
+  }
+
+  /*
+   * `--kui-bar-from` (the `bar-grow` primitive's `from` parameter, `svg/index.ts`) replaces the
+   * literal `0` this keyframe used to hardcode, same parameter and same reasoning as
+   * `loading-bar`/`progress-bar`'s: an author previously had no way to change this preset's start
+   * scale, unlike `fold-panel`/`flip-in-*`'s already-authorable `angle:`. It sits in the *second*
+   * slot of `scale` here rather than the first — this preset collapses the Y axis (a bar grows
+   * upward from its baseline), not the X axis `loading-bar`/`progress-bar` collapse — but it is the
+   * same token name across all three, since each preset only ever collapses one axis and the
+   * shorthand position already says which.
+   *
+   * Gating that token back to `1` on `ready` fixes the `on:enter` wait the same way: `!important`
+   * beats the paused animation's own 0%-keyframe value, and the real animation still reads the
+   * authored value once triggered. `opacity: 0 !important` sits beside it because `chart-bar-grow`
+   * owns no opacity channel — flattening the scale alone would leave the bar fully visible for the
+   * whole wait. Both revert together in the same `data-kui-state` attribute set (`animator.ts`'s
+   * `activate()`), so there is no frame where a visitor sees the wrong shape at full opacity.
+   * `cloak: true` on this preset keeps the pre-JS and post-JS "waiting" looks the same either side
+   * of this rule.
+   */
+  [data-kui-fx~='chart-bar-grow'][data-kui-state='ready'] {
+    --kui-bar-from: 1 !important;
+    opacity: 0 !important;
   }
 
   /*

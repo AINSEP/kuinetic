@@ -330,7 +330,12 @@ export const COUNT_PRESETS: Preset[] = [
 
 export const METER_PRIMITIVES: Primitive[] = [
   cssPrimitive('stroke-sweep', [CHANNEL.stroke]),
-  cssPrimitive('meter-bar', [CHANNEL.scale]),
+  // `from` gives `progress-bar` a real knob on its start scale — it had none before. `--kui-bar-from`
+  // is also what the `[data-kui-fx~='progress-bar'][data-kui-state='ready']` gate in numbers.css
+  // neutralizes; see that rule's comment for the on:enter fix this parameter doubles as.
+  cssPrimitive('meter-bar', [CHANNEL.scale], {
+    parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
+  }),
   cssPrimitive('meter-segments', [CHANNEL.opacity]),
   cssPrimitive('meter-stars', [CHANNEL.clip]),
 ]
@@ -340,7 +345,13 @@ export const METER_PRESETS: Preset[] = [
   { name: 'gauge-sweep', primitive: 'stroke-sweep', keyframes: 'kui-gauge-sweep' },
   { name: 'donut-sweep', primitive: 'stroke-sweep', keyframes: 'kui-donut-sweep' },
   { name: 'sparkline-draw', primitive: 'stroke-sweep', keyframes: 'kui-sparkline-draw' },
-  { name: 'progress-bar', primitive: 'meter-bar', keyframes: 'kui-progress-bar' },
+  // `cloak: true`: `kui-progress-bar`'s `from { scale: 0 1 }` (numbers.css) is a zero-width box
+  // while paused, not just an invisible one — so while it waits it occupies no space in layout at
+  // all. Not, despite the tidier story, because an observer refuses to fire on it: Chromium was
+  // measured resolving a zero-area target's `intersectionRatio` to `1`. See numbers.css's
+  // `[data-kui-fx~='progress-bar'][data-kui-state='ready']` rule for the geometry half of the fix;
+  // `cloak` keeps the pre-JS and post-JS "waiting" look the same (invisible) either side of it.
+  { name: 'progress-bar', primitive: 'meter-bar', keyframes: 'kui-progress-bar', cloak: true },
   { name: 'progress-segments', primitive: 'meter-segments', keyframes: 'kui-progress-segments' },
   { name: 'star-rating-fill', primitive: 'meter-stars', keyframes: 'kui-star-rating-fill' },
 ]

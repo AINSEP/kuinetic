@@ -91,8 +91,16 @@ const PATH_DRAW_PRIMITIVE: Primitive = cssPrimitive('path-draw', [CHANNEL.stroke
  */
 const SHAPE_FILL_PRIMITIVE: Primitive = cssPrimitive('shape-fill', [CHANNEL.clip])
 
-/** A bar scaling up off its baseline. Separate from `shape-fill` so the two can compose. */
-const BAR_GROW_PRIMITIVE: Primitive = cssPrimitive('bar-grow', [CHANNEL.scale])
+/**
+ * A bar scaling up off its baseline. Separate from `shape-fill` so the two can compose.
+ *
+ * `from` gives `chart-bar-grow` a real knob on its start scale — it had none before. `--kui-bar-from`
+ * is also what the `[data-kui-fx~='chart-bar-grow'][data-kui-state='ready']` gate in svg.css
+ * neutralizes; see that rule's comment for the on:enter fix this parameter doubles as.
+ */
+const BAR_GROW_PRIMITIVE: Primitive = cssPrimitive('bar-grow', [CHANNEL.scale], {
+  parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
+})
 
 /** A mark assembling part by part — opacity, scale, and a slight turn, meant to be staggered. */
 const LOGO_BUILD_PRIMITIVE: Primitive = cssPrimitive('logo-assemble', [
@@ -178,7 +186,17 @@ export const SVG_PRESETS: Preset[] = [
   { name: 'heart-fill', primitive: 'shape-fill', keyframes: 'kui-heart-fill', params: { duration: '420ms' } },
   { name: 'bookmark-fill', primitive: 'shape-fill', keyframes: 'kui-bookmark-fill', params: { duration: '360ms' } },
   { name: 'chart-area-fill', primitive: 'shape-fill', keyframes: 'kui-chart-area-fill', params: { duration: '900ms' } },
-  { name: 'chart-bar-grow', primitive: 'bar-grow', keyframes: 'kui-chart-bar-grow', params: { duration: '700ms', ease: 'back-out' } },
+  // `cloak: true`: `kui-chart-bar-grow`'s `from { scale: 1 0 }` (svg.css) is a zero-height box
+  // while paused, not just an invisible one — so it occupies no space in layout for the whole
+  // wait. Same defect `fold-panel` has, and the same fix shape: see svg.css's
+  // `[data-kui-fx~='chart-bar-grow'][data-kui-state='ready']` rule.
+  {
+    name: 'chart-bar-grow',
+    primitive: 'bar-grow',
+    keyframes: 'kui-chart-bar-grow',
+    params: { duration: '700ms', ease: 'back-out' },
+    cloak: true,
+  },
 
   { name: 'logo-build', primitive: 'logo-assemble', keyframes: 'kui-logo-build', params: { duration: '520ms', ease: 'back-out' } },
 
