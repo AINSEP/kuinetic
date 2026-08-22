@@ -1,4 +1,5 @@
 import type { Cleanup, EffectParams } from '../../core/types.js'
+import { createStyleLedger } from '../../core/owned-styles.js'
 
 /**
  * DOM-surgery helpers behind `slat-assemble` (catalog section G).
@@ -394,18 +395,23 @@ export function installSlatStage(
    * `visibility: hidden` rather than `opacity: 0` or `display: none`, because the image's box is
    * load-bearing here — `syncStageToImage` measures it every time the layout changes, so it has
    * to keep occupying exactly the space it always did. `visibility` removes the paint and keeps
-   * the geometry. The previous inline value is remembered and put back verbatim, so an author who
-   * had already set `visibility` on their own image gets that back rather than an empty string.
+   * the geometry.
+   *
+   * Through a ledger rather than a remembered string. Both give an author their own `visibility`
+   * back, but writing the remembered value straight back sets it to `''` on the usual case where
+   * there was none — which leaves `style=""` on the image, a real difference in the serialized
+   * markup. The browser teardown sweep read exactly that as slat-assemble leaving synthetic nodes
+   * behind (160 -> 169 chars, the width of one empty attribute).
    */
-  const priorVisibility = img.style.visibility
-  img.style.visibility = 'hidden'
+  const imageStyles = createStyleLedger(img)
+  imageStyles.set('visibility', 'hidden')
 
   return {
     stage,
     slats,
     restore: () => {
       stopWatching()
-      img.style.visibility = priorVisibility
+      imageStyles.restore()
       stage.remove()
     },
   }

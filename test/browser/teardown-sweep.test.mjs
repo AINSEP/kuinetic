@@ -62,8 +62,15 @@ export async function run({ browser }) {
       const leftoverInline = host.getAttribute('style') ?? ''
 
       if (host.innerHTML !== before || leftoverAttributes.length > 0 || leftoverInline !== '') {
+        // A character count says something changed but never what, which cost a whole debugging
+        // session: the effect reproduced only inside the full loop, and "160→169" is not enough
+        // to tell a stray attribute from a stray node. Carry the first differing region too.
+        const after = host.innerHTML
+        let at = 0
+        while (at < before.length && at < after.length && before[at] === after[at]) at += 1
         offenders.push({
           effect,
+          diff: host.innerHTML === before ? null : `…${after.slice(Math.max(0, at - 20), at + 40)}…`,
           subtree: host.innerHTML === before ? null : `${before.length}→${host.innerHTML.length} chars`,
           attributes: leftoverAttributes,
           inline: leftoverInline.slice(0, 80),
@@ -80,7 +87,7 @@ export async function run({ browser }) {
     subtree.length === 0,
     subtree.length === 0
       ? `${names.length} effects restore their subtree`
-      : subtree.map((row) => `${row.effect} (${row.subtree})`).join(', '),
+      : subtree.map((row) => `${row.effect} (${row.subtree}) ${row.diff}`).join(', '),
   )
 
   const attributes = dirty.filter((row) => row.attributes.length > 0)

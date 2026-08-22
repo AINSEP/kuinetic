@@ -4,6 +4,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from '../shared.js'
+import { createAttributeLedger } from '../../core/owned-styles.js'
 
 /**
  * Navigation effects (catalog section M).
@@ -98,11 +99,18 @@ function subscribeScrollTop(el: Element, ctx: PrepareContext, onScrollTop: (top:
  */
 function prepareHeaderShrink(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const offset = params.num('offset', 120)
-  return subscribeScrollTop(el, ctx, (top) => {
+  // Through a ledger, like `pin`'s `data-kui-pinned`: a raw `setAttribute` has no teardown, so
+  // the state the library stamped stayed in the author's markup after `reset()` forever.
+  const state = createAttributeLedger(el)
+  const unsubscribe = subscribeScrollTop(el, ctx, (top) => {
     const progress = offset > 0 ? Math.min(1, Math.max(0, top / offset)) : 1
     ctx.style.set('--kui-shrink', progress.toFixed(4))
-    el.setAttribute('data-kui-shrunk', String(progress >= 1))
+    state.set('data-kui-shrunk', String(progress >= 1))
   })
+  return () => {
+    unsubscribe()
+    state.restore()
+  }
 }
 
 /**
@@ -115,12 +123,17 @@ function prepareHeaderShrink(el: Element, params: EffectParams, ctx: PrepareCont
 function prepareHeaderHide(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const minDelta = params.num('offset', 8)
   let last = 0
-  return subscribeScrollTop(el, ctx, (top) => {
+  const state = createAttributeLedger(el)
+  const unsubscribe = subscribeScrollTop(el, ctx, (top) => {
     const delta = top - last
     if (Math.abs(delta) < minDelta) return
-    el.setAttribute('data-kui-hidden', String(delta > 0 && top > minDelta))
+    state.set('data-kui-hidden', String(delta > 0 && top > minDelta))
     last = top
   })
+  return () => {
+    unsubscribe()
+    state.restore()
+  }
 }
 
 /**
@@ -131,9 +144,14 @@ function prepareHeaderHide(el: Element, params: EffectParams, ctx: PrepareContex
  */
 function prepareBackToTop(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const offset = params.num('offset', 400)
-  return subscribeScrollTop(el, ctx, (top) => {
-    el.setAttribute('data-kui-visible', String(top > offset))
+  const state = createAttributeLedger(el)
+  const unsubscribe = subscribeScrollTop(el, ctx, (top) => {
+    state.set('data-kui-visible', String(top > offset))
   })
+  return () => {
+    unsubscribe()
+    state.restore()
+  }
 }
 
 export const NAV_JS_PRIMITIVES: Primitive[] = [

@@ -92,6 +92,71 @@ describe('navigation catalog', () => {
   })
 })
 
+/*
+ * These three stamp a state attribute every frame. Nothing asserted what happened to it on
+ * teardown — `header-shrink`'s test called `destroy()` as its last line and checked nothing after
+ * it — so all three leaked their attribute into the author's markup forever. The browser teardown
+ * sweep caught two; `header-hide-on-scroll` only escaped because the sweep never produces a
+ * scroll *delta*, which is the one input its attribute depends on.
+ */
+describe('navigation state attributes are the library\'s, and are handed back', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('header-shrink takes data-kui-shrunk back on destroy', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-shrink').prepare!(el, createParams({ offset: '120' }), fakeCtx(el, scheduler))
+    instance.activate()
+    emit(150)
+    expect(el.getAttribute('data-kui-shrunk')).toBe('true')
+
+    instance.destroy()
+    expect(el.hasAttribute('data-kui-shrunk')).toBe(false)
+  })
+
+  it('back-to-top-fade takes data-kui-visible back on destroy', () => {
+    const el = document.createElement('button')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('back-to-top-fade').prepare!(el, createParams({ offset: '400' }), fakeCtx(el, scheduler))
+    instance.activate()
+    emit(900)
+    expect(el.getAttribute('data-kui-visible')).toBe('true')
+
+    instance.destroy()
+    expect(el.hasAttribute('data-kui-visible')).toBe(false)
+  })
+
+  it('header-hide-on-scroll takes data-kui-hidden back on destroy', () => {
+    const el = document.createElement('header')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-hide-on-scroll').prepare!(el, createParams({ offset: '8' }), fakeCtx(el, scheduler))
+    instance.activate()
+    emit(200)
+    expect(el.getAttribute('data-kui-hidden')).toBe('true')
+
+    instance.destroy()
+    expect(el.hasAttribute('data-kui-hidden')).toBe(false)
+  })
+
+  it('gives an author their own value back rather than deleting it', () => {
+    const el = document.createElement('header')
+    el.setAttribute('data-kui-shrunk', 'authored')
+    document.body.append(el)
+    const { scheduler, emit } = fakeSchedulerRig()
+    const instance = findJs('header-shrink').prepare!(el, createParams({ offset: '120' }), fakeCtx(el, scheduler))
+    instance.activate()
+    emit(150)
+
+    instance.destroy()
+    expect(el.getAttribute('data-kui-shrunk')).toBe('authored')
+  })
+})
+
 describe('header-shrink', () => {
   afterEach(() => {
     document.body.replaceChildren()

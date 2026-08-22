@@ -35,6 +35,10 @@ export function createStyleLedger(el: Element): StyleLedger {
   const style = (el as HTMLElement).style
   // `undefined` means "was not set at all", which restores by removal rather than by writing "".
   const previous = new Map<string, string | undefined>()
+  // Whether the author wrote a `style` attribute at all — not whether it held anything. Removing
+  // the last property leaves the attribute itself behind, and `<div>` and `<div style="">` are
+  // different markup even though they render identically.
+  const authoredStyleAttribute = el.hasAttribute('style')
 
   function remember(property: string): void {
     if (previous.has(property)) return
@@ -54,6 +58,17 @@ export function createStyleLedger(el: Element): StyleLedger {
         else style.setProperty(property, value)
       }
       previous.clear()
+      /*
+       * Removing every property still leaves `style=""` sitting in the markup. Invisible on
+       * screen, and every caller's own tests passed because they assert properties rather than
+       * the attribute — but it is a real difference in the serialized subtree, and teardown's
+       * contract is the author's markup byte for byte.
+       *
+       * `test/browser/teardown-sweep.test.mjs` was reading exactly this as "leaves synthetic
+       * nodes behind": `scroll-snap-x` writes one property onto each child, and the host grew by
+       * precisely the width of the empty attributes left on them (160 -> 178 chars, two children).
+       */
+      if (!authoredStyleAttribute && style.length === 0) el.removeAttribute('style')
     },
     owned: () => [...previous.keys()],
   }

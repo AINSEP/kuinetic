@@ -194,7 +194,45 @@ describe('slat stage contract', () => {
       built.restore()
     })
 
-    it('carries object-position across too, so a cover crop lands on the same part of the picture', () => {
+    it('hands the image back with no style attribute it did not arrive with', () => {
+    const el = document.createElement('figure')
+    const img = document.createElement('img')
+    img.src = './photo.jpg'
+    el.append(img)
+    const authored = el.innerHTML
+
+    const built = installSlatStage(el, document, window, {
+      count: 3,
+      angleDegrees: 0,
+      from: 'start',
+      fold: false,
+    })!
+    expect(img.style.visibility).toBe('hidden')
+
+    built.restore()
+    // `style=""` is a real difference in the serialized subtree, which is what the browser
+    // teardown sweep measures — it read this as slat-assemble leaving synthetic nodes behind.
+    expect(el.innerHTML).toBe(authored)
+  })
+
+  it('gives an author their own visibility back rather than clearing it', () => {
+    const el = document.createElement('figure')
+    const img = document.createElement('img')
+    img.src = './photo.jpg'
+    img.style.visibility = 'visible'
+    el.append(img)
+
+    const built = installSlatStage(el, document, window, {
+      count: 2,
+      angleDegrees: 0,
+      from: 'start',
+      fold: false,
+    })!
+    built.restore()
+    expect(img.style.visibility).toBe('visible')
+  })
+
+  it('carries object-position across too, so a cover crop lands on the same part of the picture', () => {
       const el = document.createElement('figure')
       const img = document.createElement('img')
       img.src = './photo.jpg'
