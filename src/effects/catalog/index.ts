@@ -6,13 +6,6 @@ import { registerMedia } from './media.js'
 import { registerNumbers } from './numbers.js'
 import { registerText } from './text.js'
 
-export { AMBIENT_PRESETS, AMBIENT_PRIMITIVES } from './ambient.js'
-export { FEEDBACK_PRESETS, FEEDBACK_PRIMITIVES } from './feedback.js'
-export { INTERACTION_PRESETS, INTERACTION_PRIMITIVES } from './interaction.js'
-export { MEDIA_PRESETS, MEDIA_PRIMITIVES } from './media.js'
-export { NUMBERS_PRESETS, NUMBERS_PRIMITIVES } from './numbers.js'
-export { TEXT_PRESETS, TEXT_PRIMITIVES } from './text.js'
-
 /**
  * Register the CSS-oriented catalog sections.
  *

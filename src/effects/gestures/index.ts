@@ -2,8 +2,6 @@ import type { Preset } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
 import { GESTURE_PRIMITIVES } from './primitives.js'
 
-export { GESTURE_PRIMITIVES } from './primitives.js'
-
 /**
  * Gesture names. Twelve names over four primitives.
  *

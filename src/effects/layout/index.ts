@@ -2,9 +2,6 @@ import type { Registry } from '../../core/registry.js'
 import { LAYOUT_PRIMITIVES } from './primitives.js'
 import { LAYOUT_PRESETS } from './presets.js'
 
-export { LAYOUT_PRIMITIVES } from './primitives.js'
-export { LAYOUT_PRESETS } from './presets.js'
-
 /**
  * Register the layout/FLIP catalog.
  *

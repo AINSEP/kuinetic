@@ -22,9 +22,6 @@ const UNIT_DEGREES = { deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 } as con
 /** How far past the band's own boundary each slat's clip reaches, in px — the seam closer. */
 const BAND_OVERLAP_PX = 1
 
-/** How far the from-state displaces a slat along its own band, as a fraction of the stage. */
-export const SLAT_TRAVEL = 0.38
-
 /** How the per-slat stagger order relates to a slat's geometric position. */
 export type SlatFrom = 'alternate' | 'start' | 'end' | 'edges' | 'random-ish'
 

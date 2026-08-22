@@ -1,11 +1,27 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["scripts/*.mjs", "test/**/*.test.ts", "test/browser/**/*.mjs"],
-  "project": ["src/**/*.ts", "scripts/**/*.mjs"],
+  "entry": [
+    "scripts/*.mjs",
+    "test/**/*.test.ts",
+    "test/browser/**/*.mjs",
+    "src/core/index.ts",
+    "src/effects/index.ts"
+  ],
+  "project": ["src/**/*.ts", "src/**/*.css", "scripts/**/*.mjs"],
+  "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
     // Consumed via CSS `@import`/`@plugin` in demo/tailwind-entry.css, invisible to knip's
     // JS/TS-only import graph — not actually dead.
     "tailwindcss",
     "daisyui"
+  ],
+  "ignoreUnresolved": [
+    // `scripts/dev-server.mjs` spawns `npx esbuild src/index.ts ...` and `... src/css/index.css
+    // ...` as CLI subprocesses (string args to `child_process.spawn`), not JS imports. Knip's
+    // spawn-argument scanner (meant for build tools invoked as `spawn('node', ['build.js'])`)
+    // can't tell a subprocess's CLI argument from a real specifier, and resolves it relative to
+    // `scripts/`, where neither path exists. Both files are real and already covered as `entry`.
+    "^src/index\\.ts$",
+    "^src/css/index\\.css$"
   ]
 }

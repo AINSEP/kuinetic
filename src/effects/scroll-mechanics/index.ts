@@ -2,11 +2,6 @@ import type { Registry } from '../../core/registry.js'
 import { SCROLL_PRIMITIVES } from './primitives.js'
 import { SCROLL_PRESETS } from './presets.js'
 
-export { SCROLL_PRIMITIVES } from './primitives.js'
-export { SCROLL_PRESETS } from './presets.js'
-export { domGeometry, progressFrom, trackProgress } from './tracker.js'
-export type { ElementGeometry, Measurer, TrackOptions } from './tracker.js'
-
 /**
  * Register the scroll-mechanics catalog.
  *

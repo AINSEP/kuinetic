@@ -152,6 +152,11 @@
    * vertical columns sliding up and down that `kui-slat-assemble-vertical` used to spell out, and
    * `(-1, 0)` at 90deg. Slats travel *along* their band, never across it — a band moving across
    * its own width uncovers the gap it left, and strips visibly out of line is the whole idea.
+   *
+   * The `38%` is the from-state displacement, as a fraction of the stage. It lived twice for a
+   * while: here, and as an exported `SLAT_TRAVEL = 0.38` in `catalog/media-shared.ts` that nothing
+   * ever read. Two numbers restating one fact is how they drift, so the constant is gone and this
+   * is the only place it is written. Change it here.
    */
   @keyframes kui-slat-assemble {
     from {
