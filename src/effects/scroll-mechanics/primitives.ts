@@ -4,9 +4,9 @@ import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import { isSameOriginPath } from '../../core/params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
-import type { AttributeLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { createStepMarker, resolveTarget } from '../step-marking.js'
+import { prepareScrollSpy } from './scroll-spy.js'
 import { trackProgress } from './tracker.js'
 
 /**
@@ -131,7 +131,10 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
    */
   const tracked = node.parentElement ?? el
 
-  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance') }, (progress) => {
+  // `stickyEl: node` — the pinned element itself, not `tracked` — is what carries the resolved
+  // `top` that makes progress 0 line up with the moment sticky actually engages. See
+  // `TrackOptions.stickyEl`.
+  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance'), stickyEl: node }, (progress) => {
     writeProgress(ctx, progress)
     el.setAttribute('data-kui-pinned', progress > 0 && progress < 1 ? 'true' : 'false')
   })
@@ -325,7 +328,10 @@ function prepareManagedTrack(
    * `preparePin` has always passed the parent by hand.
    */
   const tracked = host.parentElement ?? host
-  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance') }, (progress, frame) => {
+  // `stickyEl: host` for the same reason `preparePin` passes the pinned element, not the parent it
+  // tracks: `host` is what carries the resolved `top`, and `offsetTop` above can be a `var()` or a
+  // `vh` this call site has no way to statically resolve. See `TrackOptions.stickyEl`.
+  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance'), stickyEl: host }, (progress, frame) => {
     rail.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
     writeProgress(ctx, progress)
   })
@@ -399,11 +405,16 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
    * problem.
    */
   const contentAnchor = managed?.spacer ?? undefined
+  // `installSticky` puts `el` itself under `position: sticky` when `spacer:true` — same element
+  // `trackProgress` below is called on — so `el` is the offset to read back. Left undefined when
+  // unmanaged: a page-authored sticky ancestor (`video-scrub`) is escaped by `geometrySource`
+  // already, but its offset is not this primitive's to know. See `TrackOptions.stickyEl`.
+  const stickyEl = managed ? el : undefined
 
   const selector = resolveTarget(params.text('target'), ctx, 'media-scrub')
   const scrub = selector
-    ? prepareTargetScrub(el, params, ctx, { selector, contentAnchor })
-    : prepareSrcScrub(el, params, ctx, contentAnchor)
+    ? prepareTargetScrub(el, params, ctx, { selector, contentAnchor, stickyEl })
+    : prepareSrcScrub(el, params, ctx, { contentAnchor, stickyEl })
 
   return () => {
     scrub()
@@ -441,9 +452,9 @@ function prepareTargetScrub(
   el: Element,
   params: EffectParams,
   ctx: PrepareContext,
-  authored: { selector: string; contentAnchor?: Element },
+  authored: { selector: string; contentAnchor?: Element; stickyEl?: Element },
 ): Cleanup {
-  const { selector, contentAnchor } = authored
+  const { selector, contentAnchor, stickyEl } = authored
   const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
   /*
    * Counted once at setup, and `frames:` is ignored in this form: the number of frames is the
@@ -458,7 +469,7 @@ function prepareTargetScrub(
   const frames = Math.max(1, ctx.doc.querySelectorAll(selector).length)
   let lastIndex: number | undefined
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor }, (progress) => {
+  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor, stickyEl }, (progress) => {
     writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
     if (index === lastIndex) return
@@ -482,14 +493,15 @@ function prepareSrcScrub(
   el: Element,
   params: EffectParams,
   ctx: PrepareContext,
-  contentAnchor?: Element,
+  anchors: { contentAnchor?: Element; stickyEl?: Element },
 ): Cleanup {
+  const { contentAnchor, stickyEl } = anchors
   const frames = Math.max(1, Math.round(params.num('frames', 1)))
   const pattern = mediaSrcPattern(params.text('src'), ctx)
   const media = el as HTMLMediaElement & HTMLImageElement
   let lastIndex = -1
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor }, (progress) => {
+  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor, stickyEl }, (progress) => {
     writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
     if (index === lastIndex) return
@@ -542,79 +554,6 @@ function applyFrame(media: HTMLMediaElement & HTMLImageElement, write: FrameWrit
   // into script execution the moment the first frame is written.
   if (media.tagName !== 'IMG') return
   if (pattern) media.src = pattern.replace('{i}', String(index).padStart(String(frames).length, '0'))
-}
-
-/**
- * Mark the navigation link pointing at the most recently entered section.
- *
- * Writes `data-kui-active` rather than toggling a class, so the styling contract stays the
- * library's attribute vocabulary and cannot collide with a site's own class names.
- *
- * @complexity O(1) per frame; O(1) space.
- * @overallScore 100
- */
-function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const selector = resolveTarget(params.text('target'), ctx, 'scroll-spy')
-  /*
-   * One ledger per element ever written, rather than a bare Set of touched elements.
-   *
-   * The Set recorded *which* links this instance stamped but not *what they held first*, so
-   * teardown removed a `data-kui-active` the consumer had authored themselves. That is the same
-   * defect `createStyleLedger` was introduced to close for inline styles, so this uses the
-   * attribute half of that ledger rather than inventing a second restore mechanism. The tracked
-   * element gets one too: `removeAttribute` on teardown destroyed an authored value there as well.
-   */
-  const links = new Map<Element, AttributeLedger>()
-  const self = createAttributeLedger(el)
-  /*
-   * scroll-spy's entire output is one boolean, so a frame that does not flip it has nothing to do.
-   * Re-running `querySelectorAll` and re-stamping every match on every scroll frame was pure
-   * waste — the same per-frame-work defect `prepareMediaScrub` avoids with its `lastIndex` guard,
-   * and the reason a broad selector was a performance problem and not only a correctness one.
-   */
-  let last: boolean | undefined
-
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
-    const active = progress > 0 && progress < 1
-    if (active === last) return
-    last = active
-    self.set('data-kui-active', String(active))
-    // Re-queried per flip rather than resolved once at setup, so a nav rendered or reordered
-    // after this element was prepared is still picked up. Flips are rare; frames are not.
-    if (selector) markLinks(ctx.doc, selector, active, links)
-  })
-
-  // External link state is written outside this element, so it must be undone explicitly.
-  return () => {
-    untrack()
-    self.restore()
-    for (const ledger of links.values()) ledger.restore()
-  }
-}
-
-/*
- * `spyTarget` and its `selectorBreadth` helper used to live here. They now live in
- * `effects/step-marking.ts` as `resolveTarget`/`selectorBreadth`, because `scroll-progress` and
- * forms' `step-progress` need exactly the same guard for exactly the same `target:` param, and one
- * validated selector convention across the library is the whole point of the parameter.
- */
-
-function markLinks(
-  doc: Document,
-  selector: string,
-  active: boolean,
-  links: Map<Element, AttributeLedger>,
-): void {
-  for (const link of doc.querySelectorAll(selector)) {
-    let ledger = links.get(link)
-    if (!ledger) {
-      ledger = createAttributeLedger(link)
-      links.set(link, ledger)
-    }
-    // The ledger remembers only the value it first replaced, so repeated flips never overwrite
-    // the consumer's original with one of this instance's own writes.
-    ledger.set('data-kui-active', String(active))
-  }
 }
 
 /**
@@ -756,8 +695,18 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     id: 'scroll-spy',
     channels: ['state'],
     parameters: {
+      // `distance`: the per-section form only. `offset-top`: the container form only. Each is a
+      // no-op — warned, not silent — in the other; see `prepareScrollSpySingle` and
+      // `prepareScrollSpyContainer`.
       ...distanceParam,
+      // Same name and meaning in both forms: the link(s) this instance marks. Per-section, the
+      // one link this section names; with `sections:`, every link `target:` matches, each paired
+      // to its own section by `href`. See `prepareScrollSpyContainer`.
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Presence, not value, selects the container form: authoring this at all switches
+      // `prepareScrollSpy` from one-section-per-instance to one-instance-on-the-shared-ancestor.
+      sections: { type: 'text', default: '', cssProperty: '--kui-sections' },
+      'offset-top': { type: 'length', default: '0px', cssProperty: '--kui-offset-top' },
     },
     prepare: deferPrepare(prepareScrollSpy),
   }),

@@ -37,6 +37,23 @@ export const domPosition: PositionReader = (el) => {
   return view ? view.getComputedStyle(el).position : 'static'
 }
 
+/**
+ * Resolved `top`, in pixels, for whichever element is actually `position: sticky`. Injected for
+ * the same reason `Measurer` and `PositionReader` are, and for an extra one of its own: the value
+ * is routinely an unresolved CSS expression — `demo/system.css` sets `--kui-pin-offset: 5.5rem`
+ * and every pin's `offset-top` defaults to `var(--kui-pin-offset, 0px)` — so a static parse of the
+ * authored string cannot recover it. `getComputedStyle` can, because the browser has already
+ * resolved the `var()`, the `calc()`, and any `vh` in it.
+ */
+export type OffsetReader = (el: Element) => number
+
+export const domOffsetTop: OffsetReader = (el) => {
+  const view = el.ownerDocument?.defaultView
+  if (!view) return 0
+  const parsed = Number.parseFloat(view.getComputedStyle(el).top)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 export interface TrackOptions {
   /**
    * Scroll distance the effect spans, as an authored CSS length. Defaults to the element's own
@@ -65,6 +82,29 @@ export interface TrackOptions {
    * both boxes are the library's own.
    */
   contentAnchor?: Element
+  /**
+   * The element that is actually `position: sticky`, so its resolved `top` can be read back and
+   * subtracted from progress.
+   *
+   * Every caller above computes "the flow position sticky is hiding" — `sourceTop` or
+   * `contentAnchor` — but that flow position is where the element's top reaches the *viewport's*
+   * top edge, y = 0. Sticky does not wait for that: it engages the instant the flow top reaches
+   * `top: <offset>`, `offset` pixels earlier. Without this, progress read 0 for the first `offset`
+   * pixels the element was visibly stuck (an author with `--kui-pin-offset: 5.5rem` set — the
+   * showcase default — got 88px of dead pin at the start of every `pin-*` and managed
+   * `media-scrub`/`horizontal-scroll` effect, and 88px of dead pin at the end, since the same
+   * untouched flow top also gated when progress reached 1). Measured on `demo/scroll.html`'s
+   * `pin-spacer` card: 71 of those 88px, the rest eaten by an unrelated layout shift in the probe
+   * — see `docs/live-testing-backlog.md` D8.
+   *
+   * Left undefined for primitives that never call `installSticky` themselves (`scroll-progress`,
+   * `scroll-spy`, the bare `horizontal-scroll` form, `video-scrub`) — a page-authored sticky
+   * ancestor is still escaped by `geometrySource`, but its offset is unknowable from here, so
+   * progress there is unchanged: 0 at the sticky ancestor's untouched flow top, same as before.
+   */
+  stickyEl?: Element
+  /** Injected for the same reason `measure`/`positionOf` are; see `OffsetReader`. */
+  offsetOf?: OffsetReader
 }
 
 /**
@@ -112,9 +152,10 @@ export type ProgressHandler = (progress: number, frame: ScrollFrame) => void
 /**
  * Drive `onProgress` with the element's scroll progress in [0, 1].
  *
- * Progress is 0 when the element's top reaches the top of the scrollport and 1 once the scroll has
- * advanced by `distance`. Measurements are cached against the scheduler's epoch, so a frame costs
- * arithmetic rather than a layout flush.
+ * Progress is 0 when the tracked flow position reaches `options.stickyEl`'s sticky offset (the
+ * scrollport's top edge, y = 0, when there is no `stickyEl`) and 1 once the scroll has advanced by
+ * `distance`. Measurements are cached against the scheduler's epoch, so a frame costs arithmetic
+ * rather than a layout flush.
  *
  * @param el - Element whose position drives progress.
  * @param ctx - Prepare context supplying the scheduler and root resolver.
@@ -132,6 +173,7 @@ export function trackProgress(
 ): Cleanup {
   const measure = options.measure ?? domGeometry
   const positionOf = options.positionOf ?? domPosition
+  const offsetOf = options.offsetOf ?? domOffsetTop
   let scrollTop = 0
 
   let scrollportTop = 0
@@ -149,13 +191,19 @@ export function trackProgress(
    * The "moves with the content" caveat is load-bearing and used to be missing — see
    * `geometrySource`. Height still comes from `el` itself, so `resolveDistance`'s default and its
    * percentage basis are unchanged.
+   *
+   * `stickyOffset` is the third correction, folded in here rather than at the call site, so it is
+   * re-read on the same schedule as everything else: once per epoch, alongside a resize, not once
+   * at setup and never again — an `offset-top` authored in `vh` changes with the viewport exactly
+   * as `distance` does. See `TrackOptions.stickyEl` for why it has to be subtracted at all.
    */
   const geometry = createMeasureCache(() => {
     const box = measure(el)
     const top = options.contentAnchor
       ? measure(options.contentAnchor).top - box.height
       : sourceTop(el, box, measure, positionOf)
-    return { contentTop: top - scrollportTop + scrollTop, height: box.height }
+    const stickyOffset = options.stickyEl ? offsetOf(options.stickyEl) : 0
+    return { contentTop: top - stickyOffset - scrollportTop + scrollTop, height: box.height }
   })
 
   return ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {

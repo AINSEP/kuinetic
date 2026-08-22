@@ -287,6 +287,86 @@ Original write-up below.
 - **Fixed.** `f518391`. Verified live: 8 animations running mid-transition, figures genuinely
   interpolating through intermediate positions rather than snapping straight to final.
 
+### D8. `pin-spacer` (and every sticky-offset primitive) starts progress ~offset-top late
+
+**FIXED 2026-08-22.** `trackProgress` (`src/effects/scroll-mechanics/tracker.ts`) computed progress
+as 0 when the tracked flow position reaches the *viewport's* top edge (y = 0), never accounting for
+`offset-top`/`--kui-pin-offset` — the CSS `top` every sticky primitive sets. Sticky itself engages
+`offset-top` pixels earlier than that, so the first `offset-top` px of every pin were silently
+reported as progress 0, and the effect finished `offset-top` px before its authored `distance` ran
+out (both edges shift by the same amount — see the derivation in `TrackOptions.stickyEl`'s
+docstring).
+
+- **Found by:** owner, measured live on `demo/scroll.html`'s `.pin-spacer-card`
+  (`data-kui="pin-spacer distance:120vh"`) at 1280x800: `--kui-progress` lagged the naive
+  `(scrollY - pinStart) / distance` expectation by a constant 0.0739 at every sample inside the
+  pinned range (`worst |observed - expected| = 0.0739`; a headless-Chromium probe, not committed).
+- **Two candidate causes, only one survived varying the inputs.** (1) A measured ~17px gap between
+  the card and its auto-inserted spacer. (2) `--kui-pin-offset: 5.5rem` (88px, `demo/system.css`)
+  never being subtracted. A synthetic fixture (controllable `distance`, `offset-top`, and viewport
+  height, no lazy images) isolated the two: with `offset-top` held at 88px, `delta = Y_lib_zero -
+  Y_pin_true` measured **89px (offset + a 1px binary-search artifact) at every distance
+  (300/600/1200px) and every viewport height (600/800/1000px) tested** — invariant to both. Varying
+  `offset-top` itself (0/40/88/150px, distance and viewport fixed) moved `delta` in lockstep every
+  time (1/41/89/151px — `offset + 1`). That kills the gap hypothesis (it would track a fixed
+  card-to-spacer distance, not the offset) and confirms cause 2 alone. The 71px measured live on
+  `demo/scroll.html` (not 88px) is attributed to an unrelated layout shift in that page while
+  measuring — likely the `<video data-autoplay-in-view>` changing size once it starts playing right
+  around the pin point — not a second real cause; not chased further.
+- **Fix.** `TrackOptions` gained `stickyEl?: Element` (the element actually under
+  `position: sticky`) and `offsetOf?: OffsetReader` (injectable; defaults to reading
+  `getComputedStyle(el).top`, because the authored value is routinely an unresolved `var()`/`calc()`
+  that a static parse cannot recover). The cached `contentTop` now subtracts that resolved offset,
+  re-read once per geometry epoch alongside everything else `distance` already re-reads on resize.
+  Wired into every call site that actually knows which element it made sticky:
+  `preparePin` (`pin-section`/`pin-until`/`pin-spacer`/`stacking-cards`), `prepareManagedTrack`
+  (managed `horizontal-scroll`, i.e. authored with `target:`), and `prepareMediaScrub`'s two scrub
+  forms (`sequence-scrub`/`video-scrub`, only when `spacer:true`). Left untouched: `scroll-progress`,
+  `scroll-spy`, the bare `horizontal-scroll` form, and an unmanaged `video-scrub` — none of them call
+  `installSticky` themselves, so the offset is not this primitive's to know; a page-authored sticky
+  ancestor there is still escaped by `geometrySource` exactly as before, offset uncorrected. That
+  remaining gap is real but pre-existing and out of scope here.
+- **Regression tests:** `test/scroll-mechanics.test.ts` → `describe('trackProgress — sticky offset')`
+  (the mechanism, with an injected offset so the math is exact) and `describe('pin')` →
+  `'subtracts a real offset-top so progress reads correctly...'` (the wiring, through the real
+  primitive with a literal `offset-top:40px` — jsdom cannot resolve `var()` through
+  `getComputedStyle`, so the showcase's actual `var(--kui-pin-offset, 0px)` default can't be
+  exercised in jsdom and stays covered only by the derivation above and the browser probe).
+
+### D9. `data-kui-state` reads `"finished"` immediately for every continuous scroll-mechanics effect
+
+**Investigated, not fixed** — found while diagnosing D8, deliberately out of scope for that fix per
+the owner's instructions; flagging for a decision rather than patching quietly.
+
+- **Symptom:** on `demo/scroll.html`'s `pin-spacer` card, `data-kui-state` read `"finished"` at every
+  sample taken while diagnosing D8 — including before the element ever pinned, at `--kui-progress:
+  0.0000`. A continuously-scrubbing effect reporting "finished" at its very start looks wrong for
+  anything styling on `[data-kui-state="running"]`.
+- **Root cause.** `deferredInstance` (`src/core/instances.ts:219`) initializes
+  `let finished = Promise.resolve()` and only replaces it when `setup()` returns a `TimedSetup`
+  object; when setup returns a plain `Cleanup` function instead — which is exactly what
+  `preparePin`, `prepareMediaScrub`, `prepareProgress`, `prepareScrollSpy`, and `prepareHorizontal`
+  all do, per `TimedSetup`'s own contract that a continuous primitive "has no end, so it returns a
+  plain `Cleanup`" — `finished` is never replaced and stays the already-resolved promise from
+  construction. `Animator.activate()` (`src/core/animator.ts:361`) then resolves its
+  `Promise.all(started.map(i => i.finished))` on the next microtask and writes
+  `data-kui-state="finished"` immediately, regardless of whether the effect is still running.
+- **This looks deliberate, not accidental**, per `TimedSetup`'s own docstring
+  (`src/core/instances.ts:181`): "keeps the immediately-resolved `finished` every caller composing
+  `Promise.all`... already relies on" — the design intentionally does not let one continuous effect
+  on an element (e.g. a `pin`) block a co-authored one-shot effect (e.g. `fade-in`) from ever
+  reaching `"finished"`. The likely-unintended consequence is narrower: an element whose **only**
+  effect is a continuous scroll primitive never reports anything but `"finished"`, from the first
+  microtask onward — there is no `data-kui-state` value that means "a continuous effect is
+  currently active."
+- **Fix direction, not taken here.** Needs a product decision, not a quiet patch: does
+  `data-kui-state="finished"` mean "setup is done, nothing pending" (current, arguably correct per
+  the existing contract) or "the effect's animated lifecycle has ended" (what the symptom suggests
+  an author styling on it would expect)? The candidates — introducing a distinct state for
+  perpetually-running effects, or leaving `TimedSetup`'s contract as-is and documenting that
+  `data-kui-state` is not a signal continuous scroll effects can be styled on — trade a state-machine
+  addition against a documentation-only fix, and only the owner can weigh that.
+
 ## Feature requests (not defects)
 
 ### F1. "Replay all" FAB on showcase pages

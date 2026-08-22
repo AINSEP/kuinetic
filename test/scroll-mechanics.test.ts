@@ -137,6 +137,36 @@ describe('trackProgress — inside a position: sticky subtree', () => {
   })
 })
 
+describe('trackProgress — sticky offset', () => {
+  // `stubRect(tracked, flowTop - scrollTop, height)` is what a real, unmoving element in the
+  // document reports as the page scrolls: its flow position (0, here) never changes, only its
+  // viewport-relative rect does. `stickyEl`'s offset is injected rather than read from a real
+  // computed style, because jsdom cannot resolve `var(--kui-pin-offset, 0px)` — the showcase's
+  // actual default — through `getComputedStyle`; the `pin` describe block below covers a literal
+  // px value through the real primitive instead.
+  it('reads progress from the moment sticky engages, not from the tracked element\'s untouched flow top', () => {
+    const stickyEl = document.createElement('div')
+    const tracked = document.createElement('div')
+    const sched = fakeScheduler()
+    const seen: number[] = []
+    const ctx = { scheduler: sched, rootFor: () => fakeRoot } as unknown as PrepareContext
+    trackProgress(tracked, ctx, { distance: '400px', stickyEl, offsetOf: () => 40 }, (progress) => seen.push(progress))
+
+    // Pin start is scrollTop -40 (flowTop 0, minus the 40px offset), so scrollTop 0 is already
+    // 40 / 400 of the way through — the pre-fix code answered 0 here.
+    stubRect(tracked, 0, 300)
+    sched.emit(0)
+    expect(seen.at(-1)).toBeCloseTo(0.1)
+
+    stubRect(tracked, -320, 300)
+    sched.emit(320, 1)
+    expect(seen.at(-1)).toBeCloseTo(0.9)
+  })
+  // No "stays at the pre-fix answer without stickyEl" case needed: every other describe block
+  // above never passes it, and all of them are unchanged by this diff — that is the regression
+  // coverage for primitives that don't call `installSticky` themselves.
+})
+
 /** Pin measures its containing block, so that is what the stub must describe. */
 const stubContainer = (top: number, height = 400): void => stubRect(document.body, top, height)
 
@@ -161,6 +191,26 @@ describe('pin', () => {
     stubContainer(-200)
     scheduler.emit(200, 1)
     expect(Number(el().style.getPropertyValue('--kui-progress'))).toBeCloseTo(0.5)
+  })
+
+  it('subtracts a real offset-top so progress reads correctly from the moment it actually pins', () => {
+    // A literal px value, not the `var(--kui-pin-offset, 0px)` default: jsdom cannot resolve a
+    // custom property through `getComputedStyle`, so this is the one shape that can be observed
+    // going through the real `pin` primitive rather than `trackProgress` directly.
+    const animator = build('<div data-kui="pin-until distance:400px offset-top:40px"></div>')
+    // The container's flow top is pinned at 0 throughout: `stubContainer(flowTop - scrollTop)` is
+    // what an unmoving element in the document reports as the page scrolls past it.
+    stubContainer(0)
+    animator.start()
+
+    scheduler.emit(0)
+    // Sticky engages once the flow top reaches `offset-top` (40px), 40px of scroll before
+    // scrollTop reaches the container's own flow position — so 40 / 400 of the pin is already
+    // behind it here. The pre-fix answer was '0.0000': the first 40px of every pin with a non-zero
+    // offset silently reported no progress at all. (The offset's exact slope-preserving effect
+    // across a full pin is covered precisely in "trackProgress — sticky offset" above; this proves
+    // only that `preparePin` actually wires `offset-top` into it.)
+    expect(el().style.getPropertyValue('--kui-progress')).toBe('0.1000')
   })
 
   it('marks the pinned window with an attribute', () => {
