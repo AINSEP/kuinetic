@@ -523,11 +523,15 @@
   .yt-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 
   /* ---------- pinning group (Section C) ---------- */
-  /* 300vh, not 320: the card is pinned for its declared `distance:200vh` and is itself one
-     viewport tall, so 300vh is exactly the room the sequence needs. The extra 20vh was empty
-     stage the card had already finished with — dead space with a border around it. */
+  /* No `min-height`. It used to say `300vh`, hand-matched to the card's own `min-height: 100dvh`
+     plus `distance:200vh` on the attribute — the same two-numbers-restating-one-fact shape
+     `.pin-spacer-track` and `.scrub-stage` used to have, just not fixed alongside them. `pin-section`
+     defaults to `spacer:'true'`, so it inserts its own `distance`-tall spacer right after the card;
+     that spacer plus the card's own `min-height` already put this stage at 300vh with nothing
+     declared here, and it cannot drift out of step with the attribute the way a hand-authored
+     number could. */
   .pin-section-stage {
-    position: relative; min-height: 300vh; margin-top: 2rem;
+    position: relative; margin-top: 2rem;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   }
   /* This card holds the viewport for the whole 200vh pin, so it has to BE the viewport.
@@ -808,10 +812,11 @@
   .track figure figcaption { padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
 
   /* ---------- sequence-scrub (Section C) ---------- */
-  /* Spacing only. The `260vh` that used to be here was the scroll room the scrub travels through,
-     hand-matched to `distance:220vh` on the attribute — two numbers restating one fact, with
-     nothing stopping them drifting apart. The library reserves that room itself now. */
-  .scrub-stage { margin-top: 2rem; }
+  /* Spacing only, and it lives on `.scrub-viewport` directly now — there is no `.scrub-stage`
+     wrapper any more. That wrapper's `height: 260vh` moved onto the attribute once `distance:220vh`
+     grew its own spacer, which left the wrapper with nothing but this margin and the `id` the
+     "Show code" button targets — both of which the sole child carries fine by itself. One div,
+     one `data-kui`, on the outermost element, the same as everywhere else on this page. */
   /* Sized to the frames rather than to the viewport, which is what removes the grey surround.
      `height: 80vh` gave a box whose aspect changed with the window, so `contain` always had
      leftover space to fill and that space was `--surface` — a grey border round every frame that
@@ -822,6 +827,7 @@
      already lived. What stays is what the library has no opinion about: the frame's shape, its
      ceiling, and the rounding that `overflow: clip` exists to serve. */
   .scrub-viewport {
+    margin-top: 2rem;
     aspect-ratio: 16 / 9; max-height: 80vh;
     border-radius: 14px; overflow: clip;
   }
@@ -1060,16 +1066,15 @@
     <button
       type="button"
       class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
       aria-haspopup="true"
       aria-label="Toggle navigation menu"
       aria-expanded="false"
       data-nav-hamburger
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
-      </svg>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
     </button>
   </header>
 
@@ -1639,23 +1644,21 @@
                the effect is on an image inside an `overflow: clip` sticky viewport, so an
                auto-mounted chip would be laid out inside the clip and never seen. -->
           <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
-          <div class="scrub-stage" id="scrub-demo" data-show-code-key="scrub-stage scrub-viewport">
-            <!-- Five authored frames rather than one `<img>` whose `src` is rewritten from a
-                 `{i}` pattern. The pattern form fetched each frame at the moment scrolling
-                 reached it — measured on this page: zero frames present before the scrub, all
-                 five fetched during it — so the first pass through was always cold. These load
-                 with the page. No `loading="lazy"`, deliberately: lazy frames would reintroduce
-                 the exact problem.
+          <!-- Five authored frames rather than one `<img>` whose `src` is rewritten from a
+               `{i}` pattern. The pattern form fetched each frame at the moment scrolling
+               reached it — measured on this page: zero frames present before the scrub, all
+               five fetched during it — so the first pass through was always cold. These load
+               with the page. No `loading="lazy"`, deliberately: lazy frames would reintroduce
+               the exact problem.
 
-                 Only the first frame carries alt text. The five are one picture as far as a
-                 reader is concerned, and only ever one is visible, so describing each would read
-                 out five descriptions of a single element. -->
-            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
-              <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
-              <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
-              <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
-              <img src="./assets/webdesign/scrub-hendrix.jpg" alt="" data-no-lightbox />
-            </div>
+               Only the first frame carries alt text. The five are one picture as far as a
+               reader is concerned, and only ever one is visible, so describing each would read
+               out five descriptions of a single element. -->
+          <div class="scrub-viewport" id="scrub-demo" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
+            <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
+            <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
+            <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
+            <img src="./assets/webdesign/scrub-hendrix.jpg" alt="" data-no-lightbox />
           </div>
         </div>
 
