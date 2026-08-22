@@ -52,8 +52,8 @@
    of air below the pill.
 
    Per-element `offset:` still wins, which is what `stacking-cards` uses for its per-card stagger.
-   Page-authored sticky viewports read the same token — see `.track-viewport` and `.scrub-viewport`
-   in scroll.html — so "how far down does a held thing sit" is one number for the whole showcase. */
+   Page-authored sticky viewports read the same token — see `.scrub-viewport` in scroll.html — so
+   "how far down does a held thing sit" is one number for the whole showcase. */
 :root { --kui-pin-offset: 5.5rem; }
 
 :root { --kui-border-draw-color: var(--fg); }

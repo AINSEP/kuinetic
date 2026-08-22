@@ -23,6 +23,15 @@
  *     "Get started" CTA. Pre-existing, left alone.
  *   - `extraGroups` / `hamburgerVariant`: `index-old.html` is a kept-on-purpose legacy snapshot with
  *     an extra "JS Animations" placeholder dropdown and a plain (non-`hamburger-to-x`) icon button.
+ *
+ * `landing-minimal.html` and `landing-studio.html` are a **second, genuinely different template**
+ * (`<header class="site">` — no logo mark, no theme toggle, no hamburger backdrop, a differently
+ * indented and differently formatted nav block), not a variant of the first: forcing them into the
+ * showcase shape would be a design change nobody asked for. Only the CSS Animations page list is
+ * actually shared between the two templates, so `cssAnimationsGroup()` takes the caller's indent
+ * and is the only piece of markup literally reused between them. The two landing pages are
+ * otherwise byte-identical to each other (checked with `diff`), so unlike `PAGES` above they need
+ * no per-page config.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -101,25 +110,30 @@ const PAGES = [
   'three-d.html',
 ].map((entry) => ({ ...DEFAULTS, ...(typeof entry === 'string' ? { file: entry } : entry) }))
 
-function cssAnimationsGroup() {
+/**
+ * `indent` is the leading whitespace of the group's own `<div>` — 6 spaces in the showcase header,
+ * 8 in the landing header, whose whole nav block sits one level deeper. Every other line is that
+ * plus a fixed number of two-space steps, so one string produces both templates' markup exactly.
+ */
+function cssAnimationsGroup(indent) {
   const pageList = CSS_ANIMATIONS_PAGES.map(([file]) => file).join(',')
   const links = CSS_ANIMATIONS_PAGES.map(
-    ([file, label]) => `          <a href="./${file}" data-nav-link="${file}">${label}</a>`,
+    ([file, label]) => `${indent}    <a href="./${file}" data-nav-link="${file}">${label}</a>`,
   ).join('\n')
-  return `      <div class="kui-nav-dropdown" data-nav-group="css-animations">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="${pageList}"
-        >
-          CSS Animations
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+  return `${indent}<div class="kui-nav-dropdown" data-nav-group="css-animations">
+${indent}  <button
+${indent}    type="button"
+${indent}    class="kui-nav-dropdown-trigger"
+${indent}    aria-haspopup="true"
+${indent}    aria-expanded="false"
+${indent}    data-nav-pages="${pageList}"
+${indent}  >
+${indent}    CSS Animations
+${indent}  </button>
+${indent}  <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
 ${links}
-        </div>
-      </div>
+${indent}  </div>
+${indent}</div>
 `
 }
 
@@ -144,7 +158,7 @@ function renderHeader({ dataOdId, navCta, selfIndex, extraGroups, hamburgerVaria
           <a href="./docs.html?doc=design">Architecture</a>
         </div>
       </div>
-${cssAnimationsGroup()}${extraGroups}      <div class="kui-nav-dropdown" data-nav-group="designs">
+${cssAnimationsGroup('      ')}${extraGroups}      <div class="kui-nav-dropdown" data-nav-group="designs">
         <button
           type="button"
           class="kui-nav-dropdown-trigger"
@@ -167,23 +181,97 @@ ${hamburger}
   </header>`
 }
 
+/**
+ * The landing pages' own template. Its "Designs" link reads "Hero SaaS" rather than "Premium" —
+ * pre-existing, and left alone, same as every other page-specific label already in `renderHeader`.
+ */
+function renderLandingHeader() {
+  return `    <header class="site" data-nav-root>
+      <strong>kUInetic</strong>
+      <nav data-nav-panel data-kui="menu-stagger-open on:manual" hidden>
+        <div class="kui-nav-dropdown" data-nav-group="docs">
+          <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">
+            Docs
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <a href="./docs.html?doc=catalog">Catalog</a>
+            <a href="./docs.html?doc=design">Architecture</a>
+          </div>
+        </div>
+
+${cssAnimationsGroup('        ')}
+        <div class="kui-nav-dropdown" data-nav-group="designs">
+          <button
+            type="button"
+            class="kui-nav-dropdown-trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+            data-nav-pages="index.html"
+          >
+            Designs
+          </button>
+          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+            <a href="./index.html" data-nav-link="index.html">Hero SaaS</a>
+            <span class="kui-nav-coming-soon">Coming soon</span>
+          </div>
+        </div>
+      </nav>
+      <button
+        type="button"
+        class="kui-nav-toggle"
+        data-kui="hamburger-to-x"
+        aria-haspopup="true"
+        aria-label="Toggle navigation menu"
+        aria-expanded="false"
+        data-nav-hamburger
+      >
+        <span class="kui-bar"></span>
+        <span class="kui-bar"></span>
+        <span class="kui-bar"></span>
+      </button>
+    </header>`
+}
+
+const LANDING_PAGES = ['landing-minimal.html', 'landing-studio.html']
+
+/**
+ * Replace the first `<header>...</header>` block in `file` with `next`, if it differs.
+ *
+ * Plain string search rather than a `[\s\S]*?`-spanning regex — the showcase and landing templates
+ * indent `<header` differently (2 spaces vs 4), and a leading `\s*` paired with a second wildcard
+ * later in the same pattern is exactly the shape ESLint's `sonarjs/slow-regex` rejects. Walking back
+ * to the start of the line finds whatever indent is actually there without needing to know it up
+ * front, and reads the same either way.
+ */
+function rewriteHeader(file, next) {
+  const path = `${demoDir}${file}`
+  const source = readFileSync(path, 'utf8')
+  const openTag = source.indexOf('<header')
+  const closeTag = source.indexOf('</header>', openTag)
+  if (openTag === -1 || closeTag === -1) {
+    console.error(`no <header>...</header> block found in ${file}`)
+    process.exitCode = 1
+    return false
+  }
+  const lineStart = source.lastIndexOf('\n', openTag) + 1
+  const indent = source.slice(lineStart, openTag)
+  const start = indent.trim() === '' ? lineStart : openTag
+  const end = closeTag + '</header>'.length
+  if (source.slice(start, end) === next) return false
+  writeFileSync(path, source.slice(0, start) + next + source.slice(end))
+  return true
+}
+
 function main() {
   let rewritten = 0
   for (const page of PAGES) {
-    const path = `${demoDir}${page.file}`
-    const source = readFileSync(path, 'utf8')
-    const match = source.match(/ {2}<header\b[\s\S]*?<\/header>/)
-    if (!match) {
-      console.error(`no <header>...</header> block found in ${page.file}`)
-      process.exitCode = 1
-      continue
-    }
-    const next = renderHeader(page)
-    if (match[0] === next) continue
-    writeFileSync(path, source.slice(0, match.index) + next + source.slice(match.index + match[0].length))
-    rewritten++
+    if (rewriteHeader(page.file, renderHeader(page))) rewritten++
   }
-  console.log(`checked ${PAGES.length} pages, rewrote ${rewritten} header block(s)`)
+  for (const file of LANDING_PAGES) {
+    if (rewriteHeader(file, renderLandingHeader())) rewritten++
+  }
+  const total = PAGES.length + LANDING_PAGES.length
+  console.log(`checked ${total} pages, rewrote ${rewritten} header block(s)`)
 }
 
 main()
