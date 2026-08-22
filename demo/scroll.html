@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-kui="smooth-scroll-to">
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1019,12 +1019,6 @@
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
-      <div class="kui-nav-dropdown" data-nav-group="js-animations">
-        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <span class="kui-nav-coming-soon">Coming soon</span>
-        </div>
-      </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
         <button
           type="button"
@@ -1138,23 +1132,23 @@
                  corners honest for the whole hold. -->
             <div class="showcase-frame">
               <!-- A moving reference, not a still one. The point this section argues is that a hero
-                   gets one job — make you stop — and a spatial interface assembling itself in a
-                   real room makes it in a way a screenshot cannot. `preload="none"` plus a poster
+                   gets one job — make you stop — and a lit cabin resolving out of the mist makes it
+                   in a way a screenshot cannot. `preload="none"` plus a poster
                    because this sits directly under the fold: the poster is the first paint, and the
                    2MB of video is only fetched once the frame is actually on screen. `muted` is not
                    optional for autoplay, and the source has no audio track at all. -->
               <video
                 data-autoplay-in-view
-                poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg"
+                poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg"
                 muted loop playsinline preload="none"
                 data-kui="parallax-scale from:1 scale:1.06 timeline:pin"
-                aria-label="A spatial clinic-scheduling interface by fuselab creative — translucent patient cards and a weekly availability grid floating in a sunlit living room, panels sliding and resolving as a doctor's calendar fills in"
+                aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night"
               >
-                <source src="./assets/webdesign/fuselab-spatial-clinic.webm" type="video/webm" />
-                <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
+                <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
+                <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
               </video>
             </div>
-            <figcaption>fuselab creative — spatial clinic scheduler · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
+            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
           </figure>
 
           <div class="showcase-copy">
@@ -1204,28 +1198,6 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Reveal, fade &amp; skew — 3</p>
-          <div class="demo-grid">
-            <figure class="demo-card" style="--ar: 1200 / 900" data-kui="reveal-once" data-show-code>
-              <video data-autoplay-in-view poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg" muted loop playsinline preload="none"
-                     aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night">
-                <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
-                <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
-              </video>
-              <figcaption>data-kui="reveal-once"</figcaption>
-            </figure>
-            <figure class="demo-card" style="--ar: 736 / 505" data-kui="scroll-fade timeline:view" data-show-code>
-              <img src="./assets/webdesign/modera-furniture-spatial-ui.jpg" alt="The MODERA furniture store as a spatial interface — a translucent glass shopping panel floating in a dark room above a low leather sofa, showing an armchair listing, a Great Value Deals card, and a team panel" loading="lazy" />
-              <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
-            </figure>
-            <figure class="demo-card" style="--ar: 650 / 412" data-kui="scroll-skew from:20deg to:0deg timeline:view" data-show-code>
-              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
-              <figcaption>data-kui="scroll-skew from:20deg to:0deg timeline:view"</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="matrix-group">
           <p class="matrix-group-label">Same effects, different elements &mdash; 2</p>
           <p class="matrix-group-note">A still on the left, a video on the right, and nothing about either
             primitive knows or cares which is which. The left card composes an entrance with a blur, the right
@@ -1244,6 +1216,54 @@
                 <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
               </video>
               <figcaption>data-kui="parallax-scale from:0.2 scale:1 timeline:view"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Entrances on a view timeline &mdash; 4</p>
+          <div class="demo-grid">
+            <figure class="demo-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view" data-show-code>
+              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+              <figcaption>data-kui="fade-up timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 1188 / 668" data-kui="fade-right timeline:view" data-show-code>
+              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
+              <figcaption>data-kui="fade-right timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 692 / 400" data-kui="zoom-in timeline:view" data-show-code>
+              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
+              <figcaption>data-kui="zoom-in timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+              </video>
+              <figcaption>data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Reveal, fade &amp; skew — 3</p>
+          <div class="demo-grid">
+            <figure class="demo-card" style="--ar: 1200 / 900" data-kui="reveal-once" data-show-code>
+              <video data-autoplay-in-view poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="A spatial clinic-scheduling interface by fuselab creative — translucent patient cards and a weekly availability grid floating in a sunlit living room, panels sliding and resolving as a doctor's calendar fills in">
+                <source src="./assets/webdesign/fuselab-spatial-clinic.webm" type="video/webm" />
+                <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
+              </video>
+              <figcaption>data-kui="reveal-once"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 736 / 505" data-kui="scroll-fade timeline:view" data-show-code>
+              <img src="./assets/webdesign/modera-furniture-spatial-ui.jpg" alt="The MODERA furniture store as a spatial interface — a translucent glass shopping panel floating in a dark room above a low leather sofa, showing an armchair listing, a Great Value Deals card, and a team panel" loading="lazy" />
+              <figcaption>data-kui="scroll-fade timeline:view"</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 650 / 412" data-kui="scroll-skew from:20deg to:0deg timeline:view" data-show-code>
+              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
+              <figcaption>data-kui="scroll-skew from:20deg to:0deg timeline:view"</figcaption>
             </figure>
           </div>
         </div>
@@ -1308,33 +1328,7 @@
           </div>
         </div>
 
-        <div class="matrix-group">
-          <p class="matrix-group-label">Entrances on a view timeline &mdash; 4</p>
-          <div class="demo-grid">
-            <figure class="demo-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view" data-show-code>
-              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
-              <figcaption>data-kui="fade-up timeline:view"</figcaption>
-            </figure>
-            <figure class="demo-card" style="--ar: 1188 / 668" data-kui="fade-right timeline:view" data-show-code>
-              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
-              <figcaption>data-kui="fade-right timeline:view"</figcaption>
-            </figure>
-            <figure class="demo-card" style="--ar: 692 / 400" data-kui="zoom-in timeline:view" data-show-code>
-              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
-              <figcaption>data-kui="zoom-in timeline:view"</figcaption>
-            </figure>
-            <figure class="demo-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view" data-show-code>
-              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
-                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
-                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
-                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
-              </video>
-              <figcaption>data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view"</figcaption>
-            </figure>
-          </div>
-        </div>
-
-      </section>
+        </section>
 
       <!-- SECTION C: SCROLL MECHANICS -->
       <section data-od-id="scroll-mechanics">
@@ -1365,9 +1359,9 @@
             <div class="pin-section-stage">
               <div class="pin-section-card" data-kui="pin-section distance:200vh">
                 <div class="pin-section-media">
-                  <div class="video-frame" data-yt-id="f2mGqlLLqok">
-                    <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
-                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                  <div class="video-frame" data-yt-id="1NTKwpAVcHg">
+                    <img src="https://img.youtube.com/vi/1NTKwpAVcHg/maxresdefault.jpg" alt="Give Me 7 Minutes &amp; Your Web Design Skills Will Take Off — Self-Made Web Designer" loading="lazy" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Give Me 7 Minutes and Your Web Design Skills Will Take Off">
                       <svg viewBox="0 0 68 48" aria-hidden="true">
                         <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                         <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />

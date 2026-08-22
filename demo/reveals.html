@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-kui="smooth-scroll-to">
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -119,12 +119,6 @@
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
-      <div class="kui-nav-dropdown" data-nav-group="js-animations">
-        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <span class="kui-nav-coming-soon">Coming soon</span>
-        </div>
-      </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
         <button
           type="button"
@@ -182,8 +176,8 @@
         </div>
         <div class="hero-media">
           <img
-            src="./assets/model_1.jpg"
-            alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin"
+            src="./assets/modeling/chartreuse-gold-portrait.jpg"
+            alt="Beauty portrait against chartreuse, in a gold sequinned jacket with glitter brows and black crystal earrings"
             data-kui="blur-in 2000ms on:load"
           />
         </div>
@@ -210,11 +204,11 @@
               <figcaption>data-kui="fade-in 2000ms"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="fade-up 2000ms" data-show-code>
-              <img src="./assets/modeling/akira-pantsuit.jpg" alt="Studio portrait in a cropped vest, tie, and voluminous wide-leg trousers with tan lace-up boots" loading="lazy" />
+              <img src="./assets/model_1.jpg" alt="Black-and-white portrait in a dramatic ruffled coat, hand raised to the chin" loading="lazy" />
               <figcaption>data-kui="fade-up 2000ms"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="fade-down 2000ms" data-show-code>
-              <img src="./assets/modeling/stripe-suit.jpg" alt="Street-style portrait in a structured pinstripe blazer dress and white gloves" loading="lazy" />
+              <img src="./assets/modeling/lilac-turban.jpg" alt="Profile portrait in a sculpted lilac wrapped turban and matching fringed knit" loading="lazy" />
               <figcaption>data-kui="fade-down 2000ms"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="fade-left 2000ms" data-show-code>
@@ -284,11 +278,11 @@
               <figcaption>data-kui="zoom-in-up scale:0.05 distance:150px"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="zoom-in-down scale:0.05 distance:150px" data-show-code>
-              <img src="./assets/tech_helmet.jpg" alt="Profile portrait in a glossy black tech visor and wired headphones, red accent light" loading="lazy" />
+              <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" />
               <figcaption>data-kui="zoom-in-down scale:0.05 distance:150px"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="pop-in scale:0.05" data-show-code>
-              <img src="./assets/modeling/spotted-shirt.jpg" alt="Street portrait in a bold swirl-print turtleneck sweater" loading="lazy" />
+              <img src="./assets/modeling/cobalt-profile.jpg" alt="Sculptural profile lit in cobalt blue, wearing clear-framed glasses, on a lilac backdrop" loading="lazy" />
               <figcaption>data-kui="pop-in scale:0.05"</figcaption>
             </figure>
           </div>
@@ -338,7 +332,7 @@
           <p class="matrix-group-label">Blur — 1</p>
           <div class="demo-grid" data-kui-stagger="90ms">
             <figure class="demo-card" data-kui="blur-in 2000ms" data-show-code>
-              <img src="./assets/modeling/vase-dress.jpg" alt="Editorial gown printed with Picasso-style linework, styled beside a matching painted vase" loading="lazy" />
+              <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
               <figcaption>data-kui="blur-in 2000ms"</figcaption>
             </figure>
           </div>
@@ -374,7 +368,7 @@
               <figcaption>data-kui="bounce-in-down"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="back-in-up" data-show-code>
-              <img src="./assets/modeling/black-and-yellow.jpg" alt="Runway look in black silk with a gold ginkgo-leaf print, wide draped trousers" loading="lazy" />
+              <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
               <figcaption>data-kui="back-in-up"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="back-in-down" data-show-code>
@@ -430,6 +424,13 @@
             <img src="./assets/modeling/green-monochrome.jpg" alt="A model in a green jumpsuit against a flat green backdrop, one knee raised, in pale pink platform shoes" loading="lazy" />
             <figcaption>axis:horizontal fold:true</figcaption>
           </figure>
+          <!-- `angle:` is the general form of `axis:` — 0deg is vertical, 90deg is horizontal, and
+               anything between cuts diagonal bands. The pink headpiece is here because a diagonal
+               cut needs a subject that reads across the diagonal; a centred face is bisected by it. -->
+          <figure class="demo-card" data-kui="slat-assemble 1100ms angle:35deg slats:10 from:start" data-show-code>
+            <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Beauty portrait in an oversized pink ruffled headpiece against a magenta backdrop" loading="lazy" />
+            <figcaption>angle:35deg slats:10 from:start</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -449,7 +450,7 @@
             <figcaption>on:click — click me</figcaption>
           </figure>
           <figure class="demo-card" data-kui="blur-out 700ms on:click" tabindex="0" data-show-code>
-            <img src="./assets/modeling/spotted-shirt.jpg" alt="Street portrait in a bold swirl-print turtleneck sweater" loading="lazy" />
+            <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Monochrome teal portrait in a curved sculptural hat" loading="lazy" />
             <figcaption>on:click — click to toggle the blur</figcaption>
           </figure>
           <figure class="demo-card" id="load-fade" data-kui="fade-in 600ms on:load" data-show-code>
