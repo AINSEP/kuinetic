@@ -50,8 +50,16 @@ export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
     defaultActivation: 'hover',
     perfClass: 'paint',
   }),
+  // `geometry.distance` only, not `...geometry`: `kui-blur-up` (media.css) reads `--kui-distance`
+  // and `--kui-blur` but never `--kui-to-scale` — this primitive doesn't even declare
+  // `CHANNEL.scale`. Spreading the whole shared object used to expose `scale:` as an
+  // apparently-valid, silently-inert parameter, the same shape `flip-3d`'s dead `perspective`
+  // parameter was (`entrance.css`'s comment on `kui-flip-in-x`).
   cssPrimitive('media-blur-up', [CHANNEL.translate, CHANNEL.filter], {
-    parameters: { ...geometry, blur: { type: 'length', default: '16px', cssProperty: '--kui-blur' } },
+    parameters: {
+      distance: geometry.distance,
+      blur: { type: 'length', default: '16px', cssProperty: '--kui-blur' },
+    },
     perfClass: 'paint',
   }),
   // No `defaultActivation` — same convention `core.ts`'s `parallax`/`parallax-scale`/
@@ -70,14 +78,24 @@ export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
   // every sample read the same permanently-zeroed `--kui-distance`: not a paused animation, a
   // zeroed one. `timeline:view`/`timeline:scroll` usage is unaffected either way, since a native
   // timeline resolves to the `'native-timeline'` gate before activation is even consulted.
+  // `geometry.distance` only: `kui-image-parallax-frame` never reads `--kui-to-scale` and this
+  // primitive doesn't declare `CHANNEL.scale` — same dead-parameter shape as `media-blur-up` above.
   cssPrimitive('media-parallax-frame', [CHANNEL.translate], {
-    parameters: geometry,
+    parameters: { distance: geometry.distance },
     timelines: ['view', 'scroll'],
     activations: ['manual'],
     reducedMotion: 'disable',
   }),
+  // Its own `scale` parameter, not `geometry`: `kui-lightbox-open` opens from a fixed 0.92, never
+  // reading `--kui-to-scale` (or any `distance`, since this primitive doesn't animate position at
+  // all) — the whole shared object was dead weight here. Unlike `media-blur-up`/
+  // `media-parallax-frame`, this primitive *does* declare `CHANNEL.scale`, so the fix is to wire
+  // the keyframe up to a real parameter rather than remove the promise: `--kui-from-scale`, the
+  // same name and "starts at this scale, animates to 1" meaning `scale`/`scale-move`
+  // (`catalog/core.ts`) already use, so `lightbox-open scale:0.8` now does what it looks like it
+  // should. See `kui-lightbox-open` in `media.css`.
   cssPrimitive('media-lightbox', [CHANNEL.opacity, CHANNEL.scale], {
-    parameters: geometry,
+    parameters: { scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' } },
   }),
 ]
 

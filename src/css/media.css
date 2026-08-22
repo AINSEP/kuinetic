@@ -45,7 +45,7 @@
     to { translate: 0 var(--kui-distance, 24px); }
   }
   @keyframes kui-lightbox-open {
-    from { opacity: 0; scale: 0.92; }
+    from { opacity: 0; scale: var(--kui-from-scale, 0.92); }
     to { opacity: 1; scale: 1; }
   }
 

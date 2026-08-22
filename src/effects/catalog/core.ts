@@ -11,10 +11,16 @@ import { cssPrimitive as css } from '../shared.js'
  * `primitives.ts`/`presets.ts` one directory up.
  */
 
-const distance: ParameterSchema = {
+// `as const satisfies`, not `: ParameterSchema`: the plain annotation widens to
+// `Record<string, ParamSpec>`, and `noUncheckedIndexedAccess` then makes every property access —
+// including `distance.distance` below, where `roll`/`scale-move`/`parallax` want only the
+// `distance` field and not `opacity` — read back as `ParamSpec | undefined`. Keeping the literal
+// shape (still checked for correctness via `satisfies`) is what lets those primitives destructure
+// a single known field.
+const distance = {
   distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
   opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' },
-}
+} as const satisfies ParameterSchema
 
 /*
  * Entrances accept a scroll/view timeline as well as the clock.
@@ -46,10 +52,15 @@ export const PRIMITIVES: Primitive[] = [
   }),
 
   // Separate from `scale` because it claims translate as well and so composes differently.
+  // `distance.distance` only, not `...distance`: `kui-zoom-in-up`/`-down` (entrance.css) read
+  // `--kui-distance` and `--kui-from-scale` but never `--kui-from-opacity` — this primitive
+  // doesn't declare `CHANNEL.opacity`. Spreading the whole shared `distance` object used to expose
+  // `opacity:` as an apparently-valid, silently-inert parameter (same dead-parameter shape as
+  // `flip-3d`'s old `perspective`, fixed above).
   css('scale-move', [CHANNEL.scale, CHANNEL.translate], {
     timelines: ENTRANCE_TIMELINES,
     parameters: {
-      ...distance,
+      distance: distance.distance,
       scale: { type: 'number', default: '0.92', cssProperty: '--kui-from-scale' },
     },
   }),
@@ -59,10 +70,13 @@ export const PRIMITIVES: Primitive[] = [
     parameters: { angle: { type: 'angle', default: '-8deg', cssProperty: '--kui-from-angle' } },
   }),
 
+  // `distance.distance` only, not `...distance`: `kui-roll-in`/`-out` (entrance.css) write
+  // `rotate`/`translate`, never `opacity` — this primitive doesn't declare `CHANNEL.opacity`. Same
+  // dead-parameter shape as `scale-move` above.
   css('roll', [CHANNEL.rotate, CHANNEL.translate], {
     timelines: ENTRANCE_TIMELINES,
     parameters: {
-      ...distance,
+      distance: distance.distance,
       angle: { type: 'angle', default: '-120deg', cssProperty: '--kui-from-angle' },
     },
   }),
@@ -94,8 +108,12 @@ export const PRIMITIVES: Primitive[] = [
   // --- scroll-linked ---------------------------------------------------------------------
   // These are progress-linked, not time-triggered: they reverse as the user scrolls back.
   // That is by design and is why `timeline:` is a different axis from `on:`.
+  // `distance.distance` only, not the whole `distance` object: `kui-parallax-y`/`-x` (scroll.css)
+  // write only `translate` — this primitive doesn't declare `CHANNEL.opacity`. Same dead-parameter
+  // shape as `scale-move`/`roll` above; `parallax-y`/`parallax-x`/`depth-layer` never read
+  // `--kui-from-opacity`.
   css('parallax', [CHANNEL.translate], {
-    parameters: distance,
+    parameters: { distance: distance.distance },
     timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
