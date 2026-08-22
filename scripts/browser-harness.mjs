@@ -103,6 +103,47 @@ export function createFrameRecorder(dir) {
 }
 
 /**
+ * The perspective distance implied by a resolved `transform`, or 0 for a flat one.
+ *
+ * Takes the already-fetched computed-style string (from `page.$eval`/`page.evaluate`), not a
+ * page handle — this is pure string parsing, no browser round trip of its own, so a caller that
+ * already has the string in hand (most do, since they read other things off the same element in
+ * the same round trip) is not made to pay for a second one.
+ *
+ * A `matrix3d(...)` serialises column-major, so `perspective(d)`'s `m34 = -cos(θ)/d` term lands at
+ * index 11 of the 16 flattened values — non-zero whenever `perspective()` genuinely rode along in
+ * the composed transform, and exactly 0 for a bare `rotate:`/`rotateX()`/`rotateY()` alone,
+ * regardless of angle. A 2D `matrix(...)` (6 values) or `none` carries no such term at all, which
+ * is exactly what a flat rotation with no depth resolves to — both read as 0 here.
+ *
+ * First written for `click-toggle.test.mjs` (`card-flip-y` toggled by a real click), when
+ * `card-flip-x/-y`, `cube-rotate`, `book-page-turn`, and `fold-panel` shipped rendering completely
+ * flat: `perspective:` the CSS property was set on the same element as the `rotate:` keyframe,
+ * which the spec never applies to that element's own transform, only its children's. Reading
+ * `getComputedStyle(el).rotate` looked identical whether the fix was in place or not — `rotate`
+ * simply reads `none` forever once the angle moves into `transform: perspective(...) rotateY(...)`
+ * — which is exactly why a test reading the wrong property and a genuinely dead effect are
+ * indistinguishable from one column, and why this reads the resolved matrix instead of trusting
+ * any individual transform-related property in isolation.
+ *
+ * θ = 90°/270° is a real trap for any caller picking a sample point: `-cos(θ)/d` is exactly 0
+ * there even with a real `perspective()` present, which would misread as "flat". Sample somewhere
+ * comfortably off that crossing.
+ *
+ * @param transform - A `getComputedStyle(el).transform` value.
+ * @returns The implied perspective distance in the same unit `perspective()` was authored in
+ *   (typically px), or 0 if the transform carries no perspective term.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function perspectiveOf(transform) {
+  const values = transform.match(/matrix3d\(([^)]+)\)/)
+  if (!values) return 0
+  const term = Number.parseFloat(values[1].split(',')[11])
+  return Number.isFinite(term) && term !== 0 ? Math.abs(1 / term) : 0
+}
+
+/**
  * Sample a continuous motion at several points across its duration, capturing a named frame at
  * each and returning what `read` observed there.
  *

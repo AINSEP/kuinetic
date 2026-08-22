@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { createChecker, createFrameRecorder } from '../../scripts/browser-harness.mjs'
+import { createChecker, createFrameRecorder, perspectiveOf } from '../../scripts/browser-harness.mjs'
 
 /**
  * Click-gated CSS effects must toggle, not go inert after the first activation.
@@ -38,22 +38,6 @@ async function readCard(page) {
     rotate: getComputedStyle(el).rotate,
     transform: getComputedStyle(el).transform,
   }))
-}
-
-/**
- * The perspective distance implied by a computed transform, or 0 for a flat one.
- *
- * A `matrix3d` serialises column-major, so `perspective(d)`'s `m34 = -1/d` term lands at index 11.
- * A 2D `matrix(...)` has no such term at all — which is exactly what a card with no depth
- * serialises to, and exactly what this whole family rendered as before the perspective fix. So a
- * non-zero value here is the regression guard: it distinguishes "rotated with depth" from "rotated
- * flat", which the old `rotate: 'y 180deg'` assertion could not tell apart.
- */
-function perspectiveOf(transform) {
-  const values = transform.match(/matrix3d\(([^)]+)\)/)
-  if (!values) return 0
-  const term = Number.parseFloat(values[1].split(',')[11])
-  return Number.isFinite(term) && term !== 0 ? Math.abs(1 / term) : 0
 }
 
 async function clickAndSettle(page) {
