@@ -106,7 +106,7 @@
 
   [data-kui-fx~='bounce-in'] {
     --kui-from-scale: 0.3;
-    --kui-scale-ease: var(--kui-ease-back-out, ease-out);
+    --kui-scale-ease: var(--kui-ease-bounce, ease-out);
     --kui-scale-duration: 600ms;
     --kui-scale-delay: 0ms;
   }
