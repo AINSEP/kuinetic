@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Icons &amp; Transitions</title>
+<meta name="description" content="Every SVG draw, fill, morph, and icon toggle in kUInetic's catalog section E, plus section L's page-transition presets — one HTML attribute each." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 20ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  /* Same "ink" hero-media-stats treatment data-hover.html uses, repurposed: four live previews of
+     this page's own content (a draw, a real toggle, a morph, a loading bar) instead of counters —
+     the star of the show is the catalog itself, not a stock photo standing in for it. */
+  .hero-media.hero-media-icons {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); padding: 0; aspect-ratio: 4 / 5;
+  }
+  .hero-icon-cell {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.6rem; background: var(--accent); color: var(--accent-ink); padding: 1rem;
+  }
+  .hero-icon-cell svg { width: 34px; height: 34px; overflow: visible; }
+  .hero-icon-cell svg path { stroke: var(--accent-ink); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+  .hero-icon-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem;
+    letter-spacing: 0.02em; opacity: 0.78; text-align: center;
+  }
+  .hero-mini-toggle {
+    width: 2.4rem; height: 2.4rem; padding: 0; background: none; border: 1px solid var(--accent-ink);
+    border-radius: 8px; color: var(--accent-ink); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  }
+  .hero-mini-toggle .kui-bar { width: 15px; height: 2px; border-radius: 1px; background: currentColor; flex: none; }
+  .hero-morph-shape { fill: var(--accent-ink); }
+  .hero-loading-track { width: 44px; height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--accent-ink) 25%, transparent); overflow: hidden; }
+  .hero-loading-fill { height: 100%; width: 100%; background: var(--accent-ink); }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 30ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 60ch; line-height: 1.6; }
+
+  /* ---------- matrix groups (grouped by the catalog's own subgroupings) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .note { margin-top: 0.5rem; color: var(--muted); font-size: 0.88rem; line-height: 1.6; max-width: 62ch; }
+  .note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+
+  /* ---------- demo grid / cards (identical vocabulary to every other CSS Animations page) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0.85rem; }
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+  .demo-card figcaption,
+  .demo-card .demo-card-caption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption,
+  :root[data-theme='dark'] .demo-card .demo-card-caption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- draws (section E) ---------- */
+  .draw-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.75rem 1.25rem; min-height: 84px; }
+  .draw-stage svg { width: 100%; height: auto; max-width: 128px; overflow: visible; }
+  .draw-stage svg path { stroke: var(--accent-text); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- fills (section E) — an outline copy behind, a filled copy in front; same
+     mechanism star-rating-fill uses in data-hover.html, just SVG geometry instead of glyphs ---------- */
+  .fill-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1.25rem; min-height: 84px; }
+  .fill-stage svg { width: 72px; height: 72px; overflow: visible; }
+  .fill-outline { fill: none; stroke: var(--border); stroke-width: 3; }
+  .fill-solid { fill: var(--accent-text); }
+  .chart-bar { width: 30px; height: 68px; background: var(--accent-text); border-radius: 3px 3px 0 0; }
+
+  /* ---------- logo build (section E) — abstract three-part mark, staggered on its wrapper ---------- */
+  .logo-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 1.75rem 1.25rem; min-height: 84px; }
+  .logo-part { width: 30px; height: 30px; }
+  .logo-part-a { background: var(--accent); border-radius: 50%; }
+  .logo-part-b { background: var(--fg); border-radius: 7px; }
+  .logo-part-c { background: var(--accent-text); clip-path: polygon(50% 4%, 96% 96%, 4% 96%); }
+
+  /* ---------- icon toggles (section E) — real controls, not bare boxes: a menu disclosure, a
+     play/pause control, and an FAQ-style accordion trigger, each wired with the same
+     aria-expanded/aria-pressed attribute the effect itself keys its CSS transition off of. ---------- */
+  .toggle-stage { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.85rem; padding: 1.5rem 1.25rem; min-height: 84px; text-align: center; }
+  .mini-toggle {
+    width: 2.5rem; height: 2.5rem; padding: 0; background: none; border: 1px solid var(--border);
+    border-radius: 8px; color: var(--fg); cursor: pointer; flex: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    --kui-bar-gap: 5px;
+  }
+  .mini-toggle:hover, .mini-toggle[aria-expanded='true'], .mini-toggle[aria-pressed='true'] { border-color: var(--fg); }
+  .mini-toggle .kui-bar { width: 15px; height: 2px; border-radius: 1px; background: currentColor; flex: none; }
+  .toggle-hint { font-size: 0.82rem; color: var(--muted); }
+  .mini-menu { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; }
+  .mini-menu[hidden] { display: none; }
+  .mini-answer { font-size: 0.82rem; color: var(--muted); max-width: 22ch; }
+  .mini-answer[hidden] { display: none; }
+
+  /* ---------- path morphs (section E) — arbitrary path interpolation, hover or focus ---------- */
+  .morph-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1.25rem; min-height: 84px; }
+  .morph-stage svg { width: 72px; height: 72px; overflow: visible; }
+  .morph-shape { fill: var(--accent-text); cursor: pointer; }
+  .morph-shape:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  /* ---------- page transitions (section L) — a mock browser window, since there is no router
+     to navigate with. The three-dot chrome row is decoration only; the placeholder heading/line
+     bars stand in for whatever real view content a transition would actually be swapping. ---------- */
+  .transition-window { border: 1px solid var(--border); border-radius: 10px; overflow: clip; background: var(--bg); flex: 1 0 auto; }
+  .transition-chrome { display: flex; gap: 5px; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .transition-chrome span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .transition-view { padding: 1.35rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; min-height: 78px; justify-content: center; }
+  .view-bar { height: 9px; border-radius: 4px; background: var(--border); }
+  .view-bar-heading { width: 62%; height: 13px; background: var(--accent-text); }
+  .view-bar-short { width: 42%; }
+  .loading-track { height: 3px; background: var(--border); }
+  .loading-fill { height: 100%; width: 100%; background: var(--accent-text); }
+  .smooth-scroll-note, .page-morph-note {
+    margin-top: 1.5rem; padding: 1.1rem 1.25rem; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 0.9rem; line-height: 1.6; color: var(--muted); max-width: 62ch;
+  }
+  .smooth-scroll-note code, .page-morph-note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Icons &amp; Transitions</p>
+          <h1 data-kui="fade-up 900ms">Icons that hold state, and the hand-off between two views.</h1>
+          <p class="lede" data-kui="fade-up 900ms 90ms">
+            Catalog section E draws, fills, and morphs SVG geometry with one attribute, plus three
+            icon toggles that are CSS state rather than a keyframe. Section L is the frame a
+            router plays between two pages — <code>page-fade</code>, <code>page-slide</code>,
+            <code>curtain-wipe</code>, and a <code>loading-bar</code>, simulated below with the
+            replay button since there's no second page here to navigate to.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 900ms 160ms">
+            <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 900ms 220ms"><span class="dot"></span> Hover the shapes, click the toggles, then hit ↻ to replay the transitions.</p>
+        </div>
+        <div class="hero-media hero-media-icons">
+          <div class="hero-icon-cell">
+            <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+              <path d="M8 26 L20 38 L40 10" pathLength="100" data-kui="checkmark-draw 500ms on:enter" />
+            </svg>
+            <span class="hero-icon-label">checkmark-draw</span>
+          </div>
+          <div class="hero-icon-cell">
+            <button
+              type="button"
+              class="hero-mini-toggle"
+              data-kui="hamburger-to-x"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="Toggle menu"
+              data-demo-toggle="hero-menu"
+            >
+              <span class="kui-bar"></span><span class="kui-bar"></span><span class="kui-bar"></span>
+            </button>
+            <span class="hero-icon-label">hamburger-to-x — click</span>
+          </div>
+          <div class="hero-icon-cell">
+            <svg viewBox="0 0 64 64" fill="none">
+              <path
+                class="hero-morph-shape"
+                d="M20,4 L44,4 C54,4 60,10 60,20 L60,44 C60,54 54,60 44,60 L20,60 C10,60 4,54 4,44 L4,20 C4,10 10,4 20,4 Z"
+                data-kui="icon-morph to:'M32,4 C46,4 60,18 60,32 C60,46 46,60 32,60 C18,60 4,46 4,32 C4,18 18,4 32,4 Z'"
+                tabindex="0"
+                role="img"
+                aria-label="Decorative shape, morphs on hover or focus"
+              />
+            </svg>
+            <span class="hero-icon-label">icon-morph — hover</span>
+          </div>
+          <div class="hero-icon-cell">
+            <div class="hero-loading-track" aria-hidden="true"><div class="hero-loading-fill" data-kui="loading-bar 1200ms on:enter"></div></div>
+            <span class="hero-icon-label">loading-bar</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- E — SVG & ICONS (catalog section E, 17 names) -->
+      <section id="matrix" data-od-id="svg-icons">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">E — SVG &amp; icons</h2>
+          <p data-kui="bounce-in 600ms">
+            All 17 names in <a href="./docs.html?doc=catalog">catalog section E</a>: seven stroke
+            draws, four clip-path fills, one staggered logo build, three icon toggles that are
+            state rather than animation, and two arbitrary path morphs.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draws — 7</p>
+          <p class="note">
+            <code>stroke-dashoffset</code> from the path's own length down to zero.
+            <code>pathLength="100"</code> on every <code>&lt;path&gt;</code> below makes the
+            default <code>length:100</code> exact without measuring anything in JS — the library
+            never calls <code>getTotalLength()</code>.
+          </p>
+          <div class="demo-grid" data-kui-stagger="80ms">
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 100 60" fill="none" aria-hidden="true">
+                  <path d="M6 42 C 22 6, 34 54, 50 30 S 78 6, 94 22" pathLength="100" data-kui="draw-stroke 1600ms on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="draw-stroke"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 100 40" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 30 C 10 10, 18 10, 22 24 C 26 38, 30 12, 40 20 C 48 26, 46 40, 56 32 C 64 26, 70 14, 80 20 C 88 24, 84 36, 96 30"
+                    pathLength="100"
+                    data-kui="draw-signature on:enter"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="draw-signature"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 100 16" fill="none" aria-hidden="true">
+                  <path d="M4 8 C 34 0, 66 16, 96 8" pathLength="100" data-kui="draw-underline on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="draw-underline"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                  <path d="M8 26 L20 38 L40 10" pathLength="100" data-kui="checkmark-draw on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="checkmark-draw"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+                  <path d="M10 10 L38 38 M38 10 L10 38" pathLength="100" data-kui="cross-draw on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="cross-draw"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 100 44" fill="none" aria-hidden="true">
+                  <path d="M4 36 L20 20 L36 28 L52 8 L68 18 L84 4 L96 14" pathLength="100" data-kui="chart-line-draw on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-line-draw"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="draw-stage">
+                <svg viewBox="0 0 100 30" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 20 C 20 4, 36 36, 52 20 C 68 4, 84 36, 96 20"
+                    pathLength="100"
+                    style="--kui-stroke-from: var(--accent-text); --kui-stroke-via: var(--accent); --kui-stroke-to: var(--accent-text);"
+                    data-kui="gradient-stroke on:enter"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="gradient-stroke" — loops, owns the stroke channel</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Fills — 4</p>
+          <p class="note">
+            Same mechanism as <code>star-rating-fill</code> on
+            <a href="./data-hover.html">data-hover.html</a>: an outline copy behind, a filled copy
+            in front, and <code>clip-path</code> reveals the filled one.
+          </p>
+          <div class="demo-grid" data-kui-stagger="100ms">
+            <div class="demo-card" data-show-code>
+              <div class="fill-stage">
+                <svg viewBox="0 0 64 60" aria-hidden="true">
+                  <path class="fill-outline" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" />
+                  <path class="fill-solid" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" data-kui="heart-fill on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="heart-fill"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fill-stage">
+                <svg viewBox="0 0 48 60" aria-hidden="true">
+                  <path class="fill-outline" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" />
+                  <path class="fill-solid" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" data-kui="bookmark-fill on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="bookmark-fill"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fill-stage">
+                <svg viewBox="0 0 100 50" aria-hidden="true">
+                  <path class="fill-outline" d="M0,40 L20,22 L40,30 L60,10 L80,18 L100,4 L100,50 L0,50 Z" />
+                  <path class="fill-solid" d="M0,40 L20,22 L40,30 L60,10 L80,18 L100,4 L100,50 L0,50 Z" data-kui="chart-area-fill on:enter" />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-area-fill" — left to right, not bottom up</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fill-stage">
+                <div class="chart-bar" data-kui="chart-bar-grow on:enter"></div>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-bar-grow"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Logo build — 1</p>
+          <p class="note">Goes on the parts, with <code>data-kui-stagger</code> on their wrapper — that stagger is what makes it a build rather than one more scale-in.</p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="logo-stage" data-kui-stagger="110ms">
+                <span class="logo-part logo-part-a" data-kui="logo-build on:enter" aria-hidden="true"></span>
+                <span class="logo-part logo-part-b" data-kui="logo-build on:enter" aria-hidden="true"></span>
+                <span class="logo-part logo-part-c" data-kui="logo-build on:enter" aria-hidden="true"></span>
+              </div>
+              <p class="demo-card-caption">data-kui="logo-build" (staggered)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Icon toggles — 3</p>
+          <p class="note">
+            State, not an animation: a CSS transition keyed off <code>aria-expanded</code> /
+            <code>aria-pressed</code>, the same attribute a real control needs for accessibility
+            anyway. Wired here as working controls, not bare boxes.
+          </p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="toggle-stage">
+                <button
+                  type="button"
+                  class="mini-toggle"
+                  data-kui="hamburger-to-x"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="Toggle menu"
+                  aria-controls="icons-demo-menu"
+                  data-demo-toggle="menu"
+                >
+                  <span class="kui-bar"></span><span class="kui-bar"></span><span class="kui-bar"></span>
+                </button>
+                <nav class="mini-menu" id="icons-demo-menu" hidden aria-label="Example menu">
+                  <a href="#matrix">Overview</a>
+                  <a href="./docs.html?doc=catalog">Catalog</a>
+                  <a href="./docs.html">Docs</a>
+                </nav>
+              </div>
+              <p class="demo-card-caption">data-kui="hamburger-to-x" — click, same control as the header</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="toggle-stage">
+                <button
+                  type="button"
+                  class="mini-toggle"
+                  data-kui="play-to-pause"
+                  aria-pressed="false"
+                  aria-label="Play"
+                  data-demo-toggle="play"
+                >
+                  <span class="kui-bar"></span><span class="kui-bar"></span>
+                </button>
+                <p class="toggle-hint">Click to play / pause</p>
+              </div>
+              <p class="demo-card-caption">data-kui="play-to-pause"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="toggle-stage">
+                <button
+                  type="button"
+                  class="mini-toggle"
+                  data-kui="plus-to-minus"
+                  aria-expanded="false"
+                  aria-controls="icons-demo-answer"
+                  aria-label="Expand"
+                  data-demo-toggle="accordion"
+                >
+                  <span class="kui-bar"></span><span class="kui-bar"></span>
+                </button>
+                <p class="toggle-hint">Is this accessible?</p>
+                <p class="mini-answer" id="icons-demo-answer" hidden>Yes — <code>aria-expanded</code> drives the icon and the answer, together.</p>
+              </div>
+              <p class="demo-card-caption">data-kui="plus-to-minus" — FAQ trigger</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Path morphs — 2</p>
+          <p class="note">
+            Arbitrary path interpolation (primitive 16) — hover or Tab to focus. The library's own
+            named icon pairs are precomputed, matched-point-count shapes; these two are
+            hand-authored to show the underlying mechanism plainly rather than reuse a named pair.
+          </p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="morph-stage">
+                <svg viewBox="0 0 64 64">
+                  <path
+                    class="morph-shape"
+                    d="M20,4 L44,4 C54,4 60,10 60,20 L60,44 C60,54 54,60 44,60 L20,60 C10,60 4,54 4,44 L4,20 C4,10 10,4 20,4 Z"
+                    data-kui="icon-morph to:'M32,4 C46,4 60,18 60,32 C60,46 46,60 32,60 C18,60 4,46 4,32 C4,18 18,4 32,4 Z'"
+                    tabindex="0"
+                    role="img"
+                    aria-label="Decorative shape, morphs on hover or focus"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="icon-morph" — hover</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="morph-stage">
+                <svg viewBox="0 0 64 64">
+                  <path
+                    class="morph-shape"
+                    d="M30,2 C50,0 62,20 60,38 C58,54 40,62 24,58 C8,54 2,36 6,20 C10,4 14,4 30,2 Z"
+                    data-kui="blob-morph to:'M32,6 C52,10 58,30 52,46 C46,60 26,62 14,52 C4,44 4,24 12,12 C18,4 20,2 32,6 Z'"
+                    tabindex="0"
+                    role="img"
+                    aria-label="Decorative shape, morphs on hover or focus"
+                  />
+                </svg>
+              </div>
+              <p class="demo-card-caption">data-kui="blob-morph" — hover, 800ms</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- L — PAGE TRANSITIONS (catalog section L, 5 shipped, 1 planned) -->
+      <section data-od-id="page-transitions">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">L — Page transitions</h2>
+          <p data-kui="fade-up 700ms expo-in">
+            All in <a href="./docs.html?doc=catalog">catalog section L</a>. These fire once, when
+            a router swaps an outgoing view for an incoming one — there's no router on a static
+            demo page, so the three below play on scroll-into-view like every other
+            <code>on:enter</code> effect on this site, and the ↻ replay button (bottom corner)
+            fires them again on demand.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Simulated with the replay button — 3</p>
+          <div class="demo-grid" data-kui-stagger="100ms">
+            <div class="demo-card" data-show-code>
+              <div class="transition-window">
+                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="transition-view" data-kui="page-fade on:enter" aria-hidden="true">
+                  <div class="view-bar view-bar-heading"></div>
+                  <div class="view-bar"></div>
+                  <div class="view-bar view-bar-short"></div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="page-fade" — simulated</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="transition-window">
+                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="transition-view" data-kui="page-slide on:enter" aria-hidden="true">
+                  <div class="view-bar view-bar-heading"></div>
+                  <div class="view-bar"></div>
+                  <div class="view-bar view-bar-short"></div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="page-slide" — simulated</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="transition-window">
+                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="transition-view" data-kui="curtain-wipe on:enter" aria-hidden="true">
+                  <div class="view-bar view-bar-heading"></div>
+                  <div class="view-bar"></div>
+                  <div class="view-bar view-bar-short"></div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="curtain-wipe" — simulated</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Standalone — 1</p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="transition-window">
+                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="loading-track" aria-hidden="true"><div class="loading-fill" data-kui="loading-bar on:enter"></div></div>
+                <div class="transition-view" aria-hidden="true">
+                  <div class="view-bar view-bar-heading"></div>
+                  <div class="view-bar"></div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="loading-bar" — reads fine on its own, no simulation needed</p>
+            </div>
+          </div>
+        </div>
+
+        <p class="smooth-scroll-note" data-kui="fade-up 600ms">
+          <strong>smooth-scroll-to</strong> isn't demoed above because it doesn't need to be — it's
+          already live on every page in this site, including this one:
+          <code>data-kui="smooth-scroll-to"</code> sits once on <code>&lt;html&gt;</code>
+          (see the top of this file) and every in-page anchor jump inherits it.
+          <a href="#top">Try it — jump to top ↑</a>.
+        </p>
+        <p class="page-morph-note" data-kui="fade-up 600ms 60ms">
+          <strong>page-morph</strong> is documented in the catalog as a planned View Transitions
+          shared-element handoff, degrading to <code>page-fade</code> where unsupported — but it
+          is not registered in <code>src/effects</code> yet, so there's no working attribute to
+          demo. Noted here rather than shown, matching the catalog's own † convention.
+        </p>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    // Icon-toggle demo wiring: hamburger-to-x, play-to-pause, and plus-to-minus are CSS state,
+    // not an animation the library drives — the whole contract is "the page sets
+    // aria-expanded/aria-pressed the way it already has to for accessibility, and the shipped
+    // CSS transitions off that". This is that page-side half, for the demo controls on this page
+    // only (the real header hamburger is wired by nav.js the same way).
+    ;(function () {
+      var toggles = document.querySelectorAll('[data-demo-toggle]')
+      Array.prototype.forEach.call(toggles, function (btn) {
+        btn.addEventListener('click', function () {
+          var kind = btn.dataset.demoToggle
+          if (kind === 'play') {
+            var playing = btn.getAttribute('aria-pressed') === 'true'
+            btn.setAttribute('aria-pressed', String(!playing))
+            btn.setAttribute('aria-label', playing ? 'Play' : 'Pause')
+            return
+          }
+          var expanded = btn.getAttribute('aria-expanded') === 'true'
+          btn.setAttribute('aria-expanded', String(!expanded))
+          if (kind === 'menu' || kind === 'hero-menu') {
+            var menuId = btn.getAttribute('aria-controls')
+            var menu = menuId ? document.getElementById(menuId) : null
+            if (menu) menu.hidden = expanded
+          } else if (kind === 'accordion') {
+            var answer = document.getElementById('icons-demo-answer')
+            if (answer) answer.hidden = expanded
+            btn.setAttribute('aria-label', expanded ? 'Expand' : 'Collapse')
+          }
+        })
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>
