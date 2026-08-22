@@ -229,18 +229,101 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
  * @overallScore 100
  */
 function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const node = el as HTMLElement
+  const selector = resolveTarget(params.text('target'), ctx, 'horizontal-scroll')
+  if (!selector) return prepareBareTrack(el as HTMLElement, params, ctx)
+  const track = el.querySelector(selector)
+  if (!track) {
+    ctx.warn(`horizontal-scroll target "${selector}" matched nothing inside this element`)
+    return () => {}
+  }
+  return prepareManagedTrack(el as HTMLElement, track as HTMLElement, params, ctx)
+}
+
+/**
+ * The historical shape: the attribute sits on the row itself and translates it, leaving the stage
+ * and the sticky window to the page. Kept working because pages are authored against it.
+ *
+ * @complexity O(1) per frame; O(1) space.
+ * @overallScore 100
+ */
+function prepareBareTrack(node: HTMLElement, params: EffectParams, ctx: PrepareContext): Cleanup {
   const authored = params.text('travel', 'auto')
   // Measured once per geometry epoch, not per frame. Reading `scrollWidth` inside the frame
   // callback forces a layout on every scroll tick — the same class of defect as the frozen cache.
   const travel = createMeasureCache(() => trackTravel(node, authored, node.ownerDocument))
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress, frame) => {
+  return trackProgress(node, ctx, { distance: params.text('distance') }, (progress, frame) => {
     ctx.style.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
     writeProgress(ctx, progress)
   })
+}
 
-  return untrack
+/**
+ * The managed shape: one attribute on the outer element, one class on the row that moves, and no
+ * page CSS at all.
+ *
+ * The three boxes a horizontal track needs are not negotiable — sticky only holds inside a taller
+ * ancestor, a `max-content` row cannot clip itself, and something has to be the scroll distance —
+ * but *authoring* all three is. Every one of them is derivable from `distance:` and the target,
+ * which the attribute already carries, so the library writes them:
+ *
+ * - the host becomes the pinned, clipping window (`sticky` + `overflow: hidden`). The clip is not
+ *   cosmetic: without it a `max-content` row hands the whole document a horizontal scrollbar, a
+ *   bug this repo has shipped once already.
+ * - `insertSpacer` reserves exactly the `distance:` of scroll room, so the stage height and the
+ *   authored distance can no longer disagree — they were two numbers restating one fact, and
+ *   `demo/scroll.html` carried a comment warning that they had to be kept in sync by hand.
+ * - the named row is laid out `max-content` and is the thing translated.
+ *
+ * Every write goes through a ledger, so teardown puts the author's own markup back untouched
+ * rather than leaving the library's layout behind.
+ *
+ * @complexity O(1) per frame; O(1) space.
+ * @overallScore 100
+ */
+function prepareManagedTrack(
+  host: HTMLElement,
+  track: HTMLElement,
+  params: EffectParams,
+  ctx: PrepareContext,
+): Cleanup {
+  const offsetTop = params.text('offset-top', 'var(--kui-pin-offset, 0px)')
+  ctx.style.set('position', 'sticky')
+  ctx.style.set('top', offsetTop)
+  ctx.style.set('height', `calc(100vh - ${offsetTop})`)
+  ctx.style.set('overflow', 'hidden')
+  ctx.style.set('display', 'grid')
+  ctx.style.set('align-content', 'center')
+  const removeSpacer = insertSpacer(host, params.text('distance'), ctx)
+
+  const rail = createStyleLedger(track)
+  rail.set('display', 'flex')
+  rail.set('width', 'max-content')
+
+  const authored = params.text('travel', 'auto')
+  const travel = createMeasureCache(() => trackTravel(track, authored, track.ownerDocument))
+  /*
+   * Track the containing block, not the host — the same dodge `preparePin` makes, for the same
+   * reason and it is not optional. Sticky exists precisely to stop an element moving relative to
+   * the viewport, so once the host pins its own rect reports the same offset forever and progress
+   * sits still for the whole range. Measured before this line was right: the row never moved at
+   * all and the instance settled straight to `finished`, with `--kui-progress` never written once.
+   *
+   * `tracker.ts`'s sticky escape does not cover this. That hatch is for an element nested inside
+   * *someone else's* sticky subtree; the element we make sticky ourselves is the caller's job, and
+   * `preparePin` has always passed the parent by hand.
+   */
+  const tracked = host.parentElement ?? host
+  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance') }, (progress, frame) => {
+    rail.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
+    writeProgress(ctx, progress)
+  })
+
+  return () => {
+    untrack()
+    rail.restore()
+    removeSpacer()
+  }
 }
 
 /**
@@ -565,6 +648,15 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     parameters: {
       ...distanceParam,
       travel: { type: 'text', default: 'auto', cssProperty: '--kui-travel' },
+      // Same name, same shape and the same validation as scroll-spy's and media-scrub's: one
+      // `target:` convention across the library. Naming the row that moves is also what opts this
+      // primitive into owning the stage, the sticky window and the row's layout itself.
+      target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      'offset-top': {
+        type: 'length',
+        default: 'var(--kui-pin-offset, 0px)',
+        cssProperty: '--kui-offset-top',
+      },
     },
     prepare: deferPrepare(prepareHorizontal),
   }),

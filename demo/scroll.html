@@ -477,7 +477,7 @@
   figure + .rev-notes,
   .pin-until-layout + .rev-notes,
   .pin-spacer-demo + .rev-notes,
-  .track-stage + .rev-notes,
+  .track-stage ~ .rev-notes,
   .stack-group + .rev-notes {
     max-width: none;
     margin-top: 3.75rem;
@@ -487,7 +487,7 @@
   figure + .rev-notes ul,
   .pin-until-layout + .rev-notes ul,
   .pin-spacer-demo + .rev-notes ul,
-  .track-stage + .rev-notes ul,
+  .track-stage ~ .rev-notes ul,
   .stack-group + .rev-notes ul { max-width: 62ch; }
   .rev-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
   .rev-notes li { position: relative; padding-left: 1.15rem; line-height: 1.6; font-size: 0.9rem; color: var(--muted); }
@@ -839,10 +839,13 @@
   }
 
   /* ---------- horizontal scroll (Section C) ---------- */
-  .track-stage { height: 400vh; margin-top: 2rem; }
-  /* Same token the pins read, so "how far down does a held thing sit" is one number. */
-  .track-viewport { position: sticky; top: var(--kui-pin-offset, 0px); height: calc(100vh - var(--kui-pin-offset, 0px)); display: grid; align-content: center; overflow: hidden; }
-  .track { display: flex; gap: 1.5rem; width: max-content; padding: 0 4rem; }
+  /* Structure is the library's now. The stage height, the sticky clipping window and the row's
+     `max-content` layout used to be three hand-written rules here, and the 400vh had to be kept
+     in sync with `distance:300vh` by hand — two numbers restating one fact. `horizontal-scroll`
+     derives all of it from `distance:` and `target:`, so what is left below is what a page should
+     actually own: spacing, and the look of the cards. */
+  .track-stage { margin-top: 2rem; }
+  .track { gap: 1.5rem; padding: 0 4rem; }
   .track figure { width: 380px; flex: none; border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface); }
   .track figure img { display: block; width: 100%; height: 280px; object-fit: cover; }
   .track figure figcaption { padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
@@ -1596,60 +1599,60 @@
                Every figure in the track used to carry its own `data-show-code`, which mounted ten
                chips that each opened a `<figure><img></figure>` with no `data-kui` in it at all —
                the modal's "try it" box came up empty, because there was no effect on those nodes to
-               try. The effect is three nested boxes and one attribute, and none of that was
-               reachable from anywhere on the page. `data-show-code-target` on the stage prints the
-               whole structure, and `data-show-code-key` marks the two class names the CSS is
-               actually selecting on, so the height-plus-sticky-plus-max-content arrangement reads
-               as the contract it is rather than as incidental markup. -->
-          <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
-          <div class="track-stage" id="horizontal-track-demo" data-show-code-key="track-stage track-viewport">
-            <div class="track-viewport">
-              <div class="track" data-kui="horizontal-scroll distance:300vh">
-                <figure>
-                  <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
-                  <figcaption>EOSAI — agency</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
-                  <figcaption>Saxe — commerce</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" />
-                  <figcaption>ZROBIM — architecture</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
-                  <figcaption>NUORBIT — marketplace</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
-                  <figcaption>Zenrixa — agency</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
-                  <figcaption>CoStar — lending</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/logitech-z150-dark-product.jpg" alt="A Logitech Z150 speaker product page in near-black — the speaker lit from the left on a dark stage, with a price-and-add-to-cart card, a Clear Stereo Sound waveform panel, and an Easy Controls dial" loading="lazy" />
-                  <figcaption>Logitech — product</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
-                  <figcaption>NeoVision — product</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
-                  <figcaption>Morozov — portfolio</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
-                  <figcaption>CarSellCenter — configurator</figcaption>
-                </figure>
-                <figure>
-                  <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
-                  <figcaption>Njey — technology</figcaption>
-                </figure>
-              </div>
+               try. `data-show-code-target` on the outer element prints the whole thing instead.
+
+               This used to be three nested boxes and four rules of page CSS, with a 400vh stage
+               height that had to be kept in sync with `distance:300vh` by hand. It is now two
+               boxes, one class and no structural CSS at all: `target:` names the row that moves,
+               and the library writes the pin, the clip, the row's layout and the scroll room
+               itself. `data-show-code-key` marks the one class name that is left. -->
+          <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
+          <div class="track-stage" id="horizontal-track-demo" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+            <div class="track">
+              <figure>
+                <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
+                <figcaption>EOSAI — agency</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
+                <figcaption>Saxe — commerce</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house photograph" loading="lazy" />
+                <figcaption>ZROBIM — architecture</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT NFT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
+                <figcaption>NUORBIT — marketplace</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
+                <figcaption>Zenrixa — agency</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels floating over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
+                <figcaption>CoStar — lending</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/logitech-z150-dark-product.jpg" alt="A Logitech Z150 speaker product page in near-black — the speaker lit from the left on a dark stage, with a price-and-add-to-cart card, a Clear Stereo Sound waveform panel, and an Easy Controls dial" loading="lazy" />
+                <figcaption>Logitech — product</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
+                <figcaption>NeoVision — product</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/morozov-dev-portfolio-hero.jpg" alt="The Morozov developer portfolio — a monochrome headshot of a man in glasses and a bow tie beside a large Hello and a short intro" loading="lazy" />
+                <figcaption>Morozov — portfolio</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
+                <figcaption>CarSellCenter — configurator</figcaption>
+              </figure>
+              <figure>
+                <img src="./assets/webdesign/future-ai-hero.jpg" alt="The Njey technology homepage — a glossy black humanoid robot picked out in yellow accent light beside the headline FUTURE" loading="lazy" />
+                <figcaption>Njey — technology</figcaption>
+              </figure>
             </div>
           </div>
                     <div class="rev-notes">
