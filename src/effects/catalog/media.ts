@@ -54,11 +54,26 @@ export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
     parameters: { ...geometry, blur: { type: 'length', default: '16px', cssProperty: '--kui-blur' } },
     perfClass: 'paint',
   }),
+  // No `defaultActivation` — same convention `core.ts`'s `parallax`/`parallax-scale`/
+  // `parallax-rotate`/`scroll-fade`/`desaturate`/`skew`/`progress`/`progress-stroke` already use
+  // for every other `timelines: ['view', 'scroll', ...]` primitive. `resolveActivation`
+  // (`animator.ts`) only consults `defaultActivation` when the author named no activation, and
+  // falls through to `element-config.ts`'s hardcoded `'enter'` when a primitive declares none.
+  // Setting it to `'manual'` here (matching `activations: ['manual']`) looked like the obviously
+  // correct pairing, but it is what actually broke the effect: `effectiveActivation`
+  // (`style-plan.ts`) only converts a stuck `'manual'` into `'enter'` when `config.timeline !==
+  // 'time'` — i.e. only once the author has actually written `timeline:view`/`timeline:scroll`.
+  // Authored bare (no `timeline:`, the sweep's own probe and the likely first thing anyone
+  // tries), `config.timeline` stays the default `'time'`, that conversion never fires, and the
+  // element sits at `data-kui-state="ready"` forever — which is also the state
+  // `entrance.css`'s `[data-kui-state='ready'] { --kui-distance: 0px !important; }` targets, so
+  // every sample read the same permanently-zeroed `--kui-distance`: not a paused animation, a
+  // zeroed one. `timeline:view`/`timeline:scroll` usage is unaffected either way, since a native
+  // timeline resolves to the `'native-timeline'` gate before activation is even consulted.
   cssPrimitive('media-parallax-frame', [CHANNEL.translate], {
     parameters: geometry,
     timelines: ['view', 'scroll'],
     activations: ['manual'],
-    defaultActivation: 'manual',
     reducedMotion: 'disable',
   }),
   cssPrimitive('media-lightbox', [CHANNEL.opacity, CHANNEL.scale], {
