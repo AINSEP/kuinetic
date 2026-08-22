@@ -212,6 +212,13 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > for this section with `data-kui-active`), on `step-progress` in section O, and on `sequence-scrub`
 > below. A selector that matches `<html>` or `<body>` is rejected with a warning rather than
 > stamping the whole document, and so is one that does not parse.
+>
+> `scroll-spy` also has a container form for a nav with more than one link: author `sections:` —
+> not `target:` — on the shared ancestor of the nav and the sections, and `target:` there names
+> every link at once rather than one section's own. One instance measures every section's own
+> height instead of an authored `distance:`, and takes `offset-top:` for a sticky header, same
+> spelling as the pinning family though not the same shared token — the per-section form above is
+> unchanged and still wants `distance:` and one attribute per section.
 
 > **`sequence-scrub target:` — prefer authored frames over a `src:` pattern.**
 >
