@@ -4,7 +4,7 @@ This catalog lists every named effect the library ships, grouped into fifteen se
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **251** named effects, over **29 primitive families**. Note that 48 names come from a
+**Counts:** **252** named effects, over **30 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -26,7 +26,7 @@ of this document.
 
 ---
 
-## The 29 primitive families
+## The 30 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -59,6 +59,7 @@ of this document.
 | 27 | `pin` | js | x | sticky orchestrator |
 | 28 | `flip-layout` | js | t,s | FLIP measure/invert/play |
 | 29 | `sequence-scrub` | js | x | image/video frame scrub |
+| 30 | `slat-assemble` | prep | — | image slats fly in and land assembled |
 
 ---
 
@@ -121,6 +122,27 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 
 > `scroll-snap-*` are thin CSS passthroughs. Everything else needs the orchestrator:
 > measurement, resize invalidation, nested scroll containers, cleanup.
+
+> **`--kui-pin-offset` — set once, and every pin clears your header.**
+>
+> All four pinning names take `offset-top:`, which becomes the element's sticky `top`. It is spelt
+> for the side it sets because plain `offset:` already means something else in the catalog — on
+> `header-shrink`, `header-hide-on-scroll` and `back-to-top-fade` it is a scroll *threshold* in
+> pixels, not a position, and both spellings were writing `--kui-offset`. Its default is
+> not `0px` but `var(--kui-pin-offset, 0px)`, so the library still defaults to zero for a page with
+> no chrome, while a page that has a fixed or sticky header answers it in one place:
+>
+> ```css
+> :root { --kui-pin-offset: 5.5rem; }   /* header underside + a little air */
+> ```
+>
+> Without it, every pin on such a page parks its top edge underneath the header and holds it there
+> for the whole pin — the failure is invisible in a static screenshot and obvious the moment you
+> scroll. Writing `offset-top:` on each pin instead puts one number in a dozen attributes, and
+> they drift. An authored `offset-top:` still wins outright — `stacking-cards` is the same `pin`
+> primitive under a fourth name, and that is exactly what its per-card stagger uses.
+> per-card stagger. Scope the token to a subtree rather than `:root` when only part of the page is
+> under the header.
 
 > **`target:` — let the library mark the elements, so you write one rule instead of one per step.**
 >
@@ -295,14 +317,36 @@ Primitive 20, plus 15 and 26.
 
 ---
 
-## G. Media & images — 17 names
+## G. Media & images — 18 names
 
-Primitives 5, 6, 7, 4.
+Primitives 5, 6, 7, 4, 30.
 
 `wipe-up` · `wipe-down` · `wipe-left` · `wipe-right` · `wipe-circle` · `wipe-diagonal` ·
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
-`before-after-wipe` · `lightbox-open`
+`before-after-wipe` · `lightbox-open` · `slat-assemble`
+
+> **`slat-assemble`** slices a wrapped `<img>` into `slats:` background-sliced strips and flies
+> them in staggered, landing assembled over the original picture — the one `prep` name in this
+> section: it builds the slats once at activation, then every frame is `translate`/`rotate`/
+> `opacity` on synthetic children, same as `split-text` in section D. Every slat paints the *same*
+> image URL as its own `background-image`, so N slats cost one fetch and one decode, not N — see
+> `installSlatStage` in `media-shared.ts` for the sprite-slicing math. `axis:vertical` (default)
+> cuts columns that fly in vertically; `axis:horizontal` cuts rows that fly in horizontally.
+> `from:` picks the stagger order — `alternate` (default), `start`, `end`, `edges`, or
+> `random-ish` (a deterministic scatter, not `Math.random`) — independent of which side each slat
+> flies in from, which always alternates by position. `fold:true` adds a `rotateY`/`rotateX` hinge
+> for an accordion-fold look instead of a flat slide.
+>
+> ```html
+> <figure data-kui="slat-assemble slats:8 axis:vertical from:alternate">
+>   <img src="./photo.jpg" alt="…" />
+> </figure>
+> ```
+>
+> No CSS or class names required — the wrapper only needs one `<img>` child; everything else,
+> including a defensive `position: relative` claim if the wrapper is unpositioned, is the
+> library's own work.
 
 ---
 
@@ -458,7 +502,7 @@ Primitives 1, 10, 15.
 | D Text & typography | 26 |
 | E SVG & icons | 17 |
 | F Numbers & data viz | 13 |
-| G Media & images | 17 |
+| G Media & images | 18 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 22 |
 | J Ambient backgrounds | 15 |
@@ -467,7 +511,7 @@ Primitives 1, 10, 15.
 | M Navigation | 8 |
 | N 3D & perspective | 31 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total shipped** | **251** |
+| **Total shipped** | **252** |
 | Documented but not yet shipped | 4 |
 
 Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.

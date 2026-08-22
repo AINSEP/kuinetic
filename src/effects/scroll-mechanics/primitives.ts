@@ -26,6 +26,49 @@ const distanceParam: ParameterSchema = {
   distance: { type: 'length', default: '100vh', cssProperty: '--kui-distance' },
 }
 
+/**
+ * Shared by every primitive that has to hold still while its scroll range passes.
+ *
+ * `pin` and `media-scrub` were solving the same problem twice from opposite ends. The pin declared
+ * both of these and did the work; the scrub declared neither and left it to the page, which is why
+ * `demo/scroll.html` carried a `.scrub-stage` whose entire job was `height: 260vh` and a
+ * `.scrub-viewport` whose entire job was `position: sticky`. Two hand-written boxes to restate
+ * something the library already knew, because `distance:` was on the attribute the whole time.
+ *
+ * Declaring it once means the two cannot drift, and it is what lets a scrub become one attribute
+ * with no wrapper at all.
+ */
+const stickyParams: ParameterSchema = {
+  'offset-top': {
+    type: 'length',
+    default: 'var(--kui-pin-offset, 0px)',
+    cssProperty: '--kui-offset-top',
+  },
+  spacer: {
+    type: 'keyword',
+    default: 'false',
+    cssProperty: '--kui-spacer',
+    values: ['true', 'false'],
+  },
+}
+
+/**
+ * Hold an element still for its range, and reserve the room that requires.
+ *
+ * Sticky only holds while its containing block is still on screen, so an effect that runs longer
+ * than its parent silently does nothing — the single most common way authors get sticky wrong.
+ * `spacer:true` is the honest fix and is what the presets that need it turn on.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function installSticky(node: HTMLElement, params: EffectParams, ctx: PrepareContext): Cleanup {
+  ctx.style.set('position', 'sticky')
+  ctx.style.set('top', params.text('offset-top', 'var(--kui-pin-offset, 0px)'))
+  const removeSpacer = params.is('spacer') ? insertSpacer(node, params.text('distance'), ctx) : null
+  return () => removeSpacer?.()
+}
+
 /** One primitive's distinguishing fields; the rest are identical across the category. */
 interface ScrollSpec {
   id: string
@@ -73,10 +116,7 @@ function writeProgress(ctx: PrepareContext, progress: number): void {
  */
 function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
-  ctx.style.set('position', 'sticky')
-  ctx.style.set('top', params.text('offset', '0px'))
-
-  const removeSpacer = params.is('spacer') ? insertSpacer(node, params.text('distance'), ctx) : null
+  const unstick = installSticky(node, params, ctx)
 
   /*
    * Track the containing block, not the pinned element.
@@ -96,7 +136,7 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
   // ledger cannot see: the inserted spacer and the state attribute.
   return () => {
     untrack()
-    removeSpacer?.()
+    unstick()
     el.removeAttribute('data-kui-pinned')
   }
 }
@@ -245,6 +285,7 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
   if (selector) return prepareTargetScrub(el, params, ctx, selector)
   return prepareSrcScrub(el, params, ctx)
 }
+
 
 /**
  * Scrub by revealing one of a set of elements that are already in the document.
@@ -499,13 +540,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['layout', 'progress'],
     parameters: {
       ...distanceParam,
-      offset: { type: 'length', default: '0px', cssProperty: '--kui-offset' },
-      spacer: {
-        type: 'keyword',
-        default: 'false',
-        cssProperty: '--kui-spacer',
-        values: ['true', 'false'],
-      },
+      ...stickyParams,
     },
     prepare: deferPrepare(preparePin),
     perfClass: 'layout',
