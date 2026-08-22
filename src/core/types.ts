@@ -235,6 +235,43 @@ export interface Primitive {
   perfClass: PerfClass
   reducedMotion: ReducedMotionPolicy
   /**
+   * Whether this primitive, left alone to finish with nobody calling `reset()`/`destroy()`, ends
+   * with the element's markup indistinguishable from what the author wrote.
+   *
+   * There are two separate teardown contracts, and `test/browser/teardown-sweep.test.mjs` used to
+   * conflate them into one check:
+   *
+   * - **Interruption restores.** Calling `reset()` mid-effect puts the markup back byte-for-byte.
+   *   This is unconditional and every primitive owes it — it is not gated by this field at all, and
+   *   never will be, because a caller can `reset()` anything at any moment.
+   * - **Natural finish restores** (this field). The effect, left alone to run to completion, ends
+   *   with the markup back as authored. This is `slat-assemble`'s whole point: it disassembles a
+   *   picture into slats and reassembles it, and the slats are scaffolding that must be gone once
+   *   the illusion lands — not just when someone happens to call `reset()`.
+   *
+   * **Defaults to `false` — a primitive has to opt in.** The tempting default is `true` ("assume it
+   * restores unless told otherwise"), on the theory that a forgotten declaration should never
+   * silently skip a check. That is the wrong default in this codebase specifically: the majority of
+   * the catalog is JS/CSS-driven effects that either never resolve `finished` at all (ambient
+   * loops, hover/pointer effects, anything `reducedMotion: 'disable'` marks as unboundable) or
+   * finish *by design* in a state that differs from authored markup — `data-kui-state="finished"`
+   * and the `--kui-*` custom properties `createCssInstance` leaves in place are the point, not a
+   * bug, and every `css-keyframes` primitive in the catalog would need an explicit opt-out under a
+   * `true` default. Defaulting to `true` would have meant "almost every primitive needs a
+   * non-default declaration," which is the sign from the design notes above that a default is
+   * wrong. `false` means "no claim is being made" for the ordinary case, and only the small set of
+   * primitives that build their own temporary DOM as scaffolding — `slat-assemble` today — assert
+   * this explicitly. The unconditional interruption check above is what actually closes the "a new
+   * scaffold-building primitive forgets to opt in" gap: `reset()` is still guaranteed to restore it
+   * even if nobody ever wrote `restoresOnFinish: true` for it.
+   *
+   * `test/browser/teardown-sweep.test.mjs` reads this to decide whether a primitive owes a
+   * natural-finish check at all, and its failure messages name which law was broken instead of the
+   * generic "leaves synthetic nodes behind" that previously misdescribed a `style=""` leak as extra
+   * DOM nodes for a whole debugging session.
+   */
+  restoresOnFinish?: boolean
+  /**
    * JS-side setup. Returns a lifecycle handle, **not** a teardown function.
    *
    * `prepare` must only wire things up — it must not start anything. The animator decides when

@@ -67,8 +67,21 @@ export function createStyleLedger(el: Element): StyleLedger {
        * `test/browser/teardown-sweep.test.mjs` was reading exactly this as "leaves synthetic
        * nodes behind": `scroll-snap-x` writes one property onto each child, and the host grew by
        * precisely the width of the empty attributes left on them (160 -> 178 chars, two children).
+       *
+       * `el.getAttribute('style')` here is a forced read, not a real check — `style.length` alone
+       * reproducibly under-restored `slat-assemble`'s image even with no other effect anywhere on
+       * the page, no sweep, no reset() at all, just `set()` then `restore()` on a natural timer.
+       * The browser keeps the serialized `style` attribute in sync with the CSSOM lazily: a
+       * `setProperty`/`removeProperty` pair with nothing in between that reads the attribute can
+       * leave the *real* attribute never materialized, so `removeAttribute('style')` immediately
+       * afterward has nothing to remove and silently no-ops. The first later read that forces a
+       * sync — `innerHTML`, `getAttribute`, even an unrelated `MutationObserver` watching this
+       * element — then materializes the attribute fresh from the now-empty CSSOM, i.e. `style=""`,
+       * long after this function returned. Reading the attribute here, before deciding whether to
+       * remove it, forces that sync while the ledger can still act on what it finds.
        */
-      if (!authoredStyleAttribute && style.length === 0) el.removeAttribute('style')
+      if (!authoredStyleAttribute && style.length === 0 && !el.getAttribute('style'))
+        el.removeAttribute('style')
     },
     owned: () => [...previous.keys()],
   }

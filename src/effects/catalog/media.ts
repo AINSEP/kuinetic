@@ -231,6 +231,10 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
     // stops `installSlatStage`'s DOM surgery from ever running at all under reduced motion — the
     // animator never calls `activate()`, so the wrapped `<img>` is simply left exactly as authored.
     reducedMotion: 'disable',
+    // Land()ing hands the picture back to the real `<img>` and tears down every slat — see
+    // `prepareSlatAssemble`'s `land()`. Declared, not assumed: see `restoresOnFinish`'s own comment
+    // in `core/types.ts` for why the catalog's default is the opposite of this.
+    restoresOnFinish: true,
     prepare: deferPrepare(prepareSlatAssemble),
   },
 ]
