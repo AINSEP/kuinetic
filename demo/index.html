@@ -83,11 +83,9 @@
     --s-fg: var(--fg);
     --s-muted: var(--muted);
     --s-border: var(--border);
-    /* Texture and wash strengths differ per theme: a white speck reads on near-black and vanishes
-       on paper, and a lime wash that is a whisper on black is a stain on white. */
+    /* Texture strength differs per theme: a white speck reads on near-black and vanishes on
+       paper. */
     --s-texture-opacity: 0.09;
-    --s-wash-strong: rgb(228 242 34 / 0.30);
-    --s-wash-soft: rgb(228 242 34 / 0.16);
     --s-inset: rgb(8 9 10 / 0.04);
     --s-hairline: rgb(8 9 10 / 0.12);
     background: var(--s-bg);
@@ -95,8 +93,6 @@
   }
   :root[data-theme='dark'] .stage {
     --s-texture-opacity: 0.055;
-    --s-wash-strong: rgb(228 242 34 / 0.13);
-    --s-wash-soft: rgb(228 242 34 / 0.06);
     --s-inset: rgb(255 255 255 / 0.035);
     --s-hairline: rgb(255 255 255 / 0.14);
   }
@@ -316,16 +312,8 @@
        rather than below a white strip the header is sitting on. */
     margin-top: calc(-1 * (1rem + 3.4rem));
   }
-  /* Two static washes and one moving one. The washes are plain CSS gradients — depth that costs
-     nothing and cannot fail — and the drifting dot grid is `data-kui="dot-grid-drift"`, the page
-     using its own catalog for its own texture. Both sit behind everything at z-index 0; the
-     content layer is explicitly raised. */
-  .hero-glow {
-    position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(60% 50% at 78% 22%, var(--s-wash-strong), transparent 70%),
-      radial-gradient(45% 40% at 8% 78%, var(--s-wash-soft), transparent 72%);
-  }
+  /* The drifting dot grid is `data-kui="dot-grid-drift"` — the page using its own catalog for its
+     own texture. It sits behind everything at z-index 0; the content layer is explicitly raised. */
   .hero-grid-texture {
     position: absolute; inset: 0; z-index: 0; pointer-events: none;
     color: var(--s-fg);
@@ -1061,7 +1049,6 @@
          lime was chosen for. It sits outside `.wrap` and carries its own, so the paint reaches the
          viewport edge while the content stays on the same 1200px measure as every section below. -->
     <section class="hero-stage stage" data-od-id="hero">
-      <div class="hero-glow" aria-hidden="true"></div>
       <div class="hero-grid-texture" aria-hidden="true" data-kui="dot-grid-drift 26s"></div>
       <div class="wrap hero-inner">
         <div class="hero">
