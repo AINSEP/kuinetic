@@ -457,6 +457,16 @@
      is the library's answer to exactly that. This block used to carry the rotation as a
      hand-written `rotate: calc(-180deg + var(--kui-progress) * 180deg)`, which meant copying the
      data-kui attribute off this page got you a pinned card that did not turn. */
+  /* 300vh is not arbitrary, and it is not the sibling's number either — measured at a 723px
+     viewport it is the card (~65vh) plus the 200vh spacer `pin-section distance:200vh` inserts,
+     plus ~35vh of deliberate hold. That hold is the point: sticky releases when the containing
+     block scrolls past, not when the rotation finishes, so the surplus is the only stretch where
+     the card sits upright and still — and upright is the only way its own `data-kui` caption and
+     SHOW CODE chip can be read, which on this page is the whole reason the card exists.
+
+     It has to be `min-height`. `padding-bottom` looks equivalent and is not: sticky is confined to
+     its containing block's content box, which padding does not grow, so the card releases the
+     instant the rotation lands and the caption whips away unread. Tried, measured, reverted. */
   .rotate-stage { position: relative; min-height: 300vh; margin-top: 2.5rem; }
   .rotate-pin-card { width: min(560px, 100%); margin-inline: auto; }
 
