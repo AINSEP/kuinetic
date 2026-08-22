@@ -45,7 +45,13 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
 }
 
 export const THREE_D_PRIMITIVES: Primitive[] = [
-  cssPrimitive('flip-face', [CHANNEL.rotate], {
+  // `skew`, not `rotate`: the keyframes in three-d.css write `transform: perspective(...)
+  // rotateX/Y(...)`, not the individual `rotate:` property — `perspective` only creates depth for
+  // an element's *children*, so giving one of these effects its own depth means reaching for the
+  // `perspective()` transform *function*, which only exists inside the `transform` shorthand.
+  // `CHANNEL.skew` is this catalog's name for "claims the whole `transform` shorthand"; see the
+  // comment on it in `core/types.ts`.
+  cssPrimitive('flip-face', [CHANNEL.skew], {
     parameters: {
       angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
       perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },

@@ -278,9 +278,19 @@ const BLUR: Preset[] = [
   pIn('fade-blur-in', 'reveal-blur', 'kui-fade-blur-in'),
 ]
 
-/** Character variants: identical keyframes, different easing. Zero extra CSS. */
+/**
+ * Character variants: identical keyframes, different easing. Zero extra CSS.
+ *
+ * `bounce-in` used to differ from `pop-in` only in `scale` (0.3 vs 0.6) — both rode the same
+ * `back-out` cubic-bezier, which overshoots once and settles, i.e. a pop, not a bounce. `bounce`
+ * is `--kui-ease-bounce` in base.css: a `linear()` easing that crosses back over 1 twice with
+ * shrinking amplitude — overshoot, undershoot, a smaller overshoot, a smaller undershoot, settle —
+ * which is what a dropped ball actually looks like. `--kui-ease-spring` next to it in base.css was
+ * the first thing tried here; it turned out to be one overshoot with an eased approach, not a
+ * multi-peak bounce, so this got its own token instead of misusing that one.
+ */
 const CHARACTER: Preset[] = [
-  pIn('bounce-in', 'scale', 'kui-zoom-in', { scale: '0.3', ease: 'back-out' }),
+  pIn('bounce-in', 'scale', 'kui-zoom-in', { scale: '0.3', ease: 'bounce' }),
   pIn('bounce-in-up', 'reveal', 'kui-in-up', { distance: '60px', ease: 'back-out' }),
   pIn('bounce-in-down', 'reveal', 'kui-in-down', { distance: '60px', ease: 'back-out' }),
   pIn('back-in-up', 'reveal', 'kui-in-up', { distance: '120px', ease: 'expo-out' }),

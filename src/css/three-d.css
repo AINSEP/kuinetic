@@ -9,38 +9,67 @@
  * `test/css-invariants-v3.test.ts` enforces this against these files.
  */
 @layer kui.effects {
-  /* --- 3D flips (channel: rotate) --- */
+  /*
+   * --- 3D flips (channel: skew) ---
+   *
+   * These write `transform`, not the individual `rotate:` property, and that is load-bearing.
+   *
+   * The `perspective` CSS *property* only ever creates depth for an element's children — never
+   * for the element it is set on. `rotate: y 180deg` alone therefore turns the element with no
+   * foreshortening at all: an orthographic spin, not a card flipping in space. The block below
+   * used to pair that bare `rotate:` with `perspective: var(--kui-perspective, ...)` on this same
+   * selector, which looked plausible and did nothing, because the element the property sits on is
+   * never the element it affects.
+   *
+   * The fix is the `perspective()` *transform function*, which — unlike the property — does apply
+   * to the element carrying it. That only exists inside the `transform` shorthand, so the angle
+   * moves from `rotate:` into `transform: perspective(...) rotateX/Y(...)`. That is also why the
+   * primitive's channel changed from `rotate` to `skew`: `skew` is this catalog's name for "claims
+   * the whole `transform` shorthand" (see `CHANNEL.skew` in `core/types.ts`), and these presets no
+   * longer touch the individual `rotate:` property at all — composing one with something that
+   * still writes bare `rotate:` (an entrance's `rotate-in`, say) is fine now; composing one with
+   * `scroll-skew`, the shorthand's other claimant, is correctly flagged as a conflict instead.
+   */
   @keyframes kui-card-flip-y {
     to {
-      rotate: y var(--kui-from-angle, 180deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 180deg));
     }
   }
 
   @keyframes kui-card-flip-x {
     to {
-      rotate: x var(--kui-from-angle, 180deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 180deg));
     }
   }
 
   @keyframes kui-cube-rotate {
     to {
-      rotate: y var(--kui-from-angle, 90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
     }
   }
 
   @keyframes kui-book-page-turn {
     to {
-      rotate: y var(--kui-from-angle, -160deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, -160deg));
     }
   }
 
   @keyframes kui-fold-panel {
     from {
-      rotate: x var(--kui-from-angle, -90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, -90deg));
     }
   }
 
-  /* --- perspective context (channel: layout) --- */
+  /*
+   * --- perspective context (channel: layout) ---
+   *
+   * Kept alongside the fix above rather than removed: `perspective` and `transform-style:
+   * preserve-3d` are genuinely no-ops for *this* element's own rotation (that is the bug this file
+   * just fixed), but they still matter if the author nests further 3D-transformed content inside
+   * one of these — e.g. a `<span>` with its own `rotate:` — which then wants a shared 3D scene
+   * rather than being flattened onto this element's face. Harmless either way: unused if nothing
+   * inside asks for it.
+   */
   [data-kui-fx~='card-flip-x'],
   [data-kui-fx~='card-flip-y'],
   [data-kui-fx~='cube-rotate'],

@@ -34,7 +34,10 @@ export const CHANNEL = {
    * Skew is the one transform CSS never gave an independent property to — there is no `skew:`
    * beside `translate:`/`rotate:`/`scale:`, so it can only be written through the `transform`
    * shorthand. That makes it its own channel: anything writing `transform` clobbers the whole
-   * shorthand, and nothing else in the catalog writes `transform` at all.
+   * shorthand, so every primitive that does is on this channel, whatever the transform is for.
+   * `scroll-skew` is one member; `flip-face` (`effects/three-d`) is the other — it needs the
+   * `perspective()` transform *function* for an element to have depth on itself, which likewise
+   * only exists inside `transform`.
    */
   skew: 'skew',
 } as const

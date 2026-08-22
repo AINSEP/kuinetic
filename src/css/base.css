@@ -21,6 +21,13 @@
     --kui-ease-quart-out: cubic-bezier(0.25, 1, 0.5, 1);
     --kui-ease-circ-out: cubic-bezier(0, 0.55, 0.45, 1);
     --kui-ease-spring: linear(0, 0.4 12%, 0.9 25%, 1.06 38%, 1.01 62%, 1);
+    /*
+     * Unlike `--kui-ease-spring` above (one overshoot, then a single gentle correction to rest),
+     * this crosses back over 1 twice with shrinking amplitude — overshoot, undershoot, a smaller
+     * overshoot, a smaller undershoot, settle — the decaying-oscillation shape a dropped ball
+     * actually traces. `bounce-in` is the one preset that asks for it.
+     */
+    --kui-ease-bounce: linear(0, 0.5 10%, 1.2 30%, 0.9 50%, 1.08 68%, 0.97 82%, 1.02 92%, 1);
   }
 
   /*

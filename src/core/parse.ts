@@ -46,6 +46,7 @@ const EASING_KEYWORDS: ReadonlySet<string> = new Set([
   'quart-out',
   'circ-out',
   'spring',
+  'bounce',
 ])
 
 type Token =

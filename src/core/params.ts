@@ -50,7 +50,7 @@ const HEX_COLOR = /^#[0-9a-f]{3,8}$/i
 const COLOR_FUNCTIONS = /^(?:rgba?|hsla?|okl(?:ch|ab)|l(?:ch|ab)|color)\([^()]*\)$/i
 const COLOR_KEYWORD = /^[a-z]+$/i
 
-const EASING_KEYWORD = /^(?:linear|ease|step-start|step-end|spring|[a-z]+-(?:in|out|in-out))$/i
+const EASING_KEYWORD = /^(?:linear|ease|step-start|step-end|spring|bounce|[a-z]+-(?:in|out|in-out))$/i
 const EASING_FUNCTION = /^(?:cubic-bezier|steps|linear)\([^()]*\)$/i
 
 const CALC_TYPES = new Set<ParamSpec['type']>(['length', 'percentage', 'number'])
