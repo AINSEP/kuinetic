@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — 3D &amp; Perspective</title>
+<meta name="description" content="3D transform patterns for kUInetic's data-kui effects — card-flip-x, cube-rotate, book-page-turn, and fold-panel, compiled to real CSS keyframes with a perspective() transform, zero animation-loop JS." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero (shared vocabulary, copied from reveals.html) ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 20ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 30ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
+
+  /* ---------- matrix groups ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+
+  /* ---------- demo grid / cards (shared vocabulary, copied from reveals.html) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; flex: none; }
+  .demo-card figcaption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  /* Same fix as ambient-feedback.html and scroll.html: the show-code chip's default colour is
+     `--accent-text`, which in dark mode *is* `--accent` — identical to the figcaption background
+     this rule just painted, so the chip renders at full opacity and is simply invisible. Falling
+     back to `currentColor` reads as `--accent-ink` here, legible on the `--accent` bar. */
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle {
+    color: currentColor;
+    border-color: color-mix(in srgb, currentColor 55%, transparent);
+  }
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
+  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible {
+    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+        >
+          CSS Animations
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · 3D &amp; Perspective</p>
+          <h1 data-kui="fade-up 700ms">Real depth, from one attribute.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            Catalog section <code>N</code> — six names that rotate an element in 3D space rather
+            than faking it with a 2D squash. Every keyframe here writes the <code>perspective()</code>
+            transform function onto the element that is actually turning, not the CSS
+            <code>perspective</code> property on some ancestor that never touches it.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#three-d" class="btn btn-primary">Scroll the effects</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 220ms"><span class="dot"></span> Trigger buttons elsewhere in the showcase are demo glue — every effect here is one attribute, nothing more.</p>
+        </div>
+        <div class="hero-media">
+          <img
+            src="./assets/futurism/gold-helmet.jpg"
+            alt="Close-up portrait in a mirror-polished gold helmet with a fringed metal chain veil, warm gold bodysuit"
+            data-kui="blur-in 2000ms on:load"
+          />
+        </div>
+      </section>
+
+      <!-- N: 3D & PERSPECTIVE -->
+      <section id="three-d" data-od-id="three-d">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">N — 3D &amp; perspective</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            Six names ship in this section. Two already appear elsewhere in the showcase —
+            <code>flip-card</code> is the front-and-back card in the homepage hero, and
+            <code>card-flip-y</code> is the entrance beside it — so this page covers the four that
+            don't: <code>card-flip-x</code>, <code>cube-rotate</code>, <code>book-page-turn</code>,
+            and <code>fold-panel</code>.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">card-flip-x — perspective, compared</p>
+          <p style="margin: 0 0 0.85rem; color: var(--muted); max-width: 58ch; line-height: 1.6;">
+            Same rotation, two depths. <code>perspective:</code> sets how close the vanishing point
+            sits — a smaller value exaggerates the foreshortening instead of doing nothing, which is
+            what it did before today's fix.
+          </p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-show-code>
+              <img src="./assets/futurism/asian-white-visor.jpg" alt="Portrait in a glossy white helmet visor lit from within by pink light, long pale hair falling past a structured white collar" loading="lazy" data-kui="card-flip-x 900ms on:enter" />
+              <figcaption>data-kui="card-flip-x 900ms on:enter" — default perspective, 1200px</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <img src="./assets/futurism/red-fashion.jpg" alt="Portrait in a glossy deep-red helmet visor with a swept dark center part, drop earrings and a lip piercing" loading="lazy" data-kui="card-flip-x 900ms perspective:600px on:enter" />
+              <figcaption>data-kui="card-flip-x 900ms perspective:600px on:enter"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Rotate &amp; fold — 3</p>
+          <div class="demo-grid" data-kui-stagger="90ms">
+            <figure class="demo-card" data-show-code>
+              <img src="./assets/modeling/spotted-shirt.jpg" alt="Street portrait of a man in a cream-and-navy swirl-patterned turtleneck sweater" loading="lazy" data-kui="cube-rotate 900ms on:enter" />
+              <figcaption>data-kui="cube-rotate 900ms on:enter" — angle:90deg by preset default</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <img src="./assets/modeling/vase-dress.jpg" alt="Portrait in a strapless gown painted with gold-lined cubist faces, styled beside a matching vase and easel canvas" loading="lazy" data-kui="book-page-turn on:enter" />
+              <figcaption>data-kui="book-page-turn on:enter" — angle and duration both come from the preset</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <img src="./assets/modeling/stripe-suit.jpg" alt="Portrait in a sharp-shouldered white pinstripe suit, cinched waist sash and white gloves" loading="lazy" data-kui="fold-panel 900ms on:enter" />
+              <figcaption>data-kui="fold-panel 900ms on:enter" — hinged from the top edge, not the center</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>
