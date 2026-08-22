@@ -51,6 +51,8 @@
     "dev": "npm run build && node scripts/dev-server.mjs",
     "verify:browser": "npm run build && node scripts/verify-browser.mjs",
     "test:browser": "npm run build && node scripts/run-browser-tests.mjs",
+    "test:visual": "npm run build && node scripts/visual-regression.mjs",
+    "test:visual:update": "npm run build && node scripts/visual-regression.mjs --update",
     "generate:css": "node scripts/generate-preset-css.mjs",
     "record": "npm run build && node scripts/verify-browser.mjs --record",
     "check:showcase": "npm run build && node scripts/check-showcase.mjs"
@@ -69,7 +71,9 @@
     "globals": "^14.0.0",
     "jsdom": "^25.0.1",
     "knip": "^6.32.2",
+    "pixelmatch": "^7.2.0",
     "playwright-core": "^1.61.1",
+    "pngjs": "^7.0.0",
     "size-limit": "^13.0.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",

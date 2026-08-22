@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — visual-regression fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * Two themes, not one page style. `--bg`/`--fg` here are a minimal stand-in for
+       * `demo/system.css`'s real tokens — just enough that anything keying off `currentColor` (the
+       * gradient-stroke canary) or sitting against a light vs dark surface (all of them, really)
+       * genuinely renders differently between the two runs, rather than "two identical screenshots
+       * with a label that says otherwise".
+       */
+      :root[data-theme='light'] { --bg: #ffffff; --fg: #14110f; }
+      :root[data-theme='dark'] { --bg: #14110f; --fg: #f5efe8; }
+      body {
+        margin: 0; padding: 2rem;
+        background: var(--bg); color: var(--fg);
+        font-family: system-ui, sans-serif;
+        display: grid; grid-template-columns: repeat(4, 160px); gap: 1.5rem;
+      }
+      .canary {
+        width: 160px; height: 110px;
+        display: grid; place-items: center;
+        border-radius: 8px; overflow: clip;
+        font-size: 0.8rem; text-align: center;
+      }
+      .canary-svg { width: 160px; height: 110px; }
+
+      /* Distinctive per-canary backgrounds — a filter or a mask on a flat single colour is
+         visually inert (grayscale of one solid hue looks like a slightly darker version of the
+         same solid hue), so the ones whose whole job is "does the filter/mask actually change the
+         pixels" get a gradient or checker instead of a flat fill. */
+      #blur-in { background: repeating-linear-gradient(45deg, #e0242b 0 8px, #f5efe8 8px 16px); }
+      #duotone-hover { background: linear-gradient(135deg, #e4f222 0%, #0a58ff 50%, #e0242b 100%); }
+      #fade-blur-up { background: repeating-linear-gradient(90deg, #27a644 0 6px, #14110f 6px 12px); color: #fff; }
+      #gradient-shimmer { font-size: 1.6rem; font-weight: 700; background: #14110f; color: #fff; }
+      #underline-draw { background: transparent; color: var(--fg); }
+      #shine-sweep { background: #14110f; color: #fff; cursor: pointer; }
+      #curtain-wipe { background: linear-gradient(90deg, #e4f222, #e0242b); }
+      #redaction-reveal { background: #14110f; color: #fff; font-size: 0.75rem; }
+      #mask-reveal { background: conic-gradient(#e4f222, #0a58ff, #e0242b, #e4f222); }
+      /* Half white / half black so `mix-blend-mode: difference` visibly inverts one side and not
+         the other, regardless of exactly where the pointer settles inside the zone. */
+      #cursor-invert { background: linear-gradient(90deg, #fff 50%, #000 50%); }
+
+      /* No `defaultActivation` override needed on any of these — every one resolves to `enter`
+         except duotone-hover/underline-draw/shine-sweep (hover) and cursor-invert (load), per the
+         primitive definitions themselves. */
+    </style>
+  </head>
+  <body>
+    <div id="blur-in" class="canary" data-kui="blur-in 500ms">blur-in</div>
+
+    <div id="duotone-hover" class="canary" data-kui="duotone-hover 500ms"></div>
+
+    <div id="fade-blur-up" class="canary" data-kui="fade-blur-up 500ms"></div>
+
+    <div id="gradient-shimmer" class="canary" data-kui="gradient-shimmer 1200ms on:load">SHIMMER</div>
+
+    <span id="underline-draw" class="canary" data-kui="underline-draw 500ms on:hover" style="display: inline-block;">underline-draw</span>
+
+    <div id="shine-sweep" class="canary" data-kui="shine-sweep">shine-sweep</div>
+
+    <div id="curtain-wipe" class="canary" data-kui="curtain-wipe 500ms"></div>
+
+    <span id="redaction-reveal" class="canary" data-kui="redaction-reveal 500ms">classified text</span>
+
+    <div id="mask-reveal" class="canary" data-kui="mask-reveal 500ms"></div>
+
+    <div id="cursor-invert" class="canary" data-kui="cursor-invert"></div>
+
+    <!-- SVG stroke family: real <path>/<circle>, `data-kui` on the shape itself, not a wrapping div. -->
+    <svg id="draw-stroke" class="canary-svg" viewBox="0 0 160 110">
+      <path data-kui="draw-stroke 500ms" pathLength="100" d="M15,55 L145,55" stroke="#e4f222" stroke-width="6" fill="none" />
+    </svg>
+
+    <!-- No `fill:none` from the library for this one (per the primitive's own CSS) — set here,
+         or a closed triangle paints solid black over its own stroke. Colour comes from the
+         `--kui-stroke-*` custom properties the keyframe reads via `currentColor`'s replacement,
+         set inline so the sweep is a real, visible gradient rather than an invisible default. -->
+    <svg id="gradient-stroke" class="canary-svg" viewBox="0 0 160 110">
+      <path
+        data-kui="gradient-stroke on:load"
+        pathLength="100"
+        d="M20,90 L80,15 L140,90"
+        fill="none"
+        stroke-width="6"
+        style="--kui-stroke-from: #e4f222; --kui-stroke-via: #0a58ff; --kui-stroke-to: #e0242b"
+      />
+    </svg>
+
+    <!-- r=42 -> circumference 2*pi*42 ~= 263.9, rounded to 264: the library only auto-sets
+         `stroke-dasharray: var(--kui-path-length, 100)`, the real circumference is the author's
+         to supply (per the primitive's own doc: no `value:`/`max:` param exists). -->
+    <svg id="progress-ring" class="canary-svg" viewBox="0 0 110 110">
+      <circle cx="55" cy="55" r="42" stroke="#14110f" stroke-width="8" fill="none" opacity="0.15" />
+      <circle
+        data-kui="progress-ring 500ms"
+        cx="55" cy="55" r="42"
+        stroke="#27a644" stroke-width="8" fill="none"
+        style="--kui-path-length: 264; transform: rotate(-90deg); transform-origin: 50% 50%"
+      />
+    </svg>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__registry = kuinetic.createRegistry()
+      window.__kui = kuinetic
+        .kuinetic({ reporter: kuinetic.silentReporter(), observe: true })
+        .start()
+    </script>
+  </body>
+</html>
