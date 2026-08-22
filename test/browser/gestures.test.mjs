@@ -135,6 +135,47 @@ async function checkPlainDrag(page, check, snap) {
     `translate=${settled.translate}`,
   )
   await snap(page, 'drag-settled')
+
+  /*
+   * A second pickup, which is where this family was broken until 2026-08-22.
+   *
+   * `recognise` measures `dx`/`dy` from the current `pointerdown`, and `prepareDraggable` wrote
+   * them straight into the offset — so the element threw away every previous drag and snapped back
+   * to the origin the moment you touched it again. The check above never saw it, because it drags
+   * exactly once; one drag from rest is the one case where "delta from pointerdown" and "position"
+   * happen to be the same number.
+   *
+   * The three names that spring back on release (`elastic-pull`, `rubber-band`, `snap-back`) hid it
+   * completely — their pickup offset is always zero — so half the family looked fine while
+   * `drag`, `drag-inertia` and `throwable` jumped out from under the cursor.
+   */
+  const secondBox = await page.locator('#drag').boundingBox()
+  const restartX = secondBox.x + secondBox.width / 2
+  const restartY = secondBox.y + secondBox.height / 2
+  await page.mouse.move(restartX, restartY)
+  await page.mouse.down()
+  // Held still at the halfway point: the jump, if it happens, happens on the first move of the
+  // gesture, so sampling mid-drag catches it without any release behaviour muddying the reading.
+  for (let step = 1; step <= 5; step++) {
+    await page.mouse.move(restartX + step * 6, restartY + step * 3)
+    await page.waitForTimeout(16)
+  }
+  const midSecond = await readGestureState(page, '#drag')
+  await page.mouse.up()
+  await page.waitForTimeout(SPRING_SETTLE_MS)
+  const afterSecond = await readGestureState(page, '#drag')
+
+  check(
+    'a second drag continues from where the element rests, instead of snapping back to the origin',
+    approx(midSecond.tx, 110, 4) && approx(midSecond.ty, 55, 4),
+    `mid-second-drag translate=${midSecond.translate} (expected ~110px 55px: 80,40 already held plus 30,15 of new movement)`,
+  )
+  check(
+    'the element still holds the point under the cursor after being picked up twice',
+    approx(afterSecond.tx, 110, 4) && approx(afterSecond.ty, 55, 4),
+    `translate=${afterSecond.translate}`,
+  )
+  await snap(page, 'drag-second-pickup')
 }
 
 /** Cumulative raw pointer dx for a burst-sampled elastic drag; the last two exceed bounds:80. */

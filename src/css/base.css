@@ -4,7 +4,11 @@
  * Cascade layers mean a consuming site's own CSS wins without `!important` wars. Keep every
  * library rule inside `kui.*`; never emit a bare top-level rule.
  */
-@layer kui.tokens, kui.presets, kui.effects, kui.policy;
+/* `kui.cloak` is last, so its `opacity: 0` beats every effect rule that would otherwise paint an
+   element at its rest state before the runtime has installed the from-state. It is emitted by
+   `scripts/generate-preset-css.mjs` into `presets.generated.css`, one selector per preset that
+   declares `cloak: true`. */
+@layer kui.tokens, kui.presets, kui.effects, kui.policy, kui.cloak;
 
 @layer kui.tokens {
   :root {
@@ -22,9 +26,20 @@
   /*
    * Writing-mode sign for the logical slide family. Physical `slide-left` is deliberately NOT
    * affected — silently reversing "left" in RTL surprises authors.
+   *
+   * `--kui-i` is reset here for a different reason: it is a *position within one group*, and an
+   * inherited custom property does not stop at the group. A dropdown nested inside item 11 of a
+   * staggered list read `--kui-i: 11` off its ancestor and opened 660ms after the click — the
+   * effect looked broken because it was waiting out somebody else's stagger. The runtime always
+   * writes a real index as an inline style (`src/core/stagger.ts`, `src/core/play.ts`), and inline
+   * beats a layer, so genuine group members are untouched and only the leak is cut.
+   *
+   * `--kui-stagger` is deliberately NOT reset: authors set it on a wrapper precisely so children
+   * inherit it, and that is the documented way to time a group.
    */
   [data-kui-fx] {
     --kui-dir: 1;
+    --kui-i: 0;
   }
 
   :dir(rtl) [data-kui-fx] {
@@ -34,12 +49,24 @@
 
 @layer kui.policy {
   /*
-   * Opt-in cloak, twice over: the root must carry `data-kui-cloak` AND the element must be
-   * marked `data-kui-reveal`. Cloaking every effect hid tilt targets, counters, pinned sections,
-   * and drag handles — none of which have a from-state worth hiding.
+   * The manual cloak override — `data-kui-reveal` on an individual element.
+   *
+   * This used to be the whole mechanism, and it went unused on every page in the repo because it
+   * was opt-in twice: the root needed `data-kui-cloak` AND every element needed this attribute,
+   * which is ~100 attributes on a page that already has ~100. Declaring `cloak: true` on the
+   * preset (see `Preset.cloak`) replaced it for the effects that ship with a from-state, and
+   * `presets.generated.css`'s `kui.cloak` layer now emits those selectors automatically.
+   *
+   * It stays as the escape hatch for the case the generated list cannot cover: an effect whose
+   * from-state depends on the author's own CSS rather than the preset's params. Cloaking every
+   * effect unconditionally is still wrong, and still the reason there is a list at all — it hid
+   * tilt targets, counters, pinned sections, and drag handles, none of which have a from-state
+   * worth hiding.
    *
    * The runtime removes the root attribute on start, and a watchdog removes it if start stalls,
-   * so a failed or slow initialisation cannot leave a page blank.
+   * so a failed or slow initialisation cannot leave a page blank. Unlike the generated layer this
+   * rule has no CSS-only release: `!important` is here to beat author styles, and an author who
+   * reaches for this attribute is asking for it explicitly.
    */
   html[data-kui-cloak] [data-kui][data-kui-reveal]:not([data-kui-state]) {
     opacity: 0 !important;

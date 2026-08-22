@@ -1,0 +1,34 @@
+/*
+ * Layout and FLIP effects (catalog section H).
+ *
+ * These are JS-rendered — `flip-layout` measures, inverts, and plays — so most of the group needs
+ * no stylesheet at all. This file exists for the one thing the JS genuinely cannot decide.
+ */
+@layer kui.effects {
+  /*
+   * --- accordion-height: the collapsed state ---
+   *
+   * `prepareAutoHeight` already claims `overflow: hidden` and tracks `height`, and it animates
+   * from the panel's *current rendered height* to its natural `scrollHeight`. That is the whole
+   * mechanism and it is correct — but it means the library never decides what "closed" is. A page
+   * that did not write `height: 0` itself had a panel sitting at its natural height, so every
+   * toggle animated from N to N and nothing moved. Every consumer therefore had to write the same
+   * two rules by hand, which is the authoring burden this library exists to remove.
+   *
+   * Closed is `height: 0` here, because that is what closed means in every accordion anyone has
+   * ever built. An author who wants a peek — a three-line preview that expands — overrides this
+   * with one ordinary rule; it is in the effects layer, so no `!important` is needed.
+   *
+   * Keyed on the default `data-open`. `auto-height` lets the author rename the attribute it
+   * watches (`attribute:aria-expanded`), and a static stylesheet cannot follow a name chosen at
+   * runtime, so a renamed attribute still declares its own collapsed state — the same limit every
+   * attribute-driven rule in this library has.
+   */
+  [data-kui-fx~='accordion-height'] {
+    overflow: hidden;
+  }
+
+  [data-kui-fx~='accordion-height']:not([data-open]) {
+    height: 0;
+  }
+}

@@ -9,8 +9,20 @@ import type { Cleanup, EffectParams } from '../../core/types.js'
  * per-child numbers CSS reads.
  */
 
-/** Which way the image is cut into strips. */
+/** Which way the image is cut into strips. `angle:` generalises this to any degree. */
 export type SlatAxis = 'vertical' | 'horizontal'
+
+/** Degrees per axis keyword, when the author names an axis rather than an angle. */
+const AXIS_DEGREES: Record<SlatAxis, number> = { vertical: 0, horizontal: 90 }
+
+/** Degrees in one of each CSS angle unit, so `angle:` accepts whichever one the author reaches for. */
+const UNIT_DEGREES = { deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 } as const
+
+/** How far past the band's own boundary each slat's clip reaches, in px — the seam closer. */
+const BAND_OVERLAP_PX = 1
+
+/** How far the from-state displaces a slat along its own band, as a fraction of the stage. */
+export const SLAT_TRAVEL = 0.38
 
 /** How the per-slat stagger order relates to a slat's geometric position. */
 export type SlatFrom = 'alternate' | 'start' | 'end' | 'edges' | 'random-ish'
@@ -75,6 +87,113 @@ function zigzagRank(index: number, count: number): number {
   return fromStart <= fromEnd ? pair * 2 : pair * 2 + 1
 }
 
+/**
+ * Resolve the authored `angle:` to degrees, falling back to whatever `axis:` names.
+ *
+ * `angle:` is the general parameter and `axis:` the two-keyword shorthand that predates it, so an
+ * authored angle wins and an absent one reads the axis. Both `45` and `45deg` are accepted, as are
+ * `turn` and `rad`, because an author who writes an angle should not have to remember which of the
+ * three this particular parameter takes.
+ *
+ * Normalised to `[0, 180)`: a band at 200° is the same set of bands as one at 20°, only numbered
+ * from the other end, and collapsing that here means the geometry below never has to think about
+ * sign or wrap.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function slatAngleDegrees(authored: string, axis: SlatAxis): number {
+  const trimmed = authored.trim()
+  if (!trimmed) return AXIS_DEGREES[axis]
+
+  // The two number branches are mutually exclusive by their first character, so this cannot
+  // backtrack — `\d*\.?\d+` can, and a hostile `angle:` value is author input like any other.
+  const match = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(deg|rad|grad|turn)?$/.exec(trimmed)
+  if (!match) return AXIS_DEGREES[axis]
+
+  // Reachable: the pattern has no exponent, but four hundred digits still overflow to Infinity.
+  const value = Number(match[1])
+  if (!Number.isFinite(value)) return AXIS_DEGREES[axis]
+
+  // The unit group can only be one of the four the regex lists, or absent, so no fallback branch.
+  const unit = (match[2] ?? 'deg') as keyof typeof UNIT_DEGREES
+  const degrees = value * UNIT_DEGREES[unit]
+  return ((degrees % 180) + 180) % 180
+}
+
+/**
+ * The unit vector each slat travels along in its from-state: the band's own long axis.
+ *
+ * At 0° this is `(0, 1)` — vertical columns sliding up and down, which is exactly what the two
+ * hand-written axis keyframes did before this generalised them. At 90° it is `(-1, 0)`, horizontal
+ * rows sliding sideways. Perpendicular travel is deliberately not offered: a band moving across its
+ * own width exposes the gap it left, and the point of the effect is strips that are *out of line*,
+ * not strips that are missing.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function slatTravelVector(angleDegrees: number): { x: number; y: number } {
+  const theta = (angleDegrees * Math.PI) / 180
+  return { x: -Math.sin(theta), y: Math.cos(theta) }
+}
+
+/**
+ * The `clip-path` for one band of an angled slice, in pixels against the stage's measured box.
+ *
+ * Pixels, not percentages, on purpose. A percentage polygon is resolved against each axis
+ * separately, so "45°" on a 3:4 card would paint at some other angle entirely — the author asked
+ * for a diagonal and would get a diagonal that changes as the card resizes. Measuring means the
+ * angle is the angle, at any aspect ratio, and the caller re-runs this whenever the box changes.
+ *
+ * The band is the region between two parallel lines perpendicular to `angleDegrees`, extended far
+ * enough sideways to cover the stage from any rotation; `overflow: clip` on the stage trims the
+ * overhang. Each boundary is pushed out by {@link BAND_OVERLAP_PX} for the same reason the axis
+ * version added a pixel to its width: `span / count` almost never lands on a whole pixel, and the
+ * remainder renders as a hairline of backdrop between neighbours once they have landed.
+ *
+ * @param index - Band number, `0` to `count - 1`, in geometric order along the cut normal.
+ * @param box - The stage's measured pixel size, re-read by the caller on every layout change.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function slatBandClip(
+  index: number,
+  count: number,
+  angleDegrees: number,
+  box: { width: number; height: number },
+): string {
+  const { width, height } = box
+  const theta = (angleDegrees * Math.PI) / 180
+  // The cut normal: bands are stacked along this, and run perpendicular to it.
+  const nx = Math.cos(theta)
+  const ny = Math.sin(theta)
+  const { x: dx, y: dy } = slatTravelVector(angleDegrees)
+
+  // How far the box extends along the normal — the sum of each side's projection.
+  const span = Math.abs(nx) * width + Math.abs(ny) * height
+  const centreX = width / 2
+  const centreY = height / 2
+  const step = span / count
+  const near = index * step - span / 2 - BAND_OVERLAP_PX
+  const far = (index + 1) * step - span / 2 + BAND_OVERLAP_PX
+  // Longer than the box's own diagonal, so a band always spans it whatever the angle.
+  const reach = width + height
+
+  const corner = (along: number, across: number): string =>
+    `${(centreX + along * nx + across * dx).toFixed(2)}px ` +
+    `${(centreY + along * ny + across * dy).toFixed(2)}px`
+
+  return `polygon(${corner(near, reach)}, ${corner(near, -reach)}, ${corner(far, -reach)}, ${corner(far, reach)})`
+}
+
+/** The name for a cut angle, for `data-kui-slat-axis` — debugging only, no stylesheet reads it. */
+function axisLabel(angleDegrees: number): string {
+  if (angleDegrees === 0) return 'vertical'
+  if (angleDegrees === 90) return 'horizontal'
+  return 'diagonal'
+}
+
 export interface SlatStage {
   /** The `aria-hidden` wrapper holding every slat, positioned over the source `<img>`. */
   stage: HTMLElement
@@ -87,7 +206,8 @@ export interface SlatStage {
 /** Validated build options for {@link installSlatStage}, grouped to keep its own signature small. */
 export interface SlatBuildOptions {
   count: number
-  axis: SlatAxis
+  /** Resolved cut angle in degrees, `[0, 180)`. See {@link slatAngleDegrees}. */
+  angleDegrees: number
   from: SlatFrom
   fold: boolean
 }
@@ -107,11 +227,24 @@ export interface SlatBuildOptions {
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function syncStageToImage(stage: HTMLElement, img: HTMLElement): void {
+interface SlatBands {
+  slats: HTMLElement[]
+  angleDegrees: number
+}
+
+function syncStageToImage(stage: HTMLElement, img: HTMLElement, bands: SlatBands): void {
+  const { slats, angleDegrees } = bands
+  const width = img.offsetWidth
+  const height = img.offsetHeight
   stage.style.top = `${img.offsetTop}px`
   stage.style.left = `${img.offsetLeft}px`
-  stage.style.width = `${img.offsetWidth}px`
-  stage.style.height = `${img.offsetHeight}px`
+  stage.style.width = `${width}px`
+  stage.style.height = `${height}px`
+  // The bands are cut in pixels, so every re-measure has to re-cut them. Cheap — one string per
+  // slat, no layout read of its own, and it runs on exactly the occasions the box actually moved.
+  slats.forEach((slat, index) => {
+    slat.style.clipPath = slatBandClip(index, slats.length, angleDegrees, { width, height })
+  })
 }
 
 /**
@@ -125,8 +258,13 @@ function syncStageToImage(stage: HTMLElement, img: HTMLElement): void {
  * @complexity O(1) to install; callback cost is one re-measure per resize notification.
  * @overallScore 100
  */
-function watchImageBox(stage: HTMLElement, img: HTMLElement, win: Window): Cleanup {
-  const handler = (): void => syncStageToImage(stage, img)
+function watchImageBox(
+  stage: HTMLElement,
+  img: HTMLElement,
+  win: Window,
+  bands: SlatBands,
+): Cleanup {
+  const handler = (): void => syncStageToImage(stage, img, bands)
   win.addEventListener('resize', handler, { passive: true })
   const stopWindow = (): void => win.removeEventListener('resize', handler)
 
@@ -178,13 +316,21 @@ export function installSlatStage(
   const url = img.currentSrc || img.getAttribute('src') || ''
   if (!url) return null
 
-  const { count, axis, from, fold } = options
+  const { count, angleDegrees, from, fold } = options
+  const travel = slatTravelVector(angleDegrees)
   const stage = doc.createElement('div')
   stage.className = STAGE_CLASS
   stage.setAttribute('aria-hidden', 'true')
-  stage.dataset.kuiSlatAxis = axis
+  // Kept for debugging and for anyone reading the DOM: which of the three named cuts this is.
+  // No stylesheet keys on it any more — one clip-path path now serves every angle.
+  stage.dataset.kuiSlatAxis = axisLabel(angleDegrees)
+  stage.dataset.kuiSlatAngle = String(angleDegrees)
   stage.dataset.kuiSlatFold = String(fold)
   stage.style.setProperty('--kui-slat-count', String(count))
+  // Inherited by every slat: the direction its from-state displaces along, and the 3D axis a
+  // `fold:true` hinge turns about — which is the same vector in both cases.
+  stage.style.setProperty('--kui-slat-dx', travel.x.toFixed(4))
+  stage.style.setProperty('--kui-slat-dy', travel.y.toFixed(4))
 
   const slats: HTMLElement[] = []
   for (let index = 0; index < count; index++) {
@@ -197,8 +343,9 @@ export function installSlatStage(
     slats.push(slat)
   }
   el.append(stage)
-  syncStageToImage(stage, img)
-  const stopWatching = watchImageBox(stage, img, win)
+  const bands: SlatBands = { slats, angleDegrees }
+  syncStageToImage(stage, img, bands)
+  const stopWatching = watchImageBox(stage, img, win, bands)
 
   /*
    * Hide the source image for as long as the slats are standing in for it.

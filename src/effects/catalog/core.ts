@@ -189,15 +189,31 @@ const p = (
   params?: Record<string, string>,
 ): Preset => ({ name, primitive, keyframes, ...(params ? { params } : {}) })
 
+/**
+ * `p`, but for a name whose from-state must not be painted before the runtime installs it.
+ *
+ * Two spellings rather than a `cloak: true` on every row, because the distinction being drawn is
+ * exactly "entrance or not" and a reader scanning the matrix below should be able to see which is
+ * which without reading a fourth argument on forty-eight lines. `fade-up` enters from invisible
+ * and displaced; `fade-out` starts at the rest state and has nothing to hide. See `Preset.cloak`
+ * for why this is declared rather than derived from channels or timelines.
+ */
+const pIn = (
+  name: string,
+  primitive: string,
+  keyframes: string,
+  params?: Record<string, string>,
+): Preset => ({ ...p(name, primitive, keyframes, params), cloak: true })
+
 // --- A. Entrance & exit matrix — 48 names -------------------------------------------------
 
 const FADE: Preset[] = [
-  p('fade-in', 'reveal', 'kui-in'),
+  pIn('fade-in', 'reveal', 'kui-in'),
   p('fade-out', 'reveal', 'kui-out'),
-  p('fade-up', 'reveal', 'kui-in-up'),
-  p('fade-down', 'reveal', 'kui-in-down'),
-  p('fade-left', 'reveal', 'kui-in-left'),
-  p('fade-right', 'reveal', 'kui-in-right'),
+  pIn('fade-up', 'reveal', 'kui-in-up'),
+  pIn('fade-down', 'reveal', 'kui-in-down'),
+  pIn('fade-left', 'reveal', 'kui-in-left'),
+  pIn('fade-right', 'reveal', 'kui-in-right'),
   p('fade-out-up', 'reveal', 'kui-out-up'),
   p('fade-out-down', 'reveal', 'kui-out-down'),
   p('fade-out-left', 'reveal', 'kui-out-left'),
@@ -208,10 +224,10 @@ const FADE: Preset[] = [
 const SLIDE_PARAMS = { distance: '100px', opacity: '1' }
 
 const SLIDE: Preset[] = [
-  p('slide-up', 'reveal', 'kui-in-up', SLIDE_PARAMS),
-  p('slide-down', 'reveal', 'kui-in-down', SLIDE_PARAMS),
-  p('slide-left', 'reveal', 'kui-in-left', SLIDE_PARAMS),
-  p('slide-right', 'reveal', 'kui-in-right', SLIDE_PARAMS),
+  pIn('slide-up', 'reveal', 'kui-in-up', SLIDE_PARAMS),
+  pIn('slide-down', 'reveal', 'kui-in-down', SLIDE_PARAMS),
+  pIn('slide-left', 'reveal', 'kui-in-left', SLIDE_PARAMS),
+  pIn('slide-right', 'reveal', 'kui-in-right', SLIDE_PARAMS),
   p('slide-out-up', 'reveal', 'kui-out-up', SLIDE_PARAMS),
   p('slide-out-down', 'reveal', 'kui-out-down', SLIDE_PARAMS),
   p('slide-out-left', 'reveal', 'kui-out-left', SLIDE_PARAMS),
@@ -223,52 +239,52 @@ const SLIDE: Preset[] = [
  * Silently reversing "left" in RTL would surprise authors, so both vocabularies exist.
  */
 const LOGICAL: Preset[] = [
-  p('slide-inline-start', 'reveal', 'kui-in-inline-start', SLIDE_PARAMS),
-  p('slide-inline-end', 'reveal', 'kui-in-inline-end', SLIDE_PARAMS),
-  p('slide-block-start', 'reveal', 'kui-in-up', SLIDE_PARAMS),
-  p('slide-block-end', 'reveal', 'kui-in-down', SLIDE_PARAMS),
+  pIn('slide-inline-start', 'reveal', 'kui-in-inline-start', SLIDE_PARAMS),
+  pIn('slide-inline-end', 'reveal', 'kui-in-inline-end', SLIDE_PARAMS),
+  pIn('slide-block-start', 'reveal', 'kui-in-up', SLIDE_PARAMS),
+  pIn('slide-block-end', 'reveal', 'kui-in-down', SLIDE_PARAMS),
 ]
 
 const ZOOM: Preset[] = [
-  p('zoom-in', 'scale', 'kui-zoom-in'),
+  pIn('zoom-in', 'scale', 'kui-zoom-in'),
   p('zoom-out', 'scale', 'kui-zoom-out'),
-  p('pop-in', 'scale', 'kui-zoom-in', { scale: '0.6', ease: 'back-out' }),
+  pIn('pop-in', 'scale', 'kui-zoom-in', { scale: '0.6', ease: 'back-out' }),
   p('pop-out', 'scale', 'kui-zoom-out', { scale: '0.6', ease: 'back-in' }),
-  p('zoom-in-up', 'scale-move', 'kui-zoom-in-up'),
-  p('zoom-in-down', 'scale-move', 'kui-zoom-in-down'),
+  pIn('zoom-in-up', 'scale-move', 'kui-zoom-in-up'),
+  pIn('zoom-in-down', 'scale-move', 'kui-zoom-in-down'),
 ]
 
 const FLIP: Preset[] = [
-  p('flip-in-x', 'flip-3d', 'kui-flip-in-x'),
-  p('flip-in-y', 'flip-3d', 'kui-flip-in-y'),
+  pIn('flip-in-x', 'flip-3d', 'kui-flip-in-x'),
+  pIn('flip-in-y', 'flip-3d', 'kui-flip-in-y'),
   p('flip-out-x', 'flip-3d', 'kui-flip-out-x'),
   p('flip-out-y', 'flip-3d', 'kui-flip-out-y'),
 ]
 
 const ROTATE: Preset[] = [
-  p('rotate-in', 'rotate', 'kui-rotate-in'),
+  pIn('rotate-in', 'rotate', 'kui-rotate-in'),
   p('rotate-out', 'rotate', 'kui-rotate-out'),
-  p('rotate-in-left', 'rotate', 'kui-rotate-in', { angle: '-45deg' }),
-  p('rotate-in-right', 'rotate', 'kui-rotate-in', { angle: '45deg' }),
-  p('roll-in', 'roll', 'kui-roll-in'),
+  pIn('rotate-in-left', 'rotate', 'kui-rotate-in', { angle: '-45deg' }),
+  pIn('rotate-in-right', 'rotate', 'kui-rotate-in', { angle: '45deg' }),
+  pIn('roll-in', 'roll', 'kui-roll-in'),
   p('roll-out', 'roll', 'kui-roll-out'),
-  p('swing-in', 'rotate', 'kui-swing-in', { angle: '-15deg', ease: 'back-out' }),
+  pIn('swing-in', 'rotate', 'kui-swing-in', { angle: '-15deg', ease: 'back-out' }),
 ]
 
 const BLUR: Preset[] = [
-  p('blur-in', 'blur', 'kui-blur-in'),
+  pIn('blur-in', 'blur', 'kui-blur-in'),
   p('blur-out', 'blur', 'kui-blur-out'),
-  p('fade-blur-up', 'reveal-blur', 'kui-fade-blur-up'),
-  p('fade-blur-in', 'reveal-blur', 'kui-fade-blur-in'),
+  pIn('fade-blur-up', 'reveal-blur', 'kui-fade-blur-up'),
+  pIn('fade-blur-in', 'reveal-blur', 'kui-fade-blur-in'),
 ]
 
 /** Character variants: identical keyframes, different easing. Zero extra CSS. */
 const CHARACTER: Preset[] = [
-  p('bounce-in', 'scale', 'kui-zoom-in', { scale: '0.3', ease: 'back-out' }),
-  p('bounce-in-up', 'reveal', 'kui-in-up', { distance: '60px', ease: 'back-out' }),
-  p('bounce-in-down', 'reveal', 'kui-in-down', { distance: '60px', ease: 'back-out' }),
-  p('back-in-up', 'reveal', 'kui-in-up', { distance: '120px', ease: 'expo-out' }),
-  p('back-in-down', 'reveal', 'kui-in-down', { distance: '120px', ease: 'expo-out' }),
+  pIn('bounce-in', 'scale', 'kui-zoom-in', { scale: '0.3', ease: 'back-out' }),
+  pIn('bounce-in-up', 'reveal', 'kui-in-up', { distance: '60px', ease: 'back-out' }),
+  pIn('bounce-in-down', 'reveal', 'kui-in-down', { distance: '60px', ease: 'back-out' }),
+  pIn('back-in-up', 'reveal', 'kui-in-up', { distance: '120px', ease: 'expo-out' }),
+  pIn('back-in-down', 'reveal', 'kui-in-down', { distance: '120px', ease: 'expo-out' }),
 ]
 
 // --- B. Scroll reveal & parallax — 10 names -----------------------------------------------
@@ -287,7 +303,7 @@ const SCROLL: Preset[] = [
   p('scroll-progress-ring', 'progress-stroke', 'kui-progress-ring'),
   // `reveal-repeat` was removed: it was byte-identical to `reveal-once`, and the activation
   // binder unobserves after first entry, so a repeating reveal is not implementable yet.
-  p('reveal-once', 'reveal', 'kui-in-up'),
+  pIn('reveal-once', 'reveal', 'kui-in-up'),
 ]
 
 export const PRESETS: Preset[] = [

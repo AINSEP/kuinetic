@@ -50,6 +50,7 @@ const EFFECT_FILES = [
   'feedback.css',
   'ambient.css',
   'interaction.css',
+  'layout.css',
   'numbers.css',
   'forms.css',
   'navigation.css',
@@ -340,13 +341,50 @@ describe('reduced-motion policy', () => {
 
 describe('CSS layering', () => {
   it('declares the cascade layers so consumer CSS wins without !important', () => {
+    // `kui.cloak` is last on purpose: it has to beat every effect rule that would otherwise paint
+    // an element at its rest state before the runtime installs the from-state.
     expect(SOURCES.get('base.css')).toContain(
-      '@layer kui.tokens, kui.presets, kui.effects, kui.policy;',
+      '@layer kui.tokens, kui.presets, kui.effects, kui.policy, kui.cloak;',
     )
+  })
+
+  it('orders the cloak layer above the effect rules it has to beat', () => {
+    const order = SOURCES.get('base.css')?.match(/@layer ([^;]+);/)?.[1] ?? ''
+    const names = order.split(',').map((name) => name.trim())
+    expect(names.indexOf('kui.cloak')).toBeGreaterThan(names.indexOf('kui.effects'))
   })
 
   it.each(EFFECT_FILES)('keeps every rule in %s inside the effects layer', (file) => {
     expect(SOURCES.get(file)).toContain('@layer kui.effects {')
+  })
+})
+
+/*
+ * `--kui-i` is a position within *one* group, but a custom property inherits past the group's last
+ * element. A `dropdown-open` panel nested inside item 11 of a staggered catalog read `--kui-i: 11`
+ * off an ancestor and opened 660ms after the click, which reads on screen as a broken control.
+ *
+ * The reset lives in `kui.tokens` — the earliest layer — and the runtime always writes a real index
+ * as an inline style, which beats every layer. So members of a genuine stagger group keep their
+ * index and only the leak is cut.
+ */
+describe('stagger index containment', () => {
+  it('resets --kui-i on every effect element so a parent group cannot delay a nested effect', () => {
+    const base = SOURCES.get('base.css') ?? ''
+    const rule = /\[data-kui-fx\]\s*\{([^}]*)\}/.exec(base)?.[1] ?? ''
+    expect(rule).toMatch(/--kui-i:\s*0;/)
+  })
+
+  it('keeps the reset in kui.tokens, so an inline index from the runtime still wins', () => {
+    const base = SOURCES.get('base.css') ?? ''
+    const tokens = base.slice(base.indexOf('@layer kui.tokens {'), base.indexOf('@layer kui.policy {'))
+    expect(tokens).toContain('--kui-i: 0;')
+  })
+
+  it('does not reset --kui-stagger, which authors set on a wrapper for children to inherit', () => {
+    const base = SOURCES.get('base.css') ?? ''
+    const rule = /\[data-kui-fx\]\s*\{([^}]*)\}/.exec(base)?.[1] ?? ''
+    expect(rule).not.toMatch(/--kui-stagger:/)
   })
 })
 
@@ -380,4 +418,182 @@ describe('media-scrub frame stacking', () => {
   it('never keys those rules on the primitive id, which cannot match', () => {
     expect(scrollCss).not.toContain(`[data-kui-fx~='media-scrub']`)
   })
+})
+
+/**
+ * The pre-JS cloak, fenced the same way the `data-kui-fx` trap above is.
+ *
+ * `Preset.cloak` is a declaration, and a declaration nobody regenerates is a lie: adding a new
+ * entrance and forgetting `npm run generate:css` leaves the name un-cloaked, which brings the
+ * flash back for that one effect only and is invisible in review. These assertions compare the
+ * registry against the generated stylesheet in both directions.
+ *
+ * The direction that matters more is the second one. A cloak selector for something that is not
+ * an entrance hides a working element until the runtime reaches it — a pinned section at
+ * `opacity: 0` — and that fails much louder than a missing cloak, which is only the status quo.
+ */
+/**
+ * Read separately rather than added to `SOURCES`, which feeds the channel-invariant scans above.
+ * The cloak layer writes `opacity` and `animation` on selectors that are not keyed to any one
+ * primitive, so it has no `channels` declaration to be audited against and would only produce
+ * false positives there.
+ */
+const GENERATED_CSS = readFileSync(
+  fileURLToPath(new URL('../src/css/presets.generated.css', import.meta.url)),
+  'utf8',
+)
+
+describe('pre-JS cloak', () => {
+  const generated = GENERATED_CSS
+  const registry = createRegistry()
+  const declared = registry
+    .names()
+    .filter((name) => registry.resolve(name)?.preset.cloak === true)
+  const emitted = [
+    ...new Set(
+      [...generated.matchAll(/html\[data-kui-cloak\] \[data-kui~='([^']+)'\]/g)].map((m) => m[1]!),
+    ),
+  ].sort((a, b) => a.localeCompare(b))
+
+  it('has presets to guard, so this suite cannot pass vacuously', () => {
+    expect(declared.length).toBeGreaterThan(0)
+  })
+
+  it('emits exactly the presets that declare cloak, and no others', () => {
+    expect(emitted).toEqual(declared)
+  })
+
+  it('never cloaks an exit, which starts at the rest state', () => {
+    // An exit hidden before it runs is an element that was supposed to be on screen until it left.
+    expect(declared.filter((name) => name.includes('-out'))).toEqual([])
+  })
+
+  it('never cloaks a pinning or scroll-orchestration name', () => {
+    // The failure `base.css`'s own comment warns about: a pinned section held at opacity 0 for as
+    // long as the runtime takes to claim it.
+    const orchestrators = SCROLL_PRESETS.map((preset) => preset.name)
+    expect(declared.filter((name) => orchestrators.includes(name))).toEqual([])
+  })
+
+  it('ships a CSS-only release, so blocked JS cannot leave the page hidden', () => {
+    // Fail-open without depending on the JS watchdog: the element un-hides itself on a keyframe.
+    expect(generated).toContain('animation: kui-cloak-release')
+    expect(generated).toContain('@keyframes kui-cloak-release')
+  })
+
+  it('releases the cloak entirely under reduced motion', () => {
+    // Hiding content to smooth an entrance nobody is going to see is pure cost.
+    expect(generated).toContain('@media (prefers-reduced-motion: reduce)')
+  })
+
+  it('keys the cloak only on the authored attribute, never on runtime-stamped state', () => {
+    // `data-kui-fx` is written by `start()`. A cloak keyed on it matches nothing until the exact
+    // moment it is no longer needed, which is the one way to build a cloak that does nothing.
+    const cloakLayer = generated.slice(generated.indexOf('@layer kui.cloak'))
+    expect(cloakLayer).not.toContain('data-kui-fx')
+  })
+})
+
+/**
+ * Every `clip-path` keyframe must declare both endpoints, using the same shape function.
+ *
+ * `clip-path` does not interpolate between a shape and `none`, and it does not interpolate between
+ * two different shape functions. When a keyframe declares only a `from`, the implicit `to` is the
+ * element's computed value — which is `none` unless the author set one — so the browser falls back
+ * to *discrete* interpolation and swaps at the 50% mark. The effect does not wipe. It shows nothing
+ * for half its duration and then hard-cuts to the finished image.
+ *
+ * Seven of the eight media wipes shipped that way, plus `text-reveal-mask` and `curtain-wipe`.
+ * Every one of them read as "that effect is broken" rather than as a timing bug, and nothing in the
+ * suite noticed, because the animation *was* installed, *was* running, and *did* reach the right
+ * final state — it just never drew the middle. `wipe-diagonal` was the only one written with an
+ * explicit `to`, which is why it was also the only one that visibly worked.
+ */
+describe('clip-path keyframes', () => {
+  const SHAPE = /\b(inset|circle|ellipse|polygon|path|rect|xywh)\(/
+
+  const clipFrames = [...SOURCES.entries()].flatMap(([file, css]) =>
+    [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)]
+      .filter((m) => m[2]!.includes('clip-path'))
+      .map((m) => ({ file, name: m[1]!, body: m[2]! })),
+  )
+
+  it('has keyframes to guard, so this suite cannot pass vacuously', () => {
+    expect(clipFrames.length).toBeGreaterThan(0)
+  })
+
+  it.each(clipFrames.map((f) => [`${f.file} :: ${f.name}`, f] as const))(
+    '%s declares both endpoints',
+    (_label, frame) => {
+      // Without an explicit end the browser interpolates towards `clip-path: none`, discretely.
+      expect(/\bto\s*\{|100%\s*\{/.test(frame.body)).toBe(true)
+      expect(/\bfrom\s*\{|\b0%\s*\{/.test(frame.body)).toBe(true)
+    },
+  )
+
+  it.each(clipFrames.map((f) => [`${f.file} :: ${f.name}`, f] as const))(
+    '%s uses one shape function throughout',
+    (_label, frame) => {
+      // `inset()` -> `circle()` is as discrete as `inset()` -> `none`.
+      const shapes = [...frame.body.matchAll(/clip-path:\s*([a-z]+)\(/g)].map((m) => m[1]!)
+      expect(new Set(shapes).size).toBe(1)
+      expect(SHAPE.test(frame.body)).toBe(true)
+    },
+  )
+
+  /*
+   * Direction, which the two checks above cannot see and neither can the browser sweep.
+   *
+   * Transposing `kui-wipe-right`'s inset arguments — `inset(0 0 0 100%)` to `inset(0 100% 0 0)` —
+   * makes it reveal from the wrong edge, and it still declares both endpoints, still uses one shape
+   * function, still moves smoothly through five distinct sampled states, and still never hard-cuts
+   * at 50%. Injected on 2026-08-22, it passed all 74 unit checks in this file and all five checks in
+   * `test/browser/effect-sweep.test.mjs`. Nothing in the repository could tell the difference.
+   *
+   * The oracle deliberately avoids naming a convention. Whether `wipe-left` means "travels left" or
+   * "reveals from the left" is a design decision this file has no business asserting; what it can
+   * assert is that the pair are **opposites of each other**, which is true under either reading and
+   * false under any transposition. Same for the vertical pair.
+   */
+  /** `inset()` arguments at a keyframe offset, as an explicit four-tuple. */
+  const insetSides = (body: string, at: 'from' | 'to'): string[] => {
+    const pattern = at === 'from' ? /(?:\bfrom|\b0%)\s*\{([^}]*)\}/ : /(?:\bto|\b100%)\s*\{([^}]*)\}/
+    const declarations = pattern.exec(body)?.[1] ?? ''
+    const args = /inset\(([^)]*)\)/.exec(declarations)?.[1]?.trim().split(/\s+/) ?? []
+    if (args.length === 1) return [args[0]!, args[0]!, args[0]!, args[0]!]
+    if (args.length === 2) return [args[0]!, args[1]!, args[0]!, args[1]!]
+    if (args.length === 3) return [args[0]!, args[1]!, args[2]!, args[1]!]
+    return args
+  }
+
+  it.each([
+    ['kui-wipe-up', 'kui-wipe-down', 'vertical'],
+    ['kui-wipe-left', 'kui-wipe-right', 'horizontal'],
+  ])('%s and %s start from opposite edges', (firstName, secondName, axis) => {
+    const first = clipFrames.find((frame) => frame.name === firstName)
+    const second = clipFrames.find((frame) => frame.name === secondName)
+    expect(first, firstName).toBeDefined()
+    expect(second, secondName).toBeDefined()
+
+    const [top, right, bottom, left] = insetSides(first!.body, 'from')
+    expect(top, `${firstName} from-state should be an inset()`).toBeDefined()
+    // Mirroring the named axis of one has to produce the other, exactly.
+    const mirrored = axis === 'vertical' ? [bottom, right, top, left] : [top, left, bottom, right]
+    expect(insetSides(second!.body, 'from')).toEqual(mirrored)
+  })
+
+  it.each([
+    ['kui-wipe-up', 'kui-wipe-down'],
+    ['kui-wipe-left', 'kui-wipe-right'],
+  ])('%s and %s both finish fully revealed', (firstName, secondName) => {
+    // The mirror check alone would be satisfied by two effects that are opposites and both wrong.
+    // Both have to land on a zero inset, which is the only "nothing is clipped" an inset can mean.
+    for (const name of [firstName, secondName]) {
+      const frame = clipFrames.find((candidate) => candidate.name === name)!
+      const sides = insetSides(frame.body, 'to').map((side) => Number.parseFloat(side))
+      expect(sides, name).toHaveLength(4)
+      for (const side of sides) expect(side, name).toBe(0)
+    }
+  })
+
 })

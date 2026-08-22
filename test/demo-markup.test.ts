@@ -92,3 +92,52 @@ describe('demo page markup', () => {
     expect(found).toEqual([])
   })
 })
+
+/**
+ * A demo page that re-plans an effect must also trigger it.
+ *
+ * `Animator.process()` plans an effect and leaves it **gated** on its activation trigger. For an
+ * entrance that gate is `on:enter`, opened by an IntersectionObserver. That is fine on load and
+ * fine for `replay.js` — but a page that swaps an element's `data-kui` in response to a click has
+ * a problem: the element never left the viewport, so the observer never fires again, and the new
+ * animation sits installed at `playState: 'paused', currentTime: 0` indefinitely.
+ *
+ * The failure is silent and, worse, *partial*. Frame 0 of `blur-in` is the picture slightly soft
+ * and frame 0 of `fade-blur-up` is the picture slightly offset, so both look like they worked.
+ * Frame 0 of `wipe-up` is `inset(100% 0 0)` — nothing at all. The owner reported "wipe-up and
+ * wipe-right are broken" when in truth not one of the seventeen chips was ever running.
+ *
+ * Nothing else in the suite covers demo-page JavaScript, so this is a deliberately blunt static
+ * check: in any script that calls `.process(`, `.activate(` must appear too. It cannot prove the
+ * call is correct; it can only stop the pairing being dropped again, which is the thing that
+ * actually happened.
+ */
+describe('demo pages activate what they re-process', () => {
+  const pages = readdirSync(DEMO_DIR).filter(
+    (file) => file.endsWith('.html') && !file.endsWith('-old.html'),
+  )
+
+  /** Comments stripped first. A substring scan cannot otherwise tell a live call from a
+   * commented-out one, and `// kui.activate(target)` would satisfy the assertion while doing
+   * nothing — which is exactly the state this test exists to reject. */
+  const stripComments = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+
+  const scriptsCallingProcess = pages.flatMap((file) => {
+    const html = readFileSync(`${DEMO_DIR}/${file}`, 'utf8')
+    return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+      .map((match, index) => ({ file, index, body: stripComments(match[1]!) }))
+      .filter((script) => script.body.includes('.process('))
+  })
+
+  it('has a page to guard, so this suite cannot pass vacuously', () => {
+    expect(scriptsCallingProcess.length).toBeGreaterThan(0)
+  })
+
+  it.each(scriptsCallingProcess.map((s) => [`${s.file} script#${s.index}`, s] as const))(
+    '%s pairs process() with activate()',
+    (_label, script) => {
+      expect(script.body).toContain('.activate(')
+    },
+  )
+})

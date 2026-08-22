@@ -114,6 +114,18 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   const momentum = params.num('momentum', 0.2)
 
   const offset = { x: 0, y: 0 }
+  /*
+   * Where the element already was when this gesture picked it up.
+   *
+   * `recognise` measures `dx`/`dy` from the current `pointerdown`, so they describe *this* drag,
+   * not the element's position. Writing them straight into the offset therefore threw away every
+   * previous drag: the first pickup worked, and the second snapped the element back to the origin
+   * and ran from there — it stopped holding the point under the cursor. Only the three names that
+   * do not spring back (`drag`, `drag-inertia`, `throwable`) showed it; `elastic-pull`,
+   * `rubber-band` and `snap-back` return to zero on release, so their pickup offset is always zero
+   * and the bug was invisible in exactly half the family.
+   */
+  const pickup = { x: 0, y: 0 }
   const deps = springDeps(ctx)
   const runners: DragRunners = {
     x: createSpringRunner(config, (value) => write({ ...offset, x: value }), deps),
@@ -132,10 +144,19 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
       onStart() {
         runners.x.stop()
         runners.y.stop()
+        // Read after `stop()`: a drag begun mid-throw picks up from where the spring had got to,
+        // which is the position under the cursor, not where the throw was heading.
+        pickup.x = offset.x
+        pickup.y = offset.y
         el.setAttribute('data-kui-dragging', 'true')
       },
       onMove(vector) {
-        write({ x: resist(vector.dx, bounds, resistance), y: resist(vector.dy, bounds, resistance) })
+        // Resistance applies to total displacement from rest, not to this gesture's own delta —
+        // a bounded element already pulled to its limit must not get a fresh budget on re-pickup.
+        write({
+          x: resist(pickup.x + vector.dx, bounds, resistance),
+          y: resist(pickup.y + vector.dy, bounds, resistance),
+        })
       },
       onEnd(vector) {
         el.setAttribute('data-kui-dragging', 'false')
@@ -180,10 +201,20 @@ function settle(
     runners.y.to(0)
     return
   }
-  // Free throw: target the position momentum would carry it to, so the spring decelerates
-  // instead of snapping back.
-  runners.x.to(offset.x + vector.vx * mode.momentum)
-  runners.y.to(offset.y + vector.vy * mode.momentum)
+  /*
+   * Free throw: target the position momentum would carry it to, so the spring decelerates instead
+   * of snapping back.
+   *
+   * Gated on `inertia`, which it was not. The spring's *initial velocity* was already gated, but
+   * the target was not, so `drag`, `drag-x` and `drag-y` — the three names whose whole contract is
+   * "it stays where you put it" — still glided `vx * momentum` past the release point. Only a slow
+   * release hid it, which is exactly what the browser suite happened to do: it paused 150ms before
+   * `pointerup`, letting the velocity samples decay to nothing, and so asserted "rests exactly
+   * where it was released" against the one release speed where the bug cannot show.
+   */
+  const carry = mode.inertia ? mode.momentum : 0
+  runners.x.to(offset.x + vector.vx * carry)
+  runners.y.to(offset.y + vector.vy * carry)
 }
 
 /**

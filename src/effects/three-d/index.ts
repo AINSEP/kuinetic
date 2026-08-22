@@ -65,8 +65,8 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
 
 export const THREE_D_PRESETS: Preset[] = [
   // --- 3D & perspective ---
-  { name: 'card-flip-y', primitive: 'flip-face', keyframes: 'kui-card-flip-y' },
-  { name: 'card-flip-x', primitive: 'flip-face', keyframes: 'kui-card-flip-x' },
+  { name: 'card-flip-y', primitive: 'flip-face', keyframes: 'kui-card-flip-y', cloak: true },
+  { name: 'card-flip-x', primitive: 'flip-face', keyframes: 'kui-card-flip-x', cloak: true },
   { name: 'cube-rotate', primitive: 'flip-face', keyframes: 'kui-cube-rotate', params: { angle: '90deg' } },
   {
     name: 'book-page-turn',

@@ -331,8 +331,14 @@ Primitives 5, 6, 7, 4, 30.
 > section: it builds the slats once at activation, then every frame is `translate`/`rotate`/
 > `opacity` on synthetic children, same as `split-text` in section D. Every slat paints the *same*
 > image URL as its own `background-image`, so N slats cost one fetch and one decode, not N — see
-> `installSlatStage` in `media-shared.ts` for the sprite-slicing math. `axis:vertical` (default)
+> `installSlatStage` in `media-shared.ts` for the band geometry. `axis:vertical` (default)
 > cuts columns that fly in vertically; `axis:horizontal` cuts rows that fly in horizontally.
+> `angle:` is the general form of the same idea — `0deg` is `axis:vertical`, `90deg` is
+> `axis:horizontal`, and anything between (`angle:35deg`) cuts diagonal bands. An authored angle
+> wins over `axis:`; bare numbers and `deg`/`rad`/`grad`/`turn` are all accepted, and the value is
+> normalised to `[0, 180)` because a band at 200deg is the same set of bands as one at 20deg.
+> Slats always travel *along* their own band, never across it — a band moving across its own width
+> uncovers the gap it left.
 > `from:` picks the stagger order — `alternate` (default), `start`, `end`, `edges`, or
 > `random-ish` (a deterministic scatter, not `Math.random`) — independent of which side each slat
 > flies in from, which always alternates by position. `fold:true` adds a `rotateY`/`rotateX` hinge

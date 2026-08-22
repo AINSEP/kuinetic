@@ -5,7 +5,12 @@ import { deferPrepare } from '../../core/instances.js'
 import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
-import { applySlatTimingVars, installSlatStage, slatAssembleFinishMs } from './media-shared.js'
+import {
+  applySlatTimingVars,
+  installSlatStage,
+  slatAngleDegrees,
+  slatAssembleFinishMs,
+} from './media-shared.js'
 import type { SlatAxis, SlatFrom } from './media-shared.js'
 
 /**
@@ -62,17 +67,17 @@ export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
 ]
 
 export const MEDIA_CSS_PRESETS: Preset[] = [
-  { name: 'wipe-up', primitive: 'media-wipe', keyframes: 'kui-wipe-up' },
-  { name: 'wipe-down', primitive: 'media-wipe', keyframes: 'kui-wipe-down' },
-  { name: 'wipe-left', primitive: 'media-wipe', keyframes: 'kui-wipe-left' },
-  { name: 'wipe-right', primitive: 'media-wipe', keyframes: 'kui-wipe-right' },
-  { name: 'wipe-circle', primitive: 'media-wipe', keyframes: 'kui-wipe-circle' },
-  { name: 'wipe-diagonal', primitive: 'media-wipe', keyframes: 'kui-wipe-diagonal' },
-  { name: 'mask-reveal', primitive: 'media-mask', keyframes: 'kui-mask-reveal' },
-  { name: 'curtain-reveal', primitive: 'media-wipe', keyframes: 'kui-curtain-reveal' },
+  { name: 'wipe-up', primitive: 'media-wipe', keyframes: 'kui-wipe-up', cloak: true },
+  { name: 'wipe-down', primitive: 'media-wipe', keyframes: 'kui-wipe-down', cloak: true },
+  { name: 'wipe-left', primitive: 'media-wipe', keyframes: 'kui-wipe-left', cloak: true },
+  { name: 'wipe-right', primitive: 'media-wipe', keyframes: 'kui-wipe-right', cloak: true },
+  { name: 'wipe-circle', primitive: 'media-wipe', keyframes: 'kui-wipe-circle', cloak: true },
+  { name: 'wipe-diagonal', primitive: 'media-wipe', keyframes: 'kui-wipe-diagonal', cloak: true },
+  { name: 'mask-reveal', primitive: 'media-mask', keyframes: 'kui-mask-reveal', cloak: true },
+  { name: 'curtain-reveal', primitive: 'media-wipe', keyframes: 'kui-curtain-reveal', cloak: true },
   { name: 'ken-burns', primitive: 'media-ken-burns', keyframes: 'kui-ken-burns' },
   { name: 'ken-burns-out', primitive: 'media-ken-burns', keyframes: 'kui-ken-burns-out' },
-  { name: 'blur-up', primitive: 'media-blur-up', keyframes: 'kui-blur-up' },
+  { name: 'blur-up', primitive: 'media-blur-up', keyframes: 'kui-blur-up', cloak: true },
   { name: 'duotone-hover', primitive: 'media-filter', keyframes: 'kui-duotone-hover' },
   { name: 'grayscale-hover', primitive: 'media-filter', keyframes: 'kui-grayscale-hover' },
   { name: 'saturate-hover', primitive: 'media-filter', keyframes: 'kui-saturate-hover' },
@@ -102,6 +107,18 @@ const slatParams: ParameterSchema = {
     cssProperty: '--kui-axis',
     values: ['vertical', 'horizontal'],
   },
+  /*
+   * The general form of `axis:`, in degrees: `0deg` is `axis:vertical`, `90deg` is
+   * `axis:horizontal`, and anything between cuts the picture into diagonal bands. An authored
+   * angle wins; leaving it off reads `axis:`, so every existing attribute keeps its meaning.
+   *
+   * `text`, not `angle`, for one reason: `readParams` pre-fills every declared parameter with its
+   * schema default, so a typed default is indistinguishable from an authored value and there would
+   * be no way to tell `angle:0deg` from "no angle, use the axis". An empty default is only possible
+   * on a type that is never written to a stylesheet, which is exactly what `text` is for — and this
+   * value never reaches CSS anyway. `slatAngleDegrees` does the parsing and the range clamp.
+   */
+  angle: { type: 'text', default: '', cssProperty: '--kui-slat-angle' },
   from: {
     type: 'keyword',
     default: 'alternate',
@@ -134,6 +151,7 @@ function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareCont
   const doc = el.ownerDocument
   const count = Math.min(24, Math.max(2, Math.round(params.num('slats', 8))))
   const axis = params.text('axis', 'vertical') as SlatAxis
+  const angleDegrees = slatAngleDegrees(params.text('angle', ''), axis)
   const from = params.text('from', 'alternate') as SlatFrom
   const fold = params.is('fold')
 
@@ -143,7 +161,7 @@ function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareCont
   // overriding an author who already positioned this element for their own layout.
   if (ctx.win.getComputedStyle(node).position === 'static') ctx.style.set('position', 'relative')
 
-  const built = installSlatStage(el, doc, ctx.win, { count, axis, from, fold })
+  const built = installSlatStage(el, doc, ctx.win, { count, angleDegrees, from, fold })
   if (!built) return () => {}
   const { stage } = built
   applySlatTimingVars(stage, params)
@@ -155,8 +173,30 @@ function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareCont
   const finished = new Promise<void>((resolve) => {
     settle = resolve
   })
+  /*
+   * Landing tears the stage down and hands the picture back to the real `<img>`.
+   *
+   * It used to only drop the `kui-slat-animating` class, which left the finished state as *eight
+   * background-image slats standing in for the photograph* — the source `<img>` stayed
+   * `visibility: hidden` until something destroyed the instance, which on a normal page is never.
+   * That is wrong in the way that matters: each slat paints its own slice of a background scaled
+   * to `800% 100%`, and the slats deliberately overlap by 1px so no hairline shows between them.
+   * That overlap means the reassembled picture is off by a pixel at every seam, so the finished
+   * image is subtly misregistered — obvious and ugly on a face, where the seams cut across eyes
+   * and mouth.
+   *
+   * Restoring makes the end state the actual image, one element, pixel-exact. It also retires the
+   * reason the 1px overlap existed, since nothing is looking at the landed slats any more.
+   *
+   * Guarded because `cleanup()` also restores: `finish()` then destroy would otherwise run the
+   * teardown twice.
+   */
+  let landed = false
   const land = (): void => {
+    if (landed) return
+    landed = true
     stage.classList.remove('kui-slat-animating')
+    built.restore()
     settle()
   }
   const timer = ctx.win.setTimeout(land, slatAssembleFinishMs(params, count))
@@ -164,6 +204,8 @@ function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareCont
   return {
     cleanup: () => {
       ctx.win.clearTimeout(timer)
+      if (landed) return
+      landed = true
       built.restore()
     },
     finished,
@@ -193,7 +235,9 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
   },
 ]
 
-export const MEDIA_JS_PRESETS: Preset[] = [{ name: 'slat-assemble', primitive: 'slat-assemble' }]
+export const MEDIA_JS_PRESETS: Preset[] = [
+  { name: 'slat-assemble', primitive: 'slat-assemble', cloak: true },
+]
 
 export const MEDIA_PRIMITIVES: Primitive[] = [...MEDIA_CSS_PRIMITIVES, ...MEDIA_JS_PRIMITIVES]
 export const MEDIA_PRESETS: Preset[] = [...MEDIA_CSS_PRESETS, ...MEDIA_JS_PRESETS]

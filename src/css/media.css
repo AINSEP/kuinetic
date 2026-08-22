@@ -1,16 +1,16 @@
 /* Media and image effects (catalog section G). */
 @layer kui.effects {
-  @keyframes kui-wipe-up { from { clip-path: inset(100% 0 0); } }
-  @keyframes kui-wipe-down { from { clip-path: inset(0 0 100%); } }
-  @keyframes kui-wipe-left { from { clip-path: inset(0 100% 0 0); } }
-  @keyframes kui-wipe-right { from { clip-path: inset(0 0 0 100%); } }
-  @keyframes kui-wipe-circle { from { clip-path: circle(0 at 50% 50%); } }
+  @keyframes kui-wipe-up { from { clip-path: inset(100% 0 0); } to { clip-path: inset(0 0 0); } }
+  @keyframes kui-wipe-down { from { clip-path: inset(0 0 100%); } to { clip-path: inset(0 0 0); } }
+  @keyframes kui-wipe-left { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  @keyframes kui-wipe-right { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0 0 0 0); } }
+  @keyframes kui-wipe-circle { from { clip-path: circle(0 at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
   @keyframes kui-wipe-diagonal {
     from { clip-path: polygon(0 0, 0 0, 0 0); }
     to { clip-path: polygon(0 0, 200% 0, 0 200%); }
   }
-  @keyframes kui-curtain-reveal { from { clip-path: inset(0 50%); } }
-  @keyframes kui-before-after-wipe { from { clip-path: inset(0 100% 0 0); } }
+  @keyframes kui-curtain-reveal { from { clip-path: inset(0 50%); } to { clip-path: inset(0 0); } }
+  @keyframes kui-before-after-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
   @keyframes kui-mask-reveal {
     from { mask-position: 100% 0; }
@@ -87,7 +87,11 @@
 
   .kui-slat-item {
     position: absolute;
+    /* Every slat is a full-size layer painting the whole image, then clipped to one band. See the
+       clip-path note below for why this replaced the sprite-sheet slicing. */
+    inset: 0;
     background-repeat: no-repeat;
+    background-size: 100% 100%;
     animation-duration: var(--kui-duration, 500ms);
     animation-delay: calc(var(--kui-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 60ms));
     animation-timing-function: var(--kui-ease, ease-out);
@@ -112,42 +116,21 @@
   }
 
   /*
-   * Sprite-sheet slicing, entirely in percentages relative to each slat's own box — never the
-   * image's natural size — so this needs no `naturalWidth`/`naturalHeight` and stays correct
-   * across a responsive resize with no JS involved. Background-size scales the *whole* image to
-   * `--kui-slat-count` times this slat's own width (vertical) or height (horizontal), i.e. back
-   * to the stage's full size; background-position then walks the 0%–100% range that shifts the
-   * image left/up by exactly one slat-width/-height per step, so slat `i` of `N` shows precisely
-   * the `i`th strip. See `installSlatStage` in `media-shared.ts` for the worked derivation.
+   * Slicing, by clip-path.
+   *
+   * Each slat's band polygon is computed in pixels by `slatBandClip` in `media-shared.ts` and
+   * written inline, because a percentage polygon resolves per-axis: "45deg" would paint at some
+   * other angle on any non-square card, and at a *different* other angle after a resize.
+   *
+   * This replaced a sprite-sheet — slats used to be `100% / count` wide with the background scaled
+   * to `count * 100%` and walked by `background-position`. That is a neat trick and it is exactly
+   * correct, for exactly two angles. It cannot generalise: `background-position` shifts, it does
+   * not shear. So the one mechanism that handles 0deg, 90deg and 37deg alike replaces both
+   * hand-written axis cases rather than sitting beside them.
+   *
+   * The pixel of overlap the axis version added to each slat's width lives in `slatBandClip` now,
+   * pushed out along the band's normal, and closes the same hairline seams for the same reason.
    */
-  .kui-slat-stage[data-kui-slat-axis='vertical'] .kui-slat-item {
-    top: 0;
-    height: 100%;
-    /* The +1px is a seam closer, not a fudge. `100% / count` almost never lands on a whole pixel —
-       a 415px-wide stage over 8 slats is 51.875px each — and the leftover fraction renders as a
-       hairline of backdrop between neighbours once they have landed, visible as faint rules across
-       the finished picture. Overlapping each slat by a pixel covers it. The background is not
-       re-registered to match, deliberately: a 1px shift inside a 52px strip is invisible, whereas
-       the gap it removes is not. */
-    width: calc(100% / var(--kui-slat-count, 8) + 1px);
-    left: calc(var(--kui-slat-index, 0) * 100% / var(--kui-slat-count, 8));
-    background-size: calc(var(--kui-slat-count, 8) * 100%) 100%;
-    background-position-x: calc(
-      var(--kui-slat-index, 0) * 100% / (var(--kui-slat-count, 8) - 1)
-    );
-  }
-
-  .kui-slat-stage[data-kui-slat-axis='horizontal'] .kui-slat-item {
-    left: 0;
-    width: 100%;
-    /* Same seam closer as the vertical axis above. */
-    height: calc(100% / var(--kui-slat-count, 8) + 1px);
-    top: calc(var(--kui-slat-index, 0) * 100% / var(--kui-slat-count, 8));
-    background-size: 100% calc(var(--kui-slat-count, 8) * 100%);
-    background-position-y: calc(
-      var(--kui-slat-index, 0) * 100% / (var(--kui-slat-count, 8) - 1)
-    );
-  }
 
   /* `fold:true` needs `perspective` on the slats' direct parent (the stage) for their `rotate` to
      read as a hinge rather than a flat spin — declared only there, never on the author's own
@@ -156,23 +139,25 @@
     perspective: 1200px;
   }
 
-  .kui-slat-stage[data-kui-slat-axis='vertical']:not([data-kui-slat-fold='true']) .kui-slat-item {
-    animation-name: kui-slat-assemble-vertical;
+  .kui-slat-stage:not([data-kui-slat-fold='true']) .kui-slat-item {
+    animation-name: kui-slat-assemble;
   }
-  .kui-slat-stage[data-kui-slat-axis='vertical'][data-kui-slat-fold='true'] .kui-slat-item {
-    animation-name: kui-slat-assemble-vertical-fold;
-  }
-  .kui-slat-stage[data-kui-slat-axis='horizontal']:not([data-kui-slat-fold='true']) .kui-slat-item {
-    animation-name: kui-slat-assemble-horizontal;
-  }
-  .kui-slat-stage[data-kui-slat-axis='horizontal'][data-kui-slat-fold='true'] .kui-slat-item {
-    animation-name: kui-slat-assemble-horizontal-fold;
+  .kui-slat-stage[data-kui-slat-fold='true'] .kui-slat-item {
+    animation-name: kui-slat-assemble-fold;
   }
 
-  @keyframes kui-slat-assemble-vertical {
+  /*
+   * One keyframe pair for every angle. `--kui-slat-dx`/`--kui-slat-dy` are the band's own long
+   * axis, written on the stage by `installSlatStage` and inherited: `(0, 1)` at 0deg, which is the
+   * vertical columns sliding up and down that `kui-slat-assemble-vertical` used to spell out, and
+   * `(-1, 0)` at 90deg. Slats travel *along* their band, never across it — a band moving across
+   * its own width uncovers the gap it left, and strips visibly out of line is the whole idea.
+   */
+  @keyframes kui-slat-assemble {
     from {
       opacity: 0;
-      translate: 0 calc(var(--kui-slat-sign, 1) * 38%);
+      translate: calc(var(--kui-slat-sign, 1) * var(--kui-slat-dx, 0) * 38%)
+        calc(var(--kui-slat-sign, 1) * var(--kui-slat-dy, 1) * 38%);
     }
     12% {
       opacity: 1;
@@ -183,10 +168,14 @@
     }
   }
 
-  @keyframes kui-slat-assemble-horizontal {
+  /* The hinge turns about the band's long axis — the same vector, read as a 3D rotation axis. At
+     0deg that is `0 1 0`, the Y-axis flip the vertical fold named outright. */
+  @keyframes kui-slat-assemble-fold {
     from {
       opacity: 0;
-      translate: calc(var(--kui-slat-sign, 1) * 38%) 0;
+      translate: calc(var(--kui-slat-sign, 1) * var(--kui-slat-dx, 0) * 38%)
+        calc(var(--kui-slat-sign, 1) * var(--kui-slat-dy, 1) * 38%);
+      rotate: var(--kui-slat-dx, 0) var(--kui-slat-dy, 1) 0 calc(var(--kui-slat-sign, 1) * 38deg);
     }
     12% {
       opacity: 1;
@@ -194,38 +183,7 @@
     to {
       opacity: 1;
       translate: 0 0;
-    }
-  }
-
-  @keyframes kui-slat-assemble-vertical-fold {
-    from {
-      opacity: 0;
-      translate: 0 calc(var(--kui-slat-sign, 1) * 38%);
-      rotate: y calc(var(--kui-slat-sign, 1) * 38deg);
-    }
-    12% {
-      opacity: 1;
-    }
-    to {
-      opacity: 1;
-      translate: 0 0;
-      rotate: y 0deg;
-    }
-  }
-
-  @keyframes kui-slat-assemble-horizontal-fold {
-    from {
-      opacity: 0;
-      translate: calc(var(--kui-slat-sign, 1) * 38%) 0;
-      rotate: x calc(var(--kui-slat-sign, 1) * -38deg);
-    }
-    12% {
-      opacity: 1;
-    }
-    to {
-      opacity: 1;
-      translate: 0 0;
-      rotate: x 0deg;
+      rotate: var(--kui-slat-dx, 0) var(--kui-slat-dy, 1) 0 0deg;
     }
   }
 }

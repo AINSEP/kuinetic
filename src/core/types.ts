@@ -255,6 +255,25 @@ export interface Preset {
   params?: Record<string, string>
   /** CSS `@keyframes` name this preset animates, when renderer is `css-keyframes`. */
   keyframes?: string
+  /**
+   * This effect begins from a state the visitor must not see — invisible, displaced, unsplit, or
+   * un-assembled — so painting the element at its rest state before the runtime installs that
+   * from-state is a visible flash. `scripts/generate-preset-css.mjs` emits a pre-JS cloak rule for
+   * every preset that declares it; see the `kui.cloak` layer in `src/css/base.css`.
+   *
+   * **This has to be declared, not derived.** Both plausible signals were measured and both are
+   * wrong. Keying on "owns the opacity channel" cloaks `hamburger-to-x`, `checkbox-draw` and
+   * `dropdown-open` — stateful controls with no entrance — while missing `blur-in` and `bounce-in`.
+   * Keying on "supports the entrance timelines" cloaks `pin-section`, `scroll-spy` and
+   * `horizontal-scroll`, and hiding a pinned section at opacity 0 is precisely the failure the
+   * opt-in rule in `base.css` was written to avoid. Whether a name is an entrance with a
+   * from-state worth hiding is a fact only its author knows, which is why it sits here beside
+   * `params` rather than being inferred from either.
+   *
+   * Exits are deliberately excluded: `fade-out` starts at the rest state, so there is nothing to
+   * hide and cloaking it would blank an element that should be visible until it leaves.
+   */
+  cloak?: boolean
 }
 
 export type ResolvedParams = Record<string, string>

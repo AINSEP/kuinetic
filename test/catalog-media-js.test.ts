@@ -62,13 +62,13 @@ describe('slatOrder', () => {
 describe('installSlatStage', () => {
   it('returns null when the element holds no <img>', () => {
     const el = document.createElement('figure')
-    expect(installSlatStage(el, document, window, { count: 8, axis: 'vertical', from: 'alternate', fold: false })).toBeNull()
+    expect(installSlatStage(el, document, window, { count: 8, angleDegrees: 0, from: 'alternate', fold: false })).toBeNull()
   })
 
   it('returns null when the <img> has no resolvable src', () => {
     const el = document.createElement('figure')
     el.append(document.createElement('img'))
-    expect(installSlatStage(el, document, window, { count: 8, axis: 'vertical', from: 'alternate', fold: false })).toBeNull()
+    expect(installSlatStage(el, document, window, { count: 8, angleDegrees: 0, from: 'alternate', fold: false })).toBeNull()
   })
 
   it('builds N slats over the image, sharing one background-image URL and never cloning <img>', () => {
@@ -79,7 +79,7 @@ describe('installSlatStage', () => {
 
     const built = installSlatStage(el, document, window, {
       count: 5,
-      axis: 'vertical',
+      angleDegrees: 0,
       from: 'start',
       fold: false,
     })!
@@ -111,7 +111,7 @@ describe('installSlatStage', () => {
 
     const built = installSlatStage(el, document, window, {
       count: 3,
-      axis: 'horizontal',
+      angleDegrees: 90,
       from: 'end',
       fold: true,
     })!
@@ -153,7 +153,7 @@ describe('installSlatStage', () => {
 
     const built = installSlatStage(el, document, window, {
       count: 4,
-      axis: 'vertical',
+      angleDegrees: 0,
       from: 'start',
       fold: false,
     })!
@@ -178,7 +178,7 @@ describe('installSlatStage', () => {
 
     const built = installSlatStage(el, document, window, {
       count: 2,
-      axis: 'vertical',
+      angleDegrees: 0,
       from: 'start',
       fold: false,
     })!
@@ -228,7 +228,7 @@ describe('installSlatStage', () => {
 
       const built = installSlatStage(el, document, window, {
         count: 2,
-        axis: 'vertical',
+        angleDegrees: 0,
         from: 'start',
         fold: false,
       })!
@@ -351,6 +351,89 @@ describe('slat-assemble primitive', () => {
     expect(() => instance.activate()).not.toThrow()
     expect(el.querySelector('.kui-slat-stage')).toBeNull()
     expect(() => instance.destroy()).not.toThrow()
+  })
+
+  /**
+   * Landing must hand the picture back to the real `<img>`.
+   *
+   * It used to only drop the `kui-slat-animating` class, so the finished state was eight
+   * background-image slats standing in for the photograph while the source `<img>` stayed
+   * `visibility: hidden` — for good, on any page that never destroys the instance. Each slat
+   * paints its own slice of a background scaled to `800% 100%` and the slats overlap by 1px so no
+   * hairline shows between them, which means the reassembled picture is off by a pixel at every
+   * seam. On a face the seams cut through the eyes and mouth and it reads as a rendering fault.
+   */
+  it('restores the <img> and removes the stage once the slats have landed', async () => {
+    vi.useFakeTimers()
+    const el = document.createElement('figure')
+    const img = document.createElement('img')
+    img.src = './photo.jpg'
+    el.append(img)
+
+    const instance = registry.resolve('slat-assemble')!.primitive.prepare!(
+      el,
+      createParams({ slats: '3', duration: '100ms', stagger: '50ms' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+    // While the slats are flying, the source image is deliberately not painted.
+    expect(img.style.visibility).toBe('hidden')
+    expect(el.querySelector('.kui-slat-stage')).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(2 * 50 + 100)
+
+    expect(img.style.visibility).toBe('')
+    expect(el.querySelector('.kui-slat-stage')).toBeNull()
+    vi.useRealTimers()
+  })
+
+  it('is a no-op when finish() arrives after the slats already landed on their own', async () => {
+    // A real sequence, not a hypothetical: anything holding a `PlaybackHandle` can call `finish()`
+    // late, and the replay FAB resets elements that may already have completed. Without the guard
+    // the second landing restores a stage that is gone and re-resolves an already-settled promise.
+    vi.useFakeTimers()
+    const el = document.createElement('figure')
+    const img = document.createElement('img')
+    img.src = './photo.jpg'
+    el.append(img)
+
+    const instance = registry.resolve('slat-assemble')!.primitive.prepare!(
+      el,
+      createParams({ slats: '2', duration: '50ms', stagger: '0ms' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+    await vi.advanceTimersByTimeAsync(50)
+    expect(el.querySelector('.kui-slat-stage')).toBeNull()
+
+    expect(() => instance.finish()).not.toThrow()
+    await expect(instance.finished).resolves.toBeUndefined()
+    expect(img.style.visibility).toBe('')
+    vi.useRealTimers()
+  })
+
+  it('restores exactly once when a landing is followed by a destroy', async () => {
+    // `land()` and `cleanup()` both restore; running the teardown twice must stay harmless.
+    vi.useFakeTimers()
+    const el = document.createElement('figure')
+    const img = document.createElement('img')
+    img.src = './photo.jpg'
+    img.style.visibility = 'collapse'
+    el.append(img)
+
+    const instance = registry.resolve('slat-assemble')!.primitive.prepare!(
+      el,
+      createParams({ slats: '2', duration: '50ms', stagger: '0ms' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+    await vi.advanceTimersByTimeAsync(50)
+    // The author's own inline value comes back, not an empty string.
+    expect(img.style.visibility).toBe('collapse')
+    expect(() => instance.destroy()).not.toThrow()
+    expect(img.style.visibility).toBe('collapse')
+    expect(el.querySelector('.kui-slat-stage')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('finish() clears the pending completion timer, drops kui-slat-animating, and resolves finished immediately', async () => {

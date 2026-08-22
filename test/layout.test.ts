@@ -276,4 +276,112 @@ describe('auto-height', () => {
 
     el.remove()
   })
+
+  /*
+   * A mutation observer is a reaction: by the time it runs, the stylesheet has already repainted
+   * the panel at its new resting height. Reading that height as the animation's *start* is what
+   * made closing play forwards — the panel snapped shut, grew back open over 400ms, then cut to
+   * nothing. The rendered height is the **end**; the start is the previous resting height.
+   *
+   * Watched in the browser first (`0 → 44.9 → 0`, both directions ramping) and pinned here.
+   */
+  it('animates towards the height the stylesheet settled on, in whichever direction that is', () => {
+    const observers: Array<{ fire: () => void }> = []
+    class ControllableMutationObserver {
+      private readonly callback: MutationCallback
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observers.push(this)
+      }
+      observe(): void {}
+      disconnect(): void {}
+      fire(): void {
+        this.callback([], this as unknown as MutationObserver)
+      }
+    }
+    vi.stubGlobal('MutationObserver', ControllableMutationObserver)
+
+    const el = document.createElement('div')
+    document.body.append(el)
+
+    // jsdom has no layout, so both readings the primitive makes are stubbed directly: `rendered` is
+    // what the stylesheet is showing right now, `natural` the unconstrained content height.
+    let rendered = 0
+    const natural = 45
+    el.getBoundingClientRect = (() => ({ height: rendered })) as unknown as Element['getBoundingClientRect']
+    Object.defineProperty(el, 'scrollHeight', { get: () => natural })
+
+    const frames: Array<Array<Record<string, string>>> = []
+    el.animate = ((keyframes: Array<Record<string, string>>) => {
+      frames.push(keyframes)
+      return { cancel: vi.fn() } as unknown as Animation
+    }) as unknown as typeof el.animate
+
+    const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
+    const instance = autoHeight.prepare!(el, params, fakeCtx())
+    instance.activate()
+    const observer = observers.at(-1)!
+
+    // Opening: the panel is already laid out at its natural height, so it has to come from zero.
+    rendered = natural
+    observer.fire()
+    expect(frames[0]).toEqual([{ height: '0px' }, { height: '45px' }])
+
+    // Closing: the stylesheet has already collapsed it. Starting from the rendered 0 would replay
+    // the opening animation and then cut — the bug. It must start from where it just was.
+    rendered = 0
+    observer.fire()
+    expect(frames[1]).toEqual([{ height: '45px' }, { height: '0px' }])
+
+    // And the tracked previous height keeps a partial ("peek") collapsed state honest too.
+    rendered = natural
+    observer.fire()
+    expect(frames[2]).toEqual([{ height: '0px' }, { height: '45px' }])
+
+    instance.destroy()
+    el.remove()
+  })
+
+  /*
+   * `scrollHeight` is a rounded integer while the rendered height is fractional, so an open 44.8px
+   * panel reports 45 and read as "shorter than its content" — i.e. as closing. The first opening
+   * animation became 45px → 44.8px: a no-op, and the panel snapped open with no animation at all.
+   */
+  it('does not mistake a sub-pixel rounding gap for a collapsed panel', () => {
+    const observers: Array<{ fire: () => void }> = []
+    class ControllableMutationObserver {
+      private readonly callback: MutationCallback
+      constructor(callback: MutationCallback) {
+        this.callback = callback
+        observers.push(this)
+      }
+      observe(): void {}
+      disconnect(): void {}
+      fire(): void {
+        this.callback([], this as unknown as MutationObserver)
+      }
+    }
+    vi.stubGlobal('MutationObserver', ControllableMutationObserver)
+
+    const el = document.createElement('div')
+    document.body.append(el)
+    el.getBoundingClientRect = (() => ({ height: 44.8 })) as unknown as Element['getBoundingClientRect']
+    Object.defineProperty(el, 'scrollHeight', { get: () => 45 })
+
+    const frames: Array<Array<Record<string, string>>> = []
+    el.animate = ((keyframes: Array<Record<string, string>>) => {
+      frames.push(keyframes)
+      return { cancel: vi.fn() } as unknown as Animation
+    }) as unknown as typeof el.animate
+
+    const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
+    const instance = autoHeight.prepare!(el, params, fakeCtx())
+    instance.activate()
+    observers.at(-1)!.fire()
+
+    expect(frames[0]).toEqual([{ height: '0px' }, { height: '44.8px' }])
+
+    instance.destroy()
+    el.remove()
+  })
 })

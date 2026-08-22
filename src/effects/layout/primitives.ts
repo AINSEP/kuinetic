@@ -83,9 +83,16 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
   const duration = effectDurationMs(params, 400)
   let animation: Animation | null = null
 
+  // The height the last toggle settled on. Tracked because by the time this observer runs the
+  // stylesheet has *already* repainted at the new resting height, so the element can no longer be
+  // asked where it came from.
+  let previous: number | null = null
+
   const observer = watchAttribute(node, params.text('attribute'), () => {
     animation?.cancel()
-    animation = animateHeight(node, duration, params.text('ease'))
+    const endpoints = heightEndpoints(node, previous)
+    previous = endpoints.to
+    animation = animateHeight(node, endpoints, duration, params.text('ease'))
   })
 
   ctx.invalidate()
@@ -97,22 +104,56 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
 }
 
 /**
- * Animate from the element's current rendered height to its natural height.
+ * Decide which two heights this toggle runs between.
  *
- * @returns The running animation, or `null` where the Web Animations API is unavailable.
+ * A mutation observer is a *reaction*: the watched attribute has already flipped and the browser
+ * has already laid the element out at whatever height the stylesheet now asks for. So the rendered
+ * height is the animation's **end**, never its start — reading it as the start is what made closing
+ * play forwards, snap open, and then cut to nothing.
+ *
+ * The start is the height the previous toggle settled on. On the first toggle there is no such
+ * record, so it is inferred: an element rendering shorter than its content is collapsing (it came
+ * from open), and anything else is opening (it came from zero). The comparison needs a pixel of
+ * slack because `scrollHeight` is a rounded integer while the rendered height is fractional — an
+ * open 44.8px panel reports `scrollHeight` 45 and would otherwise read as collapsing, which turns
+ * the opening animation into a no-op.
+ *
+ * @returns The `from` and `to` heights in pixels.
  * @complexity O(1) time; forces one layout read.
  * @overallScore 100
  */
-function animateHeight(node: HTMLElement, duration: number, easing: string): Animation | null {
-  const from = `${node.getBoundingClientRect().height}px`
-  // Removed rather than written, so `scrollHeight` reports the unconstrained height.
-  // `prepareAutoHeight` claims the property, which is what makes this removal restorable.
+function heightEndpoints(node: HTMLElement, previous: number | null): { from: number; to: number } {
+  // Removed rather than written, so both the rendered height and `scrollHeight` report what the
+  // stylesheet wants. `prepareAutoHeight` claims the property, which makes this removal restorable.
   node.style.removeProperty('height')
-  const to = `${node.scrollHeight}px`
+  const to = node.getBoundingClientRect().height
+  const from = previous ?? (to < node.scrollHeight - 1 ? node.scrollHeight : 0)
+  return { from, to }
+}
 
+/**
+ * Animate an element's height between two measured endpoints.
+ *
+ * `fill: 'none'` on purpose: the stylesheet owns the resting height at both ends, so the animation
+ * hands it straight back instead of pinning an inline pixel value over `height: auto`.
+ *
+ * @returns The running animation, or `null` where the Web Animations API is unavailable.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function animateHeight(
+  node: HTMLElement,
+  endpoints: { from: number; to: number },
+  duration: number,
+  easing: string,
+): Animation | null {
   const animate = (node as HTMLElement & { animate?: Element['animate'] }).animate
   if (typeof animate !== 'function') return null
-  return animate.call(node, [{ height: from }, { height: to }], { duration, easing, fill: 'none' })
+  return animate.call(
+    node,
+    [{ height: `${endpoints.from}px` }, { height: `${endpoints.to}px` }],
+    { duration, easing, fill: 'none' },
+  )
 }
 
 /**

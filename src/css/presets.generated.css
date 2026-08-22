@@ -1377,3 +1377,141 @@
     --kui-scale-ease: ease-out;
   }
 }
+
+/*
+ * The pre-JS cloak — one selector per preset that declares `cloak: true`.
+ *
+ * The problem: an entrance's from-state is installed by the runtime, so between first paint and
+ * `start()` the element is painted at its REST state. The visitor sees the finished content, and
+ * then it jumps back to invisible and animates in. That is the flash this layer removes.
+ *
+ * Opt in by putting `data-kui-cloak` on the root element:
+ *
+ *   <html lang="en" data-kui-cloak>
+ *
+ * **It is fail-open three times over,** because a cloak that sticks is a blank page:
+ *
+ *   1. `Animator.start()` removes the root attribute, which drops this whole layer at once.
+ *   2. A JS watchdog removes it anyway if `start()` stalls (`animator.ts`, CLOAK_WATCHDOG_MS).
+ *   3. `kui-cloak-release` below needs no JS at all: every cloaked element un-hides itself after
+ *      2s on a pure CSS animation. So a script that is blocked, 404s, or throws before the
+ *      watchdog is ever scheduled still cannot leave content permanently hidden.
+ *
+ * `:not([data-kui-state])` releases each element individually the moment the runtime claims it,
+ * rather than waiting for the whole page.
+ */
+@layer kui.cloak {
+  html[data-kui-cloak] [data-kui~='back-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='back-in-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='blur-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='blur-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='card-flip-x']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='card-flip-y']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='curtain-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-blur-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-blur-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='flip-in-x']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='flip-in-y']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='roll-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slat-assemble']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-block-end']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-block-start']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-inline-end']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-inline-start']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='swing-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in-up']:not([data-kui-state]) {
+    opacity: 0;
+    animation: kui-cloak-release 1ms linear 2s forwards;
+  }
+
+  @keyframes kui-cloak-release {
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Reduced motion never wanted the entrance in the first place, so hiding content to smooth one
+     is pure cost: the visitor gets a blank region and then a hard cut, instead of the content. */
+  @media (prefers-reduced-motion: reduce) {
+  html[data-kui-cloak] [data-kui~='back-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='back-in-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='blur-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='blur-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='bounce-in-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='card-flip-x']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='card-flip-y']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='curtain-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-blur-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-blur-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='fade-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='flip-in-x']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='flip-in-y']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='roll-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='rotate-in-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slat-assemble']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-block-end']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-block-start']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-inline-end']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-inline-start']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='slide-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='swing-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-left']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-right']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='wipe-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in-down']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='zoom-in-up']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+}

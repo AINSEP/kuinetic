@@ -91,6 +91,9 @@
       opacity: 0;
       clip-path: inset(0 0 100% 0);
     }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
   }
 
   /* --- text-wave / text-jitter: continuous per-character motion --- */
