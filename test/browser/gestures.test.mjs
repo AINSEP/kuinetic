@@ -220,6 +220,7 @@ async function checkElasticPull(page, check, snap) {
 
   await page.waitForTimeout(VELOCITY_DECAY_MS)
   await page.mouse.up()
+  const releasedAt = performance.now()
   const released = await readGestureState(page, '#elastic')
   check(
     'elastic-pull clears data-kui-dragging after pointerup (pointer capture)',
@@ -227,22 +228,38 @@ async function checkElasticPull(page, check, snap) {
     `dragging=${released.dragging}`,
   )
 
-  const { samples: returnSamples } = await burstSample({
+  const { samples: returnSamples, sampledAtMs, maxDriftMs } = await burstSample({
     page,
     snap,
     label: 'elastic-spring-return',
     durationMs: SPRING_SETTLE_MS,
     fractions: SPRING_BURST_FRACTIONS,
     read: (p) => p.$eval('#elastic', (el) => el.style.getPropertyValue('translate')),
+    // Zero is pointerup, not the first line of the burst: `readGestureState` and a check run in
+    // between, and on a loaded machine that gap alone is a sizeable fraction of the first sample's
+    // 100ms nominal offset.
+    startedAt: releasedAt,
   })
   const returnMagnitudes = returnSamples.map((t) => Math.abs(Number.parseFloat(t) || 0))
   const monotonicReturn = returnMagnitudes.every((m, i) => i === 0 || m <= returnMagnitudes[i - 1] + 2)
-  const meaningfulMovement = returnMagnitudes[0] - returnMagnitudes[returnMagnitudes.length - 1] > 10
+  /*
+   * Measured from the release offset, not from the first sample.
+   *
+   * The first sample's magnitude is whatever the spring happened to have left by the time the
+   * automation got round to reading it — 35px on an idle machine, 18px under load — so asserting
+   * a threshold against it made this check a load-dependent coin flip. `released.tx` is the
+   * resisted drag position, which is deterministic: same bounds, same drag, same number every run.
+   * A frozen offset — the pointer-capture defect this suite exists to catch — still fails it,
+   * because a frozen element never reaches the origin.
+   */
+  const releasedMagnitude = Math.abs(released.tx)
+  const meaningfulMovement = releasedMagnitude - returnMagnitudes[returnMagnitudes.length - 1] > 10
   check(
     'elastic-pull spring-return moves smoothly and meaningfully back to the origin',
     monotonicReturn && meaningfulMovement,
-    `translate.x magnitude at ${SPRING_BURST_FRACTIONS.map((f) => `${Math.round(f * 100)}%`).join('/')}: ` +
-      returnMagnitudes.map((m) => m.toFixed(1)).join(', '),
+    `released at ${releasedMagnitude.toFixed(1)}px, then translate.x magnitude at ` +
+      `${sampledAtMs.map((ms) => `${Math.round(ms)}ms`).join('/')}: ` +
+      `${returnMagnitudes.map((m) => m.toFixed(1)).join(', ')} (max drift ${Math.round(maxDriftMs)}ms)`,
   )
 }
 
