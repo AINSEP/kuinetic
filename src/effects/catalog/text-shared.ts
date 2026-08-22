@@ -1,4 +1,5 @@
 import type { Cleanup, EffectParams } from '../../core/types.js'
+import { captureChildren } from './subtree-capture.js'
 
 /** How `split-text` breaks a string into decorative pieces. */
 export type SplitUnit = 'chars' | 'words' | 'lines'
@@ -9,9 +10,12 @@ const DECORATIVE_CLASS = 'kui-split-decorative'
 export interface SplitLayers {
   /** `aria-hidden` container the caller populates with decorative markup or text. */
   decorative: HTMLElement
-  /** The element's text at the moment splitting began. */
+  /** The element's text at the moment splitting began, trimmed for display. */
   originalText: string
-  /** Remove both layers and put the original text back, selectable and unabridged. */
+  /**
+   * Remove both layers and put the authored children back exactly as they were — element nodes
+   * and untrimmed whitespace included, not the trimmed text `originalText` renders.
+   */
   restore: Cleanup
 }
 
@@ -37,6 +41,7 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
   // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM spec;
   // `el: Element` can never be one, so this is always a string.
   const originalText = el.textContent!.trim()
+  const restoreChildren = captureChildren(el)
   const decorative = doc.createElement('span')
   decorative.setAttribute('aria-hidden', 'true')
   decorative.className = DECORATIVE_CLASS
@@ -51,9 +56,7 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
   return {
     decorative,
     originalText,
-    restore: () => {
-      el.textContent = originalText
-    },
+    restore: restoreChildren,
   }
 }
 

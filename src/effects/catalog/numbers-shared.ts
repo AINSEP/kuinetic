@@ -1,4 +1,5 @@
 import type { Cleanup } from '../../core/types.js'
+import { captureChildren } from './subtree-capture.js'
 
 /** Formats `count` can render its tweened value in. */
 export type CountFormat = 'number' | 'currency' | 'percent' | 'compact'
@@ -20,7 +21,11 @@ export interface CountLayers {
    * mid-tick — so a screen reader is told the final value and nothing in between.
    */
   srOnly: HTMLElement
-  /** Remove both layers, restoring the element to plain text of whatever the SR layer last held. */
+  /**
+   * Remove both layers, putting the authored children back as they were. Not the value the
+   * counter reached: that number is the library's, and teardown gives the element back to the
+   * author — including the `42` that was there as a no-JS fallback.
+   */
   restore: Cleanup
 }
 
@@ -36,6 +41,7 @@ export interface CountLayers {
  * @overallScore 100
  */
 export function installCountLayers(el: Element, doc: Document): CountLayers {
+  const restoreChildren = captureChildren(el)
   const decorative = doc.createElement('span')
   decorative.setAttribute('aria-hidden', 'true')
   decorative.className = DECORATIVE_CLASS
@@ -50,11 +56,7 @@ export function installCountLayers(el: Element, doc: Document): CountLayers {
   return {
     decorative,
     srOnly,
-    restore: () => {
-      // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM
-      // spec; `srOnly` is a `<span>` created just above, so this is always a string.
-      el.textContent = srOnly.textContent!
-    },
+    restore: restoreChildren,
   }
 }
 

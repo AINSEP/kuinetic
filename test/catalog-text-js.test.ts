@@ -329,3 +329,62 @@ describe('splitRevealFinishMs', () => {
     expect(splitRevealFinishMs(createParams({}), 0)).toBe(0)
   })
 })
+
+/**
+ * Teardown's contract is the *subtree*, not the text.
+ *
+ * Every restore test above authors plain text, which is the one input where "put the text back"
+ * and "put the DOM back" are the same operation — so a restore that flattens markup passed all of
+ * them. These author element children instead. The effects are not expected to *animate* nested
+ * markup well; they are expected never to leave the document worse than they found it.
+ */
+describe('destroy() restores the authored subtree, not merely its text', () => {
+  it('split-text puts back element children it never owned', () => {
+    const resolved = registry.resolve('split-words')!
+    const el = document.createElement('p')
+    el.innerHTML = '<strong>one</strong> two three'
+    const authored = el.innerHTML
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ unit: 'words', direction: 'fade' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    expect(el.querySelector('.kui-split-decorative')).not.toBeNull()
+
+    instance.destroy()
+    expect(el.innerHTML).toBe(authored)
+  })
+
+  it('split-text preserves whitespace it trimmed for display', () => {
+    const el = document.createElement('p')
+    el.textContent = '  padded  '
+    const layers = installSplitLayers(el, document)
+    // The SR-only layer is trimmed on purpose — authored source indentation is not content.
+    expect(layers.originalText).toBe('padded')
+
+    layers.restore()
+    expect(el.textContent).toBe('  padded  ')
+  })
+
+  it('word-cycler puts back element children it never owned', () => {
+    vi.useFakeTimers()
+    const resolved = registry.resolve('word-cycler')!
+    const el = document.createElement('span')
+    el.innerHTML = '<em>placeholder</em>'
+    const authored = el.innerHTML
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ words: 'alpha|beta', interval: '1000ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    expect(el.textContent).toBe('alpha')
+
+    instance.destroy()
+    expect(el.innerHTML).toBe(authored)
+    vi.useRealTimers()
+  })
+})

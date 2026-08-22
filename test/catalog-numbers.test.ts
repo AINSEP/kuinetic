@@ -78,7 +78,45 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     expect(srOnly.textContent).toBe('10')
 
     instance.destroy()
-    expect(el.textContent).toBe('10')
+    // Authored empty, so it comes back empty. `destroy()` unwinds the library; it does not get to
+    // leave behind a number the author never wrote.
+    expect(el.textContent).toBe('')
+  })
+
+  it('restores the authored content on destroy rather than the value it counted to', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    el.textContent = '42'
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '0', to: '100', duration: '100ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    vi.advanceTimersByTime(200)
+    expect(el.querySelector('.kui-count-decorative')?.textContent).toBe('100')
+
+    instance.destroy()
+    expect(el.textContent).toBe('42')
+  })
+
+  it('puts back element children it never owned', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    el.innerHTML = '<b>42</b>'
+    const authored = el.innerHTML
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '0', to: '100', duration: '100ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    vi.advanceTimersByTime(200)
+
+    instance.destroy()
+    expect(el.innerHTML).toBe(authored)
   })
 
   it('formats count-currency and count-percent through their registered defaults', () => {
@@ -153,7 +191,27 @@ describe('odometer-roll', () => {
     expect(el.querySelector('.kui-sr-only')?.textContent).toBe('125')
 
     instance.destroy()
-    expect(el.textContent).toBe('125')
+    // Authored empty, so it comes back empty — the rolled total belongs to the library, not the
+    // author, and teardown hands the element back.
+    expect(el.textContent).toBe('')
+  })
+
+  it('puts back the authored fallback content on destroy', () => {
+    const resolved = registry().resolve('odometer-roll')!
+    const el = document.createElement('span')
+    el.innerHTML = '<b>125</b>'
+    const authored = el.innerHTML
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '0', to: '125', duration: '80ms' }),
+      fakeCtx(),
+    )
+    instance.activate()
+    vi.advanceTimersByTime(80)
+
+    instance.destroy()
+    expect(el.innerHTML).toBe(authored)
   })
 
   it('keeps grouping separators static while only digit columns roll', () => {

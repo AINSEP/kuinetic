@@ -19,6 +19,7 @@ import {
   stepMsFor,
 } from './text-shared.js'
 import type { SplitUnit, TypeState } from './text-shared.js'
+import { captureChildren } from './subtree-capture.js'
 
 /**
  * Text and typography effects (catalog section D).
@@ -358,9 +359,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
     .filter(Boolean)
   if (words.length === 0) return () => {}
 
-  // `Node.textContent` is only ever `null` for a `Document`/`DocumentType` node per the DOM spec;
-  // `el: Element` can never be one, so this is always a string.
-  const original = el.textContent!
+  const restoreChildren = captureChildren(el)
   const swapMs = 150
   let index = 0
   // The `words.length === 0` guard just above means `words` is non-empty here.
@@ -385,7 +384,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
     cleanup: () => {
       run.stop()
       el.classList.remove('kui-word-cycler-swap')
-      el.textContent = original
+      restoreChildren()
     },
     finished: run.finished,
     finish: () => run.stop(),
@@ -423,9 +422,9 @@ export const TEXT_JS_PRESETS: Preset[] = [
   { name: 'split-chars', primitive: 'split-text', params: { unit: 'chars', direction: 'fade' } },
   { name: 'split-words', primitive: 'split-text', params: { unit: 'words', direction: 'fade' } },
   { name: 'split-lines', primitive: 'split-text', params: { unit: 'lines', direction: 'fade' } },
-  { name: 'text-reveal-up', primitive: 'split-text', params: { unit: 'words', direction: 'up' } },
-  { name: 'text-reveal-down', primitive: 'split-text', params: { unit: 'words', direction: 'down' } },
-  { name: 'text-reveal-mask', primitive: 'split-text', params: { unit: 'lines', direction: 'mask' } },
+  { name: 'text-reveal-up', primitive: 'split-text', params: { unit: 'words', direction: 'up' }, cloak: true },
+  { name: 'text-reveal-down', primitive: 'split-text', params: { unit: 'words', direction: 'down' }, cloak: true },
+  { name: 'text-reveal-mask', primitive: 'split-text', params: { unit: 'lines', direction: 'mask' }, cloak: true },
 
   { name: 'text-wave', primitive: 'split-text-motion', params: { motion: 'wave' } },
   { name: 'text-jitter', primitive: 'split-text-motion', params: { motion: 'jitter' } },
