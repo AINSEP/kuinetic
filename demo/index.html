@@ -227,18 +227,30 @@
   .kui-nav-dropdown-menu a:hover,
   .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
   .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  /* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
+     `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
+     effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
+     replaced: 20x20 box, 15px bars, 2px thick, 5px between centers (`--kui-bar-gap`), so the
+     swap changes nothing about how the icon looks or sits until it actually opens. */
   .kui-nav-toggle {
     display: none; width: 2.4rem; height: 2.4rem; padding: 0;
     color: currentColor; background: none; border: none; flex: none;
+    --kui-bar-gap: 5px;
   }
   .kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { opacity: 0.7; }
+  .kui-nav-toggle .kui-bar {
+    width: 15px; height: 2px; border-radius: 1px;
+    background: currentColor; flex: none;
+  }
   /* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
      overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
      silently ships with no links at desktop widths too. Forcing display here makes the nav
      correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
   @media (min-width: 721px) { .nav-links[hidden] { display: flex; } }
   @media (max-width: 720px) {
-    .kui-nav-toggle { display: grid; place-items: center; }
+    /* flex column, not grid: with a single `place-items: center` cell every one of the three
+       `.kui-bar` children would land in the same cell and stack directly on top of each other. */
+    .kui-nav-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
     /* Fixed full-viewport layer behind the open mobile panel, in front of the page — without it,
        whatever section happens to be scrolled behind the header (e.g. a solid-accent card) shows
        through around the panel's edges, and there's no reliable "outside" target to click to
@@ -1043,16 +1055,15 @@
     <button
       type="button"
       class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
       aria-haspopup="true"
       aria-label="Toggle navigation menu"
       aria-expanded="false"
       data-nav-hamburger
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
-        <line x1="3" y1="6" x2="21" y2="6"></line>
-        <line x1="3" y1="12" x2="21" y2="12"></line>
-        <line x1="3" y1="18" x2="21" y2="18"></line>
-      </svg>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
     </button>
   </header>
 

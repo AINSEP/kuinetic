@@ -203,11 +203,25 @@ header.site nav .kui-nav-dropdown-menu a[aria-current='page'] {
   color: var(--dim);
   background: none;
   border: none;
+  /* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
+     `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
+     effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
+     replaced: 20x20 icon, 15px bars, 2px thick, 5px between centers, so the swap changes
+     nothing about how the icon looks or sits until it actually opens. */
+  --kui-bar-gap: 5px;
 }
 
 .kui-nav-toggle:hover,
 .kui-nav-toggle[aria-expanded='true'] {
   color: var(--ink);
+}
+
+.kui-nav-toggle .kui-bar {
+  width: 15px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  flex: none;
 }
 
 /* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
@@ -221,9 +235,14 @@ header.site nav .kui-nav-dropdown-menu a[aria-current='page'] {
 }
 
 @media (max-width: 768px) {
+  /* flex column, not grid: with a single `place-items: center` cell every one of the three
+     `.kui-bar` children would land in the same cell and stack directly on top of each other. */
   .kui-nav-toggle {
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
   }
 
   /* Taken out of the header's flex row entirely — positioned relative to `header.site`, the

@@ -169,18 +169,30 @@ button, a.btn { font-family: inherit; cursor: pointer; }
 .kui-nav-dropdown-menu a:hover,
 .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
 .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+/* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
+   `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
+   effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
+   replaced: 20x20 box, 15px bars, 2px thick, 5px between centers (`--kui-bar-gap`), so the
+   swap changes nothing about how the icon looks or sits until it actually opens. */
 .kui-nav-toggle {
   display: none; width: 2.4rem; height: 2.4rem; padding: 0;
   color: var(--muted); background: none; border: none; flex: none;
+  --kui-bar-gap: 5px;
 }
 .kui-nav-toggle:hover, .kui-nav-toggle[aria-expanded='true'] { color: var(--fg); }
+.kui-nav-toggle .kui-bar {
+  width: 15px; height: 2px; border-radius: 1px;
+  background: currentColor; flex: none;
+}
 /* Desktop nav must not depend on nav.js having run: opacity alone (the old rule) never
    overrides [hidden]'s display:none, so if the script is ever blocked or delayed the header
    silently ships with no links at desktop widths too. Forcing display here makes the nav
    correct on first paint even with zero JS; nav.js only owns the mobile collapse/expand. */
 @media (min-width: 721px) { .nav-links[hidden] { display: flex; } }
 @media (max-width: 720px) {
-  .kui-nav-toggle { display: grid; place-items: center; }
+  /* flex column, not grid: with a single `place-items: center` cell every one of the three
+     `.kui-bar` children would land in the same cell and stack directly on top of each other. */
+  .kui-nav-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
   .kui-nav-backdrop {
     position: fixed; inset: 0; z-index: 1;
     background: color-mix(in srgb, var(--bg) 70%, transparent);
