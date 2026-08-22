@@ -162,4 +162,54 @@ describe('slat stage contract', () => {
   it('treats an overflowing number as unparseable rather than producing NaN bands', () => {
     expect(slatAngleDegrees(`${'9'.repeat(400)}deg`, 'horizontal')).toBe(90)
   })
+
+  /*
+   * The slats stand in for the `<img>` while it is hidden, so any difference between how they
+   * paint and how the image paints is a visible jump at the instant the stage is torn down. The
+   * stylesheet default is `background-size: 100% 100%`, which *stretches* — so every
+   * `object-fit: cover` image (every demo card, and the ordinary case in real layouts) assembled
+   * distorted and then snapped to its true framing on landing.
+   */
+  describe('the slats paint the image the same way the image does', () => {
+    it.each([
+      ['cover', 'cover'],
+      ['contain', 'contain'],
+      ['scale-down', 'contain'],
+      ['none', 'auto'],
+      ['fill', '100% 100%'],
+    ])('maps object-fit:%s onto background-size:%s', (objectFit, expected) => {
+      const el = document.createElement('figure')
+      const img = document.createElement('img')
+      img.src = './photo.jpg'
+      img.style.objectFit = objectFit
+      el.append(img)
+
+      const built = installSlatStage(el, document, window, {
+        count: 3,
+        angleDegrees: 0,
+        from: 'start',
+        fold: false,
+      })!
+      for (const slat of built.slats) expect(slat.style.backgroundSize).toBe(expected)
+      built.restore()
+    })
+
+    it('carries object-position across too, so a cover crop lands on the same part of the picture', () => {
+      const el = document.createElement('figure')
+      const img = document.createElement('img')
+      img.src = './photo.jpg'
+      img.style.objectFit = 'cover'
+      img.style.objectPosition = '20% 80%'
+      el.append(img)
+
+      const built = installSlatStage(el, document, window, {
+        count: 2,
+        angleDegrees: 0,
+        from: 'start',
+        fold: false,
+      })!
+      for (const slat of built.slats) expect(slat.style.backgroundPosition).toBe('20% 80%')
+      built.restore()
+    })
+  })
 })

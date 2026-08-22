@@ -290,11 +290,12 @@ function watchImageBox(
  * sheet or any two elements sharing one `background-image: url(x)` never issue a second request
  * for `x`. Eight slats therefore cost one network fetch and one decode, not eight.
  *
- * The `<img>` itself is left completely alone — no `visibility`, no `aria-hidden`, nothing to
- * undo. The stage is appended last and painted on top of it (ordinary in-flow-then-absolute
+ * The stage is appended last and painted on top of the `<img>` (ordinary in-flow-then-absolute
  * paint order, no `z-index` needed), so the original picture stays exactly where an assistive
  * technology already found it; the slats sitting above it are a purely decorative, `aria-hidden`
- * stand-in.
+ * stand-in. The image's *paint* is suppressed for the duration — see the `visibility` note further
+ * down, which also explains why its box has to stay — and its previous inline value is put back
+ * verbatim on restore.
  *
  * Only `background-size`/`background-position` (paint-time, relative to each slat's own box)
  * drive the slicing — nothing here reads `naturalWidth`/`naturalHeight` or waits on
@@ -305,6 +306,39 @@ function watchImageBox(
  * @complexity O(n) time and space in slat count.
  * @overallScore 100
  */
+/**
+ * Map an `<img>`'s `object-fit`/`object-position` onto the `background-*` pair that paints the
+ * same picture, the same size, in the same place.
+ *
+ * The slats stand in for the image while it is hidden, so any difference between how they paint
+ * and how the `<img>` paints is a visible jump at the instant the stage is torn down and the real
+ * picture comes back. The stylesheet default is `background-size: 100% 100%`, which *stretches* —
+ * so an `object-fit: cover` image (every demo card here, and the ordinary case in real layouts)
+ * assembled visibly distorted and then snapped to its true framing on landing. That snap was the
+ * effect's worst moment, and it was not the animation's fault: the animation was correct and the
+ * two paints simply disagreed.
+ *
+ * Each slat is `inset: 0` on a stage sized to exactly the image's own box, so the mapping is
+ * direct — `cover` means the same thing to both properties on the same box.
+ *
+ * `scale-down` has no `background-size` equivalent: it is `min(none, contain)`, resolved against
+ * the intrinsic size. `contain` matches it whenever the image is larger than its box, which is
+ * the case that is actually authored; a smaller image paints at box-fit rather than 1:1, and the
+ * seam is that the slats agree with each other, not that they agree with a rarely-used keyword.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function imagePaintStyle(img: Element, win: Window): { size: string; position: string } {
+  const computed = win.getComputedStyle(img)
+  const position = computed.objectPosition || '50% 50%'
+  const fit = computed.objectFit
+  if (fit === 'cover') return { size: 'cover', position }
+  if (fit === 'contain' || fit === 'scale-down') return { size: 'contain', position }
+  if (fit === 'none') return { size: 'auto', position }
+  return { size: '100% 100%', position }
+}
+
 export function installSlatStage(
   el: Element,
   doc: Document,
@@ -332,6 +366,7 @@ export function installSlatStage(
   stage.style.setProperty('--kui-slat-dx', travel.x.toFixed(4))
   stage.style.setProperty('--kui-slat-dy', travel.y.toFixed(4))
 
+  const paint = imagePaintStyle(img, win)
   const slats: HTMLElement[] = []
   for (let index = 0; index < count; index++) {
     const slat = doc.createElement('div')
@@ -339,6 +374,8 @@ export function installSlatStage(
     slat.style.setProperty('--kui-slat-index', String(index))
     slat.style.setProperty('--kui-i', String(slatOrder(index, count, from)))
     slat.style.backgroundImage = `url("${url}")`
+    slat.style.backgroundSize = paint.size
+    slat.style.backgroundPosition = paint.position
     stage.append(slat)
     slats.push(slat)
   }
