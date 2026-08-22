@@ -35,10 +35,20 @@
   figure { margin: 0; }
 
   /* ---------- demo hero ---------- */
+  /* Full-bleed stage for the wash below. A plain block-level `<section>`, not `width: 100vw` —
+     that includes the scrollbar gutter and reopens the horizontal-scroll bug this page has
+     shipped once already. `.demo-hero` itself stays on the page's normal `.wrap` measure; only
+     the wash's own containing box spans edge to edge — the same split index.html uses between
+     `.hero-stage` (full-bleed) and `.hero-inner` (the `.wrap` nested one level in). */
+  .demo-hero-stage {
+    position: relative;
+    overflow: clip;
+  }
   .demo-hero {
     padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(3rem, 5vw, 5rem);
     text-align: center;
     position: relative;
+    z-index: 1;
   }
   /*
    * The ambient wash from index.html's hero, ported here.
@@ -48,15 +58,27 @@
    * token instead. A third hand-written yellow is exactly how this site ended up with two of them
    * drifting apart, and a token cannot drift from itself.
    *
-   * Bounded to the hero's own box (`inset: 0`) rather than bled to the viewport edge: this hero
-   * lives inside `.wrap`, and every full-bleed trick that reaches past it (`100vw`, negative
-   * viewport insets) risks the horizontal scrollbar this page has already shipped once.
+   * Lives on `.demo-hero-stage` (full-bleed), not on `.demo-hero` (bounded to `.wrap`, ~1120px):
+   * bounded to the narrower box, these same two gradients don't finish fading to transparent
+   * before the box edge cuts them off — a visible hard-edged rectangle on a near-black page,
+   * rather than ambient light. Full-bleed fixes the left/right edges by moving that same cutoff
+   * out to the viewport edge, where there is nothing past it to show a seam against.
+   *
+   * Top and bottom get no such free pass — there is always more page above and below, so a
+   * cutoff there stays visible. Measured on the rendered box (78%/22% top-right gradient, 936px
+   * of stage height): at y:0 the wash is still ~37% of full strength, not the near-zero a soft
+   * fade implies, because the gradient's own "70%" stop lands past the box's own edge. The mask
+   * below is a second, independent fade — on top of the gradient's — that forces both edges to
+   * true zero over the outer ~16% of the box, the same trick `.hero-grid-texture` uses in
+   * index.html for its own bottom edge.
    */
   .demo-hero-glow {
     position: absolute; inset: 0; z-index: 0; pointer-events: none;
     background:
       radial-gradient(60% 50% at 78% 22%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
       radial-gradient(45% 40% at 8% 78%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 72%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 16%, black 84%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, black 16%, black 84%, transparent);
   }
   /* Dark ground takes the wash harder before it reads as lit at all. */
   :root[data-theme='dark'] .demo-hero-glow {
@@ -64,8 +86,6 @@
       radial-gradient(60% 50% at 78% 22%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
       radial-gradient(45% 40% at 8% 78%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%);
   }
-  /* The wash sits behind; everything the reader actually came for sits in front of it. */
-  .demo-hero > *:not(.demo-hero-glow) { position: relative; z-index: 1; }
   .demo-hero .kicker { display: block; }
   .demo-hero h1 {
     margin: 0 auto; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02;
@@ -1083,11 +1103,17 @@
   </header>
 
   <main id="top">
-    <div class="wrap">
 
-      <!-- HERO -->
-      <section class="demo-hero" data-od-id="hero">
-        <div class="demo-hero-glow" aria-hidden="true"></div>
+    <!-- HERO — the wash lives on this full-bleed stage, not on `.demo-hero` itself. `.demo-hero`
+         sits inside `.wrap` (~1120px, centered), and a radial gradient bounded to that box is
+         narrower than its own falloff: the paint doesn't finish fading before it hits the box
+         edge, and on a near-black page that reads as a hard-edged rectangle rather than ambient
+         light. Full-bleed like index.html's `.hero-stage`, the same edge sits at the viewport
+         boundary, where there is nothing past it to show a seam against. -->
+    <section class="demo-hero-stage" data-od-id="hero">
+      <div class="demo-hero-glow" aria-hidden="true"></div>
+      <div class="wrap">
+      <section class="demo-hero">
         <p class="kicker" data-kui="fade-up 700ms">CSS Animations · Scroll</p>
         <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
 
@@ -1146,6 +1172,10 @@
         </div>
         <p class="demo-hero-note" data-kui="fade-up 700ms 280ms"><span class="dot"></span> The bar above and the ring below-left are both live.</p>
       </section>
+      </div>
+    </section>
+
+    <div class="wrap">
 
       <!-- SHOWCASE — the page's focal reference, directly under the hero so the first thing past
            the fold is a real website rather than a control. The shot stays pinned at full size
