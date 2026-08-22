@@ -84,6 +84,97 @@ function sectionLabel(heading: string): string {
   return heading.split('—')[0]!.trim()
 }
 
+/** A section's stated count, and the names it actually lists. */
+interface SectionCount {
+  claim: { shipped: number; planned: number }
+  names: Set<string>
+}
+
+/**
+ * The count a section heading claims, in either shape the document uses:
+ * `— 17 names` or `— 6 shipped, 2 planned`.
+ *
+ * Read by splitting into words rather than by pattern-matching across whitespace. `\d+\s+word` is
+ * exactly the shape that makes a regex backtrack, and a claim is only ever a handful of tokens, so
+ * there is nothing to gain by matching one.
+ *
+ * Returns `null` for a heading that states no number, which is not a failure — `Gestures &
+ * physics` spells its count in prose ("Thirteen names") and sits outside the lettered sections on
+ * purpose. A section can only be checked against a number it actually states.
+ */
+function claimedCount(heading: string): SectionCount['claim'] | null {
+  const claim = heading.split('—')[1]?.trim()
+  if (!claim) return null
+  const words = claim.split(/[\s,]+/)
+  const numberBefore = (label: string): number | null => {
+    const at = words.indexOf(label)
+    if (at < 1) return null
+    const before = words[at - 1]!
+    return /^\d+$/.test(before) ? Number(before) : null
+  }
+  const shipped = numberBefore('names') ?? numberBefore('shipped')
+  if (shipped === null) return null
+  return { shipped, planned: numberBefore('planned') ?? 0 }
+}
+
+/**
+ * The totals table's rows, keyed by section letter.
+ *
+ * Keyed by the letter and not the title, because the two deliberately differ — the heading reads
+ * `A. Entrance & exit matrix` while its row reads `A Entrance/exit`. The letter is the only stable
+ * join between them.
+ */
+function totalsRows(): Map<string, string> {
+  const rows = new Map<string, string>()
+  for (const line of catalog.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) continue
+    const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
+    if (cells.length !== 2) continue
+    const letter = cells[0]!.split(' ')[0]!
+    if (letter.length === 1 && letter >= 'A' && letter <= 'O') rows.set(letter, cells[1]!)
+  }
+  return rows
+}
+
+/** A heading's section record, or `null` for one this check has no number to compare against. */
+function sectionEntry(title: string): SectionCount | null {
+  if (NON_CATALOG_SECTIONS.test(title)) return null
+  const claim = claimedCount(title)
+  return claim ? { claim, names: new Set<string>() } : null
+}
+
+/**
+ * Names listed under each section that states a count, kept per-section rather than deduplicated
+ * across the document.
+ *
+ * `documentedNames` above answers "does this name appear anywhere", so it keeps the first section
+ * to mention a name and drops the rest. That is the wrong shape here: `magnetic` is listed under
+ * both `I. Hover & pointer` and `Gestures & physics`, and a global dedupe would silently make one
+ * of those sections come up a name short.
+ */
+/** Add a line's names to the section currently being read, if any section is. */
+function collectNames(section: SectionCount | null, line: string): void {
+  if (!section) return
+  for (const token of namesInLine(line)) section.names.add(token)
+}
+
+function namesBySection(): Map<string, SectionCount> {
+  const sections = new Map<string, SectionCount>()
+  let current: SectionCount | null = null
+
+  for (const line of catalog.split('\n')) {
+    if (!line.startsWith('## ')) {
+      collectNames(current, line)
+      continue
+    }
+    const title = line.slice(3).trim()
+    current = sectionEntry(title)
+    if (current) sections.set(sectionLabel(title), current)
+  }
+  return sections
+}
+
 function documentedNames(): Map<string, string> {
   const names = new Map<string, string>()
   let section = ''
@@ -192,5 +283,55 @@ describe('docs/catalog.md against the live registry', () => {
     const planned = /\|\s*Documented but not yet shipped\s*\|\s*(\d+)\s*\|/.exec(catalog)
     expect(Number(shipped?.[1])).toBe(registered.size)
     expect(Number(planned?.[1])).toBe(KNOWN_PLANNED.length)
+  })
+
+  /*
+   * The grand total was already checked above, and it was right — which is exactly why this was
+   * missed. `N. 3D & perspective` claimed "31 shipped" over a list of six names for as long as
+   * anyone can tell, and both the section heading and its row in the totals table said so. The
+   * total stayed correct throughout, because 252 is counted from the registry rather than summed
+   * from the sections, so no assertion anywhere compared a section's headline to the section.
+   *
+   * A per-section number is a claim a reader checks by counting the row in front of them. It is
+   * the easiest claim in the document to falsify and was the only one nothing guarded.
+   */
+  it('every section heading counts the names that section actually lists', () => {
+    const sections = [...namesBySection()]
+    // Backstop against a reformat that makes the heading regex match nothing, which would leave
+    // this test passing over an empty list — the same trap the extractor check above guards.
+    expect(sections.length).toBeGreaterThanOrEqual(15)
+
+    const wrong = sections
+      .filter(([, { claim, names }]) => names.size !== claim.shipped + claim.planned)
+      .map(
+        ([label, { claim, names }]) =>
+          `${label}: heading claims ${claim.shipped} shipped + ${claim.planned} planned, lists ${names.size}`,
+      )
+    expect(wrong).toEqual([])
+  })
+
+  /*
+   * The same claim restated in the totals table. It drifted with the heading last time — both read
+   * 31 — so checking one and not the other would leave the copy that a reader skimming the summary
+   * actually sees.
+   */
+  it('each totals row agrees with its own section heading', () => {
+    const rows = totalsRows()
+    expect(rows.size).toBeGreaterThanOrEqual(15)
+
+    const wrong: string[] = []
+    for (const [label, { claim }] of namesBySection()) {
+      const letter = label.split('.')[0]!.trim()
+      const cell = rows.get(letter)
+      if (cell === undefined) {
+        wrong.push(`${label}: no row in the totals table`)
+        continue
+      }
+      const expected = claim.planned
+        ? `${claim.shipped} (+${claim.planned} planned)`
+        : String(claim.shipped)
+      if (cell !== expected) wrong.push(`${label}: totals row says "${cell}", heading says "${expected}"`)
+    }
+    expect(wrong).toEqual([])
   })
 })

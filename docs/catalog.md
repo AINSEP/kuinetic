@@ -79,6 +79,12 @@ Primitives 1–4. All `css`. The largest name group, the smallest amount of code
 | **combo presets** | `fade-blur-up` `fade-blur-in` (single tested keyframe — no channel conflict) |
 | **easing character** | `bounce-in` `bounce-in-up` `bounce-in-down` `back-in-up` `back-in-down` |
 
+> **`bounce-in` does not bounce.** It shares `pop-in`'s primitive, keyframes, and `back-out`
+> easing, differing only in starting scale (`0.3` vs `pop-in`'s `0.6`) — so it is a deeper `pop-in`,
+> not a different motion quality. An overshoot-and-settle bounce needs keyframes that pass scale
+> `1` before settling back to it; that is a new keyframe block, not a parameter, and hasn't been
+> authored yet.
+
 ---
 
 ## B. Scroll reveal & parallax — 12 shipped, 1 planned
@@ -109,6 +115,11 @@ Primitives 1, 25, 26. `css` with native timelines; observer fallback for `on:ent
 > primitive, so it is a decision rather than an oversight. `reveal-repeat` used to be listed here
 > and has been removed outright: it was byte-identical to `reveal-once` once the activation binder
 > stopped re-observing after first entry.
+
+> `reveal-once` is itself byte-identical to section A's `fade-up` — same primitive, same
+> keyframes, no parameter differs. It earns its keep by living in this section: someone scanning
+> for scroll-triggered reveals finds it here without needing to know `fade-up` is the same
+> animation under the entrance vocabulary.
 
 ---
 
@@ -437,7 +448,7 @@ Primitives 1, 5, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 31 shipped, 2 planned
+## N. 3D & perspective — 6 shipped, 2 planned
 
 Primitives 14, 22.
 
@@ -515,7 +526,7 @@ Primitives 1, 10, 15.
 | K Feedback & status | 17 |
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
-| N 3D & perspective | 31 (+2 planned) |
+| N 3D & perspective | 6 (+2 planned) |
 | O Forms & inputs | 12 |
 | **Total shipped** | **252** |
 | Documented but not yet shipped | 4 |
