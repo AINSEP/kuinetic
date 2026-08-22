@@ -602,19 +602,45 @@ function prepareSmoothScroll(el: Element, params: EffectParams, ctx: PrepareCont
  * @overallScore 100
  */
 function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  ctx.style.set(
-    'scroll-snap-type',
-    `${params.is('axis', 'x') ? 'x' : 'y'} ${params.text('strictness', 'mandatory')}`,
-  )
+  const axis = params.is('axis', 'x') ? 'x' : 'y'
+  ctx.style.set('scroll-snap-type', `${axis} ${params.text('strictness', 'mandatory')}`)
 
-  // Children are outside this element's ledger, so they get their own. Blind removal previously
+  const selector = resolveTarget(params.text('target'), ctx, 'scroll-snap')
+  const items = selector ? [...el.querySelectorAll(selector)] : [...el.children]
+  if (selector && items.length === 0) {
+    ctx.warn(`scroll-snap target "${selector}" matched nothing inside this element`)
+  }
+  if (selector) installSnapContainer(axis, ctx)
+
+  // Items are outside this element's ledger, so they get their own. Blind removal previously
   // deleted a `scroll-snap-align` the consumer had authored.
-  const childLedgers = [...el.children].map((child) => createStyleLedger(child))
+  const childLedgers = items.map((child) => createStyleLedger(child))
   for (const ledger of childLedgers) ledger.set('scroll-snap-align', params.text('align', 'start'))
 
   return () => {
     for (const ledger of childLedgers) ledger.restore()
   }
+}
+
+/**
+ * Write the properties `scroll-snap-type` is inert without.
+ *
+ * Snapping is two declarations, not one: with no `overflow` on the same element there is nothing
+ * to scroll and therefore nothing to snap, and the failure is silent — the page looks like it
+ * simply chose not to snap. Every demo here carried its own `overflow-x: auto` for that reason,
+ * which is exactly the kind of thing an author has to already know, or find by reading someone
+ * else's stylesheet.
+ *
+ * `display: flex` only on the x axis, and only because a row of block children in an `overflow-x`
+ * box does not lay out as a row — it stacks, and the container scrolls nothing. The y axis needs
+ * no such help, so it is not given any: block flow already stacks.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function installSnapContainer(axis: 'x' | 'y', ctx: PrepareContext): void {
+  ctx.style.set(axis === 'x' ? 'overflow-x' : 'overflow-y', 'auto')
+  if (axis === 'x') ctx.style.set('display', 'flex')
 }
 
 export const SCROLL_PRIMITIVES: Primitive[] = [
@@ -712,6 +738,10 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
         cssProperty: '--kui-snap-align',
         values: ['start', 'center', 'end'],
       },
+      // Names the snap items. Also what opts this primitive into owning the scroll container
+      // itself — see `installSnapContainer`. Without it, the direct children are the items and
+      // the page keeps its own `overflow`, exactly as before.
+      target: { type: 'text', default: '', cssProperty: '--kui-target' },
     },
     prepare: deferPrepare(prepareSnap),
     perfClass: 'layout',

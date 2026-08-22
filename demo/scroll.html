@@ -941,9 +941,12 @@
   .spy-section .spy-label h4 { font-size: 1.5rem; letter-spacing: -0.01em; }
 
   /* ---------- native scroll-snap (Section C) ---------- */
+  /* `display: flex` and `overflow-x` are the library's now — `scroll-snap-x target:figure` writes
+     both, because `scroll-snap-type` is inert without them and forgetting either fails silently.
+     What is left here is the page's own: rhythm, and the edge fade. */
   .snap-x-row {
-    display: flex; gap: 1rem; margin-top: 2rem; padding-bottom: 0.75rem;
-    overflow-x: auto; scroll-padding-inline: 1.5rem;
+    gap: 1rem; margin-top: 2rem; padding-bottom: 0.75rem;
+    scroll-padding-inline: 1.5rem;
     /* Measured: 2164px of cards in a 1017px box, so more than half the row is off-screen and the
        only hint was one card bleeding past the edge. Same fade as the contract bar above, for the
        same reason and by the same mechanism — one page should not solve "this scrolls sideways"
@@ -960,8 +963,10 @@
   .snap-x-row img { display: block; width: 100%; height: 260px; object-fit: cover; }
   .snap-x-row figcaption { padding: 0.6rem 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; color: var(--muted); }
 
+  /* `overflow-y` is the library's now; the height that gives it something to overflow is a look
+     decision and stays here. */
   .snap-y-panel {
-    margin-top: 2rem; height: 62vh; max-height: 520px; overflow-y: auto;
+    margin-top: 2rem; height: 62vh; max-height: 520px;
     border-radius: 14px; border: 1px solid var(--border);
   }
   .snap-y-panel figure { position: relative; height: 100%; }
@@ -1719,8 +1724,8 @@
                the media-scrub frames from further up the page, which is a deliberate second
                showing — the same picture under a JS scrub and under a pure-CSS snap is the
                cleanest way to see that the two mechanisms are unrelated. -->
-          <p class="kui-contract"><code>data-kui="scroll-snap-x"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-x-demo">Show code</button></p>
-          <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x">
+          <p class="kui-contract"><code>data-kui="scroll-snap-x target:figure"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-x-demo">Show code</button></p>
+          <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x target:figure">
             <figure>
               <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
               <figcaption>scroll-snap-x — 1 of 9</figcaption>
@@ -1759,8 +1764,8 @@
             </figure>
           </div>
 
-          <p class="kui-contract"><code>data-kui="scroll-snap-y"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-y-demo">Show code</button></p>
-          <div class="snap-y-panel" id="snap-y-demo" data-kui="scroll-snap-y">
+          <p class="kui-contract"><code>data-kui="scroll-snap-y target:figure"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-y-demo">Show code</button></p>
+          <div class="snap-y-panel" id="snap-y-demo" data-kui="scroll-snap-y target:figure">
             <figure>
               <img src="./assets/webdesign/scrub-daniel-lee.jpg" alt="The Daniel Lee mentorship site — a monochrome portrait beside the headline 9+ years of experience, with risk-management stats and 01/02/03 mentor tabs" loading="lazy" />
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
