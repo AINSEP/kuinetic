@@ -54,6 +54,7 @@
     "test:visual": "npm run build && node scripts/visual-regression.mjs",
     "test:visual:update": "npm run build && node scripts/visual-regression.mjs --update",
     "generate:css": "node scripts/generate-preset-css.mjs",
+    "generate:nav": "node scripts/generate-nav-header.mjs",
     "record": "npm run build && node scripts/verify-browser.mjs --record",
     "check:showcase": "npm run build && node scripts/check-showcase.mjs"
   },
