@@ -36,8 +36,9 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * `skew` claims the whole `transform` shorthand, because CSS never gave skew an independent
    * property the way it did `translate`/`rotate`/`scale`. Anything that writes `transform` replaces
    * all of it, so every primitive that does shares this one channel regardless of what it uses
-   * `transform` for — `scroll-skew` and `flip-face` (the 3D-flip family: `card-flip-x`/`-y`,
-   * `cube-rotate`, `book-page-turn`, `fold-panel`) are the two members.
+   * `transform` for — `scroll-skew`, `flip-face` (the 3D-flip family: `card-flip-x`/`-y`,
+   * `cube-rotate`, `book-page-turn`, `fold-panel`), and `flip-3d` (the entrance family:
+   * `flip-in-x`/`-y`, `flip-out-x`/`-y`) are the three members.
    */
   skew: ['transform'],
   text: ['letter-spacing', 'word-spacing', 'font-variation-settings'],

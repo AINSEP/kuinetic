@@ -156,28 +156,43 @@
     }
   }
 
-  /* --- 3D flip (channel: rotate) --- */
+  /*
+   * --- 3D flip (channel: skew) ---
+   *
+   * `flip-3d` declared a `perspective` parameter from the start, but nothing in this file ever
+   * read `--kui-perspective` — not even on the same element the way `three-d.css`'s `flip-face`
+   * mistakenly did. The parameter was wired to nothing: authoring `flip-in-y perspective:2000px`
+   * validated and compiled cleanly, and changed the render not at all. These four flipped flat
+   * unconditionally, before any per-instance override could even be in play.
+   *
+   * Same fix as `flip-face`: `perspective` the CSS *property* only ever creates depth for an
+   * element's children, never the element it's set on, so the angle moves off the individual
+   * `rotate:` property and into `transform: perspective(...) rotateX/Y(...)` — the one form of
+   * perspective that does apply to the element carrying it. `flip-3d`'s channel moves from
+   * `rotate` to `skew` (this catalog's name for "claims the whole `transform` shorthand") to
+   * match, joining `scroll-skew` and `flip-face`.
+   */
   @keyframes kui-flip-in-x {
     from {
-      rotate: x var(--kui-from-angle, 90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 90deg));
     }
   }
 
   @keyframes kui-flip-in-y {
     from {
-      rotate: y var(--kui-from-angle, 90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
     }
   }
 
   @keyframes kui-flip-out-x {
     to {
-      rotate: x var(--kui-from-angle, 90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 90deg));
     }
   }
 
   @keyframes kui-flip-out-y {
     to {
-      rotate: y var(--kui-from-angle, 90deg);
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
     }
   }
 
@@ -247,5 +262,20 @@
   /* Flip presets need a 3D context; harmless on the others. */
   [data-kui-fx*='flip-'] {
     transform-style: preserve-3d;
+  }
+
+  /*
+   * Exact-token list rather than folded into the substring rule above: `perspective` is genuinely
+   * a no-op for `flip-in-x/-y`/`flip-out-x/-y` themselves (their own depth now lives in the
+   * `transform:` value above), and is only here for the same reason `three-d.css` keeps it on
+   * `card-flip-x`/`-y` — nested content with its own 3D transform gets a shared scene. Kept
+   * separate from `[data-kui-fx*='flip-']` so adding it doesn't quietly also land on any future
+   * preset whose name happens to contain "flip-".
+   */
+  [data-kui-fx~='flip-in-x'],
+  [data-kui-fx~='flip-in-y'],
+  [data-kui-fx~='flip-out-x'],
+  [data-kui-fx~='flip-out-y'] {
+    perspective: var(--kui-perspective, 1200px);
   }
 }

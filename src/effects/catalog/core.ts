@@ -67,7 +67,12 @@ export const PRIMITIVES: Primitive[] = [
     },
   }),
 
-  css('flip-3d', [CHANNEL.rotate], {
+  // `skew`, not `rotate`: entrance.css's keyframes write `transform: perspective(...)
+  // rotateX/Y(...)`, not the individual `rotate:` property — the `perspective` parameter below
+  // used to compile cleanly and do nothing, because nothing read it. See entrance.css's own
+  // comment on `kui-flip-in-x` for the fix; `CHANNEL.skew` is this catalog's name for "claims the
+  // whole `transform` shorthand" (`core/types.ts`), shared with `scroll-skew` and `flip-face`.
+  css('flip-3d', [CHANNEL.skew], {
     timelines: ENTRANCE_TIMELINES,
     parameters: {
       angle: { type: 'angle', default: '90deg', cssProperty: '--kui-from-angle' },

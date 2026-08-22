@@ -109,8 +109,10 @@ rather than blend.
 **Fix:** every primitive declares the CSS properties it owns. Modern CSS made `translate`,
 `rotate`, and `scale` independent properties, which yields five disjoint channels. A sixth, `skew`,
 has no independent property to lean on — CSS never gave skew one the way it did
-translate/rotate/scale — so it claims the `transform` shorthand outright instead, and nothing else
-in the catalog may write `transform`:
+translate/rotate/scale — so it claims the `transform` shorthand outright instead. Anything that
+writes `transform` has to be on this channel, not another one: `scroll-skew` for its literal skew,
+and `flip-face`/`flip-3d` because giving an element depth on *itself* needs the `perspective()`
+transform function, which only exists inside `transform`.
 
 | Channel | Property | Example primitives |
 |---|---|---|
@@ -119,7 +121,7 @@ in the catalog may write `transform`:
 | scale | `scale` | zoom, pop, ken-burns |
 | rotate | `rotate` | spin, tilt-2d, wiggle |
 | filter | `filter` | blur, brightness, saturate |
-| skew | `transform` | scroll-skew |
+| skew | `transform` | scroll-skew, flip-face, flip-3d |
 | clip | `clip-path` | wipes, curtains, heart-fill |
 | background | `background-*` | gradient mesh, aurora, range-fill |
 | color | `color` | text colour transitions |

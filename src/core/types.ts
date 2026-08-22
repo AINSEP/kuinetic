@@ -35,9 +35,10 @@ export const CHANNEL = {
    * beside `translate:`/`rotate:`/`scale:`, so it can only be written through the `transform`
    * shorthand. That makes it its own channel: anything writing `transform` clobbers the whole
    * shorthand, so every primitive that does is on this channel, whatever the transform is for.
-   * `scroll-skew` is one member; `flip-face` (`effects/three-d`) is the other — it needs the
-   * `perspective()` transform *function* for an element to have depth on itself, which likewise
-   * only exists inside `transform`.
+   * `scroll-skew` is one member; `flip-face` (`effects/three-d`) and `flip-3d`
+   * (`effects/catalog/core`, the `flip-in-*`/`flip-out-*` family) are the other two — both need
+   * the `perspective()` transform *function* for an element to have depth on itself, which
+   * likewise only exists inside `transform`.
    */
   skew: 'skew',
 } as const
