@@ -245,7 +245,7 @@
   main .kui-contract {
     display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
     /* `nowrap`, deliberately. With wrapping on, the pin-until aside — a ~405px column — was one
-       character short of fitting `data-kui="pin-until offset:6rem"` and its chip on one line, so
+       character short of fitting `data-kui="pin-until offset-top:6rem"` and its chip on one line, so
        the chip dropped to a second row and the bar became a two-row block again: the exact shape
        this component replaced. The code shrinks instead (see the `code` rule below), because a
        contract you scroll is still one bar, and a contract that wraps is two. */
@@ -793,7 +793,8 @@
 
   /* ---------- horizontal scroll (Section C) ---------- */
   .track-stage { height: 400vh; margin-top: 2rem; }
-  .track-viewport { position: sticky; top: 0; height: 100vh; display: grid; align-content: center; overflow: hidden; }
+  /* Same token the pins read, so "how far down does a held thing sit" is one number. */
+  .track-viewport { position: sticky; top: var(--kui-pin-offset, 0px); height: calc(100vh - var(--kui-pin-offset, 0px)); display: grid; align-content: center; overflow: hidden; }
   .track { display: flex; gap: 1.5rem; width: max-content; padding: 0 4rem; }
   .track figure { width: 380px; flex: none; border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface); }
   .track figure img { display: block; width: 100%; height: 280px; object-fit: cover; }
@@ -808,7 +809,7 @@
      replication, which continues its red gradient rather than banding against it), so a 16:9 box
      is filled exactly: no crop, no bars, nothing to paint behind them. */
   .scrub-viewport {
-    position: sticky; top: 10vh; aspect-ratio: 16 / 9; max-height: 80vh;
+    position: sticky; top: calc(var(--kui-pin-offset, 0px) + 2vh); aspect-ratio: 16 / 9; max-height: 80vh;
     border-radius: 14px; overflow: clip;
   }
   /* `scroll-desaturate` used to be composed onto this element, wiping grayscale to colour across
@@ -881,7 +882,7 @@
      fix: `Commerce` stayed lit from its own seam to roughly +250px into `Portfolio`.
 
      Changing one number without the other silently reintroduces that. If this height changes,
-     change the four `distance:` values with it. */
+     change the five `distance:` values with it. */
   .spy-section {
     position: relative; min-height: 68vh; overflow: clip;
     display: flex; align-items: flex-end;
@@ -889,11 +890,13 @@
   /* The seam between tiled panes. A border on each section would double up at every join. */
   .spy-section + .spy-section { border-top: 1px solid var(--border); }
   /* `object-position: top`, because every image in this set is a screenshot of a web page, and the
-     top of a web page is the part that was designed to introduce it. `cover` crops height here for
-     all four, and the default centre crop was worst on the Portfolio card: that asset is a
-     941x1672 full-page capture (aspect 0.56) in a 1.48 box, so centring threw away roughly the top
-     third and landed on an arbitrary slice of the works grid. Top-anchoring shows the masthead,
-     which is what the other three cards show and what makes them read as one set. */
+     top of a web page is the part that was designed to introduce it. `cover` crops height on all
+     five, and a centre crop lands on an arbitrary band of whichever page is tallest. Top-anchoring
+     shows the masthead, which is what makes five different products read as one set.
+
+     All five are monochrome product pages, and all five were vendor mockups floating on a flat
+     backdrop before they were cropped to the screen itself — a card showing someone else's
+     presentation chrome is not showing a website. */
   .spy-section img {
     position: absolute; inset: 0; width: 100%; height: 100%;
     object-fit: cover; object-position: top;
@@ -1128,7 +1131,7 @@
            use of the pin primitive the page goes on to document. -->
       <section class="showcase" data-od-id="marquee" aria-labelledby="showcase-title">
         <div class="showcase-grid">
-          <figure class="showcase-media" data-kui="pin-until offset:6rem">
+          <figure class="showcase-media" data-kui="pin-until offset-top:6rem">
             <!-- The frame exists to clip: the image inside it scales on `timeline:pin`, and a
                  scaling element with its own border-radius spills past that radius as it grows.
                  Putting the radius, border, and shadow on a wrapper with `overflow: clip` keeps the
@@ -1151,7 +1154,7 @@
                 <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
               </video>
             </div>
-            <figcaption>fuselab creative — spatial clinic scheduler · held by data-kui="pin-until offset:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
+            <figcaption>fuselab creative — spatial clinic scheduler · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
           </figure>
 
           <div class="showcase-copy">
@@ -1399,11 +1402,11 @@
                blank strip under every screenshot to hold them. The effect lives on the aside, so
                the control does too. `data-show-code-target` opens the whole layout at once. -->
           <div class="pin-until-layout" id="pin-until-demo">
-            <aside class="pin-until-aside" data-kui="pin-until offset:6rem">
+            <aside class="pin-until-aside" data-kui="pin-until offset-top:6rem">
               <p class="kicker">pin-until</p>
               <h4>Three stops, one scroll.</h4>
-              <p>This panel sticks at <code>offset:6rem</code> while the itinerary beside it scrolls past underneath.</p>
-              <p class="kui-contract"><code>data-kui="pin-until offset:6rem"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
+              <p>This panel sticks at <code>offset-top:6rem</code> while the itinerary beside it scrolls past underneath.</p>
+              <p class="kui-contract"><code>data-kui="pin-until offset-top:6rem"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
             </aside>
             <div class="pin-until-content">
               <figure class="pin-until-block">
@@ -1430,6 +1433,12 @@
           <!-- This demo had the attribute on screen — the typewriter line inside the card — but no
                way to open its source at all, which made it the one pinning demo you could not copy.
                The bar goes above the stage for the same reason as `pin-section`'s. -->
+          <!-- No `offset-top:` here on purpose. This card used to hold its top edge at the viewport
+               top, which is under the floating header, for the whole 120vh — the nav sat on the
+               artwork the entire time. The fix is not a number on this attribute: the pin's
+               `offset-top` now defaults to `var(--kui-pin-offset, 0px)`, and `demo/system.css`
+               answers that token once for the whole showcase. So the contract below is still the
+               one attribute, and it still clears the chrome. -->
           <p class="kui-contract"><code>data-kui="pin-spacer distance:120vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-spacer-demo">Show code</button></p>
           <div class="pin-spacer-demo" id="pin-spacer-demo" data-show-code-key="pin-spacer-track">
             <div class="pin-spacer-track">
@@ -1468,27 +1477,27 @@
                the stagger reads exactly as before, just below the chrome instead of under it. -->
           <div class="stack-group">
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:5.5rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset-top:5.5rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
-                <figcaption>offset:5.5rem</figcaption>
+                <figcaption>offset-top:5.5rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:6.75rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset-top:6.75rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
-                <figcaption>offset:6.75rem</figcaption>
+                <figcaption>offset-top:6.75rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:8rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset-top:8rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
-                <figcaption>offset:8rem</figcaption>
+                <figcaption>offset-top:8rem</figcaption>
               </figure>
             </div>
             <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset:9.25rem" data-show-code>
+              <figure class="stack-card" data-kui="stacking-cards offset-top:9.25rem" data-show-code>
                 <img src="./assets/webdesign/portfolio-yash-sharma.jpg" alt="Yash Sharma's creative portfolio homepage — a heavy white PORTFOLIO wordmark over a figure in a dark suit, with Creative scripted in yellow above it" loading="lazy" />
-                <figcaption>offset:9.25rem</figcaption>
+                <figcaption>offset-top:9.25rem</figcaption>
               </figure>
             </div>
           </div>
@@ -1631,7 +1640,7 @@
                  out five descriptions of a single element. -->
             <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh">
               <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
-              <img src="./assets/webdesign/scrub-compton.jpg" alt="" data-no-lightbox />
+              <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
               <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
               <img src="./assets/webdesign/scrub-hendrix.jpg" alt="" data-no-lightbox />
             </div>
@@ -1647,28 +1656,33 @@
             </ul>
           </div>
           <div class="spy-layout">
-            <nav class="spy-nav" aria-label="Jump to category">
-              <a id="spy-link-agency" href="#spy-agency">Agency</a>
-              <a id="spy-link-commerce" href="#spy-commerce">Commerce</a>
-              <a id="spy-link-portfolio" href="#spy-portfolio">Portfolio</a>
-              <a id="spy-link-product" href="#spy-product">Product</a>
+            <nav class="spy-nav" aria-label="Jump to product">
+              <a id="spy-link-bottle" href="#spy-bottle">Botole</a>
+              <a id="spy-link-airpods-dark" href="#spy-airpods-dark">AirPods dark</a>
+              <a id="spy-link-airpods-light" href="#spy-airpods-light">AirPods light</a>
+              <a id="spy-link-vision" href="#spy-vision">Vision Pro</a>
+              <a id="spy-link-beats" href="#spy-beats">Beats Pro</a>
             </nav>
             <div class="spy-sections">
-              <section id="spy-agency" class="spy-section" data-kui="scroll-spy target:#spy-link-agency distance:68vh">
-                <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in an orange visor beside the headline “We start from zero”" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Category</p><h4>Agency</h4></div>
+              <section id="spy-bottle" class="spy-section" data-kui="scroll-spy target:#spy-link-bottle distance:68vh">
+                <img src="./assets/webdesign/spy-botole-bottle.jpg" alt="The Botole water-bottle store — a matte black bottle on a white disc, beside a heavy Drinking Water Bottle headline and a Start Now button" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Product</p><h4>Botole — drinkware</h4></div>
               </section>
-              <section id="spy-commerce" class="spy-section" data-kui="scroll-spy target:#spy-link-commerce distance:68vh">
-                <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Category</p><h4>Commerce</h4></div>
+              <section id="spy-airpods-dark" class="spy-section" data-kui="scroll-spy target:#spy-link-airpods-dark distance:68vh">
+                <img src="./assets/webdesign/spy-airpods-max-dark.jpg" alt="An Apple AirPods Max product page in near-black — two views of the headphones over a vast outlined AirPodsMax wordmark, with White and Black swatches" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Product</p><h4>AirPods Max · dark</h4></div>
               </section>
-              <section id="spy-portfolio" class="spy-section" data-kui="scroll-spy target:#spy-link-portfolio distance:68vh">
-                <img src="./assets/webdesign/portfolio-fullpage.jpg" alt="The full landing page of Alyssa Marlowe's web design portfolio" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Category</p><h4>Portfolio</h4></div>
+              <section id="spy-airpods-light" class="spy-section" data-kui="scroll-spy target:#spy-link-airpods-light distance:68vh">
+                <img src="./assets/webdesign/spy-airpods-max-light.jpg" alt="The same AirPods Max page inverted to near-white — silver headphones centred over a pale Air Pods Max wordmark, with Play video, More Product and Buy Product controls" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Product</p><h4>AirPods Max · light</h4></div>
               </section>
-              <section id="spy-product" class="spy-section" data-kui="scroll-spy target:#spy-link-product distance:68vh">
-                <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards for horsepower and acceleration" loading="lazy" />
-                <div class="spy-label"><p class="kicker">Category</p><h4>Product</h4></div>
+              <section id="spy-vision" class="spy-section" data-kui="scroll-spy target:#spy-link-vision distance:68vh">
+                <img src="./assets/webdesign/spy-vision-pro.jpg" alt="An Apple Vision Pro store page — the headset lit from above under the headline Stay in the Orbit of Vision, priced from $2,400, with Book a demo and Virtual Tour buttons" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Product</p><h4>Vision Pro</h4></div>
+              </section>
+              <section id="spy-beats" class="spy-section" data-kui="scroll-spy target:#spy-link-beats distance:68vh">
+                <img src="./assets/webdesign/spy-beats-pro.jpg" alt="The nocs. store showing Beats Pro — black headphones hung over an outlined Beats wordmark on warm grey, with a $399.95 price and a BUY block" loading="lazy" />
+                <div class="spy-label"><p class="kicker">Product</p><h4>Beats Pro</h4></div>
               </section>
             </div>
           </div>
@@ -1678,8 +1692,8 @@
           <p class="matrix-group-label">Native CSS passthroughs — 2</p>
                     <div class="rev-notes">
             <ul>
-              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two are pure CSS</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>.</li>
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Real independently-scrollable containers, unlike the JS-driven track above. Drag or scroll them directly.</li>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two are pure CSS</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>. No JS runs at all.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>The track above moves itself; these wait for you.</strong> <code>horizontal-scroll</code> is not a scroll container — it is a pinned strip that JS translates from the page's vertical position, so you cannot grab it. These are real containers: scroll or drag one directly and it lets go on a card.</li>
             </ul>
           </div>
 
@@ -1688,27 +1702,56 @@
                `<figure><img></figure>` with no `data-kui` anywhere in it — the effect is on the
                container, not the cards. Nine chips, none of them attached to the thing they named.
                One bar per container, targeting the container, says exactly what runs and where. -->
+          <!-- Deliberately none of the eleven screens in the `horizontal-scroll` track above. Both
+               groups were showing a sideways row of website screenshots out of the same five
+               pictures, so the two demos read as one demo repeated and the actual difference — a
+               JS-translated strip you cannot touch, versus a native scroll container you can — had
+               nothing to hang on. Film and music sites here, portfolios in the vertical panel
+               below.
+
+               Nine cards rather than five, at the owner's request, and the extra length is the
+               point rather than padding: a native snap container only shows what it is once you
+               have travelled far enough to feel it catch several times. The four music sites are
+               the media-scrub frames from further up the page, which is a deliberate second
+               showing — the same picture under a JS scrub and under a pure-CSS snap is the
+               cleanest way to see that the two mechanisms are unrelated. -->
           <p class="kui-contract"><code>data-kui="scroll-snap-x"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-x-demo">Show code</button></p>
           <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x">
             <figure>
-              <img src="./assets/webdesign/saxe-fashion-ecommerce.jpg" alt="The Saxe fashion store homepage — a model in a brown coat standing inside an oversized Saxe wordmark" loading="lazy" />
-              <figcaption>scroll-snap-x — 1 of 5</figcaption>
+              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
+              <figcaption>scroll-snap-x — 1 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/zrobim-bigtype-hero.jpg" alt="The ZROBIM architects homepage — an oversized TERRA cotta wordmark set over a hillside house" loading="lazy" />
-              <figcaption>scroll-snap-x — 2 of 5</figcaption>
+              <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="The Dua Lipa artist site — a portrait in a red ruffled dress against a deep red field, under an oversized Dua Lipa wordmark" loading="lazy" />
+              <figcaption>scroll-snap-x — 2 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading “Imagining beyond reality”" loading="lazy" />
-              <figcaption>scroll-snap-x — 3 of 5</figcaption>
+              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+              <figcaption>scroll-snap-x — 3 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/nuorbit-dark-hero.jpg" alt="The NUORBIT marketplace homepage — a wide-tracked wordmark over a figure stepping through a glowing ring" loading="lazy" />
-              <figcaption>scroll-snap-x — 4 of 5</figcaption>
+              <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="A Grammy Awards site on Best Rap Album — Kendrick Lamar in monochrome beside the DAMN. sleeve, track details, and a yellow by-the-numbers panel" loading="lazy" />
+              <figcaption>scroll-snap-x — 4 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/costar-dune-house-dashboard.jpg" alt="The CoStar Group loan dashboard — frosted glass risk and LTV panels over a photo of the Dune Dweller House at desert dusk" loading="lazy" />
-              <figcaption>scroll-snap-x — 5 of 5</figcaption>
+              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
+              <figcaption>scroll-snap-x — 5 of 9</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/webdesign/scrub-starboy.jpg" alt="A Starboy artist site — a monochrome portrait of The Weeknd beside heavy display type" loading="lazy" />
+              <figcaption>scroll-snap-x — 6 of 9</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT" loading="lazy" />
+              <figcaption>scroll-snap-x — 7 of 9</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/webdesign/scrub-hendrix.jpg" alt="The Hendrix Project site — a close-up of Jimi Hendrix behind an outlined PROJECT wordmark, with a 1968-2022 timeline" loading="lazy" />
+              <figcaption>scroll-snap-x — 8 of 9</figcaption>
+            </figure>
+            <figure>
+              <img src="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" alt="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above" loading="lazy" />
+              <figcaption>scroll-snap-x — 9 of 9</figcaption>
             </figure>
           </div>
 
@@ -1719,15 +1762,15 @@
               <figcaption>scroll-snap-y — 1 of 4</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
+              <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
               <figcaption>scroll-snap-y — 2 of 4</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe" loading="lazy" />
+              <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
               <figcaption>scroll-snap-y — 3 of 4</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/future-ai-robot-hero.jpg" alt="A dark AI agency homepage — an armoured robot figure beside the display headline FUTURE IS WAITING, with Technology and Innovation cards below" loading="lazy" />
+              <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
               <figcaption>scroll-snap-y — 4 of 4</figcaption>
             </figure>
           </div>
