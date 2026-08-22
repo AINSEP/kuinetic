@@ -133,6 +133,47 @@ describe('auto-height: a partial ("peek") collapsed state', () => {
     el.remove()
   })
 
+  it('the very first toggle opens from the peek, with no prior close to seed `previous`', () => {
+    // The two tests above both arrange a close *before* the assertion they care about, specifically
+    // so `previous` is already a real recorded number by the time they check a frame. That sidesteps
+    // the actual bug: a panel authored collapsed-to-a-peek whose *first-ever* toggle is opening it.
+    // `previous` starts seeded from whatever `prepareAutoHeight` measured at `activate()` — this
+    // test never touches `rendered` before that call, so it has to be right without any toggle
+    // having happened yet.
+    const observers = stubControllableObserver()
+
+    const el = document.createElement('div')
+    document.body.append(el)
+
+    const natural = 200
+    const peek = 48
+    let rendered = peek // authored collapsed-to-peek, and never anything else before activation
+    el.getBoundingClientRect = (() => ({ height: rendered })) as unknown as Element['getBoundingClientRect']
+    Object.defineProperty(el, 'scrollHeight', { get: () => natural })
+
+    const frames: Array<Array<Record<string, string>>> = []
+    el.animate = ((keyframes: Array<Record<string, string>>) => {
+      frames.push(keyframes)
+      return { cancel: vi.fn() } as unknown as Animation
+    }) as unknown as typeof el.animate
+
+    const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
+    const instance = autoHeight.prepare!(el, params, fakeCtx())
+    instance.activate()
+    const observer = observers.at(-1)!
+
+    // First-ever toggle: open. A `previous` that started `null` and fell back to the old
+    // to-vs-scrollHeight heuristic would read this as "opening" too, but from 0 — the actual bug,
+    // since the panel was already showing its 48px peek, not nothing.
+    rendered = natural
+    observer.fire()
+
+    expect(frames[0]).toEqual([{ height: '48px' }, { height: '200px' }])
+
+    instance.destroy()
+    el.remove()
+  })
+
   it('hands the authored markup back untouched on teardown, mid-peek', async () => {
     const animator = build('<div data-kui="accordion-height" data-open="false"><p>peek</p></div>')
     const host = el()

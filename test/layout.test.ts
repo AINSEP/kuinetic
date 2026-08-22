@@ -344,8 +344,11 @@ describe('auto-height', () => {
 
   /*
    * `scrollHeight` is a rounded integer while the rendered height is fractional, so an open 44.8px
-   * panel reports 45 and read as "shorter than its content" — i.e. as closing. The first opening
-   * animation became 45px → 44.8px: a no-op, and the panel snapped open with no animation at all.
+   * panel reports 45 — before the fix below, the old to-vs-scrollHeight heuristic read that as
+   * "shorter than its content" and mistook opening for closing. Seeding `previous` from the actual
+   * rendered height at `activate()` sidesteps the rounding gap entirely: it never consults
+   * `scrollHeight`. The element starts collapsed (0) at activation, same as any authored panel, and
+   * only reaches its fractional natural height once the toggle actually opens it.
    */
   it('does not mistake a sub-pixel rounding gap for a collapsed panel', () => {
     const observers: Array<{ fire: () => void }> = []
@@ -365,7 +368,8 @@ describe('auto-height', () => {
 
     const el = document.createElement('div')
     document.body.append(el)
-    el.getBoundingClientRect = (() => ({ height: 44.8 })) as unknown as Element['getBoundingClientRect']
+    let rendered = 0 // collapsed, same as the DOM looks before the panel is ever opened
+    el.getBoundingClientRect = (() => ({ height: rendered })) as unknown as Element['getBoundingClientRect']
     Object.defineProperty(el, 'scrollHeight', { get: () => 45 })
 
     const frames: Array<Array<Record<string, string>>> = []
@@ -377,6 +381,8 @@ describe('auto-height', () => {
     const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
     const instance = autoHeight.prepare!(el, params, fakeCtx())
     instance.activate()
+
+    rendered = 44.8 // the stylesheet's own fractional natural height, once the toggle opens it
     observers.at(-1)!.fire()
 
     expect(frames[0]).toEqual([{ height: '0px' }, { height: '44.8px' }])

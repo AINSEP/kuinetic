@@ -69,7 +69,7 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
  * endpoint. This is the accordion mechanism, and nothing more: it does not own `aria-expanded`,
  * focus, or keyboard handling. Those belong to the component, not to an animation library.
  *
- * @complexity O(1) per toggle, but forces layout to read `scrollHeight`.
+ * @complexity O(1) per toggle, but forces a layout read on activation and on every toggle.
  * @overallScore 100
  */
 function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
@@ -83,10 +83,13 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
   const duration = effectDurationMs(params, 400)
   let animation: Animation | null = null
 
-  // The height the last toggle settled on. Tracked because by the time this observer runs the
-  // stylesheet has *already* repainted at the new resting height, so the element can no longer be
-  // asked where it came from.
-  let previous: number | null = null
+  // The height the last toggle settled on, seeded from whatever is actually rendered right now —
+  // this is the only moment the element's starting height can be read *before* any toggle has
+  // touched it, which is what lets the very first toggle start from a real number (a collapsed
+  // peek, a full open height) instead of guessing. From here on it is tracked rather than
+  // re-measured, because by the time the observer below runs, the stylesheet has *already*
+  // repainted at the new resting height, so the element can no longer be asked where it came from.
+  let previous: number = node.getBoundingClientRect().height
 
   const observer = watchAttribute(node, params.text('attribute'), () => {
     animation?.cancel()
@@ -111,24 +114,23 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
  * height is the animation's **end**, never its start — reading it as the start is what made closing
  * play forwards, snap open, and then cut to nothing.
  *
- * The start is the height the previous toggle settled on. On the first toggle there is no such
- * record, so it is inferred: an element rendering shorter than its content is collapsing (it came
- * from open), and anything else is opening (it came from zero). The comparison needs a pixel of
- * slack because `scrollHeight` is a rounded integer while the rendered height is fractional — an
- * open 44.8px panel reports `scrollHeight` 45 and would otherwise read as collapsing, which turns
- * the opening animation into a no-op.
+ * The start is simply the height the previous toggle settled on — `prepareAutoHeight` seeds that
+ * record once, from the element's actual rendered height before any toggle has happened, so even
+ * the first toggle has a real measurement to start from rather than a guess. That is what lets a
+ * panel collapsed to a non-zero "peek" open from its peek instead of from zero: nothing here has to
+ * infer that "collapsed" and "zero" mean the same thing.
  *
  * @returns The `from` and `to` heights in pixels.
  * @complexity O(1) time; forces one layout read.
  * @overallScore 100
  */
-function heightEndpoints(node: HTMLElement, previous: number | null): { from: number; to: number } {
-  // Removed rather than written, so both the rendered height and `scrollHeight` report what the
-  // stylesheet wants. `prepareAutoHeight` claims the property, which makes this removal restorable.
+function heightEndpoints(node: HTMLElement, previous: number): { from: number; to: number } {
+  // Removed rather than written, so the rendered height reports what the stylesheet actually wants
+  // rather than a stale inline value. `prepareAutoHeight` claims the property, which makes this
+  // removal restorable.
   node.style.removeProperty('height')
   const to = node.getBoundingClientRect().height
-  const from = previous ?? (to < node.scrollHeight - 1 ? node.scrollHeight : 0)
-  return { from, to }
+  return { from: previous, to }
 }
 
 /**
