@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — gesture-sweep fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * One chip per gesture name, each in its own generously sized cell. The spacing is not
+       * decoration: `magnetic` reaches 120px by default and `throwable` can travel a long way after
+       * release, so chips packed tightly would enter each other's fields and the sweep would be
+       * measuring interference rather than the effect.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 420px);
+        grid-auto-rows: 320px;
+        place-items: center;
+      }
+      .chip {
+        width: 120px;
+        height: 80px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #d2691e, #8b3a1a);
+        font-size: 0.8rem;
+        touch-action: none;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div id="drag" class="chip" data-kui="drag">drag</div>
+      <div id="drag-x" class="chip" data-kui="drag-x">drag-x</div>
+      <div id="drag-y" class="chip" data-kui="drag-y">drag-y</div>
+      <div id="drag-inertia" class="chip" data-kui="drag-inertia">drag-inertia</div>
+      <div id="throwable" class="chip" data-kui="throwable">throwable</div>
+      <div id="elastic-pull" class="chip" data-kui="elastic-pull">elastic-pull</div>
+      <div id="rubber-band" class="chip" data-kui="rubber-band">rubber-band</div>
+      <div id="snap-back" class="chip" data-kui="snap-back">snap-back</div>
+      <div id="swipe" class="chip" data-kui="swipe">swipe</div>
+      <div id="swipe-x" class="chip" data-kui="swipe-x">swipe-x</div>
+      <div id="long-press" class="chip" data-kui="long-press">long-press</div>
+      <div id="magnetic" class="chip" data-kui="magnetic">magnetic</div>
+      <div id="magnetic-snap" class="chip" data-kui="magnetic-snap">magnetic-snap</div>
+    </div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — effect-sweep fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * One probe, always in the viewport, reused for every effect in the catalog. Keeping a single
+       * stage means an `on:enter` effect fires the moment its attribute is written, without the
+       * suite having to scroll 250 probes past an observer.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      #stage {
+        display: grid;
+        place-items: center;
+        width: 100vw;
+        height: 100vh;
+        /* `perspective` applies to a *descendant's* transform, never the element's own, so the 3D
+           family needs it here — exactly as `demo/index.html`'s `.lab-card` provides it. */
+        perspective: 1200px;
+      }
+      #probe {
+        width: 220px;
+        height: 140px;
+        display: grid;
+        place-items: center;
+        /* `background-color`, never the `background` shorthand. The shorthand resets
+           `background-size` to `auto`, and this rule is unlayered so it beats `kui.effects` — which
+           silently broke `highlight-sweep` and `underline-draw`, whose rest state *is* a
+           `background-size`. Their `to` keyframe then had to interpolate from `auto`, which is
+           discrete, and the sweep reported a hard cut in effects that are perfectly fine. */
+        background-color: #8b3a1a;
+        color: #fff;
+        font-size: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><div id="probe">probe</div></div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__registry = kuinetic.createRegistry()
+      // `observe: true` is required: the sweep swaps a fresh probe into the stage for every effect,
+      // and without the DOM watcher the animator only ever compiles what was in the initial markup.
+      window.__kui = kuinetic
+        .kuinetic({ reporter: kuinetic.silentReporter(), observe: true })
+        .start()
+    </script>
+  </body>
+</html>
