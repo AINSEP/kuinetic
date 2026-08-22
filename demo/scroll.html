@@ -621,7 +621,11 @@
   }
 
   .pin-spacer-demo { margin-top: 2rem; }
-  .pin-spacer-track { position: relative; min-height: 260vh; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  /* No `min-height`. It used to say `260vh`, which was scroll room hand-matched to the card's own
+     70vh plus `distance:120vh` on the attribute — a third number restating two others. The pin
+     inserts a `distance`-tall spacer itself, so the track's height is now derived from its
+     contents and cannot drift out of step with the attribute. */
+  .pin-spacer-track { position: relative; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .pin-spacer-card {
     position: relative; height: 70vh; overflow: clip; border-radius: 0;
     display: grid; place-items: center;
@@ -804,15 +808,21 @@
   .track figure figcaption { padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
 
   /* ---------- sequence-scrub (Section C) ---------- */
-  .scrub-stage { height: 260vh; margin-top: 2rem; }
+  /* Spacing only. The `260vh` that used to be here was the scroll room the scrub travels through,
+     hand-matched to `distance:220vh` on the attribute — two numbers restating one fact, with
+     nothing stopping them drifting apart. The library reserves that room itself now. */
+  .scrub-stage { margin-top: 2rem; }
   /* Sized to the frames rather than to the viewport, which is what removes the grey surround.
      `height: 80vh` gave a box whose aspect changed with the window, so `contain` always had
      leftover space to fill and that space was `--surface` — a grey border round every frame that
      moved as you resized. All four frames are 16:9 now (the 1.60 one is padded by edge
      replication, which continues its red gradient rather than banding against it), so a 16:9 box
      is filled exactly: no crop, no bars, nothing to paint behind them. */
+  /* Look only — no `position: sticky`, no `top`. Both moved onto the attribute, where `distance:`
+     already lived. What stays is what the library has no opinion about: the frame's shape, its
+     ceiling, and the rounding that `overflow: clip` exists to serve. */
   .scrub-viewport {
-    position: sticky; top: calc(var(--kui-pin-offset, 0px) + 2vh); aspect-ratio: 16 / 9; max-height: 80vh;
+    aspect-ratio: 16 / 9; max-height: 80vh;
     border-radius: 14px; overflow: clip;
   }
   /* `scroll-desaturate` used to be composed onto this element, wiping grayscale to colour across
@@ -1628,7 +1638,7 @@
           <!-- Same `data-show-code-target` shape as the horizontal track, and for the same reason:
                the effect is on an image inside an `overflow: clip` sticky viewport, so an
                auto-mounted chip would be laid out inside the clip and never seen. -->
-          <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scrub-demo">Show code</button></p>
           <div class="scrub-stage" id="scrub-demo" data-show-code-key="scrub-stage scrub-viewport">
             <!-- Five authored frames rather than one `<img>` whose `src` is rewritten from a
                  `{i}` pattern. The pattern form fetched each frame at the moment scrolling
@@ -1640,7 +1650,7 @@
                  Only the first frame carries alt text. The five are one picture as far as a
                  reader is concerned, and only ever one is visible, so describing each would read
                  out five descriptions of a single element. -->
-            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh">
+            <div class="scrub-viewport" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
               <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
               <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
               <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />

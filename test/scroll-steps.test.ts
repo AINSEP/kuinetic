@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { build, el, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
+import {
+  build,
+  el,
+  reporter,
+  scheduler,
+  stubRect,
+  stubRectWithSpacer,
+} from './support/scroll-mechanics-harness.js'
 
 /**
  * `scroll-progress` and its `target:` step marking.
@@ -179,11 +186,13 @@ describe('media-scrub — target:', () => {
     const animator = build(FRAMES)
     stubRect(el('.stage'), 0)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), 0)
 
     scheduler.emit(0)
     expect(states()).toEqual(['active', 'after', 'after', 'after'])
 
-    stubRect(el('.stage'), -200)
+    stubRectWithSpacer(el('.stage'), -200)
     scheduler.emit(200, 1)
     expect(states()).toEqual(['before', 'before', 'active', 'after'])
   })
@@ -195,6 +204,8 @@ describe('media-scrub — target:', () => {
     const animator = build(FRAMES)
     stubRect(el('.stage'), -400)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), -400)
     scheduler.emit(400)
     const sources = [...document.querySelectorAll('.stage img')].map((n) => n.getAttribute('src'))
     expect(sources).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'])
@@ -208,6 +219,8 @@ describe('media-scrub — target:', () => {
     )
     stubRect(el('.stage'), -399)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), -399)
     scheduler.emit(399)
     // With frames:99 honoured this would still be on frame 0 of 99; with 2 it is the last one.
     expect(states()).toEqual(['before', 'active'])
@@ -219,6 +232,8 @@ describe('media-scrub — target:', () => {
     const animator = build(FRAMES)
     stubRect(el('.stage'), 0)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), 0)
     expect(states()[0]).toBe('active')
   })
 
@@ -229,6 +244,8 @@ describe('media-scrub — target:', () => {
     )
     stubRect(el('.stage'), 0)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), 0)
     scheduler.emit(0)
     expect(states()).toEqual(['active', 'after'])
     expect(el('.stage').getAttribute('src')).toBeNull()
@@ -241,6 +258,8 @@ describe('media-scrub — target:', () => {
     )
     stubRect(el('.stage'), 0)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), 0)
     scheduler.emit(0)
     expect(reporter.messages.join()).toContain('matches the whole document')
     expect(document.body.getAttribute('data-kui-step-state')).toBeNull()
@@ -250,6 +269,8 @@ describe('media-scrub — target:', () => {
     const animator = build(FRAMES)
     stubRect(el('.stage'), -200)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), -200)
     scheduler.emit(200)
     expect(states()).not.toEqual(['', '', '', ''])
     animator.destroy()
@@ -268,6 +289,8 @@ describe('media-scrub — target: edge cases', () => {
     )
     stubRect(el('.stage'), 0)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), 0)
     scheduler.emit(0)
 
     const first = document.querySelector('.stage img')!
@@ -275,7 +298,7 @@ describe('media-scrub — target: edge cases', () => {
     first.setAttribute('data-kui-step-state', 'sentinel')
 
     // Same frame index, a slightly different scroll position.
-    stubRect(el('.stage'), -10)
+    stubRectWithSpacer(el('.stage'), -10)
     scheduler.emit(10, 1)
     expect(first.getAttribute('data-kui-step-state')).toBe('sentinel')
   })
@@ -289,6 +312,8 @@ describe('media-scrub — target: edge cases', () => {
     )
     stubRect(el('.stage'), -200)
     animator.start()
+    // The spacer only exists once the effect has prepared, and progress is read from it.
+    stubRectWithSpacer(el('.stage'), -200)
     expect(() => scheduler.emit(200)).not.toThrow()
     expect(el('.stage').style.getPropertyValue('--kui-progress')).toBe('0.5000')
   })

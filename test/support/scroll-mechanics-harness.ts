@@ -77,6 +77,26 @@ export function stubRect(el: Element, top: number, height = 400): void {
     ({ top, left: 0, width: 200, height, bottom: top + height, right: 200 }) as DOMRect
 }
 
+/**
+ * Stub an element *and* the spacer the library inserted after it.
+ *
+ * A primitive that reserves its own scroll room measures progress from that spacer rather than
+ * from the element, because sticky hides where the element actually sits in the flow. So a test
+ * has to stub both boxes: leave the spacer alone and the tracker reads jsdom's all-zero rect for
+ * it, computes a content offset a whole element-height out, and the effect jumps straight to its
+ * last frame — which is exactly how this was found.
+ *
+ * The spacer sits immediately after the element, so its top is the element's bottom. Its own
+ * height is irrelevant to the calculation and is left at zero.
+ *
+ * Call this AFTER `animator.start()`; the spacer does not exist until the effect prepares.
+ */
+export function stubRectWithSpacer(el: Element, top: number, height = 400): void {
+  stubRect(el, top, height)
+  const spacer = el.nextElementSibling
+  if (spacer?.hasAttribute('data-kui-spacer')) stubRect(spacer, top + height, 0)
+}
+
 export function build(html: string) {
   document.body.innerHTML = html
   scheduler = fakeScheduler()

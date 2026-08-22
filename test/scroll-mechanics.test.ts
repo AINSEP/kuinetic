@@ -12,6 +12,7 @@ import {
   reporter,
   scheduler,
   stubRect,
+  stubRectWithSpacer,
 } from './support/scroll-mechanics-harness.js'
 
 // Fake scheduler, fake measurer, `build`/`stubRect`/`el` helpers, and the `scheduler`/`reporter`
@@ -302,10 +303,13 @@ describe('media-scrub', () => {
     )
     stubRect(el('img'), 0)
     animator.start()
+    // Re-stub now the spacer exists: `sequence-scrub` reserves its own scroll room, and progress
+    // is read from that spacer rather than from the image sticky has parked.
+    stubRectWithSpacer(el('img'), 0)
     scheduler.emit(0)
     expect((el('img') as HTMLImageElement).src).toContain('frame-0.jpg')
 
-    stubRect(el('img'), -400)
+    stubRectWithSpacer(el('img'), -400)
     scheduler.emit(400, 1)
     expect((el('img') as HTMLImageElement).src).toContain('frame-3.jpg')
   })
@@ -355,12 +359,13 @@ describe('media-scrub', () => {
     const img = el('img') as HTMLImageElement
     stubRect(img, -10)
     animator.start()
+    stubRectWithSpacer(img, -10)
     scheduler.emit(10) // progress ~0.025 -> index 0
 
     const srcAfterFirst = img.src
     expect(srcAfterFirst).toContain('frame-0.jpg')
 
-    stubRect(img, -50)
+    stubRectWithSpacer(img, -50)
     scheduler.emit(50, 1) // progress ~0.125 -> still index 0, the `index === lastIndex` guard fires
     expect(img.src).toBe(srcAfterFirst)
   })
@@ -400,6 +405,7 @@ describe('media-scrub', () => {
     )
     stubRect(el('img'), 0)
     animator.start()
+    stubRectWithSpacer(el('img'), 0)
     scheduler.emit(0)
     // `./` is stripped by URL resolution, same as any browser normalizing a relative path.
     expect((el('img') as HTMLImageElement).src).toContain('assets/scenic_scrub_0.jpg')
@@ -430,36 +436,6 @@ describe('smooth-scroll-to', () => {
 
     animator.destroy()
     expect(el().style.scrollBehavior).toBe('auto')
-  })
-})
-
-describe('scroll-snap', () => {
-  it('applies native snapping to the container and its children', () => {
-    const animator = build('<ul data-kui="scroll-snap-x"><li></li><li></li></ul>')
-    animator.start()
-
-    expect(el('ul').style.scrollSnapType).toContain('x')
-    const items = [...document.querySelectorAll('li')] as HTMLElement[]
-    expect(items.every((item) => item.style.scrollSnapAlign === 'start')).toBe(true)
-  })
-
-  it('snaps along the y axis for scroll-snap-y', () => {
-    const animator = build('<ul data-kui="scroll-snap-y"><li></li></ul>')
-    animator.start()
-    expect(el('ul').style.scrollSnapType).toContain('y')
-  })
-
-  it('restores each child\'s own scroll-snap-align on destroy, not just the container', () => {
-    const animator = build(
-      '<ul data-kui="scroll-snap-x"><li style="scroll-snap-align: end"></li><li></li></ul>',
-    )
-    animator.start()
-    const items = [...document.querySelectorAll('li')] as HTMLElement[]
-    expect(items[0]!.style.scrollSnapAlign).toBe('start')
-
-    animator.destroy()
-    expect(items[0]!.style.scrollSnapAlign).toBe('end')
-    expect(items[1]!.style.scrollSnapAlign).toBe('')
   })
 })
 

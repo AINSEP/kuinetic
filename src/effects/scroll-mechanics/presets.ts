@@ -23,21 +23,22 @@ export const SCROLL_PRESETS: Preset[] = [
 
   // --- media -------------------------------------------------------------------------------
   /*
-   * `spacer` stays OFF here, deliberately, and it is worth knowing why before turning it on.
+   * `spacer:true` is what deletes the `.scrub-stage` wrapper a page used to hand-write.
    *
-   * A scrub is a hold, so making it carry its own spacer the way `pin-section` does looks like the
-   * obvious way to delete the `.scrub-stage` wrapper a page otherwise hand-writes. It does delete
-   * it — and then the scrub is measured against whatever the surrounding container happens to be,
-   * because `geometrySource` escapes a sticky subtree by taking its parent. Measured on
-   * `demo/scroll.html`: the parent starts 926px above the scrub against a 1817px distance, so
-   * progress reached 51% before the element had even stuck, and half the sequence played off
+   * It could not be switched on until the tracker stopped measuring against the parent. A scrub
+   * makes itself sticky, and `geometrySource` escapes a sticky subtree by taking its parent — so
+   * with the wrapper gone the scrub was measured against whatever section contained it. Measured
+   * on `demo/scroll.html`: the parent started 926px above the scrub against a 1817px distance, so
+   * progress reached 51% before the element had even stuck and half the sequence played off
    * screen. The wrapper was not ceremony; it was the tight box that made the parent honest.
    *
-   * The fix is to stop tracking the parent and track the spacer, which is exactly `distance` tall
-   * and moves with the content — no wrapper, no ambiguity. Until that lands, shipping the spacer
-   * here would trade a wrapper for a silently mistimed scrub, which is the worse of the two.
+   * `trackProgress`'s `contentAnchor` is the fix. Progress is read from the spacer, which the
+   * library inserts, is exactly `distance` tall, is never sticky, and moves with the content — so
+   * there is no wrapper to write and nothing to disagree with.
+   *
+   * `video-scrub` stays off: a video positioned by the page is not asking the library for a box.
    */
-  { name: 'sequence-scrub', primitive: 'media-scrub' },
+  { name: 'sequence-scrub', primitive: 'media-scrub', params: { spacer: 'true' } },
   { name: 'video-scrub', primitive: 'media-scrub' },
 
   // --- navigation --------------------------------------------------------------------------

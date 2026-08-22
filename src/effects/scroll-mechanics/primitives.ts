@@ -62,11 +62,15 @@ const stickyParams: ParameterSchema = {
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function installSticky(node: HTMLElement, params: EffectParams, ctx: PrepareContext): Cleanup {
+function installSticky(
+  node: HTMLElement,
+  params: EffectParams,
+  ctx: PrepareContext,
+): { spacer: HTMLElement | null; dispose: Cleanup } {
   ctx.style.set('position', 'sticky')
   ctx.style.set('top', params.text('offset-top', 'var(--kui-pin-offset, 0px)'))
-  const removeSpacer = params.is('spacer') ? insertSpacer(node, params.text('distance'), ctx) : null
-  return () => removeSpacer?.()
+  const inserted = params.is('spacer') ? insertSpacer(node, params.text('distance'), ctx) : null
+  return { spacer: inserted?.spacer ?? null, dispose: () => inserted?.remove() }
 }
 
 /** One primitive's distinguishing fields; the rest are identical across the category. */
@@ -116,7 +120,7 @@ function writeProgress(ctx: PrepareContext, progress: number): void {
  */
 function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
-  const unstick = installSticky(node, params, ctx)
+  const { dispose: unstick } = installSticky(node, params, ctx)
 
   /*
    * Track the containing block, not the pinned element.
@@ -151,7 +155,11 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function insertSpacer(node: HTMLElement, distance: string, ctx: PrepareContext): Cleanup {
+function insertSpacer(
+  node: HTMLElement,
+  distance: string,
+  ctx: PrepareContext,
+): { spacer: HTMLElement; remove: Cleanup } {
   const spacer = ctx.doc.createElement('div')
   spacer.setAttribute('data-kui-spacer', '')
   spacer.setAttribute('aria-hidden', 'true')
@@ -160,9 +168,12 @@ function insertSpacer(node: HTMLElement, distance: string, ctx: PrepareContext):
   node.after(spacer)
   ctx.invalidate()
 
-  return () => {
-    spacer.remove()
-    ctx.invalidate()
+  return {
+    spacer,
+    remove: () => {
+      spacer.remove()
+      ctx.invalidate()
+    },
   }
 }
 
@@ -294,7 +305,7 @@ function prepareManagedTrack(
   ctx.style.set('overflow', 'hidden')
   ctx.style.set('display', 'grid')
   ctx.style.set('align-content', 'center')
-  const removeSpacer = insertSpacer(host, params.text('distance'), ctx)
+  const { remove: removeSpacer } = insertSpacer(host, params.text('distance'), ctx)
 
   const rail = createStyleLedger(track)
   rail.set('display', 'flex')
@@ -364,9 +375,40 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
   // single element's `src`, the other reveals one of several elements that already exist — so
   // there is no coherent "both" to honour, and silently doing the `src:` thing while the author
   // wrote a selector would be the more surprising of the two.
+  /*
+   * `spacer:true` is what opts a scrub into owning its own box, the same way `target:` opts
+   * `horizontal-scroll` into owning its stage. Opt-in rather than default, because it moves
+   * responsibility for the layout from the page to the library.
+   *
+   * With it, the library writes the sticky window and reserves exactly `distance` of scroll room,
+   * so a page no longer needs a `.scrub-stage` whose entire job is `height: 260vh` beside a
+   * `.scrub-viewport` whose entire job is `position: sticky` — two hand-written boxes restating a
+   * number the attribute already carried, and two numbers that could silently disagree.
+   *
+   * Without it nothing changes: `video-scrub`, and any page positioning its own scrub, behave
+   * exactly as before.
+   */
+  const managed = params.is('spacer') ? installSticky(el as HTMLElement, params, ctx) : null
+  /*
+   * Progress is then measured against that spacer, not the parent — and this is the reason the
+   * spacer could not simply be switched on before. `geometrySource` escapes a sticky subtree by
+   * taking its parent, so with the wrapper deleted the tracker got whatever section happened to
+   * contain the scrub. Measured on `demo/scroll.html`: the parent started 926px above it against a
+   * 1817px distance, so progress read 51% before the element had even stuck and half the sequence
+   * played off screen. The spacer is exactly `distance` tall and never sticky, so it has neither
+   * problem.
+   */
+  const contentAnchor = managed?.spacer ?? undefined
+
   const selector = resolveTarget(params.text('target'), ctx, 'media-scrub')
-  if (selector) return prepareTargetScrub(el, params, ctx, selector)
-  return prepareSrcScrub(el, params, ctx)
+  const scrub = selector
+    ? prepareTargetScrub(el, params, ctx, { selector, contentAnchor })
+    : prepareSrcScrub(el, params, ctx, contentAnchor)
+
+  return () => {
+    scrub()
+    managed?.dispose()
+  }
 }
 
 
@@ -399,8 +441,9 @@ function prepareTargetScrub(
   el: Element,
   params: EffectParams,
   ctx: PrepareContext,
-  selector: string,
+  authored: { selector: string; contentAnchor?: Element },
 ): Cleanup {
+  const { selector, contentAnchor } = authored
   const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
   /*
    * Counted once at setup, and `frames:` is ignored in this form: the number of frames is the
@@ -415,7 +458,7 @@ function prepareTargetScrub(
   const frames = Math.max(1, ctx.doc.querySelectorAll(selector).length)
   let lastIndex: number | undefined
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
+  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor }, (progress) => {
     writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
     if (index === lastIndex) return
@@ -435,13 +478,18 @@ function prepareTargetScrub(
 }
 
 /** Scrub by rewriting one element's `src` from a `{i}` pattern. See `prepareTargetScrub`. */
-function prepareSrcScrub(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareSrcScrub(
+  el: Element,
+  params: EffectParams,
+  ctx: PrepareContext,
+  contentAnchor?: Element,
+): Cleanup {
   const frames = Math.max(1, Math.round(params.num('frames', 1)))
   const pattern = mediaSrcPattern(params.text('src'), ctx)
   const media = el as HTMLMediaElement & HTMLImageElement
   let lastIndex = -1
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
+  const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor }, (progress) => {
     writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
     if (index === lastIndex) return
@@ -692,6 +740,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['media', 'progress'],
     parameters: {
       ...distanceParam,
+      // A scrub is a hold, so it needs the same two knobs a pin does. Declaring them here is what
+      // lets `sequence-scrub` become one attribute with no wrapper at all.
+      ...stickyParams,
       frames: { type: 'number', default: '1', cssProperty: '--kui-frames' },
       src: { type: 'text', default: '', cssProperty: '--kui-src' },
       // The preferred form. `frames:`/`src:` remain for sequences too long to author as tags.

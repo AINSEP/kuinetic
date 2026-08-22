@@ -951,6 +951,10 @@
     --kui-steps: 4;
   }
 
+  [data-kui-fx~='sequence-scrub'] {
+    --kui-spacer: true;
+  }
+
   [data-kui-fx~='shake-error'] {
     --kui-feedback-shake-duration: 500ms;
     --kui-feedback-shake-delay: 0ms;

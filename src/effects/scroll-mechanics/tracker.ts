@@ -45,6 +45,26 @@ export interface TrackOptions {
   distance?: string
   measure?: Measurer
   positionOf?: PositionReader
+  /**
+   * A spacer the caller inserted immediately after `el`, used instead of `geometrySource` to say
+   * where `el` really sits in the content.
+   *
+   * `geometrySource` escapes a sticky subtree by taking its parent, which is only honest when the
+   * parent is a tight box around the effect. Pages used to guarantee that by hand-writing a
+   * wrapper — `demo/scroll.html` carried a `.scrub-stage` whose entire job was `height: 260vh`.
+   * Delete the wrapper and the parent becomes whatever section happens to contain the scrub:
+   * measured there, the parent started 926px above it against a 1817px distance, so progress read
+   * 51% before the element had even stuck and half the sequence played off screen.
+   *
+   * The spacer has neither problem. The library inserts it, it is exactly `distance` tall, it is
+   * never sticky, and it moves with the content — so it describes the scroll the effect spans
+   * without depending on how the author nested anything.
+   *
+   * It sits *after* `el`, so its top is `el`'s bottom; subtracting `el`'s own height recovers the
+   * flow position sticky is hiding. That assumes no margin between the two, which holds because
+   * both boxes are the library's own.
+   */
+  contentAnchor?: Element
 }
 
 /**
@@ -74,6 +94,17 @@ function geometrySource(el: Element, positionOf: PositionReader): Element {
     if (positionOf(node) === 'sticky') outermostSticky = node
   }
   return outermostSticky?.parentElement ?? el
+}
+
+/** `el`'s viewport-relative top, read from whichever box honestly moves with the content. */
+function sourceTop(
+  el: Element,
+  box: ElementGeometry,
+  measure: Measurer,
+  positionOf: PositionReader,
+): number {
+  const source = geometrySource(el, positionOf)
+  return source === el ? box.top : measure(source).top
 }
 
 export type ProgressHandler = (progress: number, frame: ScrollFrame) => void
@@ -121,8 +152,9 @@ export function trackProgress(
    */
   const geometry = createMeasureCache(() => {
     const box = measure(el)
-    const source = geometrySource(el, positionOf)
-    const top = source === el ? box.top : measure(source).top
+    const top = options.contentAnchor
+      ? measure(options.contentAnchor).top - box.height
+      : sourceTop(el, box, measure, positionOf)
     return { contentTop: top - scrollportTop + scrollTop, height: box.height }
   })
 
