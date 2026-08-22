@@ -18,12 +18,42 @@ const FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/click-toggle.htm
 /** Long enough for the fixture's 120ms flip plus the animator's finished-state bookkeeping. */
 const SETTLE_MS = 300
 
+/**
+ * Read the card's rendered angle from `transform`, not from the individual `rotate` property.
+ *
+ * This suite used to assert `getComputedStyle(el).rotate === 'y 180deg'`. That stopped being the
+ * right question when `card-flip-y`'s keyframes moved onto `transform: perspective(...) rotateY(...)`:
+ * `perspective` as a *property* only creates depth for an element's children, never for the element
+ * it is set on, so the card rotated perfectly flat. The fix is only expressible through the
+ * `perspective()` transform *function*, and `transform` is a different property from `rotate`.
+ *
+ * So `rotate` now reads `none` forever — and a test reading the wrong property looks exactly like a
+ * genuinely dead effect. `rotate` is still captured, purely so a future failure shows which of the
+ * two it is rather than leaving the next reader to guess.
+ */
 async function readCard(page) {
   return page.$eval('#card', (el) => ({
     state: el.getAttribute('data-kui-state'),
     style: el.getAttribute('style'),
     rotate: getComputedStyle(el).rotate,
+    transform: getComputedStyle(el).transform,
   }))
+}
+
+/**
+ * The perspective distance implied by a computed transform, or 0 for a flat one.
+ *
+ * A `matrix3d` serialises column-major, so `perspective(d)`'s `m34 = -1/d` term lands at index 11.
+ * A 2D `matrix(...)` has no such term at all — which is exactly what a card with no depth
+ * serialises to, and exactly what this whole family rendered as before the perspective fix. So a
+ * non-zero value here is the regression guard: it distinguishes "rotated with depth" from "rotated
+ * flat", which the old `rotate: 'y 180deg'` assertion could not tell apart.
+ */
+function perspectiveOf(transform) {
+  const values = transform.match(/matrix3d\(([^)]+)\)/)
+  if (!values) return 0
+  const term = Number.parseFloat(values[1].split(',')[11])
+  return Number.isFinite(term) && term !== 0 ? Math.abs(1 / term) : 0
 }
 
 async function clickAndSettle(page) {
@@ -47,13 +77,18 @@ export async function run({ browser, ARTIFACT_DIR }) {
   const afterFirst = await clickAndSettle(page)
   check(
     'first click flips the card to its finished state',
-    afterFirst.state === 'finished' && afterFirst.rotate === 'y 180deg',
-    `state=${afterFirst.state}, rotate=${afterFirst.rotate}`,
+    afterFirst.state === 'finished' && afterFirst.transform !== initial.transform,
+    `state=${afterFirst.state}, transform=${afterFirst.transform}`,
   )
   check(
     'first click actually changed rendered style from the ready state',
-    afterFirst.rotate !== initial.rotate,
-    `initial.rotate=${initial.rotate}, afterFirst.rotate=${afterFirst.rotate}`,
+    afterFirst.transform !== initial.transform,
+    `initial.transform=${initial.transform}, afterFirst.transform=${afterFirst.transform}`,
+  )
+  check(
+    'the flipped card has real depth, not a flat rotation — perspective() is in the matrix',
+    perspectiveOf(afterFirst.transform) > 0,
+    `implied perspective=${perspectiveOf(afterFirst.transform).toFixed(0)}px from ${afterFirst.transform}`,
   )
   await snap(page, 'after-first-click-flipped')
 
@@ -61,22 +96,22 @@ export async function run({ browser, ARTIFACT_DIR }) {
   check(
     'second click reverses the flip instead of repeating a byte-identical no-op — the inline ' +
       'animation-* declarations are legitimately unchanged (play-state was already "running"), ' +
-      "but the rendered rotation must not be — that's what a stuck second click looked like",
-    afterSecond.rotate !== afterFirst.rotate,
-    `afterFirst.rotate=${afterFirst.rotate}, afterSecond.rotate=${afterSecond.rotate}`,
+      "but the rendered transform must not be — that's what a stuck second click looked like",
+    afterSecond.transform !== afterFirst.transform,
+    `afterFirst.transform=${afterFirst.transform}, afterSecond.transform=${afterSecond.transform}`,
   )
   check(
     'second click actually returns the card to its original unrotated angle',
-    afterSecond.rotate === 'y 0deg',
-    `rotate=${afterSecond.rotate}`,
+    afterSecond.transform === initial.transform,
+    `transform=${afterSecond.transform}, initial=${initial.transform}`,
   )
   await snap(page, 'after-second-click-reversed')
 
   const afterThird = await clickAndSettle(page)
   check(
     'a third click flips forward again, proving this is a toggle and not a one-time reversal',
-    afterThird.rotate === 'y 180deg',
-    `rotate=${afterThird.rotate}`,
+    afterThird.transform === afterFirst.transform,
+    `afterThird.transform=${afterThird.transform}, afterFirst=${afterFirst.transform}`,
   )
   await snap(page, 'after-third-click-flipped-again')
 
