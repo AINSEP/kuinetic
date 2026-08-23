@@ -157,6 +157,21 @@ library should own it. Never call something "not the library's job" without grep
       demo page doesn't reach for them standalone again. `card-flip-y` does work standalone and
       is safe to use.
 
+- [ ] **Redo "A slice of every category" on `index.html` — owner is not happy with it.** Owner's
+      ask, 2026-08-23. The 12-tile grid (`<section id="catalog">`, `index.html:1413-1586`, class
+      `.slices`) is boring and doesn't let you try anything. Two specific problems, in the owner's
+      words: it needs to **"pop more,"** and there's **no way to try out a bunch of animations** —
+      each tile is locked to one fixed effect on one fixed asset, no chips, no replay, nothing like
+      the "Try it" playground earlier on the same page. Concretely, several tiles aren't even real
+      pictures — Text & typography is a single scrambling word, SVG & icons is a bare line drawing,
+      Numbers & data is a counting number, Navigation is a dropdown, Layout & FLIP is an accordion,
+      Ambient is a blob, Feedback & status is a spinner + badge — only Entrance & exit
+      (`akira-pantsuit.jpg`), Scroll mechanics (3 rotating product shots), Media & images
+      (`modeling_05.jpg`) and Hover & pointer (`goldface.jpg`) use real photography. Owner wants
+      pictures pulled in from the other demo pages, **especially `reveals.html` and `scroll.html`**,
+      and each tile to let you actually cycle through more than one animation rather than showing a
+      single static example. Not started — logged only, owner does not want this done right now.
+
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before
       it is a code job. Prior art worth reading first: static ffmpeg lives in `~/.local/bin`
