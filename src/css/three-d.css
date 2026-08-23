@@ -79,6 +79,35 @@
     perspective: var(--kui-perspective, 1200px);
   }
 
+  /* A one-sided flip turns a FULL circle, not a half one.
+   *
+   * The keyframe below runs to `--kui-from-angle`, default 180deg, and that default is written for
+   * the two-sided card: hover it, it turns half a turn, and the back face — which the rules below
+   * pre-turn by the same 180deg — arrives facing you the right way round. Correct, and the whole
+   * point of the two-sided contract.
+   *
+   * With one child there is no back face, so a half turn lands the element's *own* front face
+   * pointing away, and what paints is its mirror image. Permanently: `animation-fill-mode` is
+   * `both`, so the end state sticks. Measured on index.html's `card-flip-y` — the computed
+   * transform at rest was `matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, …)`, which is exactly
+   * rotateY(180deg), and the photograph sat there flipped left-for-right. It reads as "the
+   * animation broke", because the thing it settles on is wrong, not because it never ran.
+   *
+   * A half turn cannot end facing forward, so the fix is the other half: go the whole way round.
+   * The element spins once and lands on the face it started on, which is what a one-sided flip
+   * was always meant to look like — the comment under the two-sided gate already calls this usage
+   * "an <img> spinning on on:enter". Written as a custom-property default rather than a second
+   * keyframe so an author who sets `--kui-from-angle` deliberately still wins.
+   *
+   * Scoped by `:not(:has(> :nth-child(2)))`, the exact complement of the two-sided gate below, so
+   * the two readings can never both apply. `cube-rotate` is deliberately left alone: its 90deg
+   * default ends edge-on, which is a different question about a different effect.
+   */
+  [data-kui-fx~='card-flip-x']:not(:has(> :nth-child(2))),
+  [data-kui-fx~='card-flip-y']:not(:has(> :nth-child(2))) {
+    --kui-from-angle: 360deg;
+  }
+
   /*
    * --- two-sided cards, by source order (channel: layout) ---
    *
