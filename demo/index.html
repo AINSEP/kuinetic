@@ -626,6 +626,20 @@
   .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
   .section-head p { margin-top: 0.9rem; color: var(--muted); max-width: 50ch; line-height: 1.7; }
   .section-head .kicker { margin-bottom: 1rem; }
+
+  /* ---------- rev-notes: short bullets in place of a paragraph ---------- */
+  /* Same component scroll.html uses for the same job — a paragraph that was really 2-3 separate
+     facts read faster as a short list than as prose. Ported without scroll.html's sibling-context
+     margin overrides: those exist for figures and full-bleed bars that don't sit next to this
+     component anywhere on this page. */
+  .rev-notes { margin-top: 0.9rem; max-width: 50ch; }
+  .rev-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+  .rev-notes li { position: relative; padding-left: 1.15rem; line-height: 1.6; color: var(--muted); }
+  .rev-notes li::before {
+    content: ''; position: absolute; left: 0; top: 0.65em;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  }
+  .rev-notes code { font-size: 0.9em; }
   .catalog-more { margin-top: 2.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
   /* A ghost button works on the stage, where the surface is already dark. Out here it is a hairline
      outline on white — it reads as disabled next to the filled primary beside it. Filled with the
@@ -1370,15 +1384,13 @@
           <div>
             <p class="kicker">The channel model</p>
             <h2 data-kui="text-reveal-mask 700ms on:enter">Effects compose. Until they collide.</h2>
-            <p data-kui="fade-up 700ms 90ms on:enter">
-              Every effect declares the CSS properties it owns — its <em>channels</em>. Tick any set
-              whose channels don't overlap and they compile into one animation. Tick two that want
-              the same property and the library says so, instead of letting one quietly win.
-            </p>
-            <p data-kui="fade-up 700ms 150ms on:enter">
-              The channels beside each name are read from the registry this page is running, not
-              typed into it — so they cannot drift from what the library actually does.
-            </p>
+            <div class="rev-notes" data-kui-stagger="60ms">
+              <ul>
+                <li data-kui="fade-up 500ms on:enter">Every effect declares the CSS properties it owns — its <em>channels</em>.</li>
+                <li data-kui="fade-up 500ms on:enter">Tick a set whose channels don't overlap and they compile into one animation.</li>
+                <li data-kui="fade-up 500ms on:enter">Tick two that want the same property and the library says so, instead of letting one quietly win.</li>
+              </ul>
+            </div>
             <ul class="compose-list">
               <li><label class="compose-row"><input type="checkbox" data-fx="fade-up" checked /><span class="compose-name">fade-up</span><span class="compose-ch" data-ch-for="fade-up">opacity · translate</span></label></li>
               <li><label class="compose-row"><input type="checkbox" data-fx="blur-in" /><span class="compose-name">blur-in</span><span class="compose-ch" data-ch-for="blur-in">filter</span></label></li>
@@ -1414,10 +1426,14 @@
         <div class="section-head">
           <p class="kicker">The catalog</p>
           <h2 data-kui="fade-up on:enter">A slice of every category</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">252 named effects from 30 primitives, in 15 categories. Every tile below is
-            running the effect it names, on the same assets as the page it opens. Two categories
-            have no tile: page transitions needs a navigation to happen to, and gestures needs a
-            finger. The number on each tile is how many names that category ships.</p>
+          <div class="rev-notes" data-kui-stagger="60ms">
+            <ul>
+              <li data-kui="fade-up 500ms on:enter">252 named effects from 30 primitives, in 15 categories.</li>
+              <li data-kui="fade-up 500ms on:enter">Every tile below is running the effect it names, on the same assets as the page it opens.</li>
+              <li data-kui="fade-up 500ms on:enter">Two categories have no tile: page transitions needs a navigation to happen to, and gestures needs a finger.</li>
+              <li data-kui="fade-up 500ms on:enter">The number on each tile is how many names that category ships.</li>
+            </ul>
+          </div>
         </div>
 
         <div class="slices" data-kui-stagger="60ms">
@@ -1603,10 +1619,13 @@
         <div class="section-head">
           <p class="kicker">Scroll-driven</p>
           <h2 data-kui="fade-up on:enter">View Timeline Animation</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">Same entrance names as everywhere else on this page. The only difference is
-            <code>timeline:view</code>, which hands the clock to the browser's own
-            <code>animation-timeline: view()</code>. Scroll back up and both play in reverse — the
-            one thing no <code>on:</code> trigger can do.</p>
+          <div class="rev-notes" data-kui-stagger="60ms">
+            <ul>
+              <li data-kui="fade-up 500ms on:enter">Same entrance names as everywhere else on this page.</li>
+              <li data-kui="fade-up 500ms on:enter">The only difference is <code>timeline:view</code>, which hands the clock to the browser's own <code>animation-timeline: view()</code>.</li>
+              <li data-kui="fade-up 500ms on:enter">Scroll back up and both play in reverse — the one thing no <code>on:</code> trigger can do.</li>
+            </ul>
+          </div>
         </div>
         <div class="view-grid">
           <figure class="view-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
