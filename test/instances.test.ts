@@ -208,6 +208,15 @@ describe('createJsInstance repeat calls', () => {
     const instance = createJsInstance({ activate: () => {}, destroy: () => {} })
     await expect(instance.finished).resolves.toBeUndefined()
   })
+
+  it('reports not-continuous when the hooks declare no continuous()', () => {
+    // The default has to be "finite", not "perpetual": the animator leaves an element whose every
+    // instance is continuous at `data-kui-state="running"` forever, so a primitive that simply
+    // never mentions the question must not be swept into that. Only an explicit `ContinuousSetup`
+    // opts in.
+    const instance = createJsInstance({ activate: () => {}, destroy: () => {} })
+    expect(instance.continuous).toBe(false)
+  })
 })
 
 describe('createJsInstance activation failures', () => {

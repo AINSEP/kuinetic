@@ -63,10 +63,21 @@ function ruleBodiesFor(css: string, name: string): string[] {
   const token = `[data-kui-fx~='${name}']`
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
   const bodies: string[] = []
-  for (const match of stripped.matchAll(/([^{}]+)\{/g)) {
-    const selectors = match[1]!.split(',').map((selector) => selector.trim())
-    if (!selectors.includes(token)) continue
-    bodies.push(readBalancedBlock(stripped, match.index! + match[0].length))
+  // Scanned brace to brace rather than matched with `/([^{}]+)\{/g`. That regex is in fact linear
+  // — `[^{}]` cannot match the brace that follows it — but "variable-length class in front of a
+  // literal" is the shape the slow-regex lint rejects, and this repo carries no eslint-disable.
+  let from = 0
+  for (let i = 0; i < stripped.length; i++) {
+    const char = stripped[i]
+    if (char !== '{' && char !== '}') continue
+    if (char === '{') {
+      const selectors = stripped
+        .slice(from, i)
+        .split(',')
+        .map((selector) => selector.trim())
+      if (selectors.includes(token)) bodies.push(readBalancedBlock(stripped, i + 1))
+    }
+    from = i + 1
   }
   if (bodies.length === 0) throw new Error(`no rule has ${token} as a standalone selector`)
   return bodies

@@ -2,7 +2,9 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import type { ScrollFrame } from '../../core/scroll-scheduler.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { toPixels } from '../../core/js-params.js'
-import type { Cleanup, EffectParams } from '../../core/types.js'
+import type { EffectParams } from '../../core/types.js'
+import { continuousSetup } from '../../core/instances.js'
+import type { ContinuousSetup } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import type { AttributeLedger } from '../../core/owned-styles.js'
 import { resolveTarget } from '../step-marking.js'
@@ -31,7 +33,7 @@ import { domGeometry, trackProgress } from './tracker.js'
  * @complexity Dispatch only; see whichever form runs.
  * @overallScore 100
  */
-export function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+export function prepareScrollSpy(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   const sectionsAuthored = params.text('sections')
   if (sectionsAuthored) {
     const sectionsSelector = resolveTarget(sectionsAuthored, ctx, 'scroll-spy sections')
@@ -51,7 +53,7 @@ export function prepareScrollSpy(el: Element, params: EffectParams, ctx: Prepare
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   // `offset-top` only has a mechanism to act on in the container form below, where there is no
   // single sticky element whose resolved `top` this could read back through instead (see
   // `prepareScrollSpyContainer`'s own note on that). Warning here is the difference between this
@@ -91,11 +93,12 @@ function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareC
   })
 
   // External link state is written outside this element, so it must be undone explicitly.
-  return () => {
+  // Continuous: a spy follows scroll position indefinitely and never reaches a finished state.
+  return continuousSetup(() => {
     untrack()
     self.restore()
     for (const ledger of links.values()) ledger.restore()
-  }
+  })
 }
 
 /*
@@ -285,7 +288,7 @@ function prepareScrollSpyContainer(
   params: EffectParams,
   ctx: PrepareContext,
   sectionsSelector: string,
-): Cleanup {
+): ContinuousSetup {
   // Same reasoning as `offset-top` in `prepareScrollSpySingle`: a validated parameter that quietly
   // does nothing is the bug this warning exists to not repeat.
   if (params.text('distance', '100vh') !== '100vh') {
@@ -343,9 +346,10 @@ function prepareScrollSpyContainer(
     active = next
   })
 
-  return () => {
+  // Continuous, for the same reason as the single form above.
+  return continuousSetup(() => {
     untrack()
     for (const ledger of sectionLedgers) ledger.restore()
     for (const ledger of linkLedgers.values()) ledger.restore()
-  }
+  })
 }

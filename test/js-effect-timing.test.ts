@@ -332,9 +332,50 @@ describe('finished tells the truth for JS-rendered effects', () => {
     await expect(instance.finished).resolves.toBeUndefined()
   })
 
-  it('resolves immediately for a JS effect that never ends by design', async () => {
-    // Primitives that return a bare cleanup rather than reporting completion — a pin, a drag
-    // handler, a wave — must keep resolving at once, or they would hang every `play()`.
+  it('keeps a scroll-mechanics effect "running" while still resolving its instance immediately', async () => {
+    // Two different questions, and a continuous effect answers them differently.
+    //
+    // The *instance's* `finished` must still resolve at once. If a pin could hold that promise
+    // open, it would hang every `play()` and stop any one-shot composed onto the same element ever
+    // reporting complete — which is exactly why `ContinuousSetup` keeps the resolved promise.
+    //
+    // The *element's* reported state must not follow it there. A pin scrubs for as long as the
+    // page is scrolled; reading `finished` on the first microtask, before it has even engaged,
+    // left `[data-kui-state='running']` unstylable for the whole scroll-mechanics family.
+    const animator = build('<div data-kui="pin-section" data-kui-on="load">pinned</div>')
+    animator.start()
+
+    await expect(jsInstance(animator).finished).resolves.toBeUndefined()
+    await flush()
+    expect(el().getAttribute(ATTR.state)).toBe('running')
+  })
+
+  it('still finishes a one-shot composed onto the same element as a continuous effect', async () => {
+    // The reason continuous instances keep an already-resolved `finished` in the first place: one
+    // must never hold a co-authored one-shot open forever. Excluding them from the animator's gate
+    // has to preserve that, not just fix the all-continuous case.
+    const animator = build('<div data-kui="pin-section, count-up 200ms" data-kui-on="load">0</div>')
+    animator.start()
+
+    await flush()
+    expect(el().getAttribute(ATTR.state)).toBe('running')
+
+    vi.advanceTimersByTime(240)
+    await flush()
+    expect(el().getAttribute(ATTR.state)).toBe('finished')
+  })
+
+  it('leaves a bare-cleanup effect reporting "finished", so a no-op bail-out is not read as perpetual', async () => {
+    // The boundary of the fix, asserted rather than left to be discovered. Ten setups in the
+    // catalog return a bare `Cleanup` meaning "there was nothing to do" — no words to cycle, no
+    // fine pointer to follow, a stage that could not be built. For those, "no completion pending"
+    // is the honest report, and an earlier draft of this fix that inferred "continuous" from the
+    // bare-cleanup shape alone would have wrongly pinned all ten at "running" forever.
+    //
+    // `text-wave` is continuous in the ordinary sense and still reports `finished` here. That is
+    // the current, deliberate scope: D9 is about the scroll-mechanics family, whose effects are
+    // the ones pages style on. Widening `ContinuousSetup` to the hover/text families is a separate
+    // decision, and this test is what will fail loudly when someone makes it.
     const animator = build('<p data-kui="text-wave" data-kui-on="load">hi</p>')
     animator.start()
 

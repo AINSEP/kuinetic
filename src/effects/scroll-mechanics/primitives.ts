@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferPrepare } from '../../core/instances.js'
+import { continuousSetup, deferPrepare } from '../../core/instances.js'
+import type { ContinuousSetup } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import { isSameOriginPath } from '../../core/params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
@@ -118,7 +119,7 @@ function writeProgress(ctx: PrepareContext, progress: number): void {
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   const node = el as HTMLElement
   const { dispose: unstick } = installSticky(node, params, ctx)
 
@@ -141,11 +142,14 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Cle
 
   // Inline styles are restored by the animator's ledger, so teardown only undoes what the
   // ledger cannot see: the inserted spacer and the state attribute.
-  return () => {
+  // `continuousSetup` because a pin has no end — it scrubs for as long as the page is scrolled.
+  // Without it the element reports `data-kui-state="finished"` on the first microtask, before it
+  // has even engaged.
+  return continuousSetup(() => {
     untrack()
     unstick()
     el.removeAttribute('data-kui-pinned')
-  }
+  })
 }
 
 /**
@@ -189,7 +193,7 @@ function insertSpacer(
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   const steps = Math.max(0, Math.round(params.num('steps', 0)))
   /*
    * `target` names the step elements, and there is deliberately no default for it.
@@ -227,11 +231,12 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
     if (selector) marker.mark(index)
   })
 
-  return () => {
+  // Continuous: a progress track publishes for as long as the page scrolls and never completes.
+  return continuousSetup(() => {
     untrack()
     self.restore()
     marker.restore()
-  }
+  })
 }
 
 /**
@@ -242,7 +247,7 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup | ContinuousSetup {
   const selector = resolveTarget(params.text('target'), ctx, 'horizontal-scroll')
   if (!selector) return prepareBareTrack(el as HTMLElement, params, ctx)
   const track = el.querySelector(selector)
@@ -260,16 +265,19 @@ function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContex
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function prepareBareTrack(node: HTMLElement, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareBareTrack(node: HTMLElement, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   const authored = params.text('travel', 'auto')
   // Measured once per geometry epoch, not per frame. Reading `scrollWidth` inside the frame
   // callback forces a layout on every scroll tick — the same class of defect as the frozen cache.
   const travel = createMeasureCache(() => trackTravel(node, authored, node.ownerDocument))
 
-  return trackProgress(node, ctx, { distance: params.text('distance') }, (progress, frame) => {
-    ctx.style.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
-    writeProgress(ctx, progress)
-  })
+  // Continuous: the track translates with scroll position and never reaches an end state.
+  return continuousSetup(
+    trackProgress(node, ctx, { distance: params.text('distance') }, (progress, frame) => {
+      ctx.style.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
+      writeProgress(ctx, progress)
+    }),
+  )
 }
 
 /**
@@ -300,7 +308,7 @@ function prepareManagedTrack(
   track: HTMLElement,
   params: EffectParams,
   ctx: PrepareContext,
-): Cleanup {
+): ContinuousSetup {
   const offsetTop = params.text('offset-top', 'var(--kui-pin-offset, 0px)')
   ctx.style.set('position', 'sticky')
   ctx.style.set('top', offsetTop)
@@ -336,11 +344,12 @@ function prepareManagedTrack(
     writeProgress(ctx, progress)
   })
 
-  return () => {
+  // Continuous: the managed rail translates with scroll and has no completed state.
+  return continuousSetup(() => {
     untrack()
     rail.restore()
     removeSpacer()
-  }
+  })
 }
 
 /**
@@ -376,7 +385,7 @@ function trackTravel(node: HTMLElement, authored: string, doc: Document): number
  * @complexity O(1) per frame; O(1) space.
  * @overallScore 100
  */
-function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   // `target:` wins when both are authored. The two forms are mutually exclusive — one rewrites a
   // single element's `src`, the other reveals one of several elements that already exist — so
   // there is no coherent "both" to honour, and silently doing the `src:` thing while the author
@@ -416,10 +425,11 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
     ? prepareTargetScrub(el, params, ctx, { selector, contentAnchor, stickyEl })
     : prepareSrcScrub(el, params, ctx, { contentAnchor, stickyEl })
 
-  return () => {
+  // Continuous: a scrub follows scroll position for as long as the page is scrolled.
+  return continuousSetup(() => {
     scrub()
     managed?.dispose()
-  }
+  })
 }
 
 

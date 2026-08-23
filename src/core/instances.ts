@@ -195,8 +195,38 @@ export interface TimedSetup {
   finish?: () => void
 }
 
-/** A deferred setup's return: a teardown, or a teardown plus the effect's own completion. */
-export type SetupResult = Cleanup | TimedSetup
+/**
+ * What a setup returns when its effect genuinely never ends — a pin, a scroll progress track, a
+ * media scrub, a drag handler.
+ *
+ * This exists because a bare `Cleanup` is ambiguous, and the ambiguity matters. Ten setups in the
+ * catalog return one meaning *"there was nothing to do"* — no words to cycle, no fine pointer to
+ * follow, a stage that could not be built — and for those, "no completion pending" is the honest
+ * report. A pin returns the same shape meaning *"this will still be running an hour from now"*.
+ * Reading the two as one thing is what made the fix for D9 regress the other ten; saying which you
+ * are is cheap and the only thing that actually distinguishes them.
+ */
+export interface ContinuousSetup {
+  cleanup: Cleanup
+  continuous: true
+}
+
+/**
+ * Mark a teardown as belonging to an effect that never ends.
+ *
+ * Wrap only the return that means the effect actually started something perpetual — leave an early
+ * "nothing to do" bail-out as a bare `Cleanup`, which is what keeps the two distinguishable.
+ *
+ * @param cleanup - The effect's own teardown.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function continuousSetup(cleanup: Cleanup): ContinuousSetup {
+  return { cleanup, continuous: true }
+}
+
+/** A deferred setup's return: a teardown, optionally with a completion or a never-ends marker. */
+export type SetupResult = Cleanup | TimedSetup | ContinuousSetup
 
 function cleanupOf(result: SetupResult | undefined): Cleanup | undefined {
   if (result === undefined) return undefined
@@ -230,7 +260,7 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
   return createJsInstance({
     activate() {
       running = setup()
-      if (typeof running === 'function') return
+      if (typeof running === 'function' || 'continuous' in running) return
       // Installed here rather than at construction because whether this effect finishes at all is
       // only knowable once its setup has actually started it.
       const work = running.finished
@@ -241,11 +271,15 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
     },
     cancel: teardown,
     finish() {
-      if (typeof running === 'object') running.finish?.()
+      // Only a `TimedSetup` can jump to an end state; a continuous effect has none to jump to.
+      if (typeof running === 'object' && 'finish' in running) running.finish?.()
       settle?.()
     },
     destroy: teardown,
     finished: () => finished,
+    // Only an explicit marker counts. A bare `Cleanup` deliberately does not — see
+    // `ContinuousSetup` above for why the two cannot be told apart by shape.
+    continuous: () => typeof running === 'object' && 'continuous' in running,
   })
 }
 
@@ -280,6 +314,11 @@ export interface JsInstanceHooks {
    * `finished` after `activate()`, never before.
    */
   finished?(): Promise<void>
+  /**
+   * Whether this effect never ends. Read on every access, for the same reason as `finished`: a
+   * deferred setup only learns which kind it is once it has run. See `EffectInstance.continuous`.
+   */
+  continuous?(): boolean
 }
 
 /**
@@ -313,6 +352,9 @@ export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
     },
     get finished() {
       return hooks.finished?.() ?? Promise.resolve()
+    },
+    get continuous() {
+      return hooks.continuous?.() ?? false
     },
     destroy() {
       active = false

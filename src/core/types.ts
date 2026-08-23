@@ -150,6 +150,20 @@ export interface EffectInstance {
   finish(): void
   /** Resolves when the effect completes. Resolves — never rejects — on cancel. */
   readonly finished: Promise<void>
+  /**
+   * Whether this effect has no end — a pin, a scroll progress track, a media scrub.
+   *
+   * Such an effect keeps an already-resolved `finished` on purpose, so that composing it with a
+   * one-shot on the same element does not stop the one-shot ever reporting complete. That is
+   * right for composition and wrong for the element's own reported state: an element whose *only*
+   * effects are continuous would otherwise read `data-kui-state="finished"` from the first
+   * microtask onwards and never say anything else, which is a lie an author cannot style around.
+   *
+   * The animator therefore reads this to decide whether there is any completion to wait for at
+   * all. Read after `activate()`, never before — a deferred setup only learns which kind it is
+   * once it has actually run.
+   */
+  readonly continuous?: boolean
   /** Release every listener, observer, subscription, and inserted node. */
   destroy(): void
 }

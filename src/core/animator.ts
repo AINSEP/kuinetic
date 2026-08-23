@@ -356,9 +356,20 @@ export class Animator {
       return
     }
 
+    // A continuous instance — a pin, a scroll progress track, a media scrub — keeps an
+    // already-resolved `finished` so that composing it with a one-shot never stops the one-shot
+    // reporting complete. Waiting on it here would therefore resolve on the next microtask and
+    // write "finished" onto an effect that has not even started scrubbing, which is exactly the
+    // lie the comment below warns about. So the gate waits on the finite instances only, and an
+    // element whose every instance is continuous stays "running" — the honest answer, and the one
+    // an author styling `[data-kui-state='running']` needs. An element with no instances at all
+    // (a pure CSS-keyframes effect) is untouched by this and still resolves immediately.
+    const timed = started.filter((instance) => !instance.continuous)
+    if (timed.length === 0 && started.length > 0) return
+
     // The reported state has to become truthful eventually, or `data-kui-state` codifies a lie
     // that tests then assert against.
-    void Promise.all(started.map((instance) => instance.finished)).then(() => {
+    void Promise.all(timed.map((instance) => instance.finished)).then(() => {
       if (this.states.get(el) !== state || state.status !== 'running') return
       state.status = 'finished'
       state.attributes.set(ATTR.state, 'finished')
