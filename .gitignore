@@ -19,3 +19,4 @@ ADS-memory/
 # Untracked until a complete light+dark set exists — a partial set reads as coverage it does not have.
 test/browser/baselines/
 .artifacts/visual-diff-report.html
+.vercel
