@@ -10,8 +10,23 @@
  */
 @layer theme, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
 @plugin 'daisyui';
+
+/*
+ * `source(none)` above turns off Tailwind's automatic source detection. Without it, the scan's
+ * base path defaults to the process's current working directory — the repo root, for both `npm
+ * run build`'s one-shot compile and the dev server's `--watch` process (see
+ * scripts/dev-server.mjs) — and Tailwind treats every non-gitignored, non-binary, non-CSS file
+ * anywhere under that root as a candidate source: docs/*.md, scripts/*.mjs, README.md, a stray
+ * scratch file dropped anywhere in the tree while debugging. Any of those that happens to contain
+ * a token shaped like a class name feeds the build, so the committed output depended on whatever
+ * else was lying around the repo at build time, not just on what the demo pages actually use —
+ * that produced a `demo/tailwind.css` that drifted from a clean rebuild by 2400+ lines (issue
+ * #15) with no tracked file responsible for the difference. The one real input is the class
+ * tokens written in the demo pages, so that's the only thing declared below.
+ */
+@source './*.html';
 
 /* Site theme toggling is attribute-based (`document.documentElement.dataset.theme`, see
    theme.js), not OS-preference-based — point Tailwind's `dark:` variant at that attribute instead
