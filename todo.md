@@ -199,6 +199,17 @@ library should own it. Never call something "not the library's job" without grep
       match) — not started, needs an actual visual pass to pick numbers that read well rather than
       guessing one value in isolation.
 
+- [ ] **Make it immediately obvious kUInetic is a CSS animation library driven by HTML
+      attributes.** Owner's ask, 2026-08-23: this is one of the standard questions any visitor to
+      a new site asks in the first few seconds — what is this, how do I use it — and right now
+      it's not answered fast enough. The hero `<h1>` ("Animate anything with one HTML attribute")
+      names "HTML attribute" but never says CSS, animation library, or how little code is
+      involved; the meta description does say it ("Declarative web animation compiled from HTML
+      attributes into real CSS keyframes...") but that's invisible to an actual visitor, only to
+      search engines and link previews. Needs a design pass on the above-the-fold copy/hero (kicker,
+      h1, subhead, or a new one-liner) so "CSS animation library, authored via HTML attributes" is
+      unambiguous on first look, not something you piece together from the playground below it.
+
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before
       it is a code job. Prior art worth reading first: static ffmpeg lives in `~/.local/bin`
