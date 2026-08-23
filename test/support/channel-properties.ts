@@ -30,8 +30,25 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
     'background-color',
     'background',
   ],
-  color: ['color'],
-  stroke: ['stroke-dashoffset', 'stroke-dasharray', 'stroke'],
+  /**
+   * `-webkit-text-fill-color` is a text glyph's *fill*, distinct from `color` everywhere it is
+   * actually used — `gradient-shimmer`/`gradient-sweep` set it to `transparent` so a `background`
+   * gradient shows through the glyphs, and `text-outline-fill` animates it while `color` and
+   * `-webkit-text-stroke` (the `stroke` channel, below) both hold a stable `currentColor`. It lives
+   * under `color` — not `background`, even though the shimmer/sweep pair reach it as part of their
+   * gradient-text technique — because that is the channel `text-outline-fill` already declared for
+   * itself before this property had any `CHANNEL_PROPERTIES` entry at all. Filing it under `color`
+   * is what surfaces the real collision this map exists to catch: `text-shimmer`/`text-sweep` only
+   * declared `background`, so composing either with `text-outline-fill` looked disjoint to the
+   * compiler while both primitives paint the same glyphs' fill — see `catalog/text.ts`'s
+   * `text-shimmer`/`text-sweep` primitives, now on `color` too, for the fix.
+   */
+  color: ['color', '-webkit-text-fill-color'],
+  // `-webkit-text-stroke` is `text-outline-fill`'s other half — see `-webkit-text-fill-color`
+  // above. Filed under `stroke` because that is the channel `text-outline-fill` already declares,
+  // grouping it with the SVG stroke properties above as "an outline traced around a shape,"
+  // text glyphs included.
+  stroke: ['stroke-dashoffset', 'stroke-dasharray', 'stroke', '-webkit-text-stroke'],
   /**
    * `skew` claims the whole `transform` shorthand, because CSS never gave skew an independent
    * property the way it did `translate`/`rotate`/`scale`. Anything that writes `transform` replaces

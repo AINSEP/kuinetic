@@ -58,8 +58,14 @@ const extrudeParams: ParameterSchema = {
 }
 
 export const TEXT_CSS_PRIMITIVES: Primitive[] = [
-  cssPrimitive('text-shimmer', [CHANNEL.background], { reducedMotion: 'disable' }),
-  cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
+  // `color`, alongside `background`: both presets' unconditional rule sets `-webkit-text-fill-color:
+  // transparent` so the `background-image` gradient shows through the glyphs (the standard
+  // gradient-text technique). That is a real claim on the glyph fill, the same physical property
+  // `text-outline-fill` animates on its own `color` channel below — without this, the two looked
+  // disjoint to the compiler (`background` vs `stroke`+`color`) and composing them would let
+  // whichever applied last silently win the glyph fill instead of being flagged as a conflict.
+  cssPrimitive('text-shimmer', [CHANNEL.background, CHANNEL.color], { reducedMotion: 'disable' }),
+  cssPrimitive('text-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
   cssPrimitive('var-weight', ['font'], { parameters: fontWeightParams }),
   cssPrimitive('var-width', ['font'], { parameters: fontWidthParams }),

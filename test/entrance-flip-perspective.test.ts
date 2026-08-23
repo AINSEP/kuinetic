@@ -41,17 +41,35 @@ function keyframeBody(css: string, name: string): string {
 }
 
 /**
- * The body of whichever rule's selector list contains `[data-kui-fx~='name']`, wherever that
- * selector sits in a comma list. Finds the token, then the next `{`, then reads the balanced
- * block from there — works regardless of how many other selectors share the rule.
+ * Every rule body whose selector list contains `[data-kui-fx~='name']` as a standalone,
+ * comma-delimited entry — not merely as a *substring* of some other selector.
+ *
+ * The regression this guards against: an earlier version of this helper was `css.indexOf(token)`,
+ * the first substring match anywhere in the file. That is ambiguous in two ways a real edit to
+ * this stylesheet can trigger. First, ordering: a *new* rule placed earlier in the file that
+ * happens to also carry this exact selector (in its own comma list) would be found instead of the
+ * intended one, and the test would silently start asserting about the wrong rule's body rather
+ * than failing loud. Second, specificity: `[data-kui-fx~='flip-in-x']` is a literal substring of
+ * the *compound* selector `[data-kui-fx~='flip-in-x'][data-kui-state='ready']` a few lines below
+ * it in this same file — `indexOf` cannot tell "the whole selector is this token" from "this token
+ * is a prefix of some other selector," so if that compound rule were ever moved earlier than the
+ * unconditional one, the substring match would grab it instead, silently swapping in a rule that
+ * does not (and should not) reference `--kui-perspective` at all.
+ *
+ * Comments are stripped first so prose that happens to mention the token (this doc comment, or
+ * `entrance.css`'s own neighbouring comments) can never be mistaken for a real selector.
  */
-function ruleBodyFor(css: string, name: string): string {
+function ruleBodiesFor(css: string, name: string): string[] {
   const token = `[data-kui-fx~='${name}']`
-  const at = css.indexOf(token)
-  if (at === -1) throw new Error(`selector ${token} not found`)
-  const open = css.indexOf('{', at)
-  if (open === -1) throw new Error(`no rule body follows ${token}`)
-  return readBalancedBlock(css, open + 1)
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const bodies: string[] = []
+  for (const match of stripped.matchAll(/([^{}]+)\{/g)) {
+    const selectors = match[1]!.split(',').map((selector) => selector.trim())
+    if (!selectors.includes(token)) continue
+    bodies.push(readBalancedBlock(stripped, match.index! + match[0].length))
+  }
+  if (bodies.length === 0) throw new Error(`no rule has ${token} as a standalone selector`)
+  return bodies
 }
 
 const FLIPS: { name: string; rotateFn: 'rotateX' | 'rotateY' }[] = [
@@ -89,7 +107,8 @@ describe('flip-in/-out keyframes carry their own perspective', () => {
     (name) => {
       // The regression this guards: the parameter existed and validated, but nothing consumed
       // `--kui-perspective` anywhere in this file, so an author's override was silently inert.
-      expect(ruleBodyFor(CSS, name)).toMatch(/--kui-perspective/)
+      const bodies = ruleBodiesFor(CSS, name)
+      expect(bodies.some((body) => body.includes('--kui-perspective'))).toBe(true)
     },
   )
 })

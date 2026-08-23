@@ -113,14 +113,21 @@ function readBalancedBlock(source: string, start: number): string {
  * start-of-line: a line-anchored regex silently extracts nothing from a compact
  * `from { prop: val; }` single-line keyframe — media.css writes several this way — which is
  * worse than a hard failure, since every assertion below would then pass vacuously instead of
- * checking anything. Requires the name to start with a lowercase letter so custom properties
- * (`--kui-border-angle`, `--kui-fx-spinner-iterations`) are never mistaken for a rendered,
- * channel-relevant property — the channel model polices painted CSS properties, not the custom
- * properties that sometimes drive them.
+ * checking anything.
+ *
+ * The optional leading `-?` admits vendor-prefixed properties (`-webkit-text-fill-color`,
+ * `-webkit-mask-composite`) without also admitting a custom property: `--kui-border-angle` starts
+ * with *two* dashes, and `-?` only ever consumes one, so the required `[a-z]` immediately after it
+ * fails to match the second dash and the whole property is correctly skipped — the channel model
+ * polices painted CSS properties, not the custom properties that sometimes drive them. Before this
+ * was widened, every `-webkit-*` declaration in the catalog was invisible to every check in this
+ * file: `gradient-shimmer`, `gradient-sweep`, and `text-outline-fill` all write
+ * `-webkit-text-fill-color` in an unconditional rule or a keyframe with no entry anywhere in
+ * `CHANNEL_PROPERTIES` to catch a channel that didn't cover it.
  */
 function extractDeclaredProperties(body: string): Set<string> {
   const properties = new Set<string>()
-  for (const [, property] of body.matchAll(/(?:^|[{;])\s*([a-z][a-z-]*)\s*:/g)) {
+  for (const [, property] of body.matchAll(/(?:^|[{;])\s*(-?[a-z][a-z-]*)\s*:/g)) {
     if (property) properties.add(property)
   }
   return properties
