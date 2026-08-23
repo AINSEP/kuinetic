@@ -76,23 +76,13 @@
   :root[data-theme='dark'] .demo-card figcaption {
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
-  /* Every `data-show-code` card's toggle (`.kui-show-code-toggle`, styled once in system.css) gets
-     mounted straight into this figcaption. Its default colour is `--accent-text`, which in dark
-     mode *is* `--accent` (#e4f222) — the same value this rule just painted the figcaption's own
+  /* The show-code chip used to be an outline ring whose resting ink was `--accent-text` — which in
+     dark mode *is* `--accent` (#e4f222), the same value this rule paints the figcaption's own
      background with above. Same yellow on same yellow: on every one of this page's ~28 cards, the
-     chip was rendering at full opacity and was simply invisible in dark mode. Same fix as
-     `scroll.html`'s figcaption chip (its worked example): fall back to `currentColor`, which here
-     is this rule's own `--accent-ink`, legible on the `--accent` bar by construction. Light mode is
-     unaffected — the bar there is `--accent-ink` (black) and the chip's default `--accent-text`
-     reads fine on it — so only the dark-mode override needs to move. */
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle {
-    color: currentColor;
-    border-color: color-mix(in srgb, currentColor 55%, transparent);
-  }
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible {
-    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
-  }
+     chip was rendering at full opacity and was simply invisible in dark mode, which this override
+     used to patch with `currentColor`. The chip (system.css) is a solid `--accent-ink`/`--accent`
+     dark pill now — its own fill carries its own contrast regardless of what surface or theme it
+     sits on, including this one, so no override is needed here any more. */
   .demo-card[tabindex] { cursor: pointer; }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -275,7 +265,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -287,8 +277,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -523,7 +511,11 @@
             </figure>
 
             <figure class="demo-card tone-b" data-show-code>
-              <div class="feedback-body"><div class="feedback-stage"><div data-kui="spinner-dots" style="color: var(--accent-text)"></div></div></div>
+              <!-- No inline colour override: this card is `.tone-b` (background: var(--bg)),
+                   and --accent-text is now the same #e4f222 as --accent, ~1.2:1 on --bg in light
+                   mode. Dropping the override lets it inherit .tone-b's own --fg, already correct
+                   in both themes. -->
+              <div class="feedback-body"><div class="feedback-stage"><div data-kui="spinner-dots"></div></div></div>
               <figcaption>data-kui="spinner-dots"</figcaption>
             </figure>
 

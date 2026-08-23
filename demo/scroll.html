@@ -211,13 +211,13 @@
      black bars, `currentColor` on the dark-mode accent bars, plus an inverted hover for the latter.
      All of it was right, and all of it was scoped to this one page, while six other demo pages
      painted byte-identical caption bars and got none of it. They shipped a 4.27:1 chip in light
-     mode and an invisible accent-on-accent chip in dark.
+     mode and an invisible accent-on-accent chip in dark. That became `--kui-chip-ink` in
+     system.css, set by the surface rather than restated per page — including a `.kui-contract`
+     opt-in here, since that's this page's own component and its `<p>` form isn't a `figcaption`.
 
-     It is `--kui-chip-ink` in system.css now, set by the surface rather than restated per page.
-     What is left here is the one surface system.css cannot know about: `.kui-contract` is this
-     page's own component, and its `<p>` form is not a `figcaption`, so it has to opt in by name. */
-  main .kui-contract .kui-show-code-toggle { --kui-chip-ink: var(--accent); }
-  :root[data-theme='dark'] main .kui-contract .kui-show-code-toggle { --kui-chip-ink: currentColor; }
+     None of it is needed any more. The chip is a solid `--accent-ink`/`--accent` dark pill now
+     (system.css) — its own fill carries its own contrast wherever it sits, `.kui-contract`'s black
+     bar included, so there is no per-surface ink to set. */
 
   /* `.kui-has-toggle` stacks the caption so a 200px-wide button has somewhere to go. A chip does
      not need its own line, and stacking is what turned every caption on this page into a two-row
@@ -292,11 +292,9 @@
     padding-right: 1.75rem;
     mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
   }
-  /* Same reasoning as the caption bars above: these surfaces are dark in light mode and accent in
-     dark mode, so the chip follows the surface it sits on rather than the page theme. */
-  /* Colour comes from `--kui-chip-ink` above; only the layout differs here. The contract bar is
-     always full strength — it is one deliberate control per demo, not one of thirty card chips the
-     density rule dims. */
+  /* Colour needs nothing here any more — the chip carries its own fill (see the note above). The
+     contract bar is always full strength — it is one deliberate control per demo, not one of
+     thirty card chips the density rule dims. */
   main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
 
   /* ================================================================================
@@ -587,10 +585,12 @@
     align-self: start; padding: 1.65rem; border-radius: 14px; border: 1px solid var(--border);
     background: var(--surface); box-shadow: var(--shadow-float);
   }
+  /* --fg, not --accent-text: an eyebrow label on --surface/--bg, and --accent-text is now the
+     same #e4f222 as --accent (~1.2:1 there). */
   .pin-until-aside .kicker {
     display: block; margin-bottom: 0.55rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem;
-    letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text);
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg);
   }
   .pin-until-aside h4 { font-size: 1.3rem; letter-spacing: -0.015em; line-height: 1.2; }
   /* `:not(.kui-contract)` because the contract bar is also a `<p>` in here, and this selector and
@@ -796,14 +796,20 @@
      one page is a position, so only the live one is lit. */
   .story-dots {
     display: flex; gap: 0.55rem; margin-top: 0.5rem;
-    /* `forms.css` paints the off state `var(--dim, #9a8d80)` — a warm grey from the old system,
-       which is what an undefined `--dim` gets you. Aliasing it here rather than page-wide keeps
-       the fallback scoped to the one component using it. */
-    --dim: #ffffff;
+    /* Not `--muted`: `.story` is a fixed `#0a0b0c` panel regardless of theme (see its own comment
+       above), independent of the page's `--muted`, which is itself theme-following (#666666
+       light / #8a8f98 dark) — on this permanently-dark panel the light-theme value would be close
+       to invisible. This was `--dim`, aliased locally to patch `forms.css`'s off-state fallback
+       (`var(--dim, #9a8d80)`, a warm grey from the pre-consolidation vocabulary) — now that
+       `forms.css` falls back to `var(--muted, #9a8d80)` instead (library-level fix, unrelated to
+       this page), that specific patch is moot, but the underlying need — a fixed off-white for a
+       fixed-dark panel — is not, so it keeps its own page-scoped name rather than borrowing a
+       vocabulary token it was never really an alias of. */
+    --story-dot-off: #ffffff;
   }
   .story-dots span { width: 34px; height: 4px; border-radius: 2px; }
   /* Page CSS is unlayered, so this beats `@layer kui.effects` without needing specificity. */
-  .story-dots span[data-kui-step-state='before'] { opacity: 0.35; background: var(--dim); }
+  .story-dots span[data-kui-step-state='before'] { opacity: 0.35; background: var(--story-dot-off); }
   /* The step still changes — it is scroll position, not decoration — but nothing eases toward it. */
   @media (prefers-reduced-motion: reduce) {
     .story-lines li, .story-lines li::before, .story-frame img, .story-dots span { transition: none; }
@@ -887,7 +893,9 @@
     content: ''; flex: none; width: 5px; height: 5px; border-radius: 50%;
     background: currentColor; opacity: 0.4;
   }
-  .spy-nav a[data-kui-active='true'] { color: var(--accent-text); font-weight: 600; }
+  /* --fg, not --accent-text: --accent-text is now the same #e4f222 as --accent, ~1.2:1 on this
+     nav's --bg. The ring marker just below (::before) still carries the accent identity. */
+  .spy-nav a[data-kui-active='true'] { color: var(--fg); font-weight: 600; }
   /* The ring is what carries the marker from the corner of the eye, now that there is no card and
      no inset bar. Colour alone would fail anyone who cannot separate accent from muted. */
   .spy-nav a[data-kui-active='true']::before {
@@ -1039,7 +1047,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -1051,8 +1059,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">

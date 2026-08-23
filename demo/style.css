@@ -19,14 +19,15 @@
   --panel: #ffffff;
   /* Was #d0d300, the old olive yellow — see demo/system.css:14-22 for why every other
      stylesheet uses #e4f222 in both themes. --accent stays the fill token (black ink on top,
-     17:1 contrast); accent-coloured text on this page's white panel keeps the darker token
-     below instead, the same split system.css uses. This file needs that split more than
-     system.css does: unlike system.css, it also colours plain running text (`a`, `code`) and
-     the doc-toc active state straight off --accent, and #e4f222 on white measures ~1.2:1 there
-     — worse than the #d0d300 it replaces (~1.6:1), not just stale. */
+     17:1 contrast). --accent-text used to keep a darker value here specifically because this
+     file colours plain running text (`a`, `code`, the doc-toc active state) straight off it, and
+     #e4f222 on white measures ~1.2:1. The owner has since rejected a second, darker yellow
+     system-wide — see system.css's `:root` comment — so --accent-text is now the same #e4f222 as
+     --accent everywhere, and the three running-text consumers below were re-pointed at --ink
+     instead of staying on a token that can no longer carry them. */
   --accent: #e4f222;
   --accent-ink: #000000;
-  --accent-text: #8a6d00;
+  --accent-text: #e4f222;
   --line: #e4e4e2;
   color-scheme: light;
 }
@@ -60,9 +61,12 @@ body {
 }
 
 a {
-  /* Running-text link colour, not a fill — --accent-text, not --accent (see the light-mode
-     :root comment above on why this split exists in this file). */
-  color: var(--accent-text);
+  /* --ink, not --accent-text: --accent-text is now the same light yellow as --accent (see the
+     light-mode :root comment), which measures ~1.2:1 on this page's white panel — unreadable as
+     running text and not something a per-link dark backing can fix without turning every inline
+     link into its own boxed pill. system.css's pages made the same call for their own links
+     (plain `a { color: inherit }`, no accent at all) — this matches that. */
+  color: var(--ink);
 }
 
 header.site {
@@ -337,8 +341,8 @@ code {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 0.1em 0.4em;
-  /* Running text, not a fill — see --accent-text's :root comment. */
-  color: var(--accent-text);
+  /* --ink, not --accent-text — same fix as the `a` rule above. */
+  color: var(--ink);
 }
 
 figure {
@@ -554,7 +558,10 @@ a:focus-visible {
 }
 
 .doc-toc a.is-active {
-  color: var(--accent-text);
+  /* --ink, not --accent-text — this page's a/code rules above hit the same wall. The left border
+     stays --accent: a 1px decorative rule doesn't answer to text-contrast rules the way a label
+     does, so it can carry the brand yellow the text label no longer can. */
+  color: var(--ink);
   border-left-color: var(--accent);
   font-weight: 600;
 }
@@ -620,9 +627,10 @@ a:focus-visible {
 }
 
 /* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo).
-   The one accent-outline chip, copied verbatim from demo/system.css because this file does not
-   load it. This used to be its own filled black/yellow pill — a different control from the one
-   every other page ships. See CLAUDE.md: styled once, never re-styled per page. */
+   The one show-code chip, copied verbatim from demo/system.css because this file does not load
+   it — see system.css for the full design rationale (solid --accent-ink fill, --accent label,
+   both fixed values so the chip needs no per-surface ink logic). See CLAUDE.md: styled once,
+   never re-styled per page. */
 .kui-show-code-toggle {
   display: inline-flex;
   align-items: center;
@@ -635,9 +643,9 @@ a:focus-visible {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.3rem 0.7rem;
-  color: var(--kui-chip-ink, var(--accent-text));
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+  color: var(--accent);
+  background: var(--accent-ink);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--accent-ink));
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
@@ -645,29 +653,8 @@ a:focus-visible {
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
-figcaption .kui-show-code-toggle,
-.kui-has-toggle .kui-show-code-toggle {
-  --kui-chip-ink: var(--accent);
-}
-
-:root[data-theme='dark'] figcaption .kui-show-code-toggle,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
-  --kui-chip-ink: currentColor;
-}
-
-:root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
-:root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
-  color: var(--accent);
-  background: var(--accent-ink);
-  border-color: var(--accent-ink);
-}
-
 .kui-show-code-toggle:hover,
-.kui-show-code-toggle:focus-visible,
-:root[data-theme='dark'] .kui-show-code-toggle:hover,
-:root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+.kui-show-code-toggle:focus-visible {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);

@@ -103,22 +103,22 @@
   /* ---------- draws (section E) ---------- */
   .draw-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.75rem 1.25rem; min-height: 84px; }
   .draw-stage svg { width: 100%; height: auto; max-width: 128px; overflow: visible; }
-  .draw-stage svg path { stroke: var(--accent-text); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .draw-stage svg path { stroke: var(--fg); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 
   /* ---------- fills (section E) — an outline copy behind, a filled copy in front; same
      mechanism star-rating-fill uses in data-hover.html, just SVG geometry instead of glyphs ---------- */
   .fill-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1.25rem; min-height: 84px; }
   .fill-stage svg { width: 72px; height: 72px; overflow: visible; }
   .fill-outline { fill: none; stroke: var(--border); stroke-width: 3; }
-  .fill-solid { fill: var(--accent-text); }
-  .chart-bar { width: 30px; height: 68px; background: var(--accent-text); border-radius: 3px 3px 0 0; }
+  .fill-solid { fill: var(--accent); }
+  .chart-bar { width: 30px; height: 68px; background: var(--fg); border-radius: 3px 3px 0 0; }
 
   /* ---------- logo build (section E) — abstract three-part mark, staggered on its wrapper ---------- */
   .logo-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 1.75rem 1.25rem; min-height: 84px; }
   .logo-part { width: 30px; height: 30px; }
   .logo-part-a { background: var(--accent); border-radius: 50%; }
   .logo-part-b { background: var(--fg); border-radius: 7px; }
-  .logo-part-c { background: var(--accent-text); clip-path: polygon(50% 4%, 96% 96%, 4% 96%); }
+  .logo-part-c { background: var(--muted); clip-path: polygon(50% 4%, 96% 96%, 4% 96%); }
 
   /* ---------- icon toggles (section E) — real controls, not bare boxes: a menu disclosure, a
      play/pause control, and an FAQ-style accordion trigger, each wired with the same
@@ -141,7 +141,7 @@
   /* ---------- path morphs (section E) — arbitrary path interpolation, hover or focus ---------- */
   .morph-stage { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1.25rem; min-height: 84px; }
   .morph-stage svg { width: 72px; height: 72px; overflow: visible; }
-  .morph-shape { fill: var(--accent-text); cursor: pointer; }
+  .morph-shape { fill: var(--accent); cursor: pointer; }
   .morph-shape:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
   /* ---------- page transitions (section L) — a mock browser window, since there is no router
@@ -152,10 +152,10 @@
   .transition-chrome span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
   .transition-view { padding: 1.35rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; min-height: 78px; justify-content: center; }
   .view-bar { height: 9px; border-radius: 4px; background: var(--border); }
-  .view-bar-heading { width: 62%; height: 13px; background: var(--accent-text); }
+  .view-bar-heading { width: 62%; height: 13px; background: var(--fg); }
   .view-bar-short { width: 42%; }
   .loading-track { height: 3px; background: var(--border); }
-  .loading-fill { height: 100%; width: 100%; background: var(--accent-text); }
+  .loading-fill { height: 100%; width: 100%; background: var(--fg); }
   .smooth-scroll-note, .page-morph-note {
     margin-top: 1.5rem; padding: 1.1rem 1.25rem; border-radius: 10px;
     border: 1px solid var(--border); background: var(--surface);
@@ -187,7 +187,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -199,8 +199,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -378,7 +376,7 @@
                   <path
                     d="M4 20 C 20 4, 36 36, 52 20 C 68 4, 84 36, 96 20"
                     pathLength="100"
-                    style="--kui-stroke-from: var(--accent-text); --kui-stroke-via: var(--accent); --kui-stroke-to: var(--accent-text);"
+                    style="--kui-stroke-from: var(--fg); --kui-stroke-via: var(--accent); --kui-stroke-to: var(--fg);"
                     data-kui="gradient-stroke on:enter"
                   />
                 </svg>

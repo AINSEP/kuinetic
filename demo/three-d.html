@@ -70,18 +70,12 @@
   :root[data-theme='dark'] .demo-card figcaption {
     color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
   }
-  /* Same fix as ambient-feedback.html and scroll.html: the show-code chip's default colour is
-     `--accent-text`, which in dark mode *is* `--accent` — identical to the figcaption background
-     this rule just painted, so the chip renders at full opacity and is simply invisible. Falling
-     back to `currentColor` reads as `--accent-ink` here, legible on the `--accent` bar. */
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle {
-    color: currentColor;
-    border-color: color-mix(in srgb, currentColor 55%, transparent);
-  }
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .demo-card figcaption .kui-show-code-toggle:focus-visible {
-    color: var(--accent); background: var(--accent-ink); border-color: var(--accent-ink);
-  }
+  /* This card's figcaption used to need a dark-mode chip override (see ambient-feedback.html and
+     scroll.html for the same fix, pre-consolidation): the outline chip's resting ink was
+     `--accent-text`, which in dark mode was `--accent` itself — the same value this rule paints
+     the figcaption background with, so the chip disappeared into it. The chip (system.css) is a
+     solid `--accent-ink`/`--accent` dark pill now, with its own fill on any surface, so this
+     figcaption needs no override at all. */
 </style>
 </head>
 <body>
@@ -107,7 +101,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -119,8 +113,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">

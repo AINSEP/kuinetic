@@ -17,11 +17,19 @@
      the one the other seven pages were painting. The darker value read as olive next to it.
 
      `--accent` is the fill token — things that carry `--accent-ink` (black) on top, where #e4f222
-     measures 17:1. Accent-coloured *text on a light background* is a different job and keeps its
-     own darker token below; that separation is what makes one shared fill value safe here. */
+     measures 17:1. */
   --accent: #e4f222;
   --accent-ink: #000000;
-  --accent-text: #8a6d00;
+  /* Also #e4f222, not a darker gold, as of the second consolidation pass. This token used to carry
+     its own darker value (#8a6d00) specifically because raw #e4f222 measures ~1.2:1 on white and is
+     unreadable as running text — that reasoning was sound, but the owner rejected having two
+     visually different "brand yellows" in the system at all, even one reserved for text. The fix is
+     no longer a second colour: every consumer of this token now either sits on a dark backing
+     (`--accent-ink`) so the light yellow reads on it, or was never really accent-branded text to
+     begin with and reads `--fg` instead. See the per-consumer comments below and in the pages that
+     still define this token locally (the four-file "index family" and `style.css`) for the call
+     made in each case. */
+  --accent-text: #e4f222;
   --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
   color-scheme: light;
 }
@@ -150,8 +158,13 @@ button, a.btn { font-family: inherit; cursor: pointer; }
   font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
   background: none; border: none; padding: 0; cursor: pointer;
 }
+/* `--fg`, not `--accent-text`: this is a state indicator on the nav pill's own `--bg`, and with
+   `--accent-text` now the same light yellow as `--accent` (see the `:root` comment), painting it
+   here would be unreadable in light mode. The trigger's own `.is-active` rule already carries the
+   "this is current" signal via weight; hover/expanded reuse that instead of a colour that cannot
+   read on this surface. */
 .kui-nav-dropdown-trigger:hover,
-.kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+.kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--fg); font-weight: 600; }
 .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
 .kui-nav-coming-soon {
   display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
@@ -166,9 +179,14 @@ button, a.btn { font-family: inherit; cursor: pointer; }
   display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
   font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
 }
+/* `--fg`, not `--accent-text` — same reasoning as the trigger above: `--accent-text` is now the
+   light yellow `--accent` value and unreadable on this menu's `--bg`. `background: var(--surface)`
+   on hover is a pre-existing no-op wherever `--surface` equals `--bg` (true here since system.css
+   has always been the flat vocabulary) — left as-is; restyling the hover feedback itself is outside
+   a token-only pass. */
 .kui-nav-dropdown-menu a:hover,
-.kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
-.kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+.kui-nav-dropdown-menu a:focus-visible { color: var(--fg); background: var(--surface); font-weight: 600; }
+.kui-nav-dropdown-menu a[aria-current='page'] { color: var(--fg); font-weight: 600; }
 /* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
    `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
    effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
@@ -296,36 +314,28 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
    This shipped as a 200px-wide filled --accent block, which is fine on a page mounting three or
    four of them and wrong on a page mounting thirty over full-bleed screenshots whose entire job is
    to be looked at. At that density a chartreuse slab per card stops reading as a control and
-   becomes the loudest colour on the page, above the work it is captioning.
+   becomes the loudest colour on the page, above the work it is captioning. It then went through an
+   outline-chip phase — accent ring at rest, filling with accent on hover — which fixed the density
+   problem but reopened the readability one: the resting label was `--accent-text`, and the whole
+   reason `--accent-text` existed as a second, darker yellow was that raw #e4f222 fails on a light
+   surface. Keeping that chip legible meant tracking *which* surface it sat on and swapping its ink
+   accordingly — `--kui-chip-ink`, set per caption-bar convention across six pages.
 
-   So: an outline chip in accent at rest, filling with accent on hover and focus. The accent
-   becomes the *feedback* rather than the default, which is the only place a colour that strong
-   earns its keep.
+   The owner then rejected the second yellow outright: one brand accent, full stop (see the `:root`
+   comment on `--accent-text`). A transparent chip cannot survive that on its own — there is no
+   single ink colour that reads on every surface a transparent box inherits. A **filled** chip can:
+   give it its own background and the surface underneath stops mattering.
 
-   ---------- `--kui-chip-ink`: the resting colour follows the surface, not the theme ----------
-
-   The chip's resting colour used to be `--accent-text` unconditionally, on the reasoning that raw
-   #d0d300 on white is about 1.6:1 and the darker token exists for exactly that. True — and it
-   silently assumed the chip sits on white. It usually does not. Every demo page mounts most of its
-   chips inside a caption bar the page paints `--accent-ink` (black) in light mode, and #8a6d00 on
-   black measures **4.27:1** — technically passing, and the owner's read was "barely readable",
-   which for a 0.68rem uppercase 500-weight label at that size is the correct read. #8a6d00 is the
-   *dark* end of the accent pair. On a dark surface the bright end is the right one, and it runs
-   about 11:1.
-
-   So the resting ink is a variable with the white-background value as its default, and a surface
-   that is not white sets it. One declaration on the rule that already paints the surface, rather
-   than a page restating the whole chip — which is how `scroll.html` ended up carrying twenty-odd
-   lines of chip overrides that no other page got, leaving six pages with a 4.27:1 chip and, in dark
-   mode, an `--accent` chip on an `--accent` bar at 1:1. Invisible.
-
-   Two values cover every surface in this design system:
-     --kui-chip-ink: var(--accent)      on a dark surface  (light-mode caption bars)
-     --kui-chip-ink: currentColor       on an accent surface (dark-mode caption bars), because the
-                                        caption's own ink is legible on it by construction
-
-   This lives here, not on one page, because a control that means the same thing everywhere should
-   look the same everywhere. A page that genuinely needs a different treatment overrides it. */
+   So: solid `--accent-ink` fill, `--accent` label — the same pair every accent-filled button on
+   this page already uses, just inverted. Both tokens are fixed values (`#000000` / `#e4f222`) in
+   both themes, so the chip is the same dark pill with the same bright label on a white card, a
+   black card, or a caption already painted solid `--accent` — a dark pill on a bright fill is still
+   a dark pill, unlike a transparent ring, which vanished into it. Measured: --accent on
+   --accent-ink is ~17:1 in both themes. That removes the entire surface-detection problem this
+   comment used to document — `--kui-chip-ink` and the six pages' worth of per-caption overrides
+   that kept it correct are gone with it. Hover/focus inverts the pair — accent fill, ink-coloured
+   label — which is the outline design's old resting state, so the interaction still reads as "the
+   accent comes forward on contact." */
 .kui-show-code-toggle {
   display: inline-flex;
   align-items: center;
@@ -338,9 +348,13 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.3rem 0.7rem;
-  color: var(--kui-chip-ink, var(--accent-text));
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+  color: var(--accent);
+  background: var(--accent-ink);
+  /* A ring, not a hard edge: on a surface that is itself solid `--accent-ink` (a dark-theme card,
+     a black caption bar) a same-colour fill would have no visible boundary of its own — only the
+     label would show. The ring is a fixed blend of the pair rather than either endpoint, so it
+     stays visible against a black backdrop, a yellow one, or anything between. */
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--accent-ink));
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
@@ -348,50 +362,13 @@ footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
-/* The caption bar every demo page paints, in one place instead of seven.
-   Light mode paints it black, so the chip on it takes the bright accent. Dark mode paints it with
-   the accent itself, where a yellow chip is the same colour as the bar — `currentColor` there is
-   the caption's own `--accent-ink`, legible on it by construction. Scoped to `figcaption` and the
-   glass pills rather than applied globally, because a chip on the page background must keep the
-   white-background default. */
-figcaption .kui-show-code-toggle,
-.kui-has-toggle .kui-show-code-toggle {
-  --kui-chip-ink: var(--accent);
-}
-
-:root[data-theme='dark'] figcaption .kui-show-code-toggle,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
-  --kui-chip-ink: currentColor;
-}
-
-/* Hover has the same problem one step further on. The generic hover below fills the chip with
-   `--accent` — which in dark mode is what the bar is already painted, so hovering made the chip
-   disappear instead of confirming the pointer was on it. On these surfaces the fill inverts:
-   accent ink behind, accent label on top. */
-:root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
-:root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
-:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
-  color: var(--accent);
-  background: var(--accent-ink);
-  border-color: var(--accent-ink);
-}
-
 .kui-show-code-toggle:hover,
-.kui-show-code-toggle:focus-visible,
-:root[data-theme='dark'] .kui-show-code-toggle:hover,
-:root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+.kui-show-code-toggle:focus-visible {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
   filter: none;
 }
-
-/* On a surface already painted with the accent, an accent chip is the same colour as the thing
-   behind it and disappears completely. There is no way to detect that from here — the page decides
-   what its own captions look like — so the page owns the override, scoped to the exact selector
-   that paints the surface. `currentColor` is the caption's own text colour, which is legible on it
-   by construction. See `scroll.html`'s dark-mode caption rules for the worked example. */
 
 /* The caption layout show-code.js used to write as inline styles. Identical result, but now an
    ordinary rule, so a page can override it with its own selector instead of fighting inline. */

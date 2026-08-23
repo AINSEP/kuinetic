@@ -29,31 +29,30 @@
   :root,
   :root[data-theme='light'] {
     --bg: #ffffff;
-    --surface: #f6f6f4;
-    --fg: #08090a;
-    --muted: oklch(46% 0.017 75);
+    /* Flat, matching system.css: --surface == --bg in both themes. See index.html's `:root`
+       comment for the full reasoning — this used to be off-white/off-black for section banding,
+       and the owner settled on one flat value set for the whole showcase. */
+    --surface: #ffffff;
+    --fg: #000000;
+    --muted: #666666;
     --border: #e4e4e2;
     --accent: #e4f222;
-    --accent-ink: #08090a;
-    /* Bright acid-lime text on white is a contrast failure (~1.2:1). A plain color-mix(accent,
-       black) darkens it while keeping green as the dominant channel, which reads as olive/green
-       rather than yellow — this is a dedicated dark gold instead, red channel now dominant, ~4.9:1
-       on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
-       accents) where it sits on a dark or neutral surface instead. */
-    --accent-text: #8a6d00;
+    --accent-ink: #000000;
+    /* Also #e4f222, not a dedicated dark gold, as of the token consolidation — see system.css's
+       `:root` comment. This page's only consumer of this token is the nav dropdown below, which
+       has been switched to --fg accordingly. */
+    --accent-text: #e4f222;
     --shadow-float: 0 20px 48px rgb(8 9 10 / 0.10);
     color-scheme: light;
   }
   :root[data-theme='dark'] {
-    --bg: #08090a;
-    --surface: #0f1011;
+    --bg: #000000;
+    --surface: #000000;
     --fg: #ffffff;
     --muted: #8a8f98;
-    --border: #23252a;
+    --border: #333333;
     --accent: #e4f222;
-    --accent-ink: #08090a;
-    /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
-       here — matches --accent exactly. */
+    --accent-ink: #000000;
     --accent-text: #e4f222;
     --shadow-float: 0 20px 48px rgb(0 0 0 / 0.45);
     color-scheme: dark;
@@ -134,8 +133,10 @@
     font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
     background: none; border: none; padding: 0; cursor: pointer;
   }
+  /* --fg, not --accent-text: --accent-text is now the same light yellow as --accent, unreadable
+     on this pill's --bg. Weight carries the "hovered/expanded" signal instead. */
   .kui-nav-dropdown-trigger:hover,
-  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--fg); font-weight: 600; }
   .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
   .kui-nav-coming-soon {
     display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
@@ -150,9 +151,12 @@
     display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
     font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
   }
+  /* --fg, not --accent-text — same fix as the trigger above. background: var(--surface) on hover
+     is a pre-existing no-op now that --surface flattens to --bg, which this menu already paints;
+     left as-is, restyling the hover feedback itself is outside a token-only pass. */
   .kui-nav-dropdown-menu a:hover,
-  .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
-  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  .kui-nav-dropdown-menu a:focus-visible { color: var(--fg); background: var(--surface); font-weight: 600; }
+  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--fg); font-weight: 600; }
   /* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
      `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
      effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
@@ -365,7 +369,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -377,8 +381,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
