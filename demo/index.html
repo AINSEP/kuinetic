@@ -1293,10 +1293,12 @@
           <div>
             <p class="kicker">Try it</p>
             <h2 data-kui="text-reveal-mask 700ms on:enter">Click the attribute. Watch it change.</h2>
-            <p data-kui="fade-up 700ms 90ms on:enter">
-              One element, one attribute. Each chip writes a different value onto the same frame and
-              the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.
-            </p>
+            <div class="rev-notes" data-kui-stagger="60ms">
+              <ul>
+                <li data-kui="fade-up 500ms on:enter">One element, one attribute.</li>
+                <li data-kui="fade-up 500ms on:enter">Each chip writes a different value onto the same frame and the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.</li>
+              </ul>
+            </div>
             <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="45ms">
               <!-- `wipe-circle` leads: it is the one that reads instantly at this size and it is
                    not on reveals.html, so the first thing you see here is something you have not
