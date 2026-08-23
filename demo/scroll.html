@@ -911,15 +911,10 @@
      "marks the section you are currently looking at", so a blank nav made the page's own claim
      false. Tiling is the fix that works with the effect's definition instead of against it. */
   .spy-sections { display: grid; gap: 0; border-radius: 14px; overflow: clip; border: 1px solid var(--border); }
-  /* 68vh here MUST match `distance:68vh` in each section's `data-kui`. `scroll-spy`'s `distance`
-     defaults to 100vh (`distanceParam`, src/effects/scroll-mechanics/primitives.ts:26) and that
-     default is what marks a section active — not the section's own height. Authored at 68vh with
-     the default left in place, every section stayed marked for 100vh of scrolling while the next
-     one began after 68vh, so two links lit at once through a 246px overlap. Measured before the
-     fix: `Commerce` stayed lit from its own seam to roughly +250px into `Portfolio`.
-
-     Changing one number without the other silently reintroduces that. If this height changes,
-     change the five `distance:` values with it. */
+  /* This used to also have to match a hand-authored `distance:68vh` repeated on all five
+     sections' own `data-kui` — the container form (`sections:`/`target:` on the shared ancestor,
+     see the markup below) tracks each section's real height instead of a fixed distance, so that
+     drift risk is gone. Pure layout CSS now; change this number freely. */
   .spy-section {
     position: relative; min-height: 68vh; overflow: clip;
     display: flex; align-items: flex-end;
@@ -1688,14 +1683,15 @@
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at — here, the matching nav link.</li>
             </ul>
           </div>
-          <!-- Same `data-show-code-target` shape as the horizontal track and the pin demos, and
-               for the same reason: the effect here is five sibling sections plus the nav they
-               mark, so no single element carries it. `data-show-code-key` names the classes the
-               CSS actually selects on, plus `data-kui-active` — the attribute `scroll-spy` writes
-               onto the target, which is the whole contract of the effect and the one thing a
-               reader copying this needs to know exists. -->
-          <p class="kui-contract"><code>data-kui="scroll-spy target:#spy-link-bottle distance:68vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="spy-demo">Show code</button></p>
-          <div class="spy-layout" id="spy-demo" data-show-code-key="spy-layout spy-nav spy-sections spy-section data-kui-active">
+          <!-- Container form: one data-kui on the shared ancestor, `sections:` and `target:`
+               scoped to it. Pairing is automatic — each section's id against each link's
+               href="#id" — so the five sections below carry no data-kui of their own at all.
+               `data-show-code-key` names the classes the CSS actually selects on, plus
+               `data-kui-active` — the attribute `scroll-spy` writes onto the target, which is the
+               whole contract of the effect and the one thing a reader copying this needs to know
+               exists. -->
+          <p class="kui-contract"><code>data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="spy-demo">Show code</button></p>
+          <div class="spy-layout" id="spy-demo" data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'" data-show-code-key="spy-layout spy-nav spy-sections spy-section data-kui-active">
             <nav class="spy-nav" aria-label="Jump to product">
               <a id="spy-link-bottle" href="#spy-bottle">Botole</a>
               <a id="spy-link-airpods-dark" href="#spy-airpods-dark">AirPods dark</a>
@@ -1704,23 +1700,23 @@
               <a id="spy-link-beats" href="#spy-beats">Beats Pro</a>
             </nav>
             <div class="spy-sections">
-              <section id="spy-bottle" class="spy-section" data-kui="scroll-spy target:#spy-link-bottle distance:68vh">
+              <section id="spy-bottle" class="spy-section">
                 <img src="./assets/webdesign/spy-botole-bottle.jpg" alt="The Botole water-bottle store — a matte black bottle on a white disc, beside a heavy Drinking Water Bottle headline and a Start Now button" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Product</p><h4>Botole — drinkware</h4></div>
               </section>
-              <section id="spy-airpods-dark" class="spy-section" data-kui="scroll-spy target:#spy-link-airpods-dark distance:68vh">
+              <section id="spy-airpods-dark" class="spy-section">
                 <img src="./assets/webdesign/spy-airpods-max-dark.jpg" alt="An Apple AirPods Max product page in near-black — two views of the headphones over a vast outlined AirPodsMax wordmark, with White and Black swatches" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Product</p><h4>AirPods Max · dark</h4></div>
               </section>
-              <section id="spy-airpods-light" class="spy-section" data-kui="scroll-spy target:#spy-link-airpods-light distance:68vh">
+              <section id="spy-airpods-light" class="spy-section">
                 <img src="./assets/webdesign/spy-airpods-max-light.jpg" alt="The same AirPods Max page inverted to near-white — silver headphones centred over a pale Air Pods Max wordmark, with Play video, More Product and Buy Product controls" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Product</p><h4>AirPods Max · light</h4></div>
               </section>
-              <section id="spy-vision" class="spy-section" data-kui="scroll-spy target:#spy-link-vision distance:68vh">
+              <section id="spy-vision" class="spy-section">
                 <img src="./assets/webdesign/spy-vision-pro.jpg" alt="An Apple Vision Pro store page — the headset lit from above under the headline Stay in the Orbit of Vision, priced from $2,400, with Book a demo and Virtual Tour buttons" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Product</p><h4>Vision Pro</h4></div>
               </section>
-              <section id="spy-beats" class="spy-section" data-kui="scroll-spy target:#spy-link-beats distance:68vh">
+              <section id="spy-beats" class="spy-section">
                 <img src="./assets/webdesign/spy-beats-pro.jpg" alt="The nocs. store showing Beats Pro — black headphones hung over an outlined Beats wordmark on warm grey, with a $399.95 price and a BUY block" loading="lazy" />
                 <div class="spy-label"><p class="kicker">Product</p><h4>Beats Pro</h4></div>
               </section>
