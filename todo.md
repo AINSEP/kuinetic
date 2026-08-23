@@ -10,6 +10,22 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **Build dedicated test pages that run through every effect — not `demo/` pages.** Owner's
+      ask, 2026-08-23, prompted by finding `cube-rotate`/`book-page-turn` broken by hand while
+      adding demo chips (see the entry above). "There's no way we should have bugs at this point"
+      — the gap is that nothing lets a human visually walk every registered preset and see it run.
+      What exists today is `test/browser/effect-sweep.test.mjs` (all effects sampled headlessly,
+      asserted programmatically — see `kuinetic_effect-sweep-browser-tier.md` in memory) and the
+      `demo/*.html` pages (curated, marketing-facing, most effects shown once each at most, many
+      not shown at all). Neither is "open a page, look at every effect, catch the one that's
+      visually wrong." Build pages whose only job is coverage and inspection: one row per
+      registered preset (name, its `data-kui`, a replay control), grouped by catalog section,
+      living outside `demo/` (a `test-pages/` or `qa/` directory, not linked from the nav). Cross-
+      check against `createRegistry().names()` so a new preset can't ship without a row. Worth
+      doing before trusting any more hand-added demo effects.
+
+
+
 - [x] **`path-morph` loses every subpath — a real correctness bug the unit suite cannot see.**
       Fixed 2026-08-21. Parse now carries subpath boundaries, segment balancing happens per contour
       instead of globally, and serialisation re-emits `M` per contour plus `Z` for each closed one.
@@ -124,6 +140,22 @@ library should own it. Never call something "not the library's job" without grep
       `demo/icons-transitions.html`. Either (a) swap the SVG artwork that card draws, or (b) swap
       the effect on that card for a different one. Note that page was hidden from the nav in the
       same conversation.
+
+- [ ] **`cube-rotate` and `book-page-turn` end edge-on/turned-away on a single element — do not
+      use standalone without a fix.** Found 2026-08-23 trying to add them as `data-fx` chips in
+      `index.html`'s "Try it" playground. Both are `to`-only keyframes on the shared `flip-face`
+      primitive (`src/effects/three-d/index.ts`) with off-axis end angles — `cube-rotate` to
+      `90deg`, `book-page-turn` to `-160deg` — and `animation-fill-mode: both` sticks the element
+      there permanently. `card-flip-x`/`card-flip-y` hit the exact same shape of problem (a half
+      turn lands the element's own front face pointing away, mirrored) and it was fixed with a
+      `:not(:has(> :nth-child(2)))` override in `src/css/three-d.css:106-109` that forces a full
+      `360deg` turn for a childless (single-image) use. `three-d.css:103` says outright that
+      `cube-rotate` was "deliberately left alone" because a 90deg end reads as a different,
+      unresolved question — `book-page-turn` was never addressed at all. Either give both their
+      own single-child override (what angle actually reads as "turned a page/face and settled"
+      instead of edge-on?) or document them as two-element-only presets in the catalog docs so a
+      demo page doesn't reach for them standalone again. `card-flip-y` does work standalone and
+      is safe to use.
 
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before
