@@ -28,23 +28,31 @@
   :root,
   :root[data-theme='light'] {
     --bg: #ffffff;
-    --surface: #f6f6f4;
-    --fg: #08090a;
-    --muted: oklch(46% 0.017 75);
+    /* Flat, matching system.css: --surface == --bg in both themes. This page used to paint
+       --surface off --bg on purpose (#f6f6f4 here, #0f1011 in dark) to band the hero/ticker
+       "stage" against the rest of the page — the whole reason `.stage` below reads `--s-bg` off
+       this token instead of `--bg` directly. The consolidation's token vocabulary settles on one
+       flat value set for the whole showcase, so that banding is gone: `.stage` now paints the
+       same white/black as everything else. Intended, not a regression — see the CSS
+       consolidation notes for the call. */
+    --surface: #ffffff;
+    --fg: #000000;
+    --muted: #666666;
     --border: #e4e4e2;
     --accent: #e4f222;
-    --accent-ink: #08090a;
-    /* Bright acid-lime text on white is a contrast failure (~1.2:1). A plain color-mix(accent,
-       black) darkens it while keeping green as the dominant channel, which reads as olive/green
-       rather than yellow — this is a dedicated dark gold instead, red channel now dominant, ~4.9:1
-       on white. --accent itself stays reserved for fills (buttons, the logo dot, border/outline
-       accents) where it sits on a dark or neutral surface instead. */
-    --accent-text: #8a6d00;
+    --accent-ink: #000000;
+    /* Also #e4f222, not a dedicated dark gold, as of the token consolidation. The owner rejected
+       having two different "brand yellows" in the system even with one reserved for text — see
+       system.css's `:root` comment. Every consumer of this token below has its own fix: a dark
+       backing so the light yellow reads on it, or a switch to --fg where it was never really
+       accent-branded text to begin with. */
+    --accent-text: #e4f222;
     /* The ticker's gilt edge. Deliberately its own token rather than reusing --accent-text: that
        one is contracted for *text* and is picked for contrast against a reading background, while
-       this is a 1px rule whose only job is to look like metal. They happen to share a value in
-       light mode; they must not in dark, so they cannot be the same token. */
-    --ticker-edge: #8a6d00;
+       this is a 1px rule whose only job is to look like metal. It used to coincidentally share a
+       value with --accent-text in light mode; now that --accent-text is --accent's own bright
+       yellow, they no longer do anywhere, which is a cleaner state than the coincidence was. */
+    --ticker-edge: var(--accent);
     /* Semantic pair, used only by the compose playground's verdict. Green/red rather than the
        brand accent because "these compose" and "these collide" is a status, not a brand moment,
        and the accent already means "this is the effect name". */
@@ -54,21 +62,19 @@
     color-scheme: light;
   }
   :root[data-theme='dark'] {
-    --bg: #08090a;
-    --surface: #0f1011;
+    --bg: #000000;
+    --surface: #000000;
     --fg: #ffffff;
     --muted: #8a8f98;
-    --border: #23252a;
+    --border: #333333;
     --accent: #e4f222;
-    --accent-ink: #08090a;
-    /* Acid-lime reads with excellent contrast on near-black, so text use doesn't need darkening
-       here — matches --accent exactly. */
+    --accent-ink: #000000;
     --accent-text: #e4f222;
     /* Not --accent-text here, which is acid lime on this canvas — a solid lime rule reads as neon
        signage, the opposite of the gilt this is meant to be. This is a warm gold with the red
-       channel dominant, bright enough to register against #0f1011 without becoming a second
+       channel dominant, bright enough to register against the page without becoming a second
        accent competing with the lime the page already uses for emphasis. */
-    --ticker-edge: #c8a63c;
+    --ticker-edge: var(--accent);
     /* Lightened for the near-black canvas — the light-mode pair is ~4.5:1 on white and ~2:1 here. */
     --ok: #4ade80;
     --warn: #f87171;
@@ -219,8 +225,10 @@
     font: inherit; font-size: 0.9rem; font-weight: 500; color: var(--fg);
     background: none; border: none; padding: 0; cursor: pointer;
   }
+  /* --fg, not --accent-text: --accent-text is now the same light yellow as --accent, unreadable
+     on this pill's --bg. Weight carries the "hovered/expanded" signal instead. */
   .kui-nav-dropdown-trigger:hover,
-  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--accent-text); }
+  .kui-nav-dropdown-trigger[aria-expanded='true'] { color: var(--fg); font-weight: 600; }
   .kui-nav-dropdown-trigger.is-active { font-weight: 600; }
   .kui-nav-coming-soon {
     display: block; padding: 0.45rem 0.6rem; font-size: 0.85rem;
@@ -238,9 +246,12 @@
     display: block; padding: 0.5rem 0.65rem; border-radius: 5px;
     font-size: 0.85rem; color: var(--fg); text-decoration: none !important;
   }
+  /* --fg, not --accent-text — same fix as the trigger above. background: var(--surface) on hover
+     is a pre-existing no-op now that --surface flattens to --bg, which this menu already paints;
+     left as-is, restyling the hover feedback itself is outside a token-only pass. */
   .kui-nav-dropdown-menu a:hover,
-  .kui-nav-dropdown-menu a:focus-visible { color: var(--accent-text); background: var(--surface); }
-  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--accent-text); font-weight: 600; }
+  .kui-nav-dropdown-menu a:focus-visible { color: var(--fg); background: var(--surface); font-weight: 600; }
+  .kui-nav-dropdown-menu a[aria-current='page'] { color: var(--fg); font-weight: 600; }
   /* `hamburger-to-x` (src/css/svg.css) owns the open/closed transition, keyed off the
      `aria-expanded` nav.js already maintains — this rule only owns bar geometry, which the
      effect deliberately leaves to the author. Sized to match the three-`<line>` icon this
@@ -378,9 +389,27 @@
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
-  /* `--accent-text`, not `--accent`: this is lime as *text*, which is ~1.2:1 on paper. The token
-     resolves to a dark gold in light mode and to the lime itself in dark. */
-  .hero h1 em { font-style: normal; color: var(--accent-text); }
+  /* Solid accent highlight in light mode, not plain text colour: --accent-text is now the same
+     #e4f222 as --accent (~1.2:1 on the stage's white), and this is the single highest-visibility
+     accent moment on the page, so it earns a fix rather than falling back to plain --fg. Same
+     accent-fill/accent-ink pair `.attr-chip .attr-value` already uses a few lines down — this
+     reuses that motif instead of inventing a second one. ~17:1. Dark mode needs none of this: the
+     page there is already near-black, so plain accent text (the pre-consolidation dark-mode
+     value) still reads fine on it without a badge. */
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent-ink);
+    background: var(--accent);
+    padding: 0 0.12em;
+    border-radius: 0.14em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  :root[data-theme='dark'] .hero h1 em {
+    color: var(--accent);
+    background: none;
+    padding: 0;
+  }
 
   /* The attribute chip — the page's focal motif. Everything kUInetic does is this string, so the
      string is set at headline scale rather than buried in a paragraph, and the same mono-plus-
@@ -418,7 +447,9 @@
     font-size: 0.72rem; letter-spacing: 0.04em;
     color: var(--s-muted);
   }
-  .attr-caption b { color: var(--accent-text); font-weight: 500; }
+  /* --s-fg, not --accent-text: a small caption mention, not a headline moment — the attr-chip's
+     accent-value box right above already carries the accent for this whole line. */
+  .attr-caption b { color: var(--s-fg); font-weight: 500; }
   /* A live dot rather than an arrow glyph: the arrow has to point at a chip whose position moves
      with the line wrap, and it renders as a stray letter in some mono stacks. A pulsing dot says
      "this is running" from anywhere on the line. */
@@ -448,9 +479,10 @@
   .hero-media-credit {
     margin: 0 0 0.7rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    /* Plain foreground in light mode — the dark-gold `--accent-text` reads as a muted caption
-       next to a black headline, and this is a signature, not metadata. Dark mode keeps the accent,
-       where lime is legible and the page's other headings already use it. */
+    /* Plain foreground in light mode — `--accent-text` is now the same bright #e4f222 as --accent
+       and unreadable here, and this is a signature, not metadata, so it doesn't need the dark
+       highlight treatment `.hero h1 em` gets above. Dark mode keeps the accent, where lime is
+       legible and the page's other headings already use it. */
     font-size: 0.95rem; text-align: right; color: var(--fg);
   }
   :root[data-theme='dark'] .hero-media-credit { color: var(--accent); }
@@ -536,9 +568,12 @@
 
      What changes is the job the line is doing. Grey is structure, and structure that restates
      something already said is noise. Gold is brand: it frames the band rather than dividing the
-     page, and it rhymes with --accent-text, which is already the colour of the highlighted effect
-     names *inside* these tickers. So the edge and the words it contains are from the same
-     palette, which is the thing that makes it read as a deliberate band instead of a leftover.
+     page, and it rhymes with --ticker-edge, which the highlighted effect names *inside* these
+     tickers are also painted with (see `.ticker-row b` below — it used to reuse --accent-text for
+     this, back when that token held its own darker gold; now that --accent-text is --accent's own
+     bright yellow, --ticker-edge is what keeps the words and the edge on the same palette). So the
+     edge and the words it contains are from the same palette, which is the thing that makes it
+     read as a deliberate band instead of a leftover.
 
      If it ever reads as a stray rule again, the fix is the fade — transparent to gold to
      transparent, so the line dissolves at both ends instead of terminating — not a return to no
@@ -546,9 +581,21 @@
 
      `overflow: clip` stays and is load-bearing — the row is `width: max-content` and would hand
      the document a horizontal scrollbar without it. */
+  /* The band is painted dark in BOTH themes, which is what lets --ticker-edge be the brand
+     yellow rather than a darker gilt. #e4f222 measures ~1.2:1 on white and ~17:1 on black, so
+     the choice is between the owner's light yellow on a dark band or a darker yellow on a light
+     one — the owner asked for the light yellow. `.ticker` is a `.stage`, so overriding the three
+     stage tokens repaints the row's own type too; without that, --s-muted (#666666) would sit on
+     black. The row's plain names are white and only the <b> names carry the yellow, so the
+     highlight still reads as a highlight. Side effect worth knowing: this restores the horizontal separation that flattening
+     --surface onto --bg removed, since the tickers now band the page on their own. */
   .ticker {
+    --s-bg: var(--accent-ink);
+    --s-fg: #ffffff;
+    --s-muted: #ffffff;
     padding: 0;
     overflow: clip;
+    background: var(--s-bg);
     border-top: 1px solid var(--ticker-edge);
     border-bottom: 1px solid var(--ticker-edge);
   }
@@ -558,7 +605,12 @@
     font-size: 0.8rem; letter-spacing: 0.06em;
     color: var(--s-muted); white-space: nowrap;
   }
-  .ticker-row b { color: var(--accent-text); font-weight: 500; }
+  /* Still --ticker-edge rather than --accent directly: the edge and the words inside it are one
+     palette decision, and keeping them on one token means changing that palette stays a one-line
+     edit. The token now resolves to --accent in both themes, so these words are the same brand
+     yellow as everything else on the page — readable here at ~17:1 because the band above is
+     painted dark for exactly this reason. */
+  .ticker-row b { color: var(--ticker-edge); font-weight: 500; }
 
   /* ---------- section heading ---------- */
   .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
@@ -677,11 +729,10 @@
   /* The bar is permanently near-black in both themes, so the attribute line on it needs the light
      palette rather than the page's. */
   .lab-bar .attr-line { color: #8a8f98; line-height: 1.5; }
-  .lab-bar .kui-show-code-toggle { --kui-chip-ink: var(--accent); }
-  .lab-bar .kui-show-code-toggle:hover,
-  .lab-bar .kui-show-code-toggle:focus-visible {
-    color: var(--accent-ink); background: var(--accent); border-color: var(--accent);
-  }
+  /* The chip override that used to live here (--kui-chip-ink, plus a hover rule duplicating the
+     base one) existed to keep the outline chip legible on this bar's permanent near-black fill.
+     The chip is a solid dark pill now — its own fill carries its own contrast on any surface, so
+     this bar needs no override at all. */
 
   /* ---------- section 4: effects compose ---------- */
   .compose-list { list-style: none; margin: 1.75rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
@@ -775,7 +826,8 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
   }
-  .slice-cat b { color: var(--accent-text); font-weight: 600; flex: none; }
+  /* --fg, not --accent-text: a small caption label, not accent-branded content. */
+  .slice-cat b { color: var(--fg); font-weight: 600; flex: none; }
   .slice-fx {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.79rem; color: var(--fg); overflow-wrap: anywhere;
@@ -792,10 +844,13 @@
   .slice-stack { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 100%; }
   .slice-badge { position: relative; display: inline-grid; place-items: center; padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
   .slice-badge i { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+  /* --fg, not --accent-text: the puck's background is a 14% accent tint over the page background,
+     close enough to it in light mode that --accent-text (now the same #e4f222 as --accent) would
+     still fail contrast on it. Border + tint already carry the accent identity here. */
   .slice-puck {
     display: inline-grid; place-items: center; width: 5.4rem; height: 5.4rem; border-radius: 50%;
     border: 1px solid var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent);
-    color: var(--accent-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
     /* `touch-action: none` or the browser scrolls the page instead of handing us the pointer. */
     cursor: grab; touch-action: none; user-select: none;
@@ -826,13 +881,16 @@
   .slice-acc-panel { display: block; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
   .slice-acc-panel > span { display: block; padding-top: 0.5rem; }
   .slice-svg { width: 78%; height: auto; }
-  .slice-svg path { stroke: var(--accent-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  /* --fg, not --accent-text: an icon-draw stroke on the tile's own surface, not text — same
+     unreadable-on-white problem as the text consumers above once --accent-text became --accent's
+     own value. */
+  .slice-svg path { stroke: var(--fg); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 
   /* ---------- show-code chip ----------
-     The one accent-outline chip, copied verbatim from `demo/system.css` because this page does not
-     load it. This page used to restyle the chip wholesale — a filled black pill in light mode, a
-     filled yellow one in dark — which made the same control mean the same thing and look different
-     here than on every other page in the showcase. See CLAUDE.md: styled once, never per page. */
+     The one show-code chip, copied verbatim from `demo/system.css` because this page does not
+     load it — see system.css for the full design rationale (solid --accent-ink fill, --accent
+     label, both fixed values so the chip needs no per-surface ink logic). See CLAUDE.md: styled
+     once, never per page. */
   .kui-show-code-toggle {
     display: inline-flex;
     align-items: center;
@@ -845,9 +903,9 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 0.3rem 0.7rem;
-    color: var(--kui-chip-ink, var(--accent-text));
-    background: transparent;
-    border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+    color: var(--accent);
+    background: var(--accent-ink);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--accent-ink));
     border-radius: 999px;
     cursor: pointer;
     white-space: nowrap;
@@ -855,29 +913,8 @@
     transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
   }
 
-  figcaption .kui-show-code-toggle,
-  .kui-has-toggle .kui-show-code-toggle {
-    --kui-chip-ink: var(--accent);
-  }
-
-  :root[data-theme='dark'] figcaption .kui-show-code-toggle,
-  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
-    --kui-chip-ink: currentColor;
-  }
-
-  :root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
-  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
-    color: var(--accent);
-    background: var(--accent-ink);
-    border-color: var(--accent-ink);
-  }
-
   .kui-show-code-toggle:hover,
-  .kui-show-code-toggle:focus-visible,
-  :root[data-theme='dark'] .kui-show-code-toggle:hover,
-  :root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+  .kui-show-code-toggle:focus-visible {
     color: var(--accent-ink);
     background: var(--accent);
     border-color: var(--accent);
@@ -1056,7 +1093,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html,icons-transitions.html,three-d.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
         >
           CSS Animations
         </button>
@@ -1068,8 +1105,6 @@
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
           <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
-          <a href="./icons-transitions.html" data-nav-link="icons-transitions.html">Icons &amp; Transitions</a>
-          <a href="./three-d.html" data-nav-link="three-d.html">3D &amp; Perspective</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -1233,7 +1268,7 @@
         <div class="play-grid">
           <div>
             <p class="kicker">Try it</p>
-            <h2 data-kui="text-reveal-mask 700ms on:enter">Change the attribute. Watch it change.</h2>
+            <h2 data-kui="text-reveal-mask 700ms on:enter">Click the attribute. Watch it change.</h2>
             <p data-kui="fade-up 700ms 90ms on:enter">
               One element, one attribute. Each chip writes a different value onto the same frame and
               the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.
@@ -1518,30 +1553,6 @@
             </span>
           </span>
 
-          <a class="slice" href="./three-d.html" data-kui="fade-up 500ms on:enter">
-            <span class="slice-media">
-              <img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" data-kui="card-flip-y 1000ms on:enter" />
-            </span>
-            <span class="slice-body">
-              <span class="slice-cat">3D &amp; perspective <b>6</b></span>
-              <span class="slice-fx">card-flip-y</span>
-            </span>
-          </a>
-
-          <span class="slice" data-kui="fade-up 500ms on:enter">
-            <span class="slice-media is-composed">
-              <!-- The whole `label-float` contract: the control, then its <label> as a sibling. -->
-              <span class="slice-field">
-                <input id="slice-email" type="email" placeholder=" " data-kui="label-float" />
-                <label for="slice-email">Email address</label>
-              </span>
-            </span>
-            <span class="slice-body">
-              <span class="slice-cat">Forms &amp; inputs <b>12</b></span>
-              <span class="slice-fx"><a href="./nav-forms.html">label-float — click it</a></span>
-            </span>
-          </span>
-
         </div>
 
         <div class="catalog-more">
@@ -1593,7 +1604,7 @@
     </div>
 
     <section class="ticker stage" aria-label="Gesture and physics names, the part that needs a pointer" data-od-id="ticker-install">
-      <div class="ticker-row" data-kui="marquee 44s">
+      <div class="ticker-row" data-kui="marquee 22s">
         <span>drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
         <span aria-hidden="true">drag&nbsp;·&nbsp;drag-x&nbsp;·&nbsp;drag-inertia&nbsp;·&nbsp;<b>throwable</b>&nbsp;·&nbsp;elastic-pull&nbsp;·&nbsp;rubber-band&nbsp;·&nbsp;snap-back&nbsp;·&nbsp;<b>swipe</b>&nbsp;·&nbsp;swipe-x&nbsp;·&nbsp;long-press&nbsp;·&nbsp;magnetic-snap&nbsp;·&nbsp;</span>
       </div>
