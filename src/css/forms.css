@@ -114,7 +114,12 @@
     width: calc(40px * var(--kui-toggle-scale, 1));
     height: calc(22px * var(--kui-toggle-scale, 1));
     border-radius: 999px;
-    background: var(--dim, #9a8d80);
+    /* --muted, not --dim: --dim was the pre-consolidation demo stylesheet's name for this slot
+       (demo/style.css) and only that file still defines it. Every other demo page (system.css and
+       the standalone inline pages) calls it --muted, so --dim resolved to the hardcoded fallback
+       everywhere else — demo/scroll.html and demo/nav-forms.html both had to alias --dim locally
+       to route around it. --muted is what every page actually defines. */
+    background: var(--muted, #9a8d80);
     transition: background-color 200ms ease-out;
     position: relative;
   }
@@ -174,7 +179,10 @@
     background: linear-gradient(
       to right,
       var(--accent, #d2691e) var(--kui-fill, 0%),
-      var(--line, #2a2422) var(--kui-fill, 0%)
+      /* --border, not --line — the demo vocabularies all call this slot --border except
+         demo/style.css (see the toggle-morph track's --muted comment above for the same fix
+         applied to that token). */
+      var(--border, #2a2422) var(--kui-fill, 0%)
     );
     height: 4px;
     border-radius: 999px;
@@ -240,7 +248,8 @@
 
   [data-kui-fx~='step-progress'] > [data-kui-step-state],
   .kui-step-track > [data-kui-step-state] {
-    background: var(--dim, #9a8d80);
+    /* --muted, not --dim — see the toggle-morph track above for why. */
+    background: var(--muted, #9a8d80);
     opacity: 0.35;
     transition: opacity 200ms ease-out, background-color 200ms ease-out;
   }

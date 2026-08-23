@@ -6,6 +6,8 @@
   --bg: #000000;
   --panel: #000000;
   --accent: #e4f222;
+  --accent-ink: #000000;
+  --accent-text: #e4f222;
   --line: #333333;
   color-scheme: dark;
 }
@@ -15,7 +17,16 @@
   --dim: #666666;
   --bg: #ffffff;
   --panel: #ffffff;
-  --accent: #d0d300;
+  /* Was #d0d300, the old olive yellow — see demo/system.css:14-22 for why every other
+     stylesheet uses #e4f222 in both themes. --accent stays the fill token (black ink on top,
+     17:1 contrast); accent-coloured text on this page's white panel keeps the darker token
+     below instead, the same split system.css uses. This file needs that split more than
+     system.css does: unlike system.css, it also colours plain running text (`a`, `code`) and
+     the doc-toc active state straight off --accent, and #e4f222 on white measures ~1.2:1 there
+     — worse than the #d0d300 it replaces (~1.6:1), not just stale. */
+  --accent: #e4f222;
+  --accent-ink: #000000;
+  --accent-text: #8a6d00;
   --line: #e4e4e2;
   color-scheme: light;
 }
@@ -49,7 +60,9 @@ body {
 }
 
 a {
-  color: var(--accent);
+  /* Running-text link colour, not a fill — --accent-text, not --accent (see the light-mode
+     :root comment above on why this split exists in this file). */
+  color: var(--accent-text);
 }
 
 header.site {
@@ -324,7 +337,8 @@ code {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 0.1em 0.4em;
-  color: var(--accent);
+  /* Running text, not a fill — see --accent-text's :root comment. */
+  color: var(--accent-text);
 }
 
 figure {
@@ -540,7 +554,7 @@ a:focus-visible {
 }
 
 .doc-toc a.is-active {
-  color: var(--accent);
+  color: var(--accent-text);
   border-left-color: var(--accent);
   font-weight: 600;
 }
@@ -605,30 +619,65 @@ a:focus-visible {
   color: var(--ink);
 }
 
-/* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo). */
+/* "Show code" button, injected by ./show-code.js inside every card (figure / .text-demo).
+   The one accent-outline chip, copied verbatim from demo/system.css because this file does not
+   load it. This used to be its own filled black/yellow pill — a different control from the one
+   every other page ships. See CLAUDE.md: styled once, never re-styled per page. */
 .kui-show-code-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 0.4rem 0.5rem;
-  color: #000000;
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
+  width: auto;
+  align-self: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  color: var(--kui-chip-ink, var(--accent-text));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
-.kui-show-code-toggle:hover {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #000000;
+figcaption .kui-show-code-toggle,
+.kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: var(--accent);
+}
+
+:root[data-theme='dark'] figcaption .kui-show-code-toggle,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: currentColor;
+}
+
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
+  color: var(--accent);
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+.kui-show-code-toggle:hover,
+.kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+  filter: none;
+}
+
+.kui-has-toggle {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
 }
 
 figure .kui-show-code-toggle {

@@ -442,47 +442,65 @@
     box-shadow: var(--shadow-float);
     }
     .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* "Show code" button and modal */
+  /* "Show code" button and modal.
+     The one accent-outline chip, copied verbatim from demo/system.css because this page does not
+     load it. This used to be its own filled pill (black-on-hover-yellow in light mode, yellow in
+     dark) — a third variant found nowhere else in the showcase, not "identical" as the old
+     comment here claimed. See CLAUDE.md: styled once, never re-styled per page. */
 .kui-show-code-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  max-width: 200px;
+  width: auto;
   align-self: center;
-  margin-inline: auto;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 0.4rem 0.5rem;
-  color: var(--accent-ink);
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  color: var(--kui-chip-ink, var(--accent-text));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--kui-chip-ink, var(--accent-text)) 55%, transparent);
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
   flex: none;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 
-.kui-show-code-toggle:hover {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #000000;
+figcaption .kui-show-code-toggle,
+.kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: var(--accent);
 }
 
-/* Light mode only: black button by default, flips to the site's yellow accent on hover. Dark
-   mode keeps the shared yellow/black button above (both rules), untouched. */
-:root[data-theme='light'] .kui-show-code-toggle {
-  background: #000000;
-  border-color: #000000;
-  color: #ffffff;
+:root[data-theme='dark'] figcaption .kui-show-code-toggle,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle {
+  --kui-chip-ink: currentColor;
 }
 
-:root[data-theme='light'] .kui-show-code-toggle:hover {
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:hover,
+:root[data-theme='dark'] figcaption .kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-has-toggle .kui-show-code-toggle:focus-visible {
+  color: var(--accent);
+  background: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+.kui-show-code-toggle:hover,
+.kui-show-code-toggle:focus-visible,
+:root[data-theme='dark'] .kui-show-code-toggle:hover,
+:root[data-theme='dark'] .kui-show-code-toggle:focus-visible {
+  color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-ink);
+  filter: none;
 }
+
+/* The `.pillar` swatch is painted solid --accent, so a chip *on the card below it* is fine — the
+   card itself is --surface/--bg, where the light-mode default gold is the correct ink. No
+   override needed here; the exception in system.css is for chips sitting on the accent itself. */
 
 /* show-code.js used to set this caption layout as three inline styles; it now adds
    `.kui-has-toggle` instead so a page can override it in the cascade. This page does not load
