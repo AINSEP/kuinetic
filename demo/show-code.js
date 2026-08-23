@@ -82,13 +82,20 @@
     return declared ? declared.split(/\s+/) : []
   }
 
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+
   function isKeyLine(line, tokens) {
     // Only an element's own opening tag can carry `data-kui` or a class-token contract. A text
     // line can say the words `data-kui=` — that is exactly the caption bug this guards against —
     // but it can never be the attribute, so it is never a key line regardless of what it says.
     if (!line.isTag) return false
     if (/\bdata-kui\s*=/.test(line.text)) return true
-    return tokens.some((token) => line.text.includes(token))
+    // Word-bounded, not a plain substring test: `track` as a bare `.includes()` also matched an
+    // unrelated `<img alt="...wide-tracked wordmark...">` line on scroll.html's horizontal-scroll
+    // demo, highlighting a caption that has nothing to do with the `target:.track` contract.
+    return tokens.some((token) => new RegExp(`\\b${escapeRegExp(token)}\\b`).test(line.text))
   }
 
   /**
