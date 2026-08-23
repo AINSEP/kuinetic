@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { build, el, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
+import type { PrepareContext } from '../src/core/effect-context.js'
+import { createParams } from '../src/core/js-params.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
+import { createRegistry } from '../src/effects/index.js'
+import { build, el, fakeRoot, fakeScheduler, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
 
 /*
  * The managed contract: `data-kui` on the outer element, `target:` naming the row that moves, and
@@ -71,5 +75,29 @@ describe('horizontal-scroll, managed by target:', () => {
     scheduler.emit(200)
     expect(el().style.position).toBe('')
     expect(reporter.messages.join(' ')).toContain('matched nothing')
+  })
+
+  it('tracks the host itself when it has no parent to track instead', () => {
+    const registry = createRegistry()
+    const resolved = registry.resolve('horizontal-scroll')!
+    const detached = document.createElement('div')
+    detached.innerHTML = '<div class="rail"><i></i></div>'
+    // Never appended to the document, so parentElement is null — prepareManagedTrack must fall
+    // back to tracking the host itself rather than throwing on a null tracked target, the same
+    // dodge `preparePin` makes for its own pinned element.
+    expect(detached.parentElement).toBeNull()
+    const sched = fakeScheduler()
+    const ctx = {
+      win: window,
+      doc: document,
+      scheduler: sched,
+      rootFor: () => fakeRoot,
+      invalidate: () => {},
+      warn: () => {},
+      style: createStyleLedger(detached),
+    } as unknown as PrepareContext
+    const instance = resolved.primitive.prepare!(detached, createParams({ target: '.rail' }), ctx)
+    expect(() => instance.activate()).not.toThrow()
+    instance.destroy()
   })
 })

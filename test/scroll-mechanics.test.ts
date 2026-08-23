@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { domPosition, progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tracker.js'
+import { progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tracker.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
@@ -62,24 +62,10 @@ describe('trackProgress — default distance', () => {
   })
 })
 
-describe('domPosition', () => {
-  it('reads the resolved position through the element\'s own view', () => {
-    const node = document.createElement('div')
-    node.style.position = 'sticky'
-    document.body.append(node)
-    expect(domPosition(node)).toBe('sticky')
-  })
-
-  it('answers "static" for an element whose document has no view', () => {
-    // A document from `createHTMLDocument`/`DOMParser` has `defaultView === null`, and so does any
-    // element inside it. `getComputedStyle` is only reachable through a window, so without this
-    // guard the sticky walk-up would throw on markup parsed but never attached — which is exactly
-    // what `show-code.js` does to every demo page on load.
-    const detached = document.implementation.createHTMLDocument('')
-    expect(detached.defaultView).toBeNull()
-    expect(domPosition(detached.createElement('div'))).toBe('static')
-  })
-})
+// `domPosition`/`domOffsetTop` — the two view-dependent readers `trackProgress` injects by
+// default — have their own file, `scroll-mechanics-readers.test.ts`: this file crossed its own
+// line cap the same way `scroll-spy.ts` once crossed the source cap that split it from
+// `primitives.ts`, and a category that outgrows one file gets a file of its own.
 
 describe('trackProgress — inside a position: sticky subtree', () => {
   // The `horizontal-scroll` shape: a tall stage, a sticky viewport inside it, and the tracked

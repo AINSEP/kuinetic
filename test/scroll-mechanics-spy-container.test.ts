@@ -224,4 +224,75 @@ describe('scroll-spy, container form', () => {
     expect(section('s1').hasAttribute('data-kui-active')).toBe(false)
     expect(link('link-1').hasAttribute('data-kui-active')).toBe(false)
   })
+
+  it('ignores a link with no href, or an href with no #, rather than pairing it on an empty hash', () => {
+    const animator = build(
+      `<div data-kui="scroll-spy sections:'.sec' target:'.spy-nav a'">
+        <nav class="spy-nav">
+          <a id="no-href">No href</a>
+          <a id="no-hash" href="page.html">No hash</a>
+          <a id="matched" href="#s1">One</a>
+        </nav>
+        <section id="s1" class="sec"></section>
+      </div>`,
+    )
+    stubRect(section('s1'), -10, 300)
+    animator.start()
+    scheduler.emit(50)
+
+    expect(section('s1').getAttribute('data-kui-active')).toBe('true')
+    expect(link('matched').getAttribute('data-kui-active')).toBe('true')
+    // Neither hashless link ever entered the hash map, so neither is touched, and — unlike
+    // "orphan" from the pairing test above, whose href has a real, unmatched hash — neither
+    // trips the "matches no section id" warning.
+    expect(link('no-href').hasAttribute('data-kui-active')).toBe(false)
+    expect(link('no-hash').hasAttribute('data-kui-active')).toBe(false)
+    expect(reporter.messages.join()).not.toContain('matches no section id')
+  })
+
+  it('pairs a section with a real id but no claiming link to null, silently', () => {
+    // Distinct from "has no id and cannot be paired" above: this section has a real id, and
+    // simply has no link anywhere whose hash points at it.
+    const animator = build(
+      `<div data-kui="scroll-spy sections:'.sec' target:'.spy-nav a'">
+        <nav class="spy-nav"></nav>
+        <section id="unclaimed" class="sec"></section>
+      </div>`,
+    )
+    stubRect(section('unclaimed'), -10, 300)
+    animator.start()
+    expect(() => scheduler.emit(50)).not.toThrow()
+
+    expect(section('unclaimed').getAttribute('data-kui-active')).toBe('true')
+    expect(reporter.messages.join()).toBe('')
+  })
+
+  it('treats an over-broad sections: selector as no sections, not the whole document', () => {
+    const animator = build(
+      `<div data-kui="scroll-spy sections:'body' target:'.spy-nav a'">
+        <nav class="spy-nav"><a href="#s1">One</a></nav>
+        <section id="s1" class="sec"></section>
+      </div>`,
+    )
+    animator.start()
+    expect(() => scheduler.emit(50)).not.toThrow()
+    expect(reporter.messages.join()).toContain('matches the whole document and will be ignored')
+    // Rejected, not narrowed — `sections:` resolves to '', so there are no sections at all rather
+    // than one covering the whole document.
+    expect(section('s1').hasAttribute('data-kui-active')).toBe(false)
+  })
+
+  it('tracks sections with no nav links at all when target: is not authored', () => {
+    const animator = build(
+      `<div data-kui="scroll-spy sections:'.sec'">
+        <section id="s1" class="sec"></section>
+      </div>`,
+    )
+    stubRect(section('s1'), -10, 300)
+    animator.start()
+    expect(() => scheduler.emit(50)).not.toThrow()
+
+    expect(section('s1').getAttribute('data-kui-active')).toBe('true')
+    expect(reporter.messages.join()).toBe('')
+  })
 })
