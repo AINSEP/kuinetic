@@ -612,6 +612,16 @@
      painted dark for exactly this reason. */
   .ticker-row b { color: var(--ticker-edge); font-weight: 500; }
 
+  /* TEMP experiment — invert the ticker band in dark mode: white bg, black text. Light mode
+     keeps its existing black band untouched. The bold names go black too, not yellow — the
+     brand yellow measures ~1.2:1 on white and would be unreadable here. Remove to revert. */
+  :root[data-theme='dark'] .ticker {
+    --s-bg: #ffffff;
+    --s-fg: #000000;
+    --s-muted: #000000;
+  }
+  :root[data-theme='dark'] .ticker-row b { color: #000000; }
+
   /* ---------- section heading ---------- */
   .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
   .section-head p { margin-top: 0.9rem; color: var(--muted); max-width: 50ch; line-height: 1.7; }
@@ -1305,6 +1315,24 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
+              <!-- Ten more, picked for spread rather than count: card-flip-y is the one 3D pick
+                   that actually settles front-facing on a single element (its :not(:has(>
+                   :nth-child(2))) override in three-d.css turns it a full 360deg instead of the
+                   two-sided family's 180deg); the rest fill genuine gaps this row had — no fade
+                   family, no plain slide, no second bounce, no second zoom direction, no
+                   page-transition texture. cube-rotate and book-page-turn were tried and pulled —
+                   see todo.md, they end edge-on/turned-away on a single child, no equivalent
+                   override exists for them. -->
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="card-flip-y 1500ms">card-flip-y</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-diagonal 1500ms">wipe-diagonal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-up 1500ms">slide-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in 1500ms">rotate-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in-up 1500ms">bounce-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-in 1500ms">fade-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="page-slide 1500ms">page-slide</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-up 1500ms">zoom-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-down 1500ms">back-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-left 1500ms">fade-left</button>
 
             </div>
           </div>
