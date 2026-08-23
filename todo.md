@@ -172,6 +172,33 @@ library should own it. Never call something "not the library's job" without grep
       and each tile to let you actually cycle through more than one animation rather than showing a
       single static example. Not started — logged only, owner does not want this done right now.
 
+- [ ] **`split-flap` spins out of control on hover, `demo/data-hover.html`.** Owner's report,
+      2026-08-23: "spinning like crazy," not one clean flap. Diagnosed from source (could not
+      reproduce live this session — the automation tab would not come to real OS focus, so
+      `document.hidden` stayed true and animations never ran for capture; needs a fresh session to
+      confirm on video). `src/css/interaction.css:264-266` — `[data-kui-fx~='split-flap']:hover {
+      animation: kui-split-flap 600ms ease-in-out; }`, and the keyframe (`interaction.css:90-93`)
+      is a single-axis `rotateX(0deg → 360deg)` on an `inline-block` with `perspective: 600px` and
+      `backface-visibility: hidden`. That combination is a known CSS footgun: partway through the
+      rotation the element's rendered face foreshortens toward edge-on, which can move it out of
+      the cursor's actual hit-test area — `:hover` drops, the animation has no fill-mode so it
+      un-applies, the cursor is now sitting over the (again flat-on) element so `:hover` re-fires,
+      and the 600ms keyframe restarts from 0. Net effect: a jittery repeating spin instead of one
+      flap-and-settle, for as long as the cursor sits still near the button. Likely fix shape:
+      cap it to one iteration regardless of continued hover — `animation-iteration-count: 1` plus
+      either gating re-trigger off the element's own animation-end event (JS) or accepting a CSS-
+      only compromise (e.g. `animation-fill-mode: forwards` so a re-trigger lands on a no-op
+      transform instead of restarting the visible spin). Verify by hovering and holding still for
+      several seconds, not just a single mouse-in.
+
+- [ ] **`starfield`'s dots are too small to read, `data-kui="starfield"`.** Owner's ask,
+      2026-08-23: "needs to be bigger... bigger dots." `src/css/ambient.css:236-241` — five
+      `radial-gradient` dots, sized `1px`/`1.5px` each, tiled on a `220px 220px` repeat
+      (`ambient.css:242`). At that size they read as noise rather than stars on anything but a
+      very close look. Bump the dot radii (and probably the tile size and/or dot count/spread to
+      match) — not started, needs an actual visual pass to pick numbers that read well rather than
+      guessing one value in isolation.
+
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before
       it is a code job. Prior art worth reading first: static ffmpeg lives in `~/.local/bin`
