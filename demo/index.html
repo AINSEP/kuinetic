@@ -459,13 +459,13 @@
     border-radius: 50%; background: var(--accent);
   }
 
-  .hero .lede {
-    margin-top: 1.5rem; max-width: 50ch;
-    font-size: clamp(1rem, 0.35vw + 0.95rem, 1.12rem);
-    line-height: 1.65;
-    color: var(--s-muted);
-  }
-  .hero .lede strong { color: var(--s-fg); font-weight: 510; }
+  /* .rev-notes on the hero stage: same component used elsewhere on this page, but the stage is
+     always dark regardless of site theme, so it needs the --s-* tokens the rest of the hero
+     (.attr-caption etc.) already reads here, not the theme-flipping --muted/--fg the base
+     .rev-notes rule uses. Replaces the former .hero .lede, now unused. */
+  .hero .rev-notes { margin-top: 1.5rem; font-size: clamp(1rem, 0.35vw + 0.95rem, 1.12rem); }
+  .hero .rev-notes li { color: var(--s-muted); }
+  .hero .rev-notes strong { color: var(--s-fg); font-weight: 510; }
 
   .hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem; }
   .hero-note {
@@ -1191,10 +1191,12 @@
             </p>
             <p class="attr-caption" data-kui="fade-up 700ms 400ms"><span class="live-dot" data-kui="glow-pulse 2s" aria-hidden="true"></span> Live — that name is cycling with <b>word-cycler</b>, one of the 252</p>
 
-            <p class="lede" data-kui="fade-up 700ms 460ms">
-              It compiles to real <strong>@keyframes</strong> and native scroll-driven timelines. No animation
-              loop, no per-effect scroll listener, and <strong>no runtime at all</strong> for roughly 70% of the catalog.
-            </p>
+            <div class="rev-notes" data-kui-stagger="60ms">
+              <ul>
+                <li data-kui="fade-up 500ms 460ms">It compiles to real <strong>@keyframes</strong> and native scroll-driven timelines.</li>
+                <li data-kui="fade-up 500ms">No animation loop, no per-effect scroll listener, and <strong>no runtime at all</strong> for roughly 70% of the catalog.</li>
+              </ul>
+            </div>
 
             <div class="hero-actions" data-kui="fade-up 700ms 540ms">
               <a href="#catalog" class="btn btn-primary">See what it can do</a>
@@ -1296,7 +1298,8 @@
             <div class="rev-notes" data-kui-stagger="60ms">
               <ul>
                 <li data-kui="fade-up 500ms on:enter">One element, one attribute.</li>
-                <li data-kui="fade-up 500ms on:enter">Each chip writes a different value onto the same frame and the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.</li>
+                <li data-kui="fade-up 500ms on:enter">Each chip writes a different value onto the same frame and the browser recompiles it.</li>
+                <li data-kui="fade-up 500ms on:enter">No rebuild, no re-render, nothing else on the page touched.</li>
               </ul>
             </div>
             <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="45ms">
