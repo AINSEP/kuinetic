@@ -531,9 +531,9 @@
   }
 
   [data-kui-fx~='gradient-sweep'] {
-    --kui-text-sweep-duration: 600ms;
-    --kui-text-sweep-delay: 0ms;
-    --kui-text-sweep-ease: ease-out;
+    --kui-text-gradient-sweep-duration: 600ms;
+    --kui-text-gradient-sweep-delay: 0ms;
+    --kui-text-gradient-sweep-ease: ease-out;
   }
 
   [data-kui-fx~='grayscale-hover'] {
