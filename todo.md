@@ -97,6 +97,81 @@ library should own it. Never call something "not the library's job" without grep
       `scroll-progress-bar`, `scroll-progress-bar-y`, `scroll-progress-ring`, and
       `scroll-desaturate` have no card there.
 
+
+- [ ] **Codex audit 2026-08-23 — two confirmed-live findings, small.** Full write-up in
+      `ADS-memory/.local-artifacts/handoff/2026-08-23-session-five.md`; transcript at the
+      scratchpad's `audit-out.txt` (findings from line 29,854).
+      **(a)** `text-sweep` now falsely rejects valid compositions — `src/effects/catalog/text.ts:68`
+      declares the shared primitive as `[background, color]`, but it backs three presets and only
+      `gradient-sweep` writes `-webkit-text-fill-color`. `underline-draw, text-outline-fill` is now
+      reported as a conflict despite touching disjoint properties. A regression from `b50c16d`.
+      **(b)** `demo/interactive.html:91` still paints the show-code chip, so under the new dark pill
+      all seven Layout/FLIP chips render permanently *hovered*. `d9d38d5` claimed to have killed
+      every competing chip design; it missed this one.
+
+- [ ] **Codex audit — five more, unverified.** (3) `test/entrance-zero-area.test.ts` codifies a
+      false layout mechanism: transforms change painted geometry without removing the box from
+      flow, so the invariant should be "zero transformed visual/**intersection** area" — which
+      would cover `clip-path` and may settle the parked FILLS bug. (4) the two-sided card's
+      nested-3D trap is untested and `82ffe08`'s "covered by the suites" claim is false. (5)
+      `scripts/check-css-coverage.mjs` has a concrete false pass on `demo/landing-studio.html:155`.
+      (6) two of the seven new coverage tests are underasserted. (7) `text-3d-extrude` writes
+      `text-shadow` while declaring only rotate/translate — latent, no second writer today.
+
+- [ ] **Switch out svg `draw-stroke`** — owner's ask, 2026-08-23. **Get one line of clarification
+      first; the intent is genuinely ambiguous.** `draw-stroke` is a real library effect
+      (`src/css/svg.css:59`) whose only demo is `data-kui="draw-stroke 1600ms on:enter"` on
+      `demo/icons-transitions.html`. Either (a) swap the SVG artwork that card draws, or (b) swap
+      the effect on that card for a different one. Note that page was hidden from the nav in the
+      same conversation.
+
+- [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
+      should be **about UI and animation**, which the present clips are not. Sourcing job before
+      it is a code job. Prior art worth reading first: static ffmpeg lives in `~/.local/bin`
+      (never `brew install ffmpeg` on Ventura), the repo's encode settings, and the finding that a
+      100vh pin with a true-aspect video in a side column cannot avoid dead space — use full-bleed
+      cover with overlay text.
+
+
+## Tier 3 — parked, low priority
+
+Owner parked these on 2026-08-23: "not interested in spending time on it right now."
+Do not start any of them without asking first. Each entry carries everything needed to pick it
+up cold, so nobody has to re-derive the diagnosis.
+
+- [ ] **PARKED 2026-08-23 — do not start without asking.** **Three FILLS effects are permanently
+      dead: `heart-fill`, `bookmark-fill`, `chart-area-fill`.** They never animate on scroll-in on
+      `demo/icons-transitions.html` and never recover, not even via the replay FAB. This is a
+      **library** bug, not a page bug — the three ship in the public catalog, so hiding the demo
+      page hides the symptom, not the defect. Established against source: all three rest at a
+      collapsed `clip-path` (`src/css/svg.css:98-111`) and **none has a `[data-kui-state='ready']`
+      gate**, unlike the six fixed in `dd1f770` — `git show dd1f770` is the reference pattern.
+      `chart-bar-grow`, the fourth in the same row, works; it uses `scale` and was one of the six.
+      **The mechanism is NOT settled — measure before explaining.** A prior agent saw a bare
+      IntersectionObserver on `heart-fill`'s path return `intersectionRect {0,0,0,0}` with a correct
+      `boundingClientRect` and blamed `clip-path`, but the three broken targets are SVG `<path>`
+      elements and the working one is a `<div>`, and that confound was never controlled for. This
+      repo has shipped a confident-wrong mechanism twice. Run the 2x2 first: collapsed `clip-path`
+      on a plain `<div>`, and an uncollapsed `clip-path` on an SVG `<path>`. Then fix, then
+      `npm run build` (`generate:css` alone is not enough — `demo/kuinetic.js` is a build artifact).
+      Also check `star-rating-fill` on `data-hover.html`, documented as sharing the mechanism and
+      never checked. If `clip-path` **is** the cause, `test/entrance-zero-area.test.ts:175` wrongly
+      excludes it and would have caught all three — widen it.
+
+- [ ] **PARKED 2026-08-23 — do not start without asking.** **`tilt-3d` has no depth coverage in any
+      test tier.** The browser sweep names this as a real gap, not an equivalent-coverage exclusion:
+      nothing anywhere verifies the Z-axis behaviour actually happens. Carried debt since the
+      2026-08-22 handoff. A unit test alone will not close it — unit tests never render a frame, so
+      100% coverage proves registration, not animation. Note while working here: **never nest a 3D
+      effect inside an element another effect animates.** `card-flip-x/-y`, `cube-rotate`,
+      `book-page-turn` and `fold-panel` all carry `transform-style: preserve-3d`, and a preserve-3d
+      child inside a 3D-transformed parent composites into the parent's space — this broke
+      `fold-panel` and made `wipe-circle` look reversed on `index.html` (reverted in `82ffe08`).
+
+- [ ] **Owner asked to hide `icons-transitions.html` and `three-d.html` from the CSS-animations
+      nav** (2026-08-23), then softened it — not done, needs confirmation. The nav is generated; see
+      commit `e6c132b`. Note that hiding the pages does not fix the two entries above.
+
 ## Needs JavaScript — do not start without asking
 
 Four documented names cannot be done in CSS. The stated position is *"the whole point of this
