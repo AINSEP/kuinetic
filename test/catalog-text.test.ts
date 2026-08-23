@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
 import { createRegistry } from '../src/effects/index.js'
 import { readEffectParams } from '../src/core/js-params.js'
 import { TEXT_CSS_PRESETS, TEXT_JS_PRESETS, TEXT_PRESETS } from '../src/effects/catalog/text.js'
@@ -77,5 +79,26 @@ describe('text catalog', () => {
       const params = readEffectParams(resolved.preset.params ?? {}, resolved.primitive.parameters, () => {})
       expect(params.text('charset')).toBe(charset)
     }
+  })
+
+  it('composes underline-draw or highlight-sweep with text-outline-fill — they touch disjoint channels', () => {
+    const registry = createRegistry()
+    for (const bg of ['underline-draw', 'highlight-sweep']) {
+      expect(compile(parse(`${bg}, text-outline-fill`), registry, 'time').fxNames).toEqual([
+        bg,
+        'text-outline-fill',
+      ])
+      expect(compile(parse(`text-outline-fill, ${bg}`), registry, 'time').fxNames).toEqual([
+        'text-outline-fill',
+        bg,
+      ])
+    }
+  })
+
+  it('still flags gradient-sweep against text-outline-fill as a real glyph-fill conflict', () => {
+    const registry = createRegistry()
+    expect(compile(parse('gradient-sweep, text-outline-fill'), registry, 'time').fxNames).toEqual([
+      'gradient-sweep',
+    ])
   })
 })

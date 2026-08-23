@@ -65,7 +65,13 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   // disjoint to the compiler (`background` vs `stroke`+`color`) and composing them would let
   // whichever applied last silently win the glyph fill instead of being flagged as a conflict.
   cssPrimitive('text-shimmer', [CHANNEL.background, CHANNEL.color], { reducedMotion: 'disable' }),
-  cssPrimitive('text-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
+  // `gradient-sweep` is the only one of the three `text-sweep`-family presets whose keyframe
+  // touches `-webkit-text-fill-color` (see text.css) — `highlight-sweep` and `underline-draw` only
+  // paint a `background-image`. Claiming `color` for all three made the compiler reject compositions
+  // like `underline-draw, text-outline-fill` as a glyph-fill conflict even though they touch disjoint
+  // properties. Split so only the preset that actually claims the fill declares the channel.
+  cssPrimitive('text-gradient-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
+  cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
   cssPrimitive('var-weight', ['font'], { parameters: fontWeightParams }),
   cssPrimitive('var-width', ['font'], { parameters: fontWidthParams }),
@@ -97,7 +103,7 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
 
 export const TEXT_CSS_PRESETS: Preset[] = [
   { name: 'gradient-shimmer', primitive: 'text-shimmer', keyframes: 'kui-gradient-shimmer' },
-  { name: 'gradient-sweep', primitive: 'text-sweep', keyframes: 'kui-gradient-sweep' },
+  { name: 'gradient-sweep', primitive: 'text-gradient-sweep', keyframes: 'kui-gradient-sweep' },
   {
     name: 'highlight-sweep',
     primitive: 'text-sweep',
