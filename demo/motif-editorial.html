@@ -77,6 +77,14 @@
 
   body {
     margin: 0;
+    /* The backstop, not the fix. Nothing on this page is *supposed* to exceed the page width —
+       every grid track is `minmax(0, …)`, every display size is a `clamp()`, and the two elements
+       that deliberately run wide (the masthead word, the slug) clip themselves. This is here so
+       that if one of them is ever wrong on a viewport nobody tested, the failure is a cropped
+       edge rather than a document that scrolls sideways. `clip`, never `hidden`: `hidden` would
+       make the body a scroll container, which would capture the sticky running head and re-anchor
+       every `timeline:scroll` / `timeline:view` animation on the page to it. */
+    overflow-x: clip;
     background: var(--paper);
     color: var(--ink);
     font-family: var(--text);
@@ -170,12 +178,26 @@
     letter-spacing: 0.02em;
     color: var(--ink);
     text-decoration: none;
+    flex: none;
+    white-space: nowrap;
+    padding-block: 0.85rem;      /* matched to the nav links, so both are a real tap target */
   }
-  .runninghead nav { display: flex; align-items: center; gap: clamp(1rem, 2.2vw, 2rem); }
+  /* `min-width: 0` on the nav because a flex item's default minimum is its max-content width —
+     the single most common way a row that fits on paper overflows on a phone. With it, the nav
+     is allowed to be the thing that gives way; the links themselves stay on one line, so what
+     you get at an impossible width is a clipped last label rather than a two-line running head
+     or a sideways-scrolling document. */
+  .runninghead nav {
+    display: flex;
+    align-items: center;
+    gap: clamp(1rem, 2.2vw, 2rem);
+    min-width: 0;
+  }
   .runninghead nav a {
     color: var(--ink-soft);
     text-decoration: none;
     padding-block: 0.85rem;      /* the tap target, not the ink */
+    white-space: nowrap;
   }
   .runninghead nav a:hover, .runninghead nav a:focus-visible { color: var(--oxblood); }
   /* Below 720px only the contents link survives. A magazine running head is three words wide;
@@ -201,14 +223,22 @@
     padding-bottom: 1.1rem;
   }
   /* The word. 18vw is the load-bearing number: at 375px it resolves to 67px, and eight
-     characters of a condensed high-contrast serif at 67px measure roughly 280px against 339px of
-     available width. The 3rem floor stops it collapsing on a 280px viewport; the 8.5rem ceiling
-     stops it becoming a billboard on a 27in display. It is deliberately NOT allowed to wrap —
-     a masthead that breaks across two lines is a different object. */
+     characters of a high-contrast serif at 67px measure roughly 280px against 339px of available
+     width — and because the middle term is pure vw, every width below the ceiling keeps that same
+     ratio, so proving it at 375px proves it everywhere the clamp is not clamping. The 3rem floor
+     stops it collapsing on a 280px viewport. It is deliberately NOT allowed to wrap: a masthead
+     that breaks across two lines is a different object.
+
+     The ceiling was 8.5rem, and that was the motif's biggest failure of nerve. At 136px on a
+     1400px display the wordmark filled about a third of the measure — a logo sitting above an
+     article, which is a website. A masthead is the largest thing on the page by a long way and it
+     runs the width of the sheet. 12.5rem (200px) sets eight characters at roughly 770px against
+     the 1100px the sheet offers at that width: unmistakably a masthead, with enough headroom left
+     that a wider fallback face than Didot still has nowhere near enough room to reach the edge. */
   .masthead-word {
     font-family: var(--display);
     font-weight: 400;
-    font-size: clamp(3rem, 18vw, 8.5rem);
+    font-size: clamp(3rem, 18vw, 12.5rem);
     line-height: 0.86;
     letter-spacing: -0.035em;
     margin: 0;
@@ -258,11 +288,15 @@
   }
   @media (min-width: 900px) { .figures { margin-top: 0; gap: 1.75rem 1.5rem; } }
   .figures div { border-top: 1px solid var(--rule); padding-top: 0.55rem; }
+  /* A "by the numbers" sidebar, which is the one place a magazine sets figures as big as a head.
+     The tightest case is a 900px viewport, where this column has just narrowed to a third of the
+     masthead grid but the vw term has not yet been capped: three lining figures at 6.5vw measure
+     about 88px in a 132px track. Every other width has more room than that one. */
   .figures b {
     display: block;
     font-family: var(--display);
     font-weight: 400;
-    font-size: clamp(2.25rem, 6vw, 3.25rem);
+    font-size: clamp(2.5rem, 6.5vw, 4.25rem);
     line-height: 1;
     letter-spacing: -0.02em;
     font-variant-numeric: lining-nums;
@@ -271,20 +305,26 @@
 
   /* ---------- plates ------------------------------------------------------------------------ */
 
-  /* A plate runs to the page edge. `100vw` against a centred container is the standard trick;
-     `calc(50% - 50vw)` on both sides is used rather than `margin-left: 50%; transform:` so no
-     transform is created that a 3D child could accidentally join. */
-  .bleed {
-    margin-inline: calc(50% - 50vw);
-    width: 100vw;
-    max-width: 100vw;
-  }
+  /* A plate runs to the page edge. Every `.bleed` figure is a direct child of `<main>`, which is
+     itself unconstrained — so a plate is ALREADY the full width of the page and needs no trick to
+     get there. It used to carry the `margin-inline: calc(50% - 50vw); width: 100vw` escape hatch,
+     which was worse than useless here: `100vw` includes the classic scrollbar while `50%` does
+     not, so on any machine with non-overlay scrollbars each plate overhung the page by half a
+     scrollbar on each side and the whole document scrolled sideways. On iOS the same expression
+     measures the layout viewport rather than the visual one and misses in the other direction.
+     Full width is what was wanted; `100%` is how you ask for it. */
+  .bleed { width: 100%; }
 
   .plate-window {
     position: relative;
     overflow: clip;
     background: var(--ink);
     aspect-ratio: 3 / 4;                 /* portrait on a phone: the photographs are portraits */
+    /* The ratio decides the shape; this decides how much of the reader's screen a shape is
+       allowed to take. At 21/9 an unbounded plate is 1097px tall on a 2560px display — a wall,
+       not a spread. `object-fit: cover` on the image absorbs the difference by cropping, which is
+       what a picture editor would do anyway. */
+    max-height: 82vh;
   }
   @media (min-width: 700px) { .plate-window { aspect-ratio: 16 / 10; } }
   @media (min-width: 1100px) { .plate-window { aspect-ratio: 21 / 9; } }
@@ -313,13 +353,17 @@
     color: var(--paper);
   }
   .plate-overlay .cap { color: color-mix(in srgb, var(--paper) 78%, transparent); }
+  /* The cover line. Same correction as the feature head: this is the type a magazine sets
+     largest of all after the masthead, and it was sitting at 21px on a phone and 52px on a
+     desktop — a photo caption's scale, over a full-bleed plate. */
   .plate-overlay p.line {
     font-family: var(--display);
-    font-size: clamp(1.35rem, 1rem + 2.4vw, 3.25rem);
+    font-size: clamp(1.6rem, 1rem + 3vw, 3.75rem);
     line-height: 1.06;
     letter-spacing: -0.02em;
     margin: 0.5rem 0 0;
     max-width: 22ch;
+    overflow-wrap: break-word;
   }
 
   /* The credit line. Italic, small, hung under the left edge of the plate it belongs to — the
@@ -348,14 +392,21 @@
 
   .section-head { margin-bottom: clamp(2rem, 4vw, 3.25rem); }
   .section-head .rule { margin-block: 0.9rem 1.4rem; }
+  /* The feature head. The floor is the number that matters and it was too low: a 34px head on a
+     phone is a website's h2, and the whole claim of this motif is that a feature opening is set
+     at a size you cannot mistake for navigation. 2.5rem is a magazine head at 375px, and the
+     mixed `rem + vw` middle term keeps the growth gentle enough that the 5rem ceiling only binds
+     past about 1450px. `break-word` is the backstop for the one thing a large display size cannot
+     survive on a narrow column — a word longer than the column itself. */
   .head-display {
     font-family: var(--display);
     font-weight: 400;
-    font-size: clamp(2.1rem, 1.2rem + 4vw, 4.75rem);
+    font-size: clamp(2.5rem, 1.3rem + 4.6vw, 5rem);
     line-height: 0.98;
     letter-spacing: -0.025em;
     margin: 0;
     max-width: 17ch;
+    overflow-wrap: break-word;
   }
   .head-display em { font-style: italic; color: var(--oxblood); }
 
@@ -412,8 +463,15 @@
   /* The pull quote. On a phone it is a normal block between two rules. From 1080px it hangs
      into the left page margin by `--hang` and widens by the same amount, which is what "breaking
      the column" means on a printed page — the quote is outside the text block, not inside it.
-     The hang is bounded by --mx (5rem at that width) so it can never reach the viewport edge. */
-  @media (min-width: 1080px) { :root { --hang: 3.25rem; } }
+
+     The hang MUST stay smaller than the page margin it is hanging into, or the quote's rule runs
+     off the left edge of the viewport instead of into the margin. A flat `3.25rem` did not: --mx
+     is `4.5vw` through this whole range and only reaches 5rem at a 1777px viewport, so at 1080px
+     the margin is 48.6px and a 52px hang overshot it. Expressing the hang in the same unit at a
+     smaller rate makes the relationship hold at every width by construction rather than by
+     arithmetic that has to be redone whenever --mx moves: 3vw is always less than 4.5vw, and the
+     3.25rem ceiling lands well under the 5rem the margin caps at. */
+  @media (min-width: 1080px) { :root { --hang: clamp(0rem, 3vw, 3.25rem); } }
   .pull {
     margin: clamp(2.5rem, 5vw, 4rem) 0;
     margin-left: calc(var(--hang) * -1);
@@ -427,11 +485,12 @@
     font-family: var(--display);
     font-style: italic;
     font-weight: 400;
-    font-size: clamp(1.5rem, 1rem + 2.6vw, 2.9rem);
+    font-size: clamp(1.75rem, 1rem + 3vw, 3.4rem);
     line-height: 1.14;
     letter-spacing: -0.015em;
     margin: 0;
     max-width: 20ch;
+    overflow-wrap: break-word;
   }
   .pull footer { margin-top: 0.9rem; }
 
@@ -486,8 +545,13 @@
     text-align: left;
     cursor: pointer;
     color: var(--ink-soft);
-    transition: color 260ms ease-out, border-left-color 260ms ease-out,
-                background-color 260ms ease-out, padding-left 260ms ease-out;
+    /* The page's motion personality, restated in the one place a hand-written transition is
+       unavoidable. 260ms is a UI speed; this motif settles rather than responds, so the index
+       rows move on the same expo-out curve the library uses for its reveals
+       (`--kui-ease-expo-out`, cubic-bezier(0.16, 1, 0.3, 1)) at a length you can watch. */
+    transition: color 520ms cubic-bezier(0.16, 1, 0.3, 1),
+                border-left-color 520ms cubic-bezier(0.16, 1, 0.3, 1),
+                padding-left 520ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .spec-row .spec-num {
     font-family: var(--caption);
@@ -498,7 +562,7 @@
     flex: none;
     width: 1.6rem;
     padding-left: 0.5rem;
-    transition: color 260ms ease-out;
+    transition: color 520ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .spec-row .spec-name {
     font-family: var(--caption);
@@ -506,10 +570,15 @@
     font-weight: 500;
     letter-spacing: 0.15em;
     text-transform: uppercase;
+    min-width: 0;                /* the text-bearing flex item; see the running head */
+    overflow-wrap: anywhere;
   }
+  /* Hover is a change of ink and a hairline appearing in the gutter — the two things a printed
+     index has. It used to also wash the row with 5% oxblood, which is a highlighted table row
+     from an admin panel: the one gesture on this page that admitted it was a web control. */
   .spec-row:hover, .spec-row:focus-visible {
     color: var(--ink);
-    background: color-mix(in srgb, var(--oxblood) 5%, transparent);
+    border-left-color: var(--rule);
   }
   .spec-row:focus-visible { outline: 2px solid var(--oxblood); outline-offset: -2px; }
   /* The set specimen. A rule down the left edge and the name in ink — the printed way of saying
@@ -633,11 +702,12 @@
   .entry-title {
     display: block;
     font-family: var(--display);
-    font-size: clamp(1.35rem, 1.05rem + 1.2vw, 2.1rem);
+    font-size: clamp(1.5rem, 1.1rem + 1.5vw, 2.5rem);
     line-height: 1.06;
     letter-spacing: -0.015em;
     margin: 0;
-    transition: color 260ms ease-out;
+    overflow-wrap: break-word;
+    transition: color 520ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .entry-deck { display: block; margin: 0.35rem 0 0; font-size: 0.94rem; line-height: 1.6; color: var(--ink-soft); }
   .entry-note {
@@ -693,7 +763,9 @@
 
   .colophon-foot { padding-block: 2rem 3rem; }
   .foot-row { display: flex; flex-wrap: wrap; gap: 0.75rem 2rem; justify-content: space-between; align-items: baseline; }
-  .foot-row a { color: var(--ink-faint); text-decoration: none; }
+  /* `padding-block` rather than a height: it grows the hit area of an 11px letterspaced label to
+     something a thumb can find, without moving the baseline it is aligned on. */
+  .foot-row a { color: var(--ink-faint); text-decoration: none; padding-block: 0.9rem; }
   .foot-row a:hover { color: var(--oxblood); }
 
   /* ---------- motion personality ------------------------------------------------------------ */
@@ -701,8 +773,23 @@
   /* Every hand-written transition on this page is slow and eased out. The library's own effects
      are authored the same way in the markup — 1500-2000ms reveals, a 20-second Ken Burns, a
      90-second slug. Nothing on this page snaps. */
+  /* Transitions only, and deliberately nothing else.
+
+     Listing `.spec-row, .entry-title` by name went stale the moment a third transition was added,
+     and the failure was silent — the page kept moving for the one reader who asked it not to. `*`
+     is the right scope for the hand-written half. Shortening rather than removing is what makes
+     that safe at this breadth: a transition still settles on its end value at 1ms, so nothing can
+     be stranded mid-state.
+
+     The `animation-*` half is deliberately left alone. `base.css` reduces the library's own motion
+     per-effect from each primitive's declared policy, precisely because a blanket rule here is
+     wrong in both directions: 1ms does not meaningfully reduce a twenty-second Ken Burns or a
+     ninety-second marquee, and killing an entrance outright strands the element at its from-state,
+     which for `mask-reveal` or `wipe-up` means invisible. Overriding that from the page — with
+     `!important`, from a stylesheet that loads second — would replace a considered policy with a
+     guess. The library already handles this; the page's job is to not get in the way. */
   @media (prefers-reduced-motion: reduce) {
-    .spec-row, .entry-title { transition: none; }
+    *, *::before, *::after { transition-duration: 1ms !important; }
     html { scroll-behavior: auto; }
   }
 </style>
@@ -718,9 +805,9 @@
   <div class="sheet runninghead-row">
     <a class="runninghead-mark" href="#top">kUInetic</a>
     <nav aria-label="Sections">
-      <a class="cap nh-wide" href="#feature" data-kui="underline-slide on:hover">The Feature</a>
-      <a class="cap nh-wide" href="#specimen" data-kui="underline-slide on:hover">Specimens</a>
-      <a class="cap" href="#issue" data-kui="underline-slide on:hover">In This Issue</a>
+      <a class="cap nh-wide" href="#feature" data-kui="underline-slide 520ms expo-out on:hover">The Feature</a>
+      <a class="cap nh-wide" href="#specimen" data-kui="underline-slide 520ms expo-out on:hover">Specimens</a>
+      <a class="cap" href="#issue" data-kui="underline-slide 520ms expo-out on:hover">In This Issue</a>
     </nav>
   </div>
 </header>
@@ -740,15 +827,15 @@
         <span>MIT Licensed</span>
       </p>
       <hr class="rule rule-ink" />
-      <h1 class="masthead-word display" data-kui="text-reveal-mask 1500ms on:enter">kUI<em>netic</em></h1>
+      <h1 class="masthead-word display" data-kui="text-reveal-mask 1500ms expo-out on:enter">kUI<em>netic</em></h1>
       <hr class="rule rule-thick" style="margin-top: 1.1rem" />
 
       <div class="masthead-body" style="margin-top: clamp(1.75rem, 3.5vw, 2.75rem)">
         <div data-kui-stagger="140ms">
-          <p class="deck" data-kui="fade-up 1100ms on:enter">
+          <p class="deck" data-kui="fade-up 1100ms expo-out on:enter">
             A CSS animation library you author in <strong>HTML attributes.</strong>
           </p>
-          <p class="deck-sub" data-kui="fade-up 1100ms on:enter">
+          <p class="deck-sub" data-kui="fade-up 1100ms expo-out on:enter">
             Write <code>data-kui="fade-up 900ms"</code> on an element. The library compiles that
             string into real CSS keyframes and native scroll-driven timelines. There is no
             animation loop to hand a scene graph to, and for roughly seventy per cent of the
@@ -757,20 +844,20 @@
         </div>
 
         <div class="figures" data-kui-stagger="120ms">
-          <div data-kui="fade-up 900ms on:enter">
-            <b data-kui="count-up 2400ms 300ms on:enter to:252">0</b>
+          <div data-kui="fade-up 900ms expo-out on:enter">
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:252">0</b>
             <span class="cap">Named effects</span>
           </div>
-          <div data-kui="fade-up 900ms on:enter">
-            <b data-kui="count-up 2400ms 300ms on:enter to:30">0</b>
+          <div data-kui="fade-up 900ms expo-out on:enter">
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:30">0</b>
             <span class="cap">Primitive families</span>
           </div>
-          <div data-kui="fade-up 900ms on:enter">
-            <b data-kui="count-up 2400ms 300ms on:enter to:15">0</b>
+          <div data-kui="fade-up 900ms expo-out on:enter">
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:15">0</b>
             <span class="cap">Sections, A to O</span>
           </div>
-          <div data-kui="fade-up 900ms on:enter">
-            <b data-kui="count-up 2400ms 300ms on:enter to:2">0</b>
+          <div data-kui="fade-up 900ms expo-out on:enter">
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:2">0</b>
             <span class="cap">Files to install</span>
           </div>
         </div>
@@ -811,26 +898,26 @@
       <div class="section-head">
         <p class="cap cap-ox">The Feature &nbsp;·&nbsp; No. 01</p>
         <hr class="rule rule-ink" />
-        <h2 class="head-display" data-kui="text-reveal-mask 1200ms on:enter">
+        <h2 class="head-display" data-kui="text-reveal-mask 1200ms expo-out on:enter">
           A string, sitting in the <em>markup</em>, next to the thing it moves
         </h2>
       </div>
 
       <div class="columns">
         <div class="col-a" data-kui-stagger="120ms">
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             Every animation on this page began as a value in an HTML attribute. Not a
             configuration object, not a hook, not a timeline assembled in JavaScript and handed to
             a renderer — a string, sitting in the markup, next to the element it moves. That is
             the whole authoring surface, and it is the reason the source of this page reads as a
             document rather than as a program.
           </p>
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             The grammar is three positional arguments in a fixed order — duration, delay, easing —
             followed by named parameters. <code>data-kui="fade-up 900ms 150ms ease-out"</code> is
             the entirety of it. Effects separated by commas compose into one compiled animation.
           </p>
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             Composition is checked rather than hoped for. Every effect declares the CSS properties
             it owns — its <em>channels</em>. Two effects whose channels are disjoint compile
             together into a single animation. Two that both want <code>opacity</code> collide, and
@@ -839,34 +926,34 @@
         </div>
 
         <div class="col-b" data-kui-stagger="120ms">
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             Of the two hundred and fifty-two names, roughly one hundred and sixty-eight are
             keyframes and a metadata row and nothing else. About fifty-eight need genuine
             per-frame JavaScript. Eleven do a single piece of DOM preparation and then hand the
             work back to CSS.
           </p>
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             Scroll-linked effects run on native CSS scroll-driven timelines where the browser has
             them, and fall back to one shared JavaScript orchestrator where it does not. Text
             splitting uses <code>Intl.Segmenter</code>, so it counts grapheme clusters rather than
             code units, preserves one accessible reading of the text throughout, and restores
             selectable text when it cleans up.
           </p>
-          <p data-kui="fade-up 1000ms on:enter">
+          <p data-kui="fade-up 1000ms expo-out on:enter">
             Forty-eight of the names come from a single family — the entrance and exit matrix — so
             the count is a vocabulary, not a measure of how much code there is.
           </p>
         </div>
       </div>
 
-      <blockquote class="pull" data-kui="fade-blur-up 1400ms on:enter">
+      <blockquote class="pull" data-kui="fade-blur-up 1400ms expo-out on:enter">
         <p>
           Roughly seventy per cent of the catalogue is keyframes plus a metadata row.
         </p>
         <footer class="cap">Effect Catalog &nbsp;·&nbsp; Renderer split &nbsp;·&nbsp; 168 css / 11 prep / 58 js</footer>
       </blockquote>
 
-      <div class="exhibit" data-kui="fade-up 1000ms on:enter">
+      <div class="exhibit" data-kui="fade-up 1000ms expo-out on:enter">
         <p class="cap">Exhibit A &nbsp;·&nbsp; The complete installation</p>
 <pre>&lt;<span class="t-dim">link</span> rel="stylesheet" href="./kuinetic.css"&gt;
 &lt;<span class="t-dim">script</span> src="./kuinetic.js"&gt;&lt;/script&gt;
@@ -919,10 +1006,10 @@
       <div class="section-head">
         <p class="cap cap-ox">The Specimen Book &nbsp;·&nbsp; No. 02</p>
         <hr class="rule rule-ink" />
-        <h2 class="head-display" data-kui="text-reveal-mask 1200ms on:enter">
+        <h2 class="head-display" data-kui="text-reveal-mask 1200ms expo-out on:enter">
           Set a name. <em>Watch it print.</em>
         </h2>
-        <p class="deck-sub" style="margin-top: 1.25rem" data-kui="fade-up 1000ms on:enter">
+        <p class="deck-sub" style="margin-top: 1.25rem" data-kui="fade-up 1000ms expo-out on:enter">
           Sixteen specimens from the catalogue, each one a real effect name. Choosing a name
           rewrites a single <code>data-kui</code> attribute on the plate opposite and the library
           recompiles it where it stands. Nothing else on this page is touched.
@@ -931,52 +1018,52 @@
 
       <div class="specimen">
         <div class="spec-index" role="group" aria-label="Choose a specimen" data-kui-stagger="45ms">
-          <button type="button" class="spec-row" aria-pressed="true" data-kui="fade-up 700ms on:enter" data-fx="mask-reveal 1600ms">
+          <button type="button" class="spec-row" aria-pressed="true" data-kui="fade-up 700ms expo-out on:enter" data-fx="mask-reveal 1600ms">
             <span class="spec-num">01</span><span class="spec-name">mask-reveal</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="curtain-reveal 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="curtain-reveal 1700ms">
             <span class="spec-num">02</span><span class="spec-name">curtain-reveal</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="wipe-up 1600ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="wipe-up 1600ms">
             <span class="spec-num">03</span><span class="spec-name">wipe-up</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="wipe-right 1600ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="wipe-right 1600ms">
             <span class="spec-num">04</span><span class="spec-name">wipe-right</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="wipe-diagonal 1600ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="wipe-diagonal 1600ms">
             <span class="spec-num">05</span><span class="spec-name">wipe-diagonal</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="wipe-circle 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="wipe-circle 1700ms">
             <span class="spec-num">06</span><span class="spec-name">wipe-circle</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="slat-assemble 1800ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="slat-assemble 1800ms">
             <span class="spec-num">07</span><span class="spec-name">slat-assemble</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="blur-up 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="blur-up 1700ms">
             <span class="spec-num">08</span><span class="spec-name">blur-up</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="fade-blur-up 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="fade-blur-up 1700ms">
             <span class="spec-num">09</span><span class="spec-name">fade-blur-up</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="blur-in 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="blur-in 1700ms">
             <span class="spec-num">10</span><span class="spec-name">blur-in</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="ken-burns 9000ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="ken-burns 9000ms">
             <span class="spec-num">11</span><span class="spec-name">ken-burns</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="zoom-in 1500ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="zoom-in 1500ms">
             <span class="spec-num">12</span><span class="spec-name">zoom-in</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="slide-up 1500ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="slide-up 1500ms">
             <span class="spec-num">13</span><span class="spec-name">slide-up</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="rotate-in 1600ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="rotate-in 1600ms">
             <span class="spec-num">14</span><span class="spec-name">rotate-in</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="page-slide 1500ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="page-slide 1500ms">
             <span class="spec-num">15</span><span class="spec-name">page-slide</span>
           </button>
-          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms on:enter" data-fx="card-flip-y 1700ms">
+          <button type="button" class="spec-row" aria-pressed="false" data-kui="fade-up 700ms expo-out on:enter" data-fx="card-flip-y 1700ms">
             <span class="spec-num">16</span><span class="spec-name">card-flip-y</span>
           </button>
         </div>
@@ -1008,43 +1095,43 @@
       <div class="section-head">
         <p class="cap cap-ox">Portfolio &nbsp;·&nbsp; No. 03</p>
         <hr class="rule rule-ink" />
-        <h2 class="head-display" data-kui="text-reveal-mask 1200ms on:enter">
+        <h2 class="head-display" data-kui="text-reveal-mask 1200ms expo-out on:enter">
           Six plates, <em>one attribute</em> on the container
         </h2>
       </div>
 
       <div class="picture-page" data-kui-stagger="180ms">
-        <figure class="p1" data-kui="fade-up 1400ms on:enter">
+        <figure class="p1" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r34">
             <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" />
           </div>
           <figcaption class="cap">i &nbsp;·&nbsp; fade-up</figcaption>
         </figure>
-        <figure class="p2" data-kui="fade-up 1400ms on:enter">
+        <figure class="p2" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r45">
             <img src="./assets/modeling/lilac-turban.jpg" alt="Profile portrait in a sculpted lilac wrapped turban and matching fringed knit" loading="lazy" />
           </div>
           <figcaption class="cap">ii &nbsp;·&nbsp; fade-up</figcaption>
         </figure>
-        <figure class="p3" data-kui="fade-up 1400ms on:enter">
+        <figure class="p3" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r11">
             <img src="./assets/modeling/silver-glitter.jpg" alt="Beauty portrait in a rhinestone-mesh hood and matching bodysuit, bold red lips" loading="lazy" />
           </div>
           <figcaption class="cap">iii &nbsp;·&nbsp; fade-up</figcaption>
         </figure>
-        <figure class="p4" data-kui="fade-up 1400ms on:enter">
+        <figure class="p4" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r45">
             <img src="./assets/modeling/cobalt-profile.jpg" alt="Sculptural profile lit in cobalt blue, wearing clear-framed glasses, on a lilac backdrop" loading="lazy" />
           </div>
           <figcaption class="cap">iv &nbsp;·&nbsp; fade-up</figcaption>
         </figure>
-        <figure class="p5" data-kui="fade-up 1400ms on:enter">
+        <figure class="p5" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r34">
             <img src="./assets/modeling/white-shades.jpg" alt="Beauty portrait in a white knit wrap and mirrored white sunglasses, bold red lips" loading="lazy" />
           </div>
           <figcaption class="cap">v &nbsp;·&nbsp; fade-up</figcaption>
         </figure>
-        <figure class="p6" data-kui="fade-up 1400ms on:enter">
+        <figure class="p6" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r45">
             <img src="./assets/modeling/modeling_17.jpg" alt="Portrait in black wind-swept fabric wrapped over the eyes, bold red lips against a red backdrop" loading="lazy" />
           </div>
@@ -1069,14 +1156,14 @@
       <div class="section-head">
         <p class="cap cap-ox">In This Issue &nbsp;·&nbsp; No. 04</p>
         <hr class="rule rule-ink" />
-        <h2 class="head-display" data-kui="text-reveal-mask 1200ms on:enter">
+        <h2 class="head-display" data-kui="text-reveal-mask 1200ms expo-out on:enter">
           Nine pages, each one a <em>working</em> demonstration
         </h2>
       </div>
 
       <div class="issue">
         <div class="contents" data-kui-stagger="70ms">
-          <a class="entry" href="./reveals.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./reveals.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">I</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_09.jpg" alt="Side-profile portrait in red-toned light, red headphones and a swept-up updo" loading="lazy" /></span>
             <span>
@@ -1085,7 +1172,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./scroll.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./scroll.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">II</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_16.jpg" alt="Portrait in an emerald blazer and afro, dramatic window-shadow lighting against green" loading="lazy" /></span>
             <span>
@@ -1094,7 +1181,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./interactive.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./interactive.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">III</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_21.jpg" alt="Side profile beauty portrait lit in magenta, glossy pink jacket and diamond earring" loading="lazy" /></span>
             <span>
@@ -1103,7 +1190,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./text.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./text.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">IV</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_13.jpg" alt="Side profile portrait in yellow duotone, checkered turtleneck sweater" loading="lazy" /></span>
             <span>
@@ -1112,7 +1199,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./data-hover.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./data-hover.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">V</span>
             <span class="entry-thumb"><img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" /></span>
             <span>
@@ -1121,7 +1208,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./ambient-feedback.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./ambient-feedback.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">VI</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_07.jpg" alt="Portrait lit entirely in purple, beret and round sunglasses against a striped backdrop" loading="lazy" /></span>
             <span>
@@ -1130,7 +1217,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./nav-forms.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./nav-forms.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">VII</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_19.jpg" alt="Side profile portrait lit entirely in green, curly hair and bare shoulder" loading="lazy" /></span>
             <span>
@@ -1139,7 +1226,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./icons-transitions.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./icons-transitions.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">VIII</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_20.jpg" alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting" loading="lazy" /></span>
             <span>
@@ -1149,7 +1236,7 @@
             </span>
           </a>
 
-          <a class="entry" href="./three-d.html" data-kui="fade-up 900ms on:enter">
+          <a class="entry" href="./three-d.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">IX</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_11.jpg" alt="Portrait in a blue uniform and cap, a giant blue butterfly covering the eyes" loading="lazy" /></span>
             <span>
@@ -1161,7 +1248,7 @@
         </div>
 
         <div class="issue-plate">
-          <figure data-kui="mask-reveal 1800ms on:enter">
+          <figure data-kui="mask-reveal 1800ms expo-out on:enter">
             <div class="frame">
               <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Monochrome teal portrait in a curved sculptural hat" loading="lazy" />
             </div>
@@ -1204,44 +1291,44 @@
         <p class="cap cap-ox">Colophon</p>
         <hr class="rule rule-ink" />
         <h2 class="head-display" style="font-size: clamp(1.9rem, 1.2rem + 3vw, 3.5rem)"
-            data-kui="text-reveal-mask 1200ms on:enter">
+            data-kui="text-reveal-mask 1200ms expo-out on:enter">
           Two files, and one attribute
         </h2>
       </div>
 
       <div class="colophon-body">
         <dl data-kui-stagger="90ms">
-          <dt data-kui="fade-up 900ms on:enter">Installation</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Installation</dt>
           <dd>Two files. No build step, no bundler configuration. A CDN pair or an
               <code>import</code> from a bundler both work unchanged.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Catalogue</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Catalogue</dt>
           <dd>252 named effects over more than 30 primitive families, in fifteen sections
               lettered A to O, plus thirteen gesture and physics names outside them.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Renderers</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Renderers</dt>
           <dd>Approximately 168 CSS, 11 preparation, 58 JavaScript.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Out of scope</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Out of scope</dt>
           <dd>WebGL and particle rendering, and accessible component state machines. The library
               animates elements you control; it never owns their open state, their focus, or
               their keyboard handling.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Type</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Type</dt>
           <dd>Set in the reader's own Didot or Bodoni for display, an old-style book serif for
               reading, and a single letterspaced grotesque for every caption. No web fonts are
               requested by this page.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Plates</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Plates</dt>
           <dd>Photography from this repository's own asset library.</dd>
-          <dt data-kui="fade-up 900ms on:enter">Licence</dt>
+          <dt data-kui="fade-up 900ms expo-out on:enter">Licence</dt>
           <dd>kUInetic is MIT licensed.</dd>
         </dl>
 
         <div>
-          <div class="exhibit" style="margin-top: 0" data-kui="fade-up 1000ms on:enter">
+          <div class="exhibit" style="margin-top: 0" data-kui="fade-up 1000ms expo-out on:enter">
             <p class="cap">Exhibit B &nbsp;·&nbsp; From a CDN</p>
 <pre>&lt;<span class="t-dim">link</span> rel="stylesheet"
       href="https://unpkg.com/kuinetic/dist/kuinetic.css"&gt;
 &lt;<span class="t-dim">script</span> src="https://unpkg.com/kuinetic/dist/kuinetic.js"&gt;&lt;/script&gt;</pre>
           </div>
 
-          <div class="exhibit" data-kui="fade-up 1000ms on:enter">
+          <div class="exhibit" data-kui="fade-up 1000ms expo-out on:enter">
             <p class="cap">Exhibit C &nbsp;·&nbsp; Timing, then composition</p>
 <pre>&lt;<span class="t-dim">div</span> <span class="t-attr">data-kui="fade-up 900ms 150ms ease-out"</span>&gt;
 &lt;<span class="t-dim">div</span> <span class="t-attr">data-kui="fade-up, blur-in"</span>&gt;      <span class="t-dim">&lt;!-- disjoint: compiles --&gt;</span>
