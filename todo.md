@@ -210,6 +210,16 @@ library should own it. Never call something "not the library's job" without grep
       h1, subhead, or a new one-liner) so "CSS animation library, authored via HTML attributes" is
       unambiguous on first look, not something you piece together from the playground below it.
 
+- [ ] **`.size-limit.json`'s CSS budget is stale — real size is over the stated cap.** Found
+      2026-08-24 by a design subagent sourcing real numbers, confirmed independently the same
+      session. `.size-limit.json` claims `dist/kuinetic.css` is "current: ~7.6 KB" against an
+      `"limit": "8 KB"`. Direct brotli measurement of `demo/kuinetic.css` (byte-identical build
+      output to `dist/kuinetic.css`) is **11,233 bytes** — 40% over the stated number, and over the
+      8 KB cap outright. `npm run size` will very likely fail if run right now. Either the CSS
+      genuinely grew past budget (in which case decide whether to raise the cap or trim), or the
+      comment is just stale and never got updated after a past growth — check `git log -p --
+      .size-limit.json` to see when "~7.6 KB" was last true, then fix the number or the budget.
+
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before
       it is a code job. Prior art worth reading first: static ffmpeg lives in `~/.local/bin`
