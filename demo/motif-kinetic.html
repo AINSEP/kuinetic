@@ -46,8 +46,20 @@
         file. Every moving thing on the page is a `data-kui` attribute, which means
         the library's own per-effect reduced-motion policy ('shorten' for entrances,
         'disable' for continuous ambient/marquee) is the page's policy too, with
-        nothing of mine to fight it. The only reduced-motion block below covers my
-        own hover *transitions*, which the library never sees.
+        nothing of mine to fight it. The reduced-motion block below therefore covers
+        only two things: my own hover *transitions*, which the library never sees,
+        and native smooth scrolling, which `smooth-scroll-to` installs as an inline
+        style under a 'shorten' policy — the one case where an author rule has to
+        outrank the library rather than defer to it. Both are argued at the block.
+
+     CASCADE: everything in this <style> element is UNLAYERED, and the entire library
+     sheet lives in `@layer kui.effects` / `kui.presets`. Unlayered author styles beat
+     layered ones outright, whatever the specificity — so a rule here does not merely
+     compete with the library, it silently replaces it. Two bugs came out of exactly
+     that (a `transition` shorthand erasing `lift`'s, a `.stack > span` landing
+     `white-space: nowrap` on split-text's own container). Any new selector here that
+     could match an element the runtime touches, or a node the runtime builds, has to
+     be checked against what the library declares for it.
 
      OVERFLOW: `clip`, never `hidden`. Poster type and marquees are supposed to run
      off the canvas edge; `overflow-x: clip` cuts them without creating a scroll
@@ -88,11 +100,23 @@
     --f-display: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     --f-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-    /* Mobile-first sizes. The `vw` middle term is tuned so the longest word in each
-       tier still fits inside the gutter at 320px — the headline's widest line is
-       "IN HTML" at ~4em, and 21vw of 320px is 67px, so ~268px inside a 294px measure.
-       `overflow-x: clip` on every field is the backstop, not the plan. */
-    --t-mega: clamp(3.1rem, 21vw, 19rem);
+    /*
+     * `cqw`, not `vw`, and this is the one type decision on the page that had to change.
+     *
+     * A viewport-relative headline is only ever tuned for the layout that happens to be on
+     * screen when you tune it. This one was tuned single-column at 320px (21vw ≈ 67px, and the
+     * widest line ~268px inside a 294px measure — that part was right) and then the desktop
+     * grid put the same 21vw type into a column barely half the viewport wide: at 1440px the
+     * headline measured ~1130px inside a 710px column and ran a third of its width straight
+     * across the portrait beside it. Bone type over an unpredictable photograph, which is the
+     * classic maximalist failure — it reads as broken rather than bold.
+     *
+     * `23cqw` resolves against `.hero-type`'s own inline size, so the headline is 91% of its
+     * column at every width in both layouts, with no breakpoint where it jumps. It also lands
+     * within a pixel of the old value on a phone, where the container *is* the measure.
+     * `overflow-x: clip` on every field is still the backstop, not the plan.
+     */
+    --t-mega: clamp(3.1rem, 22cqw, 19rem);
     --t-huge: clamp(2.2rem, 12vw, 7.5rem);
     --t-big: clamp(1.7rem, 7.4vw, 4.2rem);
     --t-mid: clamp(1.05rem, 3.3vw, 1.5rem);
@@ -194,7 +218,25 @@
     text-transform: uppercase;
     font-stretch: 105%;
   }
-  .stack > span { display: block; white-space: nowrap; width: max-content; max-width: 100%; }
+  /*
+   * `.line`, NOT `.stack > span`. `text-reveal-mask` is `split-text` with `unit: 'lines'`, and
+   * split-text replaces the heading's children with two spans of its own — `.kui-split-decorative`
+   * and `.kui-sr-only`. Every rule in this <style> block is unlayered, so it outranks the whole
+   * `@layer kui.effects` sheet no matter how specific that sheet is: `.stack > span` was landing
+   * `white-space: nowrap` on the container split-text measures line boxes inside, collapsing all
+   * of "Click a name. Watch it change." onto one unwrappable line — one bucket, one line revealed,
+   * and `width: max-content` quietly cancelling the `max-width: 13ch` that was supposed to set the
+   * ragging. A class the library will never emit keeps the two vocabularies apart.
+   */
+  .stack > .line { display: block; white-space: nowrap; width: max-content; max-width: 100%; }
+
+  /*
+   * `line-height: 0.79` makes the line box shorter than the glyphs it holds, and `mask`'s resting
+   * frame is `clip-path: inset(0)` — which clips to that short border box, shaving the caps. The
+   * padding grows the clip window; the equal negative margin gives the space straight back, so
+   * interlocked leading is unchanged.
+   */
+  .stack .kui-split-line { padding-block: 0.1em; margin-block: -0.1em; }
 
   .t-mega { font-size: var(--t-mega); }
   .t-huge { font-size: var(--t-huge); }
@@ -226,6 +268,14 @@
   /* A line the type slides up into — the mask is the wrapper's `clip`, the motion is
      `data-kui="slide-up"`, whose 100px default offset is bigger than any line box here. */
   .mask { display: block; overflow: clip; padding-bottom: 0.06em; }
+  /*
+   * `display: block` is load-bearing, not tidiness. `slide-up` is `--kui-from-opacity: 1` plus a
+   * `translate` keyframe — translate and every other transform property is defined not to apply to
+   * a non-replaced *inline* box. Left as a bare inline <span> this element compiled cleanly,
+   * reported `data-kui-state="done"`, and moved zero pixels, which made the two flagship headline
+   * lines the only things on the page that genuinely did nothing.
+   */
+  .mask > span { display: block; }
 
   /* ---------- decorative watermark ------------------------------------------------- */
 
@@ -313,7 +363,11 @@
     padding: 0.65rem 0.2rem;
     display: none;
   }
-  @media (min-width: 44rem) { .bar-link { display: inline-block; } }
+  /* Shown from 44rem up — which is still a touchscreen on most of the devices that reach it, so
+     the row keeps a 44px target rather than the 36px the label alone would give it. */
+  @media (min-width: 44rem) {
+    .bar-link { display: inline-flex; align-items: center; min-height: 44px; }
+  }
 
   /* 44px minimum on every tap target, at every width. */
   .burger {
@@ -327,7 +381,10 @@
     border: 0;
     color: inherit;
     cursor: pointer;
-    --kui-bar-gap: 8px;
+    /* `hamburger-to-x` reads this as the distance from the middle bar to an outer one, so the two
+       survivors meet dead centre before they rotate. Here that is one 2px bar plus the 5px grid
+       gap — 7px, not the 8px this was guessing at. */
+    --kui-bar-gap: 7px;
   }
   .burger .kui-bar {
     display: block;
@@ -414,7 +471,10 @@
   }
   .hero-wm { top: 34%; left: -8vw; rotate: -7deg; }
 
-  .hero-type { position: relative; z-index: 2; }
+  /* The query container `--t-mega` sizes against. `inline-size` containment only stops the
+     element's width from depending on its contents — it is not paint containment, so the headline
+     can still overflow this box visually where a line is meant to. */
+  .hero-type { position: relative; z-index: 2; container-type: inline-size; }
   .hero-type .l2 { margin-inline-start: 0.06em; }
   .hero-type .l3 {
     margin-inline-start: 0.02em;
@@ -422,6 +482,12 @@
        transparent, so this line is hollow while it runs and solid bone when it lands —
        legible at rest, which is the requirement, and a poster device while moving. */
     font-stretch: 118%;
+    /* The widening is what needs paying for: at 118% of the `wdth` axis this line's glyphs carry
+       ~12% more advance than the two above it, and "IN HTML" is already the longest string in the
+       stack. Sized in `em` of the mega tier it lands at the same measured width as "MOTION", so
+       all three lines rag against the same right edge instead of one of them deciding how big the
+       other two are allowed to be. */
+    font-size: 0.85em;
   }
 
   .hero-body {
@@ -439,23 +505,23 @@
     object-fit: cover;
     object-position: 50% 32%;
   }
-  .hero-fig figcaption {
-    font-family: var(--f-mono);
-    font-size: var(--t-micro);
-    letter-spacing: 0.08em;
-    color: var(--f-dim);
-    padding-top: 0.6rem;
-  }
 
   @media (min-width: 64rem) {
     .hero { padding-block: 9rem 0; }
     .hero-inner {
       display: grid;
-      grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr);
+      /* 1.6fr, up from 1.28fr: the headline is the page, so it gets the room, and the portrait
+         column narrowing also shortens the 3:4.1 figure that sets the hero's height — which is
+         what keeps the deck and both buttons above the fold on a 900px-tall laptop. */
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
       grid-template-areas: 'type fig' 'body fig';
       align-items: end;
       column-gap: clamp(1.5rem, 3vw, 3rem);
     }
+    /* A grid child's automatic minimum size is its min-content width, so a long word in any of
+       these can widen its own track and push the page sideways. Named once here rather than
+       re-derived per section. */
+    .hero-inner > * { min-width: 0; }
     .hero-type { grid-area: type; }
     .hero-body {
       grid-area: body;
@@ -475,9 +541,18 @@
       align-self: end;
     }
     .hero-fig img { aspect-ratio: 3 / 4.1; }
-    /* Off-canvas headline, desktop only — this rule is inside the media query precisely
-       because a narrow viewport must never see it. */
-    .hero-type .l3 { margin-inline-start: 7vw; margin-inline-end: -8vw; }
+    /*
+     * There used to be a `margin-inline-start: 7vw; margin-inline-end: -8vw` here, pushing "IN
+     * HTML" out of the type column and across the portrait. It is gone, and the watermark comment
+     * above says why better than this one can: the deliberately off-canvas element on this page is
+     * decorative — aria-hidden, stroke-only, low-alpha — precisely so that being clipped by a field
+     * edge never costs a reader a word. A headline is not that. It was the page breaking its own
+     * rule, and it broke it on the three words the whole hero is selling.
+     *
+     * The bleed budget is spent where it costs nothing instead: two watermarks running off both
+     * edges, two marquees permanently entering and leaving, and a footer wordmark cropped by the
+     * bottom of the document.
+     */
   }
 
   /* ---------- marquee bands -------------------------------------------------------- */
@@ -487,6 +562,16 @@
   /* The library gives `[data-kui-fx~='marquee']` its own `display:flex; width:max-content`;
      everything here is just the look of the track. Two copies of the content in markup is
      what makes the loop seamless — that duplication is the author's, by design. */
+  /*
+   * The duration lives here rather than as `marquee 34s` in the attribute, and it is the one place
+   * on the page where that is the right way round. A literal duration in `data-kui` compiles to a
+   * literal inline `animation-duration`, which no media query can reach; the preset's parameter
+   * property is generated into `@layer kui.presets` precisely so consumer CSS can retune it
+   * without `!important`, and that is what makes the narrow-screen rule at the bottom of this
+   * sheet possible at all. The scroll-linked band ignores it — a `scroll()` timeline takes its
+   * progress from the scroller, not a clock.
+   */
+  .band-track { --kui-text-marquee-duration: 34s; }
   .band-track > span {
     display: inline-flex;
     align-items: center;
@@ -518,6 +603,7 @@
   .lab-head { display: grid; gap: 1rem; margin-bottom: clamp(1.8rem, 5vw, 3rem); }
 
   .lab-grid { display: grid; gap: clamp(1.6rem, 5vw, 3rem); }
+  .lab-grid > * { min-width: 0; }
   @media (min-width: 62rem) {
     .lab-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr); align-items: start; }
   }
@@ -539,7 +625,7 @@
     letter-spacing: 0.02em;
     color: var(--f-ink);
     background: none;
-    border: 1.5px solid rgb(12 12 14 / 0.3);
+    border: 2px solid rgb(12 12 14 / 0.32);
     border-radius: 0;
     cursor: pointer;
     transition: background-color 130ms ease, color 130ms ease, border-color 130ms ease;
@@ -552,6 +638,18 @@
   }
 
   .lab-stage { position: relative; }
+  /*
+   * The stage needs a frame the effect cannot escape, and it has to be a *wrapper*: the attribute
+   * sits on `.lab-frame`, so `.lab-frame`'s own overflow governs its children, not itself. Every
+   * scale-channel chip here — `ken-burns`, `zoom-in`, `pop-in`, `bounce-in` — grows the frame
+   * past its own box, and `ken-burns` in particular ends at 1.12 and *stays* there, which parked
+   * a permanently oversized picture on top of the `data-kui="…"` label underneath it.
+   *
+   * `clip`, not `hidden`, for the reason at the top of this sheet: `hidden` would make this the
+   * scroll container for anything scroll-linked inside it. Nothing here is today, and the next
+   * chip added should not have to know that.
+   */
+  .lab-clip { overflow: clip; }
   .lab-frame { position: relative; background: var(--k-ink); }
   .lab-frame img {
     width: 100%;
@@ -594,6 +692,7 @@
   }
 
   .proof-grid { display: grid; gap: clamp(1.4rem, 4vw, 2.5rem); margin-top: clamp(2.5rem, 7vw, 4.5rem); }
+  .proof-grid > * { min-width: 0; }
   @media (min-width: 62rem) {
     .proof-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   }
@@ -646,13 +745,27 @@
     gap: 0.6rem 1rem;
     padding: clamp(1rem, 3.5vw, 1.6rem) 0;
     border-bottom: 3px solid currentColor;
-    /* `lift` owns translate; this only carries colour, so the two never fight. */
-    transition: background-color 180ms ease, color 180ms ease, padding-inline 180ms ease;
+    /*
+     * `translate` is in this list because `lift` cannot put it there itself. The comment that used
+     * to sit here said "`lift` owns translate, so the two never fight" — but `transition` is a
+     * shorthand, and every rule in this <style> block is unlayered while the whole library sheet
+     * lives in `@layer kui.effects`. Unlayered author styles beat layered ones outright, so this
+     * one declaration was replacing `[data-kui-fx~='lift'] { transition: translate … }` wholesale
+     * and leaving `lift`'s hover state to arrive as an instant 6px jump. Same duration and easing
+     * the library's own custom-property defaults use, read through them so a page-level override
+     * still reaches it.
+     */
+    transition:
+      background-color 180ms ease,
+      color 180ms ease,
+      translate var(--kui-lift-duration, 220ms) var(--kui-lift-ease, ease-out);
   }
+  /* No `padding-inline` shift on hover any more: it animated a layout property, and paired with
+     `lift`'s vertical travel the row moved on two axes at once for a single pointer event. The
+     colour inversion is the louder half of the gesture and costs no reflow. */
   .route:hover, .route:focus-visible {
     background: var(--k-ink);
     color: var(--k-bone);
-    padding-inline: 0.7rem;
     outline: none;
   }
   .route-n {
@@ -686,6 +799,11 @@
 
   .install-wm { bottom: -10%; right: -6vw; rotate: -3deg; }
   .install-grid { display: grid; gap: clamp(1.6rem, 5vw, 3rem); align-items: start; }
+  /* The one that matters most on a phone: the column holding `.code` is sized from its contents,
+     and a `white-space: pre` block's min-content width is its longest line. Without this the
+     single-column mobile track inflates to the width of the widest line of the snippet and takes
+     the whole page sideways with it — the `overflow-x: auto` on `.code` only rescues `.code`. */
+  .install-grid > * { min-width: 0; }
   @media (min-width: 62rem) { .install-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); } }
   .code {
     background: var(--k-ink);
@@ -751,17 +869,31 @@
    */
   @media (prefers-reduced-motion: reduce) {
     .btn, .lab-chip, .route { transition-duration: 1ms; }
-    html { scroll-behavior: auto; }
+    /*
+     * `!important`, and it is not decoration. `smooth-scroll-to` is a `prepare` effect whose whole
+     * body is `ctx.style.set('scroll-behavior', 'smooth')` — an *inline* style on <html>, which no
+     * ordinary author rule can outrank. Its primitive declares the default `shorten` policy rather
+     * than `disable`, so the runtime installs it under reduced motion too, and animated scrolling
+     * is close to the definition of what a vestibular preference is asking to be spared. This is
+     * the one place on the page where beating the library is the correct answer; the `behavior`
+     * parameter is authored per element and cannot know what a media query knows.
+     */
+    html { scroll-behavior: auto !important; }
   }
 
   /*
    * Coarse pointers get less continuous motion, for battery and for legibility: the two
    * ambient washes in the hero are decoration, and a phone repainting a full-bleed drifting
-   * pattern behind 19rem type is paying for something nobody asked for.
+   * pattern behind a headline that already fills the screen is paying for something nobody
+   * asked for.
    */
   @media (max-width: 47.99rem) {
     .hero-ambient { display: none; }
     .watermark { opacity: 0.12; }
+    /* Both marquees stay — they are the whole section-2-versus-section-5 argument — but a phone
+       reads a moving line through half the width, so the time-driven one is slowed to hold the
+       same words-per-second rather than the same pixels-per-second. */
+    .band-track { --kui-text-marquee-duration: 52s; }
   }
 </style>
 </head>
@@ -826,7 +958,10 @@
     <!-- Two ambient washes, layered: a drifting dot grid and a grain overlay. Both are
          `background`-channel effects, so neither can collide with anything moving above them. -->
     <div class="hero-ambient" aria-hidden="true" data-kui="dot-grid-drift 26s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.22;"></div>
-    <div class="hero-ambient" aria-hidden="true" data-kui="noise-overlay 3s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.18;mix-blend-mode:overlay;"></div>
+    <!-- 6s and 0.12, down from 3s and 0.18: this is a 5px grain jittering a couple of pixels
+         directly behind the largest type on the page, and at the old settings the headline sat on
+         a surface that never quite held still. Slow enough now to read as paper, not as flicker. -->
+    <div class="hero-ambient" aria-hidden="true" data-kui="noise-overlay 6s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.12;mix-blend-mode:overlay;"></div>
 
     <div class="wrap">
       <div class="hero-inner">
@@ -838,10 +973,18 @@
             <span>252 effects · 30 primitives</span>
           </p>
 
-          <h1 class="stack t-mega" data-kui-stagger="110ms">
-            <span class="mask l1"><span data-kui="slide-up 900ms on:load">Write</span></span>
-            <span class="mask l2"><span data-kui="slide-up 900ms on:load">Motion</span></span>
-            <span class="l3" data-kui="text-outline-fill 1100ms 800ms on:load">In HTML</span>
+          <!--
+            The delays are written out per line instead of hoisted into `data-kui-stagger`. The
+            group attribute indexes only *direct* children that carry `data-kui`, and here the two
+            sliding spans are grandchildren inside their masks — so the group found exactly one
+            member (the third line), handed it `--kui-i: 0`, and the 110ms cascade this headline
+            was named for resolved to zero for all three. `--kui-i` is reset to 0 in `kui.tokens`,
+            which is what made the failure silent rather than loud.
+          -->
+          <h1 class="stack t-mega">
+            <span class="mask line l1"><span data-kui="slide-up 900ms on:load">Write</span></span>
+            <span class="mask line l2"><span data-kui="slide-up 900ms 120ms on:load">Motion</span></span>
+            <span class="line l3" data-kui="text-outline-fill 1100ms 380ms on:load">In HTML</span>
           </h1>
         </div>
 
@@ -884,7 +1027,7 @@
       <!-- The seamless loop needs two copies of the track in markup; the library supplies the
            `width: max-content` and the translate keyframe. `marquee` defaults to `on:load` and
            declares `reducedMotion: 'disable'` — an infinite loop has no shortened form. -->
-      <div class="band-track" data-kui="marquee 34s">
+      <div class="band-track" data-kui="marquee">
         <span>fade-up<i>◆</i><em>wipe-circle</em><i>◆</i>slat-assemble<i>◆</i><em>text-reveal-mask</em><i>◆</i>parallax-scale<i>◆</i><em>ken-burns</em><i>◆</i>scramble<i>◆</i><em>marquee</em><i>◆</i>curtain-reveal<i>◆</i><em>count-up</em><i>◆</i></span>
         <span aria-hidden="true">fade-up<i>◆</i><em>wipe-circle</em><i>◆</i>slat-assemble<i>◆</i><em>text-reveal-mask</em><i>◆</i>parallax-scale<i>◆</i><em>ken-burns</em><i>◆</i>scramble<i>◆</i><em>marquee</em><i>◆</i>curtain-reveal<i>◆</i><em>count-up</em><i>◆</i></span>
       </div>
@@ -898,7 +1041,7 @@
        in place.
        ====================================================================== -->
   <section class="field f-bone" id="lab">
-    <span class="watermark lab-wm" aria-hidden="true">try it</span>
+    <span class="watermark lab-wm" aria-hidden="true" data-kui="parallax-x distance:55px timeline:view">try it</span>
     <div class="wrap">
       <div class="lab-head">
         <p class="micro" data-kui="fade-up 600ms">The whole API, live</p>
@@ -953,11 +1096,13 @@
                slats around the <img> it is given, so it needs a wrapper — and every entrance works
                on a wrapper too, which keeps every chip on the same footing. The child stays a
                plain <img> for the same reason. -->
-          <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
-            <img
-              src="./assets/modeling/modeling_20.jpg"
-              alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting"
-            />
+          <div class="lab-clip">
+            <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
+              <img
+                src="./assets/modeling/modeling_20.jpg"
+                alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting"
+              />
+            </div>
           </div>
           <div class="lab-bar">
             <p class="lab-attr">data-kui="<b id="lab-attr">wipe-circle 1500ms</b>"</p>
@@ -983,7 +1128,11 @@
         Not fired.<br />Scrubbed.
       </h2>
 
-      <ul class="proof-lines" data-kui-stagger="90ms">
+      <!-- No `data-kui-stagger` here, and its absence is the point of the section. These four run
+           on a `view()` timeline, and a non-time timeline has no `animation-delay` to offset — the
+           delay slot becomes `animation-range`. A stagger written here would have compiled, read
+           correctly, and moved nothing. Their cascade comes from where they sit on the page. -->
+      <ul class="proof-lines">
         <li data-kui="fade-up distance:36px" data-kui-timeline="view entry 0% cover 38%">
           <span>on:enter</span>Plays once, <em>stays finished</em>.
         </li>
@@ -1065,7 +1214,7 @@
        each an oversized index line rather than a card.
        ====================================================================== -->
   <section class="field f-bone" id="pages">
-    <span class="watermark routes-wm" aria-hidden="true">index</span>
+    <span class="watermark routes-wm" aria-hidden="true" data-kui="parallax-x distance:110px timeline:view">index</span>
     <div class="wrap">
       <p class="micro" style="margin-bottom:1rem;" data-kui="fade-up 600ms">Nine demo pages</p>
       <h2 class="stack t-huge" style="max-width: 9ch;" data-kui="text-reveal-mask 800ms">See them running.</h2>
@@ -1142,7 +1291,7 @@
        7 — INSTALL · BLUE FIELD
        ====================================================================== -->
   <section class="field f-blue" id="install">
-    <span class="watermark install-wm" aria-hidden="true">two files</span>
+    <span class="watermark install-wm" aria-hidden="true" data-kui="parallax-x distance:75px timeline:view">two files</span>
     <div class="wrap">
       <div class="install-grid">
         <div>
@@ -1245,7 +1394,10 @@
     function setOpen(open) {
       burger.setAttribute('aria-expanded', String(open))
       menu.hidden = !open
-      document.documentElement.style.overflow = open ? 'hidden' : ''
+      // `overflowY`, not `overflow`: the shorthand would replace this sheet's `overflow-x: clip` on
+      // <html> for as long as the menu is open, and a scroll container on the root is what the
+      // `scroll()` timeline driving the progress rail resolves against.
+      document.documentElement.style.overflowY = open ? 'hidden' : ''
       if (open && window.__kui && typeof window.__kui.play === 'function') {
         window.__kui.play(menu, 'menu-fullscreen')
       }
