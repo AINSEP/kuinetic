@@ -76,22 +76,31 @@
     --pad: 14px;
 
     /* Motion note: every easing on this page is cubic-bezier(.85,0,.15,1) or a steps() function,
-       authored inside the data-kui attribute. Written without spaces — the attribute grammar
-       splits tokens on whitespace, and an easing with spaces in it would be shredded. */
+       authored inside the data-kui attribute. They are written without spaces by house style, not
+       by necessity — src/core/parse.ts splits on top-level whitespace and commas only, so both the
+       commas and any spaces inside the parens survive. Tight is just easier to read in an
+       attribute. Nothing on this page eases in and out; the motion is a stamp, not a float. */
 
-    --t-display: clamp(2.25rem, 10.5vw, 10rem);
-    --t-h2: clamp(1.75rem, 7vw, 4.25rem);
-    --t-h3: clamp(1.0625rem, 2.6vw, 1.5rem);
+    /* Poster scale, phone first. The floor, not the slope, is what carries the contrast on a
+       phone: 52px against 14px body is 3.7:1, and the headline breaks hard-left across two lines
+       rather than shrinking to fit — which is what a Swiss poster does at any size. The 10.5vw
+       slope is left alone because it is what keeps the three masthead lines unwrapped from 64em
+       up. The smallest step exists for 320px, where "ATTRIBUTE." at 52px would run off the page. */
+    --t-display: clamp(2.75rem, 10.5vw, 10rem);
+    --t-h2: clamp(2rem, 8.5vw, 4.25rem);
     --t-body: 0.875rem;
     --t-dense: 0.8125rem;
     --t-label: 0.625rem;
     --t-code: 0.75rem;
   }
+  @media (min-width: 23em) {
+    :root { --t-display: clamp(3.25rem, 10.5vw, 10rem); }
+  }
   @media (min-width: 40em) {
     :root { --cols: 6; --gutter: 14px; --pad: 22px; }
   }
   @media (min-width: 64em) {
-    :root { --cols: 12; --gutter: 18px; --pad: 30px; --t-body: 0.875rem; --t-code: 0.8125rem; }
+    :root { --cols: 12; --gutter: 18px; --pad: 30px; --t-code: 0.8125rem; }
   }
   @media (min-width: 100em) {
     :root { --gutter: 22px; --pad: 44px; }
@@ -151,19 +160,13 @@
     letter-spacing: -0.045em;
     font-weight: 700;
     text-transform: uppercase;
-    text-wrap: balance;
+    /* No `text-wrap: balance`. A balanced rag is a web nicety — it centres the raggedness. This
+       system sets each line full and breaks where it runs out of measure, hard left. */
   }
   h2.h2 {
     font-size: var(--t-h2);
     line-height: 0.92;
     letter-spacing: -0.035em;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-  .h3 {
-    font-size: var(--t-h3);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
     font-weight: 700;
     text-transform: uppercase;
   }
@@ -180,6 +183,9 @@
     inset: 0;
     display: grid;
     grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    /* One explicit full-height row, so the rules are floor-to-ceiling whatever the section does.
+       Left implicit, this depends on `align-content: stretch` reaching an auto row. */
+    grid-template-rows: 1fr;
     column-gap: var(--gutter);
     padding: 0 var(--pad);
     pointer-events: none;
@@ -222,8 +228,11 @@
     padding-left: var(--pad);
     padding-right: var(--pad);
   }
-  /* Mobile first: everything is a full-bleed stack until a wider viewport earns the columns. */
-  .g > * { grid-column: 1 / -1; }
+  /* Mobile first: everything is a full-bleed stack until a wider viewport earns the columns.
+     `min-width: 0` on every grid child is the load-bearing half: a grid item's automatic minimum
+     size is its min-content width, so one long code line or unbreakable token inside any child
+     would push the whole track — and the page — wider than the viewport. Zero it once, here. */
+  .g > * { grid-column: 1 / -1; min-width: 0; }
 
   @media (min-width: 40em) {
     .m-1-3 { grid-column: 1 / span 3; }
@@ -265,10 +274,11 @@
     border-bottom: 1px solid var(--ink);
   }
   .rail-in {
-    display: flex; align-items: center; gap: 1rem;
-    padding: 0.6rem var(--pad);
-    min-height: 46px;
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.3rem var(--pad);
+    min-height: 52px;
   }
+  .rail-in > * { min-width: 0; }
   .mark {
     font-weight: 700;
     font-size: 1rem;
@@ -285,12 +295,16 @@
     }
     .rail-spec i { display: block; width: 1px; height: 9px; background: var(--g-20); }
   }
-  .rail-nav { display: flex; align-items: center; gap: 0.9rem; }
+  /* Measured for the narrowest phone: at 320px the mark plus four uppercase 10px labels plus
+     three gaps has to clear 292px of content box. At the desktop 0.9rem gap it does not. */
+  .rail-nav { display: flex; align-items: center; gap: 0.55rem; }
+  @media (min-width: 30em) { .rail-in { gap: 1rem; } .rail-nav { gap: 0.9rem; } }
   .rail-nav a, .rail-nav button {
     border-bottom: 2px solid transparent;
     padding-bottom: 1px;
-    /* 44px of vertical hit area on touch without breaking the 46px rail. */
-    display: inline-flex; align-items: center; min-height: 34px;
+    /* A full 44px of hit area. The rail is 52px because of it, which is the right trade on a
+       phone — a 34px target in a 46px rail is a miss waiting to happen. */
+    display: inline-flex; align-items: center; min-height: 44px;
   }
   .rail-nav a:hover, .rail-nav button:hover { border-bottom-color: var(--signal); }
 
@@ -328,6 +342,11 @@
     margin-bottom: clamp(1.25rem, 3vw, 2.25rem);
   }
   .masthead .display { margin-bottom: clamp(1.5rem, 4vw, 3rem); }
+  /* Phone reading order: headline, argument, plate, timetable. The spec block is dense data and
+     belongs after the picture when everything is one column; from 40em it returns to source order
+     because the two sit side by side and order stops meaning anything. */
+  .masthead .spec { order: 1; }
+  @media (min-width: 40em) { .masthead .spec { order: 0; } }
   .masthead .display em { font-style: normal; color: var(--signal); }
 
   /* The spec block. A railway timetable for the package itself. */
@@ -338,8 +357,10 @@
     padding: 0.4rem 0;
     font-size: var(--t-dense);
   }
-  .spec dt { text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--t-label); color: var(--g-45); align-self: center; }
-  .spec dd { font-weight: 700; text-align: right; }
+  /* Both sides shrinkable: this table lives in a three-column span, and "Renderer split" against
+     "168 css / 11 prep / 58 js" is wider than that span until ~1440px. It has to wrap, not push. */
+  .spec dt { text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--t-label); color: var(--g-45); align-self: center; min-width: 0; }
+  .spec dd { font-weight: 700; text-align: right; min-width: 0; overflow-wrap: anywhere; }
   .spec dd b { color: var(--signal); font-weight: 700; }
 
   .hero-fig { margin-top: 1.75rem; }
@@ -370,7 +391,7 @@
   .specimen .v { color: var(--signal); font-weight: 700; }
   .legend {
     display: grid;
-    /* One cell per row on a phone: three columns cannot hold "600ms 100ms ease-out" at 375px,
+    /* One cell per row on a phone: three columns cannot hold a full timing triplet at 375px,
        and a squashed three is exactly the failure this motif has to avoid. */
     grid-template-columns: minmax(0, 1fr);
     gap: 1px;
@@ -392,6 +413,11 @@
   .cta:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
   .cta-ghost { background: transparent; color: var(--ink); }
   .cta-ghost:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  /* Band variants. Same object, different ground — a class each rather than an inline style. */
+  .cta-signal { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+  .cta-signal:hover { background: var(--paper); border-color: var(--paper); color: var(--ink); }
+  .band-ink .cta-outline { background: transparent; color: var(--paper); border-color: currentColor; }
+  .band-ink .cta-outline:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
   .cta-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
   /* ---------- the name band (marquee) ---------- */
@@ -467,10 +493,16 @@
   @media (min-width: 40em) { .lab-frame img { aspect-ratio: 16 / 11; } }
   @media (min-width: 64em) { .lab-frame img { aspect-ratio: 5 / 4; } }
 
+  /* Stacked on a phone so the attribute gets the whole width instead of sharing it with a
+     button; back to one row once there is width to share. */
   .readout {
     background: var(--ink); color: var(--paper);
-    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    display: flex; flex-direction: column; align-items: stretch; gap: 0.5rem;
     padding: 0.55rem 0.7rem;
+  }
+  @media (min-width: 30em) {
+    .readout { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.75rem; }
+    .readout .replay { align-self: auto; }
   }
   .readout code {
     font-size: var(--t-code);
@@ -481,9 +513,10 @@
   .readout code b { color: var(--signal); font-weight: 700; }
   .replay {
     flex: none;
+    align-self: flex-start;
     border: 1px solid var(--paper);
-    padding: 0.35rem 0.6rem;
-    min-height: 34px;
+    padding: 0.35rem 0.7rem;
+    min-height: 40px;
     font-size: var(--t-label);
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -494,7 +527,7 @@
   .tt { border-top: 2px solid var(--ink); }
   .tt-head, .tt-row {
     display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr) 3.25rem;
+    grid-template-columns: 2.5rem minmax(0, 1fr) 1.75rem;
     gap: 0 0.75rem;
     align-items: baseline;
   }
@@ -525,11 +558,15 @@
     padding-left: 0.5rem;
     outline-offset: -2px;
   }
-  .tt-row:hover .tt-desc, .tt-row:hover .tt-sec { color: var(--paper); }
-  .tt-row:hover .tt-n { color: var(--signal); }
+  .tt-row:hover .tt-desc, .tt-row:hover .tt-sec,
+  .tt-row:focus-visible .tt-desc, .tt-row:focus-visible .tt-sec { color: var(--paper); }
+  .tt-row:hover .tt-n, .tt-row:focus-visible .tt-n { color: var(--signal); }
   .tt-n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--signal); }
   .tt-name {
-    font-size: clamp(1rem, 4.5vw, 1.5rem);
+    min-width: 0;
+    /* Ceiling stays 1.5rem: the 10rem name track at 48em+ is exactly wide enough for
+       "TRANSITIONS" at that size and no wider. Only the phone floor moves. */
+    font-size: clamp(1.25rem, 4.5vw, 1.5rem);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: -0.03em;
@@ -555,10 +592,14 @@
   }
 
   @media (min-width: 64em) { .tt-fig { grid-row: 2; } }
-  .tt-fig img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+  /* Landscape while it is a full-width block in the stack; portrait once it is a side rail. A
+     3:4 plate at 375px is 500px of secondary image, which buries the index above it. */
+  .tt-fig img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
+  @media (min-width: 64em) { .tt-fig img { aspect-ratio: 3 / 4; } }
   .tt-fig figcaption { border-top: 1px solid var(--g-20); margin-top: 0.4rem; padding-top: 0.35rem; color: var(--g-45); }
 
   /* ---------- 04 install ---------- */
+  .band-ink .sec-head { border-top-color: currentColor; }
   .band-ink .spec { border-top-color: var(--paper); }
   .band-ink .spec div { border-bottom-color: color-mix(in srgb, var(--paper) 25%, transparent); }
   .band-ink .spec dt { color: color-mix(in srgb, var(--paper) 65%, transparent); }
@@ -584,10 +625,18 @@
 
   /* ---------- footer ---------- */
   .foot { border-top: 2px solid var(--ink); padding-block: 2.5rem 3.5rem; }
-  .foot a { border-bottom: 1px solid var(--g-20); }
-  .foot a:hover { border-bottom-color: var(--signal); color: var(--signal); }
-  .foot-list li + li { margin-top: 0.3rem; }
-  .foot-list li { font-size: var(--t-dense); }
+  .foot a {
+    text-decoration: underline;
+    text-decoration-color: var(--g-20);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+  .foot a:hover { text-decoration-color: var(--signal); color: var(--signal); }
+  /* These sit in `·`-joined rows; inline links at 13px give ~18px of hit area. Blocking them out
+     with vertical padding buys a usable target without changing how the row reads. */
+  .foot-list li + li { margin-top: 0.5rem; }
+  .foot-list li { font-size: var(--t-dense); line-height: 1.9; }
+  .foot a { display: inline-block; padding-block: 0.3rem; }
 
   #back-top {
     position: fixed; right: var(--pad); bottom: 1rem; z-index: 90;
@@ -685,7 +734,7 @@
           <div><dt>Named effects</dt><dd><b data-kui="count-up 900ms 0ms linear to:252">252</b></dd></div>
           <div><dt>Primitive families</dt><dd><b data-kui="count-up 900ms 120ms linear to:30">30</b></dd></div>
           <div><dt>Dependencies</dt><dd>0</dd></div>
-          <div><dt>Renderer split</dt><dd>~168 css · ~11 prep · ~58 js</dd></div>
+          <div><dt>Renderer split</dt><dd>168 css · 11 prep · 58 js</dd></div>
           <div><dt>Licence</dt><dd>MIT</dd></div>
           <div><dt>Install size</dt><dd>2 files</dd></div>
         </dl>
@@ -710,11 +759,11 @@
           <p class="label muted">The whole API, printed once</p>
           <div data-kui="fade-up 340ms 0ms cubic-bezier(.85,0,.15,1)">
             <div class="specimen">
-              <code><span class="k">&lt;div</span> data-kui=<span class="v">"fade-up 600ms 100ms ease-out on:enter"</span><span class="k">&gt;</span></code>
+              <code><span class="k">&lt;div</span> data-kui=<span class="v">"fade-up 600ms 100ms steps(6,end) on:enter"</span><span class="k">&gt;</span></code>
             </div>
             <div class="legend">
               <div><span class="lg-k label">Name</span><span class="lg-v mono">fade-up</span></div>
-              <div><span class="lg-k label">Timing</span><span class="lg-v mono">600ms 100ms ease-out</span></div>
+              <div><span class="lg-k label">Timing</span><span class="lg-v mono">600ms 100ms steps(6,end)</span></div>
               <div><span class="lg-k label">Trigger</span><span class="lg-v mono">on:enter</span></div>
             </div>
           </div>
@@ -942,8 +991,8 @@
       <div class="rules" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="g">
         <div class="c-1-9">
-          <p class="sec-head" style="border-top-color: currentColor;"><span class="n">04</span><span class="t label">Install</span></p>
-          <h2 class="h2">Two files. No build step. No bundler config.</h2>
+          <p class="sec-head"><span class="n">04</span><span class="t label">Install</span></p>
+          <h2 class="h2 sweep" data-kui="underline-draw 420ms 0ms cubic-bezier(.85,0,.15,1)">Two files. No build step. No bundler config.</h2>
         </div>
 
         <div class="c-1-6" style="margin-top: 2rem;">
@@ -979,8 +1028,8 @@
 
         <div class="c-1-9" style="margin-top: 2.5rem;">
           <div class="cta-row">
-            <a class="cta" href="./docs.html" style="background: var(--signal); border-color: var(--signal); color: var(--signal-ink);">Read the docs <span aria-hidden="true">→</span></a>
-            <a class="cta" href="./reveals.html" style="background: transparent; border-color: currentColor;">Start with reveals <span aria-hidden="true">→</span></a>
+            <a class="cta cta-signal" href="./docs.html">Read the docs <span aria-hidden="true">→</span></a>
+            <a class="cta cta-outline" href="./reveals.html">Start with reveals <span aria-hidden="true">→</span></a>
           </div>
         </div>
       </div>
