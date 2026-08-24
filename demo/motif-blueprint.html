@@ -1,0 +1,1456 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Sheet 01: CSS animation authored in HTML attributes</title>
+<meta name="description" content="A CSS animation library authored in HTML attributes. 252 named effects over 30 primitive families, compiled to real @keyframes and native scroll-driven timelines. Drawn as a technical sheet." />
+
+<link rel="stylesheet" href="./kuinetic.css" />
+
+<style>
+  /* =========================================================================================
+     MOTIF: TECHNICAL BLUEPRINT / CYANOTYPE SHEET
+     -----------------------------------------------------------------------------------------
+     A standalone motif study. It shares nothing with demo/system.css on purpose: the whole
+     point of the study is a different visual language, and system.css is the current one.
+     Consequences of that choice, stated so the next reader does not have to infer them:
+
+       - No `.kui-show-code-toggle` and no show-code.js. That chip is a fixed brand pair
+         (#e4f222 on #000000) documented in CLAUDE.md as "styled once, never per page" — so on a
+         page that deliberately abandons the yellow it can only be either restyled (against the
+         rule) or dropped in as a foreign object. It is dropped instead, and the compiled CSS it
+         would have revealed in a modal is shown permanently, in the open, as REF panels. That is
+         the motif's central idea anyway; a modal would hide it.
+       - No nav.js / no site header. The shared nav needs system.css to look like anything. The
+         routing requirement is met by FIG. 06 — SHEET INDEX, which is also the more schematic
+         answer: a drawing set has an index page, not a dropdown.
+       - No theme toggle. A blueprint is one surface. Committing to it is the point.
+
+     Every `data-kui` value on this page is a real name from docs/catalog.md, and every block
+     presented as "what this compiles to" is quoted from source, with its file and line named.
+     ========================================================================================= */
+
+  :root {
+    /* ---- the sheet ---- */
+    --sheet:        #0a1e33;   /* cyanotype ground                      */
+    --sheet-deep:   #071726;   /* a well cut into the sheet             */
+    --sheet-lift:   #0d2740;   /* a panel raised off it                 */
+
+    /* ---- ink ---- */
+    --ink:          #dceaf4;   /* blueprint white — running text        */
+    --ink-dim:      #93b4cc;
+    --ink-faint:    #5d809c;
+
+    /* ---- hairlines ---- */
+    --rule:         #2d5677;
+    --rule-soft:    #1b3a55;
+
+    /* ---- the two instrument colours ---- */
+    --cyan:         #4fd8ff;   /* signal, live values, the drawn line   */
+    --amber:        #ffb454;   /* warning, collision, the second trace  */
+
+    /* The library reads `--accent` for border-draw, step fills, range fills. Point it at the
+       instrument cyan so anything the library paints for itself lands inside the motif rather
+       than falling through to its own #d2691e fallback. */
+    --accent:       var(--cyan);
+    --kui-border-draw-color: var(--cyan);
+
+    /* Graph paper. Two frequencies: a 16px minor and a 96px major, the ratio real gridded
+       drafting paper uses. */
+    --grid-minor: rgb(124 186 224 / 0.055);
+    --grid-major: rgb(124 186 224 / 0.10);
+
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--sheet);
+    color: var(--ink);
+    /* MOTIF RULE: one family, everywhere. Headings differ by size, weight, case and tracking —
+       never by switching to a proportional face. */
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (min-width: 720px) { body { font-size: 13.5px; } }
+
+  /* ---------------------------------------------------------------------------------------
+     THE SUBSTRATE — a fixed sheet of graph paper the content is drawn on.
+     A fixed layer rather than `background-attachment: fixed` on <body>: the attachment version
+     re-rasterises the whole gradient stack on every scroll frame on mobile Safari, and this
+     one composites.
+     --------------------------------------------------------------------------------------- */
+  .substrate {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-color: var(--sheet);
+    background-image:
+      repeating-linear-gradient(0deg,  var(--grid-minor) 0 1px, transparent 1px 16px),
+      repeating-linear-gradient(90deg, var(--grid-minor) 0 1px, transparent 1px 16px),
+      repeating-linear-gradient(0deg,  var(--grid-major) 0 1px, transparent 1px 96px),
+      repeating-linear-gradient(90deg, var(--grid-major) 0 1px, transparent 1px 96px);
+  }
+
+  /* Crop marks. Four corner brackets and one very faint full border — the trim edge of the
+     sheet. Inset scales with viewport so it never crowds a phone. */
+  .crop {
+    position: fixed;
+    inset: 6px;
+    z-index: 60;
+    pointer-events: none;
+    border: 1px solid var(--rule-soft);
+  }
+  .crop i {
+    position: absolute;
+    width: 12px; height: 12px;
+    border: 0 solid var(--cyan);
+    opacity: 0.55;
+  }
+  .crop i:nth-child(1) { top: -1px; left: -1px;   border-top-width: 1px; border-left-width: 1px; }
+  .crop i:nth-child(2) { top: -1px; right: -1px;  border-top-width: 1px; border-right-width: 1px; }
+  .crop i:nth-child(3) { bottom: -1px; left: -1px;  border-bottom-width: 1px; border-left-width: 1px; }
+  .crop i:nth-child(4) { bottom: -1px; right: -1px; border-bottom-width: 1px; border-right-width: 1px; }
+  @media (min-width: 720px) { .crop { inset: 12px; } .crop i { width: 18px; height: 18px; } }
+
+  /* The plotter head: real `scroll-progress-bar` on a native scroll timeline. */
+  .plot-head {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 2px;
+    z-index: 70;
+    background: var(--cyan);
+    transform-origin: 0 50%;
+  }
+
+  /* ---------------------------------------------------------------------------------------
+     LAYOUT
+     --------------------------------------------------------------------------------------- */
+  .page { position: relative; z-index: 1; }
+
+  .wrap {
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 0 1.15rem;
+  }
+  @media (min-width: 720px)  { .wrap { padding: 0 2.25rem; } }
+  @media (min-width: 1040px) { .wrap { padding: 0 3.25rem; } }
+
+  .plate { padding: 2.75rem 0; border-top: 1px solid var(--rule-soft); }
+  .plate:first-child { border-top: none; }
+  @media (min-width: 720px) { .plate { padding: 4rem 0; } }
+
+  /* ---------------------------------------------------------------------------------------
+     TYPE — everything here is the same family. Size, case and tracking do the work.
+     --------------------------------------------------------------------------------------- */
+  h1, h2, h3, h4, p, ul, ol, figure, pre { margin: 0; }
+  ul { padding-left: 1.1rem; }
+
+  .fig {
+    font-size: 0.62rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+  }
+  .fig::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--rule);
+    min-width: 0;
+  }
+
+  .plate-h {
+    font-size: clamp(1.02rem, 0.82rem + 1.1vw, 1.5rem);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+
+  .lede {
+    margin-top: 0.9rem;
+    max-width: 62ch;
+    color: var(--ink-dim);
+    font-size: 0.86rem;
+    line-height: 1.75;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  .note {
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    line-height: 1.7;
+  }
+
+  code { color: var(--cyan); }
+
+  /* Inline annotation label — the flat-land fallback for a leader line. */
+  .tag {
+    display: inline-block;
+    font-size: 0.58rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--sheet);
+    background: var(--cyan);
+    padding: 0.1rem 0.42rem;
+    vertical-align: 0.12em;
+  }
+  .tag.b { background: var(--amber); }
+
+  /* ---------------------------------------------------------------------------------------
+     THE PANEL — outline, never fill. Two diagonally opposite corner brackets in cyan, so a
+     panel reads as a drawn detail rather than a card. No radius beyond 0. No shadow.
+     --------------------------------------------------------------------------------------- */
+  .frame {
+    position: relative;
+    border: 1px solid var(--rule);
+    background: rgb(7 23 38 / 0.72);
+    padding: 0.95rem 1rem 1.05rem;
+    min-width: 0;
+  }
+  .frame::before,
+  .frame::after {
+    content: '';
+    position: absolute;
+    width: 9px; height: 9px;
+    border: 0 solid var(--cyan);
+    pointer-events: none;
+  }
+  .frame::before { top: -1px;    left: -1px;  border-top-width: 1px;    border-left-width: 1px; }
+  .frame::after  { bottom: -1px; right: -1px; border-bottom-width: 1px; border-right-width: 1px; }
+
+  .ref {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.7rem;
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    padding-bottom: 0.6rem;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px dashed var(--rule-soft);
+  }
+  .ref .src {
+    margin-left: auto;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: var(--ink-faint);
+    font-size: 0.6rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* Code. Scrolls inside its own box; never pushes the page sideways. */
+  pre {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    font-size: 0.72rem;
+    line-height: 1.7;
+    color: var(--ink);
+    tab-size: 2;
+    scrollbar-width: thin;
+  }
+  @media (min-width: 720px) { pre { font-size: 0.75rem; } }
+  pre code { color: inherit; }
+  .k  { color: var(--cyan); }        /* the authored / live part          */
+  .c  { color: var(--ink-faint); }   /* comment                           */
+  .a  { color: var(--amber); }       /* the value the browser resolves to */
+
+  /* ---------------------------------------------------------------------------------------
+     DIMENSION MARK — a measurement with tick ends. Pure flex, so it fits any width and can
+     never overflow, which is exactly why it is built this way and not absolutely positioned.
+     --------------------------------------------------------------------------------------- */
+  .dim {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    min-width: 0;
+    color: var(--ink-faint);
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .dim::before,
+  .dim::after {
+    content: '';
+    flex: 0 0 auto;
+    width: 1px;
+    height: 9px;
+    background: var(--rule);
+  }
+  .dim i {
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--rule);
+    min-width: 0.5rem;
+  }
+  .dim span { flex: 0 0 auto; white-space: nowrap; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 00 — TITLE BLOCK
+     --------------------------------------------------------------------------------------- */
+  .hero { position: relative; padding-top: 2.5rem; }
+  @media (min-width: 720px) { .hero { padding-top: 4.5rem; } }
+
+  /* Real `line-grid-drift` from the library, sitting behind the title block: the sheet's own
+     grid, but plotting. It writes its own background-image, so it gets a layer to itself. */
+  .hero-plot {
+    position: absolute;
+    inset: -1rem -1rem auto;
+    height: 20rem;
+    z-index: -1;
+    pointer-events: none;
+    color: #7fdcff;
+    --kui-c1: #7fdcff;
+    opacity: 0.28;
+    mask-image: linear-gradient(180deg, #000 0%, transparent 88%);
+  }
+
+  .mark {
+    font-size: clamp(2.1rem, 1.2rem + 5.4vw, 4.6rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 0.98;
+    color: var(--ink);
+  }
+  .mark b { color: var(--cyan); font-weight: 700; }
+
+  .spec-line {
+    margin-top: 1rem;
+    font-size: clamp(0.66rem, 0.58rem + 0.42vw, 0.82rem);
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  @media (min-width: 720px) { .spec-line { letter-spacing: 0.28em; } }
+
+  /* The drawing's title block: a boxed grid of specification cells. Two columns on a phone,
+     four from 620px, six from 940px — the numbers stay legible at every step. */
+  .titleblock {
+    margin-top: 1.75rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--rule);
+    background: rgb(7 23 38 / 0.7);
+  }
+  @media (min-width: 620px) { .titleblock { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 940px) { .titleblock { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+  .tb {
+    padding: 0.7rem 0.75rem 0.8rem;
+    border-top: 1px solid var(--rule-soft);
+    border-left: 1px solid var(--rule-soft);
+    min-width: 0;
+  }
+  .tb:nth-child(-n + 2) { border-top: none; }
+  .tb:nth-child(odd) { border-left: none; }
+  @media (min-width: 620px) {
+    .tb:nth-child(-n + 4) { border-top: none; }
+    .tb:nth-child(odd) { border-left: 1px solid var(--rule-soft); }
+    .tb:nth-child(4n + 1) { border-left: none; }
+  }
+  @media (min-width: 940px) {
+    .tb { border-top: none; }
+    .tb:nth-child(4n + 1) { border-left: 1px solid var(--rule-soft); }
+    .tb:nth-child(6n + 1) { border-left: none; }
+  }
+  .tb-k {
+    display: block;
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .tb-v {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--cyan);
+    font-variant-numeric: tabular-nums;
+  }
+  .tb-v.sm { font-size: 0.8rem; letter-spacing: 0.1em; color: var(--ink); }
+
+  /* ---------------------------------------------------------------------------------------
+     CONTROLS — a schematic button is an outlined key, not a pill.
+     --------------------------------------------------------------------------------------- */
+  .keys { margin-top: 1.6rem; display: flex; flex-wrap: wrap; gap: 0.7rem; }
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.55rem 1.1rem;
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--sheet);
+    background: var(--cyan);
+    border: 1px solid var(--cyan);
+    border-radius: 0;
+    cursor: pointer;
+    /* Mechanical: a hard cut between states, not a soft cross-fade. */
+    transition: background-color 90ms steps(2, end), color 90ms steps(2, end);
+  }
+  .key.ghost { color: var(--cyan); background: transparent; }
+  .key:hover, .key:focus-visible { background: var(--ink); border-color: var(--ink); color: var(--sheet); }
+  :focus-visible { outline: 1px solid var(--cyan); outline-offset: 3px; }
+
+  a { color: var(--cyan); text-decoration: none; }
+
+  /* ---------------------------------------------------------------------------------------
+     THE PARTS FEED — real `marquee`.
+     --------------------------------------------------------------------------------------- */
+  .feed {
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    overflow: clip;                  /* clip, not hidden: never establish a scroll container */
+    padding: 0.55rem 0;
+    background: rgb(7 23 38 / 0.6);
+  }
+  .feed-row { display: flex; width: max-content; }
+  .feed-row span {
+    padding-right: 1.6rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .feed-row b { color: var(--cyan); font-weight: 500; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 01 — MECHANISM. Exploded view: the authored attribute on one side, the three real
+     compiled artefacts on the other, joined by leaders.
+
+     MOBILE (default): the leader gutter is gone. The output stack hangs off a dashed spine
+     with a short tick into each panel — an annotation that is part of the flow and therefore
+     cannot overflow or point at empty space.
+
+     DESKTOP (>=1040px): a two-column grid. The source panel is `align-self: stretch`, so its
+     right border runs the full height of the output stack, and every leader in every row
+     terminates on a real edge no matter how tall the code blocks get. Grid rows do the
+     alignment; nothing is absolutely positioned, so nothing can drift.
+     --------------------------------------------------------------------------------------- */
+  .mech { margin-top: 1.75rem; display: grid; gap: 1.1rem; }
+
+  .mech-out {
+    position: relative;
+    padding-left: 1.15rem;
+    display: grid;
+    gap: 1.1rem;
+    min-width: 0;
+  }
+  .mech-out::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0.6rem; bottom: 0.6rem;
+    border-left: 1px dashed var(--rule);
+  }
+  .mech-row { position: relative; min-width: 0; }
+  .mech-row::before {
+    content: '';
+    position: absolute;
+    left: -1.15rem;
+    top: 1.4rem;
+    width: 1.15rem;
+    border-top: 1px dashed var(--rule);
+  }
+  .lead { display: none; }
+
+  @media (min-width: 1040px) {
+    .mech {
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.2fr);
+      gap: 0;
+      align-items: stretch;
+    }
+    .mech-src { align-self: stretch; }
+    .mech-out { padding-left: 0; }
+    .mech-out::before { display: none; }
+    .mech-row {
+      display: grid;
+      grid-template-columns: 4.75rem minmax(0, 1fr);
+      align-items: center;
+    }
+    .mech-row::before { display: none; }
+    .lead {
+      display: flex;
+      align-items: center;
+      height: 1px;
+    }
+    .lead i { flex: 1 1 auto; height: 1px; background: var(--cyan); opacity: 0.6; }
+    .lead u {
+      flex: 0 0 auto;
+      width: 0; height: 0;
+      border-top: 3.5px solid transparent;
+      border-bottom: 3.5px solid transparent;
+      border-left: 6px solid var(--cyan);
+      opacity: 0.85;
+    }
+    .lead s {
+      flex: 0 0 auto;
+      width: 5px; height: 5px;
+      background: var(--cyan);
+      border-radius: 50%;
+      margin-right: 2px;
+    }
+  }
+
+  .stamp {
+    margin-top: 1rem;
+    display: grid;
+    gap: 0.4rem;
+    padding-top: 0.85rem;
+    border-top: 1px dashed var(--rule-soft);
+  }
+  .stamp-row {
+    display: grid;
+    grid-template-columns: minmax(0, 8.5rem) minmax(0, 1fr);
+    gap: 0.4rem 0.7rem;
+    font-size: 0.66rem;
+    align-items: baseline;
+  }
+  .stamp-k { color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.57rem; }
+  .stamp-v { color: var(--cyan); overflow-wrap: anywhere; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 02 — SPECIMEN. The try-it panel, drawn as an instrument: a bank of labelled switches
+     driving one specimen, with a live readout underneath.
+     --------------------------------------------------------------------------------------- */
+  .spec { margin-top: 1.75rem; display: grid; gap: 1.1rem; }
+  @media (min-width: 900px) { .spec { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); } }
+
+  .switches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.4rem;
+  }
+  .sw {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;                 /* tap target */
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    font: inherit;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    text-align: left;
+    color: var(--ink-dim);
+    background: transparent;
+    border: 1px solid var(--rule-soft);
+    border-radius: 0;
+    cursor: pointer;
+    /* Instrument-like: the state lands in two hard frames, no easing ramp. */
+    transition: color 100ms steps(2, end), border-color 100ms steps(2, end), background-color 100ms steps(2, end);
+  }
+  /* The switch's own indicator lamp. */
+  .sw::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 7px; height: 7px;
+    border: 1px solid var(--rule);
+    background: transparent;
+  }
+  .sw:hover { color: var(--ink); border-color: var(--rule); }
+  .sw[aria-pressed='true'] {
+    color: var(--sheet);
+    background: var(--cyan);
+    border-color: var(--cyan);
+  }
+  .sw[aria-pressed='true']::before { background: var(--sheet); border-color: var(--sheet); }
+
+  .stage-frame { padding: 0; overflow: clip; }
+  .stage {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: clip;
+    background: var(--sheet-deep);
+  }
+  .stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Registration marks over the specimen: this is a plate in a drawing, not a photograph. */
+  .stage-marks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(90deg, rgb(79 216 255 / 0.5) 0 1px, transparent 1px),
+      linear-gradient(180deg, rgb(79 216 255 / 0.5) 0 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%;
+    background-position: 50% 0, 0 50%;
+    background-repeat: no-repeat;
+    opacity: 0.22;
+  }
+
+  .readout {
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .ro {
+    display: grid;
+    grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr);
+    gap: 0.3rem 0.7rem;
+    padding: 0.45rem 0.9rem;
+    border-bottom: 1px solid var(--rule-soft);
+    font-size: 0.66rem;
+    align-items: baseline;
+  }
+  .ro:last-child { border-bottom: none; }
+  .ro-k {
+    font-size: 0.55rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .ro-v { color: var(--cyan); overflow-wrap: anywhere; }
+  .ro-v.measured { color: var(--amber); }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 03 — MOTION PROFILE. Three plotted easing curves, each drawn by the library's own
+     `draw-stroke` — the page demonstrating its subject with its subject.
+     --------------------------------------------------------------------------------------- */
+  .profiles { margin-top: 1.75rem; display: grid; gap: 1.1rem; }
+  @media (min-width: 760px) { .profiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .profile svg { display: block; width: 100%; height: auto; margin: 0.4rem 0 0.7rem; }
+  .profile .trace { fill: none; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; }
+  .profile .box   { fill: none; stroke: var(--rule); stroke-width: 1; }
+  .profile .target{ stroke: var(--rule-soft); stroke-width: 1; stroke-dasharray: 3 3; }
+  .profile figcaption {
+    font-size: 0.63rem;
+    color: var(--ink-faint);
+    line-height: 1.65;
+  }
+  .profile figcaption b { display: block; color: var(--ink); font-weight: 600; letter-spacing: 0.06em; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 04 — CHANNEL ALLOCATION. A bus-assignment table.
+     --------------------------------------------------------------------------------------- */
+  .matrix-scroll { margin-top: 1.5rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.matrix {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 20rem;
+    font-size: 0.66rem;
+  }
+  .matrix th, .matrix td {
+    border: 1px solid var(--rule-soft);
+    padding: 0.35rem 0.4rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .matrix thead th {
+    font-size: 0.53rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  .matrix tbody th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    padding-left: 0.55rem;
+  }
+  .matrix td.n { color: var(--ink-faint); }
+  .matrix td.on { color: var(--cyan); background: rgb(79 216 255 / 0.09); }
+  .matrix .num { color: var(--ink-faint); width: 2rem; }
+
+  .verdicts { margin-top: 1.2rem; display: grid; gap: 0.7rem; }
+  @media (min-width: 760px) { .verdicts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .verdict { padding: 0.75rem 0.9rem; border: 1px solid var(--rule-soft); min-width: 0; }
+  .verdict-h {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+  .verdict.ok  .verdict-h { color: var(--cyan); }
+  .verdict.bad .verdict-h { color: var(--amber); }
+  .verdict.bad { border-color: rgb(255 180 84 / 0.35); }
+  .verdict pre { font-size: 0.68rem; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 05 — TWO AXES
+     --------------------------------------------------------------------------------------- */
+  .axes { margin-top: 1.75rem; display: grid; gap: 1.1rem; }
+  @media (min-width: 900px) { .axes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* `overflow: clip`, never `hidden`: an overflow-hidden ancestor becomes the nearest scroll
+     container and `view()` resolves against it instead of the document, freezing progress.
+     See the TRAP note at the top of src/css/scroll.css. */
+  .plate-img { overflow: clip; border: 1px solid var(--rule-soft); background: var(--sheet-deep); }
+  .plate-img img { display: block; width: 100%; height: auto; }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 06 — SHEET INDEX
+     --------------------------------------------------------------------------------------- */
+  .index { margin-top: 1.6rem; border-top: 1px solid var(--rule); }
+  .idx {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'no title arrow'
+      'desc desc desc';
+    gap: 0.15rem 0.7rem;
+    align-items: baseline;
+    padding: 0.85rem 0.2rem;
+    border-bottom: 1px solid var(--rule-soft);
+    color: var(--ink);
+    min-height: 48px;
+    transition: background-color 90ms steps(2, end);
+  }
+  .idx:hover, .idx:focus-visible { background: rgb(79 216 255 / 0.07); }
+  .idx-no    { grid-area: no;    font-size: 0.57rem; letter-spacing: 0.16em; color: var(--ink-faint); }
+  .idx-title { grid-area: title; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; min-width: 0; }
+  .idx-desc  { grid-area: desc;  font-size: 0.64rem; color: var(--ink-faint); line-height: 1.6; min-width: 0; }
+  .idx-arrow { grid-area: arrow; color: var(--cyan); font-size: 0.8rem; }
+  .idx-title .hid { color: var(--amber); font-size: 0.55rem; letter-spacing: 0.14em; margin-left: 0.5rem; }
+  @media (min-width: 820px) {
+    .idx {
+      grid-template-columns: 5.5rem minmax(8rem, 13rem) minmax(0, 1fr) auto;
+      grid-template-areas: 'no title desc arrow';
+      align-items: center;
+      gap: 0 1.1rem;
+    }
+  }
+
+  /* ---------------------------------------------------------------------------------------
+     FIG. 07 — INSTALL
+     --------------------------------------------------------------------------------------- */
+  .install { margin-top: 1.6rem; display: grid; gap: 1.1rem; }
+  @media (min-width: 900px) { .install { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.85fr); } }
+
+  /* ---------------------------------------------------------------------------------------
+     FOOTER TITLE BLOCK
+     --------------------------------------------------------------------------------------- */
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding: 1.6rem 0 2.6rem;
+    display: grid;
+    gap: 1rem;
+  }
+  @media (min-width: 760px) { .colophon { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .colophon .tb-k { margin-bottom: 0.25rem; }
+  .colophon p { font-size: 0.66rem; color: var(--ink-faint); line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="substrate" aria-hidden="true"></div>
+<div class="crop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="plot-head" data-kui="scroll-progress-bar timeline:scroll" aria-hidden="true"></div>
+
+<div class="page" id="top">
+
+  <!-- =====================================================================================
+       FIG. 00 — TITLE BLOCK
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate hero">
+      <!-- The library's own `line-grid-drift`, panning behind the title block. It writes its
+           own background-image, so it gets a dedicated layer rather than sharing one. -->
+      <div class="hero-plot" data-kui="line-grid-drift 14s" aria-hidden="true"></div>
+
+      <p class="fig">Sheet 01 &nbsp;/&nbsp; Fig. 00 &nbsp;/&nbsp; Title block</p>
+
+      <h1 class="mark" data-kui="fade-in 420ms 0ms steps(5,end)">k<b>UI</b>netic</h1>
+
+      <p class="spec-line" data-kui="fade-up 460ms 120ms steps(6,end)">
+        A CSS animation library<br />authored in HTML attributes
+      </p>
+
+      <p class="lede" data-kui="fade-up 460ms 220ms steps(6,end)">
+        You write one attribute on one element — <code>data-kui="fade-up"</code> — and the library
+        compiles it into a real CSS <code>@keyframes</code> animation and, where the browser has
+        them, a native scroll-driven timeline. <b>No animation loop. No JavaScript to write.</b>
+        The sheets below document the machine: what the attribute is, what it turns into, and
+        where every part of it lives in the source.
+      </p>
+
+      <!-- `data-kui-stagger` indexes DIRECT children that themselves carry `data-kui` (see
+           src/core/stagger.ts) — so the cell, not the number inside it, has to be the animated
+           child for the stagger to be real. The cells wash in one after another; each one's
+           counter runs on its own. -->
+      <div class="titleblock" data-kui-stagger="70ms">
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Effects</span><span class="tb-v" data-kui="count-up 1200ms to:252">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Primitives</span><span class="tb-v" data-kui="count-up 1200ms to:30">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">CSS-only</span><span class="tb-v" data-kui="count-up 1200ms to:168">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Sections</span><span class="tb-v" data-kui="count-up 1200ms to:15">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Files to add</span><span class="tb-v" data-kui="count-up 1200ms to:2">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Build step</span><span class="tb-v sm">NONE</span></div>
+      </div>
+
+      <div class="keys">
+        <a class="key" href="#specimen">Try an effect</a>
+        <a class="key ghost" href="#mechanism" data-kui="border-draw">See the mechanism</a>
+        <a class="key ghost" href="#sheet-index">Sheet index</a>
+      </div>
+
+      <p class="note" style="margin-top:1.4rem">
+        Renderer split: ~168 <code>css</code> · ~11 <code>prep</code> · ~58 <code>js</code>.
+        Roughly 70% of the catalogue is keyframes plus a metadata row, and ships with zero runtime
+        JavaScript on browsers with native timelines.
+      </p>
+
+      <div class="dim" style="margin-top:1.6rem" aria-hidden="true">
+        <i></i><span>Sheet 01 of 09</span><i></i><span>Rev 1.0</span><i></i><span>Scale 1:1</span><i></i>
+      </div>
+    </section>
+  </div>
+
+  <!-- PARTS FEED ------------------------------------------------------------------------- -->
+  <section class="feed" aria-label="A sample of the entrance and exit vocabulary">
+    <div class="feed-row" data-kui="marquee 46s">
+      <span>fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;back-in-down&nbsp;·&nbsp;<b>pop-in</b>&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;fade-blur-up&nbsp;·&nbsp;wipe-circle&nbsp;·&nbsp;<b>mask-reveal</b>&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;split-chars&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>scramble</b>&nbsp;·&nbsp;draw-stroke&nbsp;·&nbsp;count-up&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>tilt-3d</b>&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;beam-border&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;spinner-ring&nbsp;·&nbsp;toast-slide-in&nbsp;·&nbsp;flip-card&nbsp;·&nbsp;<b>cube-rotate</b>&nbsp;·&nbsp;label-float&nbsp;·&nbsp;step-progress&nbsp;·&nbsp;</span>
+      <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;back-in-down&nbsp;·&nbsp;<b>pop-in</b>&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;fade-blur-up&nbsp;·&nbsp;wipe-circle&nbsp;·&nbsp;<b>mask-reveal</b>&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;scroll-desaturate&nbsp;·&nbsp;split-chars&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>scramble</b>&nbsp;·&nbsp;draw-stroke&nbsp;·&nbsp;count-up&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>tilt-3d</b>&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;beam-border&nbsp;·&nbsp;aurora&nbsp;·&nbsp;<b>scanline</b>&nbsp;·&nbsp;spinner-ring&nbsp;·&nbsp;toast-slide-in&nbsp;·&nbsp;flip-card&nbsp;·&nbsp;<b>cube-rotate</b>&nbsp;·&nbsp;label-float&nbsp;·&nbsp;step-progress&nbsp;·&nbsp;</span>
+    </div>
+  </section>
+
+  <!-- =====================================================================================
+       FIG. 01 — MECHANISM
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="mechanism">
+      <p class="fig">Fig. 01 &nbsp;/&nbsp; Mechanism &nbsp;/&nbsp; Exploded view</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">One attribute in.<br />Three real CSS artefacts out.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        Nothing here is a metaphor for compilation. The attribute is parsed, resolved against a
+        registry, and turned into ordinary CSS the browser runs on its own. Each panel below is
+        quoted from the file named on it.
+      </p>
+
+      <div class="mech">
+
+        <!-- INPUT --------------------------------------------------------------------------- -->
+        <div class="frame mech-src" data-kui="fade-up 480ms 0ms steps(6,end)">
+          <p class="ref">Ref. IN — authored markup <span class="src">your page</span></p>
+<pre><code>&lt;h2 <span class="k">data-kui="fade-up"</span>&gt;
+  One attribute.
+&lt;/h2&gt;</code></pre>
+
+          <p class="note" style="margin-top:0.9rem">
+            That is the whole authoring surface. Timing is positional and optional —
+            <code>fade-up 900ms 150ms ease-out</code> reads duration, delay, easing, in that
+            order. <code>steps(8,end)</code> is a legal easing token too, which is what gives this
+            sheet its stepped, plotted motion.
+          </p>
+
+          <div class="stamp">
+            <div class="stamp-row"><span class="stamp-k">Resolves to</span><span class="stamp-v">primitive <code>reveal</code></span></div>
+            <div class="stamp-row"><span class="stamp-k">Owns channels</span><span class="stamp-v">opacity · translate</span></div>
+            <div class="stamp-row"><span class="stamp-k">Renderer</span><span class="stamp-v">css — keyframes only</span></div>
+            <div class="stamp-row"><span class="stamp-k">Activation</span><span class="stamp-v">on:enter <span class="note">(the default — the literal string need not appear)</span></span></div>
+            <div class="stamp-row"><span class="stamp-k">Stamps</span><span class="stamp-v">data-kui-fx · data-kui-state · data-kui-rm</span></div>
+          </div>
+
+          <div class="dim" style="margin-top:1.1rem" aria-hidden="true">
+            <i></i><span>1 attribute</span><i></i><span>0 lines of JS</span><i></i>
+          </div>
+        </div>
+
+        <!-- OUTPUT -------------------------------------------------------------------------- -->
+        <div class="mech-out">
+
+          <div class="mech-row">
+            <div class="lead" aria-hidden="true"><s></s><i></i><u></u></div>
+            <div class="frame" data-kui="fade-right 460ms 60ms steps(6,end)">
+              <p class="ref">Ref. A-1 — parameter defaults <span class="src">src/css/presets.generated.css:412</span></p>
+<pre><code><span class="c">/* generated from the preset's declared params */</span>
+[data-kui-fx~=<span class="k">'fade-up'</span>] {
+  --kui-reveal-duration: <span class="a">600ms</span>;
+  --kui-reveal-delay: <span class="a">0ms</span>;
+  --kui-reveal-ease: <span class="a">ease-out</span>;
+}</code></pre>
+              <p class="note" style="margin-top:0.7rem">
+                Ordinary rules, not <code>!important</code>, so your own CSS can override any
+                default without a fight.
+              </p>
+            </div>
+          </div>
+
+          <div class="mech-row">
+            <div class="lead" aria-hidden="true"><s></s><i></i><u></u></div>
+            <div class="frame" data-kui="fade-right 460ms 140ms steps(6,end)">
+              <p class="ref">Ref. A-2 — the keyframe block <span class="src">src/css/entrance.css:23</span></p>
+<pre><code>@keyframes <span class="k">kui-in-up</span> {
+  from {
+    opacity: var(--kui-from-opacity, <span class="a">0</span>);
+    translate: 0 var(--kui-distance, <span class="a">24px</span>);
+  }
+}</code></pre>
+              <p class="note" style="margin-top:0.7rem">
+                <code>from</code>-only. The element's own resting style is the <code>to</code>
+                state, so 48 preset names share 24 keyframe blocks.
+              </p>
+            </div>
+          </div>
+
+          <div class="mech-row">
+            <div class="lead" aria-hidden="true"><s></s><i></i><u></u></div>
+            <div class="frame" data-kui="fade-right 460ms 220ms steps(6,end)">
+              <p class="ref">Ref. A-3 — the declaration written on the element <span class="src">src/core/compile.ts:287</span></p>
+<pre><code>animation-name: <span class="k">kui-in-up</span>;
+animation-duration: var(--kui-reveal-duration, 600ms);
+animation-delay: calc(
+  var(--kui-reveal-delay, 0ms)
+  + var(--kui-i, 0) * var(--kui-stagger, 0ms)
+);
+animation-timing-function: var(--kui-reveal-ease, ease-out);
+animation-iteration-count: var(--kui-fx-fade-up-iterations, 1);
+animation-fill-mode: both;</code></pre>
+              <p class="note" style="margin-top:0.7rem">
+                Longhands, not the <code>animation</code> shorthand — because composition is
+                expressed as parallel value lists across one declaration. Two effects, two
+                comma-separated entries in every list. See Fig. 04.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <p class="note" style="margin-top:1.4rem">
+        <span class="tag">Note</span>
+        Every <code>var()</code> above is a knob. <code>--kui-stagger</code> on a parent times a
+        whole group; <code>--kui-distance</code> changes how far the element travels; both are
+        read straight out of the compiled <code>calc()</code>, so overriding one takes a single
+        CSS line and no re-authoring.
+      </p>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 02 — SPECIMEN / TRY IT
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="specimen">
+      <p class="fig">Fig. 02 &nbsp;/&nbsp; Specimen &nbsp;/&nbsp; Component selector</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">Throw a switch. Read the instrument.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        Each switch writes a different <code>data-kui</code> value onto the same specimen and the
+        runtime recompiles it in place. No rebuild, no re-render, nothing else on the page
+        touched. The readout under the plate is <b>measured off the live element</b> after each
+        change, not typed out here.
+      </p>
+
+      <div class="spec">
+
+        <div class="frame" data-kui="fade-up 480ms 0ms steps(6,end)">
+          <p class="ref">Ref. B-1 — selector bank <span class="src">14 positions</span></p>
+          <div class="switches" role="group" aria-label="Choose an effect">
+            <button type="button" class="sw" aria-pressed="true"  data-fx="wipe-circle 1400ms">wipe-circle</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="mask-reveal 1400ms">mask-reveal</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="curtain-reveal 1400ms">curtain-reveal</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="wipe-right 1400ms">wipe-right</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="wipe-up 1400ms">wipe-up</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="wipe-diagonal 1400ms">wipe-diagonal</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="slat-assemble 1400ms">slat-assemble</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="blur-up 1400ms">blur-up</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="ken-burns 5000ms">ken-burns</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="fade-blur-up 1400ms">fade-blur-up</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="zoom-in-up 1400ms">zoom-in-up</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="flip-in-x 1400ms">flip-in-x</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="roll-in 1400ms">roll-in</button>
+            <button type="button" class="sw" aria-pressed="false" data-fx="fade-up 900ms 0ms steps(8,end)">fade-up · steps(8)</button>
+          </div>
+          <p class="note" style="margin-top:0.9rem">
+            The last position is the same <code>fade-up</code> from Fig. 01 with a
+            <code>steps(8,end)</code> easing token in the third positional slot — the plotted,
+            eight-frame version of an otherwise smooth ramp.
+          </p>
+        </div>
+
+        <div class="frame stage-frame" data-kui="fade-up 480ms 100ms steps(6,end)">
+          <!-- The attribute goes on the wrapper, not the <img>: `slat-assemble` builds a stage of
+               slats around the picture it is given, so it needs a wrapper — and every other
+               entrance works on a wrapper too, keeping all 14 positions on one footing. -->
+          <div class="stage" id="spec-target" data-kui="wipe-circle 1400ms">
+            <img src="./assets/futurism/futuristic_visor_hud.jpg" alt="Astronaut in a white spacesuit helmet, a glowing cyan HUD readout across the visor, blurred string lights behind" />
+            <span class="stage-marks" aria-hidden="true"></span>
+          </div>
+          <div class="readout">
+            <div class="ro"><span class="ro-k">data-kui</span><span class="ro-v" id="ro-attr">wipe-circle 1400ms</span></div>
+            <div class="ro"><span class="ro-k">keyframes</span><span class="ro-v measured" id="ro-name">—</span></div>
+            <div class="ro"><span class="ro-k">duration</span><span class="ro-v measured" id="ro-dur">—</span></div>
+            <div class="ro"><span class="ro-k">easing</span><span class="ro-v measured" id="ro-ease">—</span></div>
+            <div class="ro"><span class="ro-k">source</span><span class="ro-v" id="ro-src">read from the live element</span></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 03 — MOTION PROFILE
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="profile">
+      <p class="fig">Fig. 03 &nbsp;/&nbsp; Motion profile &nbsp;/&nbsp; Plotted traces</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">Easing is a value you type.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        The third positional argument. A keyword, a <code>cubic-bezier()</code>, a
+        <code>steps()</code>, or one of the library's named curves. Each trace below is the real
+        function, plotted progress against time — and each one is drawn on screen by
+        <code>draw-stroke</code>, the library's own SVG primitive.
+      </p>
+
+      <div class="profiles" data-kui-stagger="180ms">
+
+        <figure class="profile frame" data-kui="fade-up 460ms 0ms steps(6,end)">
+          <p class="ref">Ref. C-1 <span class="src">keyword</span></p>
+          <svg viewBox="0 -62 200 172" role="img" aria-label="Plot of the ease-out easing curve: a fast start settling smoothly into the target">
+            <line class="target" x1="0" y1="0" x2="200" y2="0" />
+            <rect class="box" x="0.5" y="0.5" width="199" height="99" />
+            <path class="trace" stroke="#4fd8ff" pathLength="100"
+                  d="M 0 100 C 0 100 116 0 200 0"
+                  data-kui="draw-stroke 1300ms 0ms on:enter" />
+          </svg>
+          <figcaption><b>ease-out</b>cubic-bezier(0, 0, 0.58, 1). The default for every entrance preset in the catalogue.</figcaption>
+        </figure>
+
+        <figure class="profile frame" data-kui="fade-up 460ms 0ms steps(6,end)">
+          <p class="ref">Ref. C-2 <span class="src">stepped</span></p>
+          <svg viewBox="0 -62 200 172" role="img" aria-label="Plot of the steps(8, end) easing function: eight equal jumps forming a staircase">
+            <line class="target" x1="0" y1="0" x2="200" y2="0" />
+            <rect class="box" x="0.5" y="0.5" width="199" height="99" />
+            <path class="trace" stroke="#4fd8ff" pathLength="100"
+                  d="M 0 100 H 25 V 87.5 H 50 V 75 H 75 V 62.5 H 100 V 50 H 125 V 37.5 H 150 V 25 H 175 V 12.5 H 200 V 0"
+                  data-kui="draw-stroke 1300ms 240ms on:enter" />
+          </svg>
+          <figcaption><b>steps(8, end)</b>Eight discrete frames instead of a ramp. Everything on this sheet moves this way.</figcaption>
+        </figure>
+
+        <figure class="profile frame" data-kui="fade-up 460ms 0ms steps(6,end)">
+          <p class="ref">Ref. C-3 <span class="src">named</span></p>
+          <svg viewBox="0 -62 200 172" role="img" aria-label="Plot of the back-out easing curve: overshoots past the target before settling back onto it">
+            <line class="target" x1="0" y1="0" x2="200" y2="0" />
+            <rect class="box" x="0.5" y="0.5" width="199" height="99" />
+            <path class="trace" stroke="#ffb454" pathLength="100"
+                  d="M 0 100 C 68 -56 128 0 200 0"
+                  data-kui="draw-stroke 1300ms 480ms on:enter" />
+          </svg>
+          <figcaption><b>--kui-ease-back-out</b>cubic-bezier(0.34, 1.56, 0.64, 1). Rises above 1 and comes back — the overshoot <code>pop-in</code> uses.</figcaption>
+        </figure>
+
+      </div>
+
+      <p class="note" style="margin-top:1.3rem">
+        <span class="tag">Ref</span>
+        Named curves are declared once in <code>src/css/base.css:15–30</code> and reachable from
+        any attribute as a bare word: <code>data-kui="pop-in 500ms 0ms back-out"</code>. Traces
+        drawn with <code>data-kui="draw-stroke 1300ms 240ms on:enter"</code> on a
+        <code>&lt;path pathLength="100"&gt;</code> — <code>pathLength</code> normalises the path to
+        100 units, which is the default <code>--kui-path-length</code>, so the draw needs no
+        measurement and the library never calls <code>getTotalLength()</code>.
+      </p>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 04 — CHANNEL ALLOCATION
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="channels">
+      <p class="fig">Fig. 04 &nbsp;/&nbsp; Channel allocation &nbsp;/&nbsp; Bus assignment</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">Two effects share one element<br />only if they share no property.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        Every primitive declares which CSS properties it owns — its <b>channels</b>. Comma-separate
+        two whose channels are disjoint and they compile into one animation. Comma-separate two
+        that both want <code>translate</code> and the library keeps the first and warns in the
+        console naming both. Never a silent drop.
+      </p>
+
+      <div class="matrix-scroll" data-kui="fade-up 460ms 120ms steps(6,end)">
+        <table class="matrix">
+          <caption class="note" style="text-align:left; padding-bottom:0.6rem">
+            10 of 30 primitive families. Full table in docs/catalog.md.
+          </caption>
+          <thead>
+            <tr>
+              <th class="num">#</th>
+              <th style="text-align:left; padding-left:0.55rem">Primitive</th>
+              <th>o</th><th>t</th><th>s</th><th>r</th><th>f</th><th>c</th><th>x</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="num">01</td><th scope="row">reveal</th>       <td class="on">●</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">02</td><th scope="row">scale-in</th>     <td class="n">·</td><td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">03</td><th scope="row">rotate-in</th>    <td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">04</td><th scope="row">blur</th>         <td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">05</td><th scope="row">clip-wipe</th>    <td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="on">●</td><td class="n">·</td></tr>
+            <tr><td class="num">06</td><th scope="row">mask-reveal</th>  <td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="on">●</td><td class="n">·</td></tr>
+            <tr><td class="num">07</td><th scope="row">ken-burns</th>    <td class="n">·</td><td class="on">●</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">08</td><th scope="row">float</th>        <td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">09</td><th scope="row">pulse</th>        <td class="on">●</td><td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+            <tr><td class="num">10</td><th scope="row">shake</th>        <td class="n">·</td><td class="on">●</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td><td class="n">·</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note" style="margin-top:0.8rem">
+        <span class="tag">Key</span>
+        <code>o</code> opacity · <code>t</code> translate · <code>s</code> scale ·
+        <code>r</code> rotate · <code>f</code> filter · <code>c</code> clip/mask ·
+        <code>x</code> other
+      </p>
+
+      <div class="verdicts">
+        <div class="verdict ok" data-kui="fade-up 460ms 0ms steps(6,end)">
+          <p class="verdict-h">Composes — channels disjoint</p>
+<pre><code>&lt;h1 data-kui="<span class="k">slide-up 800ms, blur-in 400ms</span>"&gt;</code></pre>
+          <p class="note" style="margin-top:0.6rem">
+            <code>reveal</code> owns opacity + translate; <code>blur</code> owns filter. One
+            compiled declaration, two comma-separated tracks in each longhand list.
+          </p>
+        </div>
+        <div class="verdict bad" data-kui="fade-up 460ms 90ms steps(6,end)">
+          <p class="verdict-h">Collides — both write translate</p>
+<pre><code>&lt;h1 data-kui="<span class="a">fade-up, slide-left</span>"&gt;</code></pre>
+          <p class="note" style="margin-top:0.6rem">
+            The first is kept, the second dropped, and the console names both. The catalogue's
+            Channels column is there so you can check before you compose.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 05 — TWO AXES
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="axes">
+      <p class="fig">Fig. 05 &nbsp;/&nbsp; Drive &nbsp;/&nbsp; Two independent axes</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">What starts it, and what drives it,<br />are different questions.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        The most common mistake with this library is treating <code>on:</code> and
+        <code>timeline:</code> as two tiers of the same setting. They are separate axes. One says
+        when the animation is released; the other says what supplies its progress — a clock, or
+        the scrollbar.
+      </p>
+
+      <div class="axes">
+
+        <div class="frame" data-kui="fade-up 480ms 0ms steps(6,end)">
+          <p class="ref">Ref. D-1 — activation <span class="src">a clock drives it</span></p>
+<pre><code>&lt;figure data-kui="fade-up <span class="k">on:enter</span>"&gt;</code></pre>
+          <p class="note" style="margin-top:0.8rem">
+            Held at its <code>from</code> state — <code>animation-play-state: paused</code> — until
+            an <code>IntersectionObserver</code> releases it. Plays once at its authored duration
+            and <b>stays finished</b>. Scroll back up and nothing rewinds.
+          </p>
+          <div class="stamp">
+            <div class="stamp-row"><span class="stamp-k">Values</span><span class="stamp-v">load · enter · hover · focus · click · manual</span></div>
+            <div class="stamp-row"><span class="stamp-k">Default</span><span class="stamp-v">enter</span></div>
+            <div class="stamp-row"><span class="stamp-k">Longhand</span><span class="stamp-v">data-kui-on="click"</span></div>
+          </div>
+        </div>
+
+        <div class="frame" data-kui="fade-up 480ms 100ms steps(6,end)">
+          <p class="ref">Ref. D-2 — timeline <span class="src">scroll drives it</span></p>
+<pre><code>&lt;figure data-kui="scroll-desaturate <span class="k">timeline:view</span>"&gt;
+
+<span class="c">/* compiled — src/core/style-plan.ts:110 */</span>
+animation-timeline: <span class="a">view()</span>;
+animation-range: <span class="a">entry 0% cover 60%</span>;</code></pre>
+          <p class="note" style="margin-top:0.8rem">
+            Progress maps continuously to scroll position, so it <b>reverses on the way back
+            up</b>. A duration is close to meaningless here — the scrollbar is the clock. Where
+            the browser has no native timeline the runtime falls back to an <code>on:enter</code>
+            reveal, a documented behavioural difference rather than an equivalent.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- A live specimen of the second axis. `overflow: clip` on the frame, never `hidden` —
+           an overflow-hidden ancestor becomes the nearest scroll container and view() would
+           resolve against it instead of the document. -->
+      <figure class="plate-img" style="margin-top:1.1rem">
+        <img src="./assets/product/future-glasses.jpg"
+             alt="Futuristic white smart glasses with dark reflective lenses, twin cameras on the temples, and a HUD readout visible in the lens"
+             data-kui="scroll-desaturate timeline:view" />
+      </figure>
+      <div class="dim" style="margin-top:0.7rem" aria-hidden="true">
+        <i></i><span>Specimen · scroll-desaturate · timeline:view</span><i></i>
+      </div>
+      <p class="note" style="margin-top:0.7rem">
+        Scroll this plate up and down. Colour drains and refills with the scrollbar, not with a
+        timer — that is the whole difference between the two panels above.
+      </p>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 06 — SHEET INDEX
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="sheet-index">
+      <p class="fig">Fig. 06 &nbsp;/&nbsp; Sheet index &nbsp;/&nbsp; Drawing set</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">252 effects, drawn on nine sheets.</h2>
+      <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
+        Not one wall. Each sheet takes a section of the catalogue and shows every name in it
+        running, with the attribute that produced it printed alongside.
+      </p>
+
+      <nav class="index" aria-label="Demo sheets" data-kui-stagger="45ms">
+
+        <a class="idx" href="./reveals.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 02</span>
+          <span class="idx-title">Reveals</span>
+          <span class="idx-desc">Section A — the entrance and exit matrix. 48 names over 24 keyframe blocks, plus composition, parameters and triggers.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./scroll.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 03</span>
+          <span class="idx-title">Scroll</span>
+          <span class="idx-desc">Sections B and C — parallax, progress, pinning, scrollytelling, frame scrubbing. Native CSS timelines where the browser has them, a shared JS orchestrator where it does not.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./text.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 04</span>
+          <span class="idx-title">Text</span>
+          <span class="idx-desc">Section D — 26 names. Segmentation, typing, scramble, colour and line, variable-font axes, marquee. One accessible reading of the text preserved throughout.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./data-hover.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 05</span>
+          <span class="idx-title">Data &amp; Hover</span>
+          <span class="idx-desc">Sections F and I — counters, rings, gauges and sparklines, alongside button, border, link, icon, tilt and cursor effects.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./interactive.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 06</span>
+          <span class="idx-title">Interactive</span>
+          <span class="idx-desc">Gestures and physics plus section H — drag, throw, swipe, magnetic pull, long-press, and FLIP layout transitions driven by a spring integrator.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./ambient-feedback.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 07</span>
+          <span class="idx-title">Ambient &amp; Feedback</span>
+          <span class="idx-desc">Sections J and K — gradient meshes, aurora, noise, scanlines, drifting grids; then spinners, skeletons, toasts and click reactions.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./nav-forms.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 08</span>
+          <span class="idx-title">Nav &amp; Forms</span>
+          <span class="idx-desc">Sections M and O — 8 navigation names and 12 form names. The library owns the motion only; never the open/close state, never focus handling.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./icons-transitions.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 09</span>
+          <span class="idx-title">Icons &amp; Transitions <span class="hid">[UNLISTED]</span></span>
+          <span class="idx-desc">Sections E and L — every SVG draw, fill, morph and icon toggle, plus the page-transition presets.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+        <a class="idx" href="./three-d.html" data-kui="fade-up 400ms 0ms steps(5,end)">
+          <span class="idx-no">SHT. 10</span>
+          <span class="idx-title">3D &amp; Perspective <span class="hid">[UNLISTED]</span></span>
+          <span class="idx-desc">Section N — card-flip-x, cube-rotate, book-page-turn, fold-panel. Real keyframes with a perspective() transform, zero animation-loop JS.</span>
+          <span class="idx-arrow" aria-hidden="true">→</span>
+        </a>
+
+      </nav>
+
+      <p class="note" style="margin-top:1rem">
+        <span class="tag b">Note</span>
+        The two sheets marked <b>UNLISTED</b> work but are not in the site's own navigation.
+        They are on the index because a drawing set does not hide sheets.
+      </p>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FIG. 07 — INSTALL
+       ===================================================================================== -->
+  <div class="wrap">
+    <section class="plate" id="install">
+      <p class="fig">Fig. 07 &nbsp;/&nbsp; Installation &nbsp;/&nbsp; Bill of materials</p>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">Two files. No bundler.</h2>
+
+      <div class="install">
+        <div class="frame" data-kui="fade-up 480ms 0ms steps(6,end)">
+          <p class="ref">Ref. E-1 — drop-in <span class="src">docs/getting-started.md</span></p>
+<pre><code>&lt;link rel="stylesheet" href="<span class="k">./kuinetic.css</span>"&gt;
+&lt;script src="<span class="k">./kuinetic.js</span>"&gt;&lt;/script&gt;
+&lt;script&gt;
+  kuinetic.kuinetic({ observe: true }).start()
+&lt;/script&gt;</code></pre>
+          <p class="note" style="margin-top:0.8rem">
+            <code>observe: true</code> keeps a <code>MutationObserver</code> running so elements
+            added later — by your app, a CMS, a client-side router — get picked up automatically.
+            Drop it for a fully static page and the smallest possible init.
+          </p>
+        </div>
+
+        <div class="frame" data-kui="fade-up 480ms 100ms steps(6,end)">
+          <p class="ref">Ref. E-2 — with a bundler</p>
+<pre><code>import { kuinetic } from '<span class="k">kuinetic</span>'
+import '<span class="k">kuinetic/css</span>'
+
+kuinetic({ observe: true }).start()</code></pre>
+          <div class="stamp">
+            <div class="stamp-row"><span class="stamp-k">Then</span><span class="stamp-v">&lt;h1 data-kui="fade-up"&gt;Hello.&lt;/h1&gt;</span></div>
+          </div>
+          <div class="keys" style="margin-top:1.1rem">
+            <a class="key" href="./docs.html?doc=getting-started">Getting started</a>
+            <a class="key ghost" href="./docs.html?doc=catalog">Full catalogue</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- =====================================================================================
+       FOOTER TITLE BLOCK
+       ===================================================================================== -->
+  <div class="wrap">
+    <footer class="colophon">
+      <div>
+        <span class="tb-k">Drawing</span>
+        <p>kUInetic — sheet 01 of 09. Motif study: technical blueprint. Every effect name on this
+           sheet is real; every compiled block is quoted from source with its file and line.</p>
+      </div>
+      <div>
+        <span class="tb-k">Standards</span>
+        <p>CSS <code>@keyframes</code> · <code>animation-timeline: view() / scroll()</code> ·
+           <code>IntersectionObserver</code> · <code>MutationObserver</code> ·
+           <code>Intl.Segmenter</code> · <code>prefers-reduced-motion</code>.</p>
+      </div>
+      <div>
+        <span class="tb-k">Navigation</span>
+        <p>
+          <a href="#top" data-kui="underline-slide">Return to title block ↑</a><br />
+          <a href="#sheet-index" data-kui="underline-slide">Sheet index</a><br />
+          <a href="./index.html" data-kui="underline-slide">Current site design</a>
+        </p>
+      </div>
+    </footer>
+  </div>
+
+</div>
+
+<script src="./kuinetic.js"></script>
+<script>
+  window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+</script>
+<script>
+  // --- FIG. 02: the selector bank ---------------------------------------------------------
+  //
+  // The mechanism is `reset()` + `process()` + `activate()`, exactly as demo/index.html's
+  // playground uses it, and for the same three reasons:
+  //
+  //   reset()    releases the installed state. Without it `process()` short-circuits, because
+  //              the element's configuration object is cached and "it changed" is what it tests.
+  //   process()  re-plans and re-writes the compiled declaration for the new attribute value.
+  //   activate() opens the gate. `process()` leaves the effect GATED on its activation trigger,
+  //              which is `on:enter` by default. The element never left the viewport, so the
+  //              observer never re-fires, and the animation would sit at
+  //              `playState: paused, currentTime: 0` forever. A click IS the activation.
+  //
+  // The readout below is deliberately *measured*, not mirrored: it reads the declaration the
+  // runtime just wrote onto the element rather than restating the string the button holds.
+  // A blueprint that prints its own inputs back at you is not an instrument.
+  ;(function () {
+    var target = document.getElementById('spec-target')
+    var switches = document.querySelectorAll('.sw')
+    var roAttr = document.getElementById('ro-attr')
+    var roName = document.getElementById('ro-name')
+    var roDur = document.getElementById('ro-dur')
+    var roEase = document.getElementById('ro-ease')
+    var roSrc = document.getElementById('ro-src')
+    if (!target || !switches.length) return
+
+    // Prefer the inline style the runtime wrote; fall back to the computed value. A `prep` or
+    // `js` renderer emits no `animation` declaration on the host element at all — that reads
+    // back as '' or 'none', which is information rather than a failure, so say so.
+    function readDecl(prop) {
+      var inline = target.style.getPropertyValue(prop)
+      if (inline) return inline
+      var computed = getComputedStyle(target).getPropertyValue(prop)
+      return computed && computed !== 'none' ? computed : ''
+    }
+
+    function paintReadout(authored) {
+      roAttr.textContent = authored
+      var name = readDecl('animation-name')
+      var dur = readDecl('animation-duration')
+      var ease = readDecl('animation-timing-function')
+      var css = !!name
+      roName.textContent = css ? name : '— none on this element'
+      roDur.textContent = css ? dur : '—'
+      roEase.textContent = css ? ease : '—'
+      roSrc.textContent = css
+        ? 'measured — css renderer, keyframes on this element'
+        : 'measured — prep/js renderer, keyframes live on generated children'
+    }
+
+    switches.forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        var fx = sw.getAttribute('data-fx')
+        switches.forEach(function (other) {
+          other.setAttribute('aria-pressed', String(other === sw))
+        })
+        target.setAttribute('data-kui', fx)
+
+        var kui = window.__kui
+        if (kui && typeof kui.reset === 'function') {
+          kui.reset(target)
+          kui.process(target)
+          kui.activate(target)
+        }
+        paintReadout(fx)
+      })
+    })
+
+    // Seed the readout from whatever the runtime installed for the default attribute. One frame
+    // of delay: `start()` above walks the document synchronously, but reading straight after it
+    // in the same task can beat the style write on some paths.
+    requestAnimationFrame(function () {
+      paintReadout(target.getAttribute('data-kui') || '')
+    })
+  })()
+</script>
+
+</body>
+</html>

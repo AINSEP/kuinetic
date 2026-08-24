@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — CSS animation, authored in HTML</title>
+<meta name="description" content="kUInetic is a CSS animation library you author in HTML. Write data-kui=&quot;fade-up 600ms on:enter&quot; on an element and the library compiles it to real CSS keyframes and native scroll-driven timelines. 252 named effects, 30 primitive families, zero dependencies." />
+
+<script>
+  // Pre-paint theme, same storage key as the rest of the showcase so the toggle is shared.
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- Inter is the fallback grotesque for machines without Helvetica Neue. One family, no serifs. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+
+<style>
+  /* ============================================================================================
+     MOTIF: SWISS / INTERNATIONAL TYPOGRAPHIC STYLE, PUSHED BRUTALIST.
+
+     One grotesque. A visible 12-column grid printed on the paper. True black, true white, three
+     greys, and exactly one signal colour — International Orange. Zero radii, zero shadows, zero
+     gradients. Hairline rules do all the dividing. Motion is a stamp: short, steep, linear-ish,
+     never a float.
+
+     Everything below is this page's own CSS. The library's stylesheet lives in @layer kui.*, and
+     these rules are unlayered, so they win wherever the two meet without a single !important.
+     ============================================================================================ */
+
+  /* ---------- tokens ---------- */
+  :root,
+  :root[data-theme='light'] {
+    --paper: #ffffff;
+    --ink: #000000;
+    --g-05: #f2f2f0;   /* faint fill — the only non-white surface */
+    --g-20: #d2d2ce;   /* the hairline */
+    --g-45: #6e6e6a;   /* secondary text */
+    /* International Orange. Chosen over a Swiss red because the demo library's own photography
+       already carries it (an entire portrait lit orange sits in the playground), so the signal
+       colour and the imagery are the same decision rather than two. Deliberately NOT the
+       showcase's acid yellow — this motif is a rebrand, not a reskin. */
+    --signal: #ff4a00;
+    --signal-ink: #000000; /* what reads on top of a --signal fill */
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    --paper: #000000;
+    --ink: #ffffff;
+    --g-05: #0d0d0d;
+    --g-20: #333330;
+    --g-45: #97978f;
+    --signal: #ff5a14;
+    --signal-ink: #000000;
+    color-scheme: dark;
+  }
+
+  :root {
+    /* The grid. Four visible columns on a phone, six on a tablet, twelve on a desk — the same
+       token drives the content grid and the printed rules, so they can never fall out of step. */
+    --cols: 4;
+    --gutter: 10px;
+    --pad: 14px;
+
+    /* Motion note: every easing on this page is cubic-bezier(.85,0,.15,1) or a steps() function,
+       authored inside the data-kui attribute. Written without spaces — the attribute grammar
+       splits tokens on whitespace, and an easing with spaces in it would be shredded. */
+
+    --t-display: clamp(2.25rem, 10.5vw, 10rem);
+    --t-h2: clamp(1.75rem, 7vw, 4.25rem);
+    --t-h3: clamp(1.0625rem, 2.6vw, 1.5rem);
+    --t-body: 0.875rem;
+    --t-dense: 0.8125rem;
+    --t-label: 0.625rem;
+    --t-code: 0.75rem;
+  }
+  @media (min-width: 40em) {
+    :root { --cols: 6; --gutter: 14px; --pad: 22px; }
+  }
+  @media (min-width: 64em) {
+    :root { --cols: 12; --gutter: 18px; --pad: 30px; --t-body: 0.875rem; --t-code: 0.8125rem; }
+  }
+  @media (min-width: 100em) {
+    :root { --gutter: 22px; --pad: 44px; }
+  }
+
+  /* ---------- reset ---------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Helvetica Neue', Helvetica, Inter, Arial, 'Liberation Sans', sans-serif;
+    font-size: var(--t-body);
+    line-height: 1.5;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    /* The one hard mobile promise: nothing on this page may push the document sideways.
+       `clip`, not `hidden`: `hidden` would make <body> a scroll container and break the sticky
+       rail above. `clip` clips the overflow without creating one. */
+    overflow-x: clip;
+  }
+  /* Poster, not app: no rounded anything, anywhere on this page. */
+  body * { border-radius: 0; }
+  img { display: block; max-width: 100%; height: auto; }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3, p, ul, ol, figure, dl, dd { margin: 0; }
+  ul { list-style: none; padding: 0; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  code, pre, .mono { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace; }
+  ::selection { background: var(--signal); color: var(--signal-ink); }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+  .skip {
+    position: absolute; left: -9999px; top: 0; z-index: 200;
+    background: var(--ink); color: var(--paper); padding: 0.75rem 1rem;
+    font-size: var(--t-label); letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .skip:focus { left: 0; }
+
+  /* ---------- typographic primitives ---------- */
+  .label {
+    font-size: var(--t-label);
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 500;
+  }
+  .num {
+    color: var(--signal);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .display {
+    font-size: var(--t-display);
+    line-height: 0.85;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+  h2.h2 {
+    font-size: var(--t-h2);
+    line-height: 0.92;
+    letter-spacing: -0.035em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .h3 {
+    font-size: var(--t-h3);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .body { max-width: 46ch; }
+  .muted { color: var(--g-45); }
+  .rule-top { border-top: 1px solid var(--ink); }
+  .rule-hair { border-top: 1px solid var(--g-20); }
+
+  /* ---------- the grid, made visible ---------- */
+  #page { position: relative; }
+
+  .rules {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    column-gap: var(--gutter);
+    padding: 0 var(--pad);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .rules > i { border-left: 1px solid var(--g-20); }
+
+  /* Twelve rules are printed in the markup; the narrow viewports simply do not draw all of them.
+     This is the deliberate answer to "a strict visible grid dies on a phone": the grid does not
+     shrink to a squashed twelve, it *becomes* a four-column grid, and the columns stay legible
+     the whole way up. The right-hand edge rule moves to whichever column is last on show.
+     Every override below keeps the same specificity as the rule it is overriding, so source
+     order decides the winner rather than a specificity accident. */
+  .rules > i:nth-child(n + 5) { display: none; }
+  .rules > i:nth-child(4) { border-right: 1px solid var(--g-20); }
+  @media (min-width: 40em) {
+    .rules > i:nth-child(n + 5) { display: block; }
+    .rules > i:nth-child(n + 7) { display: none; }
+    .rules > i:nth-child(4) { border-right: 0; }
+    .rules > i:nth-child(6) { border-right: 1px solid var(--g-20); }
+  }
+  @media (min-width: 64em) {
+    .rules > i:nth-child(n + 7) { display: block; }
+    .rules > i:nth-child(6) { border-right: 0; }
+    .rules > i:nth-child(12) { border-right: 1px solid var(--g-20); }
+  }
+  /* Inside an ink band the rules are printed in the band's own foreground, at low weight. */
+  .band-ink .rules > i { border-left-color: color-mix(in srgb, var(--paper) 22%, transparent); }
+  .band-ink .rules > i:nth-child(4),
+  .band-ink .rules > i:nth-child(6),
+  .band-ink .rules > i:nth-child(12) { border-right-color: color-mix(in srgb, var(--paper) 22%, transparent); }
+
+  /* The content grid, on exactly the same tracks. */
+  .g {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+    column-gap: var(--gutter);
+    padding-left: var(--pad);
+    padding-right: var(--pad);
+  }
+  /* Mobile first: everything is a full-bleed stack until a wider viewport earns the columns. */
+  .g > * { grid-column: 1 / -1; }
+
+  @media (min-width: 40em) {
+    .m-1-3 { grid-column: 1 / span 3; }
+    .m-4-6 { grid-column: 4 / span 3; }
+    .m-1-4 { grid-column: 1 / span 4; }
+    .m-1-2 { grid-column: 1 / span 2; }
+    .m-3-4 { grid-column: 3 / span 2; }
+    .m-5-6 { grid-column: 5 / span 2; }
+  }
+  @media (min-width: 64em) {
+    .c-1-4  { grid-column: 1 / span 4; }
+    .c-1-5  { grid-column: 1 / span 5; }
+    .c-1-6  { grid-column: 1 / span 6; }
+    .c-1-7  { grid-column: 1 / span 7; }
+    .c-1-8  { grid-column: 1 / span 8; }
+    .c-1-9  { grid-column: 1 / span 9; }
+    .c-5-8  { grid-column: 5 / span 4; }
+    .c-6-8  { grid-column: 6 / span 3; }
+    .c-6-12 { grid-column: 6 / span 7; }
+    .c-7-12 { grid-column: 7 / span 6; }
+    .c-8-12 { grid-column: 8 / span 5; }
+    .c-9-12 { grid-column: 9 / span 4; }
+    .c-10-12 { grid-column: 10 / span 3; }
+    .c-5-12 { grid-column: 5 / span 8; }
+  }
+
+  /* ---------- the top rail ---------- */
+  #progress {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--signal);
+    transform-origin: left center;
+    z-index: 120;
+  }
+
+  .rail {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--paper);
+    border-bottom: 1px solid var(--ink);
+  }
+  .rail-in {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 0.6rem var(--pad);
+    min-height: 46px;
+  }
+  .mark {
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.045em;
+    margin-right: auto;
+  }
+  .mark span { color: var(--signal); }
+  .rail-spec { display: none; }
+  @media (min-width: 64em) {
+    .rail-spec {
+      display: flex; gap: 0.9rem; align-items: center;
+      margin: 0 auto 0 2.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .rail-spec i { display: block; width: 1px; height: 9px; background: var(--g-20); }
+  }
+  .rail-nav { display: flex; align-items: center; gap: 0.9rem; }
+  .rail-nav a, .rail-nav button {
+    border-bottom: 2px solid transparent;
+    padding-bottom: 1px;
+    /* 44px of vertical hit area on touch without breaking the 46px rail. */
+    display: inline-flex; align-items: center; min-height: 34px;
+  }
+  .rail-nav a:hover, .rail-nav button:hover { border-bottom-color: var(--signal); }
+
+  /* ---------- vertical rhythm ---------- */
+  .sec { padding-block: clamp(3rem, 9vw, 7rem); }
+  .sec + .sec { border-top: 1px solid var(--ink); }
+  .band-ink {
+    position: relative;
+    background: var(--ink);
+    color: var(--paper);
+    border-top: 1px solid var(--ink);
+  }
+  .band-ink a { color: var(--paper); }
+  .stack-1 > * + * { margin-top: 0.5rem; }
+  .stack-2 > * + * { margin-top: 1rem; }
+  .stack-3 > * + * { margin-top: 1.75rem; }
+  .stack-5 > * + * { margin-top: 3rem; }
+
+  /* A section head: number, hairline, title. Ragged right, hard left, never centred. */
+  .sec-head {
+    display: flex; align-items: baseline; gap: 0.75rem;
+    border-top: 2px solid var(--ink);
+    padding-top: 0.5rem;
+    margin-bottom: 1.75rem;
+  }
+  .sec-head .n { color: var(--signal); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sec-head .t { font-weight: 500; }
+
+  /* ---------- masthead ---------- */
+  .eyebrow-row {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--g-20);
+    padding-bottom: 0.5rem;
+    margin-bottom: clamp(1.25rem, 3vw, 2.25rem);
+  }
+  .masthead .display { margin-bottom: clamp(1.5rem, 4vw, 3rem); }
+  .masthead .display em { font-style: normal; color: var(--signal); }
+
+  /* The spec block. A railway timetable for the package itself. */
+  .spec { border-top: 1px solid var(--ink); font-variant-numeric: tabular-nums; }
+  .spec div {
+    display: flex; justify-content: space-between; gap: 1rem;
+    border-bottom: 1px solid var(--g-20);
+    padding: 0.4rem 0;
+    font-size: var(--t-dense);
+  }
+  .spec dt { text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--t-label); color: var(--g-45); align-self: center; }
+  .spec dd { font-weight: 700; text-align: right; }
+  .spec dd b { color: var(--signal); font-weight: 700; }
+
+  .hero-fig { margin-top: 1.75rem; }
+  @media (min-width: 64em) { .hero-fig { margin-top: 0; } }
+  .hero-fig img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+  .hero-fig figcaption {
+    border-top: 1px solid var(--g-20);
+    margin-top: 0.4rem; padding-top: 0.35rem;
+    color: var(--g-45);
+  }
+
+  /* ---------- the code specimen ---------- */
+  .specimen {
+    border: 1px solid var(--ink);
+    padding: clamp(0.75rem, 2.5vw, 1.25rem);
+    /* A long attribute must scroll inside its own box, never widen the page. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .specimen code {
+    display: block;
+    white-space: pre;
+    font-size: clamp(0.6875rem, 2.4vw, 1.0625rem);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  .specimen .k { color: var(--g-45); }
+  .specimen .v { color: var(--signal); font-weight: 700; }
+  .legend {
+    display: grid;
+    /* One cell per row on a phone: three columns cannot hold "600ms 100ms ease-out" at 375px,
+       and a squashed three is exactly the failure this motif has to avoid. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+    background: var(--g-20);
+    border: 1px solid var(--g-20);
+    border-top: 0;
+  }
+  .legend > div { background: var(--paper); padding: 0.55rem 0.6rem; }
+  @media (min-width: 40em) { .legend { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .legend .lg-k { color: var(--signal); display: block; margin-bottom: 0.15rem; }
+  .legend .lg-v { font-size: var(--t-dense); color: var(--g-45); overflow-wrap: anywhere; }
+
+  .cta {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    background: var(--ink); color: var(--paper);
+    padding: 0.7rem 1rem; min-height: 44px;
+    border: 1px solid var(--ink);
+  }
+  .cta:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+  .cta-ghost { background: transparent; color: var(--ink); }
+  .cta-ghost:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+  /* ---------- the name band (marquee) ---------- */
+  .band-names {
+    background: var(--ink);
+    color: var(--paper);
+    border-block: 1px solid var(--ink);
+    overflow: hidden;
+    padding-block: 0.55rem;
+  }
+  .band-names .track { white-space: nowrap; }
+  .band-names .track span {
+    font-size: var(--t-label);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .band-names b { color: var(--signal); font-weight: 500; }
+
+  /* ---------- 01 grammar ---------- */
+  .gram {
+    border-top: 2px solid var(--ink);
+    padding-top: 0.6rem;
+  }
+  .gram .n { color: var(--signal); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .gram code {
+    display: block;
+    font-size: var(--t-code);
+    background: var(--g-05);
+    padding: 0.4rem 0.5rem;
+    margin: 0.6rem 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .gram p { font-size: var(--t-dense); color: var(--g-45); }
+
+  /* ---------- 02 playground ---------- */
+  /* A collapsed hairline table, not a row of pills. Negative margins fuse the borders so the
+     whole block reads as one printed grid rather than 18 separate objects. */
+  .chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-top: 1px solid var(--ink);
+    border-left: 1px solid var(--ink);
+  }
+  @media (min-width: 40em) { .chips { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 64em) { .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 100em) { .chips { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .chip {
+    border-right: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding: 0.7rem 0.55rem;
+    min-height: 46px;
+    display: flex; align-items: center;
+    text-align: left;
+    font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: var(--t-code);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    /* Sharp and mechanical: the fill snaps, it does not ease in. */
+    transition: background-color 90ms linear, color 90ms linear;
+    overflow: hidden;
+  }
+  .chip:hover { background: var(--ink); color: var(--paper); }
+  .chip[aria-pressed='true'] {
+    background: var(--signal);
+    color: var(--signal-ink);
+    font-weight: 700;
+  }
+
+  .lab-frame { overflow: hidden; background: var(--g-05); }
+  .lab-frame img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+  @media (min-width: 40em) { .lab-frame img { aspect-ratio: 16 / 11; } }
+  @media (min-width: 64em) { .lab-frame img { aspect-ratio: 5 / 4; } }
+
+  .readout {
+    background: var(--ink); color: var(--paper);
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.55rem 0.7rem;
+  }
+  .readout code {
+    font-size: var(--t-code);
+    white-space: nowrap;
+    overflow-x: auto;
+    min-width: 0;
+  }
+  .readout code b { color: var(--signal); font-weight: 700; }
+  .replay {
+    flex: none;
+    border: 1px solid var(--paper);
+    padding: 0.35rem 0.6rem;
+    min-height: 34px;
+    font-size: var(--t-label);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .replay:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+
+  /* ---------- 03 the index (timetable) ---------- */
+  .tt { border-top: 2px solid var(--ink); }
+  .tt-head, .tt-row {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) 3.25rem;
+    gap: 0 0.75rem;
+    align-items: baseline;
+  }
+  @media (min-width: 48em) {
+    .tt-head, .tt-row {
+      grid-template-columns: 3.5rem minmax(0, 10rem) minmax(0, 1fr) 6.5rem 2rem;
+      align-items: center;
+    }
+  }
+  .tt-head {
+    border-bottom: 1px solid var(--ink);
+    padding: 0.4rem 0;
+    color: var(--g-45);
+  }
+  .tt-head .tt-desc, .tt-head .tt-sec, .tt-head .tt-go { display: none; }
+  @media (min-width: 48em) {
+    .tt-head .tt-desc, .tt-head .tt-sec, .tt-head .tt-go { display: block; }
+  }
+  .tt-row {
+    border-bottom: 1px solid var(--g-20);
+    padding: 0.85rem 0;
+    min-height: 56px;
+    transition: background-color 90ms linear, color 90ms linear, padding-left 90ms linear;
+  }
+  .tt-row:hover, .tt-row:focus-visible {
+    background: var(--ink);
+    color: var(--paper);
+    padding-left: 0.5rem;
+    outline-offset: -2px;
+  }
+  .tt-row:hover .tt-desc, .tt-row:hover .tt-sec { color: var(--paper); }
+  .tt-row:hover .tt-n { color: var(--signal); }
+  .tt-n { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--signal); }
+  .tt-name {
+    font-size: clamp(1rem, 4.5vw, 1.5rem);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .tt-desc, .tt-sec { font-size: var(--t-dense); color: var(--g-45); }
+  .tt-sec { font-variant-numeric: tabular-nums; }
+  /* On a phone the description and section columns fold under the name rather than squeezing
+     into a five-column row that nothing can read. */
+  .tt-desc { grid-column: 2 / -1; }
+  .tt-sec { grid-column: 2 / -1; }
+  .tt-go { text-align: right; font-weight: 700; grid-row: 1; grid-column: 3; }
+  @media (min-width: 48em) {
+    .tt-desc, .tt-sec, .tt-go { grid-column: auto; grid-row: auto; }
+    .tt-go { text-align: right; }
+  }
+  .tt-flag {
+    display: inline-block;
+    background: var(--signal); color: var(--signal-ink);
+    font-size: var(--t-label); letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 0.05rem 0.3rem; margin-left: 0.4rem; font-weight: 700;
+    vertical-align: 0.12em;
+  }
+
+  @media (min-width: 64em) { .tt-fig { grid-row: 2; } }
+  .tt-fig img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+  .tt-fig figcaption { border-top: 1px solid var(--g-20); margin-top: 0.4rem; padding-top: 0.35rem; color: var(--g-45); }
+
+  /* ---------- 04 install ---------- */
+  .band-ink .spec { border-top-color: var(--paper); }
+  .band-ink .spec div { border-bottom-color: color-mix(in srgb, var(--paper) 25%, transparent); }
+  .band-ink .spec dt { color: color-mix(in srgb, var(--paper) 65%, transparent); }
+  .install-code {
+    border: 1px solid var(--paper);
+    padding: clamp(0.75rem, 2.5vw, 1.1rem);
+    overflow-x: auto;
+  }
+  .install-code pre { margin: 0; }
+  .install-code code {
+    display: block; white-space: pre;
+    font-size: var(--t-code); line-height: 1.65;
+  }
+  .install-code .s { color: var(--signal); }
+  .install-code .c { color: color-mix(in srgb, var(--paper) 50%, transparent); }
+  .step {
+    border-top: 1px solid color-mix(in srgb, var(--paper) 35%, transparent);
+    padding-top: 0.5rem;
+  }
+  .step + .step { margin-top: 1.5rem; }
+  .step .n { color: var(--signal); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .step p { font-size: var(--t-dense); color: color-mix(in srgb, var(--paper) 70%, transparent); margin-top: 0.3rem; }
+
+  /* ---------- footer ---------- */
+  .foot { border-top: 2px solid var(--ink); padding-block: 2.5rem 3.5rem; }
+  .foot a { border-bottom: 1px solid var(--g-20); }
+  .foot a:hover { border-bottom-color: var(--signal); color: var(--signal); }
+  .foot-list li + li { margin-top: 0.3rem; }
+  .foot-list li { font-size: var(--t-dense); }
+
+  #back-top {
+    position: fixed; right: var(--pad); bottom: 1rem; z-index: 90;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink);
+    min-width: 44px; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--t-label); letter-spacing: 0.12em;
+  }
+  #back-top:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+
+  /* ---------- library-effect wiring ---------- */
+  /* redaction-reveal paints its bar from this property; the bar is ink, so it disappears into the
+     rule above it and reads as the headline being un-blacked rather than as a coloured box. */
+  [data-kui-fx~='redaction-reveal'] { --kui-bar-color: var(--ink); }
+  /* underline-draw and highlight-sweep both draw in the signal colour. */
+  .sweep { --kui-sweep-color: var(--signal); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip, .tt-row { transition: none; }
+  }
+</style>
+</head>
+
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- A measuring rule across the top edge: scroll-progress-bar scales its own X from a native
+     scroll timeline. The one piece of chrome on the page, and it is a hairline. -->
+<div id="progress" data-kui="scroll-progress-bar timeline:scroll" aria-hidden="true"></div>
+
+<header class="rail">
+  <div class="rail-in">
+    <a class="mark" href="./index.html">k<span>UI</span>netic</a>
+    <p class="rail-spec label muted">
+      <span>v0.1.3</span><i aria-hidden="true"></i>
+      <span>252 effects</span><i aria-hidden="true"></i>
+      <span>30 primitives</span><i aria-hidden="true"></i>
+      <span>0 dependencies</span><i aria-hidden="true"></i>
+      <span>MIT</span>
+    </p>
+    <nav class="rail-nav label" aria-label="Primary">
+      <a href="#try">Try&nbsp;it</a>
+      <a href="#index">Index</a>
+      <a href="./docs.html">Docs</a>
+      <button type="button" id="theme-toggle" aria-pressed="false">Dark</button>
+    </nav>
+  </div>
+</header>
+
+<div id="page">
+  <!-- The printed grid. Twelve rules; the narrow breakpoints draw four or six of them. -->
+  <div class="rules" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+
+  <main id="main">
+
+    <!-- ======================================================================================
+         MASTHEAD
+         ====================================================================================== -->
+    <section class="sec masthead" style="padding-top: clamp(2rem, 6vw, 4rem);">
+      <div class="g">
+        <div class="eyebrow-row label">
+          <span>CSS animation library <span aria-hidden="true">—</span> authored in HTML</span>
+          <span class="muted" data-kui="redaction-reveal 560ms 240ms cubic-bezier(.85,0,.15,1)">Fig. 01 <span aria-hidden="true">/</span> Release 0.1.3 <span aria-hidden="true">/</span> MIT</span>
+        </div>
+
+        <!-- Three lines, hard left, ragged right. The whole claim, at poster size. -->
+        <h1 class="display" data-kui-stagger="70ms">
+          <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)">One attribute.</span>
+          <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)"><em>252</em> effects.</span>
+          <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)">No build step.</span>
+        </h1>
+
+        <div class="c-1-4 stack-2">
+          <p class="body" data-kui="fade-up 380ms 0ms cubic-bezier(.85,0,.15,1)">
+            <b>kUInetic is a CSS animation library you author in HTML.</b> You write one attribute on
+            an element — <code class="mono">data-kui="fade-up 600ms on:enter"</code> — and the library
+            compiles it into real CSS keyframes and native scroll-driven timelines. No animation code
+            to write, no timeline objects to keep in sync with your markup.
+          </p>
+          <p class="body muted" data-kui="fade-up 380ms 60ms cubic-bezier(.85,0,.15,1)">
+            Roughly seventy per cent of the catalogue is keyframes plus a metadata row and ships with
+            zero runtime JavaScript on browsers with native timelines. JavaScript runs only for the
+            names that genuinely need it — morphs, scrubs, counters, pointer physics.
+          </p>
+          <div class="cta-row" data-kui="fade-up 380ms 120ms cubic-bezier(.85,0,.15,1)">
+            <a class="cta" href="#try">Run an effect <span aria-hidden="true">→</span></a>
+            <a class="cta cta-ghost" href="#index">See all 252 <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <!-- Deliberate void at column 5. Dense block, empty column, dense block. -->
+        <dl class="spec c-6-8 m-1-3" style="margin-top: 2rem;" data-kui="fade-in 320ms 80ms linear">
+          <div><dt>Version</dt><dd>0.1.3</dd></div>
+          <div><dt>Named effects</dt><dd><b data-kui="count-up 900ms 0ms linear to:252">252</b></dd></div>
+          <div><dt>Primitive families</dt><dd><b data-kui="count-up 900ms 120ms linear to:30">30</b></dd></div>
+          <div><dt>Dependencies</dt><dd>0</dd></div>
+          <div><dt>Renderer split</dt><dd>~168 css · ~11 prep · ~58 js</dd></div>
+          <div><dt>Licence</dt><dd>MIT</dd></div>
+          <div><dt>Install size</dt><dd>2 files</dd></div>
+        </dl>
+
+        <figure class="hero-fig c-9-12 m-4-6">
+          <!-- slat-assemble slices the picture into strips and lands them assembled: a press
+               laying down a plate, which is exactly the motion personality this motif wants. -->
+          <div data-kui="slat-assemble 900ms 0ms cubic-bezier(.85,0,.15,1) slats:14 axis:vertical">
+            <img src="./assets/modeling/modeling_06.jpg" alt="Black-and-white beauty close-up, hand at chin, statement drop earrings" loading="eager" decoding="async" />
+          </div>
+          <figcaption class="label">slat-assemble <span aria-hidden="true">·</span> 14 slats <span aria-hidden="true">·</span> vertical</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         THE SPECIMEN — the grammar, at reading size
+         ====================================================================================== -->
+    <section class="sec">
+      <div class="g">
+        <div class="c-1-8 stack-2">
+          <p class="label muted">The whole API, printed once</p>
+          <div data-kui="fade-up 340ms 0ms cubic-bezier(.85,0,.15,1)">
+            <div class="specimen">
+              <code><span class="k">&lt;div</span> data-kui=<span class="v">"fade-up 600ms 100ms ease-out on:enter"</span><span class="k">&gt;</span></code>
+            </div>
+            <div class="legend">
+              <div><span class="lg-k label">Name</span><span class="lg-v mono">fade-up</span></div>
+              <div><span class="lg-k label">Timing</span><span class="lg-v mono">600ms 100ms ease-out</span></div>
+              <div><span class="lg-k label">Trigger</span><span class="lg-v mono">on:enter</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="c-10-12 m-5-6 rule-top" style="margin-top: 1.5rem; padding-top: 0.5rem;">
+          <p class="label muted">Note</p>
+          <p class="muted" style="font-size: var(--t-dense); margin-top: 0.4rem;">
+            Positional, always in that order. Comma-separate two effects and they compile into one
+            animation — unless they claim the same CSS property, which the library refuses rather
+            than letting one silently overwrite the other.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         NAME BAND — the vocabulary, moving
+         ====================================================================================== -->
+    <section class="band-names" aria-label="A sample of the effect vocabulary">
+      <!-- The seamless loop needs two copies of the track in markup; the library ships the
+           keyframe only. Second copy is aria-hidden so it is read once. -->
+      <div class="track" data-kui="marquee 46s">
+        <span>fade-up&nbsp;·&nbsp;<b>slat-assemble</b>&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;split-chars&nbsp;·&nbsp;<b>redaction-reveal</b>&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;checkmark-draw&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;scanline&nbsp;·&nbsp;<b>flip-card</b>&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;curtain-wipe&nbsp;·&nbsp;strength-meter&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;split-flap&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">fade-up&nbsp;·&nbsp;<b>slat-assemble</b>&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;split-chars&nbsp;·&nbsp;<b>redaction-reveal</b>&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;<b>pin-section</b>&nbsp;·&nbsp;checkmark-draw&nbsp;·&nbsp;magnetic&nbsp;·&nbsp;scanline&nbsp;·&nbsp;<b>flip-card</b>&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;curtain-wipe&nbsp;·&nbsp;strength-meter&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;scroll-progress-ring&nbsp;·&nbsp;split-flap&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         01 — GRAMMAR
+         ====================================================================================== -->
+    <section class="sec" id="grammar">
+      <div class="g">
+        <div class="c-1-9">
+          <p class="sec-head"><span class="n">01</span><span class="t label">The grammar</span></p>
+          <h2 class="h2 sweep" data-kui="underline-draw 420ms 0ms cubic-bezier(.85,0,.15,1)">Three parts. That is the whole language.</h2>
+        </div>
+
+        <div class="c-1-4 m-1-2" style="margin-top: 2.25rem;">
+          <div class="gram">
+            <p class="label"><span class="n">01</span> &nbsp;Name</p>
+            <code>data-kui="wipe-right"</code>
+            <p>252 named effects across 30 primitive families. Every name is a real entry in the
+              catalogue — nothing is composed at runtime out of adjectives.</p>
+          </div>
+        </div>
+        <div class="c-5-8 m-3-4" style="margin-top: 2.25rem;">
+          <div class="gram">
+            <p class="label"><span class="n">02</span> &nbsp;Timing</p>
+            <code>"wipe-right 420ms 60ms linear"</code>
+            <p>Duration, delay, easing — positional, in that order. Keywords, <span class="mono">steps()</span>
+              and <span class="mono">cubic-bezier()</span> all parse. Everything on this page is a
+              steep bezier or a step function.</p>
+          </div>
+        </div>
+        <div class="c-9-12 m-5-6" style="margin-top: 2.25rem;">
+          <div class="gram">
+            <p class="label"><span class="n">03</span> &nbsp;Trigger</p>
+            <code>"wipe-right on:hover"</code>
+            <p>Defaults to <span class="mono">on:enter</span> — it plays when the element scrolls
+              into view. Swap for <span class="mono">hover</span>, <span class="mono">click</span>,
+              <span class="mono">focus</span> or <span class="mono">manual</span>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         02 — TRY IT
+         The mechanism is index.html's: reset() releases the installed state, process() re-plans,
+         and activate() is needed because the effect is gated on `on:enter` and the element never
+         left the viewport — the click IS the activation.
+         ====================================================================================== -->
+    <section class="sec" id="try">
+      <div class="g">
+        <div class="c-1-9">
+          <p class="sec-head"><span class="n">02</span><span class="t label">Live</span></p>
+          <h2 class="h2 sweep" data-kui="underline-draw 420ms 0ms cubic-bezier(.85,0,.15,1)">Rewrite the attribute. Watch it recompile.</h2>
+        </div>
+
+        <div class="c-1-5" style="margin-top: 2rem;">
+          <p class="body muted" style="margin-bottom: 1.25rem;">
+            One element. One attribute. Each cell below writes a different value onto the same frame
+            and the runtime recompiles it in place — no rebuild, no re-render, nothing else on the
+            page touched.
+          </p>
+          <div class="chips" role="group" aria-label="Choose an effect">
+            <button type="button" class="chip" aria-pressed="true"  data-fx="wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)">wipe-circle</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="slat-assemble 1000ms 0ms cubic-bezier(.85,0,.15,1) slats:16">slat-assemble</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="wipe-right 520ms 0ms steps(8,end)">wipe-right</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="wipe-diagonal 620ms 0ms cubic-bezier(.85,0,.15,1)">wipe-diagonal</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="wipe-up 560ms 0ms cubic-bezier(.85,0,.15,1)">wipe-up</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="curtain-reveal 780ms 0ms cubic-bezier(.85,0,.15,1)">curtain-reveal</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="mask-reveal 780ms 0ms cubic-bezier(.85,0,.15,1)">mask-reveal</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="card-flip-y 800ms 0ms cubic-bezier(.85,0,.15,1)">card-flip-y</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="fold-panel 800ms 0ms cubic-bezier(.85,0,.15,1)">fold-panel</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="flip-in-y 700ms 0ms cubic-bezier(.85,0,.15,1)">flip-in-y</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="roll-in 700ms 0ms cubic-bezier(.85,0,.15,1)">roll-in</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="page-slide 620ms 0ms cubic-bezier(.85,0,.15,1)">page-slide</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="slide-up 520ms 0ms cubic-bezier(.85,0,.15,1)">slide-up</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="zoom-in 560ms 0ms cubic-bezier(.85,0,.15,1)">zoom-in</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="pop-in 520ms 0ms cubic-bezier(.85,0,.15,1)">pop-in</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="back-in-up 700ms 0ms cubic-bezier(.85,0,.15,1)">back-in-up</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="blur-in 620ms 0ms cubic-bezier(.85,0,.15,1)">blur-in</button>
+            <button type="button" class="chip" aria-pressed="false" data-fx="ken-burns 6000ms 0ms linear">ken-burns</button>
+          </div>
+        </div>
+
+        <div class="c-6-12" style="margin-top: 2rem;">
+          <!-- The attribute sits on the frame, not the <img>: slat-assemble builds a stage of
+               slats around the picture it is given, so it needs the wrapper — and every other
+               entrance works on a wrapper too, which keeps all eighteen cells on one footing. -->
+          <div class="lab-frame" id="lab-target" data-kui="wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)">
+            <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" decoding="async" />
+          </div>
+          <div class="readout">
+            <code>data-kui="<b id="lab-attr">wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)</b>"</code>
+            <button type="button" class="replay" id="lab-replay">Replay</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         03 — THE INDEX
+         ====================================================================================== -->
+    <section class="sec" id="index">
+      <div class="g">
+        <div class="c-1-9">
+          <p class="sec-head"><span class="n">03</span><span class="t label">The index</span></p>
+          <h2 class="h2 sweep" data-kui="underline-draw 420ms 0ms cubic-bezier(.85,0,.15,1)">Nine pages. Fifteen catalogue sections.</h2>
+          <p class="body muted" style="margin-top: 1rem;">
+            The catalogue is not a wall. Each demo page runs one part of it live, in a real layout,
+            with the authored markup on show.
+          </p>
+        </div>
+
+        <div class="c-1-9" style="margin-top: 2.25rem;">
+          <div class="tt">
+            <div class="tt-head label" aria-hidden="true">
+              <span>No.</span><span>Page</span><span class="tt-desc">What moves</span><span class="tt-sec">Catalogue</span><span class="tt-go">Go</span>
+            </div>
+
+            <a class="tt-row" href="./reveals.html">
+              <span class="tt-n">01</span>
+              <span class="tt-name">Reveals</span>
+              <span class="tt-desc">The entrance and exit matrix — fade, slide, zoom, flip, rotate, blur</span>
+              <span class="tt-sec">A · 48 names</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./scroll.html">
+              <span class="tt-n">02</span>
+              <span class="tt-name">Scroll</span>
+              <span class="tt-desc">Native scroll timelines, parallax, pinning, scrub, progress</span>
+              <span class="tt-sec">B · 12 &nbsp;C · 12</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./text.html">
+              <span class="tt-n">03</span>
+              <span class="tt-name">Text</span>
+              <span class="tt-desc">Segmentation, typing, scramble, variable-font axes, marquee</span>
+              <span class="tt-sec">D · 26 names</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./interactive.html">
+              <span class="tt-n">04</span>
+              <span class="tt-name">Interactive</span>
+              <span class="tt-desc">Gestures and physics, FLIP layout, the programmatic API</span>
+              <span class="tt-sec">H · 9 &nbsp;+ gestures</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./data-hover.html">
+              <span class="tt-n">05</span>
+              <span class="tt-name">Data &amp; hover</span>
+              <span class="tt-desc">Counters, gauges, sparklines; hover, pointer and cursor effects</span>
+              <span class="tt-sec">F · 13 &nbsp;I · 22</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./ambient-feedback.html">
+              <span class="tt-n">06</span>
+              <span class="tt-name">Ambient &amp; feedback</span>
+              <span class="tt-desc">Backgrounds, grain, glow; spinners, toasts, shakes, bursts</span>
+              <span class="tt-sec">J · 15 &nbsp;K · 17</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./nav-forms.html">
+              <span class="tt-n">07</span>
+              <span class="tt-name">Nav &amp; forms</span>
+              <span class="tt-desc">Menus, drawers, headers; labels, validation, steppers, meters</span>
+              <span class="tt-sec">M · 8 &nbsp;O · 12</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./icons-transitions.html">
+              <span class="tt-n">08</span>
+              <span class="tt-name">Icons &amp; transitions<span class="tt-flag">Unlisted</span></span>
+              <span class="tt-desc">SVG stroke draws, icon morphs, and page-to-page hand-offs</span>
+              <span class="tt-sec">E · 17 &nbsp;L · 5</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+            <a class="tt-row" href="./three-d.html">
+              <span class="tt-n">09</span>
+              <span class="tt-name">3D &amp; perspective<span class="tt-flag">Unlisted</span></span>
+              <span class="tt-desc">Card flips, folds, cube rotation, book-page turns</span>
+              <span class="tt-sec">N · 6 names</span>
+              <span class="tt-go" aria-hidden="true">→</span>
+            </a>
+          </div>
+          <p class="label muted" style="margin-top: 0.75rem;">
+            Letters are catalogue sections A–O. Two pages are live but not yet in the site nav.
+          </p>
+        </div>
+
+        <figure class="tt-fig c-10-12 m-5-6" style="margin-top: 2.25rem;">
+          <div data-kui="wipe-up 560ms 0ms cubic-bezier(.85,0,.15,1)">
+            <img src="./assets/modeling/modeling_18.jpg" alt="Portrait in an orange coat and beanie, tinted square sunglasses against an orange backdrop" loading="lazy" decoding="async" />
+          </div>
+          <figcaption class="label">wipe-up <span aria-hidden="true">·</span> 560ms <span aria-hidden="true">·</span> on enter</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ======================================================================================
+         04 — INSTALL (ink band)
+         ====================================================================================== -->
+    <section class="sec band-ink" id="install">
+      <div class="rules" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="g">
+        <div class="c-1-9">
+          <p class="sec-head" style="border-top-color: currentColor;"><span class="n">04</span><span class="t label">Install</span></p>
+          <h2 class="h2">Two files. No build step. No bundler config.</h2>
+        </div>
+
+        <div class="c-1-6" style="margin-top: 2rem;">
+          <div class="install-code">
+<pre><code><span class="c">&lt;!-- 1. the stylesheet and the runtime --&gt;</span>
+&lt;link rel="stylesheet" href=<span class="s">"kuinetic.css"</span>&gt;
+&lt;script src=<span class="s">"kuinetic.js"</span>&gt;&lt;/script&gt;
+&lt;script&gt;
+  kuinetic.kuinetic({ observe: <span class="s">true</span> }).start()
+&lt;/script&gt;
+
+<span class="c">&lt;!-- 2. write one attribute --&gt;</span>
+&lt;h1 data-kui=<span class="s">"fade-up"</span>&gt;Hello.&lt;/h1&gt;</code></pre>
+          </div>
+        </div>
+
+        <div class="c-8-12" style="margin-top: 2rem;">
+          <div class="step">
+            <p class="label"><span class="n">01</span> &nbsp;Two files</p>
+            <p>A stylesheet and a runtime. Nothing else — the package declares no dependencies.</p>
+          </div>
+          <div class="step">
+            <p class="label"><span class="n">02</span> &nbsp;observe: true</p>
+            <p>Keeps a MutationObserver running so elements added later — by your app, a CMS, a
+              client-side router — get picked up on their own.</p>
+          </div>
+          <div class="step">
+            <p class="label"><span class="n">03</span> &nbsp;Then write markup</p>
+            <p>Everything after that is an attribute. There is no second API to learn before the
+              first animation runs.</p>
+          </div>
+        </div>
+
+        <div class="c-1-9" style="margin-top: 2.5rem;">
+          <div class="cta-row">
+            <a class="cta" href="./docs.html" style="background: var(--signal); border-color: var(--signal); color: var(--signal-ink);">Read the docs <span aria-hidden="true">→</span></a>
+            <a class="cta" href="./reveals.html" style="background: transparent; border-color: currentColor;">Start with reveals <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================================================================
+       COLOPHON
+       ======================================================================================== -->
+  <footer class="foot">
+    <div class="g">
+      <div class="c-1-4 m-1-2">
+        <p class="label muted rule-hair" style="padding-top:0.5rem;">Package</p>
+        <ul class="foot-list" style="margin-top:0.5rem;">
+          <li>kUInetic 0.1.3</li>
+          <li>MIT licence</li>
+          <li>Zero dependencies</li>
+          <li>252 effects · 30 primitives</li>
+        </ul>
+      </div>
+      <div class="c-5-8 m-3-4" style="margin-top:1.5rem;">
+        <p class="label muted rule-hair" style="padding-top:0.5rem;">Pages</p>
+        <ul class="foot-list" style="margin-top:0.5rem;">
+          <li><a href="./reveals.html">Reveals</a> · <a href="./scroll.html">Scroll</a> · <a href="./text.html">Text</a></li>
+          <li><a href="./interactive.html">Interactive</a> · <a href="./data-hover.html">Data &amp; hover</a></li>
+          <li><a href="./ambient-feedback.html">Ambient &amp; feedback</a> · <a href="./nav-forms.html">Nav &amp; forms</a></li>
+          <li><a href="./icons-transitions.html">Icons &amp; transitions</a> · <a href="./three-d.html">3D</a></li>
+          <li><a href="./docs.html">Documentation</a></li>
+        </ul>
+      </div>
+      <div class="c-9-12 m-5-6" style="margin-top:1.5rem;">
+        <p class="label muted rule-hair" style="padding-top:0.5rem;">Colophon</p>
+        <ul class="foot-list" style="margin-top:0.5rem;">
+          <li>Set in Helvetica Neue / Inter.</li>
+          <li>Twelve columns, four on a phone.</li>
+          <li>One signal colour: International Orange.</li>
+          <li>Every animation on this page is a <span class="mono">data-kui</span> attribute.</li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<a id="back-top" href="#main" class="label" data-kui="back-to-top-fade offset:400" aria-label="Back to top">↑</a>
+
+<script src="./kuinetic.js"></script>
+<script>
+  window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+</script>
+
+<script>
+  // --- Theme toggle. A word, not an icon: this motif has no icon language. ------------------
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var btn = document.getElementById('theme-toggle')
+    if (!btn) return
+    function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+    function paint(theme) {
+      btn.textContent = theme === 'dark' ? 'Light' : 'Dark'
+      btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+      btn.setAttribute('aria-pressed', String(theme === 'dark'))
+    }
+    paint(current())
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark'
+      document.documentElement.dataset.theme = next
+      try { localStorage.setItem(KEY, next) } catch (e) {}
+      paint(next)
+    })
+  })()
+</script>
+
+<script>
+  // --- Playground: rewrite the attribute -----------------------------------------------------
+  //
+  // Same mechanism as demo/index.html, and for the same reasons.
+  //
+  // `process()` short-circuits when an element's configuration hasn't changed, so `reset()` —
+  // which releases the installed state — is what makes a *different* attribute on the same
+  // element actually recompile rather than no-op.
+  //
+  // `activate()` is the non-obvious third call. `process()` leaves the effect GATED on its
+  // activation trigger, which defaults to `on:enter`. The frame never left the viewport, so the
+  // observer never re-fires and the animation sits installed at currentTime 0 forever — invisible
+  // for `blur-in`, and total for `wipe-up`, whose frame 0 is `inset(100% ...)`, i.e. nothing at
+  // all. A click IS the activation here; say so.
+  ;(function () {
+    var target = document.getElementById('lab-target')
+    var label = document.getElementById('lab-attr')
+    var replay = document.getElementById('lab-replay')
+    var chips = document.querySelectorAll('.chip')
+    if (!target || !label || !chips.length) return
+
+    function run(fx) {
+      label.textContent = fx
+      target.setAttribute('data-kui', fx)
+      var kui = window.__kui
+      if (!kui || typeof kui.reset !== 'function') return
+      kui.reset(target)
+      kui.process(target)
+      kui.activate(target)
+    }
+
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+        run(chip.getAttribute('data-fx'))
+      })
+    })
+
+    if (replay) {
+      replay.addEventListener('click', function () {
+        var active = document.querySelector('.chip[aria-pressed="true"]')
+        run(active ? active.getAttribute('data-fx') : target.getAttribute('data-kui'))
+      })
+    }
+  })()
+</script>
+</body>
+</html>

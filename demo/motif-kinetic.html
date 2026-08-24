@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — write motion in HTML</title>
+<meta name="description" content="kUInetic is a CSS animation library you author in HTML attributes. 252 named effects built from 30 primitive families — around 70% of them pure CSS keyframes with zero runtime JavaScript." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- One family, two axes. Archivo is a variable grotesque with both `wght` (100–900) and `wdth`
+     (62–125), which is what makes the catalog's `var-weight` / `var-width` effects on this page
+     real animation rather than a static screenshot of the idea — those keyframes interpolate
+     `font-weight` / `font-stretch`, and a static font has nothing to interpolate. -->
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="./kuinetic.css" />
+<!-- system.css is loaded for exactly two components: the `.kui-show-code-toggle` chip and the code
+     modal show-code.js opens. Per CLAUDE.md the chip is styled once, there, and never restyled per
+     page — loading the real file is the strictest way to honour that (index.html keeps a verbatim
+     copy instead only because it does not load this). Everything else system.css declares is
+     overridden below; my token block is written at `:root, :root[data-theme='light'],
+     :root[data-theme='dark']` so it outranks system.css's own `:root[data-theme='light']` block
+     on specificity as well as order. -->
+<link rel="stylesheet" href="./system.css" />
+<style>
+  /* ==========================================================================
+     MOTIF: KINETIC MAXIMALIST / TYPOGRAPHIC POSTER
+     --------------------------------------------------------------------------
+     The argument: this is an animation library, so the page should move like the
+     product it sells. Motion is the layout material, not the garnish.
+
+     Three rules the whole sheet obeys:
+
+     1. COLOUR FIELDS, NOT ACCENTS. Every section is a full-bleed block of one
+        saturated colour and the page hard-cuts between them as you scroll. No two
+        adjacent fields share a colour, and each field declares its own ink so text
+        contrast is a property of the field rather than something re-decided per
+        element.
+
+     2. TYPE IS THE LAYOUT. Extreme scale contrast — a 19rem headline directly beside
+        a 0.68rem mono label — with tight/negative leading so lines interlock, and
+        decorative watermark words layered behind at large scale.
+
+     3. NOTHING HERE ANIMATES ITSELF. There is not one `@keyframes` block in this
+        file. Every moving thing on the page is a `data-kui` attribute, which means
+        the library's own per-effect reduced-motion policy ('shorten' for entrances,
+        'disable' for continuous ambient/marquee) is the page's policy too, with
+        nothing of mine to fight it. The only reduced-motion block below covers my
+        own hover *transitions*, which the library never sees.
+
+     OVERFLOW: `clip`, never `hidden`. Poster type and marquees are supposed to run
+     off the canvas edge; `overflow-x: clip` cuts them without creating a scroll
+     container, so `position: sticky` keeps working and — the one that actually
+     bites here — `animation-timeline: view()`/`scroll()` still resolves against the
+     document instead of freezing against a motionless wrapper. See the TRAP comment
+     at the top of src/css/scroll.css.
+     ========================================================================== */
+
+  :root,
+  :root[data-theme='light'],
+  :root[data-theme='dark'] {
+    /* --- the committed palette: three saturated fields, plus paper and ink --- */
+    --k-blue: #1b1ae8;
+    --k-pink: #ff2d6f;
+    --k-orange: #ff6a00;
+    --k-bone: #f0ece1;
+    --k-ink: #0c0c0e;
+
+    /* Ink-on-colour is the readable pairing for pink and orange (~5.5:1 and ~6.5:1);
+       bone-on-blue is ~13:1. Each field below picks one of these two and never mixes. */
+
+    /* --- tokens system.css's modal + chip read. Repainted for this page's canvas. --- */
+    --bg: #0c0c0e;
+    --surface: #0c0c0e;
+    --fg: #f0ece1;
+    --muted: #9a958a;
+    --border: rgb(240 236 225 / 0.24);
+    /* Fixed values, deliberately NOT re-pointed at this motif's palette: the show-code chip is a
+       solid dark pill carrying the brand yellow, identical on every page in this repo. A control
+       that means the same thing everywhere looks the same everywhere. */
+    --accent: #e4f222;
+    --accent-ink: #000000;
+    --shadow-float: 0 24px 60px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+
+    /* --- type --- */
+    --f-display: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --f-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* Mobile-first sizes. The `vw` middle term is tuned so the longest word in each
+       tier still fits inside the gutter at 320px — the headline's widest line is
+       "IN HTML" at ~4em, and 21vw of 320px is 67px, so ~268px inside a 294px measure.
+       `overflow-x: clip` on every field is the backstop, not the plan. */
+    --t-mega: clamp(3.1rem, 21vw, 19rem);
+    --t-huge: clamp(2.2rem, 12vw, 7.5rem);
+    --t-big: clamp(1.7rem, 7.4vw, 4.2rem);
+    --t-mid: clamp(1.05rem, 3.3vw, 1.5rem);
+    --t-body: clamp(1rem, 0.9vw + 0.78rem, 1.16rem);
+    --t-micro: 0.68rem;
+
+    --gut: clamp(1.15rem, 4vw, 4rem);
+    --wrap: 1440px;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* `clip` on the root is what lets everything below bleed off the right edge without
+     ever producing a horizontal scrollbar — at 375px or at 2560px. */
+  html { overflow-x: clip; }
+
+  body {
+    margin: 0;
+    overflow-x: clip;
+    background: var(--k-ink);
+    color: var(--k-bone);
+    font-family: var(--f-display);
+    font-size: var(--t-body);
+    font-weight: 420;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* system.css paints a border-top and a fixed padding on every <section>; both are wrong
+     for hard-cut colour fields, which need no rule between them because the colour change
+     *is* the rule. */
+  section { padding: 0; border-top: none; }
+  h1, h2, h3, h4, p, ul, ol, figure { margin: 0; }
+  ul { padding: 0; list-style: none; }
+  img { display: block; max-width: 100%; height: auto; }
+  a { color: inherit; text-decoration: none; }
+  a:not(.btn):not(.nav-link):not(.chip) { text-decoration: none; }
+  button { font-family: inherit; }
+  :focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+
+  .wrap {
+    width: 100%;
+    max-width: var(--wrap);
+    margin: 0 auto;
+    padding-inline: var(--gut);
+  }
+
+  /* ---------- the colour fields ---------------------------------------------------- */
+
+  .field {
+    position: relative;
+    /* Not `hidden`: see the overflow note at the top of this sheet. */
+    overflow-x: clip;
+    background: var(--f-bg);
+    color: var(--f-ink);
+    padding-block: clamp(4rem, 12vw, 9rem);
+  }
+  .f-blue   { --f-bg: var(--k-blue);   --f-ink: var(--k-bone); --f-dim: rgb(240 236 225 / 0.68); }
+  .f-pink   { --f-bg: var(--k-pink);   --f-ink: var(--k-ink);  --f-dim: rgb(12 12 14 / 0.66); }
+  .f-orange { --f-bg: var(--k-orange); --f-ink: var(--k-ink);  --f-dim: rgb(12 12 14 / 0.66); }
+  .f-bone   { --f-bg: var(--k-bone);   --f-ink: var(--k-ink);  --f-dim: rgb(12 12 14 / 0.58); }
+  .f-ink    { --f-bg: var(--k-ink);    --f-ink: var(--k-bone); --f-dim: rgb(240 236 225 / 0.6); }
+
+  /* ---------- type tiers ------------------------------------------------------------ */
+
+  .micro {
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+
+  /* The 0.68rem-beside-19rem contrast is the whole point, so the micro row is a real
+     structural element rather than a caption: a rule of hairline-separated labels
+     running the full measure above the headline. */
+  .micro-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    border-block: 1px solid currentColor;
+    padding-block: 0.55rem;
+    margin-bottom: clamp(1.5rem, 5vw, 3rem);
+  }
+  .micro-row > span { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .micro-row > span + span::before {
+    content: '';
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor; flex: none;
+  }
+
+  .stack {
+    font-weight: 860;
+    /* Negative leading — lines interlock rather than sit in rows. */
+    line-height: 0.79;
+    letter-spacing: -0.035em;
+    text-transform: uppercase;
+    font-stretch: 105%;
+  }
+  .stack > span { display: block; white-space: nowrap; width: max-content; max-width: 100%; }
+
+  .t-mega { font-size: var(--t-mega); }
+  .t-huge { font-size: var(--t-huge); }
+  .t-big  { font-size: var(--t-big); line-height: 0.86; letter-spacing: -0.03em; }
+
+  .deck {
+    font-size: var(--t-mid);
+    font-weight: 440;
+    line-height: 1.34;
+    max-width: 34ch;
+    letter-spacing: -0.01em;
+  }
+  .note { font-size: var(--t-body); color: var(--f-dim); max-width: 46ch; }
+
+  code, .mono { font-family: var(--f-mono); }
+
+  /* An inline `data-kui="…"` printed in running text. Reads as a specimen, not a code block. */
+  .attr {
+    font-family: var(--f-mono);
+    font-size: 0.86em;
+    letter-spacing: -0.01em;
+    background: currentColor;
+    border-radius: 2px;
+    padding: 0.08em 0.4em;
+    white-space: nowrap;
+  }
+  .attr > span { color: var(--f-bg); }
+
+  /* A line the type slides up into — the mask is the wrapper's `clip`, the motion is
+     `data-kui="slide-up"`, whose 100px default offset is bigger than any line box here. */
+  .mask { display: block; overflow: clip; padding-bottom: 0.06em; }
+
+  /* ---------- decorative watermark ------------------------------------------------- */
+
+  /*
+   * The layer that makes the page read as poster rather than page: an outline word at
+   * absurd scale, rotated, sitting behind the content. It is `aria-hidden`, stroke-only,
+   * and low-alpha, so it can be clipped by the field edge at any width without ever
+   * costing a reader a word — which is exactly why the *deliberately* off-canvas element
+   * on this page is decorative and the legible type is not.
+   */
+  .watermark {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    font-weight: 900;
+    font-stretch: 118%;
+    font-size: clamp(5.5rem, 33vw, 24rem);
+    line-height: 0.8;
+    letter-spacing: -0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: transparent;
+    -webkit-text-stroke: 2px currentColor;
+    opacity: 0.17;
+  }
+  .field > .wrap { position: relative; z-index: 1; }
+
+  /* ---------- header --------------------------------------------------------------- */
+
+  /*
+   * `mix-blend-mode: difference` is doing real work, not decoration: the bar is fixed over
+   * five different saturated fields, and difference-blending white against each one lands on
+   * a legible complement automatically (yellow over blue, near-black over bone, cyan over
+   * orange, green over pink) instead of needing a scroll listener that swaps a class per
+   * section. It blends against the whole page because nothing between it and the root
+   * isolates — so the fields below keep `z-index: auto` and the header takes 60.
+   */
+  .bar {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem var(--gut);
+    color: #ffffff;
+    mix-blend-mode: difference;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 800;
+    font-size: 1.02rem;
+    letter-spacing: -0.02em;
+  }
+  .brand b { font-weight: 900; }
+  /* Same geometry as system.css's `.logo-mark`/`.logo-dot`, scaled to 16px: the dot is absolutely
+     positioned at the top of the ring and orbits its centre. `orbit` spins forever and the
+     catalog is explicit that what a thing orbits *around* is layout, not motion — so
+     `transform-origin` is mine to set and the rotation is the attribute's. */
+  .brand-orb {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 16px; height: 16px;
+    border: 1.5px solid currentColor;
+    border-radius: 50%;
+    flex: none;
+  }
+  .brand-dot {
+    position: absolute; top: -1.5px; left: 50%;
+    width: 4px; height: 4px; margin-left: -2px;
+    border-radius: 50%;
+    background: currentColor;
+    transform-origin: 2px 9.5px;
+  }
+  .bar-spacer { flex: 1 1 auto; }
+  .bar-link {
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.65rem 0.2rem;
+    display: none;
+  }
+  @media (min-width: 44rem) { .bar-link { display: inline-block; } }
+
+  /* 44px minimum on every tap target, at every width. */
+  .burger {
+    width: 44px; height: 44px;
+    display: grid;
+    align-content: center;
+    justify-items: end;
+    gap: 5px;
+    padding: 0 2px;
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    --kui-bar-gap: 8px;
+  }
+  .burger .kui-bar {
+    display: block;
+    width: 26px; height: 2px;
+    background: currentColor;
+  }
+  .burger .kui-bar:nth-child(2) { width: 18px; }
+
+  /* ---------- full-screen menu ----------------------------------------------------- */
+
+  .menu {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: var(--k-ink);
+    color: var(--k-bone);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 5.5rem var(--gut) 3rem;
+  }
+  .menu[hidden] { display: none; }
+  .menu-list { display: grid; gap: 0.1rem; }
+  .menu-list a {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    padding: 0.42em 0;
+    font-size: clamp(1.7rem, 8.5vw, 3.6rem);
+    font-weight: 840;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgb(240 236 225 / 0.18);
+  }
+  .menu-list a > i {
+    font-family: var(--f-mono);
+    font-style: normal;
+    font-size: var(--t-micro);
+    letter-spacing: 0.1em;
+    color: var(--k-pink);
+    flex: none;
+  }
+  .menu-list a:hover, .menu-list a:focus-visible { color: var(--k-pink); }
+
+  /* ---------- buttons -------------------------------------------------------------- */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0.85rem 1.5rem;
+    font-family: var(--f-mono);
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 2px solid currentColor;
+    border-radius: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .btn-solid { background: var(--f-ink); color: var(--f-bg); }
+  .btn-solid:hover, .btn-solid:focus-visible { background: transparent; color: var(--f-ink); }
+  .btn-line:hover, .btn-line:focus-visible { background: var(--f-ink); color: var(--f-bg); }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+
+  /* ---------- 1. HERO -------------------------------------------------------------- */
+
+  .hero {
+    /* `svh`, so the first screen is not cut off by a phone's collapsing address bar. */
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding-block: 6.5rem clamp(3rem, 9vw, 6rem);
+    /* Above the orange band that follows, so the portrait can break out of the bottom
+       edge and overlap it — the field cuts vertically, the picture ignores the cut. */
+    z-index: 1;
+  }
+  .hero-wm { top: 34%; left: -8vw; rotate: -7deg; }
+
+  .hero-type { position: relative; z-index: 2; }
+  .hero-type .l2 { margin-inline-start: 0.06em; }
+  .hero-type .l3 {
+    margin-inline-start: 0.02em;
+    /* `text-outline-fill` paints its own 1px stroke and animates the *fill* up from
+       transparent, so this line is hollow while it runs and solid bone when it lands —
+       legible at rest, which is the requirement, and a poster device while moving. */
+    font-stretch: 118%;
+  }
+
+  .hero-body {
+    display: grid;
+    gap: clamp(1.4rem, 4vw, 2rem);
+    margin-top: clamp(1.6rem, 5vw, 2.6rem);
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-fig { position: relative; margin-top: 2.5rem; }
+  .hero-fig img {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    object-position: 50% 32%;
+  }
+  .hero-fig figcaption {
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.08em;
+    color: var(--f-dim);
+    padding-top: 0.6rem;
+  }
+
+  @media (min-width: 64rem) {
+    .hero { padding-block: 9rem 0; }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr);
+      grid-template-areas: 'type fig' 'body fig';
+      align-items: end;
+      column-gap: clamp(1.5rem, 3vw, 3rem);
+    }
+    .hero-type { grid-area: type; }
+    .hero-body {
+      grid-area: body;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      margin-bottom: clamp(3rem, 6vw, 5rem);
+    }
+    .hero-fig {
+      grid-area: fig;
+      margin-top: 0;
+      /* Two deliberate break-outs: right to the viewport edge (past the wrap's gutter),
+         and down past the field's own bottom edge into the next colour. Both on an image,
+         never on text — the picture can be clipped by a fold without costing a reader
+         anything. */
+      margin-inline-end: calc(var(--gut) * -1);
+      margin-bottom: clamp(-6rem, -4vw, -2rem);
+      align-self: end;
+    }
+    .hero-fig img { aspect-ratio: 3 / 4.1; }
+    /* Off-canvas headline, desktop only — this rule is inside the media query precisely
+       because a narrow viewport must never see it. */
+    .hero-type .l3 { margin-inline-start: 7vw; margin-inline-end: -8vw; }
+  }
+
+  /* ---------- marquee bands -------------------------------------------------------- */
+
+  .band { padding-block: 0; position: relative; z-index: 0; }
+  .band-view { overflow-x: clip; padding-block: clamp(0.5rem, 2vw, 0.9rem); }
+  /* The library gives `[data-kui-fx~='marquee']` its own `display:flex; width:max-content`;
+     everything here is just the look of the track. Two copies of the content in markup is
+     what makes the loop seamless — that duplication is the author's, by design. */
+  .band-track > span {
+    display: inline-flex;
+    align-items: center;
+    font-size: clamp(1.6rem, 6.5vw, 4rem);
+    font-weight: 880;
+    font-stretch: 112%;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1.05;
+  }
+  .band-track em {
+    font-style: normal;
+    color: transparent;
+    -webkit-text-stroke: 1.5px currentColor;
+    padding-inline: 0.12em;
+  }
+  .band-track i {
+    font-style: normal;
+    font-size: 0.42em;
+    padding-inline: 0.5em;
+    opacity: 0.55;
+  }
+  .band-rule { border-block: 3px solid currentColor; }
+
+  /* ---------- 3. PLAYGROUND -------------------------------------------------------- */
+
+  .lab-wm { bottom: -4%; right: -6vw; rotate: 4deg; }
+  .lab-head { display: grid; gap: 1rem; margin-bottom: clamp(1.8rem, 5vw, 3rem); }
+
+  .lab-grid { display: grid; gap: clamp(1.6rem, 5vw, 3rem); }
+  @media (min-width: 62rem) {
+    .lab-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr); align-items: start; }
+  }
+
+  .lab-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .lab-chip {
+    /* 44px tall on a phone even though the label is 0.72rem — the chip is the one thing on
+       this page a visitor has to hit accurately. */
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3rem 0.75rem;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+    color: var(--f-ink);
+    background: none;
+    border: 1.5px solid rgb(12 12 14 / 0.3);
+    border-radius: 0;
+    cursor: pointer;
+    transition: background-color 130ms ease, color 130ms ease, border-color 130ms ease;
+  }
+  .lab-chip:hover { border-color: var(--k-ink); }
+  .lab-chip[aria-pressed='true'] {
+    background: var(--k-ink);
+    border-color: var(--k-ink);
+    color: var(--k-bone);
+  }
+
+  .lab-stage { position: relative; }
+  .lab-frame { position: relative; background: var(--k-ink); }
+  .lab-frame img {
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+  }
+  .lab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding-top: 0.85rem;
+  }
+  .lab-attr {
+    font-family: var(--f-mono);
+    font-size: clamp(0.72rem, 2.6vw, 0.86rem);
+    letter-spacing: -0.01em;
+    /* A long effect name must never widen the column and push the page sideways. */
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lab-attr b { font-weight: 700; }
+
+  /* ---------- 4. SCROLL PROOF ------------------------------------------------------ */
+
+  .proof-wm { top: 2%; right: -10vw; rotate: 6deg; }
+  .proof-lines { display: grid; gap: clamp(0.9rem, 3vw, 1.6rem); }
+  .proof-lines li { font-size: var(--t-big); font-weight: 780; line-height: 0.98; letter-spacing: -0.03em; }
+  .proof-lines li em { font-style: normal; color: var(--k-pink); }
+  .proof-lines li span {
+    display: block;
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--f-dim);
+    padding-bottom: 0.5rem;
+  }
+
+  .proof-grid { display: grid; gap: clamp(1.4rem, 4vw, 2.5rem); margin-top: clamp(2.5rem, 7vw, 4.5rem); }
+  @media (min-width: 62rem) {
+    .proof-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+  /* `clip`, not `hidden` — an `overflow: hidden` frame around a scroll-linked image makes
+     that motionless frame the `view()` timeline's scroll container, and progress freezes. */
+  .proof-fig { overflow: clip; position: relative; }
+  .proof-fig img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  .proof-cap {
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.06em;
+    color: var(--f-dim);
+    padding-top: 0.6rem;
+    overflow-wrap: anywhere;
+  }
+
+  .counts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(1.2rem, 4vw, 2rem);
+    margin-top: clamp(2.5rem, 7vw, 4.5rem);
+    border-top: 3px solid currentColor;
+    padding-top: clamp(1.2rem, 4vw, 2rem);
+  }
+  @media (min-width: 50rem) { .counts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .counts dt {
+    font-size: clamp(2.6rem, 11vw, 6rem);
+    font-weight: 880;
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    font-variant-numeric: tabular-nums;
+  }
+  .counts dd {
+    margin: 0.6rem 0 0;
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--f-dim);
+  }
+
+  /* ---------- 6. ROUTES ------------------------------------------------------------ */
+
+  .routes-wm { top: 40%; left: -12vw; rotate: -4deg; }
+  .routes { display: grid; gap: 0; border-top: 3px solid currentColor; margin-top: clamp(2rem, 6vw, 3.5rem); }
+  .route {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.6rem 1rem;
+    padding: clamp(1rem, 3.5vw, 1.6rem) 0;
+    border-bottom: 3px solid currentColor;
+    /* `lift` owns translate; this only carries colour, so the two never fight. */
+    transition: background-color 180ms ease, color 180ms ease, padding-inline 180ms ease;
+  }
+  .route:hover, .route:focus-visible {
+    background: var(--k-ink);
+    color: var(--k-bone);
+    padding-inline: 0.7rem;
+    outline: none;
+  }
+  .route-n {
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.1em;
+    opacity: 0.7;
+  }
+  .route-name {
+    font-size: var(--t-big);
+    font-weight: 850;
+    line-height: 0.92;
+    letter-spacing: -0.035em;
+    text-transform: uppercase;
+  }
+  .route-what {
+    grid-column: 2;
+    font-family: var(--f-mono);
+    font-size: var(--t-micro);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.72;
+  }
+  @media (min-width: 56rem) {
+    .route { grid-template-columns: auto minmax(0, 1fr) minmax(0, 0.75fr); align-items: center; }
+    .route-what { grid-column: 3; text-align: right; }
+  }
+  .route-hidden .route-n { color: var(--k-pink); opacity: 1; }
+
+  /* ---------- 7. INSTALL ----------------------------------------------------------- */
+
+  .install-wm { bottom: -10%; right: -6vw; rotate: -3deg; }
+  .install-grid { display: grid; gap: clamp(1.6rem, 5vw, 3rem); align-items: start; }
+  @media (min-width: 62rem) { .install-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); } }
+  .code {
+    background: var(--k-ink);
+    color: var(--k-bone);
+    padding: clamp(1rem, 3.5vw, 1.6rem);
+    font-family: var(--f-mono);
+    font-size: clamp(0.72rem, 2.5vw, 0.86rem);
+    line-height: 1.75;
+    /* The one place a horizontal scrollbar is correct: a code sample must not be reflowed,
+       so it scrolls inside its own box rather than widening the page. */
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+  }
+  .code b { color: var(--k-orange); font-weight: 400; }
+  .code i { color: var(--k-pink); font-style: normal; }
+
+  /* ---------- footer --------------------------------------------------------------- */
+
+  .foot { padding-block: clamp(3.5rem, 10vw, 7rem) 0; }
+  .foot-marks { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: baseline; }
+  .foot-word {
+    display: block;
+    font-size: clamp(3.2rem, 21vw, 17rem);
+    font-weight: 900;
+    line-height: 0.82;
+    letter-spacing: -0.05em;
+    padding-top: clamp(2rem, 6vw, 4rem);
+    /* Cropped by the viewport bottom on purpose — the page ends mid-letterform. */
+    margin-bottom: -0.14em;
+    white-space: nowrap;
+  }
+  .foot-word b { font-weight: 900; color: var(--k-pink); }
+
+  .totop {
+    position: fixed;
+    right: var(--gut);
+    bottom: 1.1rem;
+    z-index: 50;
+    width: 48px; height: 48px;
+    display: grid; place-items: center;
+    background: var(--k-pink);
+    color: var(--k-ink);
+    border: 0;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  /* ---------- show-code chip ------------------------------------------------------- */
+
+  /* Not restyled — see CLAUDE.md. The single property overridden is the one this motif
+     genuinely differs on: square corners, because nothing else on the page is rounded. */
+  .kui-show-code-toggle { border-radius: 0; }
+
+  /* ---------- reduced motion -------------------------------------------------------- */
+
+  /*
+   * The library already owns every animation on this page and applies its own per-effect
+   * policy — `shorten` for entrances, `disable` for the continuous ambient and marquee
+   * families, plus a rule that releases the cloak so nothing stays hidden. None of that is
+   * re-stated or overridden here. What is left over is my own CSS *transitions*, which the
+   * library never sees, and the smooth anchor scrolling.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .lab-chip, .route { transition-duration: 1ms; }
+    html { scroll-behavior: auto; }
+  }
+
+  /*
+   * Coarse pointers get less continuous motion, for battery and for legibility: the two
+   * ambient washes in the hero are decoration, and a phone repainting a full-bleed drifting
+   * pattern behind 19rem type is paying for something nobody asked for.
+   */
+  @media (max-width: 47.99rem) {
+    .hero-ambient { display: none; }
+    .watermark { opacity: 0.12; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Scroll position as a rail across the very top. `timeline:scroll` is progress-linked, so it
+     runs backwards when you scroll up — no listener, no rAF loop. -->
+<div class="progress-rail" aria-hidden="true" style="position:fixed;inset-block-start:0;inset-inline:0;height:4px;z-index:70;">
+  <div data-kui="scroll-progress-bar timeline:scroll" style="height:100%;background:var(--k-pink);"></div>
+</div>
+
+<header class="bar">
+  <a class="brand" href="#top" aria-label="kUInetic home">
+    <span class="brand-orb" aria-hidden="true"><span class="brand-dot" data-kui="orbit 4s"></span></span>
+    <span>k<b>UI</b>netic</span>
+  </a>
+  <span class="bar-spacer"></span>
+  <a class="bar-link" href="./docs.html?doc=getting-started" data-kui="underline-slide">Docs</a>
+  <a class="bar-link" href="./docs.html?doc=catalog" data-kui="underline-slide">Catalog</a>
+  <button
+    type="button"
+    class="burger"
+    id="burger"
+    data-kui="hamburger-to-x"
+    aria-expanded="false"
+    aria-controls="menu"
+    aria-label="Menu"
+  >
+    <span class="kui-bar"></span><span class="kui-bar"></span><span class="kui-bar"></span>
+  </button>
+</header>
+
+<!-- A sibling of the header, not a child: the header is `mix-blend-mode: difference`, and a
+     panel inside it would blend too. `menu-fullscreen` is authored `on:manual` and played by
+     the script at the bottom — the same shape nav.js uses for the shared header menus. -->
+<nav class="menu" id="menu" data-kui="menu-fullscreen 520ms on:manual" aria-label="All pages" hidden>
+  <ul class="menu-list">
+    <li><a href="./reveals.html"><i>01</i>Reveals</a></li>
+    <li><a href="./scroll.html"><i>02</i>Scroll</a></li>
+    <li><a href="./text.html"><i>03</i>Text</a></li>
+    <li><a href="./interactive.html"><i>04</i>Interactive</a></li>
+    <li><a href="./data-hover.html"><i>05</i>Data &amp; Hover</a></li>
+    <li><a href="./ambient-feedback.html"><i>06</i>Ambient &amp; Feedback</a></li>
+    <li><a href="./nav-forms.html"><i>07</i>Nav &amp; Forms</a></li>
+    <li><a href="./icons-transitions.html"><i>08</i>Icons &amp; Transitions</a></li>
+    <li><a href="./three-d.html"><i>09</i>3D &amp; Perspective</a></li>
+    <li><a href="./docs.html?doc=getting-started"><i>→</i>Docs</a></li>
+  </ul>
+</nav>
+
+<main id="top">
+
+  <!-- ======================================================================
+       1 — HERO · BLUE FIELD
+       The category has to be unmissable on the first screen even at maximum
+       visual energy, so it is stated three times over in three different
+       registers: the micro rule ("CSS ANIMATION LIBRARY"), the headline
+       ("WRITE / MOTION / IN HTML"), and the deck underneath in plain prose.
+       ====================================================================== -->
+  <section class="field f-blue hero" id="hero">
+    <span class="watermark hero-wm" aria-hidden="true" data-kui="parallax-x distance:70px timeline:view">data-kui</span>
+    <!-- Two ambient washes, layered: a drifting dot grid and a grain overlay. Both are
+         `background`-channel effects, so neither can collide with anything moving above them. -->
+    <div class="hero-ambient" aria-hidden="true" data-kui="dot-grid-drift 26s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.22;"></div>
+    <div class="hero-ambient" aria-hidden="true" data-kui="noise-overlay 3s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.18;mix-blend-mode:overlay;"></div>
+
+    <div class="wrap">
+      <div class="hero-inner">
+
+        <div class="hero-type">
+          <p class="micro micro-row" data-kui="fade-up 600ms on:load">
+            <span>CSS animation library</span>
+            <span>authored in HTML attributes</span>
+            <span>252 effects · 30 primitives</span>
+          </p>
+
+          <h1 class="stack t-mega" data-kui-stagger="110ms">
+            <span class="mask l1"><span data-kui="slide-up 900ms on:load">Write</span></span>
+            <span class="mask l2"><span data-kui="slide-up 900ms on:load">Motion</span></span>
+            <span class="l3" data-kui="text-outline-fill 1100ms 800ms on:load">In HTML</span>
+          </h1>
+        </div>
+
+        <div class="hero-body">
+          <div>
+            <p class="deck" data-kui="fade-up 700ms 520ms on:load">
+              kUInetic compiles HTML attributes into real CSS keyframes and native scroll-driven
+              timelines. One element, one attribute — <span class="attr"><span>data-kui="fade-up"</span></span> —
+              and no JavaScript for you to write.
+            </p>
+            <p class="note" style="margin-top:1.1rem;" data-kui="fade-up 700ms 640ms on:load">
+              252 named effects over 30 primitive families. Roughly 70% of the catalog is keyframes
+              plus a metadata row, and ships with zero runtime JS on browsers with native timelines.
+            </p>
+          </div>
+          <div class="btn-row" style="margin-top:1.4rem;" data-kui-stagger="90ms">
+            <a class="btn btn-solid" href="#lab" data-kui="fade-up 600ms 760ms on:load">Try an effect</a>
+            <a class="btn btn-line" href="./docs.html?doc=getting-started" data-kui="fade-up 600ms 760ms on:load">Get started</a>
+          </div>
+        </div>
+
+        <figure class="hero-fig" data-kui="fade-up 900ms 300ms on:load">
+          <img
+            src="./assets/modeling/cobalt-profile.jpg"
+            alt="Sculptural profile lit in cobalt blue, wearing clear-framed glasses, on a lilac backdrop"
+          />
+        </figure>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       2 — BAND · ORANGE FIELD · time-driven marquee
+       Guaranteed off-canvas type at every viewport width, and the one kind
+       that is legible while it bleeds, because it keeps arriving.
+       ====================================================================== -->
+  <section class="field f-orange band band-rule" aria-label="Effect names, scrolling">
+    <div class="band-view">
+      <!-- The seamless loop needs two copies of the track in markup; the library supplies the
+           `width: max-content` and the translate keyframe. `marquee` defaults to `on:load` and
+           declares `reducedMotion: 'disable'` — an infinite loop has no shortened form. -->
+      <div class="band-track" data-kui="marquee 34s">
+        <span>fade-up<i>◆</i><em>wipe-circle</em><i>◆</i>slat-assemble<i>◆</i><em>text-reveal-mask</em><i>◆</i>parallax-scale<i>◆</i><em>ken-burns</em><i>◆</i>scramble<i>◆</i><em>marquee</em><i>◆</i>curtain-reveal<i>◆</i><em>count-up</em><i>◆</i></span>
+        <span aria-hidden="true">fade-up<i>◆</i><em>wipe-circle</em><i>◆</i>slat-assemble<i>◆</i><em>text-reveal-mask</em><i>◆</i>parallax-scale<i>◆</i><em>ken-burns</em><i>◆</i>scramble<i>◆</i><em>marquee</em><i>◆</i>curtain-reveal<i>◆</i><em>count-up</em><i>◆</i></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       3 — PLAYGROUND · BONE FIELD
+       The claim with the proof attached. Each chip writes a different real
+       effect name onto ONE element's `data-kui` and the runtime recompiles it
+       in place.
+       ====================================================================== -->
+  <section class="field f-bone" id="lab">
+    <span class="watermark lab-wm" aria-hidden="true">try it</span>
+    <div class="wrap">
+      <div class="lab-head">
+        <p class="micro" data-kui="fade-up 600ms">The whole API, live</p>
+        <!-- No `<br>` inside a `text-reveal-mask`: split-text rebuilds the element from
+             `el.textContent`, which drops element children — a `<br>` would silently vanish and
+             run the two halves together with no space. The break is a `max-width` in `ch`
+             instead, which is also what `unit: 'lines'` wants: it groups graphemes by measured
+             line box, so real wrapping gives it real lines to reveal. -->
+        <h2 class="stack t-huge" style="max-width: 13ch;" data-kui="text-reveal-mask 800ms">Click a name. Watch it change.</h2>
+        <p class="note" data-kui="fade-up 700ms 120ms">
+          One element, one attribute. Every chip below writes a different value onto the same frame
+          and the browser recompiles it — no rebuild, no re-render, nothing else on the page touched.
+        </p>
+      </div>
+
+      <div class="lab-grid">
+        <div>
+          <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="35ms">
+            <button type="button" class="lab-chip" aria-pressed="true" data-kui="fade-up 450ms" data-fx="wipe-circle 1500ms">wipe-circle</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="slat-assemble 1600ms">slat-assemble</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="curtain-reveal 1500ms">curtain-reveal</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="mask-reveal 1500ms">mask-reveal</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="wipe-diagonal 1500ms">wipe-diagonal</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="wipe-up 1500ms">wipe-up</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="wipe-right 1500ms">wipe-right</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="ken-burns 6000ms">ken-burns</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="blur-up 1500ms">blur-up</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="fade-blur-up 1500ms">fade-blur-up</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="bounce-in 1500ms">bounce-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="back-in-up 1500ms">back-in-up</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="roll-in 1500ms">roll-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="swing-in 1500ms">swing-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="rotate-in 1500ms">rotate-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="zoom-in 1500ms">zoom-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="pop-in 1500ms">pop-in</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="slide-up 1500ms">slide-up</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="page-slide 1500ms">page-slide</button>
+            <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 450ms" data-fx="blur-in 1500ms">blur-in</button>
+          </div>
+
+          <p class="note" style="margin-top:1.6rem;" data-kui="fade-up 600ms">
+            Comma-separate two effects whose channels don't overlap and they compile into one
+            declaration. Two that want the same CSS property collide, and the library says so in
+            the console instead of letting one quietly win.
+          </p>
+        </div>
+
+        <div class="lab-stage">
+          <!-- The attribute sits on the frame, not the picture: `slat-assemble` builds a stage of
+               slats around the <img> it is given, so it needs a wrapper — and every entrance works
+               on a wrapper too, which keeps every chip on the same footing. The child stays a
+               plain <img> for the same reason. -->
+          <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
+            <img
+              src="./assets/modeling/modeling_20.jpg"
+              alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting"
+            />
+          </div>
+          <div class="lab-bar">
+            <p class="lab-attr">data-kui="<b id="lab-attr">wipe-circle 1500ms</b>"</p>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="lab-target">Show code</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       4 — SCROLL PROOF · INK FIELD
+       Everything in here is `timeline:view` or `timeline:scroll`: progress
+       comes from scroll position, not a clock, so all of it runs backwards
+       when you scroll back up. That is the difference between the two axes
+       and it is the thing worth demonstrating rather than describing.
+       ====================================================================== -->
+  <section class="field f-ink" id="scroll">
+    <span class="watermark proof-wm" aria-hidden="true" data-kui="parallax-x distance:90px timeline:view">reverses</span>
+    <div class="wrap">
+      <p class="micro" style="margin-bottom:1rem;" data-kui="fade-up 600ms">Scroll-driven, both directions</p>
+      <h2 class="stack t-huge" style="margin-bottom:clamp(2rem,6vw,3.5rem);" data-kui="scroll-skew from:12deg to:0deg timeline:view">
+        Not fired.<br />Scrubbed.
+      </h2>
+
+      <ul class="proof-lines" data-kui-stagger="90ms">
+        <li data-kui="fade-up distance:36px" data-kui-timeline="view entry 0% cover 38%">
+          <span>on:enter</span>Plays once, <em>stays finished</em>.
+        </li>
+        <li data-kui="fade-up distance:36px" data-kui-timeline="view entry 0% cover 38%">
+          <span>timeline:view</span>Tied to the element's trip <em>through the viewport</em>.
+        </li>
+        <li data-kui="fade-up distance:36px" data-kui-timeline="view entry 0% cover 38%">
+          <span>timeline:scroll</span>Tied to the page's own <em>scroll offset</em>.
+        </li>
+        <li data-kui="fade-up distance:36px" data-kui-timeline="view entry 0% cover 38%">
+          <span>separate axes</span>Activation and timeline are <em>not two tiers of one thing</em>.
+        </li>
+      </ul>
+
+      <div class="proof-grid">
+        <figure>
+          <div class="proof-fig">
+            <img
+              src="./assets/modeling/modeling_08.jpg"
+              alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket"
+              data-kui="parallax-scale from:1 scale:1.22 timeline:view"
+              loading="lazy"
+            />
+          </div>
+          <figcaption class="proof-cap">data-kui="parallax-scale from:1 scale:1.22 timeline:view"</figcaption>
+        </figure>
+        <figure>
+          <div class="proof-fig">
+            <img
+              src="./assets/modeling/blue-lip-gloves.jpg"
+              alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face"
+              data-kui="scroll-desaturate timeline:view"
+              loading="lazy"
+            />
+          </div>
+          <figcaption class="proof-cap">data-kui="scroll-desaturate timeline:view" — colour drains back in as it rises</figcaption>
+        </figure>
+      </div>
+
+      <dl class="counts">
+        <div>
+          <dt><span data-kui="count-up 1600ms to:252">252</span></dt>
+          <dd>named effects</dd>
+        </div>
+        <div>
+          <dt><span data-kui="count-up 1600ms 120ms to:30">30</span></dt>
+          <dd>primitive families</dd>
+        </div>
+        <div>
+          <dt><span data-kui="count-up 1600ms 240ms to:15">15</span></dt>
+          <dd>catalog sections</dd>
+        </div>
+        <div>
+          <dt><span data-kui="count-up 1600ms 360ms to:2">2</span></dt>
+          <dd>files to install</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       5 — BAND · PINK FIELD · scroll-linked marquee
+       The same primitive as the orange band, driven by `animation-timeline:
+       scroll()` instead of a clock. Scroll up and this one runs backwards
+       while the orange one keeps going — the two axes, side by side.
+       ====================================================================== -->
+  <section class="field f-pink band band-rule" aria-label="Primitive families, scrolling with the page">
+    <div class="band-view">
+      <div class="band-track" data-kui="marquee-scroll-linked timeline:scroll">
+        <span><em>reveal</em><i>◆</i>clip-wipe<i>◆</i><em>mask-reveal</em><i>◆</i>split-text<i>◆</i><em>parallax</em><i>◆</i>pin<i>◆</i><em>flip-3d</em><i>◆</i>stroke-draw<i>◆</i><em>marquee</em><i>◆</i>gradient-shift<i>◆</i></span>
+        <span aria-hidden="true"><em>reveal</em><i>◆</i>clip-wipe<i>◆</i><em>mask-reveal</em><i>◆</i>split-text<i>◆</i><em>parallax</em><i>◆</i>pin<i>◆</i><em>flip-3d</em><i>◆</i>stroke-draw<i>◆</i><em>marquee</em><i>◆</i>gradient-shift<i>◆</i></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       6 — ROUTES · BONE FIELD
+       252 effects is not a wall to dump on one page. Nine real demo pages,
+       each an oversized index line rather than a card.
+       ====================================================================== -->
+  <section class="field f-bone" id="pages">
+    <span class="watermark routes-wm" aria-hidden="true">index</span>
+    <div class="wrap">
+      <p class="micro" style="margin-bottom:1rem;" data-kui="fade-up 600ms">Nine demo pages</p>
+      <h2 class="stack t-huge" style="max-width: 9ch;" data-kui="text-reveal-mask 800ms">See them running.</h2>
+
+      <ul class="routes" data-kui-stagger="70ms">
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./reveals.html" data-kui="lift">
+            <span class="route-n">01</span>
+            <span class="route-name">Reveals</span>
+            <span class="route-what">Entrance &amp; exit matrix — 48 names</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./scroll.html" data-kui="lift">
+            <span class="route-n">02</span>
+            <span class="route-name">Scroll</span>
+            <span class="route-what">Parallax, pinning, scrubbing</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./text.html" data-kui="lift">
+            <span class="route-n">03</span>
+            <span class="route-name">Text</span>
+            <span class="route-what">26 typographic effects</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./interactive.html" data-kui="lift">
+            <span class="route-n">04</span>
+            <span class="route-name">Interactive</span>
+            <span class="route-what">Hover, pointer, gestures</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./data-hover.html" data-kui="lift">
+            <span class="route-n">05</span>
+            <span class="route-name">Data &amp; Hover</span>
+            <span class="route-what">Counters, charts, cards</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./ambient-feedback.html" data-kui="lift">
+            <span class="route-n">06</span>
+            <span class="route-name">Ambient &amp; Feedback</span>
+            <span class="route-what">Backgrounds, loading, status</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route" href="./nav-forms.html" data-kui="lift">
+            <span class="route-n">07</span>
+            <span class="route-name">Nav &amp; Forms</span>
+            <span class="route-what">Menus, headers, inputs</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route route-hidden" href="./icons-transitions.html" data-kui="lift">
+            <span class="route-n">08</span>
+            <span class="route-name">Icons &amp; Transitions</span>
+            <span class="route-what">SVG draws, page changes</span>
+          </a>
+        </li>
+        <li data-kui="fade-up 650ms">
+          <a class="route route-hidden" href="./three-d.html" data-kui="lift">
+            <span class="route-n">09</span>
+            <span class="route-name">3D &amp; Perspective</span>
+            <span class="route-what">Flips, cubes, folds</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ======================================================================
+       7 — INSTALL · BLUE FIELD
+       ====================================================================== -->
+  <section class="field f-blue" id="install">
+    <span class="watermark install-wm" aria-hidden="true">two files</span>
+    <div class="wrap">
+      <div class="install-grid">
+        <div>
+          <p class="micro" style="margin-bottom:1rem;" data-kui="fade-up 600ms">Install</p>
+          <h2 class="stack t-huge" style="max-width: 9ch;" data-kui="text-reveal-mask 800ms">No build step.</h2>
+          <p class="note" style="margin-top:1.4rem;color:rgb(240 236 225 / 0.78);" data-kui="fade-up 700ms 120ms">
+            Two files and no bundler config. <code>observe: true</code> keeps a MutationObserver
+            running, so elements added later — by your app, a CMS, a client-side router — get
+            picked up automatically.
+          </p>
+          <div class="btn-row" style="margin-top:1.8rem;" data-kui-stagger="80ms">
+            <a class="btn btn-solid" href="./docs.html?doc=getting-started" data-kui="fade-up 600ms">Getting started</a>
+            <a class="btn btn-line" href="./docs.html?doc=catalog" data-kui="fade-up 600ms">All 252 effects</a>
+          </div>
+        </div>
+        <div data-kui="fade-up 800ms 160ms">
+<pre class="code" id="install-code"><b>&lt;link</b> rel="stylesheet" href="./kuinetic.css"<b>&gt;</b>
+<b>&lt;script</b> src="./kuinetic.js"<b>&gt;&lt;/script&gt;</b>
+<b>&lt;script&gt;</b>
+  kuinetic.<i>kuinetic</i>({ observe: <i>true</i> }).<i>start</i>()
+<b>&lt;/script&gt;</b>
+
+<b>&lt;h1</b> data-kui="<i>fade-up</i>"<b>&gt;</b>Hello.<b>&lt;/h1&gt;</b></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ======================================================================
+     FOOTER · INK FIELD
+     The wordmark is the last piece of poster type: full measure, cropped by
+     the bottom of the page mid-letterform. Hovering it runs `var-width`,
+     which interpolates Archivo's real `wdth` axis from condensed to wide —
+     the catalog's variable-font family, on the one word that can carry it.
+     ====================================================================== -->
+<footer class="field f-ink foot">
+  <div class="wrap">
+    <div class="foot-marks">
+      <p class="micro">kUInetic — a CSS animation library authored in HTML attributes</p>
+      <p class="micro" style="opacity:0.6;">252 effects · 30 primitives · 15 catalog sections</p>
+    </div>
+    <span class="foot-word" data-kui="var-width from:78% to:118% 700ms on:hover" title="Hover me">k<b>UI</b>netic</span>
+  </div>
+</footer>
+
+<button type="button" class="totop" data-kui="back-to-top-fade" data-scroll-top aria-label="Back to top">↑</button>
+
+<script src="./kuinetic.js"></script>
+<script>
+  window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+</script>
+
+<script>
+  // --- The chip playground -----------------------------------------------------------------
+  //
+  // `reset()` + `process()` + `activate()`, the same trio index.html's playground uses.
+  // `process()` short-circuits when an element's configuration hasn't changed, so `reset()` —
+  // which releases the installed state — is what makes running a *different* attribute on the
+  // same element recompile rather than no-op. And `process()` alone leaves the effect GATED on
+  // its activation trigger, which here is `on:enter`: the frame never left the viewport, so the
+  // observer never re-fires and the animation sits paused at time 0 forever. Invisible for
+  // `blur-up`; total for `wipe-up`, whose frame 0 is `inset(100% ...)` — nothing at all. The
+  // click IS the activation, so say so.
+  ;(function () {
+    var target = document.getElementById('lab-target')
+    var label = document.getElementById('lab-attr')
+    var chips = document.querySelectorAll('.lab-chip')
+    if (!target || !label || !chips.length) return
+
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var fx = chip.getAttribute('data-fx')
+        chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+        label.textContent = fx
+        target.setAttribute('data-kui', fx)
+        var kui = window.__kui
+        if (!kui || typeof kui.reset !== 'function') return
+        kui.reset(target)
+        kui.process(target)
+        kui.activate(target)
+      })
+    })
+  })()
+</script>
+
+<script>
+  // --- The full-screen menu ----------------------------------------------------------------
+  //
+  // Clearing `hidden` is not enough: `menu-fullscreen` is authored `on:manual`, so the runtime
+  // installs it and waits. `play()` in the same synchronous step as clearing `hidden` is what
+  // makes the circular clip-path wipe read as motion rather than a jump — nav.js does exactly
+  // this for the shared header menus.
+  ;(function () {
+    var burger = document.getElementById('burger')
+    var menu = document.getElementById('menu')
+    if (!burger || !menu) return
+
+    function setOpen(open) {
+      burger.setAttribute('aria-expanded', String(open))
+      menu.hidden = !open
+      document.documentElement.style.overflow = open ? 'hidden' : ''
+      if (open && window.__kui && typeof window.__kui.play === 'function') {
+        window.__kui.play(menu, 'menu-fullscreen')
+      }
+    }
+
+    burger.addEventListener('click', function () {
+      setOpen(burger.getAttribute('aria-expanded') !== 'true')
+    })
+
+    // Every link closes it, so a same-page anchor doesn't leave the overlay covering the target.
+    menu.addEventListener('click', function (event) {
+      if (event.target.closest('a')) setOpen(false)
+    })
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && burger.getAttribute('aria-expanded') === 'true') {
+        setOpen(false)
+        burger.focus()
+      }
+    })
+  })()
+</script>
+
+<script>
+  // `back-to-top-fade` owns only the show/hide — the catalog is explicit that the navigation
+  // family animates and never runs the behaviour behind it. The scroll itself is one line.
+  ;(function () {
+    var btn = document.querySelector('[data-scroll-top]')
+    if (!btn) return
+    btn.addEventListener('click', function () {
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
+    })
+  })()
+</script>
+
+<script src="./show-code.js"></script>
+</body>
+</html>
