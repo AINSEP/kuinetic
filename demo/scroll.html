@@ -70,17 +70,40 @@
   /* sticky needs a non-stretched grid item — the default `align-items: stretch` would make this
      column as tall as the copy beside it, leaving the pin nothing to travel within */
   .showcase-media { align-self: start; }
-  /* Below the two-column breakpoint there is no column beside this one for the pin to hold against,
-     and Chrome clamps a sticky grid item to the *grid container*, not to its own grid area — so
-     instead of stopping at the end of row 1 it rode down over `.showcase-copy` for the whole
-     section. Measured at 390px: the frame held at y=96 while its caption sat on the first beat's
-     `<h3>` (333x22px of overlap) and the trigger chips sat on the second. The `position` is written
-     inline by `data-kui="pin-until"`, so `!important` is the only weight that reaches it.
-     `min-width: 0` is the other half: this figure carries a `.kui-contract` bar whose min-content is
-     wider than the track, and a grid item keeps `min-width: auto` unless told otherwise, so the
-     single column resolved to 362px inside a 342px grid and ate the right-hand gutter. */
+  /* --- pin-until is a two-column pattern, and this page says so out loud below 900px ---
+     `pin-until` is the sticky-*sidebar* primitive: it holds one column still while the column
+     beside it scrolls past. Below the two-column breakpoint there is no column beside it. The
+     figure is stacked *above* `.showcase-copy` instead of next to it, so holding it does not park a
+     reference alongside what you are reading — it parks an opaque 490px card on top of it. Measured
+     at 390px before this rule existed: the frame held at y=96 while its caption sat on the first
+     beat's `<h3>` (333x22px of overlap) and the trigger chips sat on the second. (Chrome clamps a
+     sticky grid item to the *grid container* rather than to its own grid area, which is why it ran
+     the length of the section rather than stopping at the end of row 1 — but constraining it to row
+     1 would only make sticky a no-op, since with `align-self: start` row 1 is exactly the figure's
+     own height. There is no arrangement of one column in which this pin has anywhere to travel.)
+
+     So the decision is deliberate and it is not "mobile gets no animation": below 900px the section
+     stacks, and a phone reader gets the reference at full size followed by the five beats in
+     reading order. What is switched off is the *hold*, and only the hold. The effect stays mounted
+     — `--kui-progress` still runs 0->1 across the section and still drives
+     `parallax-scale timeline:pin` on the video inside the frame (measured at 390px: scale 1 -> 1.06
+     over the section, same as desktop). Removing `data-kui` instead would have taken that with it.
+
+     `position` is written inline by the primitive, so `!important` is the only weight that reaches
+     it. That is the CSS escape hatch doing its job, but it is also the seam: the library has no way
+     to say "pin only where there is room", and every author of a sticky sidebar will land here.
+
+     The figcaption says the same thing in prose, because a caption that claims a pin is running
+     while nothing is held is the part that reads as broken. */
   @media (max-width: 899.98px) {
-    .showcase-media { position: static !important; min-width: 0; }
+    .showcase-media {
+      position: static !important;
+      /* Nothing to do with the pin, and it would still be needed if the pin ran here. This figure
+         carries a `.kui-contract` bar whose min-content is wider than the track, and a grid item
+         keeps `min-width: auto` unless told otherwise, so the single column resolved to 362px
+         inside a 342px grid and ate the right-hand gutter. */
+      min-width: 0;
+    }
   }
   .showcase-frame {
     border-radius: 14px; overflow: clip;
@@ -572,13 +595,17 @@
     color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
     transition: background 180ms ease, border-color 180ms ease;
   }
+  /* Bottom-left, on every card and at every width. This is the primary control on any card that
+     has one, and the primary control gets the corner a thumb reaches first. It used to sit
+     bottom-right with `Show code` on the left, which put the secondary action in the primary's
+     place; the two swapped rather than moved, so they still occupy opposite corners. */
   .kui-flip-control {
-    justify-self: end;
+    justify-self: start;
     padding: 0.4rem 0.5rem 0.4rem 0.85rem;
     border: 1px solid rgb(255 255 255 / 0.25); background: rgb(8 9 10 / 0.62);
   }
   .hero-flip-code {
-    justify-self: start;
+    justify-self: end;
     padding: 0.4rem 0.85rem;
     letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;
     border: 1px solid rgb(255 255 255 / 0.3); background: rgb(8 9 10 / 0.34);
@@ -587,11 +614,28 @@
   .hero-flip-code:hover, .hero-flip-code:focus-visible {
     background: rgb(8 9 10 / 0.72); border-color: rgb(255 255 255 / 0.6); color: #fff;
   }
-  /* Under ~520px the two pills would meet in the middle. Stack them at the bottom-left instead of
-     letting them collide — a control that overlaps another control is worse than one that moved. */
-  @media (max-width: 520px) {
-    .kui-flip-control, .hero-flip-code { justify-self: start; }
-    .kui-flip-control { margin-bottom: 3.1rem; }
+  /* Narrow enough and the two pills meet in the middle, so one of them has to stack. The one that
+     stacks is `Show code`, and it lifts — the Flip pill keeps the bottom-left corner at every width,
+     because a primary control that moves depending on how wide your phone is is not a fixed target.
+
+     This rule used to do the opposite, and it used to fire at 520px, and it was scoped to
+     `.kui-flip-control` rather than to this card — so all three flip-cards on the page, including
+     the two that have no second control to make room for, sat 3.1rem (49.6px) above their own
+     bottom edge on any phone. That is the "flip control is too high" fault.
+
+     371px is where the collision actually starts, measured rather than guessed: the Flip pill is
+     186px wide at its widest label (`Sandhill Studio`, the back face — it is 151px on the front,
+     and the wider state is the one that has to fit), `Show code` is 98px, plus 2x0.85rem of margin
+     and a 12px minimum gap = 324px of card, and the card is the viewport less `.wrap`'s 2x24px
+     gutters. Gated at 400px instead, to keep a phone-width card from having to render two pills
+     12px apart, and so the arrangement does not hinge on the exact length of a label string. */
+  @media (max-width: 399.98px) {
+    .hero-flip-code {
+      justify-self: start;
+      /* The Flip pill's own height (`min-height: 2.2rem`) plus its 0.85rem margin, plus 0.55rem of
+         gap — the same gap the pill uses between its label and its side chip. */
+      margin-bottom: 3.6rem;
+    }
   }
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -668,21 +712,23 @@
     align-self: start; padding: 1.65rem; border-radius: 14px; border: 1px solid var(--border);
     background: var(--surface); box-shadow: var(--shadow-float);
   }
-  /* Same pair of mobile faults as `.showcase-media`, same two lines, gated to this layout's own
-     800px breakpoint rather than the showcase's 900px.
+  /* The same deliberate decision as `.showcase-media` above — see that comment for the whole
+     argument — gated to this layout's own 800px breakpoint rather than the showcase's 900px.
+     `pin-until` is the sticky-sidebar pattern; in one column there is nothing beside this aside to
+     hold against, so pinning it does not keep the panel next to its itinerary, it puts the panel on
+     top of it. Measured before this rule: pinned at 6rem, covering 239px of
+     `.pin-until-content`'s screenshots for the whole section. Below 800px the layout stacks — panel
+     first, then the three stops it names, in reading order — and the aside's own prose says so, so
+     the reader is not told a pin is holding while nothing holds.
 
-     `min-width: 0`: the aside's min-content is 474px — `.kui-contract` is `inline-flex` with
-     `flex-wrap: nowrap`, so the code and its chip cannot break onto two lines and the bar's
-     min-content is the whole strip. A grid item keeps `min-width: auto`, so a `1fr` track resolved
-     to 474px inside a 342px grid and the page scrolled 108px sideways. The contract bar is already
-     built to survive this (`max-width: 100%`, and `code { min-width: 8ch; overflow-x: auto }` with
-     the self-cancelling edge fade) — it just never got the chance, because nothing let the aside
-     itself shrink. With the item free, the bar lands at 287px and the attribute scrolls inside it.
-
-     `position: static !important`: in one column there is nothing beside the aside to hold against,
-     and a sticky grid item is clamped to the grid container, not to row 1 — so it pinned at 6rem
-     and covered 239px of `.pin-until-content`'s screenshots for the whole section. `pin-until`
-     writes `position` inline, so `!important` is the only weight that reaches it. */
+     `min-width: 0` is a separate fix that would be needed either way: the aside's min-content is
+     474px — `.kui-contract` is `inline-flex` with `flex-wrap: nowrap`, so the code and its chip
+     cannot break onto two lines and the bar's min-content is the whole strip. A grid item keeps
+     `min-width: auto`, so a `1fr` track resolved to 474px inside a 342px grid and the page scrolled
+     108px sideways. The contract bar is already built to survive this (`max-width: 100%`, and
+     `code { min-width: 8ch; overflow-x: auto }` with the self-cancelling edge fade) — it just never
+     got the chance, because nothing let the aside itself shrink. With the item free, the bar lands
+     at 287px and the attribute scrolls inside it. */
   @media (max-width: 799.98px) {
     .pin-until-aside { position: static !important; min-width: 0; }
   }
@@ -981,10 +1027,12 @@
     display: flex; flex-direction: column; gap: 0.1rem;
   }
   /* Sticky only once `.spy-layout` is two columns — same 800px query as the grid two rules up. The
-     third instance of the fault `.showcase-media` and `.pin-until-aside` had: in one column the nav
-     has no column to hold beside, and a sticky grid item is clamped to the grid container rather
-     than to its own row, so it pinned at 6rem and sat on 182px of `.spy-sections` for the whole
-     section. Unlike those two the `position` is authored here, so this is a gate, not an override. */
+     third sticky sidebar on this page, and the same decision as `.showcase-media` and
+     `.pin-until-aside`: in one column the nav has no column to hold beside, and a sticky grid item
+     is clamped to the grid container rather than to its own row, so it pinned at 6rem and sat on
+     182px of `.spy-sections` for the whole section. Unlike those two the `position` is authored
+     here, so this is a gate rather than an override — and `scroll-spy` itself is unaffected either
+     way, because what it does is stamp the active link, which it goes on doing in one column. */
   @media (min-width: 800px) { .spy-nav { position: sticky; top: 6rem; } }
   .spy-nav a {
     display: flex; align-items: center; gap: 0.7rem;
@@ -1314,7 +1362,7 @@
                 </button>
               </div>
             </div>
-            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin" · the frame is a two-sided flip-card, and the second reference is on its back (Sam Crawford)</figcaption>
+            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" wherever there are two columns, stacked below · breathing on data-kui="parallax-scale timeline:pin" at every width · the frame is a two-sided flip-card, and the second reference is on its back (Sam Crawford)</figcaption>
 
             <!-- The live half of the flip-card contract. The bar prints the attribute; the chips
                  under it rewrite one token of it and re-plan the card in place through the
@@ -1342,7 +1390,7 @@
           <div class="showcase-copy">
             <p class="kicker">Reference</p>
             <h2 id="showcase-title" data-kui="text-reveal-up 700ms">A hero gets one job: make you stop.</h2>
-            <p>Four decisions are doing the work. The frame stays pinned while they scroll past it.</p>
+            <p>Four decisions are doing the work. Give the frame a column of its own and it stays pinned while they scroll past it.</p>
 
             <div class="showcase-beat" data-kui="fade-up distance:12px timeline:view">
               <span class="beat-num">01</span>
@@ -1601,7 +1649,7 @@
             <aside class="pin-until-aside" data-kui="pin-until offset-top:6rem">
               <p class="kicker">pin-until</p>
               <h4>Three stops, one scroll.</h4>
-              <p>This panel sticks at <code>offset-top:6rem</code> while the itinerary beside it scrolls past underneath.</p>
+              <p>This panel sticks at <code>offset-top:6rem</code> while the itinerary beside it scrolls past underneath. <code>pin-until</code> is the sticky-<em>sidebar</em> pattern: below the two-column breakpoint there is nothing beside it to hold against, so it stacks instead.</p>
               <p class="kui-contract"><code>data-kui="pin-until offset-top:6rem"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
             </aside>
             <div class="pin-until-content">
