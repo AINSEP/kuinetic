@@ -58,6 +58,17 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * `flip-in-x`/`-y`, `flip-out-x`/`-y`) are the three members.
    */
   skew: ['transform'],
+  /**
+   * CSS Motion Path's four properties, all under one channel because they are one mechanism:
+   * `offset-distance` means nothing without `offset-path`, and `offset-rotate`/`offset-anchor`
+   * only apply while a path is set. Nothing outside `effects/motion-path` writes any of them.
+   *
+   * Deliberately *not* filed under `translate`/`rotate`. The motion-path transform is a separate
+   * stage from the individual transform properties — both apply, neither overwrites the other —
+   * so a path-driven element genuinely can compose with a `parallax-y` or a spin, and grouping
+   * them would make the compiler reject pairs that do not collide.
+   */
+  offset: ['offset-path', 'offset-distance', 'offset-rotate', 'offset-anchor'],
   text: ['letter-spacing', 'word-spacing', 'font-variation-settings'],
   font: ['font-weight', 'font-stretch', 'font-style'],
   shadow: ['box-shadow'],

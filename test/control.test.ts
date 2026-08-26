@@ -38,6 +38,7 @@ const CAPS: Capabilities = {
   viewTransitions: false,
   intersectionObserver: true,
   reducedMotion: false,
+  motionPath: true,
 }
 
 const idleScheduler: ScrollScheduler = {

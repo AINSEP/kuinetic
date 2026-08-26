@@ -26,6 +26,7 @@ const CAPS: Capabilities = {
   viewTransitions: false,
   intersectionObserver: true,
   reducedMotion: false,
+  motionPath: true,
 }
 
 export interface FakeScheduler extends ScrollScheduler {

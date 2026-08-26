@@ -10,7 +10,7 @@ wherever CSS can do it. Standalone, MIT, npm + CDN, framework-agnostic. No produ
 <h1 data-kui="fade-up">Hello.</h1>
 ```
 
-257 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
+262 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
 gesture-driven motion. 100% branch/statement/function/line test coverage, over 800 tests.
 
 ## Install
@@ -96,7 +96,7 @@ manually:
 ## Docs
 
 - **Getting Started** — install, first animation, timing, composition, common mistakes.
-- **Catalog** — all 257 named effects, grouped by category, with renderer and channel metadata.
+- **Catalog** — all 262 named effects, grouped by category, with renderer and channel metadata.
 - **Architecture** — the attribute grammar, the composition model, and why the library is built
   the way it is (`docs/design.md` in this repo).
 

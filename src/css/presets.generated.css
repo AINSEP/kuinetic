@@ -707,6 +707,13 @@
     --kui-nav-reveal-ease: ease-out;
   }
 
+  [data-kui-fx~='motion-path'] {
+    --kui-motion-path: "M 0 0 L 120 0";
+    --kui-motion-path-duration: 1200ms;
+    --kui-motion-path-delay: 0ms;
+    --kui-motion-path-ease: ease-out;
+  }
+
   [data-kui-fx~='noise-overlay'] {
     --kui-ambient-tint-duration: 650ms;
     --kui-ambient-tint-ease: steps(6);
@@ -760,6 +767,34 @@
     --kui-parallax-duration: 600ms;
     --kui-parallax-delay: 0ms;
     --kui-parallax-ease: ease-out;
+  }
+
+  [data-kui-fx~='path-arc'] {
+    --kui-motion-path: "M 0 0 C 40 -70 120 -70 160 0";
+    --kui-motion-path-duration: 1200ms;
+    --kui-motion-path-ease: ease-in-out;
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-loop'] {
+    --kui-motion-path: "M 0 0 C 0 -70 110 -70 110 0 C 110 70 0 70 0 0";
+    --kui-motion-path-duration: 2400ms;
+    --kui-motion-path-ease: linear;
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-swoop'] {
+    --kui-motion-path: "M -120 70 C -70 70 -25 25 0 0";
+    --kui-motion-path-duration: 900ms;
+    --kui-motion-path-ease: var(--kui-ease-expo-out, ease-out);
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-wave'] {
+    --kui-motion-path: "M 0 0 C 45 -45 105 45 150 0";
+    --kui-motion-path-duration: 1600ms;
+    --kui-motion-path-ease: ease-in-out;
+    --kui-motion-path-delay: 0ms;
   }
 
   [data-kui-fx~='pin-section'] {
@@ -1469,6 +1504,7 @@
   html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
@@ -1535,6 +1571,7 @@
   html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),

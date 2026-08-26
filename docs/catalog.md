@@ -1,10 +1,10 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into fifteen sections (A–O).
+This catalog lists every named effect the library ships, grouped into sixteen sections (A–P).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **257** named effects, over **32 primitive families**. Note that 48 names come from a
+**Counts:** **262** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -14,7 +14,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–O sections below — see [Gestures & physics](#gestures-physics) at the end
+outside the lettered A–P sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
 
@@ -27,7 +27,7 @@ here that is not a named effect at all: it is how you animate something the cata
 
 ---
 
-## The 32 primitive families
+## The 33 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -63,6 +63,7 @@ here that is not a named effect at all: it is how you animate something the cata
 | 30 | `slat-assemble` | prep | — | image slats fly in and land assembled |
 | 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`) |
 | 32 | `tween` | css | per attribute | generic property tween — `tween`, `tween-from` |
+| 33 | `motion-path` | css | x | travel along an arbitrary curve (`offset-path`) |
 
 ---
 
@@ -668,6 +669,57 @@ Primitives 1, 10, 15.
 
 ---
 
+## P. Motion paths — 5 names
+
+Primitive 32. All `css`.
+
+`motion-path` · `path-arc` · `path-wave` · `path-loop` · `path-swoop`
+
+> **What this closes.** `orbit` and `float` are fixed shapes — a full turn, a bob. These follow an
+> arbitrary curve, which is the one thing the catalog previously could not express at all and the
+> reason GSAP's MotionPathPlugin had no counterpart here. It is native CSS end to end: `offset-path`
+> holds the curve and a keyframe animates `offset-distance` along it, so the motion composites off
+> the main thread like every other entry in this table and costs no runtime JavaScript.
+>
+> **Bring your own curve.** Every name takes `path:`, as SVG path data. Quote it — it is full of
+> spaces and commas, and the same rule applies as to a selector in `target:`:
+>
+> ```html
+> <div data-kui="motion-path path:'M 0 0 C 60 -80 180 -80 240 0' 1400ms"></div>
+> ```
+>
+> Coordinates are px, measured from the element's **own top-left corner**, so `M 0 0` is exactly
+> where the element already sits and the rest of the path is a set of offsets from there. That
+> holds in a flex row, a grid cell, or the middle of a paragraph — nothing has to know about the
+> containing block. `path-swoop` is written the other way round for the same reason: it starts
+> displaced and *ends* at `0 0`, so it flies in and lands precisely on its resting position.
+>
+> **Facing the direction of travel** is `rotate:auto` — GSAP calls it autoRotate — and is **off by
+> default**, unlike the CSS property underneath. Tipping a card or a headline as it moves is almost
+> never wanted; an arrow or a paper plane is the case that is, and it asks. `rotate:reverse` follows
+> the tangent backwards, and any angle (`rotate:45deg`) pins a fixed rotation instead. Pair
+> `rotate:auto` with `anchor:center`, because the anchor is also the pivot the rotation turns about
+> and an arrow spinning on its corner looks broken.
+>
+> **Which point rides the path** is `anchor:`, defaulting to the element's top-left corner (that is
+> what makes the coordinates read as offsets). `anchor:center`, `anchor:"top right"` and the other
+> CSS position keywords are available; quote anything with a space in it.
+>
+> **A stretch of the path** rather than all of it: `from:` and `to:` are percentages of the curve's
+> length, defaulting to `0%` and `100%`. `from:100% to:0%` runs the same curve backwards without
+> rewriting the data by hand, and `from:20% to:80%` lets several elements each travel a different
+> stretch of one shared route.
+>
+> **Scroll-driven** works too — `timeline:scroll` or `timeline:view` scrubs the travel against
+> scroll position rather than a clock, which is the plane-crossing-the-page effect people otherwise
+> build a ScrollTrigger rig for.
+>
+> **Where it is unsupported** (no `offset-path`), nothing breaks and nothing hides: the animation
+> still runs and completes, and the element stays exactly where layout put it. The library warns in
+> development so that stillness is not unexplained.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -687,11 +739,12 @@ Primitives 1, 10, 15.
 | M Navigation | 8 |
 | N 3D & perspective | 6 (+2 planned) |
 | O Forms & inputs | 12 |
+| P Motion paths | 5 |
 | Generic tween | 2 |
-| **Total shipped** | **257** |
+| **Total shipped** | **262** |
 | Documented but not yet shipped | 4 |
 
-Renderer split: **~170 `css`** · ~12 `prep` · ~58 `js`.
+Renderer split: **~175 `css`** · ~12 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -700,7 +753,7 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 ## Gestures & physics
 
 Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
-outside the lettered A–O sections above. `js`.
+outside the lettered A–P sections above. `js`.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
 `snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
@@ -713,7 +766,7 @@ outside the lettered A–O sections above. `js`.
 
 ## Generic tween
 
-Two names over one primitive family, sitting outside the lettered A–O sections above. `css`.
+Two names over one primitive family, sitting outside the lettered A–P sections above. `css`.
 
 `tween` · `tween-from`
 

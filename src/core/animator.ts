@@ -17,7 +17,7 @@ import {
 } from './activation.js'
 import type { ActivationBinder } from './activation.js'
 import { ATTR } from './attrs.js'
-import { detect } from './capabilities.js'
+import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compile } from './compile.js'
 import type { CompiledPlan } from './compile.js'
@@ -231,6 +231,12 @@ export class Animator {
 
     config.activation = this.resolveActivation(el, config, plan)
     for (const warning of plan.warnings) this.reporter.warn(warning, el)
+    // Separate from `plan.warnings` because `compile` is pure and environment-free by design — it
+    // is handed a registry and a timeline, never the browser it is running in. "This browser
+    // cannot render that channel" is only answerable here, where the detected capabilities live.
+    for (const warning of unsupportedChannelWarnings(plan.channels, this.capabilities)) {
+      this.reporter.warn(warning, el)
+    }
 
     if (plan.fxNames.length === 0) {
       // Deliberately does NOT stamp the normalized attribute: an effect registered later must

@@ -4,6 +4,7 @@ import { registerCore } from './catalog/core.js'
 import { registerForms } from './forms/index.js'
 import { registerGestures } from './gestures/index.js'
 import { registerLayout } from './layout/index.js'
+import { registerMotionPath } from './motion-path/index.js'
 import { registerNavigation } from './navigation/index.js'
 import { registerScrollMechanics } from './scroll-mechanics/index.js'
 import { registerSvg } from './svg/index.js'
@@ -13,6 +14,7 @@ import { registerTween } from './tween/index.js'
 export { PRIMITIVES, PRESETS, COMBOS, registerCore } from './catalog/core.js'
 export { registerGestures } from './gestures/index.js'
 export { registerLayout } from './layout/index.js'
+export { registerMotionPath } from './motion-path/index.js'
 export { registerScrollMechanics } from './scroll-mechanics/index.js'
 export { registerSvg } from './svg/index.js'
 export { registerThreeD } from './three-d/index.js'
@@ -35,6 +37,7 @@ export function createRegistry(): Registry {
   registerScrollMechanics(registry)
   registerLayout(registry)
   registerSvg(registry)
+  registerMotionPath(registry)
   registerGestures(registry)
   registerThreeD(registry)
   registerCatalog(registry)
