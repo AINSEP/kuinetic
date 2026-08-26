@@ -273,6 +273,27 @@ library should own it. Never call something "not the library's job" without grep
       cover with overlay text.
 
 
+## Demo coverage for the six GSAP-parity features
+
+Deferred deliberately 2026-08-26 — owner wants the library work closed out first. Measured against
+`integration/gsap-parity`: `tween` has 15 hits across `demo/*.html`, the other four have **zero**.
+
+- [ ] **`motion-path` / `follow-path` has no demo card anywhere.** Task D shipped the primitive plus
+      named presets and nothing to look at. CSS-native (`offset-path`), so a card is cheap.
+- [ ] **The open activation list has no demo.** `data-kui-on="pointerleave"` and the enter/exit pair
+      syntax are the highest-value thing task E shipped and are invisible. A hover card that animates
+      out on leave is the obvious one.
+- [ ] **Sequencing `at:` has no demo.** `data-kui="fade-up 600ms, blur-in 400ms at:-200ms"` is the
+      headline of task C and appears on no page.
+- [ ] **Lifecycle events have no demo.** `kui:finish` / `kui:reverse-finish` from task A. Harder to
+      show visually — maybe a card that chains a second animation off the first's completion, which
+      is the actual use case.
+
+Note `check:css-coverage` will flag any new class that has no CSS rule, and `test/demo-markup.test.ts`
+must pass after edits — index-based scripted HTML edits eat closing tags in this repo.
+
+---
+
 ## GSAP parity — what's left after the overnight run
 
 Written 2026-08-26, after measuring kUInetic against GSAP 3.15 plugin by plugin. Six tasks (A–F)
