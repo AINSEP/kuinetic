@@ -32,9 +32,35 @@
 // equivalent of at build time: it scans every preset in the catalog whose primitive can be
 // activated on `enter`, not just the six known ones, so a *seventh* preset shipping the same
 // collapsed-and-ungated start state fails here before it ever needs a browser to notice.
+//
+// ## The clip channel, added after this file missed three
+//
+// `heart-fill`, `bookmark-fill` and `chart-area-fill` are the same defect reached through
+// `clip-path` instead of geometry, and this file waved all three through for weeks: it excluded
+// `clip-path` outright, reasoning that a clipped element still occupies its layout rect and is
+// therefore still a valid `IntersectionObserver` target. The premise is true and the conclusion is
+// false. `test/browser/fills-clip-path-io.test.mjs` measures the whole matrix; the short version is
+// that `IntersectionObserver` does not simply read that rect, and for an SVG child whose bbox is
+// inset within its own `<svg>` viewport, a clip that leaves zero painted area makes Chromium stop
+// reporting the element as intersecting *at all* — no callback, ever, so `on:enter` never fires.
+//
+// The boundary is narrow and the widening below is scoped to match it exactly, because a blanket
+// clip-path check would be wrong in both directions of usefulness:
+//
+//   - On an **HTML** element the same collapsed clip still reports `isIntersecting: true` (at
+//     `intersectionRatio: 0`) and activates normally. `star-rating-fill` is literally
+//     `chart-area-fill`'s start state on a `<span>` and has always worked. So has every
+//     `media.css` wipe. Flagging them would demand gates that fix nothing.
+//   - A clip that still paints *something* fires normally everywhere, so the trigger is zero
+//     painted area — `circle(0)` and `inset(100% 0 0 0)` alike — not `clip-path` as such.
+//
+// Hence `clipsAwayEverything` below runs only against the SVG family. That scoping, not the clip
+// arithmetic, is what keeps this suite off `star-rating-fill`, and the two guard tests below hold
+// it in place from both sides.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import type { Preset } from '../src/core/types.js'
 import { PRESETS } from '../src/effects/catalog/core.js'
 import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
 import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
@@ -180,10 +206,16 @@ function resolveVarFallbacks(declarations: string): string {
 /**
  * Whether a `from`/`0%` declaration block paints a box with no width or no height.
  *
- * Deliberately does not look at `opacity`, `visibility`, or `clip-path` — none of the three affect
- * the box's own geometry (a `clip-path`-hidden element still occupies its layout rect and is still
- * a valid `IntersectionObserver` target), so flagging them would not describe this defect and would
- * only add noise against every ordinary fade/reveal in the catalog.
+ * Deliberately does not look at `opacity` or `visibility`: neither affects the box's own geometry
+ * or its observability, so flagging them would not describe this defect and would only add noise
+ * against every ordinary fade in the catalog.
+ *
+ * `clip-path` is not checked *here* either, but for a different and much narrower reason than the
+ * one this comment used to give. A clipped element does keep its layout rect — the browser suite
+ * asserts that explicitly in every cell — but that does not make it a valid observation target, and
+ * the old text drew exactly that inference. It is handled separately by `clipsAwayEverything`,
+ * scoped to the SVG family, because the deadlock it causes is scoped to the SVG family; see this
+ * file's header.
  */
 function collapsesToZeroArea(declarations: string): string | null {
   // Split on `;` first so each property can be matched with an anchored pattern. The alternative —
@@ -213,6 +245,113 @@ function collapsesToZeroArea(declarations: string): string | null {
 
   return null
 }
+
+/**
+ * One `<length-percentage>` as a percentage, or null when it is not one this scan can compare.
+ *
+ * Any zero is zero whatever its unit (`0`, `0%`, `0px`). Anything else that is not a plain positive
+ * percentage — a real length, a `calc()`, an unresolved `var()`, a negative — returns null, and
+ * every caller treats null as "cannot prove a collapse" rather than guessing. A backstop that
+ * guesses in the flagging direction demands gates for effects that do not need them, which is how
+ * a gate stops meaning anything.
+ */
+function asPercentage(token: string): number | null {
+  if (/^0(?:\.0+)?(?:%|[a-z]+)?$/.test(token)) return 0
+  const percent = /^\d+(?:\.\d+)?%$/.test(token) ? Number.parseFloat(token) : null
+  return percent
+}
+
+/** The argument text of `name(...)` when `value` is exactly that function call, else null. */
+function functionArgs(value: string, name: string): string | null {
+  const prefix = `${name}(`
+  if (!value.startsWith(prefix) || !value.endsWith(')')) return null
+  return value.slice(prefix.length, -1).trim()
+}
+
+/** An `inset()` whose opposing edges meet clips its element away entirely. */
+function insetClipsAway(args: string): string | null {
+  // `round <radius>` rounds the corners; it never changes how far an edge comes in.
+  const sides = (args.split(' round ')[0] ?? '').split(' ').map(asPercentage)
+  if (sides.length > 4 || sides.some((side) => side === null)) return null
+  // The `inset()` shorthand fills in the CSS way: one value is all four, two are vertical then
+  // horizontal, three leave `left` to mirror `right`.
+  const [top = 0, right = top, bottom = top, left = right] = sides as number[]
+  if (top + bottom >= 100) return 'inset: top and bottom edges meet'
+  if (left + right >= 100) return 'inset: left and right edges meet'
+  return null
+}
+
+/**
+ * A zero radius on `circle()`/`ellipse()` encloses nothing.
+ *
+ * Both take their radii before the optional `at <position>`, so the position is dropped first —
+ * `circle(0 at 50% 50%)` is as collapsed as a bare `circle(0)`.
+ */
+function radiiClipAway(args: string, shape: string): string | null {
+  const radii = (args.split(' at ')[0] ?? '').split(' ').map(asPercentage)
+  return radii.some((radius) => radius === 0) ? `${shape}: zero radius` : null
+}
+
+/** A `polygon()` with every vertex at the same spot encloses nothing — `media.css`'s `polygon(0 0, 0 0, 0 0)`. */
+function polygonClipsAway(args: string): string | null {
+  // A leading `<fill-rule>` reads as a first "point" the others cannot match, so it falls through.
+  const points = args.split(',').map((point) => point.trim())
+  const [first] = points
+  return points.length > 2 && points.every((point) => point === first) ? 'polygon: no distinct vertices' : null
+}
+
+/** Whichever basic shape `value` is, why it paints nothing — or null if it paints something. */
+function clipShapeReason(value: string): string | null {
+  const inset = functionArgs(value, 'inset')
+  if (inset !== null) return insetClipsAway(inset)
+  const circle = functionArgs(value, 'circle')
+  if (circle !== null) return radiiClipAway(circle, 'circle')
+  const ellipse = functionArgs(value, 'ellipse')
+  if (ellipse !== null) return radiiClipAway(ellipse, 'ellipse')
+  const polygon = functionArgs(value, 'polygon')
+  if (polygon !== null) return polygonClipsAway(polygon)
+  return null
+}
+
+/**
+ * Whether a `from`/`0%` declaration block's `clip-path` leaves **zero painted area**.
+ *
+ * Zero painted area is the trigger, not `clip-path` — a partial clip that still paints something
+ * intersects normally in every cell the browser suite measures, including the SVG one. So
+ * `inset(0 30% 0 0)` (`star-rating-fill` at a 70% rating) is not flagged and must never be, while
+ * `inset(100% 0 0 0)`, `inset(50%)`, `circle(0)` and a degenerate `polygon()` all are.
+ *
+ * Callers must scope this to the SVG family themselves — the same value on an HTML element is
+ * harmless, so this function answers "does it paint nothing", not "is it a bug".
+ */
+function clipsAwayEverything(declarations: string): string | null {
+  const clip = resolveVarFallbacks(declarations)
+    .split(';')
+    .map((entry) => entry.trim())
+    .find((entry) => /^clip-path\s*:/.test(entry))
+  if (!clip) return null
+
+  // Whitespace collapsed once, so every split below can be a plain string split: `\s+<literal>\s+`
+  // is the shape the slow-regex lint rejects, and normalising is what it was approximating anyway.
+  const value = clip.slice(clip.indexOf(':') + 1).trim().replace(/\s+/g, ' ')
+  const reason = clipShapeReason(value)
+  return reason === null ? null : `${reason} (${clip})`
+}
+
+/**
+ * The presets whose targets are SVG shapes — the only family the clip deadlock reaches.
+ *
+ * This is a proxy, and worth naming as one: nothing in the catalog declares "my target is an SVG
+ * child", and this file cannot add such a field without reaching into `src/effects`. Module
+ * membership is the closest thing that exists, and it over-includes — the icon toggles
+ * (`hamburger-to-x` and friends) live here and mount on a `<button>`. Over-inclusion is the safe
+ * direction: the worst it can do is ask for a `ready` gate that was not strictly needed, and a gate
+ * is inert once the effect activates. Under-inclusion is what shipped the bug.
+ *
+ * If a `media.css` or `numbers.css` preset ever starts being authored onto `<path>` elements, this
+ * set is the thing to widen — not `clipsAwayEverything`, which is already right.
+ */
+const SVG_TARGETED = new Set(SVG_PRESETS.map((preset) => preset.name))
 
 /**
  * Whether some rule anywhere in `css` gates `name` behind `[data-kui-state='ready']` — the shape
@@ -257,6 +396,35 @@ const enterCapablePresets = ALL_PRESETS.filter((preset) => {
   return !!resolved && resolved.primitive.supportedActivations.includes('enter')
 })
 
+/**
+ * Why `preset` paints nothing at all while it sits waiting for its trigger, or null if it paints
+ * something.
+ *
+ * The two channels are asymmetric on purpose, and the asymmetry is the whole finding: a collapsed
+ * *box* is unobservable and invisible wherever it is mounted, so `collapsesToZeroArea` runs against
+ * the entire catalog, while a collapsed *clip* only deadlocks the observer on an SVG target, so
+ * `clipsAwayEverything` runs only against `SVG_TARGETED`.
+ */
+function paintsNothingWhileWaiting(preset: Preset): string | null {
+  // Not one of the files this suite scans (a namesake keyframe, or none at all) — nothing to check.
+  const body = preset.keyframes ? keyframeBody(CSS, preset.keyframes) : null
+  if (body === null) return null
+
+  // A `to`-only keyframe: the paused box is the element's ordinary rest state, not this animation's
+  // collapsed one.
+  const start = startDeclarations(body)
+  if (start === null) return null
+
+  return collapsesToZeroArea(start) ?? (SVG_TARGETED.has(preset.name) ? clipsAwayEverything(start) : null)
+}
+
+/** One catalog preset by name, for the guard tests that name specific presets deliberately. */
+function byName(name: string): Preset {
+  const preset = ALL_PRESETS.find((entry) => entry.name === name)
+  if (!preset) throw new Error(`no preset named '${name}' — the guard naming it is now stale`)
+  return preset
+}
+
 describe('no on:enter preset waits out its trigger with a collapsed, ungated box', () => {
   it('has presets to guard, so this suite cannot pass vacuously', () => {
     expect(enterCapablePresets.length).toBeGreaterThan(0)
@@ -279,27 +447,71 @@ describe('no on:enter preset waits out its trigger with a collapsed, ungated box
     )
   })
 
-  it.each(enterCapablePresets.map((preset) => [preset.name, preset] as const))(
-    '%s either keeps real geometry at rest, or gates its collapse behind [data-kui-state="ready"]',
-    (_name, preset) => {
+  /**
+   * The same non-vacuity proof for the clip branch, which is the one this file was missing. Without
+   * it, scoping `clipsAwayEverything` to a set that had drifted empty — or narrowing its arithmetic
+   * until nothing matched — would silently restore the hole the three fills fell through, and every
+   * case below would pass by skipping again.
+   */
+  it('finds the SVG fills whose from-state clips away everything, so the clip branch below is exercised', () => {
+    const clipped = enterCapablePresets.filter((preset) => {
       const body = keyframeBody(CSS, preset.keyframes!)
-      // Not one of the files this suite scans (a namesake keyframe, or none at all) — nothing to check.
-      if (body === null) return
+      const start = body === null ? null : startDeclarations(body)
+      return start !== null && SVG_TARGETED.has(preset.name) && clipsAwayEverything(start) !== null
+    })
+    expect(clipped.map((preset) => preset.name)).toEqual(
+      expect.arrayContaining(['heart-fill', 'bookmark-fill', 'chart-area-fill']),
+    )
+  })
 
-      const start = startDeclarations(body)
-      // A `to`-only keyframe: the paused box is the element's ordinary rest state, not this
-      // animation's collapsed one.
-      if (start === null) return
+  /**
+   * The other side of that boundary, held from both directions at once.
+   *
+   * `star-rating-fill` is the case that makes this necessary: its from-state is byte-for-byte
+   * `chart-area-fill`'s, so the *detector* sees it, and only the SVG scoping keeps this suite off
+   * it. It ships on an ordinary `<span>` on `demo/data-hover.html`, activates, and has no `ready`
+   * gate — asserted here, so that if someone ever adds one this guard stops silently passing for
+   * the wrong reason. A widening that flagged it would demand a gate that fixes nothing and hides
+   * the star row for the duration of its own wait.
+   */
+  it('does not flag a collapsed clip on an HTML target, nor any partial clip anywhere', () => {
+    // The detector does see the value — it is the scoping, not the arithmetic, that excludes it.
+    expect(clipsAwayEverything('clip-path: inset(0 100% 0 0);')).not.toBeNull()
+    expect(SVG_TARGETED.has('star-rating-fill')).toBe(false)
+    expect(paintsNothingWhileWaiting(byName('star-rating-fill'))).toBeNull()
+    expect(hasReadyGate(CSS, 'star-rating-fill')).toBe(false)
 
-      const collapse = collapsesToZeroArea(start)
-      // Real geometry at rest — nothing to gate.
+    // media.css's wipes are the same shape in bulk: collapsed clips — inset, circle, polygon and
+    // opposing-edge alike — on HTML targets, all working.
+    for (const name of ['wipe-up', 'wipe-left', 'wipe-circle', 'wipe-diagonal', 'curtain-reveal']) {
+      expect(paintsNothingWhileWaiting(byName(name)), `${name} should not be flagged`).toBeNull()
+    }
+
+    // A clip that still paints something intersects normally in every cell, SVG included, so the
+    // trigger is zero painted area rather than `clip-path` as such.
+    expect(clipsAwayEverything('clip-path: inset(0 30% 0 0);')).toBeNull()
+    expect(clipsAwayEverything('clip-path: inset(0 0 0 0);')).toBeNull()
+    expect(clipsAwayEverything('clip-path: circle(75% at 50% 50%);')).toBeNull()
+
+    // ...and the forms that do paint nothing, whichever way they say it.
+    expect(clipsAwayEverything('clip-path: inset(50%);')).not.toBeNull()
+    expect(clipsAwayEverything('clip-path: circle(0 at 50% 50%);')).not.toBeNull()
+    expect(clipsAwayEverything('clip-path: polygon(0 0, 0 0, 0 0);')).not.toBeNull()
+  })
+
+  it.each(enterCapablePresets.map((preset) => [preset.name, preset] as const))(
+    '%s either paints something at rest, or gates its collapse behind [data-kui-state="ready"]',
+    (_name, preset) => {
+      const collapse = paintsNothingWhileWaiting(preset)
+      // Paints something at rest — nothing to gate.
       if (collapse === null) return
 
       expect(
         hasReadyGate(CSS, preset.name),
-        `${preset.name}'s from-state collapses the box (${collapse}) but no ` +
-          `[data-kui-fx~='${preset.name}'][data-kui-state='ready'] rule neutralizes it, so the ` +
-          `element occupies no space in layout for as long as it waits for its on:enter trigger`,
+        `${preset.name}'s from-state paints nothing (${collapse}) but no ` +
+          `[data-kui-fx~='${preset.name}'][data-kui-state='ready'] rule neutralizes it, so for as ` +
+          `long as it waits for its on:enter trigger it is invisible — and, for a clipped SVG ` +
+          `target, invisible to the IntersectionObserver it is waiting on, which never fires`,
       ).toBe(true)
     },
   )

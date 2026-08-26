@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — fills-clip-path-io fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * Everything the suite reads starts below the fold, because the question is about `on:enter`
+       * and an `on:enter` that is already on screen at mount answers nothing. `#spacer` is sized in
+       * viewport heights so the fixture stays correct at whatever viewport the suite opens.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      #spacer {
+        height: 300vh;
+      }
+      /* A trailing spacer so no probe is ever the last thing on the page — a probe that cannot be
+         scrolled to the same position as its neighbours is not comparable with them. */
+      #tail {
+        height: 200vh;
+      }
+      .row {
+        height: 90vh;
+        display: grid;
+        place-items: center;
+        gap: 0.5rem;
+      }
+      .label {
+        font-size: 12px;
+        opacity: 0.6;
+      }
+
+      /* --- the HTML row of the matrix ------------------------------------------------------- */
+      .box {
+        width: 120px;
+        height: 80px;
+        background-color: #e4f222;
+      }
+
+      /*
+       * --- the two SVG rows of the matrix ---------------------------------------------------
+       *
+       * `.svg-full` holds a path whose bbox is exactly its `<svg>`'s own viewport; `.svg-inset`
+       * holds one strictly inside it. That difference is not decoration — it is the third variable
+       * this fixture exists to expose. A synthetic SVG probe drawn to fill its `<svg>` does *not*
+       * reproduce the bug, so a 2x2 built out of full-bleed paths measures a cell that does not
+       * exist in the demo page, and comes back clean. Every real FILLS target
+       * (`demo/icons-transitions.html`, `demo/data-hover.html`) is an inset path.
+       */
+      .svg-full svg,
+      .svg-inset svg {
+        width: 120px;
+        height: 80px;
+        background: #332f28;
+      }
+      .svg-full path,
+      .svg-inset path {
+        fill: #e4f222;
+      }
+
+      /* Written literally, not borrowed from a preset: the bare-IO half of the matrix must measure
+         `clip-path` the CSS property and nothing else. This is `kui-heart-fill`'s own `from` value
+         (src/css/svg.css). */
+      .clipped {
+        clip-path: inset(100% 0 0 0);
+      }
+
+      /* --- demo/icons-transitions.html's own block, copied verbatim ------------------------- */
+      .fill-stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem 1.25rem;
+        min-height: 84px;
+      }
+      .fill-stage svg {
+        width: 72px;
+        height: 72px;
+        overflow: visible;
+      }
+      .fill-outline {
+        fill: none;
+        stroke: #6b6257;
+        stroke-width: 3;
+      }
+      .fill-solid {
+        fill: #e4f222;
+      }
+      .chart-bar {
+        width: 30px;
+        height: 68px;
+        background: #f5efe8;
+      }
+
+      /* --- demo/data-hover.html's star-rating shape: clip-path on an ordinary inline element --- */
+      .stars {
+        position: relative;
+        font-size: 28px;
+        line-height: 1;
+        color: #6b6257;
+      }
+      .stars .filled {
+        position: absolute;
+        inset: 0;
+        color: #e4f222;
+        --kui-fill: 70%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="spacer"></div>
+
+    <!-- ================= 1. bare IntersectionObserver — no library involved ================= -->
+    <div class="row">
+      <span class="label">io-html-open</span>
+      <div id="io-html-open" class="box"></div>
+    </div>
+    <div class="row">
+      <span class="label">io-html-clip</span>
+      <div id="io-html-clip" class="box clipped"></div>
+    </div>
+    <div class="row">
+      <span class="label">io-svg-full-open</span>
+      <div class="svg-full"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="io-svg-full-open" d="M0,0 H120 V80 H0 Z" /></svg></div>
+    </div>
+    <div class="row">
+      <span class="label">io-svg-full-clip</span>
+      <div class="svg-full"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="io-svg-full-clip" class="clipped" d="M0,0 H120 V80 H0 Z" /></svg></div>
+    </div>
+    <div class="row">
+      <span class="label">io-svg-inset-open</span>
+      <div class="svg-inset"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="io-svg-inset-open" d="M20,20 H100 V60 H20 Z" /></svg></div>
+    </div>
+    <div class="row">
+      <span class="label">io-svg-inset-clip</span>
+      <div class="svg-inset"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="io-svg-inset-clip" class="clipped" d="M20,20 H100 V60 H20 Z" /></svg></div>
+    </div>
+
+    <!-- ================= 2. the same matrix, driven by the library =================
+      `heart-fill` is the clip-path column and `chart-bar-grow` the no-clip one: they sit in the
+      same `demo/icons-transitions.html` row, one is reported dead and the other reported working,
+      which makes them the difference-of-one pair the bug report itself supplies.
+
+      The SVG cells use an inset path, matching every real FILLS target on the demo pages. -->
+    <div class="row">
+      <span class="label">kui-html-clip (heart-fill on a div)</span>
+      <div id="kui-html-clip" class="box" data-kui="heart-fill 300ms on:enter"></div>
+    </div>
+    <div class="row">
+      <span class="label">kui-html-open (chart-bar-grow on a div)</span>
+      <div id="kui-html-open" class="box" data-kui="chart-bar-grow 300ms on:enter"></div>
+    </div>
+    <div class="row">
+      <span class="label">kui-svg-clip (heart-fill on an inset path)</span>
+      <div class="svg-inset"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="kui-svg-clip" d="M20,20 H100 V60 H20 Z" data-kui="heart-fill 300ms on:enter" /></svg></div>
+    </div>
+    <div class="row">
+      <span class="label">kui-svg-open (chart-bar-grow on an inset path)</span>
+      <div class="svg-inset"><svg viewBox="0 0 120 80" aria-hidden="true"><path id="kui-svg-open" d="M20,20 H100 V60 H20 Z" data-kui="chart-bar-grow 300ms on:enter" /></svg></div>
+    </div>
+
+    <!-- ================= 3. the reported row, copied from demo/icons-transitions.html =================
+      All four cards of that page's FILLS row, in source order, markup and CSS unchanged: the three
+      reported dead and the fourth reported working. -->
+    <div class="row">
+      <span class="label">demo-heart-fill</span>
+      <div class="fill-stage">
+        <svg viewBox="0 0 64 60" aria-hidden="true">
+          <path class="fill-outline" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" />
+          <path id="demo-heart-fill" class="fill-solid" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" data-kui="heart-fill on:enter" />
+        </svg>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">demo-bookmark-fill</span>
+      <div class="fill-stage">
+        <svg viewBox="0 0 48 60" aria-hidden="true">
+          <path class="fill-outline" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" />
+          <path id="demo-bookmark-fill" class="fill-solid" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" data-kui="bookmark-fill on:enter" />
+        </svg>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">demo-chart-area-fill</span>
+      <div class="fill-stage">
+        <svg viewBox="0 0 100 50" aria-hidden="true">
+          <path class="fill-outline" d="M0,40 L20,22 L40,30 L60,10 L80,18 L100,4 L100,50 L0,50 Z" />
+          <path id="demo-chart-area-fill" class="fill-solid" d="M0,40 L20,22 L40,30 L60,10 L80,18 L100,4 L100,50 L0,50 Z" data-kui="chart-area-fill on:enter" />
+        </svg>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">demo-chart-bar-grow (the working fourth)</span>
+      <div class="fill-stage">
+        <div id="demo-chart-bar-grow" class="chart-bar" data-kui="chart-bar-grow on:enter"></div>
+      </div>
+    </div>
+
+    <!-- ================= 4. the never-checked fifth case todo.md names =================
+      `star-rating-fill` is clip-path + an ordinary HTML element + a defaulted `on:enter` (no `on:`
+      clause, so `element-config.ts`'s `activation: authored ?? 'enter'` supplies it). It ships on
+      demo/data-hover.html and todo.md records it as "documented as sharing the mechanism and never
+      checked". -->
+    <div class="row">
+      <span class="label">star-rating-fill (clip-path on a span)</span>
+      <span class="stars">★★★★★<span id="star-rating-fill" class="filled" aria-hidden="true" data-kui="star-rating-fill 900ms">★★★★★</span></span>
+    </div>
+
+    <div id="tail"></div>
+
+    <script>
+      /*
+       * One bare `IntersectionObserver` per cell, installed before the library starts, recording
+       * *every* entry rather than only the latest — the initial off-screen callback is as much of
+       * the answer as the post-scroll one, and a single "last entry" slot would throw it away.
+       *
+       * Threshold 0 and no root, i.e. what `on:enter` resolves to by default
+       * (`createActivationBinder`, src/core/activation.ts), so this measures the same observer
+       * configuration the library binds.
+       */
+      window.__ioLog = {}
+      for (const id of [
+        'io-html-open',
+        'io-html-clip',
+        'io-svg-full-open',
+        'io-svg-full-clip',
+        'io-svg-inset-open',
+        'io-svg-inset-clip',
+      ]) {
+        window.__ioLog[id] = []
+        new IntersectionObserver(
+          (entries) => {
+            for (const entry of entries) {
+              window.__ioLog[id].push({
+                isIntersecting: entry.isIntersecting,
+                intersectionRatio: entry.intersectionRatio,
+                boundingClientRect: {
+                  width: Math.round(entry.boundingClientRect.width),
+                  height: Math.round(entry.boundingClientRect.height),
+                  top: Math.round(entry.boundingClientRect.top),
+                },
+                intersectionRect: {
+                  width: Math.round(entry.intersectionRect.width),
+                  height: Math.round(entry.intersectionRect.height),
+                },
+              })
+            }
+          },
+          { threshold: 0 },
+        ).observe(document.getElementById(id))
+      }
+    </script>
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

@@ -110,6 +110,44 @@
     to { clip-path: inset(0 0 0 0); }
   }
 
+  /*
+   * The same `on:enter` deadlock the `chart-bar-grow` rule below fixes, reached through the clip
+   * channel instead of the scale one — but through a much narrower door, so the three names are
+   * listed here rather than every preset that starts from a collapsed clip.
+   *
+   * A clip that leaves zero painted area does **not** generally break `IntersectionObserver`. A
+   * collapsed clip on an HTML element still reports `isIntersecting: true` (at
+   * `intersectionRatio: 0`, with an empty `intersectionRect`), which is why `star-rating-fill` —
+   * the identical `inset(0 100% 0 0)` start state, on a `<span>`, in numbers.css — has always
+   * worked and is deliberately *not* listed below. Being an SVG child does not break it either: an
+   * unclipped `<path>` reports a ratio of 1. Chromium stops reporting the element as intersecting
+   * *at all* — no callback, ever, at any scroll position, so `on:enter` never fires and the effect
+   * waits forever — only when both hold **and** the shape's bbox is inset within its own `<svg>`
+   * viewport, which is every real target these three ship on (`demo/icons-transitions.html`).
+   *
+   * That last clause is the load-bearing one and is not guessable from the CSS: a `<path>` drawn to
+   * fill its `<svg>` fires normally, so a synthetic full-bleed probe does not reproduce this at all.
+   * `test/browser/fills-clip-path-io.test.mjs` holds the whole matrix that establishes the boundary,
+   * measured rather than reasoned about; `test/entrance-zero-area.test.ts` is the static backstop,
+   * and it scopes its clip check to the SVG family for exactly this reason.
+   *
+   * `clip-path: none` rather than a neutralized custom property because these keyframes clip
+   * literally and own no token to neutralize. `!important` for the same reason
+   * `--kui-bar-from: 1 !important` carries it below: author-important outranks the Animations
+   * origin, so it beats the element's own paused 0%-keyframe. `opacity: 0` is the other half —
+   * un-clipping alone parks the finished, fully-filled shape on screen for the entire wait, trading
+   * an invisible-forever bug for a visible-wrong-state one — and is deliberately not `!important`,
+   * the same asymmetry the `chart-bar-grow` rule below accounts for in full. Both revert in the
+   * same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so no frame shows one
+   * without the other.
+   */
+  [data-kui-fx~='heart-fill'][data-kui-state='ready'],
+  [data-kui-fx~='bookmark-fill'][data-kui-state='ready'],
+  [data-kui-fx~='chart-area-fill'][data-kui-state='ready'] {
+    clip-path: none !important;
+    opacity: 0;
+  }
+
   /* A bar grows from its baseline, never from its centre — same rule as `progress-bar`. */
   @keyframes kui-chart-bar-grow {
     from { scale: 1 var(--kui-bar-from, 0); }

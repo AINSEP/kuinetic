@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — two-sided-card fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /*
+       * Every card sits in one viewport at once, unscrolled. `on:enter` fires immediately for all
+       * of them and the suite then pauses each animation and seeks it, so no card's reading depends
+       * on where any other card is — the alternative (a tall page walked top to bottom) would make
+       * every sample also a measurement of scroll timing, which is not what this file is about.
+       */
+      body {
+        margin: 0;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      .deck {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 40px 48px;
+        padding: 40px;
+      }
+      .cell {
+        width: 220px;
+      }
+      .label {
+        display: block;
+        font-size: 11px;
+        opacity: 0.55;
+        margin-bottom: 8px;
+        height: 26px;
+      }
+
+      /*
+       * The page owns the box; the library owns the structure. Nothing here sets `display`,
+       * `grid-area`, `backface-visibility` or `rotate` on a card or its faces — those are exactly
+       * the declarations under test, and a fixture that restated any of them would pass whether the
+       * library shipped them or not.
+       */
+      .card {
+        width: 200px;
+        height: 130px;
+      }
+      .face {
+        width: 100%;
+        height: 100%;
+        display: flex;
+      }
+      .half {
+        flex: 1;
+      }
+
+      /*
+       * Each face is split left/right into two hit-testable halves with different colours. Which
+       * *face* paints is one question ("is backface-visibility doing anything"); which *half* lands
+       * on the left is a second, independent one ("did the back arrive mirrored"). One probe
+       * element per half answers both from a single `elementFromPoint`, which — measured, not
+       * assumed — honours `backface-visibility: hidden` in Chromium and so reports what actually
+       * paints rather than what merely occupies the box.
+       */
+      .front .l {
+        background: #e4f222;
+      }
+      .front .r {
+        background: #6b6257;
+      }
+      .back .l {
+        background: #ff3b30;
+      }
+      .back .r {
+        background: #0a84ff;
+      }
+
+      /*
+       * The nested-3D hazard, built two ways so the variable is isolated: same 180deg-turned
+       * ancestor, `preserve-3d` on one and the initial `flat` on the other. `card-flip-x/-y`
+       * already carry `transform-style: preserve-3d` themselves (three-d.css), so a preserve-3d
+       * ancestor puts the card's faces into the *ancestor's* 3D space — which is the documented
+       * hazard that broke `fold-panel` and reversed `wipe-circle`, and the reason `82ffe08` was
+       * reverted. The flat ancestor is the contrast: the card keeps its own 3D context and only the
+       * finished pixels get turned.
+       */
+      .ancestor {
+        perspective: 1200px;
+      }
+      .ancestor > .turn {
+        transform: rotateY(180deg);
+      }
+      .ancestor.deep > .turn {
+        transform-style: preserve-3d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck">
+      <!-- ---- the two-sided contract itself ---- -->
+      <div class="cell">
+        <span class="label">ts-y — two-sided card-flip-y</span>
+        <div id="ts-y" class="card" data-kui="card-flip-y 2000ms on:enter">
+          <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+          <div class="face back"><span class="half l" data-probe="back-left"></span><span class="half r" data-probe="back-right"></span></div>
+        </div>
+      </div>
+
+      <div class="cell">
+        <span class="label">ts-x — two-sided card-flip-x</span>
+        <div id="ts-x" class="card" data-kui="card-flip-x 2000ms on:enter">
+          <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+          <div class="face back"><span class="half l" data-probe="back-left"></span><span class="half r" data-probe="back-right"></span></div>
+        </div>
+      </div>
+
+      <!--
+        Negative control for "turned about the same axis the parent's keyframe turns, or the back
+        would arrive mirrored" (three-d.css's own comment). Identical to `ts-y` except the back face
+        is pre-turned about X instead of Y, via an inline style so it beats the library's rule
+        without editing it. rotateY(180) . rotateX(180) = rotateZ(180), so the back arrives rotated
+        a half turn in-plane — left half on the right, and upside down.
+      -->
+      <div class="cell">
+        <span class="label">ts-y-wrong-axis — back pre-turned about X (negative control)</span>
+        <div id="ts-y-wrong-axis" class="card" data-kui="card-flip-y 2000ms on:enter">
+          <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+          <div class="face back" style="rotate: x 180deg"><span class="half l" data-probe="back-left"></span><span class="half r" data-probe="back-right"></span></div>
+        </div>
+      </div>
+
+      <!-- ---- the one-sided complement: `:not(:has(> :nth-child(2)))` ---- -->
+      <div class="cell">
+        <span class="label">os-y — one-sided card-flip-y</span>
+        <div id="os-y" class="card" data-kui="card-flip-y 2000ms on:enter">
+          <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+        </div>
+      </div>
+
+      <!--
+        Negative control for the 360deg override: the same one-sided card forced back to the
+        two-sided default of a half turn, which is the state `56d5e2a` fixed. It must end mirrored.
+      -->
+      <div class="cell">
+        <span class="label">os-y-half-turn — forced back to 180deg (negative control)</span>
+        <div id="os-y-half-turn" class="card" style="--kui-from-angle: 180deg" data-kui="card-flip-y 2000ms on:enter">
+          <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+        </div>
+      </div>
+
+      <!--
+        Negative control for the `:has(> :nth-child(2))` gate on `backface-visibility`. The gate's
+        stated purpose is that a one-sided flip must not inherit `backface-visibility: hidden` and
+        vanish for the back half of its own rotation. This card opts into exactly that, inline, so
+        the assertion has something to fail against.
+      -->
+      <div class="cell">
+        <span class="label">os-y-backface-hidden — opted in inline (negative control)</span>
+        <div id="os-y-backface-hidden" class="card" data-kui="card-flip-y 2000ms on:enter">
+          <div class="face front" style="backface-visibility: hidden"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+        </div>
+      </div>
+
+      <!-- ---- the nested-3D hazard `82ffe08` was reverted for ---- -->
+      <div class="cell">
+        <span class="label">nested-deep — inside a preserve-3d ancestor turned 180deg</span>
+        <div class="ancestor deep">
+          <div class="turn">
+            <div id="nested-deep" class="card" data-kui="card-flip-y 2000ms on:enter">
+              <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+              <div class="face back"><span class="half l" data-probe="back-left"></span><span class="half r" data-probe="back-right"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cell">
+        <span class="label">nested-flat — inside a flat ancestor turned 180deg</span>
+        <div class="ancestor">
+          <div class="turn">
+            <div id="nested-flat" class="card" data-kui="card-flip-y 2000ms on:enter">
+              <div class="face front"><span class="half l" data-probe="front-left"></span><span class="half r" data-probe="front-right"></span></div>
+              <div class="face back"><span class="half l" data-probe="back-left"></span><span class="half r" data-probe="back-right"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+
+      /**
+       * Pause every animation on a card and seek it to `fraction` of its own duration, then report
+       * what paints at the card's left-quarter, centre and right-quarter.
+       *
+       * `elementFromPoint` is the measurement rather than a screenshot because it answers both
+       * questions at once and answers them by element identity: it honours
+       * `backface-visibility: hidden` (verified against a hand-built two-sided card before this
+       * fixture was written), so a hit means that face genuinely painted, and the `data-probe` it
+       * lands on says which half of that face arrived on which side of the screen.
+       *
+       * Sampled at the card's *rendered* rect, re-read after the seek — a 3D-turned card does not
+       * project onto the same footprint as its untransformed box, so sampling the resting rect
+       * would drift off the card at exactly the angles this file cares about.
+       */
+      window.__probe = function probe(id, fraction) {
+        const card = document.getElementById(id)
+        const animations = card.getAnimations()
+        for (const animation of animations) {
+          animation.pause()
+          animation.currentTime = (animation.effect.getTiming().duration || 0) * fraction
+        }
+        const rect = card.getBoundingClientRect()
+        const y = rect.top + rect.height / 2
+        /*
+         * A face that does not paint does not hit-test to *nothing* — the point falls through to
+         * whatever is behind it, which for these cards is the card box itself. So "vanished" is
+         * "the hit is not one of the face halves", reported with what was actually underneath so a
+         * failure says where the sample landed instead of only that it missed.
+         */
+        const at = (x) => {
+          const hit = document.elementFromPoint(x, y)
+          if (!hit) return 'no-face(nothing)'
+          if (hit.dataset.probe) return hit.dataset.probe
+          return `no-face(${hit.id || hit.className || hit.tagName})`
+        }
+        return {
+          animations: animations.length,
+          rect: { width: Math.round(rect.width), height: Math.round(rect.height) },
+          left: at(rect.left + rect.width * 0.25),
+          centre: at(rect.left + rect.width * 0.5),
+          right: at(rect.left + rect.width * 0.75),
+          transform: getComputedStyle(card).transform,
+        }
+      }
+    </script>
+  </body>
+</html>

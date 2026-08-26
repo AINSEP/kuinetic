@@ -355,24 +355,36 @@ Owner parked these on 2026-08-23: "not interested in spending time on it right n
 Do not start any of them without asking first. Each entry carries everything needed to pick it
 up cold, so nobody has to re-derive the diagnosis.
 
-- [ ] **PARKED 2026-08-23 — do not start without asking.** **Three FILLS effects are permanently
-      dead: `heart-fill`, `bookmark-fill`, `chart-area-fill`.** They never animate on scroll-in on
-      `demo/icons-transitions.html` and never recover, not even via the replay FAB. This is a
-      **library** bug, not a page bug — the three ship in the public catalog, so hiding the demo
-      page hides the symptom, not the defect. Established against source: all three rest at a
-      collapsed `clip-path` (`src/css/svg.css:98-111`) and **none has a `[data-kui-state='ready']`
-      gate**, unlike the six fixed in `dd1f770` — `git show dd1f770` is the reference pattern.
-      `chart-bar-grow`, the fourth in the same row, works; it uses `scale` and was one of the six.
-      **The mechanism is NOT settled — measure before explaining.** A prior agent saw a bare
-      IntersectionObserver on `heart-fill`'s path return `intersectionRect {0,0,0,0}` with a correct
-      `boundingClientRect` and blamed `clip-path`, but the three broken targets are SVG `<path>`
-      elements and the working one is a `<div>`, and that confound was never controlled for. This
-      repo has shipped a confident-wrong mechanism twice. Run the 2x2 first: collapsed `clip-path`
-      on a plain `<div>`, and an uncollapsed `clip-path` on an SVG `<path>`. Then fix, then
-      `npm run build` (`generate:css` alone is not enough — `demo/kuinetic.js` is a build artifact).
-      Also check `star-rating-fill` on `data-hover.html`, documented as sharing the mechanism and
-      never checked. If `clip-path` **is** the cause, `test/entrance-zero-area.test.ts:175` wrongly
-      excludes it and would have caught all three — widen it.
+- [x] **Three FILLS effects were permanently dead — fixed 2026-08-26.** `heart-fill`,
+      `bookmark-fill` and `chart-area-fill` never animated on scroll-in and never recovered. The
+      mechanism was finally measured in a browser 2x2 rather than reasoned about, and **the standing
+      theory was wrong in both directions**: it is not `clip-path`, and it is not SVG. It is the two
+      together, and only when the clip leaves **zero painted area**.
+
+      | target | zero-area clip | IntersectionObserver |
+      |---|---|---|
+      | HTML `<div>` | yes | fires, ratio 0 |
+      | SVG path filling its own `<svg>` | yes | fires, ratio 0 |
+      | **SVG path inset within its `<svg>`** | **yes** | **never fires at all** |
+
+      So `on:enter` never triggered and the effect waited forever. A *partial* clip that still
+      paints something intersects normally in every cell, and `circle(0)` behaves the same as
+      `inset(100% 0 0 0)` — this is not specific to `inset()`.
+
+      **`star-rating-fill` was never affected.** This entry used to list it as sharing the
+      mechanism. It clips a `<span>`, so it is the HTML row of that table — do not "fix" it.
+
+      **The near-miss worth remembering:** the first 2x2 drew its SVG probes as paths filling their
+      `<svg>` viewport and came back completely clean. A full-bleed synthetic path does not
+      reproduce this. Every real FILLS target on the demo pages is an inset path, and one wrong
+      fixture would have shipped a third confident-wrong mechanism.
+
+      Fixed by extending the `dd1f770` ready-gate to the clip channel (`src/css/svg.css:113-149`):
+      `clip-path: none !important` to beat the paused keyframe from the author origin, plus a
+      deliberately non-important `opacity: 0`, without which un-clipping parks the finished shape in
+      view for the whole wait. `test/entrance-zero-area.test.ts` is widened to the clip channel **for
+      SVG targets only** — a blanket widening false-positives on `star-rating-fill` and on every
+      partial clip. Permanent browser gate: `test/browser/fills-clip-path-io.test.mjs`, 36/36.
 
 - [ ] **PARKED 2026-08-23 — do not start without asking.** **`tilt-3d` has no depth coverage in any
       test tier.** The browser sweep names this as a real gap, not an equivalent-coverage exclusion:
