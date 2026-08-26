@@ -70,6 +70,18 @@
   /* sticky needs a non-stretched grid item — the default `align-items: stretch` would make this
      column as tall as the copy beside it, leaving the pin nothing to travel within */
   .showcase-media { align-self: start; }
+  /* Below the two-column breakpoint there is no column beside this one for the pin to hold against,
+     and Chrome clamps a sticky grid item to the *grid container*, not to its own grid area — so
+     instead of stopping at the end of row 1 it rode down over `.showcase-copy` for the whole
+     section. Measured at 390px: the frame held at y=96 while its caption sat on the first beat's
+     `<h3>` (333x22px of overlap) and the trigger chips sat on the second. The `position` is written
+     inline by `data-kui="pin-until"`, so `!important` is the only weight that reaches it.
+     `min-width: 0` is the other half: this figure carries a `.kui-contract` bar whose min-content is
+     wider than the track, and a grid item keeps `min-width: auto` unless told otherwise, so the
+     single column resolved to 362px inside a 342px grid and ate the right-hand gutter. */
+  @media (max-width: 899.98px) {
+    .showcase-media { position: static !important; min-width: 0; }
+  }
   .showcase-frame {
     border-radius: 14px; overflow: clip;
     border: 1px solid var(--border); box-shadow: var(--shadow-float);
@@ -656,6 +668,24 @@
     align-self: start; padding: 1.65rem; border-radius: 14px; border: 1px solid var(--border);
     background: var(--surface); box-shadow: var(--shadow-float);
   }
+  /* Same pair of mobile faults as `.showcase-media`, same two lines, gated to this layout's own
+     800px breakpoint rather than the showcase's 900px.
+
+     `min-width: 0`: the aside's min-content is 474px — `.kui-contract` is `inline-flex` with
+     `flex-wrap: nowrap`, so the code and its chip cannot break onto two lines and the bar's
+     min-content is the whole strip. A grid item keeps `min-width: auto`, so a `1fr` track resolved
+     to 474px inside a 342px grid and the page scrolled 108px sideways. The contract bar is already
+     built to survive this (`max-width: 100%`, and `code { min-width: 8ch; overflow-x: auto }` with
+     the self-cancelling edge fade) — it just never got the chance, because nothing let the aside
+     itself shrink. With the item free, the bar lands at 287px and the attribute scrolls inside it.
+
+     `position: static !important`: in one column there is nothing beside the aside to hold against,
+     and a sticky grid item is clamped to the grid container, not to row 1 — so it pinned at 6rem
+     and covered 239px of `.pin-until-content`'s screenshots for the whole section. `pin-until`
+     writes `position` inline, so `!important` is the only weight that reaches it. */
+  @media (max-width: 799.98px) {
+    .pin-until-aside { position: static !important; min-width: 0; }
+  }
   /* --fg, not --accent-text: an eyebrow label on --surface/--bg, and --accent-text is now the
      same #e4f222 as --accent (~1.2:1 there). */
   .pin-until-aside .kicker {
@@ -947,9 +977,15 @@
      everywhere else on this page, so the nav now rhymes with the prose rather than introducing a
      third list style. */
   .spy-nav {
-    align-self: start; position: sticky; top: 6rem;
+    align-self: start;
     display: flex; flex-direction: column; gap: 0.1rem;
   }
+  /* Sticky only once `.spy-layout` is two columns — same 800px query as the grid two rules up. The
+     third instance of the fault `.showcase-media` and `.pin-until-aside` had: in one column the nav
+     has no column to hold beside, and a sticky grid item is clamped to the grid container rather
+     than to its own row, so it pinned at 6rem and sat on 182px of `.spy-sections` for the whole
+     section. Unlike those two the `position` is authored here, so this is a gate, not an override. */
+  @media (min-width: 800px) { .spy-nav { position: sticky; top: 6rem; } }
   .spy-nav a {
     display: flex; align-items: center; gap: 0.7rem;
     font-size: 0.9rem; padding: 0.42rem 0; color: var(--muted);

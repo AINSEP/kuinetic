@@ -136,8 +136,16 @@
      column — a fixed span rather than `.demo-card-wide`'s full row, so its sibling card in the
      same group doesn't get shoved onto its own row alone underneath it. `max-width: none` on the
      `.stage` text too: the card growing wider does nothing for the sentence on its own, since
-     `.demo-card-text .stage` caps it at 30ch regardless of the box around it. */
-  .demo-card-text-wide { grid-column: span 2; }
+     `.demo-card-text .stage` caps it at 30ch regardless of the box around it.
+
+     Gated to the width where the grid actually has two columns. `repeat(auto-fill, minmax(260px,
+     1fr))` with a 1.25rem gap needs 540px of grid to fit a second track, which is a 588px viewport
+     inside `.wrap`'s 24px gutters. Below that, `span 2` does not span the layout — it *creates* an
+     implicit second column, sized by `grid-auto-columns: auto` to whatever of this card will not
+     fit in the first. Measured at 390px before this gate: tracks resolved to `260px 216px` inside
+     a 342px grid and the document scrolled 90px sideways. `min-width: 0` is not the fix here; the
+     card can shrink, it is the extra track that has no room to exist. */
+  @media (min-width: 588px) { .demo-card-text-wide { grid-column: span 2; } }
   .demo-card-text-wide .stage { max-width: none; }
 
   /* wide variant: marquees need edge-to-edge width for the seamless loop and the
