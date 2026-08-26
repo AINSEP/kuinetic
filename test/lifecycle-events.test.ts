@@ -3,7 +3,7 @@ import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
 import type { Capabilities } from '../src/core/capabilities.js'
-import { KUI_EVENT } from '../src/core/events.js'
+import { KUI_EVENT, emitLifecycle } from '../src/core/events.js'
 import type { LifecycleDetail } from '../src/core/events.js'
 import { Registry } from '../src/core/registry.js'
 import { silentReporter } from '../src/core/reporter.js'
@@ -140,6 +140,14 @@ function recordOnDocument(): Seen[] {
  * without the test having to know how many.
  */
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
+/** Any well-formed detail; these three cases assert dispatch mechanics, not payload. */
+const DETAIL: LifecycleDetail = {
+  effects: ['fake-fade'],
+  activation: 'load',
+  timeline: 'time',
+  reason: 'activated',
+}
 
 beforeEach(() => {
   document.body.innerHTML = ''
@@ -299,6 +307,40 @@ describe('lifecycle events', () => {
     // every author chaining work off `kui:finish` for exactly the visitors who need the page usable.
     expect(seen.map((event) => event.type)).toEqual([KUI_EVENT.finish])
     expect(seen[0]!.detail.reason).toBe('reduced-motion')
+  })
+
+  it('falls back to the global constructor when the element has no owning window', () => {
+    // A document parsed without a browsing context (`DOMParser`, an inert template document) has a
+    // null `defaultView`, so the per-window constructor this normally prefers — the one that makes
+    // `instanceof CustomEvent` hold for listeners inside an iframe — simply is not there.
+    const dispatched: Event[] = []
+    const orphan = {
+      ownerDocument: null,
+      dispatchEvent: (event: Event) => dispatched.push(event) > 0,
+    }
+    emitLifecycle(orphan as unknown as Element, KUI_EVENT.start, DETAIL)
+    expect(dispatched[0]?.type).toBe(KUI_EVENT.start)
+
+    const viewless = {
+      ownerDocument: { defaultView: null },
+      dispatchEvent: (event: Event) => dispatched.push(event) > 0,
+    }
+    emitLifecycle(viewless as unknown as Element, KUI_EVENT.finish, DETAIL)
+    expect(dispatched[1]?.type).toBe(KUI_EVENT.finish)
+  })
+
+  it('stays silent rather than throwing where no CustomEvent constructor exists', () => {
+    // The SSR and worker case `src/index.ts` promises to survive, and the same `typeof` guard style
+    // `capabilities.ts` and `animator.ts` already use: in a DOM-less process the identifier is
+    // undeclared, so anything that touches it has to check first.
+    vi.stubGlobal('CustomEvent', undefined)
+    try {
+      const dispatchEvent = vi.fn()
+      emitLifecycle({ ownerDocument: null, dispatchEvent } as unknown as Element, KUI_EVENT.cancel, DETAIL)
+      expect(dispatchEvent).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('cancelling an element that was never started reports nothing', () => {

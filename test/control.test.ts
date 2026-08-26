@@ -270,34 +270,45 @@ const CSS_PRIMITIVE: Primitive = {
   reducedMotion: 'shorten',
 }
 
-/** A JavaScript-rendered effect, which by construction has no playhead to expose. */
-const JS_PRIMITIVE: Primitive = {
-  id: 'fake-js',
-  renderer: 'javascript',
-  channels: ['fake-js'],
-  parameters: {},
-  supportedTimelines: ['time'],
-  supportedActivations: ['load', 'enter', 'manual'],
-  perfClass: 'continuous',
-  reducedMotion: 'shorten',
-  prepare(): EffectInstance {
-    return {
-      activate: () => {},
-      cancel: () => {},
-      finish: () => {},
-      finished: new Promise<void>(() => {}),
-      destroy: () => {},
-    }
-  },
+/**
+ * A JavaScript-rendered effect, which by construction has no playhead to expose.
+ *
+ * Two of them exist, on separate channels so they compose on one element, because the warning
+ * `control()` produces is written in singular or plural depending on how many effects it could not
+ * reach — and a message that says "are rendered" about one effect is the kind of wrong that makes
+ * an author distrust the rest of the sentence.
+ */
+function jsPrimitive(id: string): Primitive {
+  return {
+    id,
+    renderer: 'javascript',
+    channels: [id],
+    parameters: {},
+    supportedTimelines: ['time'],
+    supportedActivations: ['load', 'enter', 'manual'],
+    perfClass: 'continuous',
+    reducedMotion: 'shorten',
+    prepare(): EffectInstance {
+      return {
+        activate: () => {},
+        cancel: () => {},
+        finish: () => {},
+        finished: new Promise<void>(() => {}),
+        destroy: () => {},
+      }
+    },
+  }
 }
 
 function testRegistry(): Registry {
   return new Registry()
     .registerPrimitive(CSS_PRIMITIVE)
-    .registerPrimitive(JS_PRIMITIVE)
+    .registerPrimitive(jsPrimitive('fake-js'))
+    .registerPrimitive(jsPrimitive('fake-js-2'))
     .registerPresets([
       { name: 'fake-fade', primitive: 'fake-css' },
       { name: 'fake-drag', primitive: 'fake-js' },
+      { name: 'fake-spin', primitive: 'fake-js-2' },
     ])
 }
 
@@ -380,6 +391,18 @@ describe('control() over a live animator', () => {
     expect(() => handle.pause().seek(0.5)).not.toThrow()
     expect(handle.progress).toBe(0)
     expect(handle.state).toBe('idle')
+  })
+
+  it('names several unreachable effects in the plural', () => {
+    const { animator, reporter } = build(
+      '<div id="a" data-kui="fake-drag, fake-spin" data-kui-on="load"></div>',
+    )
+    const handle = animator.control('#a')
+
+    expect(handle.uncontrolled).toEqual(['fake-drag', 'fake-spin'])
+    expect(reporter.messages.join('\n')).toContain(
+      '"fake-drag fake-spin" are rendered in JavaScript and expose no playhead',
+    )
   })
 
   it('reports a mixed element as partially controllable', () => {
