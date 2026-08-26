@@ -16,15 +16,21 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('..', import.meta.url))
 const tmpDir = `${root}.generated-tmp`
 const bundle = `${tmpDir}/effects.mjs`
+// The breakpoint scale is bundled and imported rather than restated here. It is already written
+// twice — once in `src/core/breakpoints.ts`, once as media queries in `src/css/base.css` — and a
+// third copy in the generator would be the one nobody thinks to update, producing a cloak release
+// keyed on a width no gate ever uses.
+const breakpointsBundle = `${tmpDir}/breakpoints.mjs`
 const outFile = `${root}src/css/presets.generated.css`
 
 function build() {
   mkdirSync(tmpDir, { recursive: true })
-  execFileSync(
-    'npx',
-    ['esbuild', `${root}src/effects/index.ts`, '--bundle', '--format=esm', `--outfile=${bundle}`],
-    { stdio: 'pipe' },
-  )
+  const bundleOne = (entry, outfile) =>
+    execFileSync('npx', ['esbuild', entry, '--bundle', '--format=esm', `--outfile=${outfile}`], {
+      stdio: 'pipe',
+    })
+  bundleOne(`${root}src/effects/index.ts`, bundle)
+  bundleOne(`${root}src/core/breakpoints.ts`, breakpointsBundle)
 }
 
 /**
@@ -138,12 +144,53 @@ function cloakSelector(name) {
 }
 
 /**
+ * The cloak's viewport-gate release.
+ *
+ * Same argument as the reduced-motion block below it, arriving from the other axis: an effect that
+ * is not going to run at this width has no entrance to smooth, so cloaking the element is pure
+ * cost. With JavaScript working it is a few milliseconds; with JavaScript slow, blocked, or broken
+ * it is the full two seconds of `kui-cloak-release`, spent hiding content from a phone for the sake
+ * of an animation that phone was never going to see.
+ *
+ * Keyed on the gate token in the *authored* attribute — `[data-kui~='above:md']` — for exactly the
+ * reason `cloakSelector` gives above: the cloak has to match before any script runs, so
+ * `data-kui-fx` does not exist yet and `data-kui` is the only thing there is to match on. That also
+ * makes these rules generic rather than per-preset: ten of them cover every preset in the catalog,
+ * present and future, because the token is the same wherever it appears.
+ *
+ * `not all and (min-width: X)` rather than `(width < X)`: the complement has to be *exact* — a
+ * `max-width` a hair under X leaves a sliver of widths where the cloak is not released — and the
+ * range syntax is newer than the browsers this stylesheet still has to parse in. `not all and (…)`
+ * is the exact negation and is understood everywhere.
+ *
+ * Emitted after the cloak selectors, and with identical specificity to them, so ordinary source
+ * order decides. Placing them before would silently do nothing.
+ */
+function gateReleaseRules(breakpoints) {
+  const release = (token, query) =>
+    `  @media ${query} {\n` +
+    `    html[data-kui-cloak] [data-kui~='${token}']:not([data-kui-state]) {\n` +
+    `      opacity: 1;\n` +
+    `      animation: none;\n` +
+    `    }\n` +
+    `  }`
+
+  return Object.entries(breakpoints)
+    .flatMap(([name, width]) => [
+      // `above:md` is off below md; `below:md` is off from md up.
+      release(`above:${name}`, `not all and (min-width: ${width})`),
+      release(`below:${name}`, `(min-width: ${width})`),
+    ])
+    .join('\n\n')
+}
+
+/**
  * The whole `kui.cloak` layer for a list of preset names.
  *
  * Split out of `main` so the layer's own long explanation lives next to the rules it explains,
  * rather than as a template literal three levels deep inside the writer.
  */
-function cloakLayer(names) {
+function cloakLayer(names, breakpoints) {
   const selectors = names.map(cloakSelector).join(',\n')
   return `
 /*
@@ -188,6 +235,9 @@ ${selectors} {
       animation: none;
     }
   }
+
+  /* The same argument on the width axis — see \`gateReleaseRules\`. */
+${gateReleaseRules(breakpoints)}
 }
 `
 }
@@ -195,6 +245,7 @@ ${selectors} {
 async function main() {
   build()
   const { createRegistry } = await import(bundle)
+  const { BREAKPOINTS } = await import(breakpointsBundle)
   const registry = createRegistry()
 
   const blocks = []
@@ -220,7 +271,7 @@ async function main() {
 @layer kui.presets {
 ${blocks.join('\n\n')}
 }
-${cloakLayer(cloakable)}`
+${cloakLayer(cloakable, BREAKPOINTS)}`
   writeFileSync(outFile, css)
   rmSync(tmpDir, { recursive: true, force: true })
   console.log(

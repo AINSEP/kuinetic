@@ -158,6 +158,8 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
 | `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
+| `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
+| `below:` | run this effect only below a breakpoint | `fade-up below:md` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
@@ -188,7 +190,9 @@ declaration — no extra markup, no wrapper element.
 
 If two effects in the same list *do* write the same CSS property, the library keeps the first and
 warns in the console naming both — never a silent drop — see
-[Architecture §4](?doc=design#4-composition-the-channel-model) for the full resolution order.
+[Architecture §4](?doc=design#4-composition-the-channel-model) for the full resolution order. The
+one exception is two effects that can never run at the same viewport width (`fade-up below:md,
+fade-left above:md`): they cannot collide, so they compose.
 
 ---
 
@@ -307,6 +311,62 @@ Four things worth knowing:
 - **The order is DOM order, not visual order.** In RTL that is what you want — `start` is the child
   where its row begins. Under `flex-direction: row-reverse` you have separated the two yourself, and
   `from:end` is the fix.
+
+---
+
+## Breakpoints — `above:` and `below:`
+
+"Fade up on desktop, nothing on mobile" is one token:
+
+```html
+<h1 data-kui="fade-up above:md">
+```
+
+Below `md` that element simply does not animate — it renders where it belongs, fully visible, as if
+it carried no `data-kui` at all. From `md` up it fades in normally.
+
+Each effect in the comma list carries its own condition, so one element can have two treatments:
+
+```html
+<h2 data-kui="fade-up below:md, fade-left above:md">
+```
+
+Those two would normally refuse to compose — both animate opacity and position — but because
+neither can be live at a width the other is, they are not competing for anything.
+
+| Spelling | When it runs |
+|---|---|
+| `above:md` | viewport is **at least** `md` wide |
+| `below:md` | viewport is **narrower than** `md` |
+| `above:md below:xl` | between the two — `md` up to, but not including, `xl` |
+
+The two are exact complements, so `below:md` and `above:md` between them cover every possible width
+with no overlap and no gap. The breakpoint itself belongs to `above`, the same way CSS's own
+mobile-first `min-width` cascade works.
+
+The scale is Tailwind's, in `rem` so it tracks the reader's font size:
+
+| Name | Width |
+|---|---|
+| `sm` | `40rem` (640px) |
+| `md` | `48rem` (768px) |
+| `lg` | `64rem` (1024px) |
+| `xl` | `80rem` (1280px) |
+| `2xl` | `96rem` (1536px) |
+
+Three things worth knowing:
+
+- **It compiles to a media query, not to JavaScript.** A gated effect is a real `@media` rule in the
+  shipped stylesheet, so resizing the window switches treatments instantly, with no script running
+  and nothing to tear down — and the right thing happens even if the library's JS never loads. That
+  is the whole reason there is no `kuinetic.matchMedia()` to call.
+- **Only these five names.** A width you invent (`above:900px`) is refused with a console warning
+  naming the five that work, because a stylesheet compiled ahead of time cannot hold a width that
+  did not exist when it was compiled. Match your layout to the scale, or restyle the effect with
+  your own media query.
+- **A few effects are rendered in JavaScript** — pinning, counters, text splitting, dragging (the
+  Catalog marks them). Those are gated too, and re-evaluated when the viewport crosses the
+  breakpoint, but crossing one restarts the effect rather than morphing it.
 
 ---
 

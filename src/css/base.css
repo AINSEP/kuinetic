@@ -80,6 +80,93 @@
   :dir(rtl) [data-kui-fx] {
     --kui-dir: -1;
   }
+
+  /*
+   * Viewport gates — the CSS half of `data-kui="fade-up above:md"`.
+   *
+   * `src/core/compile.ts` compiles a gated track's name as `var(--kui-above-md, kui-in-up)`. These
+   * ten properties are the switch that expression reads:
+   *
+   *   - `none`    → the track is a named-nothing entry in the `animation-name` list. It occupies
+   *                 its index, so a composed element's parallel `animation-duration`/`-delay`/
+   *                 `-timing-function`/`-fill-mode` lists stay aligned, and it animates nothing.
+   *                 With no animation there is no `fill-mode: both` holding a from-state, so the
+   *                 element paints at its ordinary rest state — visible, in place, correct. That is
+   *                 what "nothing on mobile" has to mean, and it is why this is a name switch
+   *                 rather than a `duration: 0s` one: a zero-length animation still *runs*, still
+   *                 fills, and would leave an exit's element gone rather than untouched.
+   *   - `initial` → the guaranteed-invalid value, so `var()` falls through to the real keyframe
+   *                 ident and the effect runs. Same idiom as `--kui-motion-*` above.
+   *
+   * The whole mechanism is therefore a media query and a custom property: no script observes the
+   * viewport, nothing has to be torn down when a breakpoint changes, and a page whose JavaScript
+   * never loads still gets the right treatment at every width. That is the part `gsap.matchMedia()`
+   * has to solve at runtime and this does not.
+   *
+   * `above` is inclusive and `below` is exclusive, so the pair tiles the width axis exactly:
+   * `fade-up below:md, parallax above:md` runs precisely one of the two at 767px, at 768px, and at
+   * every width either side. Both halves flip inside the *same* `min-width` block, which is what
+   * guarantees they can never disagree at the boundary — a separate `max-width` query would
+   * reintroduce the off-by-one it exists to avoid.
+   *
+   * `min-width` rather than the `(width >= 48rem)` range syntax deliberately: a browser that cannot
+   * parse a range query drops the whole block, which would leave every `--kui-above-*` at `none`
+   * and silently disable every `above:` gate on the page. `rem` rather than `px` so the breakpoints
+   * track the visitor's root font size. The scale is Tailwind v4's, unchanged — `src/core/
+   * breakpoints.ts` holds the same five values and explains why they are borrowed rather than
+   * invented.
+   *
+   * On `:root`, not on `[data-kui-fx]`: these are page-wide constants with no per-element meaning,
+   * so inheritance is exactly right here — unlike `--kui-i`, which is a position *within a group*
+   * and is reset above precisely because it inherits past the group that set it.
+   */
+  :root {
+    --kui-above-sm: none;
+    --kui-below-sm: initial;
+    --kui-above-md: none;
+    --kui-below-md: initial;
+    --kui-above-lg: none;
+    --kui-below-lg: initial;
+    --kui-above-xl: none;
+    --kui-below-xl: initial;
+    --kui-above-2xl: none;
+    --kui-below-2xl: initial;
+  }
+
+  @media (min-width: 40rem) {
+    :root {
+      --kui-above-sm: initial;
+      --kui-below-sm: none;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    :root {
+      --kui-above-md: initial;
+      --kui-below-md: none;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    :root {
+      --kui-above-lg: initial;
+      --kui-below-lg: none;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    :root {
+      --kui-above-xl: initial;
+      --kui-below-xl: none;
+    }
+  }
+
+  @media (min-width: 96rem) {
+    :root {
+      --kui-above-2xl: initial;
+      --kui-below-2xl: none;
+    }
+  }
 }
 
 @layer kui.policy {

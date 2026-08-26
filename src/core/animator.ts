@@ -37,6 +37,8 @@ import {
 } from './activation.js'
 import type { ActivationBinder } from './activation.js'
 import { ATTR } from './attrs.js'
+import { breakpointsIn, createGateWatcher, gateMatches } from './breakpoints.js'
+import type { Breakpoint, EffectGate, GateWatcher } from './breakpoints.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compile } from './compile.js'
@@ -169,6 +171,13 @@ export class Animator {
   private readonly liveElements = new Set<Element>()
   /** Built lazily by `watch()` when not injected, so nothing observes until `start()` needs it. */
   private domWatcher: DomWatcher | undefined
+  /**
+   * Built lazily by `watchGates()`, and only for an element carrying a viewport gate on a
+   * JavaScript-rendered effect — see `applyViewportGates` for why that is the only case that needs
+   * one. Stays `undefined` on a page whose gates are all on CSS-rendered effects, which binds no
+   * `MediaQueryList` listener anywhere.
+   */
+  private gateWatcher: GateWatcher | undefined
   private started = false
 
   constructor(options: AnimatorOptions = {}) {
@@ -248,6 +257,10 @@ export class Animator {
     const parsed = parse(attributes.source)
     const config = resolveConfig(attributes, parsed)
     const plan = compile(parsed, this.registry, config.timeline)
+    // Before `planStyles` runs, so that an element whose only JS effect is gated off reports no
+    // work and takes the `immediate` gate rather than sitting deferred on an activation that has
+    // nothing left to release.
+    this.applyViewportGates(el, plan)
 
     config.activation = this.resolveActivation(el, config, plan)
     for (const warning of plan.warnings) this.reporter.warn(warning, el)
@@ -298,6 +311,74 @@ export class Animator {
     return config.activation
   }
 
+  /**
+   * Resolve the viewport gates (`above:` / `below:`) on this element's JavaScript-rendered effects.
+   *
+   * CSS-rendered segments are deliberately absent from this method. Their gate is compiled into the
+   * `animation-name` declaration as a `var()` the browser re-resolves on every resize with no
+   * script involved (see `core/breakpoints.ts`), which is the entire reason this feature does not
+   * need the teardown machinery `gsap.matchMedia()` is built around. A JavaScript-rendered effect
+   * has no `animation-name` for a stylesheet to neutralise, so it is the one case that has to be
+   * decided here — and, having been decided once, has to be re-decided when the viewport crosses
+   * the breakpoint it was decided at.
+   *
+   * @complexity O(e) time in JS-rendered effects; O(b) space, bounded by the scale's five names.
+   * @overallScore 100
+   */
+  private applyViewportGates(el: Element, plan: CompiledPlan): void {
+    const gates = plan.jsEffects
+      .map((entry) => entry.spec.gate)
+      .filter((gate): gate is EffectGate => gate !== undefined)
+    if (gates.length === 0) {
+      // Not merely an optimisation: an element that *used* to carry a gated JS effect and no longer
+      // does must stop being watched, or a later resize would keep recompiling it forever.
+      this.gateWatcher?.unwatch(el)
+      return
+    }
+    const win = el.ownerDocument.defaultView ?? undefined
+    plan.jsEffects = plan.jsEffects.filter((entry) => gateMatches(entry.spec.gate, win))
+    this.watchGates(el, win, breakpointsIn(gates))
+  }
+
+  /**
+   * Arm live re-evaluation for one element, building the watcher on first use.
+   *
+   * Lazy so that a page with no JavaScript-rendered gate — which is most pages, since the catalog
+   * is overwhelmingly `css-keyframes` — binds no `MediaQueryList` listener at all.
+   *
+   * @complexity O(b) time in the element's breakpoints; O(1) amortised space.
+   * @overallScore 100
+   */
+  private watchGates(el: Element, win: Window | undefined, breakpoints: Breakpoint[]): void {
+    this.gateWatcher ??= createGateWatcher(win, (target) => this.regate(target))
+    this.gateWatcher.watch(el, breakpoints)
+  }
+
+  /**
+   * Rebuild one element because the viewport crossed a breakpoint its JS effects depend on.
+   *
+   * `release` then `process`, rather than a partial update, and rather than `process` alone:
+   * `process` short-circuits on an unchanged fingerprint, and the fingerprint is a hash of
+   * *attributes*, which have not changed — the viewport has. Releasing first is also what makes the
+   * transition safe mid-animation: it aborts the activation binding, runs each JS effect's own
+   * `destroy()`, and unwinds both ledgers, so the element is back at the author's own markup before
+   * the new plan touches it. That is the same path an attribute edit takes, so there is one
+   * teardown implementation rather than two.
+   *
+   * There is deliberately no "is this element still live?" guard. Every path that stops tracking an
+   * element goes through `release`, and `release` unwatches — so an element that reaches here is
+   * one the watcher still holds, which is one `release` has not run on, which is one that is live.
+   * A guard would be unreachable code pretending to be caution, the same call `positioned()` in
+   * `compile.ts` makes about its own missing branch.
+   *
+   * @complexity O(e) time in the element's composed effects; O(1) space.
+   * @overallScore 100
+   */
+  private regate(el: Element): void {
+    this.release(el)
+    this.process(el)
+  }
+
   private install(request: InstallRequest): void {
     const { el, fingerprint, parsed, config, plan } = request
     const stylePlan = planStyles({
@@ -330,12 +411,11 @@ export class Animator {
     this.liveElements.add(el)
 
     if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
-      const animationNames = (plan.declarations['animation-name'] ?? '')
-        .split(',')
-        .map((name) => name.trim())
-        .filter(Boolean)
+      // `plan.keyframeNames`, not a re-split of the compiled `animation-name`: a viewport-gated
+      // track compiles to `var(--kui-above-md, kui-in-up)` and splitting that on commas yields two
+      // fragments, neither of which is a keyframe name. See `CompiledPlan.keyframeNames`.
       state.instances.push(
-        createCssInstance(el, ledger, animationNames, stylePlan.gate === 'scrubbed'),
+        createCssInstance(el, ledger, plan.keyframeNames, stylePlan.gate === 'scrubbed'),
       )
     }
     state.instances.push(
@@ -782,6 +862,10 @@ export class Animator {
     for (const instance of state.instances) runQuietly(() => instance.destroy())
     this.states.delete(el)
     this.liveElements.delete(el)
+    // Unconditional, including on the `regate` path that is about to reinstall: `process` re-arms
+    // it from the freshly compiled plan, so the only thing dropping it here can lose is a stale
+    // subscription for an element that has genuinely gone away.
+    this.gateWatcher?.unwatch(el)
     state.ledger.restore()
     state.attributes.restore()
     // Dispatched last, after both ledgers have unwound, so a listener sees the author's own markup
@@ -822,6 +906,7 @@ export class Animator {
   destroy(): void {
     this.domWatcher?.destroy()
     for (const el of [...this.liveElements]) this.release(el)
+    this.gateWatcher?.destroy()
     this.binder.destroy()
     this.scheduler.destroy()
     this.started = false

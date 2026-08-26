@@ -371,3 +371,86 @@ describe('compile — capability intersection across composed effects', () => {
     expect(plan.supportedActivations).toEqual([])
   })
 })
+
+describe('compile — viewport gates', () => {
+  it('wraps a gated track in its switch property, keeping the ident as the fallback', () => {
+    // The whole implementation, and the reason this feature needs no runtime: outside the gate the
+    // property holds `none`; inside it, it is the guaranteed-invalid value and `var()` falls
+    // through to the real ident. `src/css/base.css` declares both states in a media query, so the
+    // browser re-decides on every resize with no script running.
+    expect(run('fade-up above:md').declarations['animation-name']).toBe(
+      'var(--kui-above-md, kui-in-up)',
+    )
+  })
+
+  it('leaves an ungated track exactly as it was', () => {
+    expect(run('fade-up').declarations['animation-name']).toBe('kui-in-up')
+  })
+
+  it('gates each composed segment independently, keeping the parallel lists aligned', () => {
+    // A gated-off track is a `none` entry that still occupies its index, so every other longhand
+    // list still lines up with it. CSS repeats a shorter value list to fill the longest one, so a
+    // track that were simply *omitted* would shift its neighbours' durations onto the wrong effect.
+    const plan = run('fade-up 600ms below:md, blur-in 400ms above:md')
+    expect(plan.declarations['animation-name']).toBe(
+      'var(--kui-below-md, kui-in-up), var(--kui-above-md, kui-blur-in)',
+    )
+    expect(plan.declarations['animation-duration']).toBe('600ms, 400ms')
+    expect(plan.declarations['animation-fill-mode']).toBe('both, both')
+  })
+
+  it('nests both halves of a band', () => {
+    expect(run('fade-up above:md below:xl').declarations['animation-name']).toBe(
+      'var(--kui-above-md, var(--kui-below-xl, kui-in-up))',
+    )
+  })
+
+  it('carries one gate across every track a variant compiles', () => {
+    // A `tween` writing two property groups is still ONE effect the author gave one condition;
+    // that it becomes two keyframe blocks is a fact about CSS, not something the gate may leak.
+    expect(run('tween x:100 opacity:0 800ms above:lg').declarations['animation-name']).toBe(
+      'var(--kui-above-lg, kui-tween-to-translate), var(--kui-above-lg, kui-tween-to-opacity)',
+    )
+  })
+
+  it('reports the bare keyframe idents separately from the declaration', () => {
+    // `animation-name` is no longer a list of idents that survives a `split(',')` — that would
+    // shred `var(--kui-above-md, kui-in-up)` into two fragments, neither of which is a keyframe
+    // name. `animator.ts` matches this list against `getAnimations()` to decide which handles the
+    // element owns, and owning nothing would settle its completion promise immediately and strand
+    // `data-kui-state` on `finished` while the animation was still visibly running.
+    expect(run('fade-up below:md, blur-in above:md').keyframeNames).toEqual([
+      'kui-in-up',
+      'kui-blur-in',
+    ])
+  })
+
+  it('reports no keyframe names for an element with no CSS-rendered effect', () => {
+    expect(run('count-up').keyframeNames).toEqual([])
+  })
+
+  it('composes two effects that share a channel but can never share a width', () => {
+    // `fade-up` and `parallax-y` both own `translate`, so before the gate reached the conflict
+    // detector this pair was refused and its second half dropped — at every width, including the
+    // ones where the first half was gated off and nothing animated at all.
+    const plan = run('fade-up below:md, parallax-y above:md', 'view')
+    expect(plan.fxNames).toEqual(['fade-up', 'parallax-y'])
+    expect(plan.warnings.join()).not.toContain('cannot compose')
+  })
+
+  it('still refuses two effects that share a channel at some width they can both run', () => {
+    // The gate narrows the question, it does not retire it: overlapping conditions collide exactly
+    // as unconditional ones do.
+    const plan = run('fade-up above:md, parallax-y above:lg', 'view')
+    expect(plan.fxNames).toEqual(['fade-up'])
+    expect(plan.warnings.join()).toContain('cannot compose')
+  })
+
+  it('still stamps a gated effect, because the gate is not decided here', () => {
+    // `data-kui-fx` has to name every composed effect at every width: the element must already be
+    // fully installed for BOTH sides of the breakpoint, since crossing one is a repaint rather than
+    // a rescan. The consequence worth knowing is that a preset's static, non-keyframe rules still
+    // apply to a gated-off segment — a gate turns off the animation, not the effect's styling.
+    expect(run('fade-up above:md').fxNames).toEqual(['fade-up'])
+  })
+})

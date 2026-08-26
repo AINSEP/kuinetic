@@ -1,4 +1,6 @@
 import { validateActivation } from './activation.js'
+import { BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
+import type { Breakpoint, GateDirection } from './breakpoints.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -11,8 +13,9 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * rather than failing silently.
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
- * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm` are hoisted element-wide (see `HOISTS`), and
- * `at:` is lifted onto the spec as a relative position — `core/sequence.ts` owns what it means.
+ * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm` are hoisted element-wide (see `HOISTS`);
+ * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns; and
+ * `above:`/`below:` are lifted onto the spec as a viewport gate, which `core/breakpoints.ts` owns.
  *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
@@ -287,6 +290,14 @@ function applyToken(
     return
   }
 
+  // Lifted for the same reason `at:` is, and per-segment for a reason of its own: the whole point
+  // of a gate is that neighbouring segments can carry different ones, so hoisting it element-wide
+  // the way `on:` is hoisted would make `fade-up below:md, parallax-y above:md` inexpressible.
+  if (isGateDirection(token.key)) {
+    applyGate(spec, token.key, token.value, { segment, result })
+    return
+  }
+
   // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
   // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to
   // an inherited value there — truthy, but not a hoist handler, so calling it threw and aborted
@@ -299,6 +310,72 @@ function applyToken(
     result.warnings.push(`duplicate parameter "${token.key}" in "${segment}"`)
   }
   spec.params[token.key] = token.value
+}
+
+function isGateDirection(key: string): key is GateDirection {
+  return key === 'above' || key === 'below'
+}
+
+/** Where a gate token came from, so `applyGate` can quote it back without a fifth parameter. */
+interface GateContext {
+  segment: string
+  result: ParsedValue
+}
+
+/**
+ * Apply one half of a viewport gate to the spec being built.
+ *
+ * Every rejection here is a *warning plus no gate*, never a warning plus a half-applied one. A
+ * segment whose gate was refused runs unconditionally, which is the same fail-open the rest of the
+ * grammar uses: an author who mistypes a breakpoint gets their animation and a message naming the
+ * token, rather than an element that silently never animates anywhere and no clue why.
+ *
+ * @complexity O(b) time in the scale's length via `breakpointRank` — five; O(1) space.
+ * @overallScore 100
+ */
+function applyGate(
+  spec: EffectSpec,
+  direction: GateDirection,
+  value: string,
+  context: GateContext,
+): void {
+  const { segment, result } = context
+  if (!isBreakpoint(value)) {
+    result.warnings.push(
+      `unknown breakpoint "${value}" in "${segment}" — expected one of ${BREAKPOINT_NAMES.join(', ')}`,
+    )
+    return
+  }
+  const gate = (spec.gate ??= {})
+  if (gate[direction] !== undefined) {
+    result.warnings.push(`duplicate parameter "${direction}" in "${segment}"`)
+  }
+  gate[direction] = value
+  warnOnEmptyBand(gate.above, gate.below, segment, result)
+}
+
+/**
+ * Name a band that no viewport can satisfy.
+ *
+ * `above:md below:md` is `width >= 768px AND width < 768px`; `above:lg below:md` is worse still.
+ * Both compile to perfectly valid CSS that simply never matches, so without this the effect is
+ * exactly the silent no-op the grammar promises never to produce — and it is an easy mistake,
+ * because the pair reads like a range regardless of which order the two are written in.
+ *
+ * @complexity O(b) time in the scale's length; O(1) space.
+ * @overallScore 100
+ */
+function warnOnEmptyBand(
+  above: Breakpoint | undefined,
+  below: Breakpoint | undefined,
+  segment: string,
+  result: ParsedValue,
+): void {
+  if (!above || !below || breakpointRank(above) < breakpointRank(below)) return
+  result.warnings.push(
+    `"above:${above} below:${below}" in "${segment}" can never match — ` +
+      `"above" must name a narrower breakpoint than "below"`,
+  )
 }
 
 /** The three values `rm:` accepts, mirroring `ReducedMotionPolicy` in `types.ts`. */

@@ -39,6 +39,7 @@ function planWithThrowingEffect(): CompiledPlan {
     fxNames: ['broken'],
     vars: {},
     declarations: {},
+    keyframeNames: [],
     jsEffects: [
       {
         spec: { name: 'broken', params: {} },

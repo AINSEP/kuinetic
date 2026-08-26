@@ -191,6 +191,7 @@ export interface ParamSpec {
 
 export type ParameterSchema = Record<string, ParamSpec>
 
+import type { EffectGate } from './breakpoints.js'
 import type { PrepareContext } from './effect-context.js'
 import type { AttributeLedger, StyleLedger } from './owned-styles.js'
 
@@ -547,6 +548,21 @@ export interface EffectSpec {
    * definition — the whole point is that each segment can sit somewhere different.
    */
   at?: string
+  /**
+   * Authored viewport condition — `above:md`, `below:lg`, or both for a band. Absent when the
+   * segment is unconditional, which is every segment written before this existed.
+   *
+   * Beside `at` rather than inside `params` for the same reason `at` is: it is not a parameter. No
+   * `ParameterSchema` declares it, it means the same thing for every effect in the catalog, and
+   * `resolveParams` would reject it as unknown on all of them. And not hoisted to `ParsedValue` the
+   * way `on:`/`timeline:` are, because the point of a gate is that each segment can carry a
+   * different one — `fade-up below:md, parallax-y above:md` is the case this feature exists for, and
+   * an element-scoped gate could not express it at all.
+   *
+   * Already validated by the time it lands here: `parse.ts` refuses a name that is not on the
+   * scale, and refuses a band that can never match. `core/breakpoints.ts` owns both.
+   */
+  gate?: EffectGate
   params: Record<string, string>
 }
 
