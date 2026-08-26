@@ -10,6 +10,73 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **`transition` is untracked by the channel invariant, and there is a live reachable bug behind
+      it.** Found 2026-08-26 while closing two other blind spots in `css-invariants.test.ts`. Ten
+      presets write `transition` unconditionally: `lift`, `pop`, `lift-shadow`, `border-draw`,
+      `border-glow`, `header-shrink`, `header-hide-on-scroll`, `back-to-top-fade`, `word-cycler`,
+      `plus-to-minus`. Two equal-specificity rules both setting `transition` means source order wins
+      and the loser's is discarded outright. `data-kui="lift, border-glow"` declares `['translate']`
+      vs `['shadow']` — disjoint, so the compiler happily composes it — and then `border-glow`'s
+      `transition: box-shadow` replaces `lift`'s `transition: translate`, so **lift snaps instead of
+      easing**. This is exactly the class the invariant exists to catch, sailing through it.
+      **It cannot be fixed by adding `transition` to a channel** — that puts all ten on one channel
+      and forbids every hover combination. Needs either a dedicated invariant (assert each preset
+      only transitions properties inside its own declared channels, then flag co-writers) or a
+      compile-time transition merge. Owner: `src/css/interaction.css` + `base.css`.
+
+- [ ] **Two effects can own the same pseudo-element, wholly unaudited.** Same session, same sweep.
+      Both CSS extractors skip pseudo-element rules by design — correct for same-box clobbering —
+      but nothing checks the `::before`/`::after` box itself. Concrete reachable pair: `shine-sweep`
+      (`['sweep']`) and `underline-slide` (`['scale']`) are disjoint so they compose, and **both
+      paint `::after` on the same host**. One box, two effects. `underline-slide`/`underline-center`
+      are the safe case — both `['scale']`, already blocked. Third structural hole of this family.
+
+- [ ] **Four more channel-map gaps, all verified against the CSS, none closed.** (a)
+      `transform-origin` untracked — 8 unconditional writers (`scroll-progress-bar`,
+      `progress-indeterminate`, `ripple`, `progress-bar`, `fold-panel`, `book-page-turn`,
+      `loading-bar`, `chart-bar-grow`); it does not clobber a transform but redefines what every
+      transform on that element *means*, so two composed effects wanting different origins disagree
+      silently. (b) `background` channel is missing longhands — `background-repeat` (7 writers) and
+      `background-clip`/`-webkit-background-clip` (2); all already declare `background`, so adding
+      them is a safe widening and a one-line follow-up. (c) `border` and `sweep` have **no**
+      `CHANNEL_PROPERTIES` entry at all, so `allowedProperties()` returns the empty set — strict and
+      safe for their own primitives, but `border-image-*` and `border-top-color` stay untracked for
+      anything else. (d) `fill` untracked while `stroke` is a channel (`sparkline-draw`,
+      `chart-line-draw`) — static today, silent the day an SVG effect animates fill.
+
+- [ ] **`pin` has no way to express "only pin where there is room".** Found 2026-08-26 fixing the
+      mobile pin regression. The primitive's params are `distance`, `offset-top`, `spacer` only
+      (`src/effects/scroll-mechanics/primitives.ts`), so every author of a sticky sidebar hits the
+      same wall and reaches for `position: static !important` on the demo page — which is exactly
+      how `ce7a87a` silently disabled `pin-until` below 900px. A responsive gate on the effect is
+      the shaped fix. **Check first whether the `above:`/`below:` viewport gates merged in
+      `4f18816` already provide the mechanism** — that work landed the same day and may only need
+      wiring, not new syntax.
+
+- [ ] **`data-kui-pinned` lies.** `scroll-mechanics/primitives.ts:163` stamps it from progress
+      alone, not from whether sticky actually engaged. At 390px `.showcase-media` on `scroll.html`
+      reports `pinned="true"` while computing `position: static`. Small, but it is a state contract
+      other things read.
+
+- [ ] **`src/core/registry.ts:11-13` docstring is wrong.** Says "~237 names come from 29 primitives".
+      Measured off the live Registry maps on 2026-08-26: **262 preset names from 131 primitives**,
+      zero orphan primitives. Left unfixed only because another agent held the file at the time.
+      Do **not** reuse `docs/catalog.md`'s "33 primitive families" here — that doc defines families
+      as a coarser architectural grouping and says outright the registry holds more entries.
+
+- [ ] **`scope:page` — steps 5 through 11 of `docs/plan-scope-page.md`.** Steps 1-4 landed in
+      `7184ee6` (plumbing, zero behaviour change). Remaining: `data-kui-fx` placement onto matched
+      elements (91 hand-written selectors across 5 files assume the fx element is the animated one —
+      an assertable allowlist, only 16 preset names), `--kui-i` indexing over a targeted set,
+      JS-rendered effects looping per match, the rescan trigger, diagnostics, and tests. Five owner
+      decisions still open in the plan (D2 scroll-spy's two-form default, D3, D4 cloak under
+      `scope:page`, D5 rescan, D7 stagger numbering); each was sized to land inside one step so none
+      blocks starting.
+
+- [ ] **`npm run size` fails — CSS is 4.53 kB over an 8 kB cap.** Confirmed 2026-08-26. Decide
+      whether to raise the budget or trim; the number has been stale for long enough that the gate
+      trains people to ignore it, which is the disease the gate is meant to cure.
+
 - [ ] **Remove `demo/nav-forms.html`.** Owner's ask, 2026-08-26: "this is just not even stuff we
       should be doing" — the page isn't earning its place in the showcase. Not started; check the
       nav generator (`e6c132b`, see the hide-pages entry below) and `docs.html`'s page list for
