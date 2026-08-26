@@ -22,7 +22,29 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   rotate: ['rotate'],
   filter: ['filter'],
   clip: ['clip-path'],
-  mask: ['mask-image', 'mask-position', 'mask-size'],
+  /**
+   * The `mask` shorthand and `mask-composite` sit here beside the longhands, for the same reason
+   * `background` below lists `background` beside *its* longhands: a shorthand resets every
+   * longhand it covers, so a rule writing `mask:` clobbers a `mask-image` another effect painted
+   * just as thoroughly as a second `mask-image` would. Listing only the longhands left the
+   * shorthand untracked, which meant `ambient-gradient-ring`'s ring rules (`mask` +
+   * `mask-composite`, in `ambient.css`) were invisible to the static-rule check — the primitive
+   * declares `'mask'` correctly today, but nothing here was verifying that, and the next primitive
+   * to reach for the shorthand would not have been caught either.
+   *
+   * `-webkit-mask-composite` is the prefixed twin, tracked for the same reason
+   * `-webkit-text-fill-color` and `-webkit-text-stroke` are: the property scanner admits
+   * vendor-prefixed names, so leaving one half of a prefixed pair unmapped is a hole with the
+   * shape of a covered channel.
+   */
+  mask: [
+    'mask-image',
+    'mask-position',
+    'mask-size',
+    'mask',
+    'mask-composite',
+    '-webkit-mask-composite',
+  ],
   background: [
     'background-position',
     'background-image',
@@ -72,4 +94,27 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   text: ['letter-spacing', 'word-spacing', 'font-variation-settings'],
   font: ['font-weight', 'font-stretch', 'font-style'],
   shadow: ['box-shadow'],
+  /**
+   * `text-shadow` gets a channel of its own rather than joining `box-shadow` under `shadow`.
+   *
+   * They are independent CSS properties: writing one never disturbs the other, so a card that
+   * lifts on a `box-shadow` while its heading carries an extruded `text-shadow` —
+   * `data-kui="lift-shadow, text-3d-extrude"` — is physically fine. Folding both into one channel
+   * would make the compiler refuse that pair, which is the *opposite* failure from the one the
+   * `mask`/`clip` note at the top of this file guards against: not two channel names over one
+   * property, but one channel name over two properties that never collide. Same reasoning as
+   * `offset`, which is deliberately kept out of `translate`/`rotate` because both stages apply and
+   * neither overwrites the other.
+   *
+   * Splitting also keeps the *existing* `shadow` members honest. Filed together, `lift-shadow` and
+   * `border-glow` — which declare `shadow` for their `box-shadow` work — would silently gain
+   * permission to paint `text-shadow` too, and this map's whole job is to withhold exactly that.
+   *
+   * Until this entry existed the property was mapped under no channel at all, so it never reached
+   * `TRACKED_PROPERTIES` and the static-rule check in `css-invariants.test.ts` skipped it
+   * outright — structurally invisible rather than merely unasserted. `text-3d-extrude` is the one
+   * primitive writing it today (an unconditional stack in `text.css`); it declared only
+   * `rotate`/`translate` for the whole time the hole was open.
+   */
+  'text-shadow': ['text-shadow'],
 }

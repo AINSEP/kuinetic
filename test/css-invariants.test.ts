@@ -20,6 +20,12 @@ import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import {
+  extractBaseRuleProperties,
+  extractHostAnimationBindings,
+  extractKeyframes,
+  readBalancedBlock,
+} from './support/css-scan.js'
 import { catalogRegistry } from './support/registry.js'
 
 /**
@@ -107,83 +113,6 @@ const ALL_PRESETS = [
  * (`--kui-fx-*-iterations`) that the channel model was never meant to police. */
 const TRACKED_PROPERTIES = new Set(Object.values(CHANNEL_PROPERTIES).flat())
 
-/** Read from `start` to the brace that closes the block opened just before it. */
-function readBalancedBlock(source: string, start: number): string {
-  let depth = 1
-  for (let i = start; i < source.length; i++) {
-    if (source[i] === '{') depth++
-    else if (source[i] === '}' && --depth === 0) return source.slice(start, i)
-  }
-  return source.slice(start)
-}
-
-/**
- * Declared CSS property names inside a block body, however the declarations are laid out.
- *
- * Anchored to "right after the block's own opening brace, or after `{`/`;`" rather than to
- * start-of-line: a line-anchored regex silently extracts nothing from a compact
- * `from { prop: val; }` single-line keyframe — media.css writes several this way — which is
- * worse than a hard failure, since every assertion below would then pass vacuously instead of
- * checking anything.
- *
- * The optional leading `-?` admits vendor-prefixed properties (`-webkit-text-fill-color`,
- * `-webkit-mask-composite`) without also admitting a custom property: `--kui-border-angle` starts
- * with *two* dashes, and `-?` only ever consumes one, so the required `[a-z]` immediately after it
- * fails to match the second dash and the whole property is correctly skipped — the channel model
- * polices painted CSS properties, not the custom properties that sometimes drive them. Before this
- * was widened, every `-webkit-*` declaration in the catalog was invisible to every check in this
- * file: `gradient-shimmer`, `gradient-sweep`, and `text-outline-fill` all write
- * `-webkit-text-fill-color` in an unconditional rule or a keyframe with no entry anywhere in
- * `CHANNEL_PROPERTIES` to catch a channel that didn't cover it.
- */
-function extractDeclaredProperties(body: string): Set<string> {
-  const properties = new Set<string>()
-  for (const [, property] of body.matchAll(/(?:^|[{;])\s*(-?[a-z][a-z-]*)\s*:/g)) {
-    if (property) properties.add(property)
-  }
-  return properties
-}
-
-/**
- * name → the CSS properties its `@keyframes` blocks write.
- *
- * Brace-balanced rather than indentation-matched: an indentation-sensitive regex would quietly
- * extract nothing if a formatter reflowed the file, and every assertion below would then pass
- * vacuously. The size assertion is the backstop for that.
- */
-function extractKeyframes(css: string): Map<string, Set<string>> {
-  const found = new Map<string, Set<string>>()
-
-  for (const match of css.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)) {
-    const body = readBalancedBlock(css, match.index + match[0].length)
-    found.set(match[1]!, extractDeclaredProperties(body))
-  }
-  return found
-}
-
-/**
- * preset name → the CSS properties its *unconditional* `[data-kui-fx~='name']` rule writes.
- *
- * Deliberately excludes anything with a combinator, pseudo-class, or pseudo-element in the
- * selector (`:hover`, `:focus-visible`, `::before`, `~ .foo`) — those rules paint a conditional
- * state or a different box (a sibling, a pseudo-element) than the element `data-kui-fx` lives on,
- * so they cannot silently clobber another composed effect's property on the *same* box the way an
- * always-on base-selector declaration can. That is exactly the shape of the spinner-dots bug:
- * `[data-kui-fx~='spinner-dots'] { background: currentColor; ... }` is unconditional and lands on
- * the same element `gradient-mesh` paints its background on.
- */
-function extractBaseRuleProperties(css: string): Map<string, Set<string>> {
-  const found = new Map<string, Set<string>>()
-  for (const match of css.matchAll(/^[ \t]*\[data-kui-fx~=(['"])([\w-]+)\1\][ \t]*\{/gm)) {
-    const body = readBalancedBlock(css, match.index + match[0].length)
-    const name = match[2]!
-    const existing = found.get(name) ?? new Set<string>()
-    for (const property of extractDeclaredProperties(body)) existing.add(property)
-    found.set(name, existing)
-  }
-  return found
-}
-
 const scannedCss = EFFECT_FILES.map((file) => SOURCES.get(file)).join('\n')
 const keyframes = extractKeyframes(scannedCss)
 const baseRules = extractBaseRuleProperties(scannedCss)
@@ -205,6 +134,8 @@ function allowedProperties(primitiveChannels: readonly string[]): Set<string> {
 const inlineAnimationRefs = new Set(
   [...scannedCss.matchAll(/\banimation(?:-name)?\s*:\s*([\w-]+)/g)].map((match) => match[1]!),
 )
+
+const hostAnimations = extractHostAnimationBindings(scannedCss, keyframes)
 
 describe('CSS keyframes', () => {
   it('parses a plausible number of keyframe blocks', () => {
@@ -229,24 +160,55 @@ describe('CSS keyframes', () => {
   })
 
   it('no keyframe writes a property outside its primitive declared channels', () => {
-    const violations: string[] = []
-
-    for (const preset of ALL_PRESETS) {
+    const violations = ALL_PRESETS.flatMap((preset) => {
       const resolved = registry.resolve(preset.name)
-      const properties = keyframes.get(preset.keyframes ?? '')
-      if (!resolved || !properties) continue
+      if (!resolved) return []
 
+      // Both join paths, unioned: the `Preset.keyframes` field, and any `@keyframes` the preset's
+      // own element runs from a literal `animation:` declaration. A preset may have neither (most
+      // JS-rendered ones), either, or both — and the two can name the same block, hence the Set.
+      const names = new Set([
+        ...(preset.keyframes ? [preset.keyframes] : []),
+        ...(hostAnimations.get(preset.name) ?? []),
+      ])
       const allowed = allowedProperties(resolved.primitive.channels)
-      for (const property of properties) {
-        if (allowed.has(property)) continue
-        violations.push(
-          `${preset.keyframes} (via ${preset.name}/${resolved.primitive.id}) writes "${property}", ` +
-            `not covered by channels [${resolved.primitive.channels.join(', ')}]`,
-        )
-      }
-    }
+
+      return [...names].flatMap((name) =>
+        [...(keyframes.get(name) ?? [])]
+          .filter((property) => !allowed.has(property))
+          .map(
+            (property) =>
+              `${name} (via ${preset.name}/${resolved.primitive.id}) writes "${property}", ` +
+              `not covered by channels [${resolved.primitive.channels.join(', ')}]`,
+          ),
+      )
+    })
 
     expect(violations).toEqual([])
+  })
+
+  /**
+   * The backstop for the join path itself. `extractHostAnimationBindings` is a regex over selector
+   * text, and the failure it can have is silent: tighten the pattern by one character, match
+   * nothing, and the check above goes back to skipping the whole hover family while still
+   * reporting green — which is precisely the state this file was in before. Naming the four
+   * bindings that exist today turns that regression into a failure.
+   */
+  it('reaches the hover family keyframes, which carry no Preset.keyframes field', () => {
+    const byName = (a: string, b: string) => a.localeCompare(b)
+    const reached = [...hostAnimations].map(([name, blocks]) => {
+      const sorted = [...blocks]
+      sorted.sort(byName)
+      return `${name} -> ${sorted.join()}`
+    })
+    reached.sort(byName)
+
+    expect(reached).toEqual([
+      'icon-bounce -> kui-icon-bounce',
+      'icon-spin -> kui-icon-spin',
+      'icon-wiggle -> kui-icon-wiggle',
+      'split-flap -> kui-split-flap',
+    ])
   })
 })
 

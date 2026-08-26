@@ -153,7 +153,14 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('pop', ['scale'], popParams),
   hoverPrimitive('lift-shadow', ['translate', 'shadow'], liftParams),
   hoverPrimitive('shine-sweep', ['sweep']),
-  hoverPrimitive('split-flap', ['rotate']),
+  // `'skew'`, not `'rotate'`: `@keyframes kui-split-flap` writes the `transform` *shorthand*
+  // (`perspective(...) translateZ(...) rotateX(...)`), not the standalone `rotate:` property —
+  // `perspective()` only affects an element's own depth from inside `transform`, so the flip has
+  // no other spelling. `skew` is this catalog's name for "claims the whole `transform` shorthand"
+  // (see `channel-properties.ts`); `scroll-skew`, `flip-face` and `flip-3d` are the other members.
+  // While this said `rotate`, `split-flap, scroll-skew` and `split-flap, card-flip-y` looked
+  // disjoint to the conflict detector and composed into a silent clobber of `transform`.
+  hoverPrimitive('split-flap', ['skew']),
   hoverPrimitive('border-draw', ['border']),
   hoverPrimitive('border-glow', ['shadow']),
   hoverPrimitive('beam-border', ['border'], beamParams, LINEAR_HOVER),
