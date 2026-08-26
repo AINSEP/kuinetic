@@ -71,25 +71,33 @@
     letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
   }
   .matrix-group-controls { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; }
-  .matrix-group-controls button {
+  /* These three style *this page's* filter/sort/shuffle pills. A show-code chip is not one of
+     them — it is the shared solid dark pill from system.css — so it is excluded rather than
+     restyled. Without the `:not()`, `.matrix-group-controls button` (class+element, one
+     specificity rung above the shared bare-class rule) repaints the chip, and the page then has
+     to restate the chip's colours to win them back. That is what used to be here, and it stated
+     them in the chip's *hover* pair (accent fill, ink label), so all seven Layout & FLIP chips
+     rendered permanently hovered with no hover response left. Excluding is what lets the one
+     canonical rule apply untouched; see the "Show code chips" section of CLAUDE.md.
+
+     The `:not()` is on `.is-active` too — not because a chip is ever active, but to keep the
+     three rules' specificity ladder exactly as it was: hover and is-active tie, so is-active
+     still wins an active-and-hovered pill on source order. */
+  .matrix-group-controls button:not(.kui-show-code-toggle) {
     padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
     background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
   }
-  .matrix-group-controls button:hover { border-color: var(--fg); }
-  .matrix-group-controls button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .matrix-group-controls button:not(.kui-show-code-toggle):hover { border-color: var(--fg); }
+  .matrix-group-controls button:not(.kui-show-code-toggle).is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   /* One "Show code" per Layout & FLIP block, opening the whole grid's markup rather than a
-     single card (see show-code.js's data-show-code-target) — pushed to the far right of
-     whatever sort/filter/shuffle buttons the block already has, so it always reads as a
-     separate, block-level action rather than one more option among them. The shared
-     .kui-show-code-toggle rule sizes itself for sitting inside a figcaption (width:100%,
-     max-width:200px); reset both here so it sits at its own content width in this row instead.
-     Selector is `button.kui-show-code-toggle`, not just the class, because `.matrix-group-controls
-     button` above is a class+element selector — one specificity rung above a bare class — and
-     would otherwise win on background/border/color and flatten this back to a plain grey pill. */
-  .matrix-group-controls button.kui-show-code-toggle {
-    width: auto; max-width: none; margin: 0 0 0 auto; align-self: auto;
-    background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
-  }
+     single card (see show-code.js's data-show-code-target). Placement in this control row is the
+     only thing the page has any business changing: `margin-left: auto` pushes it to the far right
+     of whatever sort/filter/shuffle buttons the block already has, so it reads as a separate,
+     block-level action rather than one more option among them, and `align-self: auto` opts back
+     out of the shared rule's `center` so it stretches to the row's height like its neighbours
+     (that rule is sized for sitting in a figcaption column, where centring is the right call).
+     Nothing about the chip's appearance is restated here. */
+  .matrix-group-controls .kui-show-code-toggle { margin-left: auto; align-self: auto; }
 
   /* ---------- demo grid / cards (static entrance-matrix pattern) ---------- */
   .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.25rem; }

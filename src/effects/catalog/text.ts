@@ -58,18 +58,32 @@ const extrudeParams: ParameterSchema = {
 }
 
 export const TEXT_CSS_PRIMITIVES: Primitive[] = [
-  // `color`, alongside `background`: both presets' unconditional rule sets `-webkit-text-fill-color:
-  // transparent` so the `background-image` gradient shows through the glyphs (the standard
-  // gradient-text technique). That is a real claim on the glyph fill, the same physical property
-  // `text-outline-fill` animates on its own `color` channel below — without this, the two looked
-  // disjoint to the compiler (`background` vs `stroke`+`color`) and composing them would let
-  // whichever applied last silently win the glyph fill instead of being flagged as a conflict.
+  // `color`, alongside `background`, for `text-shimmer` and `text-gradient-sweep` alike: each
+  // one's unconditional rule sets `-webkit-text-fill-color: transparent` so the `background-image`
+  // gradient shows through the glyphs (the standard gradient-text technique). That is a real claim
+  // on the glyph fill, the same physical property `text-outline-fill` animates on its own `color`
+  // channel below — without it the two look disjoint to the compiler (`background` vs
+  // `stroke`+`color`) and composing them would let whichever applied last silently win the glyph
+  // fill instead of being flagged as a conflict.
   cssPrimitive('text-shimmer', [CHANNEL.background, CHANNEL.color], { reducedMotion: 'disable' }),
-  // `gradient-sweep` is the only one of the three `text-sweep`-family presets whose keyframe
-  // touches `-webkit-text-fill-color` (see text.css) — `highlight-sweep` and `underline-draw` only
-  // paint a `background-image`. Claiming `color` for all three made the compiler reject compositions
-  // like `underline-draw, text-outline-fill` as a glyph-fill conflict even though they touch disjoint
-  // properties. Split so only the preset that actually claims the fill declares the channel.
+  // Which is exactly what `text-sweep` must *not* claim. Of the three presets in that family only
+  // `gradient-sweep` goes near the fill: its rule sets `-webkit-text-fill-color: transparent` and
+  // its keyframe drives `background-position` across the clipped glyphs. `highlight-sweep` and
+  // `underline-draw` just paint a `background-image` — a highlight bar and a 2px underline, both
+  // animated through `background-size`, both leaving the glyph fill alone (see text.css). Claiming
+  // `color` for all three made the compiler reject compositions like
+  // `underline-draw, text-outline-fill` as a glyph-fill conflict even though they touch entirely
+  // disjoint properties, and a conflict check that cries wolf is one authors learn to ignore.
+  //
+  // The fix is a second primitive rather than a per-preset channel override, because a narrowing
+  // override is not a thing this library has. Channels are declared on the primitive; the only
+  // per-entry adjustment is `variantFor`, and `channelsFor` in compile.ts unions its result over
+  // the declaration, so a variant can only ever *widen* (see the note on `Primitive.variantFor` in
+  // core/types.ts). That direction is deliberate — widening keeps an under-claim from slipping past
+  // conflict detection — so expressing "these two presets claim less" would mean new machinery in
+  // core/channels.ts, to buy exactly what a second primitive already buys. Two presets writing a
+  // different property set than the third is not a parameter difference, which is all a preset is
+  // meant to express; it is what "different primitive" already means here.
   cssPrimitive('text-gradient-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
   cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
