@@ -10,7 +10,7 @@ import { TIMELINE_AGNOSTIC, withTimingContract } from '../shared.js'
 import { createStepMarker, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../step-marking.js'
 import type { TargetScope } from '../step-marking.js'
 import { prepareScrollSpy } from './scroll-spy.js'
-import { trackProgress } from './tracker.js'
+import { domPosition, trackProgress } from './tracker.js'
 
 /**
  * Scroll-mechanics primitives.
@@ -161,7 +161,20 @@ function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): Con
   // `TrackOptions.stickyEl`.
   const untrack = trackProgress(tracked, ctx, { distance: params.text('distance'), stickyEl: node }, (progress) => {
     writeProgress(ctx, progress)
-    el.setAttribute('data-kui-pinned', progress > 0 && progress < 1 ? 'true' : 'false')
+    /*
+     * `progress` alone is not proof the element is held: it's arithmetic on the *tracked ancestor's*
+     * scroll offset, computed identically whether or not CSS actually lets `node` stick. `installSticky`
+     * writes `position: sticky` inline, but an author's `!important` media query is the one thing that
+     * still beats it — `demo/scroll.html`'s `.showcase-media` does exactly this below 900px, so the
+     * hold is deliberately dropped on narrow viewports while progress keeps running 0->1 underneath
+     * for whatever else consumes it (its `parallax-scale timeline:pin` child, for one).
+     *
+     * Reading `node`'s own computed position is what makes this attribute an honest state contract
+     * instead of a promise CSS can silently break: pinned only when the scroll range says so *and*
+     * the browser is actually resolving `node` to `sticky`.
+     */
+    const holding = progress > 0 && progress < 1 && domPosition(node) === 'sticky'
+    el.setAttribute('data-kui-pinned', holding ? 'true' : 'false')
   })
 
   // Inline styles are restored by the animator's ledger, so teardown only undoes what the
