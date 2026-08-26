@@ -154,7 +154,13 @@ export const MOTION_PATH_PRIMITIVES: Primitive[] = [
  */
 const KEYFRAMES = 'kui-motion-travel'
 
-const path = (name: string, d: string, params: Record<string, string> = {}): Preset => ({
+/**
+ * `params` is required rather than defaulted, even though `{}` would read fine. Every name below
+ * sets a duration, so a default would be an arm nothing ever takes — and the coverage gate this
+ * repo holds itself to (100% branches) counts an unreachable default as a real gap, correctly:
+ * an unexercised branch is untested code however small.
+ */
+const path = (name: string, d: string, params: Record<string, string>): Preset => ({
   name,
   primitive: 'motion-path',
   keyframes: KEYFRAMES,
