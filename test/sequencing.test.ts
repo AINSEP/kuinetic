@@ -7,6 +7,7 @@ import { collectingReporter } from '../src/core/reporter.js'
 import { Registry } from '../src/core/registry.js'
 import { createScrollScheduler, createRootResolver } from '../src/core/scroll-scheduler.js'
 import { detect } from '../src/core/capabilities.js'
+import { inertInstance } from '../src/core/types.js'
 import type { EffectParams, Timeline } from '../src/core/types.js'
 import { createRegistry } from '../src/effects/index.js'
 
@@ -166,10 +167,32 @@ describe('at: — JavaScript-rendered effects', () => {
   })
 
   it('refuses loudly when the primitive declares no delay it could honour', () => {
-    const plan = run('fade-up 600ms, split-flap at:+100ms')
+    // Asserted against a primitive registered here rather than a catalog name, deliberately.
+    // Task F (outline §11) is spreading `TRIGGER_DELAY_PARAM` across the JS primitives that should
+    // have one, so any effect picked out of the catalog as "the one that cannot be positioned" is a
+    // fixture with an expiry date — `split-flap`, the obvious candidate today, gains a `delay` on
+    // `feat/js-effect-timing` and starts passing this test for the wrong reason. What is permanent
+    // is the *rule*: a JS renderer with no `delay` in its schema cannot be positioned and must say
+    // so by name. §9.4 asks for exactly that, and a locally-registered primitive is the only way to
+    // keep asserting it once the catalog no longer contains an example.
+    const registry = createRegistry()
+    registry.registerPrimitive({
+      id: 'undelayable',
+      renderer: 'javascript',
+      channels: ['text'],
+      parameters: {},
+      supportedTimelines: ['time'],
+      supportedActivations: ['enter'],
+      perfClass: 'paint',
+      reducedMotion: 'shorten',
+      prepare: () => inertInstance(),
+    })
+    registry.registerPreset({ name: 'undelayable', primitive: 'undelayable' })
+
+    const plan = compile(parse('fade-up 600ms, undelayable at:+100ms'), registry, 'time')
     expect(plan.jsEffects[0]!.sequencedDelayMs).toBeUndefined()
     expect(plan.warnings.join()).toContain(
-      '"split-flap" is rendered in JavaScript and declares no "delay"',
+      '"undelayable" is rendered in JavaScript and declares no "delay"',
     )
   })
 
