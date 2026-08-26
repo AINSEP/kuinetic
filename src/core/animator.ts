@@ -464,7 +464,10 @@ export class Animator {
     const state = this.states.get(el)
     if (!state) return
     // Nothing that never started can play out, and an exit already in flight must not restart from
-    // wherever it has got to — two `pointerleave`s in a row are one exit.
+    // wherever it has got to — two `pointerleave`s in a row are one exit. `reverseFrom` re-checks
+    // both, because it is reachable without coming through here at all; they are repeated here
+    // because they also gate the warning below. An element that never started, or one already on
+    // its way out, must not be told a second time that half its effects cannot participate.
     if (state.status !== 'running' && state.status !== 'finished') return
     if (state.direction === 'reverse') return
 
@@ -476,6 +479,65 @@ export class Animator {
         el,
       )
     }
+    // Everything above this line is what makes *this* call an activation exit — the "your pointer
+    // left" reading, and a warning phrased in that language. The direction change itself is not
+    // this method's to make; see `reverseFrom` for why it has exactly one owner. No
+    // `reversible.length === 0` guard here any more: `reverseFrom` makes the same check, and making
+    // it twice would only invite the two copies to drift.
+    this.reverseFrom(el)
+  }
+
+  /**
+   * Turn an element's playhead around and settle it back at the from-state it started from.
+   *
+   * The single owner of `state.direction === 'reverse'`, and it exists as its own method because
+   * for a while there were two owners and neither knew about the other. `deactivate()` — the exit
+   * half of a paired activation — flipped the direction and re-armed the settle gate;
+   * `control(el).reverse()` reached straight past the state machine into the raw `Animation`
+   * handles through `InstanceControl.reverse`. Both moved the same playheads, only one of them said
+   * so, and an animator that believed a reversing element was still travelling forwards got three
+   * things wrong at once: a later `deactivate()` sailed through its "an exit already in flight must
+   * not restart" guard and began a *second* reverse; `activate()` could never turn the playhead
+   * around, because it looks for `'reverse'` and never saw it; and the forward `settleWhen` left
+   * over from the entrance stayed pending until it stamped `data-kui-state="finished"` onto an
+   * element sitting at its from-state.
+   *
+   * So the transition lives here and both entry points call it. What `deactivate()` keeps is only
+   * what is true of an *activation* exit specifically. A programmatic reverse is not one — an
+   * author calling `control().reverse()` has not had a pointer leave anything — so it inherits
+   * none of that, and in particular is not told that the effects it cannot reach make "the exit
+   * half of this activation" do nothing. `control.ts` has already named those for it.
+   *
+   * Resuming forward travel is `activate()`'s job, not a second method here: an element left in
+   * `'reverse'` is turned around by `turnAround`, which is reachable from every route that
+   * activates — a pointer coming back, `play()`, `kui.activate()`.
+   *
+   * @param el - Element whose effects should run backwards. Unknown elements are ignored, exactly
+   *   as they are by `activate` and `deactivate`.
+   * @complexity O(n) time in the number of instances; O(1) space.
+   * @overallScore 100
+   */
+  reverseFrom(el: Element): void {
+    const state = this.states.get(el)
+    if (!state) return
+    // Not merely tidiness. An element still at `ready` has no run to reverse, and writing
+    // `status = 'running'` plus `direction = 'reverse'` onto one would route its *first* real
+    // activation into `turnAround()` — `instance.play()` instead of `instance.activate()`, no
+    // `kui:start`, and a one-shot `enter` binding never spent. Refusing is the only answer that
+    // leaves the element still activatable.
+    if (state.status !== 'running' && state.status !== 'finished') return
+    // Idempotent, on exactly the rule that makes two `pointerleave`s in a row one exit: a second
+    // reverse must not restart the exit from wherever it has got to, and must not arm a second
+    // settle gate that would write `ready` all over again. This is also what makes
+    // `control().reverse()` followed by a real `deactivate()` one reverse rather than two —
+    // `deactivate` reads the direction this line protects and returns.
+    if (state.direction === 'reverse') return
+
+    const reversible = state.instances.filter(isDirectional)
+    // Nothing here has a playhead, so nothing is going to travel backwards. Returning *before* the
+    // transition matters more than it looks: recording a direction for a reverse that never happens
+    // would leave the element permanently un-exitable — `deactivate()` would return at the guard
+    // above forever — and would send its next activation through `turnAround()`.
     if (reversible.length === 0) return
 
     state.status = 'running'
@@ -549,14 +611,18 @@ export class Animator {
       state.attributes.set(ATTR.state, next)
       // Cancelling resolves `finished` too (see `EffectInstance.finished`'s never-rejects
       // contract), so this handler still runs for a cancelled element and still writes the
-      // "finished" attribute it has always written. Dispatching `kui:finish` as well would tell an
-      // author that an animation they explicitly stopped had run to its end.
-      //
-      // The `next === 'finished'` guard keeps `kui:finish` meaning what it meant before reversal
-      // existed: the *forward* run reached its end. A settled reverse leaves the element back at
-      // `ready`, and firing `finish` there would run an author's "now reveal the next thing"
-      // handler on the way out. Reverse completion currently has no lifecycle event of its own.
-      if (next === 'finished' && !state.cancelled) this.emit(el, state, KUI_EVENT.finish, 'complete')
+      // "finished" attribute it has always written. Dispatching a completion event as well would
+      // tell an author that an animation they explicitly stopped had run to its end — as untrue of
+      // an abandoned exit as of an abandoned entrance, so one flag suppresses both.
+      if (state.cancelled) return
+      // Two events rather than one, and the split is the whole point. `kui:finish` keeps meaning
+      // what it meant before reversal existed: the *forward* run reached its end. Firing it for a
+      // settled reverse would run an author's "now reveal the next thing" handler on the way out.
+      // But an exit that has completed is still worth observing — it is the moment the element is
+      // genuinely back at its from-state, which is when an author unmounts it, releases it, or
+      // starts the next thing — so it gets a name of its own instead of the silence it used to get.
+      if (next === 'finished') this.emit(el, state, KUI_EVENT.finish, 'complete')
+      else this.emit(el, state, KUI_EVENT.reverseFinish, 'reversed')
     })
   }
 

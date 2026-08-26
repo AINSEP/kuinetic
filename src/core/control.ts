@@ -158,6 +158,17 @@ export function createCssControl(
     resume() {
       ledger.set('animation-play-state', 'running')
     },
+    /**
+     * Flip this instance's playback rate and keep running — "turn around", whichever way it was
+     * going.
+     *
+     * No longer the route `ControlHandle.reverse()` takes, and deliberately so: that call is about
+     * the *element's* direction of travel, which only the animator owns, and it needs the absolute
+     * "play out to the from-state" of `EffectInstance.reverse` rather than this relative flip.
+     * Retained because `InstanceControl` is a published interface and this is the honest meaning of
+     * `reverse` at the level of one playhead — a caller holding a single instance's control has no
+     * element-wide direction to speak of.
+     */
     reverse() {
       for (const animation of animations()) quietly(() => animation.reverse())
       // `reverse()` also *plays*, so leaving the inline value at `paused` would leave the ledger
@@ -210,15 +221,33 @@ export interface ControlHandle {
   /** The elements this handle resolved to, in document order. */
   readonly elements: Element[]
   /**
-   * Effect names in the selection that no control call can reach — JavaScript-rendered effects,
-   * and anything driven by scroll rather than a clock.
+   * Effect names in the selection whose playhead no control call can reach — JavaScript-rendered
+   * effects, and anything driven by scroll rather than a clock.
    *
    * Readable so a caller can branch on it rather than discovering the gap by watching nothing
    * happen. Every entry has also already been reported through the animator's reporter.
+   *
+   * "Playhead" is the operative word, and it is `pause`, `play`, `seek`, `timeScale` and `progress`
+   * that it governs. `reverse()` is the one method here that is not a playhead call — it asks the
+   * animator which way the element is travelling — so it answers to the animator's directional test
+   * instead, and a scroll-driven element is refused for its own reason rather than this one.
    */
   readonly uncontrolled: string[]
   pause(): ControlHandle
   play(): ControlHandle
+  /**
+   * Play the selection backwards, ending at the from-state each element started from.
+   *
+   * Idempotent: calling it twice is one exit, not an exit and an entrance, on exactly the rule that
+   * makes two `pointerleave`s in a row one exit. It is also *recorded* — the animator knows the
+   * element is travelling backwards, so a subsequent paired-activation exit does not start a second
+   * reverse, and the element settles at `data-kui-state="ready"` with a `kui:reverse-finish`.
+   *
+   * To travel forwards again, activate the element (`play()`, `kui.activate()`, or the entrance
+   * half of its activation): the animator turns a reversing playhead around rather than restarting
+   * it. `play()` on this handle is the narrower thing its name says elsewhere in this file — the
+   * counterpart to `pause()` — and does not change direction.
+   */
   reverse(): ControlHandle
   /** Move every playhead to `progress` (0..1). Values outside the range are clamped. */
   seek(progress: number): ControlHandle
@@ -236,10 +265,28 @@ export interface ControlHandle {
 
 /** One element's controllable instances, plus what could not be reached on it. */
 interface Bound {
+  /**
+   * The element these controls belong to.
+   *
+   * Carried because `reverse()` is not a playhead call like the others: it asks the *animator* to
+   * change the element's direction of travel, and the animator's entry point is element-shaped.
+   * See the handle's `reverse` for why that indirection exists.
+   */
+  el: Element
   controls: InstanceControl[]
   unreachable: string[]
   /** Why, phrased for a warning. Absent when everything on the element is reachable. */
   note?: string
+  /**
+   * Whether `bindElement` declined this element outright rather than merely partly.
+   *
+   * The distinction only matters to `reverse()`. An element with no installed effect has no state
+   * machine to talk to, and a scroll-driven one's playhead belongs to the scroller — for both, this
+   * module's answer is "no", and handing either to the animator would quietly undo that refusal.
+   * An element that is *partly* reachable (a CSS effect composed with a JS one) is not refused: the
+   * half that can travel backwards still should, exactly as it does for a paired activation's exit.
+   */
+  refused?: boolean
 }
 
 /**
@@ -252,15 +299,19 @@ function bindElement(animator: Animator, el: Element): Bound {
   const state = animator.stateOf(el)
   if (!state) {
     return {
+      el,
       controls: [],
       unreachable: [],
+      refused: true,
       note: 'no kUInetic effect is installed on this element — it has no playhead to control',
     }
   }
   if (state.progressDriven) {
     return {
+      el,
       controls: [],
       unreachable: [...state.fxNames],
+      refused: true,
       note:
         `"${state.fxNames.join(' ')}" is driven by scroll position rather than a clock, so its ` +
         `playhead belongs to the scroller — pausing or seeking it would be overwritten on the ` +
@@ -271,8 +322,9 @@ function bindElement(animator: Animator, el: Element): Bound {
     .map((instance) => instance.control)
     .filter((control): control is InstanceControl => control !== undefined)
   const unreachable = [...state.jsEffectNames]
-  if (unreachable.length === 0) return { controls, unreachable }
+  if (unreachable.length === 0) return { el, controls, unreachable }
   return {
+    el,
     controls,
     unreachable,
     note:
@@ -319,6 +371,27 @@ export function control(request: ControlRequest): ControlHandle {
     animator.reporter.warn(`control(): ${call} ignored — ${String(value)} is not a finite number`)
     return handle
   }
+  /**
+   * Hand every element this module did not refuse outright to the animator's direction transition.
+   *
+   * `reverse()` used to be `each((instance) => instance.reverse())`, which reached
+   * `InstanceControl.reverse` and, through it, raw `Animation.reverse()`. It moved the right
+   * playheads and told nobody: the animator went on believing the element was travelling forwards,
+   * so a later `deactivate()` started a *second* reverse, `activate()` could never turn the
+   * playhead around, and the entrance's still-pending settle eventually wrote
+   * `data-kui-state="finished"` onto an element sitting at its from-state. See
+   * `Animator.reverseFrom`, which is now the single owner of that transition.
+   *
+   * The reachability question changes with the route. A pause or a seek asks for *this instance's*
+   * playhead, so it goes to the instances that expose one; a reverse asks the element which way it
+   * is travelling, so the animator's own directional test (`play` and `reverse` both present on the
+   * instance) decides which instances move. All this module still enforces are its two hard
+   * refusals — see `Bound.refused` — and those are already warned about at construction.
+   */
+  const reverseAll = (): ControlHandle => {
+    for (const bound of bounds) if (!bound.refused) animator.reverseFrom(bound.el)
+    return handle
+  }
 
   const handle: ControlHandle = {
     elements,
@@ -327,7 +400,7 @@ export function control(request: ControlRequest): ControlHandle {
     },
     pause: () => each((instance) => instance.pause()),
     play: () => each((instance) => instance.resume()),
-    reverse: () => each((instance) => instance.reverse()),
+    reverse: () => reverseAll(),
     seek: (progress) =>
       Number.isFinite(progress)
         ? each((instance) => instance.seek(progress))
@@ -386,6 +459,22 @@ export const KUI_EVENT = {
   start: 'kui:start',
   /** Every finite effect on the element has completed. */
   finish: 'kui:finish',
+  /**
+   * The element has finished playing *backwards* and is sitting at its from-state again.
+   *
+   * A separate name rather than a second `kui:finish` with a different `reason`, because the
+   * commonest thing an author does with `kui:finish` is chain the next reveal off it, and a
+   * listener that has to remember to re-check `event.detail.reason` before doing so is a trap
+   * rather than an API — the one time they forget, a hover-out plays the next section in. Filtering
+   * by *name* is what `addEventListener` is for, and it is what a delegated document-level listener
+   * can do without reading the detail at all.
+   *
+   * The exit half of a paired activation (`data-kui-on="pointerenter/pointerleave"`) settles here,
+   * and so does a programmatic `control(el).reverse()`. Before this existed, a completed reverse
+   * dispatched nothing whatsoever, which left "the element is back where it started" the one
+   * lifecycle moment an author could only discover by polling `data-kui-state`.
+   */
+  reverseFinish: 'kui:reverse-finish',
   /** The element's effects were torn down or cancelled before completing. */
   cancel: 'kui:cancel',
 } as const
@@ -405,6 +494,17 @@ export type LifecycleReason =
   | 'activated'
   /** `finish`: every finite instance resolved. */
   | 'complete'
+  /**
+   * `reverse-finish`: every finite instance finished running backwards, so the element is back at
+   * the from-state it was in before it was ever activated — `data-kui-state` reads `ready` again.
+   *
+   * One reason on one event name today, unlike `finish`, which carries two. It is carried anyway
+   * because the two routes into a reverse (a paired activation's exit half, and a programmatic
+   * `control().reverse()`) are already distinguishable from `detail.activation`, and a listener
+   * that branches on `reason` for every other lifecycle event should not have to special-case this
+   * one for having none.
+   */
+  | 'reversed'
   /**
    * `finish`: the effect declared `reducedMotion: 'disable'` and the visitor asked for reduced
    * motion, so it was never started and the element is already at its final state.

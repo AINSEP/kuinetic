@@ -609,6 +609,14 @@ function harness(reversible: boolean): {
   el: Element
   recorder: Recorder
   reporter: CollectingReporter
+  /**
+   * Returned so a test can drive the *other* entry point into the same transition —
+   * `animator.control(el).reverse()` — against the one instance in this file whose `finished`
+   * promises are independently settleable. `createCssInstance` overwrites a single resolver on
+   * every run, so a superseded promise there simply never resolves and the stale-run case cannot
+   * be constructed at all.
+   */
+  animator: Animator
 } {
   const recorder: Recorder = { activated: 0, played: 0, reversed: 0, settles: [] }
   const reporter = collectingReporter()
@@ -625,7 +633,7 @@ function harness(reversible: boolean): {
     reporter,
   })
   animator.start()
-  return { el, recorder, reporter }
+  return { el, recorder, reporter, animator }
 }
 
 describe('paired activations at the animator', () => {
@@ -711,6 +719,70 @@ describe('paired activations at the animator', () => {
     expect(recorder.reversed).toBe(0)
     expect(reporter.messages.join()).toContain('cannot play backwards')
     // The state is left where it was rather than being reported as an exit that did not happen.
+    expect(el.getAttribute(ATTR.state)).toBe('running')
+  })
+})
+
+/**
+ * The other entry point into the same transition.
+ *
+ * `Animator.reverseFrom` is reached from two directions — a paired activation's exit half, and a
+ * programmatic `control(el).reverse()` — and for a while only the first of them existed as far as
+ * the state machine was concerned. The suite above proves the activation route; this one proves
+ * the programmatic route lands the element in exactly the same place, which is the assertion that
+ * would have caught the two features disagreeing.
+ *
+ * It lives beside the paired-activation suite rather than in `control.test.ts` because it needs
+ * this file's recorder: `turnAround` is only interesting when the run it supersedes can still
+ * resolve afterwards, and only an instance handing out one settleable promise per run can model
+ * that.
+ */
+describe('a programmatic reverse at the animator', () => {
+  it('lands in the same state a paired exit would', async () => {
+    const { el, recorder, animator } = harness(true)
+    el.dispatchEvent(new Event('pointerenter'))
+    await settleLatest(recorder)
+    expect(el.getAttribute(ATTR.state)).toBe('finished')
+
+    animator.control(el).reverse()
+    expect(recorder.reversed).toBe(1)
+    expect(animator.stateOf(el)?.direction).toBe('reverse')
+    expect(el.getAttribute(ATTR.state)).toBe('running')
+
+    await settleLatest(recorder)
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+  })
+
+  it('does not let the exit half that follows it start a second reverse', () => {
+    // The bug in one line. `deactivate` returns early on `direction === 'reverse'`, and a
+    // `control()` reverse that never recorded the direction sailed straight through it — the
+    // pointer leaving an element that had already been reversed by hand played it out twice.
+    const { el, recorder, animator } = harness(true)
+    el.dispatchEvent(new Event('pointerenter'))
+
+    animator.control(el).reverse()
+    el.dispatchEvent(new Event('pointerleave'))
+    expect(recorder.reversed).toBe(1)
+  })
+
+  it('turns around into a forward run and ignores the exit it abandoned', async () => {
+    const { el, recorder, animator } = harness(true)
+    el.dispatchEvent(new Event('pointerenter'))
+    animator.control(el).reverse()
+    const staleExit = recorder.settles.at(-1)!
+
+    // Only reachable because the reverse was recorded: `activate` looks for `direction ===
+    // 'reverse'` to decide between turning the playhead around and being swallowed by its own
+    // re-entrancy guard, and it never saw one from a `control()` reverse.
+    el.dispatchEvent(new Event('pointerenter'))
+    expect(animator.stateOf(el)?.direction).toBe('forward')
+    expect(recorder.played).toBe(1)
+    // Not a second `activate()`: the instances are already started, only the direction changed.
+    expect(recorder.activated).toBe(1)
+
+    staleExit()
+    await Promise.resolve()
+    await Promise.resolve()
     expect(el.getAttribute(ATTR.state)).toBe('running')
   })
 })

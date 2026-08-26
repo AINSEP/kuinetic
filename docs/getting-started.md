@@ -235,7 +235,7 @@ Three things worth knowing:
 
 ## Knowing when an animation finished
 
-Every animated element dispatches three `CustomEvent`s at its own lifecycle points. They're plain
+Every animated element dispatches a `CustomEvent` at each of its own lifecycle points. They're plain
 DOM events on the element itself, so you listen with `addEventListener` and write nothing
 library-specific:
 
@@ -249,7 +249,13 @@ document.querySelector('.hero').addEventListener('kui:finish', (event) => {
 |---|---|
 | `kui:start` | the activation fired and the effects began |
 | `kui:finish` | every finite effect on the element completed |
+| `kui:reverse-finish` | the element finished playing *backwards* and is back at its from-state |
 | `kui:cancel` | the effects were torn down or cancelled before completing |
+
+`kui:finish` is the forward run only. An element playing out — the exit half of
+`data-kui-on="pointerenter/pointerleave"`, or a `control().reverse()` — settles at
+`data-kui-state="ready"` and reports `kui:reverse-finish` instead, so a listener that reveals the
+next section on `kui:finish` doesn't fire it again on the way out.
 
 They bubble, so one listener on `document` covers a whole page of animations:
 
@@ -285,7 +291,7 @@ hero.pause()
 hero.seek(0.5)        // progress is normalized 0..1, never milliseconds
 hero.timeScale(0.25)  // quarter speed; a negative value runs backwards
 hero.play()
-hero.reverse()
+hero.reverse()       // plays out to the from-state; calling it twice is still one exit
 
 hero.progress // 0..1, the least-advanced element in the selection
 hero.state    // 'idle' | 'running' | 'paused' | 'finished'
@@ -303,6 +309,13 @@ quietly doing nothing:
   object and no shared notion of progress, so pause, seek and `timeScale` do not reach them.
 - **Scroll-driven effects** (`timeline: view | scroll | pin`). Their playhead belongs to the
   scroller — pausing or seeking one would be overwritten on the next scroll frame.
+
+`reverse()` is the one method here that isn't a playhead call — it tells the animator which way the
+element is travelling, so the element settles at `data-kui-state="ready"` and reports
+`kui:reverse-finish`, and a later `pointerleave` won't play it out a second time. To travel forwards
+again, activate the element (`play()`, `kui.activate()`, or its own entrance event): the animator
+turns a reversing playhead around rather than restarting it. `handle.play()` is the counterpart to
+`pause()` and does not change direction.
 
 Both are listed on `handle.uncontrolled`, and both are reported through the animator's reporter, so
 `kuinetic({ reporter: consoleReporter() })` prints the reason during development. An element that

@@ -70,7 +70,14 @@ describe('kuinetic/core public surface', () => {
     expect(typeof detect).toBe('function')
     expect(typeof play).toBe('function')
     expect(typeof control).toBe('function')
-    expect(KUI_EVENT).toMatchObject({ start: 'kui:start' })
+    // Every event name, not a sample: these strings are the listener-side contract, so a rename or
+    // a dropped member is a breaking change that has to fail here rather than in an author's page.
+    expect(KUI_EVENT).toEqual({
+      start: 'kui:start',
+      finish: 'kui:finish',
+      reverseFinish: 'kui:reverse-finish',
+      cancel: 'kui:cancel',
+    })
     expect(typeof resolveTargets).toBe('function')
     expect(typeof toAttributeValue).toBe('function')
     expect(typeof consoleReporter).toBe('function')

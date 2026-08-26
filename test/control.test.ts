@@ -98,6 +98,11 @@ function fakeAnimation(options: {
     effect: { getComputedTiming: () => ({ endTime }) },
     cancel: vi.fn(),
     finish: vi.fn(),
+    // Real `Animation`s have had this since the API shipped; the fake did without it only because
+    // nothing in this file used to reach a code path that plays. `EffectInstance.reverse` does —
+    // it sets the rate absolutely and then plays, which is what makes an exit idempotent — and
+    // `control().reverse()` now goes that way rather than through `Animation.reverse()`.
+    play: vi.fn(),
     reverse,
   } as unknown as FakeAnimation
 }
@@ -782,5 +787,162 @@ describe('lifecycle events', () => {
     animator.cancel(document.getElementById('a')!)
     animator.cancel(document.createElement('div'))
     expect(seen).toHaveLength(0)
+  })
+})
+
+/**
+ * The seam between the two features that each modelled "reversal".
+ *
+ * `control().reverse()` and the exit half of a paired activation move the same `Animation` objects,
+ * and for a while only the second of them told the state machine. Nothing on either feature's own
+ * branch covered the pair, which is precisely why the gap survived — every test asked one owner
+ * about its own behaviour. These ask what the *other* owner believes afterwards, which is the only
+ * question that fails when two owners disagree.
+ */
+describe('control().reverse() and the direction the animator owns', () => {
+  /**
+   * The `css-keyframes` instance an element installs first — the only directional one this catalog
+   * produces, and the object the animator reaches through to reverse anything.
+   */
+  function directionalInstance(animator: Animator, el: Element): EffectInstance & {
+    reverse: () => void
+  } {
+    return animator.stateOf(el)!.instances[0] as EffectInstance & { reverse: () => void }
+  }
+
+  function loadElement(): { animator: Animator; el: Element } {
+    const { animator } = build('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
+    return { animator, el: document.getElementById('a')! }
+  }
+
+  it('records the reverse on the animator, not only on the playheads', () => {
+    const { animator, el } = loadElement()
+    expect(animator.stateOf(el)!.direction).toBe('forward')
+
+    animator.control('#a').reverse()
+    expect(animator.stateOf(el)!.direction).toBe('reverse')
+  })
+
+  it('does not let a following deactivate start a second reverse', () => {
+    const { animator, el } = loadElement()
+    const reverse = vi.spyOn(directionalInstance(animator, el), 'reverse')
+
+    animator.control('#a').reverse()
+    expect(reverse).toHaveBeenCalledTimes(1)
+    animator.deactivate(el)
+    expect(reverse).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats two programmatic reverses as one exit', () => {
+    // The same rule that makes two `pointerleave`s in a row one exit. The old route reached
+    // `Animation.reverse()`, which flips whatever the current rate happens to be — so the second
+    // call played the element back *in*, which is not what "reverse it again" can plausibly mean.
+    const { animator, el } = loadElement()
+    const reverse = vi.spyOn(directionalInstance(animator, el), 'reverse')
+
+    expect(animator.control('#a').reverse().reverse()).toBeDefined()
+    expect(reverse).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles a programmatic reverse at ready rather than finished', async () => {
+    const { animator, el } = loadElement()
+    await tick()
+    expect(el.getAttribute(ATTR.state)).toBe('finished')
+
+    animator.control('#a').reverse()
+    expect(el.getAttribute(ATTR.state)).toBe('running')
+    await tick()
+    // `ready`, because the element really is back where it started. This is also where the stale
+    // forward settle used to land, stamping `finished` onto an element sitting at its from-state.
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+  })
+
+  it('refuses an element whose playhead belongs to the scroller', () => {
+    const { animator } = build('<div id="a" data-kui="fake-fade" data-kui-timeline="view"></div>', {
+      ...CAPS,
+      viewTimeline: true,
+    })
+    const el = document.getElementById('a')!
+
+    animator.control('#a').reverse()
+    // Recording a direction here would be a promise the scrubber breaks on the very next frame:
+    // it rewrites the element from `--kui-progress` regardless of which way the animator thinks it
+    // is going. `control()` refused this element for `pause` and `seek` already; `reverse` is not
+    // the exception that quietly reaches past that refusal into the state machine.
+    expect(animator.stateOf(el)!.direction).toBe('forward')
+  })
+
+  it('leaves an effect with no playhead alone instead of recording a reverse that cannot happen', () => {
+    const { animator } = build('<div id="a" data-kui="fake-drag" data-kui-on="load"></div>')
+    const el = document.getElementById('a')!
+
+    animator.control('#a').reverse()
+    // Recording `reverse` for a JS-rendered effect would leave the element permanently un-exitable
+    // — `deactivate` returns on `direction === 'reverse'` forever — and would route its next
+    // activation through `turnAround`, which calls `play()` on an instance that has none.
+    expect(animator.stateOf(el)!.direction).toBe('forward')
+  })
+
+  it('refuses an element that never started, leaving its first activation intact', () => {
+    const { animator } = build('<div id="a" data-kui="fake-fade" data-kui-on="manual"></div>')
+    const el = document.getElementById('a')!
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+
+    animator.control('#a').reverse()
+    expect(animator.stateOf(el)!.direction).toBeUndefined()
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+
+    // Why refusing matters rather than being merely tidy: had the reverse been recorded, this
+    // activation would have gone to `turnAround` and called `play()` on an instance that had never
+    // been activated at all — no `kui:start`, and a one-shot binding never spent.
+    const activate = vi.spyOn(directionalInstance(animator, el), 'activate')
+    animator.activate(el)
+    expect(activate).toHaveBeenCalledTimes(1)
+    expect(animator.stateOf(el)!.direction).toBe('forward')
+  })
+
+  it('dispatches kui:reverse-finish for a settled reverse, and never kui:finish', async () => {
+    const seen = recordOnDocument()
+    const animator = buildLifecycle('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
+    animator.start()
+    const el = document.getElementById('a')!
+    await tick()
+    seen.length = 0
+
+    animator.control('#a').reverse()
+    await tick()
+
+    expect(seen.map((event) => event.type)).toEqual([KUI_EVENT.reverseFinish])
+    expect(seen[0]!.detail.reason).toBe('reversed')
+    expect(seen[0]!.target).toBe(el)
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+  })
+
+  it('still reports a forward run as kui:finish and nothing else', async () => {
+    const seen = recordOnDocument()
+    const animator = buildLifecycle('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
+    animator.start()
+    await tick()
+
+    // The half of the split that must not regress: an author chaining the next reveal off
+    // `kui:finish` is relying on it arriving for an entrance and only for an entrance.
+    expect(seen.map((event) => event.type)).toEqual([KUI_EVENT.start, KUI_EVENT.finish])
+  })
+
+  it('suppresses kui:reverse-finish for an exit that was cancelled', async () => {
+    const seen = recordOnDocument()
+    const animator = buildLifecycle('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
+    animator.start()
+    const el = document.getElementById('a')!
+    await tick()
+    seen.length = 0
+
+    animator.control('#a').reverse()
+    animator.cancel(el)
+    await tick()
+
+    // The same rule `kui:finish` already follows: an author who stopped an animation must not be
+    // told it ran to its end, whichever end it was travelling towards.
+    expect(seen.map((event) => event.type)).toEqual([KUI_EVENT.cancel])
   })
 })
