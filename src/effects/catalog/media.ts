@@ -4,7 +4,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { continuousSetup, deferPrepare } from '../../core/instances.js'
 import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive, TIMELINE_AGNOSTIC, TRIGGER_DELAY_PARAM } from './shared.js'
+import { cssPrimitive, TIMELINE_AGNOSTIC, TRIGGER_DELAY_PARAM, withTimingContract } from './shared.js'
 import {
   FOCAL_POINT_NAMES,
   focalPosition,
@@ -480,7 +480,19 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
      * — a clip's autoplay — and leaves the poster frame standing. See `autoplayInView`.
      */
     reducedMotion: 'shorten',
-    prepare: deferPrepare(prepareBackgroundMedia),
+    /*
+     * No timing tokens at all, and this is the one member of the refusing group whose reason is
+     * not "it is driven by a position". A backdrop is not an animation: it paints a picture or a
+     * clip behind the element's content and then stays there. There is no motion to start late,
+     * to run for a set span, or to bend along a curve — the clip's own playback is the media
+     * element's, and `autoplay:` is the knob for that. `background-media 600ms` is an author
+     * reaching for a shape this effect does not have, and being told so beats being ignored.
+     */
+    prepare: withTimingContract(
+      'background-media',
+      { because: 'it paints a backdrop rather than animating, so there is no motion to time' },
+      deferPrepare(prepareBackgroundMedia),
+    ),
   },
 ]
 

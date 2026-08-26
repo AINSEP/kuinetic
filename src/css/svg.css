@@ -169,10 +169,16 @@
   /*
    * --- Icon toggles: native state, CSS transitions, no JS ---
    *
-   * Timing comes from `--kui-icon-toggle-duration` / `--kui-icon-toggle-ease`, which the generated
-   * preset stylesheet sets on the element itself. Custom properties inherit down the tree, so the
-   * parts pick them up without the library writing anything to them — the reason these can use
-   * descendants where `forms.css`'s sibling satellites needed a JS assist.
+   * Timing comes from `--kui-icon-toggle-duration` / `--kui-icon-toggle-ease` /
+   * `--kui-icon-toggle-delay`, which the generated preset stylesheet sets on the element itself.
+   * Custom properties inherit down the tree, so the parts pick them up without the library writing
+   * anything to them — the reason these can use descendants where `forms.css`'s sibling satellites
+   * needed a JS assist.
+   *
+   * The delay is declared on the *toggled* rules only, never on the base rule the parts transition
+   * from, so it delays opening and never closing. Same asymmetry, and the same reasoning, as
+   * `interaction.css`'s hover family: an author asking for a staggered-open hamburger does not also
+   * want it to sit open for that long after they close it.
    */
 
   /*
@@ -192,6 +198,10 @@
       translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
       rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
       opacity var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] .kui-bar {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
   }
 
   [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] .kui-bar:nth-child(1) {
@@ -224,6 +234,10 @@
     transition:
       translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
       clip-path var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) .kui-bar {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
   }
 
   [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) .kui-bar:nth-child(1) {
@@ -262,6 +276,11 @@
 
   [data-kui-fx~='plus-to-minus'] .kui-bar:nth-child(2) {
     rotate: 90deg;
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'],
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] .kui-bar {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
   }
 
   [data-kui-fx~='plus-to-minus'][aria-expanded='true'] {

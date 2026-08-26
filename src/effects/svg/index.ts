@@ -3,9 +3,15 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
-import { CHANNEL, inertInstance } from '../../core/types.js'
+import { CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
-import { cssPrimitive } from '../shared.js'
+import { resolveEasing } from '../catalog/numbers-shared.js'
+import {
+  ALL_TIMING_TOKENS,
+  cssPrimitive,
+  stylesheetTimingPrepare,
+  TRIGGER_DELAY_PARAM,
+} from '../shared.js'
 
 /**
  * SVG shape morphing.
@@ -33,6 +39,16 @@ function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): C
   }
 
   const duration = effectDurationMs(params, 300)
+  // `params.timing.easing` is the positional spelling, `params.text('ease')` the `ease:` one; the
+  // schema's own default is `linear`, which is the curve this morph has always run on, so
+  // declaring the parameter cannot move an existing page. `resolveEasing` warns once for a value
+  // with no JS equivalent (`steps()`, `spring`) rather than dropping it silently.
+  const ease = resolveEasing(params.timing.easing ?? params.text('ease', 'linear'), ctx.warn)
+  // The morph's start moment is the pointer arriving (or focus landing), so a delay is measured
+  // from there. Deliberately one-directional: `drive(1)` waits, `drive(0)` — the leave — does not,
+  // matching the hover family's `transition-delay`-on-the-state-rule rule in interaction.css. A
+  // symmetric delay would leave the shape morphed for 200ms after the pointer had gone.
+  const delay = params.timing.delayMs ?? params.ms('delay', 0)
   let frame = 0
   let cancelled = false
 
@@ -40,10 +56,18 @@ function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): C
     cancelAnimationFrame(frame)
     const startedAt = performance.now()
     const startValue = current
+    const wait = target === 1 ? delay : 0
     const step = (now: number): void => {
       if (cancelled) return
-      const t = duration > 0 ? Math.min(1, (now - startedAt) / duration) : 1
-      current = startValue + (target - startValue) * t
+      const elapsed = now - startedAt - wait
+      // Still inside the delay: hold the from-frame rather than painting anything, the same thing
+      // `animation-fill-mode: both` does for a delayed CSS effect's first frame.
+      if (elapsed < 0) {
+        frame = requestAnimationFrame(step)
+        return
+      }
+      const t = duration > 0 ? Math.min(1, elapsed / duration) : 1
+      current = startValue + (target - startValue) * ease(t)
       path.setAttribute('d', morph.at(current))
       if (t < 1) frame = requestAnimationFrame(step)
     }
@@ -115,9 +139,15 @@ const LOGO_BUILD_PRIMITIVE: Primitive = cssPrimitive('logo-assemble', [
  * These are state, not a one-shot animation, and a keyframe cannot express state that has to
  * travel back again. Like the native-state group in `forms.css`, the whole effect is a CSS
  * transition in `svg.css` keyed off an attribute the browser and the author already maintain —
- * `aria-expanded` / `aria-pressed` — so `prepare` has nothing to do at runtime and returns an inert
- * instance. The only reason it is registered at all is to get `data-kui-fx` stamped on the element
- * and the timing parameters resolved onto it, which the parts then inherit.
+ * `aria-expanded` / `aria-pressed` — so `prepare` has almost nothing to do at runtime. The only
+ * reason it is registered at all is to get `data-kui-fx` stamped on the element and the timing
+ * parameters resolved onto it, which the parts then inherit.
+ *
+ * "Almost" because the positional spelling of those timing parameters has no route to CSS of its
+ * own: `compile.pushTrack` turns `spec.duration`/`.delay`/`.easing` into declarations for
+ * `css-keyframes` primitives only, so `hamburger-to-x 400ms` reached nothing while
+ * `hamburger-to-x duration:400ms` worked. `stylesheetTimingPrepare` mirrors the one onto the
+ * other's properties; see `effects/shared.ts`.
  *
  * `reducedMotion: 'disable'` for the same reason forms' native-state family uses it: the motion
  * lands on descendants, not on the element carrying the marker, so `base.css`'s policy layer
@@ -130,6 +160,10 @@ const ICON_TOGGLE_PRIMITIVE: Primitive = {
   channels: [CHANNEL.translate, CHANNEL.rotate, CHANNEL.scale, CHANNEL.opacity, CHANNEL.clip],
   parameters: {
     duration: { type: 'time', default: '260ms', cssProperty: '--kui-duration' },
+    // The state flip is the start moment: `aria-expanded` goes true and the bars begin to move.
+    // svg.css spends this as a `transition-delay` on the *expanded* rules only, so it delays
+    // opening and never closing — see that file's comment, and `interaction.css`'s for why.
+    ...TRIGGER_DELAY_PARAM,
     ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
   },
   supportedTimelines: ['time'],
@@ -137,7 +171,10 @@ const ICON_TOGGLE_PRIMITIVE: Primitive = {
   defaultActivation: 'load',
   perfClass: 'compositor',
   reducedMotion: 'disable',
-  prepare: () => inertInstance(),
+  prepare: stylesheetTimingPrepare('icon-toggle', {
+    honours: ALL_TIMING_TOKENS,
+    because: 'svg.css pins that value on this effect',
+  }),
 }
 
 export const SVG_PRIMITIVES: Primitive[] = [
@@ -151,6 +188,12 @@ export const SVG_PRIMITIVES: Primitive[] = [
       from: { type: 'text', default: '', cssProperty: '--kui-path-from' },
       to: { type: 'text', default: '', cssProperty: '--kui-path-to' },
       duration: { type: 'time', default: '300ms', cssProperty: '--kui-duration' },
+      // Both new, both no-ops at their defaults. The morph drives its own frames, so unlike the
+      // stylesheet-backed members of this file it honours them in JS — see `prepareMorph`.
+      // `linear`, not the catalog's usual `ease-out`: that is the curve this effect has always
+      // interpolated on, and adding a knob must not move a page that never asked for one.
+      ...TRIGGER_DELAY_PARAM,
+      ease: { type: 'easing', default: 'linear', cssProperty: '--kui-ease' },
     },
     supportedTimelines: ['time'],
     supportedActivations: ['hover', 'focus', 'manual', 'load'],
@@ -158,6 +201,8 @@ export const SVG_PRIMITIVES: Primitive[] = [
     defaultActivation: 'load',
     perfClass: 'paint',
     reducedMotion: 'disable',
+    // No `withTimingContract` wrapper: this primitive honours all three tokens, so there is
+    // nothing for one to warn about.
     prepare: deferPrepare(prepareMorph),
   },
   PATH_DRAW_PRIMITIVE,

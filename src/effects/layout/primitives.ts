@@ -3,6 +3,7 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
+import { effectDelayMs, effectEasing, TRIGGER_DELAY_PARAM } from '../shared.js'
 
 /**
  * Layout-transition primitives.
@@ -17,6 +18,19 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 
 const timing: ParameterSchema = {
   duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
+  /*
+   * All three of these have a definite start moment even though they default to `on:load`: the
+   * children moved, the watched attribute flipped, the indicator's target changed. `'load'` here
+   * means "install the observer now", not "play now" — so "hold everything in place for 200ms,
+   * then move" is a coherent thing to ask for, and it is what a sequence needs in order to
+   * position a FLIP after something else.
+   *
+   * Spent as the Web Animations `delay` on the invert-to-identity keyframes (`core/flip.ts`) and
+   * on the height tween, both with `fill: 'backwards'`, so the wait is spent looking *un-moved*
+   * rather than looking finished. Symmetric, unlike the hover family's: a reorder has no
+   * "leaving" direction to treat differently.
+   */
+  ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 
@@ -55,7 +69,8 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
     engine,
     {
       durationMs: effectDurationMs(params, 400),
-      easing: params.text('ease'),
+      delayMs: effectDelayMs(params),
+      easing: effectEasing(params),
       scale: params.is('scale'),
     },
     mutationWatcher(el),
@@ -81,6 +96,7 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
   ctx.style.claim('height')
 
   const duration = effectDurationMs(params, 400)
+  const delay = effectDelayMs(params)
   let animation: Animation | null = null
 
   // The height the last toggle settled on, seeded from whatever is actually rendered right now —
@@ -95,7 +111,7 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
     animation?.cancel()
     const endpoints = heightEndpoints(node, previous)
     previous = endpoints.to
-    animation = animateHeight(node, endpoints, duration, params.text('ease'))
+    animation = animateHeight(node, endpoints, { duration, delay, easing: effectEasing(params) })
   })
 
   ctx.invalidate()
@@ -137,7 +153,9 @@ function heightEndpoints(node: HTMLElement, previous: number): { from: number; t
  * Animate an element's height between two measured endpoints.
  *
  * `fill: 'none'` on purpose: the stylesheet owns the resting height at both ends, so the animation
- * hands it straight back instead of pinning an inline pixel value over `height: auto`.
+ * hands it straight back instead of pinning an inline pixel value over `height: auto`. An authored
+ * delay upgrades that to `'backwards'`, which fills only the *before* phase and so leaves that
+ * hand-back at the end untouched.
  *
  * @returns The running animation, or `null` where the Web Animations API is unavailable.
  * @complexity O(1) time and space.
@@ -146,15 +164,18 @@ function heightEndpoints(node: HTMLElement, previous: number): { from: number; t
 function animateHeight(
   node: HTMLElement,
   endpoints: { from: number; to: number },
-  duration: number,
-  easing: string,
+  timing: { duration: number; delay: number; easing: string },
 ): Animation | null {
   const animate = (node as HTMLElement & { animate?: Element['animate'] }).animate
   if (typeof animate !== 'function') return null
   return animate.call(
     node,
     [{ height: `${endpoints.from}px` }, { height: `${endpoints.to}px` }],
-    { duration, easing, fill: 'none' },
+    // `fill: 'backwards'` only when there is a delay to fill, so the undelayed path stays exactly
+    // as it was. It has to be there when there is one: by the time this runs the stylesheet has
+    // already repainted at the destination height (see `heightEndpoints`), so an unfilled delay
+    // would show the panel already open for the wait and then snap shut to animate.
+    { ...timing, fill: timing.delay > 0 ? 'backwards' : 'none' },
   )
 }
 
@@ -189,7 +210,8 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
     ctx.style.set('translate', `${shift}px 0`)
     engine.play(before, [node], {
       durationMs: effectDurationMs(params, 400),
-      easing: params.text('ease'),
+      delayMs: effectDelayMs(params),
+      easing: effectEasing(params),
       scale: true,
     })
   }

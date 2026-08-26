@@ -25,6 +25,17 @@ export interface FlipSnapshot {
 
 export interface FlipOptions {
   durationMs?: number
+  /**
+   * Hold the inverted (pre-move) position this long before playing the move.
+   *
+   * `fill: 'backwards'` comes with it and is what makes it a delay rather than a glitch: by the
+   * time a FLIP runs the browser has *already* laid the elements out at their destination, so an
+   * unfilled delay would show them there for the wait and then snap back to animate. Filling
+   * backwards holds the first keyframe — the invert — for exactly the delay, which is what
+   * `animation-fill-mode: both` does for a delayed CSS effect. The end is unaffected either way:
+   * `backwards` does not fill forwards, so the stylesheet still owns the resting position.
+   */
+  delayMs?: number
   easing?: string
   /** Animate width/height differences as a scale. Off for elements with visible borders. */
   scale?: boolean
@@ -160,6 +171,7 @@ function deltaFor(el: Element, first: Box, last: Box, scale: boolean): Delta | n
  */
 function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipOptions): FlipRun {
   const duration = options.durationMs ?? 400
+  const delay = options.delayMs ?? 0
   const easing = options.easing ?? 'cubic-bezier(0.2, 0, 0, 1)'
   const animations: Animation[] = []
 
@@ -170,7 +182,8 @@ function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipO
         { translate: `${dx}px ${dy}px`, scale: `${sx} ${sy}` },
         { translate: '0px 0px', scale: '1 1' },
       ],
-      { duration, easing, fill: 'none' },
+      // `'none'` whenever there is no delay, so the zero-delay path is byte-for-byte what it was.
+      { duration, delay, easing, fill: delay > 0 ? 'backwards' : 'none' },
     )
     if (animation) animations.push(animation)
   }

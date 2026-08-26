@@ -3,7 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive } from '../shared.js'
+import { cssPrimitive, withTimingContract } from '../shared.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 
 /**
@@ -50,11 +50,23 @@ export const NAV_CSS_PRESETS: Preset[] = [
 
 // --- JS-tier: header-shrink, header-hide-on-scroll, back-to-top-fade — raw scroll position ---
 
+/**
+ * These three read `scrollTop` on every frame and publish a progress number or a boolean
+ * attribute from it. There is no clock anywhere in that: a header is shrunk by *where the page
+ * is*, so it has no start moment for a delay to be measured from, no span for a duration to set,
+ * and no curve for an easing to bend. The transition an author actually sees is theirs, declared
+ * in their own stylesheet against `[data-kui-shrunk]`/`[data-kui-hidden]`/`[data-kui-visible]` —
+ * which is exactly where they should write the timing they want.
+ */
+const NAV_SCROLL_TIMING_REASON =
+  'it reacts to scroll position rather than a clock, so style the state attribute it publishes ' +
+  'and put your timing there'
+
 function navPrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  prepare: Primitive['prepare'],
+  prepare: NonNullable<Primitive['prepare']>,
 ): Primitive {
   return {
     id,
@@ -68,7 +80,7 @@ function navPrimitive(
     // A scroll-position reaction, like the scroll-mechanics category: shortening its "duration"
     // is meaningless because the position, not a clock, drives it.
     reducedMotion: 'disable',
-    prepare,
+    prepare: withTimingContract(id, { because: NAV_SCROLL_TIMING_REASON }, prepare),
   }
 }
 

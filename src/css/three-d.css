@@ -307,6 +307,14 @@
 
   /* Negative on the front so the pair turns the same way round, rather than passing through each
      other in opposite directions. */
+  /* The delay lands on the turned state only, never on the base rule the faces transition from,
+     so `flip-card delay:200ms` waits before turning to the back and comes straight back to the
+     front — the same asymmetry, for the same reason, as `interaction.css`'s hover family. */
+  [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-front,
+  [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-back {
+    transition-delay: var(--kui-card-toggle-delay, 0ms);
+  }
+
   [data-kui-fx~='flip-card']:has(> .kui-flip-control[aria-pressed='true']) > .kui-face-front {
     rotate: y -180deg;
   }
