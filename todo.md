@@ -10,6 +10,51 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **Remove `demo/nav-forms.html`.** Owner's ask, 2026-08-26: "this is just not even stuff we
+      should be doing" — the page isn't earning its place in the showcase. Not started; check the
+      nav generator (`e6c132b`, see the hide-pages entry below) and `docs.html`'s page list for
+      references before deleting so nothing links to a 404.
+
+- [ ] **`noise-overlay` looks like it doesn't animate.** Owner's report, 2026-08-26: "there's no
+      animation there." Not reproduced live this session — logged from source only.
+      `src/css/ambient.css:182-196` does wire a real `@keyframes kui-noise-overlay` (confirmed
+      registered, confirmed bound via `--kui-fx-noise-overlay-iterations: infinite`), so this is
+      likely NOT a wiring bug like the FILLS effects below — more likely the motion itself is too
+      subtle to read: the keyframe only shifts `background-position` by 1-3px across a 5px tile
+      (`ambient.css:198-206`), on a pattern already faded to `30%` opacity. Same shape of problem
+      already logged for `starfield`'s dots being "too small to read." Verify by pausing the
+      animation at a few keyframe percentages and diffing screenshots pixel-by-pixel before
+      assuming it's dead — a rendered eyeball check at normal viewing distance may simply not
+      resolve a 3px drift. If it truly never moves, check whether something upstream (a shared
+      ambient primitive schema, per today's `gradient-border` split) is silently not applying the
+      animation-name to this specific preset.
+
+- [ ] **16 of the entrance/exit matrix's 48 names have zero demo coverage anywhere.** Checked
+      2026-08-26 by grepping every demo page's `data-kui` attributes against every name in
+      `docs/catalog.md` section A. Every entrance-direction effect is demoed somewhere; **every
+      exit-direction effect is not, without exception**: `fade-out`, `fade-out-up`, `fade-out-down`,
+      `fade-out-left`, `fade-out-right`, `slide-out-up`, `slide-out-down`, `slide-out-left`,
+      `slide-out-right`, `zoom-out`, `pop-out`, `flip-out-x`, `flip-out-y`, `rotate-out`,
+      `roll-out`, `blur-out`. All 16 register in the source (not a registry gap — checked
+      `src/effects/catalog/*.ts`), just never shown. Same class of problem as "Section E has no
+      demo page" below, one tier down in severity since the entrance halves of these same
+      primitives are demoed. Not started — logging the gap, not claiming a bug.
+
+- [ ] **Four modern CSS techniques the library doesn't use anywhere yet.** Owner's ask, 2026-08-26.
+      Checked against `docs/catalog.md` and every `src/css/*.css` file — none of these appear, not
+      even as an implementation detail (only `@property` is already in use, for `beam-border`'s
+      angle and `redaction-sweep`'s x-offset, but not as its own documented category). Not started.
+      1. **`@starting-style` open/close transitions** — lets a `<dialog>`/popover animate in on
+         show AND animate out before removal, without JS delaying the unmount. Good fit for
+         modals/toasts/dropdowns.
+      2. **`interpolate-size: allow-keywords`** — animates `height: auto` directly, no more
+         JS-measures-the-content tricks for accordions/collapsibles.
+      3. **CSS anchor positioning (`anchor()`/`position-anchor`)** — a tooltip/popover stays
+         attached to its trigger and repositions/flips sides on its own, no JS math.
+      4. **`@container` query-driven animation** — trigger off an element's own box size instead of
+         the viewport; useful for a card that should only animate once its own container is wide
+         enough, independent of scroll position.
+
 - [ ] **Build dedicated test pages that run through every effect — not `demo/` pages.** Owner's
       ask, 2026-08-23, prompted by finding `cube-rotate`/`book-page-turn` broken by hand while
       adding demo chips (see the entry above). "There's no way we should have bugs at this point"
