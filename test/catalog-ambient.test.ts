@@ -18,9 +18,11 @@ function ambientRegistry(): Registry {
 }
 
 describe('ambient catalog', () => {
-  it('registers all 16 section J names', () => {
+  it('registers all 15 section J names', () => {
+    // 16 -> 15: `noise-overlay` was cut 2026-08-26 (human call, the rewritten version wasn't
+    // useful) — commented out in ambient.ts/ambient.css, not deleted, so it can be revived.
     const registry = ambientRegistry()
-    expect(AMBIENT_PRESETS).toHaveLength(16)
+    expect(AMBIENT_PRESETS).toHaveLength(15)
     expect(AMBIENT_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
 
@@ -153,14 +155,17 @@ describe('ambient palette namespacing', () => {
 })
 
 /**
- * `to:` used to validate cleanly on all sixteen names and then do nothing on the eleven whose rule
+ * `to:` used to validate cleanly on all fifteen names and then do nothing on the ten whose rule
  * never reads a second stop — the worst kind of parameter, one that accepts input and discards it.
  * Only the four two-stop names take it now; the single-colour set warns instead.
+ *
+ * `noise-overlay` was one of the eleven one-stop names; it is cut (commented out, not deleted —
+ * see ambient.ts/ambient.css) and so is absent from `ONE_STOP` below rather than left in it, which
+ * would resolve to nothing and throw.
  */
 describe('to: is only offered where a second stop exists', () => {
   const TWO_STOP = ['gradient-mesh', 'aurora', 'gradient-rotate-border', 'gradient-border']
   const ONE_STOP = [
-    'noise-overlay',
     'scanline',
     'dot-grid-drift',
     'line-grid-drift',

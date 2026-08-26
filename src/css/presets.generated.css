@@ -733,12 +733,6 @@
     --kui-motion-path-ease: ease-out;
   }
 
-  [data-kui-fx~='noise-overlay'] {
-    --kui-ambient-tint-duration: 650ms;
-    --kui-ambient-tint-ease: steps(6);
-    --kui-ambient-tint-delay: 0ms;
-  }
-
   [data-kui-fx~='odometer-roll'] {
     --kui-from: 0;
     --kui-to: 4820;

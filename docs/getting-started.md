@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-262 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+261 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -495,7 +495,7 @@ requestAnimationFrame(frame)
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 262 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 261 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.

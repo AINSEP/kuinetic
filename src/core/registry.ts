@@ -8,7 +8,7 @@ export interface ResolvedEffect {
 /**
  * Name → primitive alias table.
  *
- * The catalog's 262 names come from 131 primitives; 131 of the names are aliases — the
+ * The catalog's 261 names come from 131 primitives; 130 of the names are aliases — the
  * same primitive with different parameter defaults. Presets are therefore data rows, not
  * code, and adding a name in a later release costs a table entry. See docs/catalog.md.
  */

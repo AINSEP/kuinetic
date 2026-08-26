@@ -967,10 +967,15 @@
     <!-- Two ambient washes, layered: a drifting dot grid and a grain overlay. Both are
          `background`-channel effects, so neither can collide with anything moving above them. -->
     <div class="hero-ambient" aria-hidden="true" data-kui="dot-grid-drift 26s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.22;"></div>
-    <!-- 6s and 0.12, down from 3s and 0.18: this is a 5px grain jittering a couple of pixels
-         directly behind the largest type on the page, and at the old settings the headline sat on
-         a surface that never quite held still. Slow enough now to read as paper, not as flicker. -->
+    <!-- noise-overlay cut 2026-08-26 — human call, the rewritten version wasn't useful. This was
+         the grain wash layered behind the headline (6s and 0.12, down from 3s and 0.18: a 5px
+         grain jittering a couple of pixels, slow enough to read as paper, not flicker). Commented
+         out, not deleted, in step with ambient.ts / ambient.css — uncomment alongside them to
+         revive. The hero now carries only the dot-grid-drift wash above; that leaves the headline
+         on a flatter surface than this section was designed for, which is a design call for
+         whoever revives or replaces this, not something resolved here.
     <div class="hero-ambient" aria-hidden="true" data-kui="noise-overlay 6s" style="position:absolute;inset:0;z-index:0;color:#ffffff;opacity:0.12;mix-blend-mode:overlay;"></div>
+    -->
 
     <div class="wrap">
       <div class="hero-inner">

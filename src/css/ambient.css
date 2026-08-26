@@ -177,32 +177,36 @@
     }
   }
 
-  /* --- noise-overlay / scanline: fine repeating patterns, drifted rather than tiled-and-static --- */
+  /* --- noise-overlay: cut 2026-08-26, human call — the rewritten version wasn't useful.
+     Commented out, not deleted, so it can be revived. Preset row is commented in
+     src/effects/catalog/ambient.ts, entry removed from docs/catalog.md, and
+     presets.generated.css was regenerated (npm run generate:css) so it no longer emits this
+     rule. Uncomment all three together plus the demo usages in ambient-feedback.html and
+     motif-kinetic.html to restore.
 
   [data-kui-fx~='noise-overlay'] {
-    /*
-     * `currentColor`, not a hardcoded white: a fixed light speckle reads fine on a dark surface
-     * and disappears on a light one. Inheriting the surrounding text color keeps contrast in
-     * both themes, the same trick already used for `spinner`/`spinner-dots`.
-     *
-     * Two layers on coprime tiles, not one on a 5px tile — and the keyframes below re-scale them
-     * as well as re-position them. This preset was reported as "no animation there", and it was
-     * never a wiring bug: the `650ms steps(6)` its preset declares does reach the element (see
-     * `presets.generated.css`), and `--kui-fx-noise-overlay-iterations` does bind. The motion was
-     * simply below the threshold where anything reads as motion, for a reason that no amount of
-     * extra `background-position` travel could have fixed. A tiled pattern's appearance depends
-     * only on its offset *modulo* the tile, so a 5px tile can never look more than 2.5px
-     * displaced however far you pan it; at 30% alpha on a near-isotropic speckle, that ceiling is
-     * invisible. Panning a single fine repeating pattern is a no-op you can watch.
-     *
-     * So the pattern has to change, not travel. Coprime 9px/7px tiles beat against each other
-     * over 63px, which kills the visible repeat, and each keyframe lands the two layers on a
-     * different relative phase. The small `background-size` wobble is what actually re-rolls the
-     * field: scaling a tile by 4% shifts the hundredth tile across the element by four whole
-     * tiles, so every region of the element resolves differently rather than sliding as a block.
-     * The ring periods (4.1px, 3.3px) are deliberately not integer fractions of their tiles, so
-     * the tile seam cuts a ring instead of landing on one and the grain stays irregular.
-     */
+    `currentColor`, not a hardcoded white: a fixed light speckle reads fine on a dark surface
+    and disappears on a light one. Inheriting the surrounding text color keeps contrast in
+    both themes, the same trick already used for `spinner`/`spinner-dots`.
+
+    Two layers on coprime tiles, not one on a 5px tile — and the keyframes below re-scale them
+    as well as re-position them. This preset was reported as "no animation there", and it was
+    never a wiring bug: the `650ms steps(6)` its preset declares does reach the element (see
+    `presets.generated.css`), and `--kui-fx-noise-overlay-iterations` does bind. The motion was
+    simply below the threshold where anything reads as motion, for a reason that no amount of
+    extra `background-position` travel could have fixed. A tiled pattern's appearance depends
+    only on its offset *modulo* the tile, so a 5px tile can never look more than 2.5px
+    displaced however far you pan it; at 30% alpha on a near-isotropic speckle, that ceiling is
+    invisible. Panning a single fine repeating pattern is a no-op you can watch.
+
+    So the pattern has to change, not travel. Coprime 9px/7px tiles beat against each other
+    over 63px, which kills the visible repeat, and each keyframe lands the two layers on a
+    different relative phase. The small `background-size` wobble is what actually re-rolls the
+    field: scaling a tile by 4% shifts the hundredth tile across the element by four whole
+    tiles, so every region of the element resolves differently rather than sliding as a block.
+    The ring periods (4.1px, 3.3px) are deliberately not integer fractions of their tiles, so
+    the tile seam cuts a ring instead of landing on one and the grain stays irregular.
+
     background-image:
       repeating-radial-gradient(
         circle at 0 0,
@@ -245,6 +249,7 @@
       background-size: 9px 9px, 7px 7px;
     }
   }
+  --- end noise-overlay --- */
 
   [data-kui-fx~='scanline'] {
     background-image: linear-gradient(

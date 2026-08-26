@@ -4,7 +4,7 @@ This catalog lists every named effect the library ships, grouped into sixteen se
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **262** named effects, over **33 primitive families**. Note that 48 names come from a
+**Counts:** **261** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -481,11 +481,14 @@ Primitives 21, 22, plus CSS.
 
 ---
 
-## J. Ambient backgrounds — 16 names
+## J. Ambient backgrounds — 15 names
 
 Primitives 8, 9, 11, 12. Almost entirely `css`.
 
-`gradient-mesh` · `aurora` · `gradient-rotate-border` · `gradient-border` · `noise-overlay` ·
+<!-- `noise-overlay` cut 2026-08-26 — human call, the rewritten version wasn't useful. Preset,
+     rule, and @keyframes are commented out (not deleted) in ambient.ts / ambient.css; restore
+     the row here alongside them to revive. -->
+`gradient-mesh` · `aurora` · `gradient-rotate-border` · `gradient-border` ·
 `scanline` · `dot-grid-drift` · `line-grid-drift` · `floating-shapes` · `float` · `bob` · `orbit` ·
 `starfield` · `glow-pulse` · `spotlight-follow` · `wave-blob`
 
@@ -733,7 +736,7 @@ Primitive 32. All `css`.
 | G Media & images | 20 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 22 |
-| J Ambient backgrounds | 16 |
+| J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
@@ -741,7 +744,7 @@ Primitive 32. All `css`.
 | O Forms & inputs | 12 |
 | P Motion paths | 5 |
 | Generic tween | 2 |
-| **Total shipped** | **262** |
+| **Total shipped** | **261** |
 | Documented but not yet shipped | 4 |
 
 Renderer split: **~175 `css`** · ~12 `prep` · ~58 `js`.

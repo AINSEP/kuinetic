@@ -24,10 +24,11 @@ const drift = {
   to: { type: 'color', default: '', cssProperty: '--kui-ambient-c2' },
 } as const
 
-// Same drift, one colour slot. `noise-overlay`, `scanline`, both grids, `starfield`,
-// `spotlight-follow` and `wave-blob` paint a single-colour pattern or wash — none of them reads a
-// second stop. Sharing `drift` meant `to:` validated cleanly and then did nothing at all on seven of
-// the eleven colour-taking names here; a separate schema turns that silence into an
+// Same drift, one colour slot. `scanline`, both grids, `starfield`, `spotlight-follow` and
+// `wave-blob` paint a single-colour pattern or wash — none of them reads a second stop.
+// (`noise-overlay` was a sixth until it was cut below; the reasoning is unchanged.) Sharing
+// `drift` meant `to:` validated cleanly and then did nothing at all on six of
+// the ten colour-taking names here; a separate schema turns that silence into an
 // unknown-parameter warning. Parameters are per-primitive, so a narrower schema means a second
 // primitive — hence `ambient-tint` rather than a per-preset schema override.
 const tint = {
@@ -134,12 +135,15 @@ export const AMBIENT_PRESETS: Preset[] = [
     keyframes: 'kui-gradient-border',
     params: { duration: '6s', ease: 'linear' },
   },
-  {
-    name: 'noise-overlay',
-    primitive: 'ambient-tint',
-    keyframes: 'kui-noise-overlay',
-    params: { duration: '650ms', ease: 'steps(6)' },
-  },
+  // Cut 2026-08-26, human call — the rewritten version wasn't useful. Commented out, not
+  // deleted, so it can be revived: uncomment this row, the matching rule + @keyframes in
+  // ambient.css, restore the docs/catalog.md entry, and regenerate presets.generated.css.
+  // {
+  //   name: 'noise-overlay',
+  //   primitive: 'ambient-tint',
+  //   keyframes: 'kui-noise-overlay',
+  //   params: { duration: '650ms', ease: 'steps(6)' },
+  // },
   {
     name: 'scanline',
     primitive: 'ambient-tint',
