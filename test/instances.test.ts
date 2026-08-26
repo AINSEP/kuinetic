@@ -111,6 +111,106 @@ describe('createCssInstance ownership', () => {
   })
 })
 
+describe('createCssInstance directional playback', () => {
+  /**
+   * `Animation.play()` is not on the shared `fakeAnimation` because only these tests need it, and
+   * `playbackRate` has to be a real writable property rather than a spy for the assertions to mean
+   * anything.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  function playableAnimation(name: string): FakeAnimation & { play: ReturnType<typeof vi.fn> } {
+    return Object.assign(fakeAnimation(name), { playbackRate: 1, play: vi.fn() })
+  }
+
+  it('drives the owned animations backwards on reverse and forwards again on play', () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+
+    instance.reverse?.()
+    expect(owned.playbackRate).toBe(-1)
+    expect(owned.play).toHaveBeenCalledOnce()
+
+    instance.play?.()
+    expect(owned.playbackRate).toBe(1)
+    expect(owned.play).toHaveBeenCalledTimes(2)
+  })
+
+  it('sets the rate absolutely rather than flipping it, so a repeated exit stays an exit', () => {
+    // `Animation.reverse()` means "turn around", which is right for the click toggle in
+    // `activate()` and wrong here: a pointer skimming an element's edge fires `pointerleave`
+    // twice, and the second one must not play the entrance back in.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.reverse?.()
+    instance.reverse?.()
+
+    expect(owned.playbackRate).toBe(-1)
+    expect(owned.reverse).not.toHaveBeenCalled()
+  })
+
+  it('leaves consumer animations alone', () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    const consumer = playableAnimation('pulse')
+    withAnimations(el, [owned, consumer])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.reverse?.()
+
+    expect(consumer.playbackRate).toBe(1)
+    expect(consumer.play).not.toHaveBeenCalled()
+  })
+
+  it('re-arms finished so the caller can tell when the exit has landed', async () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    let settleReverse: () => void = () => {}
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    await expect(instance.finished).resolves.toBeUndefined()
+
+    Object.defineProperty(owned, 'finished', {
+      value: new Promise<void>((resolve) => {
+        settleReverse = () => resolve()
+      }),
+      configurable: true,
+    })
+    instance.reverse?.()
+    const pending = instance.finished
+    settleReverse()
+    await expect(pending).resolves.toBeUndefined()
+  })
+
+  it('refuses to drive a scrubbed instance in either direction', () => {
+    // A `timeline: pin` frame is a pure function of `--kui-progress` through the compiled negative
+    // `animation-delay`. Playing it would hand it to the document timeline on top of the seek.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'], true)
+    instance.activate()
+    instance.reverse?.()
+    instance.play?.()
+
+    expect(owned.play).not.toHaveBeenCalled()
+    expect(owned.playbackRate).toBe(1)
+  })
+})
+
 describe('deferredInstance completion', () => {
   it('leaves finished pending until a timed setup says its work is done', async () => {
     let complete: (() => void) | undefined

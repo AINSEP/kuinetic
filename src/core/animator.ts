@@ -1,5 +1,7 @@
 import { createActivationBinder } from './activation.js'
 import type { ActivationBinder } from './activation.js'
+import { warnAboutActivation } from './activation-diagnostics.js'
+import { isOneShot, resolveActivationSpec } from './activation-vocabulary.js'
 import { ATTR } from './attrs.js'
 import { detect } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
@@ -226,24 +228,25 @@ export class Animator {
    */
   /**
    * Choose the activation, letting a primitive's preference fill in only when the author named
-   * none, and warning when an authored activation is not one the effect supports.
+   * none, and reporting whatever looks wrong about one the author did name.
    *
    * Declared capability metadata was previously never checked anywhere, which made
-   * `supportedActivations` documentation rather than a contract.
+   * `supportedActivations` documentation rather than a contract. The checks themselves live in
+   * `activation-diagnostics.ts` — they grew a good deal when the activation list opened, and they
+   * decide nothing, so keeping them here would have made this class the place where "which
+   * activation" and "is that a real event" were the same paragraph.
    *
    * @complexity O(a) time in supported activations; O(1) space.
    * @overallScore 100
    */
   private resolveActivation(el: Element, config: ElementConfig, plan: CompiledPlan): Activation {
     if (!config.activationAuthored) return plan.defaultActivation ?? config.activation
-    const supported = plan.supportedActivations
-    if (supported.length > 0 && !supported.includes(config.activation)) {
-      this.reporter.warn(
-        `activation "${config.activation}" is not supported by this effect ` +
-          `(supports: ${supported.join(', ')})`,
-        el,
-      )
-    }
+    warnAboutActivation({
+      el,
+      spec: resolveActivationSpec(config.activation),
+      supported: plan.supportedActivations,
+      reporter: this.reporter,
+    })
     return config.activation
   }
 
@@ -319,9 +322,11 @@ export class Animator {
     }
     // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
     // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
-    const releaseBinding = this.binder.bind(el, stylePlan.activation!, config.threshold, () =>
-      this.activate(el),
-    )
+    const releaseBinding = this.binder.bind(el, stylePlan.activation!, {
+      threshold: config.threshold,
+      activate: () => this.activate(el),
+      deactivate: () => this.deactivate(el),
+    })
     let released = false
     const releaseOnce = (): void => {
       if (released) return
@@ -337,8 +342,12 @@ export class Animator {
     // with `animation.reverse()` — a finished reveal playing backwards to nothing (an opened
     // `wipe-circle` closing itself on scroll-in). Recording the release here spends the one shot
     // whichever path takes it. A toggle activation must NOT be recorded: releasing a `hover` or
-    // `click` binding on first use is exactly what would stop a card flip flipping back.
-    if (stylePlan.activation === 'enter') state.releaseActivation = releaseOnce
+    // `click` binding on first use is exactly what would stop a card flip flipping back — and
+    // neither must a *paired* observed activation, because `enter/leave` has to keep observing to
+    // ever deliver its exit. `isOneShot` is that distinction; see `activation-vocabulary.ts`.
+    if (isOneShot(resolveActivationSpec(stylePlan.activation!))) {
+      state.releaseActivation = releaseOnce
+    }
   }
 
   /**
@@ -358,12 +367,22 @@ export class Animator {
    */
   activate(el: Element): void {
     const state = this.states.get(el)
-    if (!state || state.status === 'running') return
+    if (!state) return
+    // A reversing element is still `running`, so the guard below would swallow the enter half of a
+    // pair that fires while the exit half is still playing — a pointer leaving an element and
+    // coming straight back, which is the commonest thing a pointer does. Turning the playhead
+    // around is the only answer that leaves the element where the author asked for it.
+    if (state.status === 'running' && state.direction === 'reverse') {
+      this.turnAround(el, state)
+      return
+    }
+    if (state.status === 'running') return
     // A one-shot binding is spent by whichever path actually starts the effect, not only by the
     // observer callback that would otherwise be the sole releaser. See `openGate`.
     state.releaseActivation?.()
     state.releaseActivation = undefined
     state.status = 'running'
+    state.direction = 'forward'
     state.attributes.set(ATTR.state, 'running')
 
     const started = state.instances.filter((instance) => this.startInstance(instance, el))
@@ -376,23 +395,117 @@ export class Animator {
       return
     }
 
+    this.settleWhen(el, state, started, 'finished')
+  }
+
+  /**
+   * Play an element's effects back out.
+   *
+   * The exit half of a paired activation — `data-kui-on="pointerenter/pointerleave"`,
+   * `data-kui-on="enter/leave"` — routed through one method for the same reason `activate` is: it
+   * is the single place an effect ever runs backwards, so what an exit means does not have to be
+   * re-decided per activation.
+   *
+   * **CSS-rendered effects reverse; JS-rendered ones do not, and say so.** A CSS effect has a real
+   * `Animation` handle whose playback rate can simply be negated, landing on the from-state that
+   * `animation-fill-mode: both` is already holding. A JS-rendered effect has no playhead at all —
+   * `getAnimations()` returns `[]` for it (see `play.ts`) — and there is no honest general shim
+   * for "half a `split-flap`, backwards". Rather than invent one that misbehaves differently per
+   * primitive, an instance that cannot reverse is named in a warning; the author learns their
+   * pointerleave does nothing *here* instead of discovering it in a browser. On an element
+   * composing both renderers the CSS half still reverses and the warning names what did not.
+   *
+   * @param el - Element whose effects should play out.
+   * @complexity O(n) time in the number of instances; O(1) space.
+   * @overallScore 100
+   */
+  deactivate(el: Element): void {
+    const state = this.states.get(el)
+    if (!state) return
+    // Nothing that never started can play out, and an exit already in flight must not restart from
+    // wherever it has got to — two `pointerleave`s in a row are one exit.
+    if (state.status !== 'running' && state.status !== 'finished') return
+    if (state.direction === 'reverse') return
+
+    const reversible = state.instances.filter(isDirectional)
+    if (reversible.length < state.instances.length) {
+      this.reporter.warn(
+        'effect cannot play backwards, so the exit half of this activation does nothing for it ' +
+          '(JS-rendered effects have no playhead — see EffectInstance.reverse)',
+        el,
+      )
+    }
+    if (reversible.length === 0) return
+
+    state.status = 'running'
+    state.direction = 'reverse'
+    state.attributes.set(ATTR.state, 'running')
+    for (const instance of reversible) instance.reverse!()
+    // `ready`, not `finished`: the effects have run back to the from-state they started from, so
+    // the element is exactly as it was before it was ever activated — which is what `ready` means
+    // everywhere else, and what an author styling `[data-kui-state]` needs it to keep meaning.
+    this.settleWhen(el, state, reversible, 'ready')
+  }
+
+  /**
+   * Resume forward playback on an element whose exit is still in flight.
+   *
+   * Separate from `activate`'s main path because none of that path applies: the instances are
+   * already started, the activation is already spent, and the state is already `running`. All that
+   * changes is the direction of travel.
+   *
+   * @complexity O(n) time in the number of instances; O(1) space.
+   * @overallScore 100
+   */
+  private turnAround(el: Element, state: InstanceState): void {
+    // Never empty, and deliberately not guarded as though it might be: this runs only while
+    // `direction === 'reverse'`, which only `deactivate` sets, and only after the same
+    // `isDirectional` filter found something. `state.instances` is fixed at install, so the two
+    // filters cannot disagree. A guard here would be unreachable code pretending to be caution.
+    const playable = state.instances.filter(isDirectional)
+    state.direction = 'forward'
+    for (const instance of playable) instance.play!()
+    this.settleWhen(el, state, playable, 'finished')
+  }
+
+  /**
+   * Write an element's final state once the instances driving it have finished.
+   *
+   * The reported state has to become truthful eventually, or `data-kui-state` codifies a lie that
+   * tests then assert against. It also has to stay truthful when a run is superseded mid-flight: a
+   * reverse that is turned around leaves its own `finished` promise pending, and letting that
+   * promise write `ready` over the forward run that replaced it is how an element ends up claiming
+   * it is back at its from-state while visibly finishing its entrance. Capturing the direction at
+   * the time of the call and re-checking it on resolution is what makes the stale promise a no-op.
+   *
+   * @param instances - The instances this particular run started; a run only waits on its own.
+   * @param next - State to report when they are all done.
+   * @complexity O(n) time in the instances; O(n) space for the pending promises.
+   * @overallScore 100
+   */
+  private settleWhen(
+    el: Element,
+    state: InstanceState,
+    instances: EffectInstance[],
+    next: 'finished' | 'ready',
+  ): void {
     // A continuous instance — a pin, a scroll progress track, a media scrub — keeps an
     // already-resolved `finished` so that composing it with a one-shot never stops the one-shot
     // reporting complete. Waiting on it here would therefore resolve on the next microtask and
     // write "finished" onto an effect that has not even started scrubbing, which is exactly the
-    // lie the comment below warns about. So the gate waits on the finite instances only, and an
+    // lie the comment above warns about. So the gate waits on the finite instances only, and an
     // element whose every instance is continuous stays "running" — the honest answer, and the one
     // an author styling `[data-kui-state='running']` needs. An element with no instances at all
     // (a pure CSS-keyframes effect) is untouched by this and still resolves immediately.
-    const timed = started.filter((instance) => !instance.continuous)
-    if (timed.length === 0 && started.length > 0) return
+    const timed = instances.filter((instance) => !instance.continuous)
+    if (timed.length === 0 && instances.length > 0) return
 
-    // The reported state has to become truthful eventually, or `data-kui-state` codifies a lie
-    // that tests then assert against.
+    const direction = state.direction
     void Promise.all(timed.map((instance) => instance.finished)).then(() => {
       if (this.states.get(el) !== state || state.status !== 'running') return
-      state.status = 'finished'
-      state.attributes.set(ATTR.state, 'finished')
+      if (state.direction !== direction) return
+      state.status = next
+      state.attributes.set(ATTR.state, next)
     })
   }
 
@@ -606,6 +719,22 @@ function defaultRootResolver(root: ParentNode | undefined): (el: Element) => Scr
   const doc = isElementNode(root) ? root.ownerDocument : (root as Document | undefined)
   const win = doc?.defaultView ?? (globalThis as unknown as Window)
   return createRootResolver({ win })
+}
+
+/**
+ * Whether the animator can drive this instance in both directions.
+ *
+ * Both or neither, checked in one place: an instance that could be reversed but not resumed would
+ * strand an element mid-exit the moment a pointer came back, which is worse than never having
+ * offered the exit at all. `play` and `reverse` are optional on `EffectInstance` because a
+ * JS-rendered effect has no playhead for either (see `types.ts`), so this is the single question
+ * both `deactivate` and `turnAround` ask.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function isDirectional(instance: EffectInstance): boolean {
+  return instance.play !== undefined && instance.reverse !== undefined
 }
 
 /** Teardown must never throw into the caller; a failing cleanup cannot block the others. */

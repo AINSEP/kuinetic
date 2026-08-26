@@ -36,9 +36,9 @@ function fakeBinder(): FakeBinder {
   const binder: FakeBinder = {
     bindings,
     unbound: 0,
-    bind(el, activation, threshold, onActivate) {
-      bindings.push({ el, activation, threshold })
-      callbacks.set(el, onActivate)
+    bind(el, activation, request) {
+      bindings.push({ el, activation, threshold: request.threshold })
+      callbacks.set(el, () => request.activate())
       return () => {
         binder.unbound++
         callbacks.delete(el)

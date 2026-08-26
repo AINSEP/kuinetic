@@ -1,3 +1,4 @@
+import { startKindOf } from './activation-vocabulary.js'
 import { ATTR } from './attrs.js'
 import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'
@@ -151,7 +152,13 @@ function resolveGate(input: {
   // would drop the pause and hand a scrub-seeked animation to the document timeline.
   if (input.scrubbed) return 'scrubbed'
   if (!input.hasWork) return 'immediate'
-  if (input.reduce || input.activation === 'load' || input.unsupportedTransform) return 'immediate'
+  // `startKindOf`, not `activation === 'load'`: an activation is now a value with structure, and a
+  // pair like `load/pointerleave` starts immediately while comparing unequal to `'load'`. Every
+  // string equality test against an activation in this codebase had to become a question about the
+  // resolved spec for exactly this reason.
+  if (input.reduce || startKindOf(input.activation) === 'immediate' || input.unsupportedTransform) {
+    return 'immediate'
+  }
   return 'deferred'
 }
 
@@ -193,7 +200,11 @@ function supportsTimeline(timeline: Timeline, capabilities: Capabilities): boole
  * @overallScore 100
  */
 function effectiveActivation(config: ElementConfig): Activation {
-  if (config.timeline !== 'time' && config.activation === 'manual') return 'enter'
+  // Any exit half the author paired with `manual` is dropped along with it: the substitution is a
+  // fallback for a timeline that did not materialise, and `enter` is the one activation guaranteed
+  // to release a paused effect. A pair here would be an activation the author never wrote.
+  const observed: Activation = 'enter'
+  if (config.timeline !== 'time' && startKindOf(config.activation) === 'manual') return observed
   return config.activation
 }
 

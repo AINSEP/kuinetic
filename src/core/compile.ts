@@ -6,6 +6,7 @@ import type {
   Activation,
   Channel,
   EffectSpec,
+  NamedActivation,
   ParsedValue,
   ReducedMotionPolicy,
   Timeline,
@@ -46,7 +47,7 @@ export interface CompiledPlan {
   /** Activation preferred by the composed primitives when the author named none. */
   defaultActivation?: Activation
   /** Activations every composed primitive supports, for enforcement by the animator. */
-  supportedActivations: Activation[]
+  supportedActivations: NamedActivation[]
   /**
    * Timelines every composed primitive supports. Empty means none — `style-plan.ts` must not
    * apply a native `view()`/`scroll()` timeline the author's effect doesn't declare support for,
@@ -186,7 +187,7 @@ function buildPlan(
   const channels = new Set<Channel>()
   // Accumulated outside `plan` so `undefined` (no effect has contributed yet) stays distinct from
   // `[]` (the composed effects genuinely share nothing) — see `intersect`.
-  let activations: Activation[] | undefined
+  let activations: NamedActivation[] | undefined
   let timelines: Timeline[] | undefined
 
   for (const entry of entries) {

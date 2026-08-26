@@ -1,4 +1,5 @@
-import type { Activation, EffectSpec, ParsedValue } from './types.js'
+import { validateActivation } from './activation-vocabulary.js'
+import type { EffectSpec, ParsedValue } from './types.js'
 
 /**
  * Grammar — ours, deliberately NOT "the CSS animation shorthand" (see docs/design.md §3):
@@ -19,15 +20,6 @@ import type { Activation, EffectSpec, ParsedValue } from './types.js'
  */
 const TIME_RE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:ms|s)$/
 const EASING_FUNCTIONS = ['cubic-bezier(', 'steps(', 'linear(']
-
-const ACTIVATIONS: ReadonlySet<string> = new Set([
-  'load',
-  'enter',
-  'hover',
-  'focus',
-  'click',
-  'manual',
-])
 
 const EASING_KEYWORDS: ReadonlySet<string> = new Set([
   'linear',
@@ -300,12 +292,23 @@ function applyToken(
  * activation and one timeline. A table keeps `applyToken` free of a growing branch chain.
  */
 const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
+  /**
+   * The activation list is open: any event type `addEventListener` accepts starts an animation,
+   * and `start/end` pairs it with an exit. So this no longer checks the value against a closed set
+   * of six names — `on:input` and `on:cart:updated` are both legitimate and unguessable from here.
+   *
+   * What it still rejects is text that cannot be an event type at all, because that is where the
+   * open list would otherwise turn a typo into silence rather than a warning. The complementary
+   * check — "this document has never heard of that event" — needs an element and lives in
+   * `animator.ts`.
+   */
   on(result, value) {
-    if (!ACTIVATIONS.has(value)) {
-      result.warnings.push(`unknown activation "${value}"`)
+    const problems = validateActivation(value)
+    if (problems.length > 0) {
+      result.warnings.push(...problems)
       return
     }
-    assignOnce(result, 'activation', value as Activation, 'activations')
+    assignOnce(result, 'activation', value, 'activations')
   },
   timeline(result, value) {
     assignOnce(result, 'timeline', value, 'timelines')

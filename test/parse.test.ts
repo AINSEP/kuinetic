@@ -138,10 +138,35 @@ describe('parse', () => {
       expect(parse('fade-up on:hover').specs[0]?.params).toEqual({})
     })
 
-    it('warns on an unknown activation and leaves it unset', () => {
-      const result = parse('fade-up on:teleport')
+    it('accepts any event name, because the activation list is open', () => {
+      // This used to warn "unknown activation" and leave the value unset, which is what made
+      // `on:input`, `on:submit` and `on:pointerleave` inexpressible. The check that a name is a
+      // *real* event needs an element and lives in `animator.ts` — see its `warnUnknownEvents`.
+      for (const value of ['input', 'submit', 'pointerleave', 'cart:updated', 'teleport']) {
+        const result = parse(`fade-up on:${value}`)
+        expect(result.activation, value).toBe(value)
+        expect(result.warnings, value).toEqual([])
+      }
+    })
+
+    it('hoists a start/end pair', () => {
+      // A slash rather than a comma or a space: both of those are structural to the tokenizer, so
+      // either would have forced quoting for the commonest case in the feature.
+      const result = parse('fade-up on:pointerenter/pointerleave')
+      expect(result.activation).toBe('pointerenter/pointerleave')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('warns on a value that could not be an event name and leaves it unset', () => {
+      const result = parse('fade-up on:a/b/c')
       expect(result.activation).toBeUndefined()
-      expect(result.warnings.join()).toContain('unknown activation "teleport"')
+      expect(result.warnings.join()).toContain('more than one "/"')
+    })
+
+    it('warns on an exit half that could never fire', () => {
+      const result = parse('fade-up on:click/load')
+      expect(result.activation).toBeUndefined()
+      expect(result.warnings.join()).toContain('cannot end on "load"')
     })
 
     it('keeps the first value and warns when two segments disagree', () => {

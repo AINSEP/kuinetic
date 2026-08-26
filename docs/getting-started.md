@@ -91,6 +91,46 @@ switches from `enter` to `hover`, `click`, `focus`, or `manual`.
 
 ---
 
+## Any event can start an animation
+
+`on:` is not a list of six names. Anything you could pass to `addEventListener` works, so an
+animation can be triggered by a form field, a submit, a drag, a media element, or an event your own
+code dispatches — still without writing a line of JavaScript.
+
+```html
+<input data-kui="shake-error" data-kui-on="invalid">
+<form data-kui="glow-pulse" data-kui-on="submit">
+<div  data-kui="fade-up" data-kui-on="cart:updated">
+```
+
+The names the library adds on top are the ones the DOM has no event for, or where one name is
+tidier than two: `load`, `enter` and `leave` (visibility), `manual` (API only), `hover`/`unhover`,
+`focus`/`blur`, and `click`.
+
+### Playing an animation back out
+
+Write two activations separated by a slash and the effect plays forward on the first and backwards
+on the second, landing exactly where it started.
+
+```html
+<div data-kui="fade-up" data-kui-on="pointerenter/pointerleave">
+<div data-kui="fade-up" data-kui-on="hover/unhover">
+<div data-kui="fade-up" data-kui-on="enter/leave">
+```
+
+`enter/leave` is the one worth knowing: plain `on:enter` fires once and stays, which is right for a
+reveal, and the pair keeps the observer live so the element fades back out when it scrolls away and
+in again when it returns. Existing markup is unaffected — `on:enter` on its own still fires exactly
+once.
+
+Reversing needs a real playhead, which only CSS-rendered effects have. Pair an exit with a
+JavaScript-rendered effect (`split-flap`, `draggable`, `count-up`) and the library warns rather than
+doing nothing quietly. And because the list is open, a misspelled event can no longer be rejected as
+"unknown" — so `data-kui-on="clik"` warns that no such DOM event exists and suggests `click`
+instead. Turn warnings on with `kuinetic({ reporter: consoleReporter() })` while developing.
+
+---
+
 ## Text effects
 
 Text-specific primitives split, type, or scramble the content — they still read correctly to
@@ -117,7 +157,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | duration | first positional arg, or `duration:` | `fade-up 800ms` |
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
-| `on:` | activation: `load` `enter` `hover` `focus` `click` `manual` | `fade-up on:hover` |
+| `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `data-kui-threshold` | how much of the element must be visible before `on:enter` fires | `data-kui-threshold="30%"` |

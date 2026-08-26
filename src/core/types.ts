@@ -56,8 +56,53 @@ export const CHANNEL = {
  */
 export type Channel = (typeof CHANNEL)[keyof typeof CHANNEL] | (string & {})
 
-/** What starts the animation. Distinct from — and never a substitute for — a Timeline. */
-export type Activation = 'load' | 'enter' | 'hover' | 'focus' | 'click' | 'manual'
+/**
+ * The activations the library gives a name of its own, because the DOM has no event for them or
+ * because the name bundles more than one event. See `core/activation-vocabulary.ts` for what each
+ * one binds.
+ */
+export type NamedActivation =
+  | 'load'
+  | 'enter'
+  | 'leave'
+  | 'hover'
+  | 'unhover'
+  | 'focus'
+  | 'blur'
+  | 'click'
+  | 'manual'
+
+/**
+ * What starts the animation. Distinct from — and never a substitute for — a Timeline.
+ *
+ * The open `string` arm is the whole point of `data-kui-on`: any DOM event type an author can pass
+ * to `addEventListener` — `input`, `submit`, `pointerleave`, `cart:updated` — starts an animation,
+ * and a `start/end` pair (`pointerenter/pointerleave`) plays it out again on the second one. The
+ * union documents the names the library adds on top of that without closing the set, the same
+ * shape and for the same reason as `Channel` above.
+ *
+ * A value may therefore be a `NamedActivation`, a raw event type, or a pair of either joined by
+ * `/`. Anything reading it for meaning must go through `resolveActivationSpec` rather than
+ * comparing strings — an equality test against `'load'` silently stops being true for
+ * `'load/pointerleave'`.
+ *
+ * Plain `string`, not `NamedActivation | (string & {})`. The latter spelling — which `Channel`
+ * above uses, and which preserves editor autocomplete for the documented names — is right where
+ * the set is genuinely a set that third parties extend. This is not that: an authored activation
+ * is an arbitrary event type by design, and pretending otherwise would put a hint in front of a
+ * value that has no closed vocabulary at all. The place a closed vocabulary *does* still apply is
+ * `Primitive.supportedActivations`, which is why that one is typed `NamedActivation[]` and keeps
+ * its autocomplete.
+ */
+// Not redundant, despite resolving to `string`: this alias is the domain name the whole codebase
+// and the published `.d.ts` read in — twenty-odd signatures, one public export — and the fact that
+// an activation is *carried* as a string is the least interesting thing about it. Replacing it
+// with `string` as the rule asks would delete the only place that says what those strings are.
+// The alternative spelling `NamedActivation | (string & {})`, which keeps a literal hint, trades
+// this one suppression for three `sonarjs/function-return-type` suppressions on every function
+// that returns one, and puts an autocomplete list in front of a value with no closed vocabulary.
+// eslint-disable-next-line sonarjs/redundant-type-aliases
+export type Activation = string
 
 /**
  * What drives progress.
@@ -148,6 +193,24 @@ export interface EffectInstance {
   cancel(): void
   /** Jump to the end state immediately. */
   finish(): void
+  /**
+   * Resume forward playback from wherever the effect currently sits.
+   *
+   * Optional, and deliberately so: only a renderer with a real playhead can honour it. A
+   * CSS-rendered effect has an `Animation` handle and simply sets `playbackRate` back to 1; a
+   * JS-rendered one has no playhead at all (`getAnimations()` returns `[]` for it — see
+   * `core/play.ts`), and there is no honest shim for "half-way through a `split-flap`, backwards".
+   * Leaving it undefined is how a primitive says so, and `animator.ts` warns by name rather than
+   * pretending — a knob that exists and does nothing is worse than a missing knob.
+   */
+  play?(): void
+  /**
+   * Play backwards from wherever the effect currently sits, ending at the from-state.
+   *
+   * The exit half of a paired activation (`data-kui-on="pointerenter/pointerleave"`) is built on
+   * this. Optional for the same reason as `play` above.
+   */
+  reverse?(): void
   /** Resolves when the effect completes. Resolves — never rejects — on cancel. */
   readonly finished: Promise<void>
   /**
@@ -241,7 +304,16 @@ export interface Primitive {
   channels: Channel[]
   parameters: ParameterSchema
   supportedTimelines: Timeline[]
-  supportedActivations: Activation[]
+  /**
+   * Which activations this primitive is built to handle.
+   *
+   * `NamedActivation[]`, not `Activation[]`: the authored value is open (any DOM event starts an
+   * animation), but a primitive declaring what it supports is choosing from a closed vocabulary —
+   * it is saying "I work when observed" or "I work on a listener", not enumerating event types it
+   * has never heard of. `animator.ts` maps an authored half onto this vocabulary before checking
+   * it; see `SUPPORT_PROXIES` in `activation-vocabulary.ts`.
+   */
+  supportedActivations: NamedActivation[]
   /**
    * Activation used when the author specifies none.
    *
@@ -372,5 +444,16 @@ export interface InstanceState {
    * redundant; a toggle activation (`hover`/`focus`/`click`) deliberately leaves this undefined.
    */
   releaseActivation?: Cleanup
+  /**
+   * Which way the effects are currently playing. Only meaningful while `status === 'running'`.
+   *
+   * Runtime truth, not an attribute, for the reason at the top of this interface: a reversing
+   * element is still `running`, and `data-kui-state` has no vocabulary for the difference. It is
+   * here because two decisions need it and neither can be re-derived from the DOM — `activate`
+   * must turn a reversing element back around instead of being swallowed by its own re-entrancy
+   * guard, and the `finished` handler that writes the final state must not let a stale promise
+   * from the run it superseded write over the run in flight.
+   */
+  direction?: 'forward' | 'reverse'
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
 }

@@ -64,6 +64,18 @@ describe('planStyles — gates', () => {
     expect(result.properties['animation-play-state']).toBeUndefined()
   })
 
+  it('reads through a pair to the half that actually starts the effect', () => {
+    // The gate used to compare `activation === 'load'`, which is false for `load/pointerleave`
+    // even though it still starts immediately — the element would have sat paused forever.
+    const immediate = plan('fade-up on:load/pointerleave')
+    expect(immediate.gate).toBe('immediate')
+    expect(immediate.activation).toBeNull()
+
+    const deferred = plan('fade-up on:enter/leave')
+    expect(deferred.gate).toBe('deferred')
+    expect(deferred.activation).toBe('enter/leave')
+  })
+
   it('uses a native timeline when supported and never pauses', () => {
     const result = plan('parallax-y', { timeline: 'view' })
     expect(result.gate).toBe('native-timeline')

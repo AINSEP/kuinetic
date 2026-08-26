@@ -55,9 +55,9 @@ function recordingBinder(): RecordingBinder {
   const callbacks = new Map<Element, () => void>()
   const binder: RecordingBinder = {
     bindings,
-    bind(el, activation, _threshold, onActivate) {
+    bind(el, activation, request) {
       bindings.push({ el, activation })
-      callbacks.set(el, onActivate)
+      callbacks.set(el, () => request.activate())
       return () => callbacks.delete(el)
     },
     fire(el) {
