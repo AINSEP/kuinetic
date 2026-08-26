@@ -8,8 +8,9 @@
 ## 0. How to use this document
 
 Read §1–§4 in full. They apply to every task. Then read only your own task section
-(§5 for A, §6 for D, §7 for E, §8 for B, §9 for C) and ignore the others, except for
-the branch-base rules in §3.2 which tell you what to branch from.
+(§5 for A, §6 for D, §7 for E, §8 for B, §9 for C, §11 for F) and ignore the others,
+except for the branch-base rules in §3.2 which tell you what to branch from. §10 is the
+report format and applies to everyone.
 
 Every file reference below was verified against the repository on 2026-08-26. Line
 numbers may have drifted; the symbol names have not. If a reference does not resolve,
@@ -141,10 +142,19 @@ quietly ignore the other 97.
 
 Known asymmetries you will hit:
 
-- JS effects have **no timing support at all**. Their param schemas declare no
-  `duration`/`delay`/`ease`, and `spec.delay`/`spec.duration` are read only inside
-  `pushTrack`, which is CSS-only. `js-effect-preparer.ts` calls each JS effect's
-  `activate()` synchronously with no delay mechanism.
+- JS effects have **partial, uneven timing support**. Counted from the built registry on
+  2026-08-26, of 57 JS primitives: 12 declare `delay`, 29 declare `duration`, 25 declare
+  `ease`. So timing works for some and silently does nothing for others. Task F (§11)
+  closes this; if you are not task F, treat it as a known limitation and say which side
+  of it your work lands on.
+- **Timing reaches a JS primitive by two different routes.** The positional spelling
+  (`count-up 320ms 300ms`) arrives as `params.timing`, deliberately kept *outside* the
+  parameter record — see the design note in `src/core/js-effect-preparer.ts`. The named
+  spelling (`count-up delay:300ms`) reaches a primitive only if its schema declares
+  `delay`, and is otherwise dropped by `resolveParams` as an unknown parameter. Primitives
+  that handle both read `params.timing.delayMs ?? params.ms('delay', 0)`. See
+  `TRIGGER_DELAY_PARAM` in `src/effects/shared.ts` and the regression suite in
+  `test/js-effect-timing.test.ts`.
 - `getAnimations()` returns `[]` for JS effects. This is documented at
   `src/core/play.ts:194`.
 
@@ -178,6 +188,7 @@ from fighting, chain the branches. Run `git fetch origin && git branch -r` first
 | E | `feat/open-activations` | `origin/main` |
 | B | `feat/generic-tween` | `origin/feat/open-activations` if it exists, else `origin/main` |
 | C | `feat/sequencing` | first that exists of `origin/feat/generic-tween`, `origin/feat/open-activations`, `origin/main` |
+| F | `feat/js-effect-timing` | `origin/main` |
 
 State in your PR body which base you actually used, and target it as the PR base.
 
@@ -593,9 +604,11 @@ attributes.
 
 ### 9.4 Hard cases you must address
 
-- **97 of 255 effects cannot currently be positioned at all.** JS-rendered effects have
-  no delay support (§2.5). Decide whether to extend them to honour a delay or to make
-  the limitation explicit and loud. It must not fail silently.
+- **Many JS-rendered effects cannot be positioned in a sequence.** Only 12 of 57 JS
+  primitives declare a `delay` parameter (§2.5). Task F (§11) is closing that gap in
+  parallel with you, so do **not** fix it yourself — assume `delay` will become widely
+  available and design against the interface, but make any effect that still lacks it
+  fail **loudly** rather than silently ignoring its `at:`.
 - **Resolving `at:` needs the previous spec's duration.** Work out what happens when
   that duration is a default rather than explicit, when the timeline is percentage-based
   scroll rather than a clock, and when the previous effect is JS-rendered with no
@@ -623,3 +636,90 @@ End your session with a short summary containing:
 - test counts before and after
 - the exact attribute syntax you settled on, with a worked example
 - anything you could not finish, stated plainly
+
+---
+
+## 11. Task F — timing parity for JavaScript-rendered effects
+
+**Branch:** `feat/js-effect-timing` from `origin/main`.
+
+### 11.1 The gap
+
+CSS-rendered effects take `duration`, `delay` and `ease` uniformly. JavaScript-rendered
+ones do not. Counted from the built registry on 2026-08-26, of **57 JS primitives**:
+
+| parameter | declared by | missing from |
+|---|---|---|
+| `delay` | 12 | 45 |
+| `duration` | 29 | 28 |
+| `ease` | 25 | 32 |
+
+The result is that `data-kui="split-flap 400ms delay:200ms"` looks like it should work,
+parses without complaint, and then does nothing with the delay. The author gets silence,
+not an error.
+
+This blocks task C (sequencing): an effect that ignores `delay` cannot be positioned in a
+sequence.
+
+### 11.2 This is NOT "add delay to all 97"
+
+Read this before you start, because the naive version of this task is wrong.
+
+Many JS primitives legitimately have no use for a delay. `pin`, `scroll-progress`,
+`scroll-spy`, `draggable`, `magnetic`, `cursor-follow`, `cursor-lag`, `tilt-3d`,
+`header-shrink` and the rest of that family are **continuous or interactive** — driven by
+pointer position or scroll offset, not by a clock that starts at a moment. "Delay this by
+200 ms" is meaningless for an effect that has no start.
+
+Others plainly *should* support it and do not. Strong candidates, all one-shot or
+triggered animations: `split-flap`, `border-draw`, `beam-border`, `underline-slide`,
+`underline-center`, `icon-wiggle`, `icon-spin`, `icon-bounce`, `icon-toggle`,
+`toggle-morph`, `flip-indicator`, `path-morph`, `card-toggle`, `shine-sweep`, `lift`,
+`pop`, `lift-shadow`.
+
+**YOU DECIDE** the exact split. Go through all 45 primitives lacking `delay` and classify
+each as one-shot (should have it) or continuous/interactive (should not). Put the
+classification in the PR body as a table. That table is a deliverable in its own right —
+it is the first time anyone will have written it down.
+
+### 11.3 What to build
+
+1. **Add the missing timing parameters** to the primitives your classification says
+   should have them. `TRIGGER_DELAY_PARAM` in `src/effects/shared.ts` exists precisely to
+   be spread into a schema; use it rather than retyping the declaration, and read its
+   doc comment first — it explains why `0ms` being a true no-op is what makes spreading
+   it safe.
+
+2. **Make the primitive actually honour it.** Declaring the parameter is not enough. The
+   established pattern is `params.timing.delayMs ?? params.ms('delay', 0)` — see
+   `src/effects/catalog/text.ts:310`, `:395` and `:465`. Note there are two routes into a
+   primitive (§2.5): the positional spelling arrives via `params.timing`, the named
+   spelling only if the schema declares it. Support both.
+
+3. **Make an ignored timing parameter loud instead of silent.** This is the part that
+   matters most for authors. If a primitive genuinely cannot honour `duration` or `ease`,
+   an author who writes one should get a warning naming the effect and the parameter, not
+   silence. See `src/core/reporter.ts`. Note the deliberate precedent at
+   `src/effects/catalog/text.ts:172`, where `duration`/`ease` are *intentionally* not
+   declared because the stylesheet pins them — that is a case to warn about, not to
+   "fix".
+
+4. **YOU DECIDE** whether `duration` and `ease` are worth extending as widely as `delay`,
+   or whether the honest answer for some primitives is a documented, warned refusal. A
+   knob that exists but does nothing is worse than no knob.
+
+### 11.4 Constraints
+
+- **Do not change any existing default.** Adding a parameter must not alter how existing
+  markup behaves. `TRIGGER_DELAY_PARAM` defaults to `0ms` for exactly this reason.
+- **Do not touch `src/core/`** unless you genuinely must. This task is schema and
+  primitive work in `src/effects/`. Task C is editing the core compile path in parallel.
+- `test/js-effect-timing.test.ts` already exists — it is the regression suite that caught
+  the last round of this exact defect. Read it first, extend it, and do not break it.
+
+### 11.5 Acceptance
+
+- A written classification of all 45 primitives currently lacking `delay`.
+- Every primitive you classified as one-shot honours `delay` via both routes, with tests.
+- Any primitive that ignores an authored timing parameter warns by name.
+- No existing behaviour changed for existing markup.
