@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-255 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+257 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -91,6 +91,46 @@ switches from `enter` to `hover`, `click`, `focus`, or `manual`.
 
 ---
 
+## Any event can start an animation
+
+`on:` is not a list of six names. Anything you could pass to `addEventListener` works, so an
+animation can be triggered by a form field, a submit, a drag, a media element, or an event your own
+code dispatches — still without writing a line of JavaScript.
+
+```html
+<input data-kui="shake-error" data-kui-on="invalid">
+<form data-kui="glow-pulse" data-kui-on="submit">
+<div  data-kui="fade-up" data-kui-on="cart:updated">
+```
+
+The names the library adds on top are the ones the DOM has no event for, or where one name is
+tidier than two: `load`, `enter` and `leave` (visibility), `manual` (API only), `hover`/`unhover`,
+`focus`/`blur`, and `click`.
+
+### Playing an animation back out
+
+Write two activations separated by a slash and the effect plays forward on the first and backwards
+on the second, landing exactly where it started.
+
+```html
+<div data-kui="fade-up" data-kui-on="pointerenter/pointerleave">
+<div data-kui="fade-up" data-kui-on="hover/unhover">
+<div data-kui="fade-up" data-kui-on="enter/leave">
+```
+
+`enter/leave` is the one worth knowing: plain `on:enter` fires once and stays, which is right for a
+reveal, and the pair keeps the observer live so the element fades back out when it scrolls away and
+in again when it returns. Existing markup is unaffected — `on:enter` on its own still fires exactly
+once.
+
+Reversing needs a real playhead, which only CSS-rendered effects have. Pair an exit with a
+JavaScript-rendered effect (`split-flap`, `draggable`, `count-up`) and the library warns rather than
+doing nothing quietly. And because the list is open, a misspelled event can no longer be rejected as
+"unknown" — so `data-kui-on="clik"` warns that no such DOM event exists and suggests `click`
+instead. Turn warnings on with `kuinetic({ reporter: consoleReporter() })` while developing.
+
+---
+
 ## Text effects
 
 Text-specific primitives split, type, or scramble the content — they still read correctly to
@@ -117,7 +157,8 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | duration | first positional arg, or `duration:` | `fade-up 800ms` |
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
-| `on:` | activation: `load` `enter` `hover` `focus` `click` `manual` | `fade-up on:hover` |
+| `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
+| `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `data-kui-threshold` | how much of the element must be visible before `on:enter` fires | `data-kui-threshold="30%"` |
@@ -149,6 +190,49 @@ warns in the console naming both — never a silent drop — see
 
 ---
 
+## Sequencing — `at:`
+
+Comma-separated effects all start at the same instant. `at:` moves one of them **relative to the
+one before it in the list**, so you stop hand-computing delays:
+
+```html
+<h1 data-kui="fade-up 600ms, blur-in 400ms at:-200ms">
+```
+
+`blur-in` starts 200ms *before* `fade-up` ends — a 400ms delay, which the compiler works out for
+you and re-works if you change either number.
+
+```live
+<div class="doc-demo-box" data-kui="fade-up 600ms, blur-in 400ms at:-200ms" data-kui-on="load">overlapped by 200ms</div>
+<div class="doc-demo-box" data-kui="fade-up 600ms, blur-in 400ms at:+100ms" data-kui-on="load">100ms gap after fade-up</div>
+```
+
+| Spelling | Where it starts |
+|---|---|
+| `at:-200ms` | 200ms **before** the previous effect ends — they overlap |
+| `at:+100ms` | 100ms **after** the previous effect ends — a gap |
+| `at:after` | exactly when the previous effect ends |
+| `at:with` | the same instant the previous effect starts |
+| `at:with+150ms` | 150ms after the previous effect *starts* |
+
+Each `at:` chains off the one before it, so a three-effect list reads front to back:
+
+```html
+<h1 data-kui="fade-up 600ms, blur-in 400ms at:-200ms, zoom-in 300ms at:+50ms">
+```
+
+Three things worth knowing:
+
+- **`at:` is always relative.** `at:200ms` is refused, with a warning, because it would be nothing
+  but `delay:200ms` under a second name.
+- **It positions against the previous *effect*, not the previous *element*.** Sequencing across
+  sibling elements is not built yet; use `data-kui-stagger` on the parent for that.
+- **It compiles to a delay**, so a scroll-driven `timeline:view`/`timeline:scroll` ignores it —
+  position those with a range instead (`data-kui-timeline="view entry 0% cover 60%"`). It does work
+  on `timeline:pin`, where the delay is the scrub head.
+
+---
+
 ## Common mistakes
 
 - **Mixing up `on:` and `timeline:`.** `on:enter` plays once and stays finished. `timeline: view()`
@@ -167,7 +251,7 @@ warns in the console naming both — never a silent drop — see
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 255 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 257 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.

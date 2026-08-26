@@ -39,6 +39,26 @@ const FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/effect-sweep.htm
 const SELF_STARTING = new Set([undefined, 'load', 'enter'])
 
 /**
+ * Effects whose properties come from the attribute, so a bare name is not a spelling of them at all.
+ *
+ * Every other name in the catalog means something on its own — `fade-up 400ms` is a complete
+ * animation. The generic tween is the one family where the author supplies the properties
+ * (`tween x:120`), so `tween 400ms` correctly compiles to no animation and warns. Driving it bare
+ * would report the probe's own empty attribute as a dead effect.
+ *
+ * This is a sample attribute, not an exclusion: the tween is swept exactly like everything else,
+ * and has to install an animation, move across its timeline, interpolate rather than hard-cut, and
+ * start by itself. What keeps the map from going stale is that it is checked in both directions
+ * against the registry below: whether an effect needs parameters is derivable — its primitive
+ * declares `variantFor` — so a third one arriving without an entry here fails the sweep rather than
+ * being silently driven bare, and an entry left behind by a removed effect fails it too.
+ */
+const PARAMETERIZED = new Map([
+  ['tween', 'x:120 opacity:0.2'],
+  ['tween-from', 'y:40 opacity:0.2'],
+])
+
+/**
  * The two effects this probe genuinely cannot read, each with the reason. Both were checked by hand
  * before being excused — "the probe saw nothing" is not evidence that nothing happened, and six
  * effects were wrongly called dead that way once already.
@@ -72,7 +92,13 @@ export async function run({ browser }) {
       .names()
       .map((effect) => ({ effect, ...registry.resolve(effect) }))
       .filter((entry) => entry.primitive?.renderer === 'css-keyframes')
-      .map((entry) => ({ effect: entry.effect, activation: entry.primitive.defaultActivation }))
+      .map((entry) => ({
+        effect: entry.effect,
+        activation: entry.primitive.defaultActivation,
+        // A primitive that refines itself per spec reads its properties off the attribute, so the
+        // probe cannot drive it by name alone. See `PARAMETERIZED`.
+        parameterDriven: typeof entry.primitive.variantFor === 'function',
+      }))
   })
   const cssNames = catalog.map((entry) => entry.effect)
   const selfStarting = new Set(
@@ -81,12 +107,30 @@ export async function run({ browser }) {
 
   check('the fixture sees a populated CSS catalog to sweep', cssNames.length > 100, `${cssNames.length} css-keyframes effects`)
 
-  const report = await page.evaluate(async (names) => {
+  // Both directions, so the map can neither miss a new parameter-driven effect nor keep an entry
+  // for one that stopped being parameter-driven and should now be swept bare like everything else.
+  const parameterDriven = catalog.filter((entry) => entry.parameterDriven).map((entry) => entry.effect)
+  const undriven = parameterDriven.filter((effect) => !PARAMETERIZED.has(effect))
+  const stale = [...PARAMETERIZED.keys()].filter((effect) => !parameterDriven.includes(effect))
+  check(
+    'every parameter-driven effect has a sample attribute, and no entry outlives its effect',
+    undriven.length === 0 && stale.length === 0 && parameterDriven.length > 0,
+    undriven.length === 0 && stale.length === 0
+      ? `${parameterDriven.length} driven with sample properties`
+      : `no sample for: ${undriven.join(', ') || 'none'}; stale entry: ${stale.join(', ') || 'none'}`,
+  )
+
+  const specs = cssNames.map((effect) => ({
+    effect,
+    attribute: PARAMETERIZED.has(effect) ? `${effect} ${PARAMETERIZED.get(effect)} 400ms` : `${effect} 400ms`,
+  }))
+
+  const report = await page.evaluate(async (probes) => {
     const stage = document.getElementById('stage')
     const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     const rows = []
 
-    for (const effect of names) {
+    for (const { effect, attribute } of probes) {
       // A fresh element each time: a reused one keeps the previous effect's inline properties and
       // its `data-kui-fx`, and the runtime would be diffing rather than compiling from scratch.
       // `replaceChildren` and not `probe.remove()` — a reference captured once outside the loop
@@ -98,7 +142,7 @@ export async function run({ browser }) {
       // The attribute goes on *before* the element enters the document. The runtime's watcher
       // compiles on insertion; an element added bare and decorated a tick later is simply never
       // seen, which reads exactly like a catalog of dead effects.
-      el.setAttribute('data-kui', `${effect} 400ms`)
+      el.setAttribute('data-kui', attribute)
       stage.replaceChildren(el)
 
       // Poll rather than wait a fixed tick. `on:enter` runs off an IntersectionObserver, whose
@@ -183,7 +227,7 @@ export async function run({ browser }) {
     }
 
     return rows
-  }, cssNames)
+  }, specs)
 
   const missing = report.filter((row) => !row.installed).map((row) => row.effect)
   check(

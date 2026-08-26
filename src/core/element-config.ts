@@ -1,3 +1,4 @@
+import { validateActivation } from './activation.js'
 import { ATTR } from './attrs.js'
 import type { Activation, ParsedValue, Timeline } from './types.js'
 
@@ -19,7 +20,6 @@ export interface ElementConfig {
   threshold: string
 }
 
-const ACTIVATIONS = new Set<Activation>(['load', 'enter', 'hover', 'focus', 'click', 'manual'])
 const TIMELINES = new Set<Timeline>(['time', 'view', 'scroll', 'pointer', 'pin'])
 
 /**
@@ -69,24 +69,15 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
   }
 }
 
-/** The longhand attribute, when it names a known activation. */
-function readActivation(attribute: string | null): Activation | undefined {
-  return attribute && ACTIVATIONS.has(attribute as Activation)
-    ? (attribute as Activation)
-    : undefined
-}
-
 /**
- * Convert an IntersectionObserver threshold from `"30%"` or `"0.3"` into a clamped ratio.
+ * The longhand attribute, when it holds something bindable.
  *
- * @param raw - Authored threshold value.
- * @returns A ratio in [0, 1]; unparseable input yields 0 rather than throwing.
- * @complexity O(1) time, O(1) space.
- * @overallScore 100
+ * "Bindable" rather than "one of six known names": the activation list is open, so `data-kui-on`
+ * accepts any event type and any `start/end` pair. Only text that cannot be an event type at all
+ * is dropped — falling back to the default rather than binding something meaningless. This module
+ * has no reporter, so the diagnostic for a dropped value comes from `parse.ts` (for the inline
+ * `on:` spelling) or `animator.ts` (for an event name no document recognises).
  */
-export function toThresholdRatio(raw: string): number {
-  const value = Number.parseFloat(raw)
-  if (Number.isNaN(value)) return 0
-  const ratio = raw.includes('%') ? value / 100 : value
-  return Math.min(1, Math.max(0, ratio))
+function readActivation(attribute: string | null): Activation | undefined {
+  return attribute && validateActivation(attribute).length === 0 ? attribute : undefined
 }

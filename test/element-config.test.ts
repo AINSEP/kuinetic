@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readAttributes, resolveConfig, toThresholdRatio } from '../src/core/element-config.js'
+import { readAttributes, resolveConfig } from '../src/core/element-config.js'
 import { parse } from '../src/core/parse.js'
 
 describe('readAttributes', () => {
@@ -16,10 +16,20 @@ describe('resolveConfig', () => {
     const config = resolveConfig({ ...attrs, timeline: 'bogus' }, parse(''))
     expect(config.timeline).toBe('time')
   })
-})
 
-describe('toThresholdRatio', () => {
-  it('returns 0 for an unparseable value instead of NaN', () => {
-    expect(toThresholdRatio('not-a-number')).toBe(0)
+  it('accepts any event name in the longhand attribute, not a closed list of six', () => {
+    for (const on of ['pointerleave', 'submit', 'cart:updated', 'pointerenter/pointerleave']) {
+      const config = resolveConfig({ ...attrs, on }, parse(''))
+      expect(config.activation, on).toBe(on)
+      expect(config.activationAuthored, on).toBe(true)
+    }
+  })
+
+  it('falls back to the default when the longhand holds something unbindable', () => {
+    // No reporter here, so a dropped value is silent at this layer by design — `parse.ts` warns
+    // for the inline `on:` spelling and `animator.ts` for an event no document recognises.
+    const config = resolveConfig({ ...attrs, on: 'a/b/c' }, parse(''))
+    expect(config.activation).toBe('enter')
+    expect(config.activationAuthored).toBe(false)
   })
 })

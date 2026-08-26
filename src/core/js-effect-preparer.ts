@@ -1,11 +1,12 @@
 import type { Capabilities } from './capabilities.js'
-import type { CompiledPlan } from './compile.js'
+import { authoredParams } from './compile.js'
+import type { CompiledPlan, Entry } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
 import { readEffectParams, readEffectTiming } from './js-params.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Reporter } from './reporter.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
-import type { EffectInstance } from './types.js'
+import type { EffectInstance, EffectTiming } from './types.js'
 
 /** Everything `JsEffectPreparer.prepare` needs, grouped so the call site reads as one request. */
 export interface PrepareJsEffectsRequest {
@@ -41,6 +42,27 @@ export interface JsEffectPreparerOptions {
   capabilities: Capabilities
   reporter: Reporter
   respectReducedMotion: boolean
+}
+
+/**
+ * Author timing for one segment, with any `at:` position folded in.
+ *
+ * `at:` supersedes the segment's own delay by design — an effect cannot be both 200ms after the
+ * trigger and 200ms before its neighbour ends, and `compile` has already warned when an author
+ * wrote both — so the resolved position overwrites `delayMs` rather than adding to it.
+ *
+ * The write is safe: `readEffectTiming` builds a fresh object per call, so nothing shared is being
+ * mutated here. It reaches the primitive through `params.timing`, which is the route that works
+ * whether or not the primitive's schema happens to declare a look-alike `delay` — see the design
+ * note on the two routes into a JS primitive in the `prepare` loop below.
+ *
+ * @complexity O(1) time and space beyond `readEffectTiming`.
+ * @overallScore 100
+ */
+function sequencedTiming(entry: Entry, warn: (message: string) => void): EffectTiming {
+  const timing = readEffectTiming(entry.spec, warn)
+  if (entry.sequencedDelayMs !== undefined) timing.delayMs = entry.sequencedDelayMs
+  return timing
 }
 
 /**
@@ -81,7 +103,8 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
 
       const ctx = contextFor(el, signal, ledger)
 
-      for (const { spec, resolved } of plan.jsEffects) {
+      for (const entry of plan.jsEffects) {
+        const { spec, resolved } = entry
         const prepare = resolved.primitive.prepare
         if (!prepare) continue
         const warn = (message: string): void => reporter.warn(message, el)
@@ -93,11 +116,15 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
         // it off the spec for CSS-rendered effects, and a JS-rendered one has no other route to it
         // — merging it into the record instead would warn "unknown parameter" on every primitive
         // whose schema does not happen to declare a look-alike `duration`/`delay`/`ease`.
+        // `authoredParams`, not `spec.params`: a primitive with a `variantFor` may normalise what
+        // the author wrote before it is validated, and the CSS path already reads it through the
+        // same accessor. No JS-rendered primitive declares one today; going through the accessor
+        // is what stops the first one that does from silently seeing different input here.
         const params = readEffectParams(
-          { ...resolved.preset.params, ...spec.params },
+          { ...resolved.preset.params, ...authoredParams(entry) },
           resolved.primitive.parameters,
           warn,
-          readEffectTiming(spec, warn),
+          sequencedTiming(entry, warn),
         )
         try {
           instances.push(prepare(el, params, ctx))

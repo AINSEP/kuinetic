@@ -1,5 +1,11 @@
-export { createActivationBinder } from './activation.js'
-export type { ActivationBinder, ActivationBinderOptions } from './activation.js'
+export { createActivationBinder, resolveActivationSpec } from './activation.js'
+export type {
+  ActivationBinder,
+  ActivationBinderOptions,
+  ActivationRequest,
+  ActivationSpec,
+  ActivationTrigger,
+} from './activation.js'
 export { Animator, createAnimator, ATTR } from './animator.js'
 export type { AnimatorOptions } from './animator.js'
 export { detect } from './capabilities.js'
@@ -17,6 +23,8 @@ export type {
   Cleanup,
   EffectInstance,
   EffectParams,
+  EffectVariant,
+  NamedActivation,
   ParamSpec,
   ParameterSchema,
   PerfClass,

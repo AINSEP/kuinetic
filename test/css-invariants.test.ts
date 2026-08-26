@@ -43,6 +43,13 @@ import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
  * channels write (`mask-image`/`mask-position`/`mask-size`, `font-weight`/`font-stretch`/
  * `font-style`) had no entry in `CHANNEL_PROPERTIES`. Both channels are mapped now — see
  * `./support/channel-properties.js` — so every catalog stylesheet is audited here.
+ *
+ * `tween.css` is the one stylesheet deliberately outside this list, and not because it is exempt.
+ * Every check below joins a keyframe block to a primitive through `Preset.keyframes`, and the
+ * generic tween has no such field: its blocks are chosen per attribute by `variantFor`, and its
+ * channels are read off that attribute too, so there is no preset here to compare a block against.
+ * The same two invariants are asserted against it in `tween.test.ts`, using this same
+ * `CHANNEL_PROPERTIES` map.
  */
 const EFFECT_FILES = [
   'entrance.css',

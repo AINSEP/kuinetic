@@ -1,4 +1,11 @@
-import type { Activation, ParameterSchema, Primitive, ReducedMotionPolicy, Timeline } from '../core/types.js'
+import type {
+  Activation,
+  NamedActivation,
+  ParameterSchema,
+  Primitive,
+  ReducedMotionPolicy,
+  Timeline,
+} from '../core/types.js'
 
 /**
  * The one `delay` declaration, spread by every primitive that waits for a trigger before playing.
@@ -54,7 +61,7 @@ const COMMON: ParameterSchema = {
 export interface CssPrimitiveOptions {
   parameters?: ParameterSchema
   timelines?: Timeline[]
-  activations?: Activation[]
+  activations?: NamedActivation[]
   defaultActivation?: Activation
   reducedMotion?: ReducedMotionPolicy
   perfClass?: Primitive['perfClass']

@@ -92,6 +92,11 @@ function restartCssAnimation(el: Element, ledger: StyleLedger): void {
  * @complexity O(a) per call in the number of running animations; O(1) space.
  * @overallScore 100
  */
+// Closure over one element's playback state (`finished`, `settle`, `activatedBefore`); the body is
+// a handful of small named operations sharing that state, not one long procedure. Splitting them
+// into free functions would mean threading a mutable state object through every one of them, which
+// is more code and less readable, not less.
+// eslint-disable-next-line max-lines-per-function
 export function createCssInstance(
   el: Element,
   ledger: StyleLedger,
@@ -113,6 +118,41 @@ export function createCssInstance(
     // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
     // ordinary case of an effect being torn down.
     void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle?.())
+  }
+
+  /**
+   * Drive the owned animations in one direction from wherever they currently sit.
+   *
+   * This is what an exit half of a paired activation (`on="pointerenter/pointerleave"`) is built
+   * on, and it is deliberately *not* `Animation.reverse()`. `reverse()` flips whatever the current
+   * playback rate happens to be, so it means "turn around" — correct for the click-toggle in
+   * `activate()` below, and wrong here, where two `pointerleave`s in a row must both mean "play
+   * out" rather than the second one playing back in. Setting the rate absolutely makes an exit
+   * idempotent, which is what an author gets when a pointer skims the edge of an element.
+   *
+   * `animation-fill-mode: both` is already on the compiled declaration, so a run that reaches time
+   * 0 holds the from-state rather than snapping to the element's rest state — the exit lands
+   * exactly where the entrance began.
+   *
+   * @complexity O(a) time in the element's owned animations; O(1) space.
+   * @overallScore 100
+   */
+  function drive(rate: number): void {
+    // A scrubbed effect (`timeline: pin`) has no playhead to drive: its frame is a pure function
+    // of `--kui-progress` through the compiled negative `animation-delay`. Playing it in either
+    // direction would hand it to the document timeline on top of the seek — the same trap
+    // `activate()` guards against below. Re-arming `finished` for a run that will never happen
+    // would also strand `data-kui-state`, so bail before touching either.
+    if (scrubbed) return
+    const animations = ownedAnimationsOf(el, ownedNames)
+    finished = new Promise((resolve) => {
+      settle = resolve
+    })
+    for (const animation of animations) {
+      animation.playbackRate = rate
+      animation.play()
+    }
+    watch(animations)
   }
 
   return {
@@ -157,6 +197,12 @@ export function createCssInstance(
       }
       activatedBefore = true
       watch(animations)
+    },
+    play() {
+      drive(1)
+    },
+    reverse() {
+      drive(-1)
     },
     cancel() {
       for (const animation of ownedAnimationsOf(el, ownedNames)) animation.cancel()

@@ -56,8 +56,53 @@ export const CHANNEL = {
  */
 export type Channel = (typeof CHANNEL)[keyof typeof CHANNEL] | (string & {})
 
-/** What starts the animation. Distinct from — and never a substitute for — a Timeline. */
-export type Activation = 'load' | 'enter' | 'hover' | 'focus' | 'click' | 'manual'
+/**
+ * The activations the library gives a name of its own, because the DOM has no event for them or
+ * because the name bundles more than one event. See `core/activation.ts` for what each
+ * one binds.
+ */
+export type NamedActivation =
+  | 'load'
+  | 'enter'
+  | 'leave'
+  | 'hover'
+  | 'unhover'
+  | 'focus'
+  | 'blur'
+  | 'click'
+  | 'manual'
+
+/**
+ * What starts the animation. Distinct from — and never a substitute for — a Timeline.
+ *
+ * The open `string` arm is the whole point of `data-kui-on`: any DOM event type an author can pass
+ * to `addEventListener` — `input`, `submit`, `pointerleave`, `cart:updated` — starts an animation,
+ * and a `start/end` pair (`pointerenter/pointerleave`) plays it out again on the second one. The
+ * union documents the names the library adds on top of that without closing the set, the same
+ * shape and for the same reason as `Channel` above.
+ *
+ * A value may therefore be a `NamedActivation`, a raw event type, or a pair of either joined by
+ * `/`. Anything reading it for meaning must go through `resolveActivationSpec` rather than
+ * comparing strings — an equality test against `'load'` silently stops being true for
+ * `'load/pointerleave'`.
+ *
+ * Plain `string`, not `NamedActivation | (string & {})`. The latter spelling — which `Channel`
+ * above uses, and which preserves editor autocomplete for the documented names — is right where
+ * the set is genuinely a set that third parties extend. This is not that: an authored activation
+ * is an arbitrary event type by design, and pretending otherwise would put a hint in front of a
+ * value that has no closed vocabulary at all. The place a closed vocabulary *does* still apply is
+ * `Primitive.supportedActivations`, which is why that one is typed `NamedActivation[]` and keeps
+ * its autocomplete.
+ */
+// Not redundant, despite resolving to `string`: this alias is the domain name the whole codebase
+// and the published `.d.ts` read in — twenty-odd signatures, one public export — and the fact that
+// an activation is *carried* as a string is the least interesting thing about it. Replacing it
+// with `string` as the rule asks would delete the only place that says what those strings are.
+// The alternative spelling `NamedActivation | (string & {})`, which keeps a literal hint, trades
+// this one suppression for three `sonarjs/function-return-type` suppressions on every function
+// that returns one, and puts an autocomplete list in front of a value with no closed vocabulary.
+// eslint-disable-next-line sonarjs/redundant-type-aliases
+export type Activation = string
 
 /**
  * What drives progress.
@@ -148,6 +193,24 @@ export interface EffectInstance {
   cancel(): void
   /** Jump to the end state immediately. */
   finish(): void
+  /**
+   * Resume forward playback from wherever the effect currently sits.
+   *
+   * Optional, and deliberately so: only a renderer with a real playhead can honour it. A
+   * CSS-rendered effect has an `Animation` handle and simply sets `playbackRate` back to 1; a
+   * JS-rendered one has no playhead at all (`getAnimations()` returns `[]` for it — see
+   * `core/play.ts`), and there is no honest shim for "half-way through a `split-flap`, backwards".
+   * Leaving it undefined is how a primitive says so, and `animator.ts` warns by name rather than
+   * pretending — a knob that exists and does nothing is worse than a missing knob.
+   */
+  play?(): void
+  /**
+   * Play backwards from wherever the effect currently sits, ending at the from-state.
+   *
+   * The exit half of a paired activation (`data-kui-on="pointerenter/pointerleave"`) is built on
+   * this. Optional for the same reason as `play` above.
+   */
+  reverse?(): void
   /** Resolves when the effect completes. Resolves — never rejects — on cancel. */
   readonly finished: Promise<void>
   /**
@@ -232,6 +295,49 @@ export interface EffectParams {
 }
 
 /**
+ * A primitive's refinement of itself for one authored spec.
+ *
+ * Almost every primitive in the catalog is fully described before it ever meets an attribute:
+ * `fade-up 200ms` and `fade-up 900ms` claim the same channels and compile the same keyframe. The
+ * generic tween (`effects/tween`) is the exception this exists for — `tween x:100` writes
+ * `translate` and `tween opacity:0` writes `opacity`, so *which* channels it owns, and therefore
+ * whether it may compose with a neighbour at all, is a fact about the attribute rather than about
+ * the primitive.
+ *
+ * Neither static answer is honest. Declaring every channel a tween *could* write makes it collide
+ * with everything and compose with nothing; declaring none makes the conflict detector wave
+ * through two effects that both animate `opacity`, which is the one failure `core/channels.ts`
+ * exists to prevent. So the primitive is asked, once per spec, instead.
+ *
+ * Every field is optional, and an absent field means "use the primitive's own declaration". A
+ * primitive with no `variantFor` at all — which is all but two of them — is unaffected.
+ */
+export interface EffectVariant {
+  /**
+   * Channels this spec writes, unioned with the primitive's own declared list.
+   *
+   * Unioned rather than replacing, so a variant can only ever *widen* what a primitive admits to
+   * touching. A refinement that could quietly drop a declared channel would be a way to opt out of
+   * conflict detection, which is exactly backwards.
+   */
+  channels?: Channel[]
+  /**
+   * Keyframe blocks to compile, one animation track each, replacing the preset's single
+   * `keyframes` name. Empty means this spec animates nothing and emits no `animation` declaration.
+   */
+  keyframes?: string[]
+  /**
+   * Authored parameter values to resolve in place of `spec.params`.
+   *
+   * For normalisation the schema cannot express — the tween reads `x:100` as `100px`, because a
+   * bare number is the spelling the syntax was designed around and `params.ts` is deliberately
+   * strict about units for everyone else. Still untrusted author input: it goes through
+   * `resolveParams` exactly as `spec.params` would have.
+   */
+  params?: Record<string, string>
+}
+
+/**
  * A primitive is an implementation. Presets are names that point at a primitive with different
  * default parameters — 48 of the entrance/exit names come from one primitive.
  */
@@ -241,7 +347,16 @@ export interface Primitive {
   channels: Channel[]
   parameters: ParameterSchema
   supportedTimelines: Timeline[]
-  supportedActivations: Activation[]
+  /**
+   * Which activations this primitive is built to handle.
+   *
+   * `NamedActivation[]`, not `Activation[]`: the authored value is open (any DOM event starts an
+   * animation), but a primitive declaring what it supports is choosing from a closed vocabulary —
+   * it is saying "I work when observed" or "I work on a listener", not enumerating event types it
+   * has never heard of. `animator.ts` maps an authored half onto this vocabulary before checking
+   * it; see `SUPPORT_PROXIES` in `activation.ts`.
+   */
+  supportedActivations: NamedActivation[]
   /**
    * Activation used when the author specifies none.
    *
@@ -301,6 +416,19 @@ export interface Primitive {
    * `params` are validated and defaulted — never raw author input.
    */
   prepare?(el: Element, params: EffectParams, ctx: PrepareContext): EffectInstance
+  /**
+   * Refine this primitive for one authored spec — see {@link EffectVariant}.
+   *
+   * Called once per spec by `compile`, *before* composition analysis, because the answer decides
+   * whether the spec's neighbours may compose with it at all. It is handed the raw `EffectSpec`
+   * (author input, unvalidated — `resolveParams` still runs afterwards on whatever it returns) and
+   * a warning sink, so a spec the primitive cannot make sense of can say so by name rather than
+   * compiling to silence.
+   *
+   * Must be pure and must not mutate `spec`: `compile` is a pure function and the same parsed
+   * value is compiled again on every rescan of the element.
+   */
+  variantFor?(spec: EffectSpec, warn: (message: string) => void): EffectVariant
 }
 
 export interface Preset {
@@ -339,6 +467,17 @@ export interface EffectSpec {
   duration?: string
   delay?: string
   easing?: string
+  /**
+   * Authored `at:` position — where this segment starts relative to the one before it in the comma
+   * list. Untrusted and unparsed; `core/sequence.ts` owns the grammar and every diagnostic.
+   *
+   * Beside `delay` rather than inside `params` for the same reason `delay` itself is: it is not a
+   * parameter. No `ParameterSchema` declares it, it means the same thing for every effect in the
+   * catalog, and `resolveParams` would reject it as unknown on all 255 of them. It is also not
+   * hoisted to `ParsedValue` the way `on:`/`timeline:` are, because a position is per-segment by
+   * definition — the whole point is that each segment can sit somewhere different.
+   */
+  at?: string
   params: Record<string, string>
 }
 
@@ -372,5 +511,16 @@ export interface InstanceState {
    * redundant; a toggle activation (`hover`/`focus`/`click`) deliberately leaves this undefined.
    */
   releaseActivation?: Cleanup
+  /**
+   * Which way the effects are currently playing. Only meaningful while `status === 'running'`.
+   *
+   * Runtime truth, not an attribute, for the reason at the top of this interface: a reversing
+   * element is still `running`, and `data-kui-state` has no vocabulary for the difference. It is
+   * here because two decisions need it and neither can be re-derived from the DOM — `activate`
+   * must turn a reversing element back around instead of being swallowed by its own re-entrancy
+   * guard, and the `finished` handler that writes the final state must not let a stale promise
+   * from the run it superseded write over the run in flight.
+   */
+  direction?: 'forward' | 'reverse'
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
 }

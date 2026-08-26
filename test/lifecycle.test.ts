@@ -88,9 +88,9 @@ function capturingBinder(): CapturingBinder {
   let trigger: (() => void) | undefined
   return {
     bound,
-    bind(_el, activation, _threshold, onActivate) {
+    bind(_el, activation, request) {
       bound.push({ activation })
-      trigger = onActivate
+      trigger = () => request.activate()
       return () => {
         trigger = undefined
       }

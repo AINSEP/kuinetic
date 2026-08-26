@@ -1,0 +1,140 @@
+/*
+ * Generic tween — the keyframes behind `data-kui="tween x:100 opacity:0"`.
+ *
+ * Two blocks per property group (`src/effects/tween/properties.ts`): a `to`-only one for `tween`
+ * and a `from`-only one for `tween-from`. `src/core/compile.ts` compiles one animation track per
+ * group the author actually named, so an attribute that only moves the element never mentions
+ * `opacity` at all.
+ *
+ * THE HALF-KEYFRAME IS THE WHOLE TRICK. A block with only a `to` step has its `0%` step built by
+ * the browser out of the element's own computed style, so `tween x:100` starts from wherever the
+ * element already is — no measuring, no forced layout, no JavaScript. `tween-from` is the mirror:
+ * `from`-only, with the implicit `to` being the element's natural state. Adding the "missing" half
+ * to any block below would replace that with a fixed value and break the feature.
+ *
+ * INVARIANT, same one `entrance.css` states: a block may only write properties belonging to its
+ * group's channel (`TWEEN_GROUP_CHANNELS`). Channel claims are how `core/channels.ts` decides that
+ * `tween x:100, fade-up` is a collision and `tween opacity:0, parallax` is not; a block that writes
+ * outside its channel makes that judgement wrong. `test/tween.test.ts` enforces it by parsing this
+ * file — this stylesheet is not in `css-invariants.test.ts`'s list because its blocks are named by
+ * the compiler rather than by a preset's `keyframes` field, which is the join that file scans on.
+ *
+ * WHAT THE `var()` FALLBACKS MEAN. Each fallback is the property's identity value, and it covers
+ * two cases. An axis the author did not name: `tween x:100` writes `--kui-tween-x` only, and `y`/`z`
+ * resolve to `0`. And a value the author got wrong: `resolveParams` warns and writes nothing, so
+ * that channel falls back to identity rather than to garbage.
+ *
+ * The consequence worth knowing, because CSS gives no way around it: a group is written as a whole
+ * property, so an axis you do not name animates to its *initial* value, not to whatever the element
+ * currently has. On an element already carrying `translate: 0 50px`, `tween x:100` animates y back
+ * to 0 as well. `translate` is one property and a keyframe cannot write half of it.
+ */
+@layer kui.effects {
+  /* --- translate: x, y, z --- */
+  @keyframes kui-tween-to-translate {
+    to {
+      translate: var(--kui-tween-x, 0) var(--kui-tween-y, 0) var(--kui-tween-z, 0);
+    }
+  }
+
+  @keyframes kui-tween-from-translate {
+    from {
+      translate: var(--kui-tween-x, 0) var(--kui-tween-y, 0) var(--kui-tween-z, 0);
+    }
+  }
+
+  /* --- rotate: rotate (about z; see properties.ts on why x/y are not offered) --- */
+  @keyframes kui-tween-to-rotate {
+    to {
+      rotate: var(--kui-tween-rotate, 0deg);
+    }
+  }
+
+  @keyframes kui-tween-from-rotate {
+    from {
+      rotate: var(--kui-tween-rotate, 0deg);
+    }
+  }
+
+  /*
+   * --- scale: scale, scale-x, scale-y ---
+   *
+   * The nested fallback is the per-axis override: an axis uses its own value if one was written,
+   * otherwise the uniform `scale`, otherwise 1. So `scale:1.2` moves both axes, `scale-x:1.2`
+   * moves one, and `scale:1.2 scale-y:2` moves both by different amounts.
+   */
+  @keyframes kui-tween-to-scale {
+    to {
+      scale: var(--kui-tween-scale-x, var(--kui-tween-scale, 1))
+        var(--kui-tween-scale-y, var(--kui-tween-scale, 1));
+    }
+  }
+
+  @keyframes kui-tween-from-scale {
+    from {
+      scale: var(--kui-tween-scale-x, var(--kui-tween-scale, 1))
+        var(--kui-tween-scale-y, var(--kui-tween-scale, 1));
+    }
+  }
+
+  /* --- opacity --- */
+  @keyframes kui-tween-to-opacity {
+    to {
+      opacity: var(--kui-tween-opacity, 1);
+    }
+  }
+
+  @keyframes kui-tween-from-opacity {
+    from {
+      opacity: var(--kui-tween-opacity, 1);
+    }
+  }
+
+  /*
+   * --- filter: blur, brightness, saturate, grayscale ---
+   *
+   * One property, four functions, each defaulting to its own no-op — so naming `blur` leaves the
+   * other three doing nothing rather than resetting them. The implicit half-keyframe interpolates
+   * from the element's computed `filter`, and `none` interpolates against a filter list as the
+   * identity list, so an element with no filter of its own starts where you would expect.
+   */
+  @keyframes kui-tween-to-filter {
+    to {
+      filter: blur(var(--kui-tween-blur, 0px)) brightness(var(--kui-tween-brightness, 1))
+        saturate(var(--kui-tween-saturate, 1)) grayscale(var(--kui-tween-grayscale, 0));
+    }
+  }
+
+  @keyframes kui-tween-from-filter {
+    from {
+      filter: blur(var(--kui-tween-blur, 0px)) brightness(var(--kui-tween-brightness, 1))
+        saturate(var(--kui-tween-saturate, 1)) grayscale(var(--kui-tween-grayscale, 0));
+    }
+  }
+
+  /* --- color (`currentcolor` on `color` itself resolves to the inherited colour) --- */
+  @keyframes kui-tween-to-color {
+    to {
+      color: var(--kui-tween-color, currentcolor);
+    }
+  }
+
+  @keyframes kui-tween-from-color {
+    from {
+      color: var(--kui-tween-color, currentcolor);
+    }
+  }
+
+  /* --- background: background-color --- */
+  @keyframes kui-tween-to-background {
+    to {
+      background-color: var(--kui-tween-background-color, transparent);
+    }
+  }
+
+  @keyframes kui-tween-from-background {
+    from {
+      background-color: var(--kui-tween-background-color, transparent);
+    }
+  }
+}

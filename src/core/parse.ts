@@ -1,4 +1,5 @@
-import type { Activation, EffectSpec, ParsedValue } from './types.js'
+import { validateActivation } from './activation.js'
+import type { EffectSpec, ParsedValue } from './types.js'
 
 /**
  * Grammar — ours, deliberately NOT "the CSS animation shorthand" (see docs/design.md §3):
@@ -8,6 +9,10 @@ import type { Activation, EffectSpec, ParsedValue } from './types.js'
  *
  * Positional tokens must appear in that order. Unknown or out-of-order tokens warn by name
  * rather than failing silently.
+ *
+ * Two `key:value` keys are reserved and never reach a primitive's parameters: `on`/`timeline`/
+ * `threshold` are hoisted element-wide (see `HOISTS`), and `at:` is lifted onto the spec as a
+ * relative position — `core/sequence.ts` owns what it means.
  *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
@@ -19,15 +24,6 @@ import type { Activation, EffectSpec, ParsedValue } from './types.js'
  */
 const TIME_RE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:ms|s)$/
 const EASING_FUNCTIONS = ['cubic-bezier(', 'steps(', 'linear(']
-
-const ACTIVATIONS: ReadonlySet<string> = new Set([
-  'load',
-  'enter',
-  'hover',
-  'focus',
-  'click',
-  'manual',
-])
 
 const EASING_KEYWORDS: ReadonlySet<string> = new Set([
   'linear',
@@ -281,6 +277,16 @@ function applyToken(
     return
   }
 
+  // Lifted onto the spec rather than left in `params`, exactly as the positional times are: `at:`
+  // is a position, not a parameter, and no primitive's `ParameterSchema` declares it — so leaving
+  // it in `params` would make `resolveParams` warn "unknown parameter" on every effect in the
+  // catalog. See `EffectSpec.at` in `types.ts` for why it is not hoisted element-wide either.
+  if (token.key === 'at') {
+    if (spec.at !== undefined) result.warnings.push(`duplicate parameter "at" in "${segment}"`)
+    spec.at = token.value
+    return
+  }
+
   // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
   // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to
   // an inherited value there — truthy, but not a hoist handler, so calling it threw and aborted
@@ -300,12 +306,23 @@ function applyToken(
  * activation and one timeline. A table keeps `applyToken` free of a growing branch chain.
  */
 const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
+  /**
+   * The activation list is open: any event type `addEventListener` accepts starts an animation,
+   * and `start/end` pairs it with an exit. So this no longer checks the value against a closed set
+   * of six names — `on:input` and `on:cart:updated` are both legitimate and unguessable from here.
+   *
+   * What it still rejects is text that cannot be an event type at all, because that is where the
+   * open list would otherwise turn a typo into silence rather than a warning. The complementary
+   * check — "this document has never heard of that event" — needs an element and lives in
+   * `animator.ts`.
+   */
   on(result, value) {
-    if (!ACTIVATIONS.has(value)) {
-      result.warnings.push(`unknown activation "${value}"`)
+    const problems = validateActivation(value)
+    if (problems.length > 0) {
+      result.warnings.push(...problems)
       return
     }
-    assignOnce(result, 'activation', value as Activation, 'activations')
+    assignOnce(result, 'activation', value, 'activations')
   },
   timeline(result, value) {
     assignOnce(result, 'timeline', value, 'timelines')
