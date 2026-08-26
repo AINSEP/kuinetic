@@ -7,7 +7,7 @@ import { continuousSetup } from '../../core/instances.js'
 import type { ContinuousSetup } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import type { AttributeLedger } from '../../core/owned-styles.js'
-import { resolveTarget } from '../step-marking.js'
+import { queryScoped, resolveTarget, scopeParam } from '../step-marking.js'
 import { domGeometry, trackProgress } from './tracker.js'
 
 /**
@@ -64,6 +64,12 @@ function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareC
   }
   const selector = resolveTarget(params.text('target'), ctx, 'scroll-spy')
   /*
+   * `'page'` is what this form has always done, and it is not a default that could go the other
+   * way: the link a section marks lives in a nav somewhere else in the document by definition —
+   * a link inside the section it activates would scroll to itself.
+   */
+  const scope = scopeParam(params, 'page')
+  /*
    * One ledger per element ever written, rather than a bare Set of touched elements.
    *
    * The Set recorded *which* links this instance stamped but not *what they held first*, so
@@ -89,7 +95,7 @@ function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareC
     self.set('data-kui-active', String(active))
     // Re-queried per flip rather than resolved once at setup, so a nav rendered or reordered
     // after this element was prepared is still picked up. Flips are rare; frames are not.
-    if (selector) markLinks(ctx.doc, selector, active, links)
+    if (selector) markLinks(queryScoped(el, ctx, selector, scope), active, links)
   })
 
   // External link state is written outside this element, so it must be undone explicitly.
@@ -109,12 +115,11 @@ function prepareScrollSpySingle(el: Element, params: EffectParams, ctx: PrepareC
  */
 
 function markLinks(
-  doc: Document,
-  selector: string,
+  matches: Iterable<Element>,
   active: boolean,
   links: Map<Element, AttributeLedger>,
 ): void {
-  for (const link of doc.querySelectorAll(selector)) {
+  for (const link of matches) {
     let ledger = links.get(link)
     if (!ledger) {
       ledger = createAttributeLedger(link)
@@ -296,11 +301,22 @@ function prepareScrollSpyContainer(
   }
 
   const linksSelector = resolveTarget(params.text('target'), ctx, 'scroll-spy target')
+  /*
+   * `'self'` is what this form has always done — the opposite of the per-section form above, from
+   * the same declared parameter. That is deliberate and is the reason `scope:` cannot carry a
+   * non-empty schema default: this form is authored on the shared ancestor of *both* the sections
+   * and the nav, so "inside myself" already reaches the links, and widening it to the whole
+   * document would let one container's spy stamp another's nav.
+   *
+   * `sections:` is deliberately left descendant-scoped regardless. `scope:` scopes `target:`; a
+   * container whose sections were elsewhere would not be their container.
+   */
+  const scope = scopeParam(params, 'self')
   const sections = sectionsSelector ? [...el.querySelectorAll(sectionsSelector)] : []
   if (sectionsSelector && sections.length === 0) {
     ctx.warn(`scroll-spy sections:"${sectionsSelector}" matched nothing inside this element`)
   }
-  const links = linksSelector ? [...el.querySelectorAll(linksSelector)] : []
+  const links = linksSelector ? queryScoped(el, ctx, linksSelector, scope) : []
   const pairs = pairSectionsWithLinks(sections, links, ctx, sectionsSelector)
 
   const sectionLedgers = pairs.map((pair) => createAttributeLedger(pair.section))

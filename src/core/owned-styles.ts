@@ -116,3 +116,90 @@ export function createAttributeLedger(el: Element): AttributeLedger {
     },
   }
 }
+
+/**
+ * Every element one authored `data-kui` wrote to, and the ledgers that unwind them.
+ *
+ * The host owns the lifecycle — one `InstanceState`, one gate, one event stream — but the *writes*
+ * do not all land on the host. `target:` names elements the effect animates instead of the element
+ * the attribute sits on, and each of those needs its own pair of ledgers: `createStyleLedger`
+ * closes over one element's `style` object and one snapshot of whether that element had a `style`
+ * attribute to begin with, so it cannot be shared and cannot be reconstructed later.
+ *
+ * A set rather than an array of pairs because the same element is reached repeatedly — once per
+ * effect in a composed attribute, once more by the stagger pass — and a second ledger over an
+ * element the first has already written to would snapshot *this library's* values as the author's
+ * own and restore to them. Memoising per element is what makes "what was there before" mean before
+ * this instance existed, rather than before this particular call.
+ */
+export interface LedgerSet {
+  /** This element's inline-style ledger, created on first ask. */
+  style(el: Element): StyleLedger
+  /** This element's attribute ledger, created on first ask. */
+  attributes(el: Element): AttributeLedger
+  /** Unwind every element this set ever handed out a ledger for. Host last — see below. */
+  restore(): void
+  /** Every element with a ledger, host first. Diagnostics and leak assertions. */
+  elements(): Element[]
+}
+
+/**
+ * Open a ledger set over one authored host.
+ *
+ * **Restore is host-last, and that ordering is load-bearing.** The host carries `data-kui-state`,
+ * which is the cloak layer's per-element release key: `html[data-kui-cloak] [data-kui][data-kui-reveal]:not([data-kui-state])`
+ * holds a subtree at `opacity: 0`, and the attribute's presence is what lets go. Restoring the host
+ * first removes that key while the elements underneath still carry library styles, reopening the
+ * cloak over a half-unwound subtree. Doing it last means the page is already back to the author's
+ * markup at the instant it becomes visible again.
+ *
+ * Style before attributes within each element, matching the order `release()` has always used: a
+ * primitive's teardown may write styles, and the attributes are what CSS keys on to decide whether
+ * those styles mean anything.
+ *
+ * @param host - The authored element. Always present in the set, always restored last.
+ * @returns A set that hands out memoised ledgers and unwinds all of them together.
+ * @complexity O(1) per lookup; O(n) space and O(n) time to restore, in elements written to.
+ * @overallScore 100
+ */
+export function createLedgerSet(host: Element): LedgerSet {
+  const styles = new Map<Element, StyleLedger>()
+  const attributes = new Map<Element, AttributeLedger>()
+
+  function memoise<T>(cache: Map<Element, T>, el: Element, make: (el: Element) => T): T {
+    let ledger = cache.get(el)
+    if (!ledger) {
+      ledger = make(el)
+      cache.set(el, ledger)
+    }
+    return ledger
+  }
+
+  function restoreOne(el: Element): void {
+    styles.get(el)?.restore()
+    attributes.get(el)?.restore()
+  }
+
+  return {
+    style: (el) => memoise(styles, el, createStyleLedger),
+    attributes: (el) => memoise(attributes, el, createAttributeLedger),
+    restore() {
+      // Insertion order, minus the host, then the host — rather than trusting the host to have
+      // been asked for first. It always is today (`install` writes the host's style plan before
+      // anything else), but "restore order is correct because of the order an unrelated function
+      // happens to call us in" is exactly the kind of invariant that breaks silently.
+      for (const el of new Set([...styles.keys(), ...attributes.keys()])) {
+        if (el !== host) restoreOne(el)
+      }
+      restoreOne(host)
+      styles.clear()
+      attributes.clear()
+    },
+    elements() {
+      const all = new Set<Element>([host])
+      for (const el of styles.keys()) all.add(el)
+      for (const el of attributes.keys()) all.add(el)
+      return [...all]
+    },
+  }
+}

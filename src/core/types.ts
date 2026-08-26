@@ -193,7 +193,7 @@ export type ParameterSchema = Record<string, ParamSpec>
 
 import type { EffectGate } from './breakpoints.js'
 import type { PrepareContext } from './effect-context.js'
-import type { AttributeLedger, StyleLedger } from './owned-styles.js'
+import type { AttributeLedger, LedgerSet, StyleLedger } from './owned-styles.js'
 
 export type { PrepareContext }
 
@@ -637,6 +637,19 @@ export interface InstanceState {
   /** Inline properties this element's effects wrote, and what they replaced. */
   ledger: StyleLedger
   attributes: AttributeLedger
+  /**
+   * Every element these effects wrote to, host included, and the ledgers that unwind them.
+   *
+   * `ledger`/`attributes` above are this set's entries *for the host*, kept as named fields because
+   * that is what every reader in `animator.ts` asks for and the host is the only element a
+   * lifecycle write ever lands on: `data-kui-state` is stamped on the authored element and nowhere
+   * else. The set exists for the writes that are not lifecycle — inline properties, `data-kui-fx`,
+   * `--kui-i` — which `target:` relocates onto elements the host merely names.
+   *
+   * One element in the set is exactly the old singular behaviour, which is why this can be true
+   * before anything is retargeted.
+   */
+  ledgers: LedgerSet
   /** Aborted on release, detaching bindings and primitive listeners. */
   controller: AbortController
   /**

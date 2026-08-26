@@ -7,7 +7,8 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { TIMELINE_AGNOSTIC, withTimingContract } from '../shared.js'
-import { createStepMarker, resolveTarget } from '../step-marking.js'
+import { createStepMarker, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../step-marking.js'
+import type { TargetScope } from '../step-marking.js'
 import { prepareScrollSpy } from './scroll-spy.js'
 import { trackProgress } from './tracker.js'
 
@@ -225,8 +226,12 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
    * section whose children are layout — `.story`'s only child is the sticky wrapper. Guessing
    * would mark the wrong nodes silently, so an author who wants the children marked says which.
    */
-  const selector = resolveTarget(params.text('target'), ctx, 'scrollytelling-step')
-  const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
+  const selector = resolveTarget(params.text('target'), ctx, 'scroll-progress')
+  // `'page'` is what this site has always done. The step elements a scrollytelling section marks
+  // are routinely outside it — the copy lines are in the sticky wrapper but the progress dots that
+  // track them are just as often in a sibling rail.
+  const scope = scopeParam(params, 'page')
+  const marker = createStepMarker(() => queryScoped(el, ctx, selector, scope))
   // The step attribute is authored on the demo element in real markup (`data-kui-step="0"`, to
   // avoid a flash of unstyled steps before hydration), so removing it on teardown destroyed the
   // consumer's own value. Same defect the scroll-spy ledgers were introduced to close.
@@ -271,12 +276,29 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
  * @overallScore 100
  */
 function prepareHorizontal(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup | ContinuousSetup {
-  const selector = resolveTarget(params.text('target'), ctx, 'horizontal-scroll')
+  const selector = resolveTarget(params.text('target'), ctx, 'horizontal-track')
   if (!selector) return prepareBareTrack(el as HTMLElement, params, ctx)
-  const track = el.querySelector(selector)
+  // `'self'` is what this site has always done, and is the only scope that makes sense by default:
+  // the row this names is the one the host clips and pins, so it lives inside the host.
+  const scope = scopeParam(params, 'self')
+  const tracks = queryScoped(el, ctx, selector, scope)
+  const track = tracks[0]
   if (!track) {
-    ctx.warn(`horizontal-scroll target "${selector}" matched nothing inside this element`)
+    ctx.warn(`horizontal-track target "${selector}" matched nothing inside this element`)
     return () => {}
+  }
+  /*
+   * One window, one row. `prepareManagedTrack` makes the *host* the sticky, clipping,
+   * spacer-reserved window, and two rows would share that one window while each measured its own
+   * `trackTravel` — they would translate at different rates inside a single clip, which is not
+   * "all matches" behaviour, it is a bug with a plural selector. So the extra matches are refused
+   * out loud rather than silently used or silently dropped: before this, a broad selector simply
+   * *looked* like it had worked.
+   */
+  if (tracks.length > 1) {
+    ctx.warn(
+      `horizontal-track target "${selector}" matched ${tracks.length} elements; only the first is used`,
+    )
   }
   return prepareManagedTrack(el as HTMLElement, track as HTMLElement, params, ctx)
 }
@@ -444,8 +466,11 @@ function prepareMediaScrub(el: Element, params: EffectParams, ctx: PrepareContex
   const stickyEl = managed ? el : undefined
 
   const selector = resolveTarget(params.text('target'), ctx, 'media-scrub')
+  // `'page'` is what this site has always done. A scrubbed frame set is regularly a sibling figure
+  // rather than a child, because the host is the element that gets pinned.
+  const scope = scopeParam(params, 'page')
   const scrub = selector
-    ? prepareTargetScrub(el, params, ctx, { selector, contentAnchor, stickyEl })
+    ? prepareTargetScrub(el, params, ctx, { selector, scope, contentAnchor, stickyEl })
     : prepareSrcScrub(el, params, ctx, { contentAnchor, stickyEl })
 
   // Continuous: a scrub follows scroll position for as long as the page is scrolled.
@@ -485,10 +510,10 @@ function prepareTargetScrub(
   el: Element,
   params: EffectParams,
   ctx: PrepareContext,
-  authored: { selector: string; contentAnchor?: Element; stickyEl?: Element },
+  authored: { selector: string; scope: TargetScope; contentAnchor?: Element; stickyEl?: Element },
 ): Cleanup {
-  const { selector, contentAnchor, stickyEl } = authored
-  const marker = createStepMarker(() => ctx.doc.querySelectorAll(selector))
+  const { selector, scope, contentAnchor, stickyEl } = authored
+  const marker = createStepMarker(() => queryScoped(el, ctx, selector, scope))
   /*
    * Counted once at setup, and `frames:` is ignored in this form: the number of frames is the
    * number of elements you wrote, so making the author state it again is a second source of truth
@@ -499,7 +524,7 @@ function prepareTargetScrub(
    * `scroll-spy`'s own note calls out as pure waste. A list rendered after setup wants a re-run of
    * the effect, not a query on every scroll frame.
    */
-  const frames = Math.max(1, ctx.doc.querySelectorAll(selector).length)
+  const frames = Math.max(1, queryScoped(el, ctx, selector, scope).length)
   let lastIndex: number | undefined
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor, stickyEl }, (progress) => {
@@ -626,7 +651,10 @@ function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cl
   ctx.style.set('scroll-snap-type', `${axis} ${params.text('strictness', 'mandatory')}`)
 
   const selector = resolveTarget(params.text('target'), ctx, 'scroll-snap')
-  const items = selector ? [...el.querySelectorAll(selector)] : [...el.children]
+  // `'self'` is what this site has always done. Naming the items also opts the host into *being*
+  // the scroll container (`installSnapContainer`), and a container can only snap its own subtree.
+  const scope = scopeParam(params, 'self')
+  const items = selector ? queryScoped(el, ctx, selector, scope) : [...el.children]
   if (selector && items.length === 0) {
     ctx.warn(`scroll-snap target "${selector}" matched nothing inside this element`)
   }
@@ -684,6 +712,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       // Same name, same shape and the same validation as scroll-spy's: one `target:` convention
       // across the library rather than a second word for "the elements this effect marks".
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
+      // see `prepareProgress`. One declaration, shared: `effects/step-marking.ts`.
+      scope: SCOPE_PARAM,
     },
     prepare: deferPrepare(prepareProgress),
   }),
@@ -698,6 +729,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       // `target:` convention across the library. Naming the row that moves is also what opts this
       // primitive into owning the stage, the sticky window and the row's layout itself.
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
+      // see `prepareHorizontal`. One declaration, shared: `effects/step-marking.ts`.
+      scope: SCOPE_PARAM,
       'offset-top': {
         type: 'length',
         default: 'var(--kui-pin-offset, 0px)',
@@ -719,6 +753,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       src: { type: 'text', default: '', cssProperty: '--kui-src' },
       // The preferred form. `frames:`/`src:` remain for sequences too long to author as tags.
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
+      // see `prepareMediaScrub`. One declaration, shared: `effects/step-marking.ts`.
+      scope: SCOPE_PARAM,
     },
     prepare: deferPrepare(prepareMediaScrub),
     perfClass: 'paint',
@@ -736,6 +773,12 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       // one link this section names; with `sections:`, every link `target:` matches, each paired
       // to its own section by `href`. See `prepareScrollSpyContainer`.
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Which tree `target:` is searched in — and the one place in the library where the *same*
+      // declared parameter has two historical answers, because the two forms below resolve it
+      // differently on purpose: `'page'` per-section (the nav link is elsewhere by definition),
+      // `'self'` in the container form. Unset means "each form keeps its own"; see
+      // `prepareScrollSpySingle` and `prepareScrollSpyContainer`.
+      scope: SCOPE_PARAM,
       // Presence, not value, selects the container form: authoring this at all switches
       // `prepareScrollSpy` from one-section-per-instance to one-instance-on-the-shared-ancestor.
       sections: { type: 'text', default: '', cssProperty: '--kui-sections' },
@@ -789,6 +832,9 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       // itself — see `installSnapContainer`. Without it, the direct children are the items and
       // the page keeps its own `overflow`, exactly as before.
       target: { type: 'text', default: '', cssProperty: '--kui-target' },
+      // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
+      // see `prepareSnap`. One declaration, shared: `effects/step-marking.ts`.
+      scope: SCOPE_PARAM,
     },
     prepare: deferPrepare(prepareSnap),
     perfClass: 'layout',

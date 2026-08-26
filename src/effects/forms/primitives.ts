@@ -4,7 +4,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
-import { createStepMarker, resolveTarget } from '../step-marking.js'
+import { createStepMarker, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../step-marking.js'
 
 /**
  * Form and input primitives (catalog section O).
@@ -236,8 +236,12 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
    * `steps: 1..20`, and a twenty-first step would simply not have rendered.
    */
   const selector = resolveTarget(params.text('target'), ctx, 'step-progress')
+  // `'page'` is what this site has always done — but only on the authored-`target:` branch. With
+  // no `target:` the segments are `el.children` and no scope applies at all, which is why the
+  // fallback here reads as a widening and is not: the default *shape* is still the children.
+  const scope = scopeParam(params, 'page')
   const marker = createStepMarker(() =>
-    selector ? ctx.doc.querySelectorAll(selector) : el.children,
+    selector ? queryScoped(el, ctx, selector, scope) : el.children,
   )
   const self = createAttributeLedger(el)
   let step = 0
@@ -264,6 +268,9 @@ export const STEP_PROGRESS_PRIMITIVE = jsInputPrimitive(
   {
     steps: { type: 'number', default: '4', cssProperty: '--kui-steps', minimum: 1, maximum: 20, integer: true },
     target: { type: 'text', default: '', cssProperty: '--kui-target' },
+    // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
+    // see `prepareStepProgress`. One declaration, shared: `effects/step-marking.ts`.
+    scope: SCOPE_PARAM,
   },
   deferPrepare(prepareStepProgress),
 )

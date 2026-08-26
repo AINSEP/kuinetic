@@ -60,7 +60,7 @@ import { Registry } from './registry.js'
 import { silentReporter } from './reporter.js'
 import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
-import { createAttributeLedger, createStyleLedger } from './owned-styles.js'
+import { createLedgerSet } from './owned-styles.js'
 import { applyStagger } from './stagger.js'
 import { applyStylePlan, planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
@@ -388,8 +388,18 @@ export class Animator {
       respectReducedMotion: this.respectReducedMotion,
     })
 
-    const ledger = createStyleLedger(el)
-    const attributes = createAttributeLedger(el)
+    /*
+     * One set per authored element, not one ledger pair. The host is the first member and always
+     * the last one restored; `target:` adds the elements the effects actually write to.
+     *
+     * `ledger`/`attributes` below are this set's host entries, and they are the *same objects* the
+     * set holds — `style`/`attributes` memoise per element — so the singular fields every other
+     * reader in this file uses stay exactly what they were. With nothing retargeted the set has one
+     * member and `restore()` does what the two singular calls did, in the order they did it.
+     */
+    const ledgers = createLedgerSet(el)
+    const ledger = ledgers.style(el)
+    const attributes = ledgers.attributes(el)
     const controller = new AbortController()
     applyStylePlan({ el, plan: stylePlan, ledger, attributes })
 
@@ -404,6 +414,7 @@ export class Animator {
       instances: [],
       ledger,
       attributes,
+      ledgers,
       controller,
       status: 'ready',
     }
@@ -866,8 +877,9 @@ export class Animator {
     // it from the freshly compiled plan, so the only thing dropping it here can lose is a stale
     // subscription for an element that has genuinely gone away.
     this.gateWatcher?.unwatch(el)
-    state.ledger.restore()
-    state.attributes.restore()
+    // One call for every element these effects wrote to, host last — see `createLedgerSet`. The
+    // two singular restores this replaced were the one-element case of exactly this.
+    state.ledgers.restore()
     // Dispatched last, after both ledgers have unwound, so a listener sees the author's own markup
     // rather than a half-torn-down element. Only for an element that was actually running: a
     // recompile of an element still sitting at its from-state cancels nothing an author could have

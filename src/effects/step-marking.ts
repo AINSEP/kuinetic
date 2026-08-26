@@ -1,7 +1,7 @@
 import type { PrepareContext } from '../core/effect-context.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import type { AttributeLedger } from '../core/owned-styles.js'
-import type { Cleanup } from '../core/types.js'
+import type { Cleanup, EffectParams, ParamSpec } from '../core/types.js'
 
 /**
  * Marking the children of a stepped effect, shared by every primitive that has an index.
@@ -90,6 +90,95 @@ export function resolveTarget(selector: string, ctx: PrepareContext, effect: str
     return ''
   }
   return selector
+}
+
+/**
+ * Which tree a validated `target:` is searched in.
+ *
+ * `'self'` is the descendant reading — "search inside myself" — and is what `target:` means
+ * everywhere the word is used going forward. `'page'` is the whole document, which four resolution
+ * sites need today because the element they mark is deliberately somewhere else: `scroll-spy`'s nav
+ * link lives outside the section that activates it, and `media-scrub`'s frames may sit in a sibling
+ * figure.
+ *
+ * Two values, declared as a list rather than a boolean, so `'parent'` or `'section'` can be added
+ * later by extending {@link SCOPE_PARAM}'s `values` — a one-line change with no rename anywhere.
+ */
+export type TargetScope = 'self' | 'page'
+
+/**
+ * The one declaration of `scope:`, shared by every primitive that declares `target:`.
+ *
+ * Declared once rather than restated per primitive for the same reason `resolveTarget` lives here
+ * rather than in each caller: `target:`/`scope:` is one convention across the library, and six
+ * copies of a `values` list is six places for it to drift.
+ *
+ * `default: ''` is load-bearing, not a style choice. `readParams` (`core/js-params.ts`) seeds
+ * `out[name] = spec.default` for *every* declared parameter before reading authored values, and
+ * `createParams`' `text` accessor uses `??`, so a non-empty schema default would make the
+ * caller-supplied fallback in {@link scopeParam} unreachable. `scroll-spy` is one primitive with
+ * one `ParameterSchema` whose two forms need opposite defaults (`'page'` for the per-section form,
+ * `'self'` for the container form), so "unset" has to be spellable — which is exactly why `target`
+ * itself is already declared `default: ''` on all six.
+ *
+ * `type: 'keyword'`, not `'text'`: only `keyword` treats `values` as a *closed set*. On every other
+ * type `values` is additive — "extra literals accepted alongside the type's own grammar" — and a
+ * `text` param short-circuits to `ok` immediately after the `values` check, so `scope:pgae` would
+ * be accepted in silence and then read as unset. The cost is that `--kui-scope` reaches
+ * `element.style` when authored, where nothing reads it; an inert custom property is a much smaller
+ * price than a typo that fails silently.
+ */
+export const SCOPE_PARAM: ParamSpec = {
+  type: 'keyword',
+  default: '',
+  cssProperty: '--kui-scope',
+  values: ['self', 'page'],
+}
+
+/**
+ * Read `scope:`, falling back to the resolution site's own historical default.
+ *
+ * The fallback is per *call site*, not per primitive, because `scroll-spy` resolves the same
+ * declared parameter document-wide in one form and descendant-scoped in the other.
+ *
+ * @param params - The effect's validated parameters.
+ * @param fallback - What this site scoped to before `scope:` existed. Passing today's behaviour
+ *   here is what makes declaring the parameter a no-op for existing markup.
+ * @returns The authored scope, or `fallback` when unset or unrecognised.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function scopeParam(params: EffectParams, fallback: TargetScope): TargetScope {
+  const authored = params.text('scope')
+  if (authored === 'page') return 'page'
+  if (authored === 'self') return 'self'
+  return fallback
+}
+
+/**
+ * Resolve a validated `target:` selector under a scope.
+ *
+ * {@link resolveTarget} has already run: this does no validation of its own, so an invalid or
+ * document-wide selector must have been rejected before it gets here. Kept separate because the
+ * two questions have different lifetimes — validity is answered once at setup, while the *match*
+ * is re-asked per flip by `createStepMarker`, deliberately, so a list rendered after setup is
+ * still picked up.
+ *
+ * @param el - The authored host. The search root under `'self'`.
+ * @param ctx - Prepare context, for `doc` — the search root under `'page'`.
+ * @param selector - A validated, non-empty `target:` value.
+ * @param scope - Which tree to search.
+ * @returns The matches, in document order.
+ * @complexity O(n) time and space in matches; the query itself is the DOM's.
+ * @overallScore 100
+ */
+export function queryScoped(
+  el: Element,
+  ctx: PrepareContext,
+  selector: string,
+  scope: TargetScope,
+): Element[] {
+  return [...(scope === 'page' ? ctx.doc : el).querySelectorAll(selector)]
 }
 
 /**
