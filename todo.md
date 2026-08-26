@@ -10,6 +10,20 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **A viewport gate can't veto a pin's hold while leaving its progress publish running.** Found
+      2026-08-26 verifying whether `above:`/`below:` (merged in `4f18816`) closed the "only pin
+      where there is room" gap. It half does. `.pin-until-aside` on `scroll.html` now gates cleanly
+      on `above:lg` and its `position: static !important` hack is gone (`9039224`). `.showcase-media`
+      cannot: `applyViewportGates` (`src/core/animator.ts:315`) treats a JS-rendered primitive as
+      **one atomic unit**, and `preparePin` does `installSticky` *and* the `trackProgress` call that
+      publishes `--kui-progress` inside a single `prepare()`. Gating it off killed
+      `parallax-scale timeline:pin` on the nested video — scale froze at 1.0000 instead of 1→1.06,
+      caught live at 238/239. So that file still carries the `ce7a87a` CSS override, documented in
+      place. `above:md` is not an alternative — it asks for sticky inside the still-one-column
+      768–900px band, reintroducing the overlap `ce7a87a` fixed. Needs either a sub-effect gate
+      granularity or splitting `preparePin`'s hold from its progress publish.
+      Owner: `src/core/animator.ts` + `src/effects/scroll-mechanics/primitives.ts`.
+
 - [ ] **`transition` is untracked by the channel invariant, and there is a live reachable bug behind
       it.** Found 2026-08-26 while closing two other blind spots in `css-invariants.test.ts`. Ten
       presets write `transition` unconditionally: `lift`, `pop`, `lift-shadow`, `border-draw`,
