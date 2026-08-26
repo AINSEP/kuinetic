@@ -202,7 +202,10 @@ export function play(request: PlayRequest, options: PlayOptions = {}): PlaybackH
     elements,
     finished,
     cancel() {
-      for (const el of elements) for (const instance of instancesOf(el)) instance.cancel()
+      // Through the animator rather than straight into the instances: cancelling has to suppress
+      // the `kui:finish` that resolving `finished` would otherwise trigger, and dispatch
+      // `kui:cancel` instead. Doing that here as well would be a second copy of the rule.
+      for (const el of elements) animator.cancel(el)
     },
     finish() {
       for (const el of elements) for (const instance of instancesOf(el)) instance.finish()

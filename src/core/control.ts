@@ -1,0 +1,355 @@
+import type { Animator } from './animator.js'
+import type { StyleLedger } from './owned-styles.js'
+import { resolveTargets } from './play.js'
+import type { Target } from './play.js'
+import type { InstanceControl, PlaybackState } from './types.js'
+
+/**
+ * Runtime control over a running animation.
+ *
+ * Almost none of this is new machinery, and that is the point. `instances.ts` already holds real
+ * `Animation` handles for every `css-keyframes` effect, and `style-plan.ts` already seeks a paused
+ * animation with a negative `animation-delay` — the whole `timeline: pin` scrub is built on it.
+ * What was missing was a way for an author to *reach* any of it. This module is that reach, and
+ * deliberately adds no second implementation of anything the browser already does.
+ *
+ * Two rules shape everything below:
+ *
+ * 1. **Play state is owned by the ledger, not by WAAPI.** The compiler writes
+ *    `animation-play-state: paused` as the gate and `instances.ts` writes `running` to open it, so
+ *    `pause()`/`resume()` here write the same property through the same ledger. Calling
+ *    `animation.pause()` instead would put two owners on one piece of state — the browser's
+ *    interaction between a WAAPI pause and a later CSS `animation-play-state` change is subtle
+ *    enough that the two would eventually disagree, and only the ledger's copy unwinds on teardown.
+ *    Seeking and re-speeding have no CSS equivalent, so those do go through WAAPI.
+ *
+ * 2. **A control call never invents a playhead that does not exist.** JavaScript-rendered effects
+ *    and scroll-driven ones are reported by name rather than silently accepting calls that do
+ *    nothing — see `bindElement`.
+ *
+ * ## Why there is no `onUpdate` / per-frame event
+ *
+ * `progress` is a *pull*, not a push, and that is a decision rather than an omission. A per-frame
+ * `CustomEvent` for every animated element is the one addition here that could plausibly cost more
+ * than the feature is worth: a page with fifty reveals running at 60 fps would dispatch three
+ * thousand events a second, each one waking the main thread and running the full event
+ * propagation path from the element to `document`.
+ *
+ * That is not merely slow, it is self-defeating. This library's central performance claim is that a
+ * compiled effect is a genuine CSS animation running off the main thread (see the outline's §2.3).
+ * A per-frame event drags every one of them back onto it. So the author who genuinely needs a value
+ * each frame reads `control(el).progress` inside their own `requestAnimationFrame` — one loop, for
+ * the one element they care about — and everybody else pays nothing.
+ */
+
+/** Milliseconds. Below this an animation's span is treated as unmeasurable rather than seekable. */
+const MEASURABLE_SPAN_MS = 0
+
+/**
+ * Clamp author-supplied progress into the normalized range.
+ *
+ * Clamping rather than rejecting: `seek(1.2)` has one obvious intent ("the end"), and refusing it
+ * would strand an author whose own arithmetic overshoots by a rounding error at the exact moment
+ * they wanted the final frame.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+/**
+ * Read a WAAPI time value that the spec types as `CSSNumberish`.
+ *
+ * `currentTime` and `endTime` are plain numbers on every engine that ships CSS animations today,
+ * but both are typed to allow a `CSSNumericValue` for scroll-driven timelines, and `endTime` is
+ * `Infinity` for `animation-iteration-count: infinite`. Anything that is not a finite number is
+ * reported as `0`, which every caller here already treats as "no measurable span" — an infinite
+ * marquee genuinely has no progress to report.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function finiteMs(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function endTimeOf(animation: Animation): number {
+  return finiteMs(animation.effect?.getComputedTiming?.().endTime)
+}
+
+/**
+ * The element's whole span, in milliseconds: activation to the last composed animation's end.
+ *
+ * Progress is defined over this rather than over one animation's active phase, and authored delays
+ * are inside it. Comma-separated specs in `data-kui` "start counting from the same instant" (see
+ * the grammar in `parse.ts`), so `fade-up 600ms, blur-in 400ms delay:600ms` is one thing an author
+ * thinks of as a second long — not two animations with unrelated clocks. Excluding delay would
+ * make `progress: 0.5` mean a different wall-clock moment for each composed effect, which is
+ * exactly the confusion normalizing to 0..1 exists to remove.
+ *
+ * @complexity O(a) time in owned animations; O(1) space.
+ * @overallScore 100
+ */
+function spanOf(animations: readonly Animation[]): number {
+  let span = MEASURABLE_SPAN_MS
+  for (const animation of animations) span = Math.max(span, endTimeOf(animation))
+  return span
+}
+
+/**
+ * Collapse several playback states into the one an author would call the whole thing.
+ *
+ * Precedence is running > paused > finished > idle, which is "the most alive thing wins" — an
+ * element composing a 600 ms reveal with a 200 ms blur is still *running* for the 400 ms after the
+ * blur has finished, and reporting `finished` there would be wrong in the only direction that
+ * matters (an author gating cleanup on it would tear down a visibly moving element).
+ *
+ * @complexity O(n) time in states; O(1) space.
+ * @overallScore 100
+ */
+function mergePlayStates(states: readonly PlaybackState[]): PlaybackState {
+  if (states.length === 0) return 'idle'
+  if (states.includes('running')) return 'running'
+  if (states.includes('paused')) return 'paused'
+  return states.every((state) => state === 'finished') ? 'finished' : 'idle'
+}
+
+/**
+ * A teardown-grade guard for the two WAAPI calls that can legitimately throw.
+ *
+ * `reverse()` raises `InvalidStateError` on an animation with an unresolved end time — an infinite
+ * `@keyframes` loop, of which this catalog has many — and a `currentTime` write can raise on an
+ * animation whose timeline has gone inactive. Neither is a programming error the author can act
+ * on, and neither should abort the remaining animations on the same element, so both are
+ * swallowed here rather than surfaced.
+ *
+ * @complexity O(1) beyond the wrapped call.
+ * @overallScore 100
+ */
+function quietly(operation: () => void): void {
+  try {
+    operation()
+  } catch {
+    /* intentionally ignored — see doc comment */
+  }
+}
+
+/**
+ * Control backed by the real `Animation` objects a compiled CSS effect produces.
+ *
+ * @param animations - Reader for the element's *owned* animation handles. A reader rather than an
+ *   array because the set changes: `instances.ts` restarts an animation by rewriting
+ *   `animation-name`, which replaces the handles wholesale, and a captured array would then be
+ *   driving objects the element no longer has.
+ * @param ledger - The instance's style ledger, so a play-state write unwinds on teardown.
+ * @complexity O(a) per call in owned animations; O(1) space.
+ * @overallScore 100
+ */
+export function createCssControl(
+  animations: () => Animation[],
+  ledger: StyleLedger,
+): InstanceControl {
+  return {
+    pause() {
+      ledger.set('animation-play-state', 'paused')
+    },
+    resume() {
+      ledger.set('animation-play-state', 'running')
+    },
+    reverse() {
+      for (const animation of animations()) quietly(() => animation.reverse())
+      // `reverse()` also *plays*, so leaving the inline value at `paused` would leave the ledger
+      // claiming something the browser is no longer doing — and the next `pause()`/`resume()` pair
+      // would then write a value identical to the stale one, which the browser ignores as a no-op.
+      ledger.set('animation-play-state', 'running')
+    },
+    seek(progress) {
+      const list = animations()
+      const span = spanOf(list)
+      if (span === MEASURABLE_SPAN_MS) return
+      const at = clamp01(progress) * span
+      // Each animation is clamped to its *own* end, not to the shared span. A 200 ms blur composed
+      // with a 600 ms reveal must sit at its final frame while the reveal is still travelling —
+      // writing `at` unclamped would push it past its end time, where a `fill: both` animation
+      // renders identically but `playState` reads `finished` at a moment it has not been reached.
+      for (const animation of list) {
+        quietly(() => {
+          animation.currentTime = Math.min(at, endTimeOf(animation))
+        })
+      }
+    },
+    rate(playbackRate) {
+      for (const animation of animations()) animation.playbackRate = playbackRate
+    },
+    get progress() {
+      const list = animations()
+      const span = spanOf(list)
+      if (span === MEASURABLE_SPAN_MS) return 0
+      let at = 0
+      // The maximum, not the first: composed animations share a start time, so the longest one
+      // carries the furthest-advanced `currentTime` and is the only one still moving at the end.
+      for (const animation of list) at = Math.max(at, finiteMs(animation.currentTime))
+      return clamp01(at / span)
+    },
+    get playState() {
+      return mergePlayStates(animations().map((animation) => animation.playState))
+    },
+  }
+}
+
+/**
+ * A handle over one selection's playheads.
+ *
+ * Every mutator returns the handle so calls chain — `control('.hero').timeScale(0.25).seek(0.5)`
+ * reads the way the equivalent GSAP line does. Chaining is the reason these are methods rather
+ * than settable properties.
+ */
+export interface ControlHandle {
+  /** The elements this handle resolved to, in document order. */
+  readonly elements: Element[]
+  /**
+   * Effect names in the selection that no control call can reach — JavaScript-rendered effects,
+   * and anything driven by scroll rather than a clock.
+   *
+   * Readable so a caller can branch on it rather than discovering the gap by watching nothing
+   * happen. Every entry has also already been reported through the animator's reporter.
+   */
+  readonly uncontrolled: string[]
+  pause(): ControlHandle
+  play(): ControlHandle
+  reverse(): ControlHandle
+  /** Move every playhead to `progress` (0..1). Values outside the range are clamped. */
+  seek(progress: number): ControlHandle
+  /** Multiply playback speed. `1` is authored speed; a negative value runs backwards. */
+  timeScale(rate: number): ControlHandle
+  /**
+   * Position of the *least* advanced element in the selection, 0..1.
+   *
+   * The minimum rather than the maximum or the first, so `progress === 1` means every element is
+   * done — the reading an author actually gates on. `0` for a selection with nothing controllable.
+   */
+  readonly progress: number
+  readonly state: PlaybackState
+}
+
+/** One element's controllable instances, plus what could not be reached on it. */
+interface Bound {
+  controls: InstanceControl[]
+  unreachable: string[]
+  /** Why, phrased for a warning. Absent when everything on the element is reachable. */
+  note?: string
+}
+
+/**
+ * Work out what can actually be controlled on one element, and what cannot.
+ *
+ * @complexity O(i) time in the element's instances; O(i) space.
+ * @overallScore 100
+ */
+function bindElement(animator: Animator, el: Element): Bound {
+  const state = animator.stateOf(el)
+  if (!state) {
+    return {
+      controls: [],
+      unreachable: [],
+      note: 'no kUInetic effect is installed on this element — it has no playhead to control',
+    }
+  }
+  if (state.progressDriven) {
+    return {
+      controls: [],
+      unreachable: [...state.fxNames],
+      note:
+        `"${state.fxNames.join(' ')}" is driven by scroll position rather than a clock, so its ` +
+        `playhead belongs to the scroller — pausing or seeking it would be overwritten on the ` +
+        `next frame`,
+    }
+  }
+  const controls = state.instances
+    .map((instance) => instance.control)
+    .filter((control): control is InstanceControl => control !== undefined)
+  const unreachable = [...state.jsEffectNames]
+  if (unreachable.length === 0) return { controls, unreachable }
+  return {
+    controls,
+    unreachable,
+    note:
+      `"${unreachable.join(' ')}" ${unreachable.length === 1 ? 'is' : 'are'} rendered in ` +
+      `JavaScript and expose${unreachable.length === 1 ? 's' : ''} no playhead, so pause, seek ` +
+      `and timeScale do not reach ${unreachable.length === 1 ? 'it' : 'them'}`,
+  }
+}
+
+export interface ControlRequest {
+  animator: Animator
+  root: ParentNode
+  target: Target
+}
+
+/**
+ * Build a control handle for a selection.
+ *
+ * Warnings are emitted once here, at construction, rather than on each call: an author who asks
+ * for control over an effect that has none should be told immediately, including when they only
+ * meant to *read* `progress` — and repeating the same sentence on every frame of a `seek` loop
+ * would bury it. The default reporter is silent, exactly as it is for an unknown effect name or an
+ * unsupported activation; `consoleReporter()` makes all of them loud together, which is the
+ * existing contract rather than a new one invented here.
+ *
+ * @param request - Animator, root, and target selection. Mirrors `play`'s request shape.
+ * @returns A handle whose mutators chain.
+ * @complexity O(n) time in selected elements and their instances; O(n) space.
+ * @overallScore 100
+ */
+export function control(request: ControlRequest): ControlHandle {
+  const { animator, root, target } = request
+  const elements = resolveTargets(target, root)
+  const bounds = elements.map((el) => bindElement(animator, el))
+  for (const [index, bound] of bounds.entries()) {
+    if (bound.note) animator.reporter.warn(`control(): ${bound.note}`, elements[index])
+  }
+
+  const each = (operation: (control: InstanceControl) => void): ControlHandle => {
+    for (const bound of bounds) for (const instance of bound.controls) operation(instance)
+    return handle
+  }
+  const reject = (call: string, value: number): ControlHandle => {
+    animator.reporter.warn(`control(): ${call} ignored — ${String(value)} is not a finite number`)
+    return handle
+  }
+
+  const handle: ControlHandle = {
+    elements,
+    get uncontrolled() {
+      return bounds.flatMap((bound) => bound.unreachable)
+    },
+    pause: () => each((instance) => instance.pause()),
+    play: () => each((instance) => instance.resume()),
+    reverse: () => each((instance) => instance.reverse()),
+    seek: (progress) =>
+      Number.isFinite(progress)
+        ? each((instance) => instance.seek(progress))
+        : reject('seek()', progress),
+    timeScale: (rate) =>
+      Number.isFinite(rate) ? each((instance) => instance.rate(rate)) : reject('timeScale()', rate),
+    get progress() {
+      let lowest = 1
+      let found = false
+      for (const bound of bounds) {
+        for (const instance of bound.controls) {
+          lowest = Math.min(lowest, instance.progress)
+          found = true
+        }
+      }
+      return found ? lowest : 0
+    },
+    get state() {
+      return mergePlayStates(
+        bounds.flatMap((bound) => bound.controls.map((instance) => instance.playState)),
+      )
+    },
+  }
+  return handle
+}

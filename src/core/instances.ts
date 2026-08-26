@@ -1,3 +1,4 @@
+import { createCssControl } from './control.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Cleanup, EffectInstance } from './types.js'
 
@@ -70,6 +71,30 @@ function restartCssAnimation(el: Element, ledger: StyleLedger): void {
 }
 
 /**
+ * Settle an instance's completion once every animation it just started has ended.
+ *
+ * A module-level helper rather than a closure inside `createCssInstance` only so that function
+ * stays under the 60-line ceiling `eslint.config.js` enforces; `settle` is passed as a thunk
+ * because the instance replaces its own resolver on every activation, and capturing the current
+ * one here would settle a promise two replays out of date.
+ *
+ * @param animations - Owned handles started by this activation. An empty list settles at once —
+ *   there is nothing to wait for, and leaving it open strands `data-kui-state` on "running".
+ * @param settle - Reads the instance's *current* resolver each time it is called.
+ * @complexity O(a) time in animations; O(a) space for the composed promise.
+ * @overallScore 100
+ */
+function watchCompletion(animations: Animation[], settle: () => void): void {
+  if (animations.length === 0) {
+    settle()
+    return
+  }
+  // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
+  // ordinary case of an effect being torn down.
+  void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle())
+}
+
+/**
  * Wrap a CSS-rendered effect.
  *
  * Gating is `animation-play-state` rather than a class toggle: `animation-fill-mode: both`
@@ -104,18 +129,15 @@ export function createCssInstance(
     settle = resolve
   })
   let activatedBefore = false
-
-  function watch(animations: Animation[]): void {
-    if (animations.length === 0) {
-      settle?.()
-      return
-    }
-    // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
-    // ordinary case of an effect being torn down.
-    void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle?.())
-  }
+  const watch = (animations: Animation[]): void => watchCompletion(animations, () => settle?.())
 
   return {
+    // Attached unconditionally, including for a scrubbed instance. Whether control is *allowed*
+    // here is a policy question about the element's timeline, not a capability question about this
+    // instance — a scrubbed animation has a perfectly real playhead, it just belongs to the
+    // scroller. Keeping that decision in one place (`InstanceState.progressDriven`, read by
+    // `control.ts`) beats splitting it across both files and letting them drift.
+    control: createCssControl(() => ownedAnimationsOf(el, ownedNames), ledger),
     activate() {
       finished = new Promise((resolve) => {
         settle = resolve

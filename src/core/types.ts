@@ -144,6 +144,21 @@ export type Cleanup = () => void
 export interface EffectInstance {
   /** Start. Called by the animator once its gate opens, never by `prepare`. */
   activate(): void
+  /**
+   * Runtime control over this instance's playhead, when the renderer has one to offer.
+   *
+   * **Optional on purpose, and its absence is the contract.** A `css-keyframes` instance is backed
+   * by real `Animation` objects with a `currentTime` and a `playbackRate`, so it can be paused,
+   * seeked and re-sped honestly. A JavaScript-rendered instance has no such object — `element
+   * .getAnimations()` returns `[]` for every one of them (see `play.ts`) — and it has no shared
+   * notion of progress either: a drag handler, a scroll spy and a count-up are all "JS effects"
+   * with nothing in common to seek.
+   *
+   * A shim that swallowed `pause()` and reported `progress: 0` would satisfy this interface and
+   * lie to every caller, which is worse than the gap it papers over. So the field is simply absent,
+   * and `control.ts` reports by name which effects on an element could not be reached.
+   */
+  readonly control?: InstanceControl
   /** Stop where it is, leaving the element mid-effect. */
   cancel(): void
   /** Jump to the end state immediately. */
@@ -166,6 +181,40 @@ export interface EffectInstance {
   readonly continuous?: boolean
   /** Release every listener, observer, subscription, and inserted node. */
   destroy(): void
+}
+
+/**
+ * Playback state of an element's effects.
+ *
+ * Deliberately *not* `AnimationPlayState`: the native union has a `pending` member describing an
+ * animation waiting on a style flush, which is an implementation detail of one renderer rather
+ * than something an author can act on, and it has no member for "nothing has started yet", which
+ * is the state every deferred effect sits in between install and activation.
+ */
+export type PlaybackState = 'idle' | 'running' | 'paused' | 'finished'
+
+/**
+ * One instance's playhead, as `control.ts` drives it.
+ *
+ * Progress is normalized 0..1 across the instance's whole span — from the instant the activation
+ * fired to the moment its last composed animation ends, authored delays included. Milliseconds
+ * would force the author to know each effect's duration to seek anywhere meaningful, and composed
+ * effects on one element rarely share one.
+ */
+export interface InstanceControl {
+  /** Hold the playhead where it is. */
+  pause(): void
+  /** Resume from wherever the playhead sits. */
+  resume(): void
+  /** Flip direction and keep running. */
+  reverse(): void
+  /** Move the playhead to `progress` (0..1), leaving the running/paused state alone. */
+  seek(progress: number): void
+  /** Multiply playback speed. `1` is authored speed; a negative value runs backwards. */
+  rate(playbackRate: number): void
+  /** Current position, 0..1. */
+  readonly progress: number
+  readonly playState: PlaybackState
 }
 
 /**
@@ -359,6 +408,34 @@ export interface InstanceState {
   specs: EffectSpec[]
   activation: Activation
   timeline: Timeline
+  /**
+   * Normalized effect names — the same list stamped into `data-kui-fx`.
+   *
+   * Retained rather than re-read off the attribute because both readers need it after teardown has
+   * already restored the attribute: a `kui:cancel` event fires *after* `release()` has unwound the
+   * ledgers (so listeners see the author's own markup, not the library's), and by then the
+   * attribute is gone.
+   */
+  fxNames: string[]
+  /**
+   * Names of the composed effects rendered in JavaScript.
+   *
+   * Kept so `control.ts` can say *which* effects a control call could not reach instead of the
+   * useless "some effect on this element". The names, not the instances: an instance whose
+   * `prepare` threw is never constructed, and an author who wrote the name still deserves to be
+   * told the name they wrote.
+   */
+  jsEffectNames: string[]
+  /**
+   * Whether progress here is driven by scroll position rather than a clock — `timeline: pin`'s
+   * paused-plus-negative-delay scrub, or a native `view()`/`scroll()` timeline.
+   *
+   * `control.ts` refuses to act on these. Writing `animation-play-state: running` onto a scrubbed
+   * animation hands it back to the document timeline and it plays forward in wall-clock time on
+   * top of the seek (see `style-plan.ts`'s `Gate`), and seeking one is pointless anyway — the
+   * scroll scheduler rewrites `--kui-progress` on the very next frame and overwrites the seek.
+   */
+  progressDriven: boolean
   /** One handle per renderer in play; the animator gates them uniformly. */
   instances: EffectInstance[]
   /** Inline properties this element's effects wrote, and what they replaced. */
@@ -372,5 +449,15 @@ export interface InstanceState {
    * redundant; a toggle activation (`hover`/`focus`/`click`) deliberately leaves this undefined.
    */
   releaseActivation?: Cleanup
+  /**
+   * Whether this element's effects were cancelled rather than allowed to complete.
+   *
+   * Cancelling an instance resolves its `finished` promise (the "resolves, never rejects" contract
+   * above), so the animator's completion handler still runs and still writes
+   * `data-kui-state="finished"` — behaviour that predates lifecycle events and is left alone. What
+   * it must *not* do is also dispatch `kui:finish`, which would tell an author chaining work that
+   * an animation they explicitly cancelled had run to its end.
+   */
+  cancelled?: boolean
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
 }
