@@ -3,7 +3,7 @@ import { createActivationBinder } from '../src/core/activation.js'
 import type { ActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import type { Capabilities } from '../src/core/capabilities.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import { Registry } from '../src/core/registry.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
@@ -18,17 +18,11 @@ import type { Activation, EffectInstance, Primitive } from '../src/core/types.js
  * while leaving every inline property it had written.
  */
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 const idleScheduler: ScrollScheduler = {
   subscribe: () => () => {},

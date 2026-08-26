@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 import { compile } from '../src/core/compile.js'
 import { resolveConfig } from '../src/core/element-config.js'
@@ -9,7 +10,7 @@ import { createRegistry } from '../src/effects/index.js'
 
 const registry = createRegistry()
 
-const CAPS: Capabilities = {
+const CAPS = defaultCapabilities({
   viewTimeline: true,
   scrollTimeline: true,
   animationRange: true,
@@ -17,9 +18,8 @@ const CAPS: Capabilities = {
   scrollTimelineName: true,
   viewTransitions: true,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 function attributes(overrides: Partial<ElementAttributes> = {}): ElementAttributes {
   return { source: '', on: null, timeline: null, threshold: null, ...overrides }

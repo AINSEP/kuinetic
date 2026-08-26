@@ -35,10 +35,69 @@ export interface Capabilities {
   motionPath: boolean
 }
 
+/**
+ * Every capability at its "this environment does not have it" value.
+ *
+ * All `false`, and not one field is a judgement call: `false` is exactly what `supports()` returns
+ * when there is no `CSS.supports` to ask, so this record is literally what `detect()` computes on a
+ * bare Node runtime. It is the real baseline, not an invented one. `reducedMotion` reads inverted
+ * — `true` there means the *user* asked for less motion — and `false` is still the honest "nothing
+ * detected, nothing requested", so the polarity costs nothing.
+ *
+ * Choosing `false` over `true` is the whole point of the factory. A construction site that never
+ * heard of a capability inherits "absent", which routes the runtime down its documented fallback
+ * (or through `unsupportedChannelWarnings` below) — a visible, already-tested path. Inheriting
+ * `true` would have every existing harness silently *claim* support it was never checked against,
+ * and the failure would then surface somewhere downstream with nothing pointing back here.
+ */
+const ABSENT: Capabilities = {
+  viewTimeline: false,
+  scrollTimeline: false,
+  animationRange: false,
+  individualTransforms: false,
+  scrollTimelineName: false,
+  viewTransitions: false,
+  intersectionObserver: false,
+  reducedMotion: false,
+  motionPath: false,
+}
+
+/**
+ * Build a `Capabilities` from only the fields a caller actually has an opinion about.
+ *
+ * `Capabilities` is a closed record of required booleans, so before this existed every object
+ * literal constructing one had to name every field. Adding `motionPath` was therefore O(number of
+ * construction sites) rather than O(1), and it broke three test harnesses in a single merge — none
+ * of which had any interest in motion paths, and all of which failed to compile purely for not
+ * mentioning one. Spreading a complete default makes a new field additive everywhere instead.
+ *
+ * Deliberately *not* used by `detect()`, even though `detect()` is a construction site too. Its
+ * literal is the detection logic: keeping it exhaustive is what makes the compiler demand a real
+ * probe for each new capability. Route it through here and adding a field would type-check the
+ * moment it was given a default, and ship as permanently `false` in every browser — the feature
+ * dead in production, with no test able to notice. So the two defaults differ on purpose: a
+ * caller stating a fixed environment gets "absent unless said otherwise", and production gets no
+ * constant default at all, because the honest answer there is always "go and probe it". Adding a
+ * capability still means editing one file — this one — in two adjacent places the compiler names.
+ *
+ * There is deliberately no `allCapabilities()` counterpart. A harness that wants a fully modern
+ * browser lists its `true`s, because the alternative is a test opting in to every capability
+ * invented after it was written.
+ *
+ * @param overrides - Fields this caller has actually decided; everything else comes back absent.
+ * @returns A fully-populated capability record.
+ * @complexity O(c) time and space in the number of capability fields — fixed and single-digit.
+ * @overallScore 100
+ */
+export function defaultCapabilities(overrides?: Partial<Capabilities>): Capabilities {
+  return { ...ABSENT, ...overrides }
+}
+
 let cached: Capabilities | undefined
 
 export function detect(force = false): Capabilities {
   if (cached && !force) return cached
+  // Exhaustive by design — see `defaultCapabilities` for why this one literal does not spread it.
   cached = {
     viewTimeline: supports('animation-timeline', 'view()'),
     scrollTimeline: supports('animation-timeline', 'scroll()'),

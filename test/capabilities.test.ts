@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { detect, resetCapabilities, unsupportedChannelWarnings } from '../src/core/capabilities.js'
+import {
+  defaultCapabilities,
+  detect,
+  resetCapabilities,
+  unsupportedChannelWarnings,
+} from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 
 describe('detect caching', () => {
@@ -100,6 +105,37 @@ describe('supports() — probed through detect()', () => {
 })
 
 /**
+ * The factory exists so that adding a capability field costs one edit rather than one per
+ * construction site — `motionPath` cost eleven, and broke three harnesses that had no interest in
+ * motion paths at all. Its guarantee is only worth anything if the fill value stays "absent", so
+ * that is asserted here rather than left to the doc comment: a future field added to the defaults
+ * as `true` would hand every existing harness a capability it was never checked against, silently.
+ */
+describe('defaultCapabilities', () => {
+  it('fills every unstated field with false, so an unstated capability reads as absent', () => {
+    const caps = defaultCapabilities()
+    expect(Object.values(caps).every((value) => value === false)).toBe(true)
+    // Not vacuous: a field added to the interface but forgotten in the defaults would not compile,
+    // and one dropped from the defaults would leave this record short.
+    expect(Object.keys(caps).length).toBeGreaterThan(0)
+  })
+
+  it('takes only the fields the caller has an opinion about and leaves the rest absent', () => {
+    const caps = defaultCapabilities({ individualTransforms: true, motionPath: true })
+    expect(caps.individualTransforms).toBe(true)
+    expect(caps.motionPath).toBe(true)
+    expect(caps.viewTimeline).toBe(false)
+    expect(caps.reducedMotion).toBe(false)
+  })
+
+  it('returns a fresh object each call, so no caller can mutate the shared defaults', () => {
+    const first = defaultCapabilities()
+    first.viewTimeline = true
+    expect(defaultCapabilities().viewTimeline).toBe(false)
+  })
+})
+
+/**
  * `unsupportedChannelWarnings` is the whole of the degradation story for CSS Motion Path, so it is
  * worth stating what that story is. An `offset-*` effect in a browser with no `offset-path` does
  * not fail, stall, or hide anything: the compiled keyframe still runs, `finished` still resolves,
@@ -109,7 +145,7 @@ describe('supports() — probed through detect()', () => {
  */
 describe('unsupportedChannelWarnings', () => {
   const caps = (motionPath: boolean): Capabilities =>
-    ({
+    defaultCapabilities({
       viewTimeline: true,
       scrollTimeline: true,
       animationRange: true,
@@ -117,7 +153,6 @@ describe('unsupportedChannelWarnings', () => {
       scrollTimelineName: true,
       viewTransitions: true,
       intersectionObserver: true,
-      reducedMotion: false,
       motionPath,
     })
 

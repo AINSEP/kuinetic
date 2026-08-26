@@ -1,6 +1,6 @@
 import { createActivationBinder } from '../../src/core/activation.js'
 import { Animator } from '../../src/core/animator.js'
-import type { Capabilities } from '../../src/core/capabilities.js'
+import { defaultCapabilities } from '../../src/core/capabilities.js'
 import type { Reporter } from '../../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler } from '../../src/core/scroll-scheduler.js'
 import { createRegistry } from '../../src/effects/index.js'
@@ -24,17 +24,11 @@ import { createRegistry } from '../../src/effects/index.js'
  * depend on one, and `reducedMotion: false`, so the `reducedMotion: 'disable'` primitives these
  * suites cover still activate and can be observed at all.
  */
-export const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+export const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 /** A scheduler that never emits a frame: nothing here is testing scroll. */
 export const idleScheduler: ScrollScheduler = {

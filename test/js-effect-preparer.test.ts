@@ -4,19 +4,13 @@ import { collectingReporter } from '../src/core/reporter.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { CompiledPlan } from '../src/core/compile.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
-import type { Capabilities } from '../src/core/capabilities.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 const idleScheduler: ScrollScheduler = {
   subscribe: () => () => {},

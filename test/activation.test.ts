@@ -22,7 +22,7 @@ import {
 } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import type { Capabilities } from '../src/core/capabilities.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import { Registry } from '../src/core/registry.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
@@ -510,17 +510,11 @@ describe('toThresholdRatio', () => {
  * playhead around instead of being swallowed. The visual half belongs to a browser test.
  */
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 interface Recorder {
   activated: number

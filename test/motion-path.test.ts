@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 import { compile } from '../src/core/compile.js'
 import { validate } from '../src/core/params.js'
@@ -27,7 +28,7 @@ import {
  * decisions it drove actually live.
  */
 
-const CAPS: Capabilities = {
+const CAPS = defaultCapabilities({
   viewTimeline: true,
   scrollTimeline: true,
   animationRange: true,
@@ -35,9 +36,8 @@ const CAPS: Capabilities = {
   scrollTimelineName: true,
   viewTransitions: true,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 const registry = createRegistry()
 

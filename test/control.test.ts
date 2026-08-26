@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 import { createCssControl, emitLifecycle, KUI_EVENT } from '../src/core/control.js'
 import type { LifecycleDetail } from '../src/core/control.js'
@@ -29,17 +30,11 @@ import type { EffectInstance, Primitive } from '../src/core/types.js'
  * touch and what it says about them — and is asserted through a real `Animator`.
  */
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 const idleScheduler: ScrollScheduler = {
   subscribe: () => () => {},

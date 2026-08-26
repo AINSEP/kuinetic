@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ActivationBinder } from '../src/core/activation.js'
 import { Animator, createAnimator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 import type { DomWatcher } from '../src/core/dom-watcher.js'
 import { collectingReporter } from '../src/core/reporter.js'
@@ -9,7 +10,7 @@ import type { CollectingReporter } from '../src/core/reporter.js'
 import type { Activation } from '../src/core/types.js'
 import { createRegistry } from '../src/effects/index.js'
 
-const CAPS: Capabilities = {
+const CAPS = defaultCapabilities({
   viewTimeline: true,
   scrollTimeline: true,
   animationRange: true,
@@ -17,9 +18,8 @@ const CAPS: Capabilities = {
   scrollTimelineName: true,
   viewTransitions: true,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 interface FakeBinder extends ActivationBinder {
   bindings: Array<{ el: Element; activation: Activation; threshold: string }>

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import type { Capabilities } from '../src/core/capabilities.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { Activation } from '../src/core/types.js'
 import { createRegistry } from '../src/effects/index.js'
@@ -25,7 +25,7 @@ import { createRegistry } from '../src/effects/index.js'
  * still have passed if the gate downstream decided otherwise.
  */
 
-const CAPS: Capabilities = {
+const CAPS = defaultCapabilities({
   viewTimeline: true,
   scrollTimeline: true,
   animationRange: true,
@@ -33,9 +33,8 @@ const CAPS: Capabilities = {
   scrollTimelineName: true,
   viewTransitions: true,
   intersectionObserver: true,
-  reducedMotion: false,
   motionPath: true,
-}
+})
 
 /**
  * A binder that RECORDS a binding and waits, rather than firing it.
