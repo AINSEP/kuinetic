@@ -18,10 +18,12 @@ Standalone, MIT, npm + CDN `<script>`, framework-agnostic. No product or CMS cou
 ## 1a. Why not just GSAP?
 
 Worth asking directly, because the honest answer is nuanced: **GSAP can build almost everything
-in this catalog.** As of GSAP 3.13 (April 2025, following Webflow's acquisition of GreenSock),
-every plugin that used to require a paid Club GreenSock membership — `SplitText`, `MorphSVGPlugin`,
-`DrawSVGPlugin`, `ScrambleTextPlugin`, `Draggable`/`InertiaPlugin`, `Flip` — is free, including for
-commercial use. Combined with `ScrollTrigger` and GSAP's core tween/timeline engine, that covers
+in this catalog.** GSAP is free end to end today (current release: 3.15, April 2026). `Draggable`
+was always free — it never required a Club GreenSock membership. `Flip` has been free since GSAP
+3.9 (December 2021), well before any of this. What Webflow's April 2025 acquisition of GreenSock
+added was making the remaining Club-only plugins — `SplitText`, `MorphSVGPlugin`, `DrawSVGPlugin`,
+`ScrambleTextPlugin`, `InertiaPlugin` — free too, including for commercial use. Combined with
+`ScrollTrigger` and GSAP's core tween/timeline engine, that covers
 nearly this entire catalog either as a named, dedicated feature or as a well-documented recipe:
 scroll reveals, staggering, parallax, pinned sections, horizontal-scroll-inside-vertical-scroll
 (`ScrollTrigger`'s `containerAnimation`), scroll-snap, text splitting, scramble text, SVG stroke
@@ -36,16 +38,21 @@ re-debugging, something GSAP ships working today, for free.
 
 So why does this project still exist? Three reasons, and none of them is "GSAP is less capable":
 
-1. **Zero JS runtime dependency.** These are real CSS `@keyframes` / `animation-timeline`
-   animations. They keep running if a script is slow, blocked, or fails to load, and there is no
-   library payload to download and execute first. GSAP is a JS engine you ship and run — core
-   plus `ScrollTrigger` plus `SplitText` plus `MorphSVGPlugin` adds up fast, and every animation on
-   the page depends on that JS having successfully loaded and executed.
+1. **CSS-native execution.** The generated stylesheet keys its rules on `data-kui-fx`, and the
+   library's JS is what stamps that attribute — so this is not a zero-JS-dependency claim, the
+   library needs its JS to classify an element at least once. What that JS does *not* do is drive
+   the animation: once `data-kui-fx` is stamped, the actual motion is a real CSS `@keyframes` /
+   `animation-timeline` rule running on the compositor, off the main thread, for its whole
+   duration. A later script that's slow, blocked, or throws does not stall or corrupt an
+   animation already running. GSAP's animations are JS the whole way through — core plus
+   `ScrollTrigger` plus `SplitText` plus `MorphSVGPlugin` adds up fast, and every animation on the
+   page depends on that JS continuing to execute correctly for as long as the animation runs, not
+   just at its start.
 2. **Declarative HTML authoring, not an imperative API.** `<h1 data-kui="fade-up 900ms">` is the
    whole configuration. No JS file to write, own, or debug. GSAP is fundamentally a JavaScript API
    — even the simplest GSAP animation is a `.js` file someone writes and maintains.
 3. **A catalog, not an engine.** GSAP gives you the primitives to build any of these effects; it
-   does not ship 251 ready-made, ready-to-drop-onto-an-element named animations. Even on a GSAP
+   does not ship 262 ready-made, ready-to-drop-onto-an-element named animations. Even on a GSAP
    project, someone still designs and hand-writes the equivalent of this catalog, in JS, per
    project. This project's bet is that a maintained, pre-built catalog behind a stable attribute
    grammar is worth more than direct access to a more general engine — for the specific slice of

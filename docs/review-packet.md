@@ -221,8 +221,12 @@ Module granularity: **one module per primitive**, packs are re-exporting barrels
 (otherwise importing `scramble` drags in `split-text` and `typewriter`).
 
 Rough size model: core ~3KB gz; a `css`-tier effect ~200 bytes of `@keyframes` and zero JS;
-a `js`-tier primitive ~200–600 bytes. All 250 fully loaded ≈ 55KB gz (vs GSAP core +
-ScrollTrigger ≈ 70KB).
+a `js`-tier primitive ~200–600 bytes. That rough model is superseded now that there's a build to
+measure: the shipped catalog carries 262 named effects, and all of it loaded — `esbuild --bundle
+--minify` for both bundles, `gzip -9` — comes to ~58KB gz today (~44.2KB JS + ~13.6KB CSS), vs GSAP
+core + ScrollTrigger ≈ 70KB. (An earlier ~55KB figure here was this same rough per-effect model
+extrapolated for a smaller, pre-implementation catalog; it landed near today's real number by
+coincidence, not because the model was validated against a build.)
 
 ---
 

@@ -277,7 +277,7 @@ working forever; `order:` works in both attributes, and is the only spelling `da
 `from` is already a parameter name on eighteen effects (`count-up from:0`, `scale-in from:1`), so it
 could not be given a second, element-wide meaning there without becoming ambiguous.
 
-| `from:` | Order | Use it for |
+| `order:` | Order | Use it for |
 |---|---|---|
 | `start` | first child to last (the default) | a list reading top to bottom |
 | `end` | last child to first | a list that should resolve *toward* the heading above it |
@@ -292,7 +292,7 @@ The two attributes are merged **per key**, so a parent may carry the step on one
 the other; where they disagree about the same key, `data-kui` wins and the displaced value is named
 in a warning.
 
-Four things worth knowing:
+Five things worth knowing:
 
 - **`random` is the same scatter every time.** It is a deterministic function of the group's size,
   not `Math.random()`, so a re-render, a re-activation, or a page reload will not reshuffle a list
