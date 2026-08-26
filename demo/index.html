@@ -1,10 +1,21 @@
 <!doctype html>
+<!-- Snapping is parked with the video backdrop it was for — `.snap-panel` is that section's class,
+     so there is nothing left to snap to. To restore, uncomment that section further down and put
+     this back on the tag below:
+
+       data-kui="smooth-scroll-to, scroll-snap-y strictness:proximity target:.snap-panel"
+
+     `strictness:proximity`, not the default `mandatory`: mandatory forces a snap from anywhere in
+     range, which fights you halfway down a long reading section. Proximity only pulls when you are
+     already close to a boundary — the "it clicks into place" behaviour without the hijack. Pairing
+     the two effects at all needed `smooth-scroll` off the shared `layout` channel; that library
+     fix is in `scroll-mechanics/primitives.ts` and stands whether or not this is revived. -->
 <html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CSS animations using HTML attributes</title>
-<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 252 named effects from 30 primitives. JavaScript only for the handful of effects that genuinely need it." />
+<title>kUInetic CSS3 Animations</title>
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 255 named effects from 31 primitives. JavaScript only for the handful of effects that genuinely need it." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -333,16 +344,32 @@
      It borrows the stage's own border and foreground instead of the page's. */
   .stage .btn-ghost { color: var(--s-fg); border-color: var(--s-border); }
   .stage .btn-ghost:hover { border-color: var(--s-fg); }
+  /* "Install in two lines" only, not every ghost button — a solid fill using the page's own
+     fg/bg pair so it inverts for free: black on white in light mode, white on black in dark.
+     Same trick `.catalog-more .btn-ghost` already uses a few sections down. Comes after
+     `.stage .btn-ghost` above so it wins the tie (equal specificity, later wins). */
+  .hero-actions .btn-ghost { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .hero-actions .btn-ghost:hover { background: color-mix(in srgb, var(--fg) 82%, var(--bg)); border-color: transparent; }
 
   /* ---------- kicker / eyebrow ---------- */
+  /* This page does not load system.css (see the show-code chip below for the same note), so the
+     colour pair is restated rather than inherited. It is the same call system.css documents: the
+     kicker was `--muted`, the identical grey every secondary label uses, which read as "disabled"
+     rather than as a category tag. Yellow in light mode, white in dark. Not literal `--accent` in
+     light — that near-yellow-green is a fill tuned to sit behind black ink, and as text on white
+     it measures well under AA; `#a16207` is the same hue pushed dark enough to read. The mono
+     face, tracking and weight below stay this page's own; only the colour is shared.
+
+     `currentColor` on the dot, not `--accent`: the dot used to stay lime while the label went
+     grey, so the pair never agreed. Now it follows whichever colour is live. */
   .kicker {
     display: inline-flex; align-items: center; gap: 0.55rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.72rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--muted);
+    color: #a16207;
   }
-  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
-  .stage .kicker { color: var(--s-muted); }
+  :root[data-theme='dark'] .kicker { color: #ffffff; }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 
   /* ---------- HERO — the stage ---------- */
   .hero-stage {
@@ -358,134 +385,104 @@
        rather than below a white strip the header is sitting on. */
     margin-top: calc(-1 * (1rem + 3.4rem));
   }
-  /* The drifting dot grid is `data-kui="dot-grid-drift"` — the page using its own catalog for its
-     own texture. It sits behind everything at z-index 0; the content layer is explicitly raised. */
-  .hero-grid-texture {
-    position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    color: var(--s-fg);
-    opacity: var(--s-texture-opacity);
-    /* A hard bottom fade so the texture belongs to the stage and does not run into the seam. */
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
-  }
   .hero-inner { position: relative; z-index: 1; }
 
   .hero {
-    display: grid; grid-template-columns: 1fr; gap: clamp(2.5rem, 5vw, 4rem);
-    align-items: center;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: clamp(1.75rem, 3.5vw, 2.75rem);
   }
-  /* The media column is the wider of the two on purpose. The card is the star of the page and the
-     copy is its caption — sized the other way round, the headline runs to five lines and the card
-     shrinks to a thumbnail floating in the gutter. */
-  @media (min-width: 1000px) { .hero { grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr); } }
+
+  /* Mirrors `.hero-media`'s own `auto 1fr` split so the title's video-column half lines up with
+     the video below it instead of the full (credit rail + video) box. */
+  .hero-title-row {
+    display: grid; grid-template-columns: auto 1fr; column-gap: 0.65rem;
+    width: 100%; max-width: 740px; margin: 0 auto;
+  }
+  .hero-title-spacer {
+    visibility: hidden;
+    writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem; letter-spacing: 0.02em;
+  }
+  /* Container for `.hero h1`'s cqw font-size below — this column, not the full row, is what
+     the video underneath actually spans. */
+  .hero-title-col { min-width: 0; container-type: inline-size; }
+  @media (max-width: 640px) {
+    .hero-title-row { grid-template-columns: 1fr; }
+    .hero-title-spacer { display: none; }
+  }
 
   .hero h1 {
-    margin-top: 1.25rem;
-    /* 15ch, not 13: at 13 the headline breaks to five lines on a desktop viewport and the hero
-       stops fitting in the first screen, which is the one thing this section cannot afford. */
-    max-width: 15ch;
-    font-size: clamp(2.6rem, 1.1rem + 3.4vw, 4.35rem);
+    margin: 0;
+    /* cqw, not vw: scales with this exact box, so it never outgrows one line. 5.8, not the
+       column's exact fit ratio (~6), to leave real slack — a ratio with none was one rendering
+       variance away from wrapping again. */
+    font-size: 5.8cqw;
+    white-space: nowrap;
     font-weight: 560;
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
-  /* Solid accent highlight in light mode, not plain text colour: --accent-text is now the same
-     #e4f222 as --accent (~1.2:1 on the stage's white), and this is the single highest-visibility
-     accent moment on the page, so it earns a fix rather than falling back to plain --fg. Same
-     accent-fill/accent-ink pair `.attr-chip .attr-value` already uses a few lines down — this
-     reuses that motif instead of inventing a second one. ~17:1. Dark mode needs none of this: the
-     page there is already near-black, so plain accent text (the pre-consolidation dark-mode
-     value) still reads fine on it without a badge. */
-  .hero h1 em {
-    font-style: normal;
-    color: var(--accent-ink);
-    background: var(--accent);
-    padding: 0 0.12em;
-    border-radius: 0.14em;
-    box-decoration-break: clone;
-    -webkit-box-decoration-break: clone;
-  }
-  :root[data-theme='dark'] .hero h1 em {
-    color: var(--accent);
-    background: none;
-    padding: 0;
-  }
-
-  /* The attribute chip — the page's focal motif. Everything kUInetic does is this string, so the
-     string is set at headline scale rather than buried in a paragraph, and the same mono-plus-
-     accent-band treatment is repeated at every section that shows an attribute. */
-  .attr-chip {
-    display: inline-flex; align-items: baseline; flex-wrap: wrap;
-    margin-top: 1.5rem; padding: 0.7rem 1.1rem;
-    border: 1px solid var(--s-hairline);
-    border-radius: 10px;
-    background: var(--s-inset);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: clamp(0.9rem, 0.5rem + 0.95vw, 1.2rem);
-    line-height: 1.3;
-    color: var(--s-fg);
-    white-space: nowrap;
-    max-width: 100%;
-    overflow-x: auto;
-  }
-  .attr-chip .attr-key { color: var(--s-muted); }
-  /* The cycling effect name is the one thing on the stage wearing the accent as a fill. Its box is
-     min-width'd so the chip does not jump a few pixels wider every time a longer name swaps in. */
-  .attr-chip .attr-value {
-    display: inline-block; min-width: 11ch;
-    padding: 0.05em 0.35em; margin: 0 0.1em;
-    border-radius: 3px;
-    background: var(--accent); color: var(--accent-ink);
-    font-weight: 600;
-  }
-  /* Deliberately NOT display:flex. A flex `gap` applies between every child, so the inline <b>
-     wrapping the effect name got the same 0.5rem on both sides as the dot did and the sentence
-     read "word-cycler , one of the 252". This is running text with one inline marker in it. */
-  .attr-caption {
-    margin-top: 0.75rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.72rem; letter-spacing: 0.04em;
-    color: var(--s-muted);
-  }
-  /* --s-fg, not --accent-text: a small caption mention, not a headline moment — the attr-chip's
-     accent-value box right above already carries the accent for this whole line. */
-  .attr-caption b { color: var(--s-fg); font-weight: 500; }
-  /* A live dot rather than an arrow glyph: the arrow has to point at a chip whose position moves
-     with the line wrap, and it renders as a stray letter in some mono stacks. A pulsing dot says
-     "this is running" from anywhere on the line. */
-  .attr-caption .live-dot {
-    display: inline-block; vertical-align: middle;
-    width: 6px; height: 6px; margin-right: 0.5rem;
-    border-radius: 50%; background: var(--accent);
-  }
-
-  /* .rev-notes on the hero stage: same component used elsewhere on this page, but the stage is
-     always dark regardless of site theme, so it needs the --s-* tokens the rest of the hero
-     (.attr-caption etc.) already reads here, not the theme-flipping --muted/--fg the base
-     .rev-notes rule uses. Replaces the former .hero .lede, now unused. */
-  .hero .rev-notes { margin-top: 1.5rem; font-size: clamp(1rem, 0.35vw + 0.95rem, 1.12rem); }
-  .hero .rev-notes li { color: var(--s-muted); }
-  .hero .rev-notes strong { color: var(--s-fg); font-weight: 510; }
-
-  .hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.85rem; }
+  /* Negative, for the same reason `.hero-media`'s top margin is: `.hero`'s row gap is one token
+     shared by every child, so pulling just this row closer to the video means offsetting it here
+     rather than shrinking a gap three other elements also read. */
+  .hero-actions { margin-top: -1rem; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.85rem; }
   .hero-note {
-    margin-top: 1.5rem; font-size: 0.82rem; color: var(--s-muted);
-    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    margin-top: 0.25rem; font-size: 0.82rem; color: var(--s-muted);
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;
   }
   .hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
 
   /* ---------- hero flip card ---------- */
-  .hero-media { min-width: 0; }
+  /* The card is the hero's only visual now that the copy column is gone, so it gets an explicit
+     cap rather than stretching edge-to-edge on wide viewports — this is roughly the width its old
+     grid track resolved to, kept for continuity. */
+  /* Negative top margin, not a smaller `.hero` gap: the gap token also spaces the actions row and
+     note below, and pulling all three closer together was not asked for — just the video, up
+     under the now-single-line title. Grid, not stacked flow: the credit is now a side label, not
+     a line above the card, so it needs its own narrow column next to `.hero-flip` rather than a
+     margin above it. The caption spans both columns on its own row underneath. */
+  .hero-media {
+    /* Negative top margin eats most of `.hero`'s own gap token, which also spaces the actions row
+       below — pulling the video up under the title without dragging those closer too. Mobile
+       resets it: the credit moves below the card there, so the gap is already doing a different
+       job and the video does not need pulling. */
+    min-width: 0; width: 100%; max-width: 740px; margin: -5.75rem auto 0;
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+    column-gap: 0.65rem;
+  }
   .hero-media-credit {
-    margin: 0 0 0.7rem;
+    grid-column: 1; grid-row: 1;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0;
+    /* Rotated 180deg on top of `vertical-rl` so it reads bottom-to-top — the standard orientation
+       for a side credit running down the left edge of a photo or video. */
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    white-space: nowrap;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     /* Plain foreground in light mode — `--accent-text` is now the same bright #e4f222 as --accent
-       and unreadable here, and this is a signature, not metadata, so it doesn't need the dark
-       highlight treatment `.hero h1 em` gets above. Dark mode keeps the accent, where lime is
-       legible and the page's other headings already use it. */
-    font-size: 0.95rem; text-align: right; color: var(--fg);
+       and unreadable here, and this is a signature, not a headline, so it doesn't need an accent
+       treatment. Dark mode keeps the accent, where lime is legible and the page's other headings
+       already use it. */
+    font-size: 0.8rem; letter-spacing: 0.02em; color: var(--fg);
   }
   :root[data-theme='dark'] .hero-media-credit { color: var(--accent); }
+  .hero-flip { grid-column: 2; grid-row: 1; }
+  .hero-media-caption { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
+  /* Below this, "beside the video" stops having room to breathe — back to a stacked line, but
+     under the card rather than above it: over the title it read as a name attached to the
+     headline rather than a credit on the video. The stats caption is dropped outright on mobile
+     rather than stacked a third time — it's desktop-only context, not essential here. */
+  @media (max-width: 640px) {
+    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto; margin-top: 0; }
+    .hero-flip { grid-column: 1; grid-row: 1; }
+    .hero-media-credit {
+      grid-column: 1; grid-row: 2;
+      writing-mode: horizontal-tb; transform: none;
+      justify-content: flex-end; margin: 0.7rem 0 0; font-size: 0.95rem;
+    }
+    .hero-media-caption { display: none; }
+  }
   /* The card is `display: grid` from the library's own rule, so any control has to claim the same
      grid cell as the faces or it lands in a second row and pushes the layout around. */
   /* In light mode this card is the one dark mass on a pale panel, which is a stronger focal pull
@@ -498,7 +495,6 @@
   .hero-flip > .kui-face-front,
   .hero-flip > .kui-face-back {
     border-radius: 14px; overflow: clip;
-    border: 1px solid var(--s-hairline);
     background: #000;
   }
   .hero-flip .video-frame { position: relative; aspect-ratio: 16 / 10; overflow: clip; background: #000; }
@@ -506,6 +502,37 @@
      one box, so one of them has to be cropped. Cropping keeps both at their true proportions. */
   .hero-flip .video-frame video,
   .hero-flip .video-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .hero-flip .video-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+  /* Same lite-YouTube-facade look as scroll.html's `.video-frame` cards — unscoped there because
+     that page reuses it across several cards. Grouped with `.reel-frame` below: the reel section
+     is a second user of this exact look on this page, so the rule is shared rather than restated
+     a second time under a second selector. */
+  .hero-flip .video-frame[data-yt-id],
+  .reel-frame { cursor: pointer; }
+  .hero-flip .yt-play,
+  .reel-frame .yt-play {
+    position: absolute; inset: 0; margin: auto; width: 68px; height: 48px;
+    border: 0; background: none; padding: 0; cursor: pointer;
+  }
+  .hero-flip .yt-play-bg,
+  .reel-frame .yt-play-bg { fill: #f00; transition: fill 180ms ease; }
+  .hero-flip .video-frame:hover .yt-play-bg, .hero-flip .yt-play:focus-visible .yt-play-bg,
+  .reel-frame:hover .yt-play-bg, .reel-frame .yt-play:focus-visible .yt-play-bg { fill: #ff1a1a; }
+  .hero-flip .yt-play-tri,
+  .reel-frame .yt-play-tri { fill: #fff; }
+  .hero-flip .yt-play:focus-visible,
+  .reel-frame .yt-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+
+  /* ---------- reel (horizontal-scroll video track) ---------- */
+  .reel-frame { position: relative; aspect-ratio: 16 / 9; overflow: clip; background: #000; border-radius: 12px; }
+  .reel-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* `horizontal-scroll` writes the pin, the clip and the row's own layout itself (see
+     scroll.html's own `.track-stage`/`.track` for the same five lines) — this is only the card
+     sizing, not the mechanism. */
+  .track-stage { margin-top: 2rem; }
+  .track { gap: 1.5rem; padding: 0 4rem; }
+  .track .reel-item { width: 340px; flex: none; margin: 0; }
+  .track .reel-item figcaption { margin-top: 0.65rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
 
   /* Both controls share one grid cell with the faces and one set of pill metrics, so they sit on
      the same baseline and read as a pair rather than as two unrelated buttons that happen to be
@@ -545,17 +572,12 @@
   }
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-  .hero-media-caption {
-    margin-top: 1rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.72rem; line-height: 1.6; color: var(--s-muted);
-  }
-  /* Was a hardcoded translucent white, which was correct only while the stage was permanently
-     near-black. On the light stage it is white-on-off-white. */
-  .hero-media-caption b { color: var(--s-fg); font-weight: 500; }
+  /* Reuses `.kicker` — this is the same "CSS Animation Library. Made for Designers" tagline, just
+     relocated under the video instead of above the headline. */
+  .hero-media-caption { margin-top: 1rem; }
 
   /* ---------- ticker ---------- */
-  /* The 252 claim, made viscerally instead of numerically. It is also the marquee primitive
+  /* The 255 claim, made viscerally instead of numerically. It is also the marquee primitive
      demonstrating itself, and it seals the bottom of the stage. */
   /* A gold rule top and bottom, at the owner's direction, reversing the earlier "no border" call.
      Worth recording why the reversal is not simply undoing the old mistake.
@@ -653,6 +675,7 @@
     border: 1px solid var(--accent); border-radius: 16px; padding: clamp(1.75rem, 3.5vw, 3.25rem);
   }
   @media (min-width: 860px) { .install-card { grid-template-columns: 1fr 1fr; } }
+  .install-card > div { min-width: 0; }
   .install-card h2 {
     font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 18ch;
     color: var(--accent-ink) !important; /* sits on a permanently yellow card — must win over the dark-mode heading rule */
@@ -759,6 +782,19 @@
      this bar needs no override at all. */
 
   /* ---------- section 4: effects compose ---------- */
+  .compose-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.75rem 2rem; margin-top: 1.75rem; }
+  /* minmax(0, 1fr), not bare 1fr: bare 1fr still lets a track's content (the left column's longer
+     names) grow it past its equal share, since a grid track's implicit minimum is auto (its
+     content's min-width), not 0. That was leaving the right column visibly narrower once its
+     rows lost their channel badges and got even shorter. minmax(0, 1fr) on both floors the
+     minimum at 0, so the two columns split the row exactly in half regardless of content. */
+  @media (min-width: 620px) { .compose-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  .compose-col-label {
+    margin: 0 0 0.6rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .compose-cols .compose-list { margin-top: 0; }
   .compose-list { list-style: none; margin: 1.75rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
   .compose-row {
     display: flex; align-items: center; gap: 0.75rem;
@@ -766,14 +802,13 @@
     transition: border-color 160ms ease;
   }
   .compose-row:hover { border-color: var(--fg); }
-  .compose-row input { accent-color: var(--accent); width: 1rem; height: 1rem; flex: none; cursor: pointer; }
+  /* `margin: 0` is what keeps the two columns' rows the same height. Chrome's UA sheet gives a
+     checkbox `margin: 3px 3px 3px 4px` and a radio `margin: 3px 3px 0 5px` — different bottom and
+     left values for controls that are otherwise identical here. Sized at 1rem, that made an
+     entrance row 43.19px and a segmentation row 40.86px, so the columns drifted ~12px apart by the
+     fifth row. Row height now comes from the label's line box alone, which both columns share. */
+  .compose-row input { accent-color: var(--accent); width: 1rem; height: 1rem; margin: 0; flex: none; cursor: pointer; }
   .compose-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
-  /* The channel list is the whole explanation, so it is on screen permanently rather than in a
-     tooltip: you can see *why* two effects collide before you tick the box that makes them. */
-  .compose-ch {
-    margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.68rem; color: var(--muted); text-align: right;
-  }
   .compose-verdict {
     margin-top: 1rem; padding: 0.7rem 0.9rem; border-radius: 8px; border: 1px solid;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; line-height: 1.6;
@@ -802,9 +837,14 @@
      to somewhere unrelated. Small on purpose: fourteen loud tiles is a fairground. */
   .view-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; margin-top: 3rem; }
   @media (min-width: 760px) { .view-grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
+  /* `<a>` is inline by default, which would collapse it to its text width inside the grid cell —
+     `display: block` is the fix, everything else here is just an anchor not looking like one. */
+  .view-card-link { display: block; color: inherit; text-decoration: none; border-radius: 14px; }
+  .view-card-link:hover .view-card, .view-card-link:focus-visible .view-card { border-color: var(--accent); }
   .view-card {
     margin: 0; overflow: clip; border-radius: 14px;
     border: 1px solid var(--border); background: var(--surface);
+    transition: border-color 0.15s ease;
   }
   .view-card img, .view-card video {
     display: block; width: 100%; aspect-ratio: var(--ar, 16 / 10); object-fit: cover;
@@ -966,6 +1006,33 @@
     margin-top: 1.5rem;
     margin-bottom: 0.5rem;
   }
+
+  /* ---------- contract bar ----------
+     Same component as scroll.html's `main .kui-contract` — the data-kui line and its Show code
+     chip as one inline-flex bar, exactly as wide as the attribute it prints. Copied verbatim, not
+     imported, for the same reason as the chip above: this page does not load system.css or
+     scroll.html's own styles. Only one contract bar lives on this page, so the density-dimming
+     rules scroll.html needs for thirty of them are left out — not needed for one. */
+  main .kui-contract {
+    display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
+    flex-wrap: nowrap; gap: 0.85rem;
+    max-width: 100%; margin: 1.35rem 0 0;
+    padding: 0.45rem 0.5rem 0.45rem 0.95rem;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; line-height: 1.5;
+    color: #ffffff; background: var(--accent-ink);
+  }
+  :root[data-theme='dark'] main .kui-contract { color: var(--accent-ink); background: var(--accent); }
+  main .kui-contract code {
+    min-width: 8ch; overflow-x: auto; white-space: nowrap;
+    font: inherit; color: inherit; background: none; border: none; padding: 0;
+    padding-bottom: 0.3rem;
+    scrollbar-width: thin;
+    padding-right: 1.75rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
+  }
+  main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
 
   .kui-code-modal-backdrop {
     position: fixed;
@@ -1147,7 +1214,7 @@
         </div>
       </div>
     </nav>
-    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;" data-kui="lift-shadow">Get started</a>
     <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
       <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
     </button>
@@ -1173,85 +1240,62 @@
          lime was chosen for. It sits outside `.wrap` and carries its own, so the paint reaches the
          viewport edge while the content stays on the same 1200px measure as every section below. -->
     <section class="hero-stage stage" data-od-id="hero">
-      <div class="hero-grid-texture" aria-hidden="true" data-kui="dot-grid-drift 26s"></div>
       <div class="wrap hero-inner">
         <div class="hero">
-          <div class="hero-copy">
-            <p class="kicker" data-kui="fade-up 600ms">252 effects · 30 primitives · one attribute</p>
-            <h1 data-kui="text-reveal-up 900ms 80ms on:load">Animate anything with <em>one</em> HTML attribute.</h1>
-
-            <!-- The focal motif. The effect name cycles through six real catalog entries, so the
-                 thing you are reading is the thing you would type — and the cycling is itself
-                 `word-cycler`, one of the names it cycles past. -->
-            <p class="attr-chip" data-kui="fade-up 700ms 320ms">
-              <span class="attr-key">data-kui=&quot;</span><span
-                class="attr-value"
-                data-kui="word-cycler words:fade-blur-up|slat-assemble|text-reveal-up|parallax-scale|word-cycler|count-up interval:2000ms"
-              >fade-blur-up</span><span class="attr-key">&nbsp;800ms&quot;</span>
-            </p>
-            <p class="attr-caption" data-kui="fade-up 700ms 400ms"><span class="live-dot" data-kui="glow-pulse 2s" aria-hidden="true"></span> Live — that name is cycling with <b>word-cycler</b>, one of the 252</p>
-
-            <div class="rev-notes" data-kui-stagger="60ms">
-              <ul>
-                <li data-kui="fade-up 500ms 460ms">It compiles to real <strong>@keyframes</strong> and native scroll-driven timelines.</li>
-                <li data-kui="fade-up 500ms">No animation loop, no per-effect scroll listener, and <strong>no runtime at all</strong> for roughly 70% of the catalog.</li>
-              </ul>
+          <!-- Matches `.hero-media`'s own two-column split (an auto-width credit rail, then the
+               video) with a real spacer instead of a guessed pixel offset — the spacer carries the
+               exact same text/font/rotation as `.hero-media-credit` below, so its intrinsic width
+               tracks the credit's automatically. Without it the title centers across the full
+               740px box while the video sits right of the credit rail, and the two visibly
+               misalign. -->
+          <div class="hero-title-row">
+            <span class="hero-title-spacer" aria-hidden="true">Made by Leon A.</span>
+            <div class="hero-title-col">
+              <h1 data-kui="split-lines 2000ms on:load stagger:320ms">HTML attributes → CSS3 Animations</h1>
             </div>
-
-            <div class="hero-actions" data-kui="fade-up 700ms 540ms">
-              <a href="#catalog" class="btn btn-primary">See what it can do</a>
-              <a href="#install" class="btn btn-ghost" data-kui="shine-sweep">Install in two lines →</a>
-            </div>
-            <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
           </div>
 
-          <!-- Two real websites, one slot. `flip-card` is the library's stateful two-sided card —
-               not `card-flip-y`, which is a one-shot entrance with nothing on the other side. The
+          <!-- One live demo, one real website, one slot. Both faces now mirror scroll.html's own
+               hero flip exactly — same two YouTube reference videos, click-to-embed on both sides —
+               so the two pages tell one consistent story instead of carrying two different
+               reference sets. `flip-card` is the library's stateful two-sided card — not
+               `card-flip-y`, which is a one-shot entrance with nothing on the other side. The
                state is `aria-pressed` on the control, read with `:has()`, so the button's
                accessibility state and the card's visual state are the same fact rather than two
                that can drift. -->
-          <div class="hero-media" data-kui="fade-left 800ms 200ms">
+          <div class="hero-media" data-kui="fade-up 800ms 200ms">
             <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
                  observer fires immediately anyway, and if the hero is ever pushed below the fold
                  the line types when it is read rather than into an empty screen. -->
-            <p class="hero-media-credit" data-kui="typewriter on:enter">Made by Leon A.</p>
+            <p class="hero-media-credit" data-kui="typewriter delay:1000ms on:enter">Made by Leon A.</p>
             <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
-              <!-- Museum leads, not the spatial clinic. Both are strong references, but the front
-                   face is the page's first impression at roughly 460px wide: the museum shot is a
-                   lit subject on near-black with one glowing ring, which resolves instantly at that
-                   size, while the clinic is a dim room full of 4px UI text that reads as a grey
-                   rectangle until you lean in. It is also natively 16:9 against this card's 16:10,
-                   so it loses the least to the crop. -->
-              <div class="kui-face-front" data-flip-name="Museum of Ancient Art">
-                <div class="video-frame">
+              <!-- Front face: the same lite-YouTube-facade pattern as the back face
+                   (`data-yt-id` + poster `<img>` + play button; see the script below). Nothing
+                   loads off the critical path until the poster is clicked. -->
+              <div class="kui-face-front" data-flip-name="Sam Crawford — The Psychology of Premium Websites">
+                <div class="video-frame" data-yt-id="f2mGqlLLqok">
                   <!-- The largest element in the first viewport, so it is this page's LCP
-                       candidate: `preload="metadata"` rather than `none` gets the first frame on
-                       screen without waiting for the observer, and the poster covers the gap. -->
-                  <video
-                    data-autoplay-in-view
-                    poster="./assets/webdesign/museum-ancient-art-hero-poster.jpg"
-                    muted loop playsinline preload="metadata"
-                    aria-label="The Lourve Museum of Ancient Art homepage — a bronze bust lit behind a glowing white ring, under a serif Museum of Ancient Art headline"
-                  >
-                    <source src="./assets/webdesign/museum-ancient-art-hero.webm" type="video/webm" />
-                    <source src="./assets/webdesign/museum-ancient-art-hero.mp4" type="video/mp4" />
-                  </video>
+                       candidate: `eager` + `fetchpriority="high"` gets the poster painted without
+                       waiting for the observer. -->
+                  <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="eager" fetchpriority="high" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <div class="kui-face-back" data-flip-name="fuselab creative">
-                <div class="video-frame">
-                  <!-- The back face is also in the first viewport — it is a 3D face, not a hidden
-                       element — but nothing is looking at it until you flip. `preload="none"` keeps
-                       its 2.1MB off the critical path; the flip control starts it. -->
-                  <video
-                    data-autoplay-in-view
-                    poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg"
-                    muted loop playsinline preload="none"
-                    aria-label="A spatial clinic-scheduling interface by fuselab creative — translucent patient cards and a weekly availability grid floating in a sunlit living room, panels sliding and resolving as a doctor's calendar fills in"
-                  >
-                    <source src="./assets/webdesign/fuselab-spatial-clinic.webm" type="video/webm" />
-                    <source src="./assets/webdesign/fuselab-spatial-clinic.mp4" type="video/mp4" />
-                  </video>
+              <!-- Back face: same lite YouTube facade, scroll.html's own front-face video. -->
+              <div class="kui-face-back" data-flip-name="Kole Jain — Every UI/UX Concept Explained">
+                <div class="video-frame" data-yt-id="EcbgbKtOELY">
+                  <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="eager" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
               <!-- Two controls, opposite corners, so neither has to make room for the other. Flip
@@ -1266,16 +1310,19 @@
                 <span class="flip-label">Flip</span>
               </button>
             </div>
-            <p class="hero-media-caption">
-              <b>Now showing: <span id="flip-now">Museum of Ancient Art</span></b> · data-kui=&quot;flip-card&quot; — a transition rather than a
-              keyframe, so the card stays on the face you turned it to.
-            </p>
+            <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">CSS Animation Library. Made for Designers</p>
           </div>
+
+          <div class="hero-actions" data-kui="fade-up 700ms 540ms">
+            <a href="#catalog" class="btn btn-primary" data-kui="lift-shadow">See what it can do</a>
+            <a href="#install" class="btn btn-ghost" data-kui="shine-sweep, lift-shadow">Install in two lines →</a>
+          </div>
+          <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
         </div>
       </div>
     </section>
 
-    <!-- The 252 claim, made viscerally rather than numerically — and the marquee primitive
+    <!-- The 255 claim, made viscerally rather than numerically — and the marquee primitive
          demonstrating itself while it does. The second row is the duplicate the seamless loop
          needs; it is `aria-hidden` so a screen reader reads the list once. -->
     <section class="ticker stage" aria-label="Entrance and exit names — the vocabulary the playground below draws from" data-od-id="ticker">
@@ -1285,6 +1332,21 @@
       </div>
     </section>
 
+    <!-- PARKED — ambient/feedback ticker. The full-bleed video backdrop that used to sit above
+         this (fireplace.{mp4,webm,jpg}) was cut, assets and all — the clip wasn't strong enough to
+         earn the viewport, and there was no plan to revive it. This ticker was parked alongside it
+         and is still fine on its own; uncomment to restore, no other section depends on it. -->
+    <!--
+    <section class="ticker stage" aria-label="Ambient and feedback names — the always-on and the reactive" data-od-id="ticker-ambient">
+      <div class="ticker-row" data-kui="marquee 44s">
+        <span>aurora&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;scanline&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;float&nbsp;·&nbsp;<b>spotlight-follow</b>&nbsp;·&nbsp;orbit&nbsp;·&nbsp;glow-pulse&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;ripple&nbsp;·&nbsp;badge-pop&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;<b>shake-error</b>&nbsp;·&nbsp;toast-slide-in&nbsp;·&nbsp;spinner-dots&nbsp;·&nbsp;skeleton-shimmer&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">aurora&nbsp;·&nbsp;gradient-mesh&nbsp;·&nbsp;noise-overlay&nbsp;·&nbsp;<b>starfield</b>&nbsp;·&nbsp;scanline&nbsp;·&nbsp;dot-grid-drift&nbsp;·&nbsp;float&nbsp;·&nbsp;<b>spotlight-follow</b>&nbsp;·&nbsp;orbit&nbsp;·&nbsp;glow-pulse&nbsp;·&nbsp;wave-blob&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;ripple&nbsp;·&nbsp;badge-pop&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;<b>shake-error</b>&nbsp;·&nbsp;toast-slide-in&nbsp;·&nbsp;spinner-dots&nbsp;·&nbsp;skeleton-shimmer&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+    -->
+
+
+
     <div class="wrap">
       <!-- CHANGE THE ATTRIBUTE — playground 1.
            The old version of this section was a static code block beside a static result. It made
@@ -1293,15 +1355,7 @@
       <section id="lab" data-od-id="lab">
         <div class="play-grid">
           <div>
-            <p class="kicker">Try it</p>
-            <h2 data-kui="text-reveal-mask 700ms on:enter">Click the attribute. Watch it change.</h2>
-            <div class="rev-notes" data-kui-stagger="60ms">
-              <ul>
-                <li data-kui="fade-up 500ms on:enter">One element, one attribute.</li>
-                <li data-kui="fade-up 500ms on:enter">Each chip writes a different value onto the same frame and the browser recompiles it.</li>
-                <li data-kui="fade-up 500ms on:enter">No rebuild, no re-render, nothing else on the page touched.</li>
-              </ul>
-            </div>
+            <h2 data-kui="text-reveal-mask 700ms on:enter stagger:320ms">Click the attribute. Watch it change.</h2>
             <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="45ms">
               <!-- `wipe-circle` leads: it is the one that reads instantly at this size and it is
                    not on reveals.html, so the first thing you see here is something you have not
@@ -1352,7 +1406,31 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-up 1500ms">zoom-in-up</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-down 1500ms">back-in-down</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-left 1500ms">fade-left</button>
-
+              <!-- Eight more: the symmetric pairs the row above was missing (fade/slide/rotate/
+                   bounce only ever showed one direction each) plus the one combo preset variant
+                   not yet in the row. -->
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-down 1500ms">fade-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-right 1500ms">fade-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-down 1500ms">slide-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-right 1500ms">slide-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-right 1500ms">rotate-in-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in-down 1500ms">bounce-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-blur-in 1500ms">fade-blur-in</button>
+              <!-- Six more, each checked live against the running registry before landing here —
+                   several other candidates (curtain-wipe, page-fade, the ambient/particle family)
+                   were tried and dropped: curtain-wipe is a page-transition primitive that stayed
+                   fully clipped on a single element, page-fade duplicated fade-in's look, and
+                   ambient effects (noise-overlay, scanline, aurora…) paint behind an opaque `<img>`
+                   and never show. wipe-down/wipe-left round out the wipe family; card-flip-x pairs
+                   card-flip-y (same single-element override); shake-error and wobble are the row's
+                   first "reaction" motions rather than entrances; ken-burns-out mirrors ken-burns. -->
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-down 1500ms">wipe-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-left 1500ms">wipe-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="card-flip-x 1500ms">card-flip-x</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="shake-error 1500ms">shake-error</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wobble 1500ms">wobble</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns-out 1500ms">ken-burns-out</button>
             </div>
           </div>
           <div class="lab-card">
@@ -1387,29 +1465,168 @@
       <section id="compose" data-od-id="compose">
         <div class="play-grid">
           <div>
-            <p class="kicker">The channel model</p>
-            <h2 data-kui="text-reveal-mask 700ms on:enter">Effects compose. Until they collide.</h2>
-            <div class="rev-notes" data-kui-stagger="60ms">
-              <ul>
-                <li data-kui="fade-up 500ms on:enter">Every effect declares the CSS properties it owns — its <em>channels</em>.</li>
-                <li data-kui="fade-up 500ms on:enter">Tick a set whose channels don't overlap and they compile into one animation.</li>
-                <li data-kui="fade-up 500ms on:enter">Tick two that want the same property and the library says so, instead of letting one quietly win.</li>
-              </ul>
+            <h2 data-kui="text-reveal-mask 700ms on:enter stagger:320ms">Effects compose. Until they collide.</h2>
+            <!-- Two columns, one registry. Segmentation/reveal (split-chars, split-lines,
+                 text-reveal-mask, ...) all resolve to the same `split-text` primitive, so any two
+                 of them always collide — that's why the right column is radio, not checkbox, single
+                 select within itself. It still collides with the left column's `fade-up`/
+                 `fade-blur-up` (both claim `opacity`), which is real, registry-verified behaviour:
+                 picking one entry from each column is the fastest way to see the warning path this
+                 section exists to teach. -->
+            <div class="compose-cols">
+              <div>
+                <p class="compose-col-label">Entrance</p>
+                <ul class="compose-list">
+                  <li><label class="compose-row"><input type="checkbox" data-fx="blur-in" /><span class="compose-name">blur-in</span></label></li>
+                  <li><label class="compose-row"><input type="checkbox" data-fx="zoom-in" /><span class="compose-name">zoom-in</span></label></li>
+                  <li><label class="compose-row"><input type="checkbox" data-fx="fade-up" /><span class="compose-name">fade-up</span></label></li>
+                  <li><label class="compose-row"><input type="checkbox" data-fx="rotate-in" /><span class="compose-name">rotate-in</span></label></li>
+                  <li><label class="compose-row"><input type="checkbox" data-fx="fade-blur-up" /><span class="compose-name">fade-blur-up</span></label></li>
+                </ul>
+              </div>
+              <div>
+                <p class="compose-col-label">Segmentation &amp; reveals</p>
+                <!-- Radio, not checkbox: every name here resolves to the same `split-text`
+                     primitive (see the registry check above), so two of these can never compose —
+                     ticking a second one wouldn't demonstrate a new collision, just the same one
+                     every pair in this column already shows. Single-select says that honestly. -->
+                <ul class="compose-list">
+                  <li><label class="compose-row"><input type="radio" name="segmentation-fx" checked /><span class="compose-name">None</span></label></li>
+                  <li><label class="compose-row"><input type="radio" name="segmentation-fx" data-fx="split-chars" /><span class="compose-name">split-chars</span></label></li>
+                  <li><label class="compose-row"><input type="radio" name="segmentation-fx" data-fx="split-words" /><span class="compose-name">split-words</span></label></li>
+                  <li><label class="compose-row"><input type="radio" name="segmentation-fx" data-fx="split-lines" /><span class="compose-name">split-lines</span></label></li>
+                  <li><label class="compose-row"><input type="radio" name="segmentation-fx" data-fx="text-reveal-mask" /><span class="compose-name">text-reveal-mask</span></label></li>
+                </ul>
+              </div>
             </div>
-            <ul class="compose-list">
-              <li><label class="compose-row"><input type="checkbox" data-fx="fade-up" checked /><span class="compose-name">fade-up</span><span class="compose-ch" data-ch-for="fade-up">opacity · translate</span></label></li>
-              <li><label class="compose-row"><input type="checkbox" data-fx="blur-in" /><span class="compose-name">blur-in</span><span class="compose-ch" data-ch-for="blur-in">filter</span></label></li>
-              <li><label class="compose-row"><input type="checkbox" data-fx="zoom-in" /><span class="compose-name">zoom-in</span><span class="compose-ch" data-ch-for="zoom-in">scale</span></label></li>
-              <li><label class="compose-row"><input type="checkbox" data-fx="rotate-in" /><span class="compose-name">rotate-in</span><span class="compose-ch" data-ch-for="rotate-in">rotate</span></label></li>
-              <li><label class="compose-row"><input type="checkbox" data-fx="fade-blur-up" /><span class="compose-name">fade-blur-up</span><span class="compose-ch" data-ch-for="fade-blur-up">opacity · translate · filter</span></label></li>
-            </ul>
           </div>
           <div class="play-stage">
-            <p class="attr-line">data-kui="<span class="v" id="compose-attr">fade-up 900ms</span>"</p>
-            <p class="compose-verdict" id="compose-verdict" data-ok="true" role="status">Composes — no two of these claim the same channel.</p>
+            <p class="attr-line">data-kui="<span class="v" id="compose-attr">—</span>"</p>
+            <p class="compose-verdict" id="compose-verdict" data-ok="true" role="status">Nothing selected. Tick an effect to build the attribute.</p>
             <div class="compose-frame">
-              <p class="compose-target" id="compose-target" data-kui="fade-up 900ms">Disjoint channels compose without a conflict.</p>
+              <p class="compose-target" id="compose-target">Disjoint channels compose without a conflict.</p>
             </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="ticker stage" aria-label="Scroll and media effects, the kind that drive the reel below" data-od-id="ticker-reel">
+      <div class="ticker-row" data-kui="marquee 40s">
+        <span>horizontal-scroll&nbsp;·&nbsp;<b>sequence-scrub</b>&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;<b>wipe-circle</b>&nbsp;·&nbsp;lightbox-open&nbsp;·&nbsp;scroll-progress-bar&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">horizontal-scroll&nbsp;·&nbsp;<b>sequence-scrub</b>&nbsp;·&nbsp;video-scrub&nbsp;·&nbsp;pin-until&nbsp;·&nbsp;<b>scroll-spy</b>&nbsp;·&nbsp;parallax-y&nbsp;·&nbsp;ken-burns&nbsp;·&nbsp;<b>wipe-circle</b>&nbsp;·&nbsp;lightbox-open&nbsp;·&nbsp;scroll-progress-bar&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <!-- THE REEL — vertical scroll driving a horizontal track of video cards, the same
+           `horizontal-scroll` mechanism scroll.html's own "Horizontal travel" group demonstrates
+           on screenshots. Four real videos cycled across seven cards. -->
+      <section id="reel" data-od-id="reel">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Scroll pulls the reel.</h2>
+        </div>
+
+        <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="reel-track">Show code</button></p>
+
+        <div class="track-stage" id="reel-track" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+          <div class="track">
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
+                <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Self-Made Web Designer — 6 design styles</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="TGi6CHaj5HU" data-kui-lightbox-title="Why My AI Designs Always Look Next Level — Tae Online HD">
+                <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Tae Online HD — AI design</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="NAumQObJEwM" data-kui-lightbox-title="Turn Claude into a Design Genius... Just Watch — Jack Roberts">
+                <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Jack Roberts — Claude design</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="snErQUyqwCU" data-kui-lightbox-title="How to Build $10K Websites in Minutes (Claude AI) — Metics Media">
+                <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Metics Media — Claude AI sites</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="oY87jJx4sAI" data-kui-lightbox-title="The Seismic Shifts Happening In Web Design — Self-Made Web Designer">
+                <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Self-Made Web Designer — web design</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="T1VOVArT9YI" data-kui-lightbox-title="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy">
+                <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Viktor Oddy — AI-built sites</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
+                <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Kyle Skelly — Claude for beginners</figcaption>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-frame" data-kui-lightbox-video="PKYNTm2m8eA" data-kui-lightbox-title="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford">
+                <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
+                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                  <svg viewBox="0 0 68 48" aria-hidden="true">
+                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                  </svg>
+                </button>
+              </div>
+              <figcaption>Sam Crawford — web design concepts</figcaption>
+            </figure>
           </div>
         </div>
       </section>
@@ -1429,16 +1646,7 @@
            unrelated — the picture you clicked is the picture you land next to. -->
       <section id="catalog" data-od-id="catalog">
         <div class="section-head">
-          <p class="kicker">The catalog</p>
           <h2 data-kui="fade-up on:enter">A slice of every category</h2>
-          <div class="rev-notes" data-kui-stagger="60ms">
-            <ul>
-              <li data-kui="fade-up 500ms on:enter">252 named effects from 30 primitives, in 15 categories.</li>
-              <li data-kui="fade-up 500ms on:enter">Every tile below is running the effect it names, on the same assets as the page it opens.</li>
-              <li data-kui="fade-up 500ms on:enter">Two categories have no tile: page transitions needs a navigation to happen to, and gestures needs a finger.</li>
-              <li data-kui="fade-up 500ms on:enter">The number on each tile is how many names that category ships.</li>
-            </ul>
-          </div>
         </div>
 
         <div class="slices" data-kui-stagger="60ms">
@@ -1509,13 +1717,13 @@
           <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
-                <span class="slice-num" data-kui="count-up 1600ms to:252, zoom-in 900ms scale:0.6 on:enter">0</span>
+                <span class="slice-num" data-kui="count-up 1600ms to:255, zoom-in 900ms scale:0.6 on:enter">0</span>
                 <span class="slice-num-note">named effects</span>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Numbers &amp; data <b>13</b></span>
-              <span class="slice-fx">count-up to:252, zoom-in</span>
+              <span class="slice-fx">count-up to:255, zoom-in</span>
             </span>
           </a>
 
@@ -1601,8 +1809,8 @@
         </div>
 
         <div class="catalog-more">
-          <a href="./reveals.html" class="btn btn-primary">Open the effect pages</a>
-          <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep">Read the catalog docs →</a>
+          <a href="./reveals.html" class="btn btn-primary" data-kui="lift-shadow">Open the effect pages</a>
+          <a href="./docs.html?doc=catalog" class="btn btn-ghost" data-kui="shine-sweep, lift-shadow">Read the catalog docs →</a>
         </div>
       </section>
     </div>
@@ -1622,31 +1830,27 @@
            it is the note the page should end on before the install block. -->
       <section id="view-timeline" data-od-id="view-timeline">
         <div class="section-head">
-          <p class="kicker">Scroll-driven</p>
           <h2 data-kui="fade-up on:enter">View Timeline Animation</h2>
-          <div class="rev-notes" data-kui-stagger="60ms">
-            <ul>
-              <li data-kui="fade-up 500ms on:enter">Same entrance names as everywhere else on this page.</li>
-              <li data-kui="fade-up 500ms on:enter">The only difference is <code>timeline:view</code>, which hands the clock to the browser's own <code>animation-timeline: view()</code>.</li>
-              <li data-kui="fade-up 500ms on:enter">Scroll back up and both play in reverse — the one thing no <code>on:</code> trigger can do.</li>
-            </ul>
-          </div>
         </div>
         <div class="view-grid">
-          <figure class="view-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
-            <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
-            <figcaption>data-kui="fade-up timeline:view"</figcaption>
-          </figure>
+          <a class="view-card-link" href="./scroll.html" aria-label="See more view-timeline entrances on the scroll page">
+            <figure class="view-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
+              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+              <figcaption>data-kui="fade-up timeline:view"</figcaption>
+            </figure>
+          </a>
           <!-- Three entrances composed on one element: disjoint channels (translate, rotate,
                filter), so they compile into a single animation instead of fighting. The compose
                playground further up is the same fact with the checkboxes attached. -->
-          <figure class="view-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view">
-            <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
-                   aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
-              <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
-              <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
-            </video>
-          </figure>
+          <a class="view-card-link" href="./scroll.html" aria-label="See more view-timeline entrances on the scroll page">
+            <figure class="view-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view">
+              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+              </video>
+            </figure>
+          </a>
         </div>
       </section>
     </div>
@@ -1761,12 +1965,39 @@
     })
   </script>
   <script>
+    // Lite YouTube embed: swap the poster image for a real iframe only on click. Same pattern as
+    // scroll.html's own `.video-frame` cards — the facade is kept so a flipped-away video can be
+    // torn back down to it (see the flip-control script below, which calls `__restore`).
+    ;(function () {
+      document.querySelectorAll('.video-frame').forEach(function (frame) {
+        var facade = Array.prototype.slice.call(frame.childNodes)
+        frame.__restore = function () {
+          if (!frame.querySelector('iframe')) return
+          frame.replaceChildren.apply(frame, facade)
+        }
+        var play = frame.querySelector('.yt-play')
+        if (!play) return
+        play.addEventListener('click', function () {
+          var id = frame.getAttribute('data-yt-id')
+          var iframe = document.createElement('iframe')
+          iframe.src = 'https://www.youtube.com/embed/' + id + '?autoplay=1'
+          iframe.title = frame.querySelector('img').alt
+          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+          iframe.allowFullscreen = true
+          frame.replaceChildren(iframe)
+        })
+      })
+    })()
+  </script>
+  <script>
     // flip-card is CSS; the one thing it cannot do for itself is toggle the attribute. That is the
     // author's line, the same as the icon toggles in catalog section E.
     //
     // Playing both faces is waste, not just inefficiency: `backface-visibility` only stops a face
-    // being *painted*, so a video on the side you turned away keeps decoding out of sight. The
-    // control plays whichever face is now facing the viewer and pauses the other.
+    // being *painted*, so a video on the side you turned away keeps decoding (or, for a YouTube
+    // iframe, keeps playing audio) out of sight. The control plays whichever face is now facing the
+    // viewer, pauses the other, and tears any YouTube embed on the hidden side back down to its
+    // click-to-play poster.
     ;(function () {
       document.querySelectorAll('.kui-flip-control').forEach(function (control) {
         var card = control.closest('[data-kui]')
@@ -1797,6 +2028,11 @@
           if (shownVideo) {
             var r = shownVideo.play()
             if (r && r.catch) r.catch(function () {})
+          }
+          if (hidden) {
+            hidden.querySelectorAll('.video-frame').forEach(function (frame) {
+              if (frame.__restore) frame.__restore()
+            })
           }
 
           // The caption names the face now facing the viewer — the one you can actually see.
@@ -1886,7 +2122,9 @@
     // `findConflicts` is internal, so the disjointness test is done here. It is four lines and the
     // data it runs on is real, which is the part that matters.
     ;(function () {
-      var boxes = document.querySelectorAll('.compose-row input[type=checkbox]')
+      // Both input types: the entrance column is checkboxes (any subset composes), the
+      // segmentation column is radios (mutually exclusive within itself, see its markup).
+      var boxes = document.querySelectorAll('.compose-row input[type=checkbox], .compose-row input[type=radio]')
       var attr = document.getElementById('compose-attr')
       var verdict = document.getElementById('compose-verdict')
       var target = document.getElementById('compose-target')
@@ -1901,11 +2139,34 @@
         return resolved ? resolved.primitive.channels : null
       }
 
-      // Print the real channel list beside each name, replacing the markup's fallback copy.
-      document.querySelectorAll('.compose-ch').forEach(function (el) {
-        var ch = channelsOf(el.getAttribute('data-ch-for'))
-        if (ch) el.textContent = ch.join(' · ')
-      })
+      /**
+       * The effect's own default gap between staggered pieces, or null for effects that have no
+       * pieces to stagger. Read off the registry rather than retyped here, for the same reason
+       * `channelsOf` is: the split family's stagger is per-unit (30ms a character, 90ms a word,
+       * 160ms a line), and a hardcoded copy in this page would be a second source of truth for a
+       * number the library owns. Surfacing it in the attribute line is the point — `stagger:` is
+       * the knob that decides whether a split reads as a cascade or as one flat fade, and it was
+       * invisible here while the attribute only ever showed a name and a duration.
+       */
+      function staggerOf(name) {
+        if (!registry) return null
+        var resolved = registry.resolve(name)
+        var params = resolved && resolved.preset && resolved.preset.params
+        var base = (params && params.stagger) || null
+        if (!base) return null
+        // This page runs split-words/split-lines/text-reveal-mask at double the library's own
+        // stagger — still derived off `base` rather than a second literal, so it keeps tracking
+        // the library's default instead of drifting from it.
+        if (name === 'split-words' || name === 'split-lines' || name === 'text-reveal-mask') {
+          return doubled(base)
+        }
+        return base
+      }
+
+      /** "90ms" -> "180ms". Assumes a bare millisecond value, which every split stagger is. */
+      function doubled(ms) {
+        return (parseFloat(ms) * 2) + 'ms'
+      }
 
       /** First pair of effects claiming the same channel, or null when the list composes. */
       function firstConflict(names) {
@@ -1922,16 +2183,34 @@
 
       function apply() {
         var names = []
-        boxes.forEach(function (b) { if (b.checked) names.push(b.getAttribute('data-fx')) })
+        // "None" (the segmentation column's un-set state) is a real radio, not a missing one, so
+        // the group always has exactly one checked input — but it carries no `data-fx`, and an
+        // unchecked-equivalent option should contribute nothing to the compose list.
+        boxes.forEach(function (b) { if (b.checked && b.getAttribute('data-fx')) names.push(b.getAttribute('data-fx')) })
 
         if (names.length === 0) {
           attr.textContent = '—'
           verdict.setAttribute('data-ok', 'true')
           verdict.textContent = 'Nothing selected. Tick an effect to build the attribute.'
+          // Selecting back down to nothing (e.g. picking "None") has to tear down whatever was
+          // previously installed — leaving the old data-kui in place would keep that effect's
+          // state alive on the target while the UI above claims nothing is selected.
+          if (target.hasAttribute('data-kui')) {
+            target.removeAttribute('data-kui')
+            var kuiIdle = window.__kui
+            if (kuiIdle && typeof kuiIdle.reset === 'function') kuiIdle.reset(target)
+          }
           return
         }
 
-        var value = names.map(function (n) { return n + ' 900ms' }).join(', ')
+        // 700ms, not the 2000ms this ran at before: a long per-piece duration swallows the gap
+        // between pieces. At 2000ms every word of a 6-word split is still mid-fade when the last
+        // one starts, so the whole block reads as one plain fade and the split looks broken. The
+        // gap has to be a real fraction of the duration to be seen at all.
+        var value = names.map(function (n) {
+          var stagger = staggerOf(n)
+          return n + ' 700ms' + (stagger ? ' stagger:' + stagger : '')
+        }).join(', ')
         attr.textContent = value
 
         var clash = firstConflict(names)
@@ -2009,5 +2288,6 @@
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>
+  <script src="./video-lightbox.js"></script>
 </body>
 </html>

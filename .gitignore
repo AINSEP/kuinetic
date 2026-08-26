@@ -10,6 +10,12 @@ demo/showcase/tailwind.css
 .artifacts/
 .playwright-mcp/
 
+# Full-page screen recordings of a demo page, captured at demo/ root as
+# <page>-html-full.* / <page>-html-highlight.*. Scratch capture output, tens of
+# MB each. Real site media lives under demo/assets/ and is unaffected.
+/demo/*-html-full.*
+/demo/*-html-highlight.*
+
 # Agent-harness scaffolding — local tooling, not part of the library.
 AI-Dev-Shop/
 ADS-memory/

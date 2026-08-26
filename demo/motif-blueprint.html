@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — Sheet 01: CSS animation authored in HTML attributes</title>
-<meta name="description" content="A CSS animation library authored in HTML attributes. 252 named effects over 30 primitive families, compiled to real @keyframes and native scroll-driven timelines. Drawn as a technical sheet." />
+<meta name="description" content="A CSS animation library authored in HTML attributes. 255 named effects over 31 primitive families, compiled to real @keyframes and native scroll-driven timelines. Drawn as a technical sheet." />
 
 <link rel="stylesheet" href="./kuinetic.css" />
 
@@ -893,8 +893,8 @@
            child for the stagger to be real. The cells wash in one after another; each one's
            counter runs on its own. -->
       <div class="titleblock" data-kui-stagger="70ms">
-        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Effects</span><span class="tb-v" data-kui="count-up 1200ms to:252">0</span></div>
-        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Primitives</span><span class="tb-v" data-kui="count-up 1200ms to:30">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Effects</span><span class="tb-v" data-kui="count-up 1200ms to:255">0</span></div>
+        <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Primitives</span><span class="tb-v" data-kui="count-up 1200ms to:31">0</span></div>
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">CSS-only</span><span class="tb-v" data-kui="count-up 1200ms to:168">0</span></div>
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Sections</span><span class="tb-v" data-kui="count-up 1200ms to:15">0</span></div>
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Files to add</span><span class="tb-v" data-kui="count-up 1200ms to:2">0</span></div>
@@ -915,8 +915,8 @@
       </div>
 
       <p class="note" style="margin-top:1.4rem">
-        Renderer split: ~168 <code>css</code> · ~11 <code>prep</code> · ~58 <code>js</code>.
-        Two-thirds of the catalogue — 168 of 252 — is keyframes plus a metadata row, and ships with
+        Renderer split: ~168 <code>css</code> · ~12 <code>prep</code> · ~58 <code>js</code>.
+        Two-thirds of the catalogue — 168 of 255 — is keyframes plus a metadata row, and ships with
         zero runtime JavaScript on browsers with native timelines.
       </p>
 
@@ -1061,7 +1061,7 @@ animation-fill-mode: both;</code></pre>
         change, not typed out here.
       </p>
 
-      <div class="spec">
+      <div class="spec" data-playground>
 
         <div class="frame" data-kui="fade-up 480ms 0ms steps(6,end)">
           <p class="ref">Ref. B-1 — selector bank <span class="src">14 positions</span></p>
@@ -1092,16 +1092,16 @@ animation-fill-mode: both;</code></pre>
           <!-- The attribute goes on the wrapper, not the <img>: `slat-assemble` builds a stage of
                slats around the picture it is given, so it needs a wrapper — and every other
                entrance works on a wrapper too, keeping all 14 positions on one footing. -->
-          <div class="stage" id="spec-target" data-kui="wipe-circle 1400ms">
+          <div class="stage" data-playground-target data-kui="wipe-circle 1400ms">
             <img src="./assets/futurism/futuristic_visor_hud.jpg" alt="Astronaut in a white spacesuit helmet, a glowing cyan HUD readout across the visor, blurred string lights behind" />
             <span class="stage-marks" aria-hidden="true"></span>
           </div>
           <div class="readout">
-            <div class="ro"><span class="ro-k">data-kui</span><span class="ro-v" id="ro-attr">wipe-circle 1400ms</span></div>
-            <div class="ro"><span class="ro-k">keyframes</span><span class="ro-v measured" id="ro-name">—</span></div>
-            <div class="ro"><span class="ro-k">duration</span><span class="ro-v measured" id="ro-dur">—</span></div>
-            <div class="ro"><span class="ro-k">easing</span><span class="ro-v measured" id="ro-ease">—</span></div>
-            <div class="ro"><span class="ro-k">source</span><span class="ro-v" id="ro-src">read from the live element</span></div>
+            <div class="ro"><span class="ro-k">data-kui</span><span class="ro-v" data-playground-attr>wipe-circle 1400ms</span></div>
+            <div class="ro"><span class="ro-k">keyframes</span><span class="ro-v measured" data-playground-readout="keyframes">—</span></div>
+            <div class="ro"><span class="ro-k">duration</span><span class="ro-v measured" data-playground-readout="duration">—</span></div>
+            <div class="ro"><span class="ro-k">easing</span><span class="ro-v measured" data-playground-readout="easing">—</span></div>
+            <div class="ro"><span class="ro-k">source</span><span class="ro-v" data-playground-readout="source">read from the live element</span></div>
           </div>
         </div>
 
@@ -1194,7 +1194,7 @@ animation-fill-mode: both;</code></pre>
       <div class="matrix-scroll" data-kui="fade-up 460ms 120ms steps(6,end)">
         <table class="matrix">
           <caption class="note" style="text-align:left; padding-bottom:0.6rem">
-            10 of 30 primitive families. Full table in docs/catalog.md.
+            10 of 31 primitive families. Full table in docs/catalog.md.
           </caption>
           <thead>
             <tr>
@@ -1318,7 +1318,7 @@ animation-range: <span class="a">entry 0% cover 60%</span>;</code></pre>
   <div class="wrap">
     <section class="plate" id="sheet-index">
       <p class="fig">Fig. 06 &nbsp;/&nbsp; Sheet index &nbsp;/&nbsp; Drawing set</p>
-      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">252 effects, drawn on nine further sheets.</h2>
+      <h2 class="plate-h" data-kui="fade-up 460ms 0ms steps(6,end)">255 effects, drawn on nine further sheets.</h2>
       <p class="lede" data-kui="fade-up 460ms 80ms steps(6,end)">
         Not one wall. Each sheet takes a section of the catalogue and shows every name in it
         running, with the attribute that produced it printed alongside.
@@ -1473,83 +1473,7 @@ kuinetic({ observe: true }).start()</code></pre>
 <script>
   window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
 </script>
-<script>
-  // --- FIG. 02: the selector bank ---------------------------------------------------------
-  //
-  // The mechanism is `reset()` + `process()` + `activate()`, exactly as demo/index.html's
-  // playground uses it, and for the same three reasons:
-  //
-  //   reset()    releases the installed state. Without it `process()` short-circuits, because
-  //              the element's configuration object is cached and "it changed" is what it tests.
-  //   process()  re-plans and re-writes the compiled declaration for the new attribute value.
-  //   activate() opens the gate. `process()` leaves the effect GATED on its activation trigger,
-  //              which is `on:enter` by default. The element never left the viewport, so the
-  //              observer never re-fires, and the animation would sit at
-  //              `playState: paused, currentTime: 0` forever. A click IS the activation.
-  //
-  // The readout below is deliberately *measured*, not mirrored: it reads the declaration the
-  // runtime just wrote onto the element rather than restating the string the button holds.
-  // A blueprint that prints its own inputs back at you is not an instrument.
-  ;(function () {
-    var target = document.getElementById('spec-target')
-    var switches = document.querySelectorAll('.sw')
-    var roAttr = document.getElementById('ro-attr')
-    var roName = document.getElementById('ro-name')
-    var roDur = document.getElementById('ro-dur')
-    var roEase = document.getElementById('ro-ease')
-    var roSrc = document.getElementById('ro-src')
-    if (!target || !switches.length) return
-
-    // Prefer the inline style the runtime wrote; fall back to the computed value. A `prep` or
-    // `js` renderer emits no `animation` declaration on the host element at all — that reads
-    // back as '' or 'none', which is information rather than a failure, so say so.
-    function readDecl(prop) {
-      var inline = target.style.getPropertyValue(prop)
-      if (inline) return inline
-      var computed = getComputedStyle(target).getPropertyValue(prop)
-      return computed && computed !== 'none' ? computed : ''
-    }
-
-    function paintReadout(authored) {
-      roAttr.textContent = authored
-      var name = readDecl('animation-name')
-      var dur = readDecl('animation-duration')
-      var ease = readDecl('animation-timing-function')
-      var css = !!name
-      roName.textContent = css ? name : '— none on this element'
-      roDur.textContent = css ? dur : '—'
-      roEase.textContent = css ? ease : '—'
-      roSrc.textContent = css
-        ? 'measured — css renderer, keyframes on this element'
-        : 'measured — prep/js renderer, keyframes live on generated children'
-    }
-
-    switches.forEach(function (sw) {
-      sw.addEventListener('click', function () {
-        var fx = sw.getAttribute('data-fx')
-        switches.forEach(function (other) {
-          other.setAttribute('aria-pressed', String(other === sw))
-        })
-        target.setAttribute('data-kui', fx)
-
-        var kui = window.__kui
-        if (kui && typeof kui.reset === 'function') {
-          kui.reset(target)
-          kui.process(target)
-          kui.activate(target)
-        }
-        paintReadout(fx)
-      })
-    })
-
-    // Seed the readout from whatever the runtime installed for the default attribute. One frame
-    // of delay: `start()` above walks the document synchronously, but reading straight after it
-    // in the same task can beat the style write on some paths.
-    requestAnimationFrame(function () {
-      paintReadout(target.getAttribute('data-kui') || '')
-    })
-  })()
-</script>
+<script src="./motif-controller.js"></script>
 
 </body>
 </html>

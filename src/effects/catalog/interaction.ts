@@ -49,6 +49,17 @@ const popParams: ParameterSchema = {
   scale: { type: 'number', default: '1.06', cssProperty: '--kui-pop-scale', finite: true, minimum: 0 },
 }
 
+// Empty default, same convention as `sequence-scrub`'s `src:` (scroll-mechanics/primitives.ts):
+// unauthored means "not in the resolved output at all" (see `resolveParams`'s doc comment), so the
+// existing four-stop rainbow default in interaction.css's `var(--kui-beam-border-c1, #ff5f6d)`
+// fallback is untouched for every beam-border/beam-border-auto instance that doesn't set `color:`.
+// `outset:` is the same empty-default story for geometry: it pulls the ring out over the host's
+// own border, which `inset: 0` alone cannot reach (see interaction.css's rule comment).
+const beamParams: ParameterSchema = {
+  color: { type: 'color', default: '', cssProperty: '--kui-beam-border-c1' },
+  outset: { type: 'length', default: '', cssProperty: '--kui-beam-border-outset' },
+}
+
 function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSchema = {}): Primitive {
   return {
     id,
@@ -77,7 +88,7 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('split-flap', ['rotate']),
   hoverPrimitive('border-draw', ['border']),
   hoverPrimitive('border-glow', ['shadow']),
-  hoverPrimitive('beam-border', ['border']),
+  hoverPrimitive('beam-border', ['border'], beamParams),
   hoverPrimitive('underline-slide', ['scale']),
   hoverPrimitive('underline-center', ['scale']),
   hoverPrimitive('icon-wiggle', ['rotate']),
@@ -103,7 +114,7 @@ export const CONTINUOUS_BORDER_PRIMITIVES: Primitive[] = [
     id: 'beam-border-auto',
     renderer: 'javascript' as Renderer,
     channels: ['border'],
-    parameters: hoverTiming,
+    parameters: { ...hoverTiming, ...beamParams },
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',

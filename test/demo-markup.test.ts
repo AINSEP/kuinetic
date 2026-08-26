@@ -111,6 +111,11 @@ describe('demo page markup', () => {
  * check: in any script that calls `.process(`, `.activate(` must appear too. It cannot prove the
  * call is correct; it can only stop the pairing being dropped again, which is the thing that
  * actually happened.
+ *
+ * The demo's own `.js` files are scanned alongside the inline blocks. Scoping this to inline
+ * `<script>` bodies would have made the guard evaporate the moment a page moved its playground
+ * into a shared file — which is exactly what `motif-controller.js` did for the four motif pages,
+ * and the pairing it carries is the same one this test was written for.
  */
 describe('demo pages activate what they re-process', () => {
   const pages = readdirSync(DEMO_DIR).filter(
@@ -123,12 +128,36 @@ describe('demo pages activate what they re-process', () => {
   const stripComments = (source: string): string =>
     source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
 
-  const scriptsCallingProcess = pages.flatMap((file) => {
+  const inlineScripts = pages.flatMap((file) => {
     const html = readFileSync(`${DEMO_DIR}/${file}`, 'utf8')
-    return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
-      .map((match, index) => ({ file, index, body: stripComments(match[1]!) }))
-      .filter((script) => script.body.includes('.process('))
+    return [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((match, index) => ({
+      file,
+      index,
+      body: stripComments(match[1]!),
+    }))
   })
+
+  // Two kinds of file legitimately call `process()` without `activate()`. `kuinetic.*` are the
+  // library bundles, where the two are separate public methods that appear apart by design.
+  // `replay.js` resets every element and then deliberately leaves the *real* trigger to re-fire:
+  // synthetically activating a hover- or click-gated effect nobody hovered reads as broken rather
+  // than replayed, which its own header says at length. Neither is the swap-an-attribute-on-click
+  // pattern this guard exists for.
+  const NEVER_ACTIVATES = new Set(['replay.js'])
+  const standaloneScripts = readdirSync(DEMO_DIR)
+    .filter(
+      (file) =>
+        file.endsWith('.js') && !file.startsWith('kuinetic.') && !NEVER_ACTIVATES.has(file),
+    )
+    .map((file, index) => ({
+      file,
+      index,
+      body: stripComments(readFileSync(`${DEMO_DIR}/${file}`, 'utf8')),
+    }))
+
+  const scriptsCallingProcess = [...inlineScripts, ...standaloneScripts].filter((script) =>
+    script.body.includes('.process('),
+  )
 
   it('has a page to guard, so this suite cannot pass vacuously', () => {
     expect(scriptsCallingProcess.length).toBeGreaterThan(0)

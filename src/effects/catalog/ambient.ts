@@ -3,9 +3,37 @@ import type { Preset, Primitive } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
 
+// `--kui-ambient-c1`..`--kui-ambient-c4` are section J's shared palette, deliberately one namespace
+// across both colour primitives below so an outer `aurora from:` still tints a nested `starfield`.
+// The `ambient-` prefix is the whole point: the unprefixed `--kui-c1`/`--kui-c2` these used to write
+// are read by `shine-sweep` (interaction.css) and `confetti-burst` (feedback.css) too, and custom
+// properties inherit — so `<section data-kui="aurora from:red">` silently recoloured every
+// descendant carrying either of those. Prefixed, the palette reaches only rules that opt into it.
+//
+// Each ambient rule still falls back to the bare `--kui-cN` behind the prefixed name, so a page that
+// hand-sets `--kui-c1` to tint an ambient effect (demo/motif-blueprint.html does) keeps working. The
+// library no longer writes those names itself, which is what closed the leak.
+//
+// Empty defaults, the same convention as `beam-border`'s `color:` (interaction.ts): unauthored means
+// absent from the resolved output, so each rule's own hardcoded fallback stays in force and no
+// existing page changes colour. `--kui-ambient-c3`/`--kui-ambient-c4` stay author-set by hand.
 const drift = {
   duration: { type: 'time', default: '10s', cssProperty: '--kui-duration' },
   ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
+  from: { type: 'color', default: '', cssProperty: '--kui-ambient-c1' },
+  to: { type: 'color', default: '', cssProperty: '--kui-ambient-c2' },
+} as const
+
+// Same drift, one colour slot. `noise-overlay`, `scanline`, both grids, `starfield`,
+// `spotlight-follow` and `wave-blob` paint a single-colour pattern or wash — none of them reads a
+// second stop. Sharing `drift` meant `to:` validated cleanly and then did nothing at all on seven of
+// the eleven colour-taking names here; a separate schema turns that silence into an
+// unknown-parameter warning. Parameters are per-primitive, so a narrower schema means a second
+// primitive — hence `ambient-tint` rather than a per-preset schema override.
+const tint = {
+  duration: { type: 'time', default: '10s', cssProperty: '--kui-duration' },
+  ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
+  from: { type: 'color', default: '', cssProperty: '--kui-ambient-c1' },
 } as const
 
 const float = {
@@ -40,6 +68,34 @@ export const AMBIENT_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
     perfClass: 'continuous',
   }),
+  /*
+   * `gradient-rotate-border` and `gradient-border` are not background fills, and a second
+   * primitive is how this catalog says so — the same reason `ambient-tint` exists beside
+   * `ambient-gradient` above. Channels are per-primitive, so a different channel set means a
+   * different primitive; folding these into `ambient-gradient` would make `gradient-mesh` and
+   * `aurora` claim a mask and a box they never touch, and `aurora, pin` would start reporting a
+   * conflict that isn't there.
+   *
+   * What the ring rules actually write (`ambient.css`) beyond the gradient: `mask` +
+   * `mask-composite`, which subtract the element's own content box to leave a ring — the same
+   * physical property `media-mask` claims under the `'mask'` channel — and `position: relative`
+   * plus a `padding` that *is* the ring's thickness, which is a claim on the host's box in the
+   * sense `pin` and `background-media` already use `'layout'` for. Declared only as
+   * `background`, a `gradient-border, pin-section` pair composed silently while both decided the
+   * host's `position`, and `gradient-border, mask-reveal` while both wrote `mask`.
+   */
+  cssPrimitive('ambient-gradient-ring', [CHANNEL.background, 'mask', 'layout'], {
+    parameters: drift,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
+  cssPrimitive('ambient-tint', [CHANNEL.background], {
+    parameters: tint,
+    defaultActivation: 'load',
+    reducedMotion: 'disable',
+    perfClass: 'continuous',
+  }),
   cssPrimitive('ambient-float', [CHANNEL.translate], {
     parameters: float,
     defaultActivation: 'load',
@@ -65,49 +121,58 @@ export const AMBIENT_PRESETS: Preset[] = [
   { name: 'aurora', primitive: 'ambient-gradient', keyframes: 'kui-aurora' },
   {
     name: 'gradient-rotate-border',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-gradient-ring',
     keyframes: 'kui-gradient-rotate-border',
     params: { duration: '6s', ease: 'linear' },
   },
   {
+    // Not `gradient`: this rule masks its own content box away (`mask-composite: exclude`) to leave
+    // a ring, so putting the name on real content deletes the content. `-border` says that out loud,
+    // matching `gradient-rotate-border` and `beam-border`.
+    name: 'gradient-border',
+    primitive: 'ambient-gradient-ring',
+    keyframes: 'kui-gradient-border',
+    params: { duration: '6s', ease: 'linear' },
+  },
+  {
     name: 'noise-overlay',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-noise-overlay',
     params: { duration: '650ms', ease: 'steps(6)' },
   },
   {
     name: 'scanline',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-scanline',
     params: { duration: '3.5s', ease: 'linear' },
   },
   {
     name: 'dot-grid-drift',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-dot-grid-drift',
     params: { duration: '16s', ease: 'linear' },
   },
   {
     name: 'line-grid-drift',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-line-grid-drift',
     params: { duration: '16s', ease: 'linear' },
   },
   {
     name: 'starfield',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-starfield',
     params: { duration: '40s', ease: 'linear' },
   },
   {
     name: 'spotlight-follow',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-spotlight-follow',
     params: { duration: '9s' },
   },
   {
     name: 'wave-blob',
-    primitive: 'ambient-gradient',
+    primitive: 'ambient-tint',
     keyframes: 'kui-wave-blob',
     params: { duration: '12s' },
   },

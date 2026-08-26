@@ -4,7 +4,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { SetupResult, TimedSetup } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive } from './shared.js'
+import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
 import {
   SCRAMBLE_CHARSETS,
   applyStaggerVars,
@@ -150,7 +150,7 @@ function jsTextPrimitive(id: string, channels: string[], options: JsTextPrimitiv
 
 const splitTiming: ParameterSchema = {
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
   stagger: { type: 'time', default: '30ms', cssProperty: '--kui-stagger' },
   unit: {
@@ -169,6 +169,11 @@ const splitTiming: ParameterSchema = {
 
 const motionParams: ParameterSchema = {
   stagger: { type: 'time', default: '40ms', cssProperty: '--kui-stagger' },
+  // `duration`/`ease` are deliberately *not* declared beside the delay: text.css pins both for
+  // wave and jitter on a higher-specificity `[data-kui-split-fx='wave'] .kui-split-item` rule, so
+  // declaring them would advertise two knobs that the stylesheet then overrides. `animation-delay`
+  // is the one the phase-start rule leaves alone, which is what lets `applyStaggerVars` honour it.
+  ...TRIGGER_DELAY_PARAM,
   motion: {
     type: 'keyword',
     default: 'wave',
@@ -180,10 +185,15 @@ const motionParams: ParameterSchema = {
 const typewriterParams: ParameterSchema = {
   step: { type: 'time', default: '55ms', cssProperty: '--kui-step' },
   loop: { type: 'keyword', default: 'false', cssProperty: '--kui-loop', values: ['true', 'false'] },
+  ...TRIGGER_DELAY_PARAM,
 }
 
 const scrambleParams: ParameterSchema = {
   step: { type: 'time', default: '40ms', cssProperty: '--kui-step' },
+  // `duration` gets no such shared declaration: `stepMsFor` reads its authored-or-not distinction
+  // to decide between a whole-effect time and a per-tick `step:`, and a schema default would erase
+  // that distinction. A `0ms` delay default has no equivalent problem.
+  ...TRIGGER_DELAY_PARAM,
   revealEvery: {
     type: 'number',
     default: '2',
@@ -202,6 +212,10 @@ const scrambleParams: ParameterSchema = {
 const wordCyclerParams: ParameterSchema = {
   words: { type: 'text', default: '', cssProperty: '--kui-words' },
   interval: { type: 'time', default: '2200ms', cssProperty: '--kui-interval' },
+  // Load-bearing here, not just for symmetry: a cycler has no authored `duration` — `interval:`
+  // paces it — so the positional "duration then delay" slot only reached a delay when the author
+  // wrote a throwaway first value, `word-cycler 0ms 300ms`.
+  ...TRIGGER_DELAY_PARAM,
 }
 
 /**
@@ -288,8 +302,12 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
     layers.decorative.textContent = graphemes.slice(0, count).join('')
   }
 
+  // `typewriter` has no authored `duration` — its pacing is `step:`-driven — so the positional
+  // "duration then delay" slot never gets a delay into `params.timing.delayMs` for it; `delay:`
+  // is the only spelling that reaches here, the same "same-named parameter" fallback
+  // `splitRevealFinishMs` already relies on.
   const run = createStepRunner(ctx.win, {
-    delayMs: params.timing.delayMs ?? 0,
+    delayMs: params.timing.delayMs ?? params.ms('delay', 0),
     stepMs: stepMsFor(params, graphemes.length, 55),
     tick: () => {
       const step = nextTypeState(state, graphemes.length, loop)
@@ -324,6 +342,31 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
   // `SCRAMBLE_CHARSETS`'s three keys before this ever runs, so the lookup always hits.
   const charset = SCRAMBLE_CHARSETS[params.text('charset', 'upper')]!
   const revealEvery = Math.max(1, Math.round(params.num('revealEvery', 2)))
+
+  // Every tick swaps each unresolved grapheme for a random same-count substitute — the digit
+  // charset behind `decode` renders at a fixed advance width under `.kui-scramble`'s
+  // `tabular-nums`, but `upper`/`symbols` (`scramble`/`glitch`) have no such guarantee, so the
+  // line's wrapped width, and therefore its line count, jittered tick to tick. That bounced not
+  // just this element but its whole grid row, since CSS Grid stretches every row to its tallest
+  // cell. Measuring the resting-state box before the first scrambled frame paints, and holding
+  // the element at least that big for the rest of the resolve, removes the jitter — the box is
+  // already the right size once the real text lands.
+  const node = el as HTMLElement
+  const authoredMinWidth = node.style.getPropertyValue('min-width')
+  const authoredMinHeight = node.style.getPropertyValue('min-height')
+  const restRect = el.getBoundingClientRect()
+  ctx.style.set('min-width', `${restRect.width}px`)
+  ctx.style.set('min-height', `${restRect.height}px`)
+  // The pin is scaffolding for the resolve, not a property of the finished text, and the ledger
+  // only unwinds on teardown — so without an explicit release a `<h2 data-kui="scramble">` carried
+  // a pixel `min-width` for the rest of the page's life and could never lay out narrower than its
+  // first-paint width. Writing the author's own value back (empty routes through `removeProperty`)
+  // rather than removing outright, because an authored inline `min-width` is theirs to keep.
+  const releaseSizeLock = (): void => {
+    ctx.style.set('min-width', authoredMinWidth)
+    ctx.style.set('min-height', authoredMinHeight)
+  }
+
   const layers = installSplitLayers(el, el.ownerDocument)
   layers.decorative.classList.add('kui-scramble')
   const graphemes = segmentGraphemes(layers.originalText)
@@ -349,13 +392,17 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
   // until test/catalog-text-js.test.ts caught it.
   const totalTicks = Math.max(1, graphemes.length * revealEvery)
   const run = createStepRunner(ctx.win, {
-    delayMs: params.timing.delayMs ?? 0,
+    delayMs: params.timing.delayMs ?? params.ms('delay', 0),
     stepMs: stepMsFor(params, totalTicks, Math.max(1, 700 / totalTicks)),
     tick: () => {
       ticks++
       if (ticks % revealEvery === 0) resolved++
       render()
-      return resolved >= graphemes.length
+      const done = resolved >= graphemes.length
+      // Released on the same tick that paints the real text, so the box is never unpinned while a
+      // random-width frame is still on screen.
+      if (done) releaseSizeLock()
+      return done
     },
   })
 
@@ -363,12 +410,21 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
     cleanup: () => {
       run.stop()
       layers.restore()
+      // Also here, not only on the completion tick: `cancel()` and `destroy()` reach this and
+      // nothing else, and the ledger's own unwind runs a level up in `Animator.release()` — so a
+      // run cancelled mid-resolve left the pin behind for the rest of the page's life. That
+      // compounds, because a re-triggered `on:hover`/`on:click` scramble re-enters
+      // `prepareScramble`, reads the leaked pixel value back as `authoredMinWidth`, and hands it
+      // to the next release as the author's own. Unpinning on every teardown path is what stops a
+      // later run ever finding a stale lock to inherit.
+      releaseSizeLock()
     },
     finished: run.finished,
     finish: () => {
       run.stop()
       resolved = graphemes.length
       render()
+      releaseSizeLock()
     },
   }
 }
@@ -406,7 +462,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
   el.textContent = words[0]!
 
   const run = createStepRunner(ctx.win, {
-    delayMs: params.timing.delayMs ?? 0,
+    delayMs: params.timing.delayMs ?? params.ms('delay', 0),
     stepMs: params.ms('interval', 2200),
     tick: () => {
       el.classList.add('kui-word-cycler-swap')
@@ -458,13 +514,33 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
   }),
 ]
 
+/**
+ * Per-unit gap between staggered pieces, overriding `splitTiming`'s single `30ms` default.
+ *
+ * One stagger cannot serve all three units. A stagger only *reads* as a stagger when the spread it
+ * produces — `(itemCount - 1) × stagger` — is a real fraction of each item's own duration; below
+ * that the pieces are all mid-fade at the same instant and the split is indistinguishable from one
+ * plain fade of the whole block. Character counts are large enough that `30ms` clears that bar on
+ * its own (a 40-character line spreads over 1170ms), but the same 30ms across 6 words spreads
+ * 150ms, and across 3 lines just 60ms — which is why `split-words` and `split-lines` were reported
+ * as "not animating" while `split-chars` looked fine. They were animating; there was nothing to
+ * see. Bigger units are fewer, so each gap has to be proportionally larger to cover the same
+ * ground.
+ *
+ * These are defaults, not fixed values: `split-words stagger:200ms` still wins, because
+ * `js-effect-preparer` spreads the authored `spec.params` over the preset's.
+ */
+const CHARS_STAGGER = '30ms'
+const WORDS_STAGGER = '90ms'
+const LINES_STAGGER = '160ms'
+
 export const TEXT_JS_PRESETS: Preset[] = [
-  { name: 'split-chars', primitive: 'split-text', params: { unit: 'chars', direction: 'fade' } },
-  { name: 'split-words', primitive: 'split-text', params: { unit: 'words', direction: 'fade' } },
-  { name: 'split-lines', primitive: 'split-text', params: { unit: 'lines', direction: 'fade' } },
-  { name: 'text-reveal-up', primitive: 'split-text', params: { unit: 'words', direction: 'up' }, cloak: true },
-  { name: 'text-reveal-down', primitive: 'split-text', params: { unit: 'words', direction: 'down' }, cloak: true },
-  { name: 'text-reveal-mask', primitive: 'split-text', params: { unit: 'lines', direction: 'mask' }, cloak: true },
+  { name: 'split-chars', primitive: 'split-text', params: { unit: 'chars', direction: 'fade', stagger: CHARS_STAGGER } },
+  { name: 'split-words', primitive: 'split-text', params: { unit: 'words', direction: 'fade', stagger: WORDS_STAGGER } },
+  { name: 'split-lines', primitive: 'split-text', params: { unit: 'lines', direction: 'fade', stagger: LINES_STAGGER } },
+  { name: 'text-reveal-up', primitive: 'split-text', params: { unit: 'words', direction: 'up', stagger: WORDS_STAGGER }, cloak: true },
+  { name: 'text-reveal-down', primitive: 'split-text', params: { unit: 'words', direction: 'down', stagger: WORDS_STAGGER }, cloak: true },
+  { name: 'text-reveal-mask', primitive: 'split-text', params: { unit: 'lines', direction: 'mask', stagger: LINES_STAGGER }, cloak: true },
 
   { name: 'text-wave', primitive: 'split-text-motion', params: { motion: 'wave' } },
   { name: 'text-jitter', primitive: 'split-text-motion', params: { motion: 'jitter' } },

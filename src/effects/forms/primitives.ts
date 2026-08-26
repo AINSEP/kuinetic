@@ -3,7 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
-import { cssPrimitive } from '../shared.js'
+import { cssPrimitive, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { createStepMarker, resolveTarget } from '../step-marking.js'
 
 /**
@@ -28,7 +28,7 @@ import { createStepMarker, resolveTarget } from '../step-marking.js'
 
 const timing: ParameterSchema = {
   duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
 

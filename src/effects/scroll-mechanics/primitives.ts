@@ -6,6 +6,7 @@ import { isSameOriginPath } from '../../core/params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
+import { TIMELINE_AGNOSTIC } from '../shared.js'
 import { createStepMarker, resolveTarget } from '../step-marking.js'
 import { prepareScrollSpy } from './scroll-spy.js'
 import { trackProgress } from './tracker.js'
@@ -90,12 +91,13 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
     renderer: 'javascript',
     channels,
     parameters,
-    // `'pin'` is accepted but ignored: these primitives read scroll position themselves and are
-    // never driven by an `animation-timeline`. It is listed so that composing the driver with the
-    // effects it drives — `data-kui="pin-section distance:200vh, parallax-rotate ... "` plus
-    // `timeline:pin` — survives `compile.ts`'s `intersect`. Without it the intersection empties,
-    // `style-plan.ts` refuses the timeline, and the scrub silently degrades to a one-shot.
-    supportedTimelines: ['time', 'view', 'scroll', 'pin'],
+    // Accepted, never read: these primitives read scroll position themselves and are never driven
+    // by an `animation-timeline`. The list exists so that composing the driver with the effects it
+    // drives — `data-kui="pin-section distance:200vh, parallax-rotate ... "` plus `timeline:pin` —
+    // survives `compile.ts`'s `intersect`. Without it the intersection empties, `style-plan.ts`
+    // refuses the timeline, and the scrub silently degrades to a one-shot. See `TIMELINE_AGNOSTIC`
+    // (`effects/shared.ts`) for why the name says abstention rather than support.
+    supportedTimelines: TIMELINE_AGNOSTIC,
     supportedActivations: ['manual', 'load', 'enter'],
     defaultActivation: 'load',
     perfClass,
@@ -723,7 +725,21 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'smooth-scroll',
-    channels: ['layout'],
+    /*
+     * Its own channel, not the `'layout'` it used to share with `pin`, `stacking-cards` and
+     * `scroll-snap`. The channel model exists to stop two effects fighting over the same CSS
+     * property, and this one writes exactly `scroll-behavior` — a property that describes how a
+     * *user-or-script-initiated* scroll is performed, and that no other primitive touches.
+     *
+     * On `'layout'` it made a legitimate pairing impossible. Both `smooth-scroll` and
+     * `scroll-snap` have to sit on the document element to have any effect at all — neither
+     * `scroll-behavior` nor `scroll-snap-type` is propagated to the viewport from `<body>` — so
+     * "apply them to nested elements", the advice the conflict message gives, has no valid
+     * nesting to offer here. `data-kui="smooth-scroll-to, scroll-snap-y"` on `<html>` is the
+     * ordinary way to ask for smooth anchor jumps on a page that also snaps, and it was refused
+     * for a collision that cannot happen: the two write disjoint properties.
+     */
+    channels: ['scroll-behavior'],
     parameters: {
       behavior: { type: 'keyword', default: 'smooth', cssProperty: '--kui-scroll-behavior', values: ['smooth', 'auto'] },
     },

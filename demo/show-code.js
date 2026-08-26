@@ -22,7 +22,7 @@
    * only place a real `data-kui` *attribute* or a class-token contract can ever live. Every other
    * line is a text node a human typed as a caption.
    *
-   * That distinction is what `isKeyLine` needs. A caption like `<figcaption>data-kui="flip-shuffle"
+   * That distinction is what `renderSource`'s highlighting needs. A caption like `<figcaption>data-kui="flip-shuffle"
    * — flick to reorder</figcaption>` prints a text line that reads `data-kui="flip-shuffle" —
    * flick to reorder` — a plain string match for `data-kui=` lights that up exactly like the real
    * attribute on the real tag, because to a string search the two are identical text. Keeping the
@@ -55,8 +55,15 @@
         // `.kui-contract` is the same category one level up: the bar that *displays* the
         // `data-kui` string next to that button. Printing it puts a second copy of the attribute
         // in the source as literal text.
+        //
+        // `data-show-code-target` is the same thing by definition: an element carrying it exists
+        // only to open this modal. It is checked separately from the class because a page is free
+        // to give that button its own look — `.hero-flip-code` in the hero is an outline variant
+        // parked in the opposite corner from the flip control — and those buttons sit *inside* the
+        // container they name, so without this they printed as if the demo required them.
         if (node.classList.contains('kui-show-code-toggle')) continue
         if (node.classList.contains('kui-contract')) continue
+        if (node.hasAttribute('data-show-code-target')) continue
         childLines.push(...prettyPrint(node, depth + 1))
       }
     }
@@ -82,20 +89,68 @@
     return declared ? declared.split(/\s+/) : []
   }
 
-  function escapeRegExp(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  /**
+   * Byte ranges within a key line worth marking — the `data-kui="..."` attribute itself, and any
+   * class-token contract named by `data-show-code-key`. Scoped to the match, not the whole line:
+   * `<figure class="demo-card" data-kui="fade-in 2000ms" data-show-code>` is mostly plumbing a
+   * reader doesn't need lit up, and marking the entire opening tag buries the one attribute that
+   * actually explains the effect under five others that don't.
+   *
+   * Only an element's own opening tag can carry `data-kui` or a class-token contract, so a text
+   * line never reaches this function — see `prettyPrint`'s `isTag` for why a caption that merely
+   * *says* `data-kui=` must never be treated as the real thing.
+   *
+   * Every `data-show-code-key` authored so far names class tokens (`track`, `kui-face-front`, …),
+   * but a `target:` contract can just as easily be an id selector, so both attributes get the
+   * same treatment. Either way a token only counts as a match when it is the *whole* value (an
+   * id can't hold more than one) or one whole, space-delimited piece of a `class="..."` value —
+   * never a bare `\b`-bounded substring search across the line. `\b` alone still says yes to
+   * `track` inside `id="reel-track"` and inside `class="track-stage"`, because `-` and `"` are
+   * both non-word characters and a boundary only needs a `\w`/non-`\w` transition; the token is
+   * never `track-stage`. Scoping to whitespace-split pieces of a real `class` value, or the whole
+   * of a real `id` value, is what a "class/id-token contract" actually means. Tag-agnostic by
+   * construction — a `<ul class="…">` or `<li id="…">` matches exactly like a `<div>` would.
+   */
+  function classTokenRangesFor(text, tokens) {
+    if (tokens.length === 0) return []
+    const ranges = []
+    const classAttrRe = /class\s*=\s*"([^"]*)"/g
+    let attrMatch
+    while ((attrMatch = classAttrRe.exec(text))) {
+      const value = attrMatch[1]
+      const valueStart = attrMatch.index + attrMatch[0].length - value.length - 1
+      let cursor = 0
+      for (const part of value.split(/(\s+)/)) {
+        if (part && !/^\s/.test(part) && tokens.includes(part)) {
+          ranges.push([valueStart + cursor, valueStart + cursor + part.length])
+        }
+        cursor += part.length
+      }
+    }
+    const idAttrRe = /\bid\s*=\s*"([^"]*)"/g
+    while ((attrMatch = idAttrRe.exec(text))) {
+      const value = attrMatch[1]
+      if (!tokens.includes(value)) continue
+      const valueStart = attrMatch.index + attrMatch[0].length - value.length - 1
+      ranges.push([valueStart, valueStart + value.length])
+    }
+    return ranges
   }
 
-  function isKeyLine(line, tokens) {
-    // Only an element's own opening tag can carry `data-kui` or a class-token contract. A text
-    // line can say the words `data-kui=` — that is exactly the caption bug this guards against —
-    // but it can never be the attribute, so it is never a key line regardless of what it says.
-    if (!line.isTag) return false
-    if (/\bdata-kui\s*=/.test(line.text)) return true
-    // Word-bounded, not a plain substring test: `track` as a bare `.includes()` also matched an
-    // unrelated `<img alt="...wide-tracked wordmark...">` line on scroll.html's horizontal-scroll
-    // demo, highlighting a caption that has nothing to do with the `target:.track` contract.
-    return tokens.some((token) => new RegExp(`\\b${escapeRegExp(token)}\\b`).test(line.text))
+  function keyRangesFor(text, tokens) {
+    const ranges = []
+    const dataKuiRe = /\bdata-kui\s*=\s*"[^"]*"/g
+    let match
+    while ((match = dataKuiRe.exec(text))) ranges.push([match.index, match.index + match[0].length])
+    ranges.push(...classTokenRangesFor(text, tokens))
+    ranges.sort((a, b) => a[0] - b[0])
+    const merged = []
+    for (const range of ranges) {
+      const last = merged[merged.length - 1]
+      if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1])
+      else merged.push(range)
+    }
+    return merged
   }
 
   /**
@@ -103,22 +158,29 @@
    *
    * Never `innerHTML`: this string is built from real page markup, so injecting it as HTML would
    * both re-parse the demo's own tags and hand any authored attribute value a way into the DOM.
-   * One node per line keeps it plain text all the way down.
+   * One node per line/segment keeps it plain text all the way down.
    */
   function renderSource(code, lines, tokens) {
     code.replaceChildren()
     let marked = 0
     lines.forEach((line, index) => {
       const suffix = index < lines.length - 1 ? '\n' : ''
-      if (isKeyLine(line, tokens)) {
-        marked += 1
+      const ranges = line.isTag ? keyRangesFor(line.text, tokens) : []
+      if (ranges.length === 0) {
+        code.append(document.createTextNode(line.text + suffix))
+        return
+      }
+      marked += 1
+      let cursor = 0
+      for (const [start, end] of ranges) {
+        if (start > cursor) code.append(document.createTextNode(line.text.slice(cursor, start)))
         const mark = document.createElement('mark')
         mark.className = 'kui-code-key'
-        mark.textContent = line.text
-        code.append(mark, document.createTextNode(suffix))
-      } else {
-        code.append(document.createTextNode(line.text + suffix))
+        mark.textContent = line.text.slice(start, end)
+        code.append(mark)
+        cursor = end
       }
+      code.append(document.createTextNode(line.text.slice(cursor) + suffix))
     })
     return marked
   }
@@ -278,7 +340,7 @@
     function open(liveEl, sourceEl) {
       targetEl = liveEl.hasAttribute('data-kui') ? liveEl : (liveEl.querySelector('[data-kui]') || liveEl)
       const targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
-      
+
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
       const tokens = keyTokensFor(sourceEl)
       // The legend sentence that used to sit here is gone at the owner's request. It restated the

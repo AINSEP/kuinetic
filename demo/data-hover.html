@@ -34,8 +34,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -280,12 +278,6 @@
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Data &amp; Hover</p>
           <h1 data-kui="fade-up 900ms">Numbers and hover.</h1>
-          <p class="lede" data-kui="fade-up 900ms 90ms">
-            Catalog section F counts up, sweeps SVG geometry, and fills bars and ratings — all
-            scroll-triggered. Section I answers a pointer or a keyboard focus:
-            <code>lift</code>, <code>tilt-3d</code>, five different cursor followers, each with a
-            <code>:focus-visible</code> equivalent.
-          </p>
           <div class="demo-hero-actions" data-kui="fade-up 900ms 160ms">
             <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -316,11 +308,6 @@
       <section id="matrix" data-od-id="numbers">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Numbers &amp; data viz</h2>
-          <p data-kui="bounce-in 600ms">
-            All 13 names in <a href="./docs.html?doc=catalog">catalog section F</a> — count
-            formats, SVG progress geometry, and bar/segment/rating fills. Counters expose their
-            final value to assistive tech and never spam <code>aria-live</code> mid-animation.
-          </p>
         </div>
 
         <div class="matrix-group">
@@ -356,11 +343,6 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Rings, gauges &amp; sweeps — 4</p>
-          <p class="note" data-kui="bounce-in">
-            Author-supplied SVG geometry: <code>stroke-dasharray</code> and
-            <code>--kui-path-length</code> match the shape's own circumference or arc length, the
-            same convention <code>scroll-progress-ring</code> uses.
-          </p>
           <div class="demo-grid demo-grid--paper" data-kui-stagger="100ms">
             <div class="demo-card" data-show-code>
               <div class="meter-body">
@@ -464,12 +446,6 @@
       <section data-od-id="hover">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Hover &amp; pointer</h2>
-          <p data-kui="fade-up 700ms expo-in">
-            All 20 names in <a href="./docs.html?doc=catalog">catalog section I</a>, grouped
-            exactly as the catalog groups them — button, border, link, icon, card, and cursor.
-            Every hover effect below ships a <code>:focus-visible</code> equivalent, so Tab works
-            as well as a pointer.
-          </p>
         </div>
 
         <div class="matrix-group">

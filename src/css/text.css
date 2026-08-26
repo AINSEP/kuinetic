@@ -37,6 +37,14 @@
     animation-fill-mode: both;
   }
 
+  /*
+   * Wraps each word's .kui-split-item spans so the only line-break opportunity between adjacent
+   * atomic inline-level boxes falls at word boundaries, not between a word's individual chars.
+   */
+  .kui-split-word {
+    display: inline-block;
+  }
+
   .kui-split-line {
     display: block;
   }
@@ -61,9 +69,22 @@
    * baseline to its bottom margin edge instead of its text baseline. That shifted every word
    * span down relative to any plain-text sibling (trailing punctuation, inter-word spaces)
    * still using the real baseline — visible as a stray, oddly-placed period after "view.".
+   *
+   * `--kui-mask-bleed` is the tolerance knob for the other half of the same clipping story. The
+   * resting frame is `clip-path: inset(0)`, which clips to the item's *border box* — and display
+   * type set at tight leading (`line-height` below 1) makes that box shorter than the glyphs it
+   * holds, so the clip shaves ascenders and descenders off text that is not animating at all.
+   * Growing the box by padding and handing the space straight back as an equal negative margin
+   * widens the clip window without moving a single line, which is why the knob is a length rather
+   * than a switch: it has to match the leading the author chose. Set it on any ancestor and it
+   * inherits down to the items this primitive generates, so an author never has to write a rule
+   * against `.kui-split-item` / `.kui-split-line` themselves. `0px`, not `0`: `calc(-1 * 0)`
+   * resolves to a `<number>`, which is not a valid margin.
    */
   [data-kui-split-fx='mask'] .kui-split-item {
     animation-name: kui-split-reveal-mask;
+    padding-block: var(--kui-mask-bleed, 0px);
+    margin-block: calc(-1 * var(--kui-mask-bleed, 0px));
   }
 
   @keyframes kui-split-reveal-fade {

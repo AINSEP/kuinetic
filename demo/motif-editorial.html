@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — The Kinetic Review</title>
-<meta name="description" content="kUInetic is a CSS animation library you author in HTML attributes. 252 named effects over 30 primitive families, compiled to real CSS keyframes and native scroll-driven timelines." />
+<meta name="description" content="kUInetic is a CSS animation library you author in HTML attributes. 255 named effects over 31 primitive families, compiled to real CSS keyframes and native scroll-driven timelines." />
 
 <link rel="stylesheet" href="./kuinetic.css" />
 
@@ -845,11 +845,11 @@
 
         <div class="figures" data-kui-stagger="120ms">
           <div data-kui="fade-up 900ms expo-out on:enter">
-            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:252">0</b>
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:255">0</b>
             <span class="cap">Named effects</span>
           </div>
           <div data-kui="fade-up 900ms expo-out on:enter">
-            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:30">0</b>
+            <b data-kui="count-up 2400ms 300ms quart-out on:enter to:31">0</b>
             <span class="cap">Primitive families</span>
           </div>
           <div data-kui="fade-up 900ms expo-out on:enter">
@@ -929,7 +929,7 @@
           <p data-kui="fade-up 1000ms expo-out on:enter">
             Of the two hundred and fifty-two names, roughly one hundred and sixty-eight are
             keyframes and a metadata row and nothing else. About fifty-eight need genuine
-            per-frame JavaScript. Eleven do a single piece of DOM preparation and then hand the
+            per-frame JavaScript. Twelve do a single piece of DOM preparation and then hand the
             work back to CSS.
           </p>
           <p data-kui="fade-up 1000ms expo-out on:enter">
@@ -950,7 +950,7 @@
         <p>
           Roughly seventy per cent of the catalogue is keyframes plus a metadata row.
         </p>
-        <footer class="cap">Effect Catalog &nbsp;·&nbsp; Renderer split &nbsp;·&nbsp; 168 css / 11 prep / 58 js</footer>
+        <footer class="cap">Effect Catalog &nbsp;·&nbsp; Renderer split &nbsp;·&nbsp; 168 css / 12 prep / 58 js</footer>
       </blockquote>
 
       <div class="exhibit" data-kui="fade-up 1000ms expo-out on:enter">
@@ -992,11 +992,10 @@
   <!-- ==========================================================================================
        THE SPECIMEN BOOK — the try-it.
 
-       Mechanically identical to the playground on demo/index.html: each row carries a `data-fx`
-       value, the click handler writes it onto one frame's `data-kui`, and `reset()` + `process()`
-       + `activate()` recompiles it in place. `activate()` is not optional — `process()` leaves
-       the effect gated on `on:enter`, and the frame never left the viewport, so without it the
-       animation sits installed and paused at frame zero forever.
+       Driven by demo/motif-controller.js, the playground shared by all four motif pages: each
+       row carries a `data-fx` value, the shared handler writes it onto one plate's `data-kui`,
+       and `reset()` + `process()` + `activate()` recompiles it in place. Why all three calls are
+       needed is documented once, in that file.
 
        Dressed as a foundry's specimen index rather than a row of tags, because in this motif a
        bounded list of names IS a caption-set index — it did not need reinventing, only setting.
@@ -1016,7 +1015,7 @@
         </p>
       </div>
 
-      <div class="specimen">
+      <div class="specimen" data-playground>
         <div class="spec-index" role="group" aria-label="Choose a specimen" data-kui-stagger="45ms">
           <button type="button" class="spec-row" aria-pressed="true" data-kui="fade-up 700ms expo-out on:enter" data-fx="mask-reveal 1600ms">
             <span class="spec-num">01</span><span class="spec-name">mask-reveal</span>
@@ -1070,7 +1069,7 @@
 
         <div>
           <div class="spec-mount">
-            <div class="spec-plate" id="specimen-plate" data-kui="mask-reveal 1600ms">
+            <div class="spec-plate" data-playground-target data-kui="mask-reveal 1600ms">
               <img
                 src="./assets/modeling/pink-ruffle-crown.jpg"
                 alt="Beauty portrait in profile against a pink backdrop, wearing a tall crown of pink ruffled fabric"
@@ -1078,7 +1077,7 @@
             </div>
           </div>
           <p class="spec-attr">
-            <b>data-kui</b>="<span class="v" id="specimen-attr">mask-reveal 1600ms</span>"
+            <b>data-kui</b>="<span class="v" data-playground-attr>mask-reveal 1600ms</span>"
           </p>
         </div>
       </div>
@@ -1302,10 +1301,10 @@
           <dd>Two files. No build step, no bundler configuration. A CDN pair or an
               <code>import</code> from a bundler both work unchanged.</dd>
           <dt data-kui="fade-up 900ms expo-out on:enter">Catalogue</dt>
-          <dd>252 named effects over more than 30 primitive families, in fifteen sections
+          <dd>255 named effects over more than 31 primitive families, in fifteen sections
               lettered A to O, plus thirteen gesture and physics names outside them.</dd>
           <dt data-kui="fade-up 900ms expo-out on:enter">Renderers</dt>
-          <dd>Approximately 168 CSS, 11 preparation, 58 JavaScript.</dd>
+          <dd>Approximately 168 CSS, 12 preparation, 58 JavaScript.</dd>
           <dt data-kui="fade-up 900ms expo-out on:enter">Out of scope</dt>
           <dd>WebGL and particle rendering, and accessible component state machines. The library
               animates elements you control; it never owns their open state, their focus, or
@@ -1364,38 +1363,7 @@
 <script>
   window.__kui = kuinetic.kuinetic({ observe: true }).start()
 </script>
-<script>
-  // --- The specimen book -------------------------------------------------------------------
-  //
-  // `reset()` releases the installed state; `process()` short-circuits when an element's
-  // configuration has not changed, so without the reset a second name would be a no-op.
-  // `activate()` is the third call and the one that is easy to leave out: `process()` re-plans
-  // but leaves the effect gated on its trigger, which here is `on:enter` — and the plate never
-  // left the viewport, so the observer will never fire again. Without it the animation sits
-  // installed and paused at frame zero. That is invisible for `blur-in` (frame zero still shows
-  // the picture, only soft) and total for `wipe-up` (frame zero is nothing at all). A click is
-  // the activation; this says so.
-  ;(function () {
-    var target = document.getElementById('specimen-plate')
-    var label = document.getElementById('specimen-attr')
-    var rows = document.querySelectorAll('.spec-row')
-    if (!target || !label || !rows.length) return
-
-    rows.forEach(function (row) {
-      row.addEventListener('click', function () {
-        var fx = row.getAttribute('data-fx')
-        rows.forEach(function (r) { r.setAttribute('aria-pressed', String(r === row)) })
-        label.textContent = fx
-        target.setAttribute('data-kui', fx)
-        var kui = window.__kui
-        if (!kui || typeof kui.reset !== 'function') return
-        kui.reset(target)
-        kui.process(target)
-        kui.activate(target)
-      })
-    })
-  })()
-</script>
+<script src="./motif-controller.js"></script>
 
 </body>
 </html>

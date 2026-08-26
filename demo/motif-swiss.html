@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — CSS animation, authored in HTML</title>
-<meta name="description" content="kUInetic is a CSS animation library you author in HTML. Write data-kui=&quot;fade-up 600ms on:enter&quot; on an element and the library compiles it to real CSS keyframes and native scroll-driven timelines. 252 named effects, 30 primitive families, zero dependencies." />
+<meta name="description" content="kUInetic is a CSS animation library you author in HTML. Write data-kui=&quot;fade-up 600ms on:enter&quot; on an element and the library compiles it to real CSS keyframes and native scroll-driven timelines. 255 named effects, 31 primitive families, zero dependencies." />
 
 <script>
   // Pre-paint theme, same storage key as the rest of the showcase so the toggle is shared.
@@ -358,7 +358,7 @@
     font-size: var(--t-dense);
   }
   /* Both sides shrinkable: this table lives in a three-column span, and "Renderer split" against
-     "168 css / 11 prep / 58 js" is wider than that span until ~1440px. It has to wrap, not push. */
+     "168 css / 12 prep / 58 js" is wider than that span until ~1440px. It has to wrap, not push. */
   .spec dt { text-transform: uppercase; letter-spacing: 0.12em; font-size: var(--t-label); color: var(--g-45); align-self: center; min-width: 0; }
   .spec dd { font-weight: 700; text-align: right; min-width: 0; overflow-wrap: anywhere; }
   .spec dd b { color: var(--signal); font-weight: 700; }
@@ -673,8 +673,8 @@
     <a class="mark" href="./index.html">k<span>UI</span>netic</a>
     <p class="rail-spec label muted">
       <span>v0.1.3</span><i aria-hidden="true"></i>
-      <span>252 effects</span><i aria-hidden="true"></i>
-      <span>30 primitives</span><i aria-hidden="true"></i>
+      <span>255 effects</span><i aria-hidden="true"></i>
+      <span>31 primitives</span><i aria-hidden="true"></i>
       <span>0 dependencies</span><i aria-hidden="true"></i>
       <span>MIT</span>
     </p>
@@ -706,7 +706,7 @@
         <!-- Three lines, hard left, ragged right. The whole claim, at poster size. -->
         <h1 class="display" data-kui-stagger="70ms">
           <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)">One attribute.</span>
-          <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)"><em>252</em> effects.</span>
+          <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)"><em>255</em> effects.</span>
           <span style="display:block" data-kui="slide-up 320ms 0ms steps(4,end)">No build step.</span>
         </h1>
 
@@ -724,17 +724,17 @@
           </p>
           <div class="cta-row" data-kui="fade-up 380ms 120ms cubic-bezier(.85,0,.15,1)">
             <a class="cta" href="#try">Run an effect <span aria-hidden="true">→</span></a>
-            <a class="cta cta-ghost" href="#index">See all 252 <span aria-hidden="true">→</span></a>
+            <a class="cta cta-ghost" href="#index">See all 255 <span aria-hidden="true">→</span></a>
           </div>
         </div>
 
         <!-- Deliberate void at column 5. Dense block, empty column, dense block. -->
         <dl class="spec c-6-8 m-1-3" style="margin-top: 2rem;" data-kui="fade-in 320ms 80ms linear">
           <div><dt>Version</dt><dd>0.1.3</dd></div>
-          <div><dt>Named effects</dt><dd><b data-kui="count-up 900ms 0ms linear to:252">252</b></dd></div>
-          <div><dt>Primitive families</dt><dd><b data-kui="count-up 900ms 120ms linear to:30">30</b></dd></div>
+          <div><dt>Named effects</dt><dd><b data-kui="count-up 900ms 0ms linear to:255">255</b></dd></div>
+          <div><dt>Primitive families</dt><dd><b data-kui="count-up 900ms 120ms linear to:31">31</b></dd></div>
           <div><dt>Dependencies</dt><dd>0</dd></div>
-          <div><dt>Renderer split</dt><dd>168 css · 11 prep · 58 js</dd></div>
+          <div><dt>Renderer split</dt><dd>168 css · 12 prep · 58 js</dd></div>
           <div><dt>Licence</dt><dd>MIT</dd></div>
           <div><dt>Install size</dt><dd>2 files</dd></div>
         </dl>
@@ -805,7 +805,7 @@
           <div class="gram">
             <p class="label"><span class="n">01</span> &nbsp;Name</p>
             <code>data-kui="wipe-right"</code>
-            <p>252 named effects across 30 primitive families. Every name is a real entry in the
+            <p>255 named effects across 31 primitive families. Every name is a real entry in the
               catalogue — nothing is composed at runtime out of adjectives.</p>
           </div>
         </div>
@@ -832,11 +832,11 @@
 
     <!-- ======================================================================================
          02 — TRY IT
-         The mechanism is index.html's: reset() releases the installed state, process() re-plans,
-         and activate() is needed because the effect is gated on `on:enter` and the element never
-         left the viewport — the click IS the activation.
+         Driven by demo/motif-controller.js, the playground the four motif pages share; the
+         reset()/process()/activate() mechanism and the markup contract below are documented
+         there rather than restated on each page.
          ====================================================================================== -->
-    <section class="sec" id="try">
+    <section class="sec" id="try" data-playground>
       <div class="g">
         <div class="c-1-9">
           <p class="sec-head"><span class="n">02</span><span class="t label">Live</span></p>
@@ -875,12 +875,12 @@
           <!-- The attribute sits on the frame, not the <img>: slat-assemble builds a stage of
                slats around the picture it is given, so it needs the wrapper — and every other
                entrance works on a wrapper too, which keeps all eighteen cells on one footing. -->
-          <div class="lab-frame" id="lab-target" data-kui="wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)">
+          <div class="lab-frame" data-playground-target data-kui="wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)">
             <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" decoding="async" />
           </div>
           <div class="readout">
-            <code>data-kui="<b id="lab-attr">wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)</b>"</code>
-            <button type="button" class="replay" id="lab-replay">Replay</button>
+            <code>data-kui="<b data-playground-attr>wipe-circle 700ms 0ms cubic-bezier(.85,0,.15,1)</b>"</code>
+            <button type="button" class="replay" data-playground-replay>Replay</button>
           </div>
         </div>
       </div>
@@ -1047,7 +1047,7 @@
           <li>kUInetic 0.1.3</li>
           <li>MIT licence</li>
           <li>Zero dependencies</li>
-          <li>252 effects · 30 primitives</li>
+          <li>255 effects · 31 primitives</li>
         </ul>
       </div>
       <div class="c-5-8 m-3-4" style="margin-top:1.5rem;">
@@ -1102,51 +1102,6 @@
   })()
 </script>
 
-<script>
-  // --- Playground: rewrite the attribute -----------------------------------------------------
-  //
-  // Same mechanism as demo/index.html, and for the same reasons.
-  //
-  // `process()` short-circuits when an element's configuration hasn't changed, so `reset()` —
-  // which releases the installed state — is what makes a *different* attribute on the same
-  // element actually recompile rather than no-op.
-  //
-  // `activate()` is the non-obvious third call. `process()` leaves the effect GATED on its
-  // activation trigger, which defaults to `on:enter`. The frame never left the viewport, so the
-  // observer never re-fires and the animation sits installed at currentTime 0 forever — invisible
-  // for `blur-in`, and total for `wipe-up`, whose frame 0 is `inset(100% ...)`, i.e. nothing at
-  // all. A click IS the activation here; say so.
-  ;(function () {
-    var target = document.getElementById('lab-target')
-    var label = document.getElementById('lab-attr')
-    var replay = document.getElementById('lab-replay')
-    var chips = document.querySelectorAll('.chip')
-    if (!target || !label || !chips.length) return
-
-    function run(fx) {
-      label.textContent = fx
-      target.setAttribute('data-kui', fx)
-      var kui = window.__kui
-      if (!kui || typeof kui.reset !== 'function') return
-      kui.reset(target)
-      kui.process(target)
-      kui.activate(target)
-    }
-
-    chips.forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
-        run(chip.getAttribute('data-fx'))
-      })
-    })
-
-    if (replay) {
-      replay.addEventListener('click', function () {
-        var active = document.querySelector('.chip[aria-pressed="true"]')
-        run(active ? active.getAttribute('data-fx') : target.getAttribute('data-kui'))
-      })
-    }
-  })()
-</script>
+<script src="./motif-controller.js"></script>
 </body>
 </html>

@@ -51,16 +51,21 @@
    * Gating that token back to `1` on `ready` (rather than overriding the `scale` property itself)
    * is what fixes the `on:enter` wait: `--kui-bar-from: 1 !important` beats the paused animation's
    * own 0%-keyframe value while the real animation still reads whatever the author authored once
-   * the trigger fires. `opacity: 0 !important` sits beside it because `progress-bar` owns no
-   * opacity channel of its own — flattening the scale alone would leave the bar sitting fully
-   * visible for the whole wait instead of hidden. Both revert together in the same
-   * `data-kui-state` attribute set (`animator.ts`'s `activate()`), so there is no frame where a
-   * visitor sees the wrong shape at full opacity. `cloak: true` on this preset keeps the pre-JS and
-   * post-JS "waiting" looks the same either side of this rule.
+   * the trigger fires. `opacity: 0` sits beside it because `progress-bar` owns no opacity channel
+   * of its own — flattening the scale alone would leave the bar sitting fully visible for the whole
+   * wait instead of hidden. Both revert together in the same `data-kui-state` attribute set
+   * (`animator.ts`'s `activate()`), so there is no frame where a visitor sees the wrong shape at
+   * full opacity. `cloak: true` on this preset keeps the pre-JS and post-JS "waiting" looks the
+   * same either side of this rule.
+   *
+   * The opacity is deliberately *not* `!important`, unlike `--kui-bar-from` — see the full account
+   * on `entrance.css`'s `flip-in-x` rule. The token beats this element's own paused keyframe; an
+   * `!important` opacity would beat a composed effect's *declared* opacity channel, which is
+   * exactly the interference the channel model exists to report.
    */
   [data-kui-fx~='progress-bar'][data-kui-state='ready'] {
     --kui-bar-from: 1 !important;
-    opacity: 0 !important;
+    opacity: 0;
   }
 
   /*

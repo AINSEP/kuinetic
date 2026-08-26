@@ -1,10 +1,17 @@
 import { CHANNEL } from '../../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferPrepare } from '../../core/instances.js'
+import { continuousSetup, deferPrepare } from '../../core/instances.js'
 import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive } from './shared.js'
+import { cssPrimitive, TIMELINE_AGNOSTIC, TRIGGER_DELAY_PARAM } from './shared.js'
+import {
+  FOCAL_POINT_NAMES,
+  focalPosition,
+  installBackgroundMedia,
+  mediaSource,
+} from './background-media.js'
+import type { AutoplayMode } from './background-media.js'
 import {
   applySlatTimingVars,
   installSlatStage,
@@ -16,10 +23,12 @@ import type { SlatAxis, SlatFrom } from './media-shared.js'
 /**
  * Media and image effects (catalog section G).
  *
- * Sixteen names are pure CSS — wipes, masks, ken-burns, filters, parallax, lightbox. One,
- * `slat-assemble`, needs JS: it builds a synthetic slat tree at activation, the same
- * `text-shared.ts` decomposition `text.ts` uses for `split-text` — `media-shared.ts` carries the
- * DOM surgery and per-slat numbers, this file is orchestration only.
+ * Seventeen names are pure CSS — wipes, masks, ken-burns, filters, parallax, lightbox. Two need
+ * JS, and for the same reason: they own DOM the author did not write. `slat-assemble` builds a
+ * synthetic slat tree at activation, the same `text-shared.ts` decomposition `text.ts` uses for
+ * `split-text`; `background-media` creates the `<img>`/`<video>` that *is* the effect. Both keep
+ * their DOM surgery in a sibling module (`media-shared.ts`, `background-media.ts`) and leave this
+ * file as orchestration only.
  */
 
 const geometry = {
@@ -160,7 +169,7 @@ const slatParams: ParameterSchema = {
   },
   fold: { type: 'keyword', default: 'false', cssProperty: '--kui-fold', values: ['true', 'false'] },
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
-  delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
+  ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
   stagger: { type: 'time', default: '60ms', cssProperty: '--kui-stagger' },
 }
@@ -249,6 +258,165 @@ function prepareSlatAssemble(el: Element, params: EffectParams, ctx: PrepareCont
   }
 }
 
+// --- JS-tier: background-media ---
+
+const backgroundMediaParams: ParameterSchema = {
+  /*
+   * `text`, and same-origin-checked at the point of use rather than by the type — identical
+   * shape and identical reasoning to `media-scrub`'s own `src` (`scroll-mechanics/primitives.ts`).
+   * A URL has no lexical shape to validate against, and `type: 'text'` is the one type that never
+   * reaches a stylesheet, which is what makes accepting arbitrary path characters safe.
+   */
+  src: { type: 'text', default: '', cssProperty: '--kui-src' },
+  /*
+   * The still a `<video>` shows before its first frame decodes. Not optional polish: without it a
+   * background clip paints as an empty box for as long as the network takes, and that box is the
+   * backdrop to the author's text — the one place on the page where a flash of nothing is most
+   * visible. Every background video in this repo's own demo pages is authored with one.
+   */
+  poster: { type: 'text', default: '', cssProperty: '--kui-poster' },
+  /*
+   * `fill`, `none` and `scale-down` are deliberately absent. `fill` is the only `object-fit` value
+   * that distorts — it stretches the picture to the box rather than cropping it — and the standing
+   * rule for imagery in this project is to crop, never stretch. The other two leave the media at
+   * its intrinsic size inside a box sized to something else, which for a *backdrop* is a gap, not
+   * a layout. Adding them would be offering three ways to get a broken background.
+   */
+  fit: {
+    type: 'keyword',
+    default: 'cover',
+    cssProperty: '--kui-fit',
+    values: ['cover', 'contain'],
+  },
+  /*
+   * Which part of the picture a `cover` crop keeps. Nine named points rather than a free
+   * `object-position` string, because a free string would have to be `type: 'text'` — the one type
+   * that is explicitly never written to a stylesheet (see `core/params.ts`) — and this value is
+   * written to one. A keyword list is validated against its own `values`, so the author gets real
+   * focal control and the CSS surface stays closed.
+   */
+  focus: {
+    type: 'keyword',
+    default: 'center',
+    cssProperty: '--kui-focus',
+    values: FOCAL_POINT_NAMES,
+  },
+  /*
+   * The scrim. This is the parameter that makes the whole effect usable, because the point of a
+   * backdrop here is animated text on top of it, and text over unmodified footage is illegible
+   * about half the time — a light frame arrives and the headline vanishes for those seconds.
+   *
+   * `type: 'color'` so it goes through the same validator every other colour does. `transparent`
+   * as the default rather than an empty string for the same reason: `''` is not a colour, and a
+   * default that its own type would reject is a lie the schema cannot catch. It is also the honest
+   * spelling of "no scrim", and no scrim node is created for it.
+   */
+  overlay: { type: 'color', default: 'transparent', cssProperty: '--kui-overlay' },
+  /*
+   * Separate from the colour rather than folded into it. `overlay:rgb(0 0 0 / 45%)` does parse —
+   * the tokenizer is paren-aware — but `overlay:black overlay-opacity:45%` is the spelling someone
+   * reaches for while tuning legibility, and tuning is exactly what this value is for.
+   */
+  'overlay-opacity': { type: 'percentage', default: '100%', cssProperty: '--kui-overlay-opacity' },
+  /*
+   * The opt-out for the play-while-visible behaviour. `in-view` pairs the clip with the viewport
+   * and is right for a long section. `always` is for a short hero clip that must never be caught
+   * mid-stall by a visibility heuristic. `never` installs the clip and leaves it on its poster,
+   * which is also where any mode lands under a reduced-motion preference.
+   */
+  autoplay: {
+    type: 'keyword',
+    default: 'in-view',
+    cssProperty: '--kui-autoplay',
+    values: ['in-view', 'always', 'never'],
+  },
+  /*
+   * Bounded at both ends: `0` is a clip that is loaded, decoding, and permanently frozen — worse
+   * than `autoplay:never`, which at least says so — and browsers stop honouring rates past roughly
+   * 4 anyway, so a larger number is a silent no-op rather than a faster clip.
+   */
+  rate: {
+    type: 'number',
+    default: '1',
+    cssProperty: '--kui-rate',
+    finite: true,
+    minimum: 0.25,
+    maximum: 4,
+  },
+  loop: { type: 'keyword', default: 'true', cssProperty: '--kui-loop', values: ['true', 'false'] },
+  /*
+   * There is deliberately no `controls:`. The layer this primitive builds paints at `z-index: -1`
+   * behind the author's own children, so a native control bar there is focusable by keyboard and
+   * occluded by whatever the page happens to put over it — a player you can tab into and cannot
+   * see. A clip meant to be controlled is a content `<video controls>` the author writes, not a
+   * background one.
+   */
+}
+
+/**
+ * Fill an element with a full-bleed image or video backdrop, behind the children it already has.
+ *
+ * The `<img>`/`<video>`, its `object-fit`, its stacking position, and — for a clip — the
+ * play-while-visible observer are all the library's, because every one of them is derivable from
+ * the `src:` the attribute already carries. What the author keeps is their own markup: this
+ * primitive adds one node and claims at most two properties on the host, and teardown deletes
+ * exactly that.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function prepareBackgroundMedia(
+  el: Element,
+  params: EffectParams,
+  ctx: PrepareContext,
+): SetupResult {
+  const authored = params.text('src')
+  if (!authored) {
+    ctx.warn('background-media needs a "src:" — nothing installed')
+    return () => {}
+  }
+  const src = mediaSource(authored, 'src', ctx)
+  if (!src) return () => {}
+
+  const node = el as HTMLElement
+  // The same defensive claim `slat-assemble` above and `cursor-spotlight` (`interaction.ts`) make:
+  // the layer is `position: absolute` and needs this element as its containing block, without
+  // overriding an author who already positioned it for their own layout.
+  if (ctx.win.getComputedStyle(node).position === 'static') ctx.style.set('position', 'relative')
+  // What confines the layer's `z-index: -1` to this element. Without a stacking context here, a
+  // negative z-index climbs until it finds one, and the backdrop disappears behind whichever
+  // ancestor's background it reaches first — a section that looks empty on a page with any painted
+  // wrapper at all. `isolation` rather than a `z-index` of our own, because it creates the context
+  // without taking a position in any ancestor's paint order.
+  ctx.style.set('isolation', 'isolate')
+
+  const layer = installBackgroundMedia(el, ctx, {
+    src,
+    poster: mediaSource(params.text('poster'), 'poster', ctx),
+    fit: params.is('fit', 'contain') ? 'contain' : 'cover',
+    position: focalPosition(params.text('focus', 'center')),
+    overlay: params.text('overlay', 'transparent'),
+    // `num` returns a percentage as a 0–1 ratio, which is exactly what `opacity` takes.
+    overlayOpacity: Math.min(1, Math.max(0, params.num('overlay-opacity', 1))),
+    autoplay: params.text('autoplay', 'in-view') as AutoplayMode,
+    rate: params.num('rate', 1),
+    // `!is('loop', 'false')`, not `is('loop')`. Every other read here names its own fallback, and
+    // this one has to as well: `is()` takes no fallback argument, so a bare `is('loop')` is only
+    // true when something already filled the schema default in. That holds on the animator's path
+    // (`readEffectParams` pre-fills every declared parameter) and not on `createParams`, so the
+    // positive spelling silently defaulted a true-by-default parameter to false for any caller
+    // handing over raw values. Reading it as "loop unless explicitly told not to" states the
+    // default at the point of use, where it cannot drift.
+    loop: !params.is('loop', 'false'),
+    reducedMotion: ctx.reducedMotion,
+  })
+
+  // Continuous: a backdrop is a state the element is in, not a move it makes. Without this the
+  // element would report `data-kui-state="finished"` on the first microtask and stay there, which
+  // is a lie about something that never ends.
+  return continuousSetup(layer.remove)
+}
+
 export const MEDIA_JS_PRIMITIVES: Primitive[] = [
   {
     id: 'slat-assemble',
@@ -270,10 +438,68 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
     restoresOnFinish: true,
     prepare: deferPrepare(prepareSlatAssemble),
   },
+  {
+    id: 'background-media',
+    /*
+     * `media` is the same word `media-scrub` uses for "this effect owns what the element shows",
+     * and it is what makes `background-media, video-scrub` on one element a reported conflict
+     * rather than two effects silently fighting over the same picture.
+     *
+     * `layout` is claimed for the same reason `pin` claims it: preparation writes `position` and
+     * `isolation` on the *host*, which is a stacking-context claim on someone else's element. Left
+     * undeclared, `background-media, pin-section` composed silently while both decided what
+     * `position` the host has — the conflict detector cannot report a claim it was never told about.
+     */
+    channels: ['media', 'layout'],
+    renderer: 'javascript',
+    parameters: backgroundMediaParams,
+    // Not a claim to support four timelines — an abstention. A backdrop is not driven by progress
+    // of any kind and this primitive never reads `Timeline`; the list exists only so that
+    // `data-kui="background-media src:/hero.mp4, parallax"` plus a `timeline:view` survives
+    // `compile.ts`'s `intersect`. See `TIMELINE_AGNOSTIC` (`effects/shared.ts`), shared with the
+    // scroll-mechanics drivers, which abstain for the same reason.
+    supportedTimelines: TIMELINE_AGNOSTIC,
+    supportedActivations: ['load', 'enter', 'manual'],
+    /*
+     * `'load'`, not the catalog's usual `'enter'`, and this is the difference between working and
+     * not. A backdrop is the element's appearance, so gating it on an IntersectionObserver means a
+     * section that is already on screen at page load, one in a background tab (no IO callbacks
+     * fire at all until the tab is foregrounded), or one whose own box is still zero-area waits an
+     * unbounded time to have any background — and unlike a missed reveal, that is a visibly broken
+     * page. An author who *wants* a heavy clip deferred can still write `on:enter`.
+     */
+    defaultActivation: 'load',
+    perfClass: 'paint',
+    /*
+     * `'shorten'`, unlike every other JS-rendered primitive in this file and in `text.ts`, and
+     * deliberately so. `'disable'` means the animator never calls `activate()` under a reduced
+     * motion preference, which for an animation is exactly right and for this is not: it would
+     * leave the element with no backdrop at all rather than a calmer one. There is no CSS duration
+     * here for `'shorten'` to shorten, so the policy is inert and the effect installs normally;
+     * `ctx.reducedMotion` is then read inside, where it suppresses the one genuinely motion-y part
+     * — a clip's autoplay — and leaves the poster frame standing. See `autoplayInView`.
+     */
+    reducedMotion: 'shorten',
+    prepare: deferPrepare(prepareBackgroundMedia),
+  },
 ]
 
 export const MEDIA_JS_PRESETS: Preset[] = [
   { name: 'slat-assemble', primitive: 'slat-assemble', cloak: true },
+  /*
+   * Two names, one primitive — the alias shape the catalog already uses everywhere (`pin-until`,
+   * `pin-spacer` and `stacking-cards` are three names over the one `pin` primitive; six `wipe-*`
+   * names share `media-wipe`). A preset row is the alias mechanism, so a second spelling costs a
+   * table entry and nothing else: no duplicated implementation to keep in sync, and both names
+   * resolve to the same `prepare`.
+   *
+   * No `cloak` on either: the pre-JS cloak rule hides an element until the runtime installs the
+   * effect's from-state, and this element is the author's own content. Cloaking it would blank
+   * their text for as long as the bundle takes to arrive, to hide a backdrop that has no
+   * from-state at all.
+   */
+  { name: 'bg', primitive: 'background-media' },
+  { name: 'background', primitive: 'background-media' },
 ]
 
 export const MEDIA_PRIMITIVES: Primitive[] = [...MEDIA_CSS_PRIMITIVES, ...MEDIA_JS_PRIMITIVES]

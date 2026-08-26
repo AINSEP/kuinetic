@@ -366,5 +366,11 @@ export interface InstanceState {
   attributes: AttributeLedger
   /** Aborted on release, detaching bindings and primitive listeners. */
   controller: AbortController
+  /**
+   * Releases a one-shot `enter` binding, set only for that activation and cleared once spent.
+   * Present so `Animator.activate` can disarm an observer a programmatic activation just made
+   * redundant; a toggle activation (`hover`/`focus`/`click`) deliberately leaves this undefined.
+   */
+  releaseActivation?: Cleanup
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
 }

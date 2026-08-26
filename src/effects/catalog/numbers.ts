@@ -5,7 +5,7 @@ import type { Registry } from '../../core/registry.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { TimedSetup } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
-import { cssPrimitive } from './shared.js'
+import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
 import {
   formatCount,
   groupDigits,
@@ -36,6 +36,7 @@ const REDUCED_MOTION_DURATION_MS = 1
 
 const countParams: ParameterSchema = {
   duration: { type: 'time', default: '1600ms', cssProperty: '--kui-duration' },
+  ...TRIGGER_DELAY_PARAM,
   from: { type: 'number', default: '0', cssProperty: '--kui-from' },
   to: { type: 'number', default: '100', cssProperty: '--kui-to' },
   decimals: {
@@ -57,6 +58,7 @@ const countParams: ParameterSchema = {
 
 const odometerParams: ParameterSchema = {
   duration: { type: 'time', default: '1600ms', cssProperty: '--kui-duration' },
+  ...TRIGGER_DELAY_PARAM,
   from: { type: 'number', default: '0', cssProperty: '--kui-from' },
   to: { type: 'number', default: '100', cssProperty: '--kui-to' },
 }
@@ -102,7 +104,8 @@ export interface NumberTween {
 
 /**
  * Resolve the timing `tweenNumber` needs from an effect's validated params: duration (already
- * reduced-motion aware), positional delay, and an easing evaluator for the positional easing.
+ * reduced-motion aware), the authored delay in either spelling, and an easing evaluator for the
+ * positional easing.
  *
  * @complexity O(1) time and space beyond `resolveEasing`'s own bounded solve.
  * @overallScore 100
@@ -113,7 +116,9 @@ function tweenTimingFor(
 ): Pick<NumberTween, 'durationMs' | 'delayMs' | 'easing'> {
   return {
     durationMs: tweenDurationMs(params, ctx),
-    delayMs: Math.max(0, params.timing.delayMs ?? 0),
+    // Positional first, then the same-named parameter — the two-spellings rule `effectDurationMs`
+    // applies to `duration` just above, now applied to `delay` as well.
+    delayMs: Math.max(0, params.timing.delayMs ?? params.ms('delay', 0)),
     easing: resolveEasing(params.timing.easing, ctx.warn),
   }
 }

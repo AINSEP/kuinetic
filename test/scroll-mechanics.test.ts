@@ -473,6 +473,22 @@ describe('smooth-scroll-to', () => {
     animator.destroy()
     expect(el().style.scrollBehavior).toBe('auto')
   })
+
+  it('composes with scroll-snap — the pairing the narrowed channel exists to allow', () => {
+    // `smooth-scroll` used to claim `'layout'`, which `scroll-snap` also claims, so this list was
+    // refused as a collision and only the first effect compiled. Both have to sit on the same
+    // element to do anything (neither property propagates to the viewport from `<body>`), so the
+    // conflict message's "apply them to nested elements" had no valid nesting to offer. The two
+    // write disjoint properties, so `smooth-scroll` now owns `'scroll-behavior'` alone.
+    const animator = build(
+      '<div data-kui="smooth-scroll-to, scroll-snap-y"><section>a</section></div>',
+    )
+    animator.start()
+
+    expect(reporter.messages.join()).not.toContain('cannot compose')
+    expect(el().style.scrollBehavior).toBe('smooth')
+    expect(el().style.getPropertyValue('scroll-snap-type')).toBe('y mandatory')
+  })
 })
 
 describe('registration and parameters', () => {

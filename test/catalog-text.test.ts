@@ -49,22 +49,54 @@ describe('text catalog', () => {
     expect(marquee.primitive.supportedTimelines).toContain('scroll')
   })
 
-  it('resolves each split-text preset to its documented unit/direction defaults', () => {
+  it('resolves each split-text preset to its documented unit/direction/stagger defaults', () => {
     const registry = createRegistry()
-    const cases: Array<[string, string, string]> = [
-      ['split-chars', 'chars', 'fade'],
-      ['split-words', 'words', 'fade'],
-      ['split-lines', 'lines', 'fade'],
-      ['text-reveal-up', 'words', 'up'],
-      ['text-reveal-down', 'words', 'down'],
-      ['text-reveal-mask', 'lines', 'mask'],
+    const cases: Array<[string, string, string, number]> = [
+      ['split-chars', 'chars', 'fade', 30],
+      ['split-words', 'words', 'fade', 90],
+      ['split-lines', 'lines', 'fade', 160],
+      ['text-reveal-up', 'words', 'up', 90],
+      ['text-reveal-down', 'words', 'down', 90],
+      ['text-reveal-mask', 'lines', 'mask', 160],
     ]
-    for (const [name, unit, direction] of cases) {
+    for (const [name, unit, direction, staggerMs] of cases) {
       const resolved = registry.resolve(name)!
       const params = readEffectParams(resolved.preset.params ?? {}, resolved.primitive.parameters, () => {})
       expect(params.text('unit')).toBe(unit)
       expect(params.text('direction')).toBe(direction)
+      expect(params.ms('stagger', 0)).toBe(staggerMs)
     }
+  })
+
+  it('scales each split-text preset stagger with its unit size', () => {
+    // The bug this pins: one 30ms stagger for every unit. It reads on 40 characters (1170ms of
+    // spread) and vanishes on 6 words (150ms) or 3 lines (60ms) — both were reported as "not
+    // animating" when they were animating, just with nothing to see. Fewer, bigger units need a
+    // proportionally bigger gap, so the ordering below is the invariant, not the exact numbers.
+    const registry = createRegistry()
+    const staggerOf = (name: string): number => {
+      const resolved = registry.resolve(name)!
+      return readEffectParams(
+        resolved.preset.params ?? {},
+        resolved.primitive.parameters,
+        () => {},
+      ).ms('stagger', 0)
+    }
+    expect(staggerOf('split-chars')).toBeLessThan(staggerOf('split-words'))
+    expect(staggerOf('split-words')).toBeLessThan(staggerOf('split-lines'))
+  })
+
+  it('lets an authored stagger override the preset default', () => {
+    // `js-effect-preparer` spreads authored `spec.params` over the preset's, so the per-unit
+    // defaults above stay defaults — `split-words stagger:200ms` has to still win.
+    const registry = createRegistry()
+    const resolved = registry.resolve('split-words')!
+    const params = readEffectParams(
+      { ...resolved.preset.params, stagger: '200ms' },
+      resolved.primitive.parameters,
+      () => {},
+    )
+    expect(params.ms('stagger', 0)).toBe(200)
   })
 
   it('resolves scramble/decode/glitch to distinct charsets', () => {

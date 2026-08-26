@@ -34,8 +34,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -344,12 +342,6 @@
                nested markup like the <code> badges used elsewhere on this line would get flattened
                to plain text and never come back, so "before"/"after" stay plain words here instead
                of styled badges. -->
-          <p class="lede" data-kui="split-lines 900ms 90ms">
-            Drag, throw, swipe, and hold. These primitives use a spring integrator rather than an
-            easing curve, because a throw has to start at whatever velocity your pointer had —
-            and the layout moves below aren't keyframed at all: the library measures a before and
-            after and animates the difference.
-          </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#gestures" class="btn btn-primary">Feel the gestures</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>

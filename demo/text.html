@@ -38,8 +38,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -133,6 +131,14 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500;
     font-size: 0.92rem; letter-spacing: 0; max-width: none;
   }
+
+  /* One-off widen for a single card whose sentence and caption both wrap at the base 260px
+     column — a fixed span rather than `.demo-card-wide`'s full row, so its sibling card in the
+     same group doesn't get shoved onto its own row alone underneath it. `max-width: none` on the
+     `.stage` text too: the card growing wider does nothing for the sentence on its own, since
+     `.demo-card-text .stage` caps it at 30ch regardless of the box around it. */
+  .demo-card-text-wide { grid-column: span 2; }
+  .demo-card-text-wide .stage { max-width: none; }
 
   /* wide variant: marquees need edge-to-edge width for the seamless loop and the
      overflow:hidden clipping to read as honest — a 260px grid column would just show a static crop */
@@ -247,12 +253,7 @@
       <section class="demo-hero" data-od-id="hero">
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Text</p>
-          <h1 data-kui="fade-up 700ms">Twenty-six ways to move a sentence.</h1>
-          <p class="lede" data-kui="fade-up 700ms 90ms">
-            Segmentation uses <code>Intl.Segmenter</code> grapheme clusters, and every DOM-surgery
-            effect keeps one accessible reading of the text throughout — a visually-hidden twin
-            holds the real words while the animated layer is decorative and <code>aria-hidden</code>.
-          </p>
+          <h1 data-kui="text-reveal-mask 2000ms">Twenty-six ways to move a sentence.</h1>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -270,9 +271,8 @@
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Segmentation &amp; reveals</h2>
           <p data-kui="split-chars 700ms">
-            <code>split-text</code>, parameterized by unit (chars/words/lines) and direction, plus
-            the reveal-direction presets built on the same primitive. Scroll to trigger —
-            <code>on:enter</code>, the library default.
+            <code>split-text</code> reveals by character, word, or line, each with its own
+            stagger — triggers on scroll.
           </p>
         </div>
 
@@ -288,8 +288,8 @@
               <figcaption>data-kui="split-words 600ms"</figcaption>
             </figure>
             <figure class="demo-card demo-card-text" data-show-code>
-              <div class="stage-wrap"><p class="stage" data-kui="split-lines 650ms" style="max-width: 26ch">Lines are measured after wrapping, then revealed as whole units, top to bottom.</p></div>
-              <figcaption>data-kui="split-lines 650ms"</figcaption>
+              <div class="stage-wrap"><p class="stage" data-kui="split-lines 650ms stagger:90ms" style="max-width: 26ch">Lines are measured after wrapping, then revealed as whole units, top to bottom.</p></div>
+              <figcaption>data-kui="split-lines 650ms stagger:90ms"</figcaption>
             </figure>
           </div>
         </div>
@@ -347,7 +347,7 @@
               <div class="stage-wrap"><p class="stage" data-kui="typewriter">This line types itself out, once.</p></div>
               <figcaption>data-kui="typewriter"</figcaption>
             </figure>
-            <figure class="demo-card demo-card-text" data-show-code>
+            <figure class="demo-card demo-card-text demo-card-text-wide" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="typewriter-loop on:load">Typed, deleted, retyped, forever.</p></div>
               <figcaption>data-kui="typewriter-loop on:load"</figcaption>
             </figure>
@@ -364,17 +364,17 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Resolve — 3</p>
           <div class="demo-grid" data-kui-stagger="90ms">
-            <figure class="demo-card demo-card-text" data-show-code>
-              <div class="stage-wrap"><p class="stage" style="max-width: 26ch" data-kui="scramble">This sentence resolves itself, one flickering letter at a time.</p></div>
-              <figcaption>data-kui="scramble"</figcaption>
+            <figure class="demo-card demo-card-text demo-card-text-wide" data-show-code>
+              <div class="stage-wrap"><p class="stage" style="max-width: 24ch" data-kui="scramble 700ms">This sentence resolves itself, one flickering letter at a time.</p></div>
+              <figcaption>data-kui="scramble 700ms"</figcaption>
             </figure>
             <figure class="demo-card demo-card-text is-mono" data-show-code>
-              <div class="stage-wrap"><p class="stage" data-kui="decode">01000100 01000101 01000011 01001111 01000100 01000101</p></div>
-              <figcaption>data-kui="decode"</figcaption>
+              <div class="stage-wrap"><p class="stage" data-kui="decode 700ms">01000100 01000101 01000011 01001111 01000100 01000101</p></div>
+              <figcaption>data-kui="decode 700ms"</figcaption>
             </figure>
             <figure class="demo-card demo-card-text" data-show-code>
-              <div class="stage-wrap"><p class="stage" data-kui="glitch">SIGNAL LOCK ACQUIRED</p></div>
-              <figcaption>data-kui="glitch"</figcaption>
+              <div class="stage-wrap"><p class="stage" data-kui="glitch 700ms">SIGNAL LOCK ACQUIRED</p></div>
+              <figcaption>data-kui="glitch 700ms"</figcaption>
             </figure>
           </div>
         </div>
@@ -425,10 +425,8 @@
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Variable font</h2>
           <p data-kui="text-reveal-up 600ms, var-slant 700ms 600ms on:hover">
-            Animates standard <code>font-weight</code>/<code>font-stretch</code>/<code>font-style</code>.
-            These three cards render in Roboto Flex, which carries real <code>wght</code>,
-            <code>wdth</code> and <code>slnt</code> axes — a font without the matching axis animates
-            the computed value but paints no change, so the width and slant cards need it.
+            Animates font-weight/stretch/style through Roboto Flex's variable axes — no matching
+            axis, no visible change.
           </p>
         </div>
         <div class="matrix-group">
@@ -497,7 +495,7 @@
             </figure>
 
             <figure class="demo-card demo-card-text" data-show-code>
-              <div class="stage-wrap"><p class="stage" style="font-size: 3rem; font-weight: 800" data-kui="text-3d-extrude 700ms">DEPTH</p></div>
+              <div class="stage-wrap"><p class="stage" style="font-size: 2.15rem; font-weight: 800" data-kui="text-3d-extrude 700ms">DEPTH</p></div>
               <figcaption>data-kui="text-3d-extrude 700ms"</figcaption>
             </figure>
           </div>

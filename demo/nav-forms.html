@@ -35,8 +35,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -307,12 +305,6 @@
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Nav &amp; Forms</p>
           <h1 data-kui="fade-up 900ms">Chrome that moves with intent.</h1>
-          <p class="lede" data-kui="fade-up 900ms 90ms">
-            Catalog sections <code>M</code> (navigation, 8 names) and <code>O</code> (forms &amp;
-            inputs, 12 names), built on daisyUI + Tailwind components. Both respect the same
-            boundary: this library animates the chrome you already control — it never owns
-            <code>aria-expanded</code>, focus trapping, or keyboard handling.
-          </p>
           <div class="demo-hero-actions" data-kui="fade-up 900ms 160ms">
             <a href="#navigation" class="btn btn-primary">See the primitives</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -325,7 +317,6 @@
               <span class="h-2 w-2 rounded-full bg-primary"></span>
               <span>Docs</span>
               <span>Catalog</span>
-              <span class="badge badge-sm ml-auto border-none bg-primary text-primary-content">JS</span>
             </div>
             <ul class="menu w-full rounded-box bg-base-200 p-2 text-sm">
               <li><a>Getting started</a></li>
@@ -344,13 +335,6 @@
       <section id="navigation" data-od-id="navigation">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Navigation</h2>
-          <p data-kui="bounce-in 600ms">
-            All 8 <code>M</code> names from the <a href="./docs.html?doc=catalog">catalog</a> —
-            menus, scroll-driven chrome, and hover panels — dressed in daisyUI's
-            <code>navbar</code>, <code>menu</code>, and <code>btn</code> components. kUInetic
-            never decides when a menu opens; it only supplies the motion once your own trigger
-            says so.
-          </p>
         </div>
 
         <div class="matrix-group">
@@ -480,13 +464,6 @@
       <section id="forms" data-od-id="forms">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Forms &amp; inputs</h2>
-          <p data-kui="blur-in 700ms expo-in">
-            All 12 <code>O</code> names — floating labels, validation, selection controls, and
-            submission feedback — inside daisyUI's <code>input</code>, <code>fieldset</code>, and
-            <code>label</code> components. Where a primitive needs its own sibling markup (the
-            toggle's track, the radio's dot, the checkbox's drawn check), that markup stays
-            exactly as kUInetic's CSS expects it — daisyUI only dresses the row around it.
-          </p>
         </div>
 
         <div class="matrix-group">

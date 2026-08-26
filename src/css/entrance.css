@@ -265,19 +265,32 @@
   }
 
   /*
-   * Exact-token list rather than folded into the substring rule above: `perspective` is genuinely
-   * a no-op for `flip-in-x/-y`/`flip-out-x/-y` themselves (their own depth now lives in the
-   * `transform:` value above), and is only here for the same reason `three-d.css` keeps it on
-   * `card-flip-x`/`-y` — nested content with its own 3D transform gets a shared scene. Kept
-   * separate from `[data-kui-fx*='flip-']` so adding it doesn't quietly also land on any future
-   * preset whose name happens to contain "flip-".
+   * `flip-in-x/-y` and `flip-out-x/-y` deliberately do NOT carry the `perspective` *property*,
+   * unlike `three-d.css`'s `card-flip-x`/`-y` group. It used to, on the reasoning that file still
+   * gives: a no-op for the element's own rotation (that lives in the `transform:` value above),
+   * kept in case an author nests further 3D-transformed content and wants a shared scene,
+   * "harmless either way".
+   *
+   * It is not harmless. On an element that clips its own content — `overflow` anything but
+   * `visible`, which is every image card — the property puts the children in a 3D rendering
+   * context Chromium then intermittently fails to raster: the card's border and background paint
+   * while its `<img>` and caption paint nothing at all, sometimes only while the flip is turning,
+   * sometimes permanently. Measured in Chrome on `demo/reveals.html` and reproduced in a page with
+   * none of this library in it: `data-kui-state` read `finished`, computed `opacity` was `1`, the
+   * element's `transform` was identity, `playbackRate` was `1` (nothing had reversed it), the image
+   * was decoded — and the card was still an empty frame. Dropping this one declaration is the
+   * difference.
+   *
+   * Nothing is lost. A clipped element's *used* `transform-style` is `flat` regardless (CSS
+   * Transforms 2 grouping), so those children were never in the scene to begin with — a
+   * side-by-side at 0/30/60/75deg renders identically with and without it. And `perspective:` the
+   * parameter still works: the keyframes above read `--kui-perspective` through the
+   * `perspective()` transform *function*, the form that applies to the element carrying it.
+   *
+   * `three-d.css`'s group is left alone — `card-flip-x`/`-y` and friends have genuinely
+   * 3D-transformed children (a back face pre-turned 180deg), so there the scene is the effect.
+   * Mount one of those on a clipping element and expect this same bug.
    */
-  [data-kui-fx~='flip-in-x'],
-  [data-kui-fx~='flip-in-y'],
-  [data-kui-fx~='flip-out-x'],
-  [data-kui-fx~='flip-out-y'] {
-    perspective: var(--kui-perspective, 1200px);
-  }
 
   /*
    * `flip-in-x`/`-y` are `from`-only, unlike `flip-out-x`/`-y` above: their default 90deg is what
@@ -298,10 +311,61 @@
    * box fully visible at rest instead of hidden — this pairs the flattened angle with an explicit
    * `opacity: 0` so the "waiting" look stays invisible (matching what `cloak` already promises
    * pre-JS) while the geometry `IntersectionObserver` measures is real.
+   *
+   * That `opacity` is deliberately NOT `!important`, unlike the `--kui-from-angle` beside it, and
+   * the asymmetry is the whole point. `!important` in an author layer outranks the Animations
+   * origin, so an `!important` opacity here would beat *every* composed effect's own opacity
+   * keyframes — including one that legitimately owns the channel, which is precisely the
+   * interference the channel model exists to catch and which `findConflicts` would never have
+   * been told about, since no primitive here declares `opacity`. Left as a normal declaration it
+   * is a *default*: it applies when nothing else writes opacity (the ordinary case — an
+   * unclaimed channel has no owner to fight), and any composed effect that does claim opacity
+   * wins from the Animations origin without argument. The flattened angle still needs
+   * `!important` because it is beating this element's own paused 0% keyframe, not somebody
+   * else's declared channel.
    */
   [data-kui-fx~='flip-in-x'][data-kui-state='ready'],
   [data-kui-fx~='flip-in-y'][data-kui-state='ready'] {
     --kui-from-angle: 0deg !important;
-    opacity: 0 !important;
+    opacity: 0;
+  }
+
+  /*
+   * The rotate family has the same defect in the opposite direction: where `flip-in-x`'s paused
+   * 90deg makes the box too *small*, `rotate-in-right`'s paused 45deg makes it too *large*. A
+   * rotated box's corners swing outside its border box, and a transform grows an ancestor's
+   * scrollable overflow just as surely as a translate does — so a 360x480 card parked at 45deg
+   * in the last column of a grid reaches ~116px past the viewport's right edge and hands the
+   * whole document a horizontal scrollbar, measured on reveals.html. Exactly the defect the
+   * `--kui-distance` rule at the top of this file was written for (`div.install-snip`'s
+   * `slide-left` sitting permanently past the document's right edge), arriving through the
+   * `rotate` channel instead of `translate`, so it needs its own declaration: that rule flattens
+   * only the offset.
+   *
+   * Four pages were each patching around this locally with `html, body { overflow-x: clip }`,
+   * which is the wrong altitude twice over — a page cannot know which of its effects is leaking,
+   * and clipping the root to contain one card silently swallows every other overflow bug on it.
+   *
+   * Enumerated rather than folded into the shared `[data-kui-state='ready']` rule for the reason
+   * `three-d.css` gives for `fold-panel`: `--kui-from-angle` is also read by `to`-only siblings
+   * (`rotate-out`, `roll-out`), where the angle is the *end* state and flattening it while paused
+   * at 0% would change nothing while reading as though it did.
+   *
+   * `opacity: 0` for the same reason as the flip rule above — this family owns no opacity channel,
+   * so an un-rotated waiting card would otherwise sit fully visible in its final position until
+   * the trigger fires, which is both wrong for a reveal and a louder bug than the one being fixed.
+   * Every preset here already declares `cloak: true`, so invisible-while-waiting is what it
+   * promises pre-JS; this makes the post-install wait keep that promise. Not `!important`, for the
+   * reason spelled out in full on the flip rule above: an `!important` opacity would outrank the
+   * Animations origin and so silently beat a composed effect that genuinely declares the opacity
+   * channel — `rotate-in, fade-out` is a legal pairing under the channel model and must stay one.
+   */
+  [data-kui-fx~='rotate-in'][data-kui-state='ready'],
+  [data-kui-fx~='rotate-in-left'][data-kui-state='ready'],
+  [data-kui-fx~='rotate-in-right'][data-kui-state='ready'],
+  [data-kui-fx~='swing-in'][data-kui-state='ready'],
+  [data-kui-fx~='roll-in'][data-kui-state='ready'] {
+    --kui-from-angle: 0deg !important;
+    opacity: 0;
   }
 }

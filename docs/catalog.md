@@ -4,7 +4,7 @@ This catalog lists every named effect the library ships, grouped into fifteen se
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **252** named effects, over **30 primitive families**. Note that 48 names come from a
+**Counts:** **255** named effects, over **31 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -26,7 +26,7 @@ of this document.
 
 ---
 
-## The 30 primitive families
+## The 31 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -60,6 +60,7 @@ of this document.
 | 28 | `flip-layout` | js | t,s | FLIP measure/invert/play |
 | 29 | `sequence-scrub` | js | x | image/video frame scrub |
 | 30 | `slat-assemble` | prep | — | image slats fly in and land assembled |
+| 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`) |
 
 ---
 
@@ -274,6 +275,14 @@ Primitives 17–19, 13, 23, 24.
 > All splitting uses `Intl.Segmenter` (grapheme clusters, not code units), preserves one
 > accessible reading representation, and restores selectable text on cleanup.
 
+> **`text-reveal-mask` under tight leading.** The reveal ends on `clip-path: inset(0)`, which clips
+> to each item's *border box* — so display type set below `line-height: 1` gives it a box shorter
+> than the glyphs, and the resting state shaves ascenders off text that is not animating at all.
+> `--kui-mask-bleed` grows the clip window by that much padding and hands the space straight back
+> as an equal negative margin, leaving your leading untouched. A length, not a switch, because it
+> has to match that leading: `.headline { --kui-mask-bleed: 0.1em }` on any ancestor inherits down
+> to the generated spans, so you never write a rule against `.kui-split-item` yourself. Default `0`.
+
 ---
 
 ## E. SVG & icons — 17 names
@@ -335,15 +344,80 @@ Primitive 20, plus 15 and 26.
 
 ---
 
-## G. Media & images — 18 names
+## G. Media & images — 20 names
 
-Primitives 5, 6, 7, 4, 30.
+Primitives 5, 6, 7, 4, 30, 31.
 
 `wipe-up` · `wipe-down` · `wipe-left` · `wipe-right` · `wipe-circle` · `wipe-diagonal` ·
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
-`before-after-wipe` · `lightbox-open` · `slat-assemble`
+`before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background`
 
+> **`bg`** and **`background`** are two names for one effect: they turn an element into its own
+> full-bleed backdrop and leave every child the author wrote rendering on top of it, untouched.
+> `src:` is the only required parameter, and it takes a path *or* a full URL — `/media/hero.mp4`,
+> `https://cdn.example.com/hero.mp4`, `//cdn.example.com/hero.webm` all work, on your own origin or
+> anyone else's. A URL ending `.mp4`/`.webm`/`.mov`/`.m4v`/`.ogv` builds a `<video>`, anything else
+> an `<img>`. Only `http:` and `https:` are accepted: `javascript:`, `data:`, `file:` and `blob:`
+> are refused with a warning.
+>
+> This is looser than `sequence-scrub`'s same-origin-only `src:`, deliberately. A background is the
+> one media case where the file routinely lives on a CDN or a bucket, and a scrub's `src:` is a
+> `{i}` template firing one request per frame — a far larger channel than one fixed fetch. If your
+> site accepts `data-kui` from untrusted authors, set a `Content-Security-Policy` with
+> `img-src`/`media-src`; that is the control designed for this, and the one thing a library cannot
+> do on your behalf.
+>
+> ```html
+> <section data-kui="bg src:/media/hero.mp4 poster:/media/hero.jpg overlay:black overlay-opacity:45%">
+>   <h1 data-kui="split-lines">Text still animates, on top.</h1>
+> </section>
+> ```
+>
+> | param | default | what |
+> |---|---|---|
+> | `src:` | — | required; path or full URL to an image or video file (http/https) |
+> | `poster:` | — | still shown before a clip's first frame decodes |
+> | `fit:` | `cover` | `cover` or `contain`. No `fill`: it stretches, and the rule here is crop, never stretch |
+> | `focus:` | `center` | which part a `cover` crop keeps — `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right` |
+> | `overlay:` | `transparent` | scrim colour painted over the media and under your children |
+> | `overlay-opacity:` | `100%` | scrim opacity, for tuning legibility |
+> | `autoplay:` | `in-view` | `in-view`, `always`, or `never` |
+> | `rate:` | `1` | clip `playbackRate`, `0.25`–`4` |
+> | `loop:` | `true` | whether a clip restarts when it ends |
+>
+> **`src:` must be a media file, and a YouTube link is not one.** A watch URL is a web page; handed
+> to `<video>` it fails to decode and leaves the section blank. Playing one needs the iframe embed
+> API — a third-party document with its own player, consent and cookie story, and no `object-fit`
+> to cover a box with — so it is a different mechanism, not a branch inside this effect. A
+> `youtube.com`/`youtu.be` `src:` is refused by name and says so, rather than failing silently.
+>
+> **There is no `controls:`, deliberately.** The layer paints at `z-index: -1` behind whatever you
+> put in the element, so a native control bar there is keyboard-focusable and occluded by your own
+> content — a player you can tab into and cannot see. Every layer this effect builds is
+> `aria-hidden` and `pointer-events: none`, with no way to switch that off. A clip meant to be
+> controlled is a content `<video controls>` you write yourself, not a background one.
+>
+> **`overlay:` is the parameter that makes this usable**, because the point of a backdrop here is
+> animated text on top of it, and text over unmodified footage is illegible about half the time —
+> one light frame arrives and the headline vanishes for those seconds. The scrim is its own layer
+> between the media and your children, so it darkens the picture without touching the text.
+>
+> A video is created `muted playsinline preload="metadata"` and, by default, plays only while any
+> part of it is on screen, pausing again when it leaves. That observer is the effect's, so a page
+> never writes one; `autoplay:always` opts out of the pairing and `autoplay:never` leaves the clip
+> on its poster. Under `prefers-reduced-motion` every mode lands on the poster — which is why this
+> is the one JS-tier name in the section that is not `reducedMotion: disable`: refusing to install
+> would leave the element with no background at all rather than a calmer one.
+>
+> No CSS, no wrapper, no class names. The library claims `position: relative` on the host only if
+> it is unpositioned, plus `isolation: isolate` so the layers' `z-index: -1` sits between the host's
+> own background and its children instead of escaping behind an ancestor. Teardown deletes both
+> layers and gives the two properties back. Those two properties are why this name declares the
+> `layout` channel as well as `media`: composing it with another name that positions the same
+> element — `pin-section`, `scroll-snap-*` — is a reported conflict rather than two effects quietly
+> disagreeing about what `position` the host has.
+>
 > **`slat-assemble`** slices a wrapped `<img>` into `slats:` background-sliced strips and flies
 > them in staggered, landing assembled over the original picture — the one `prep` name in this
 > section: it builds the slats once at activation, then every frame is `translate`/`rotate`/
@@ -404,13 +478,30 @@ Primitives 21, 22, plus CSS.
 
 ---
 
-## J. Ambient backgrounds — 15 names
+## J. Ambient backgrounds — 16 names
 
 Primitives 8, 9, 11, 12. Almost entirely `css`.
 
-`gradient-mesh` · `aurora` · `gradient-rotate-border` · `noise-overlay` · `scanline` ·
-`dot-grid-drift` · `line-grid-drift` · `floating-shapes` · `float` · `bob` · `orbit` · `starfield` ·
-`glow-pulse` · `spotlight-follow` · `wave-blob`
+`gradient-mesh` · `aurora` · `gradient-rotate-border` · `gradient-border` · `noise-overlay` ·
+`scanline` · `dot-grid-drift` · `line-grid-drift` · `floating-shapes` · `float` · `bob` · `orbit` ·
+`starfield` · `glow-pulse` · `spotlight-follow` · `wave-blob`
+
+> `gradient-border` is `gradient-rotate-border`'s author-coloured sibling: same ring mask and
+> `background-position` spin, but a `from:` → `to:` → `from:` two-stop list instead of the
+> four-stop rainbow. Both, like `beam-border`, subtract their own content box to leave a ring —
+> put the name on its own element, never on real content, or the mask deletes the content.
+
+> **Colours.** `from:` sets `--kui-ambient-c1`; `to:` sets `--kui-ambient-c2`. Both inherit, so an
+> outer `aurora from:#f0f to:#0ff` retints any ambient effect nested inside it — that sharing is
+> deliberate. The prefix is not decorative: the unprefixed `--kui-c1`/`--kui-c2` are also read by
+> `shine-sweep` and `confetti-burst`, so writing there would recolour unrelated descendants. Every
+> rule still falls back to the unprefixed twin, so hand-set `--kui-cN` keeps working; set
+> `--kui-ambient-c3`/`--kui-ambient-c4` by hand for `gradient-mesh`'s and
+> `gradient-rotate-border`'s extra stops.
+>
+> `to:` is only accepted by the four two-stop names — `gradient-mesh`, `aurora`,
+> `gradient-rotate-border`, `gradient-border`. The other seven paint a single colour, so they take
+> `from:` alone (primitive `ambient-tint`) and warn on `to:` rather than silently ignoring it.
 
 > `orbit` spins forever: `data-kui="orbit 3.5s"`, `angle:` for a partial turn. It defaults to
 > `linear` easing rather than the section's usual `ease-in-out`, because an eased rotation
@@ -468,8 +559,9 @@ Primitives 14, 22.
 > keyframe cannot express, because a one-shot animation has no way to come back.
 >
 > `flip-card` is a CSS transition keyed off `aria-pressed` on the control inside the card, read with
-> `:has()`. The accessibility state *is* the visual state, so the two cannot drift apart. Toggling
-> that attribute is yours to do — one line — the same as the icon toggles in section E.
+> `:has()`. The accessibility state *is* the visual state, so the two cannot drift apart. At the
+> default `trigger:click`, toggling that attribute is yours to do — one line — the same as the icon
+> toggles in section E.
 >
 > ```html
 > <div data-kui="flip-card">
@@ -482,6 +574,64 @@ Primitives 14, 22.
 > Faces are matched by class, not by position, so the control can sit anywhere in the source order.
 > Keep it outside both faces: a button on the front face rotates away with it and stops being
 > clickable the moment you use it once.
+
+> **`trigger:` — four ways in, and the only part of `flip-card` that runs JavaScript.**
+>
+> - `click` — the default. Nothing is wired; you toggle the control, exactly as above.
+> - `hover` — turns to the back while the pointer is inside, and back to the front when it leaves.
+> - `hover-latch` — turns to the back on the first hover and stays there. Leaving does nothing.
+> - `hover-toggle` — turns to whichever face is not showing. Leaving does nothing; the *next*
+>   hover turns it back.
+>
+> ```html
+> <div data-kui="flip-card trigger:hover-toggle"> ... </div>
+> ```
+>
+> `click` is unchanged and stays entirely yours: the library wires no listener at all, so a card
+> written before this parameter existed keeps working without it. The other three differ only in
+> what happens *after* the pointer leaves, which is the whole reason there are three of them —
+> `hover` is a peek, `hover-latch` is a reveal you pay for once, `hover-toggle` is a two-position
+> switch you drive by passing over it.
+>
+> **Why any of this needs JavaScript.** `:hover` is true exactly while the pointer is inside the
+> element and false the instant it is not, so a stylesheet can express `hover` and nothing else
+> here. `hover-latch` and `hover-toggle` both ask the card to stay turned after the pointer has
+> gone, and a selector has no memory of having once matched — the state has to outlive the thing
+> that set it, which is a variable, not a rule. So the library sets `aria-pressed`, the same
+> attribute a click sets. There is still exactly one source of truth, and the transition doing the
+> turning is the same one in all four modes.
+>
+> The control is required in every mode, because it is where the state lives. A hover card usually
+> wants no visible *Flip* button, which is a matter of hiding it rather than leaving it out. Hide it
+> in CSS, not with the `hidden` attribute: `hidden` is a UA `display: none` at the lowest
+> specificity there is, so any `display` your own stylesheet gives `.kui-flip-control` beats it —
+> which is how a supposedly hidden control ends up rendering as an empty pill in the card's corner.
+>
+> ```html
+> <div id="reveal" data-kui="flip-card trigger:hover-toggle">
+>   <div class="kui-face-front"> ... </div>
+>   <div class="kui-face-back"> ... </div>
+>   <button type="button" class="kui-flip-control" aria-pressed="false">Flip</button>
+> </div>
+> ```
+> ```css
+> #reveal > .kui-flip-control { display: none; }
+> ```
+>
+> The three hover values wire nothing on a coarse pointer — `(hover: hover) and (pointer: fine)`
+> decides it. On a touch screen `pointerenter` fires from a tap, so a hover-flipped card would turn
+> on the same tap that was reaching for something on the face in front of it. The control stays a
+> real button there, which is the accessible path on those devices anyway — so if you hid it, bring
+> it back under `@media (hover: none)`, or the back face is unreachable on a phone.
+>
+> Reduced motion is the same shape of gap for a different reason: `flip-card` declares
+> `reducedMotion: 'disable'`, so the animator never activates the primitive and the hover listener
+> is never attached. The card still turns on a click — the transition comes from the stylesheet,
+> which is stamped either way — so bring the control back there too.
+>
+> The trigger looks for that one element and only as a direct child (`:scope > .kui-flip-control`),
+> the same relationship the `:has()` rule uses, so a `flip-card` nested inside another card's face
+> keeps its own state instead of writing its parent's.
 
 > **† Not yet implemented.** `depth-layers-pointer` · `perspective-grid` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
@@ -526,19 +676,19 @@ Primitives 1, 10, 15.
 | D Text & typography | 26 |
 | E SVG & icons | 17 |
 | F Numbers & data viz | 13 |
-| G Media & images | 18 |
+| G Media & images | 20 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 22 |
-| J Ambient backgrounds | 15 |
+| J Ambient backgrounds | 16 |
 | K Feedback & status | 17 |
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
 | N 3D & perspective | 6 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total shipped** | **252** |
+| **Total shipped** | **255** |
 | Documented but not yet shipped | 4 |
 
-Renderer split: **~168 `css`** · ~11 `prep` · ~58 `js`.
+Renderer split: **~168 `css`** · ~12 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

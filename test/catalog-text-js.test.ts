@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import {
   appendCharSpans,
@@ -15,13 +16,23 @@ import {
 } from '../src/effects/catalog/text-shared.js'
 
 /**
- * None of the JS-tier text primitives read anything off `ctx` beyond `win` — timers for
- * typewriter/scramble/word-cycler, nothing at all for split-text/split-text-motion — so a partial
- * fake covering just that is enough to exercise them through the real registered `prepare`
- * function, the same call shape `js-effect-preparer.ts` uses in production.
+ * A real per-element `StyleLedger` alongside `win` — `scramble`/`decode`/`glitch` read `ctx.style`
+ * to reserve their resting-state box size; every other JS-tier text primitive still reads nothing
+ * off `ctx` beyond `win` (timers for typewriter/word-cycler, nothing at all for
+ * split-text/split-text-motion), but they all take the same `PrepareContext` shape, so one fake
+ * covers the lot through the real registered `prepare` function, the same call shape
+ * `js-effect-preparer.ts` uses in production.
  */
-function fakeCtx(win: Window & typeof globalThis = window): PrepareContext {
-  return { win, doc: win.document } as unknown as PrepareContext
+function fakeCtx(el: Element, win: Window & typeof globalThis = window): PrepareContext {
+  return { win, doc: win.document, style: createStyleLedger(el) } as unknown as PrepareContext
+}
+
+/** jsdom never lays anything out, so `getBoundingClientRect` is always all zeros without this. */
+function stubRect(el: Element, box: { width: number; height: number }): void {
+  Object.defineProperty(el, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({ ...box, top: 0, left: 0, right: box.width, bottom: box.height }),
+  })
 }
 
 const registry = createRegistry()
@@ -65,6 +76,34 @@ describe('appendCharSpans', () => {
     expect(spans).toHaveLength(2) // 'a' and 'b' only — the space is not one of them
     expect(container.textContent).toBe('a b')
     expect(container.querySelectorAll('.kui-split-item')).toHaveLength(2)
+  })
+
+  it('groups each word\'s char-spans inside their own .kui-split-word wrapper', () => {
+    // A bare run of adjacent inline-block spans gets a browser line-break opportunity between
+    // any two of them, even with no whitespace — so 'ab' could wrap between 'a' and 'b'. Each
+    // word's chars share one inline-block wrapper so the only break opportunity left is the
+    // real space between words.
+    const container = document.createElement('span')
+    appendCharSpans(container, document, 'ab cd')
+    expect(container.textContent).toBe('ab cd')
+
+    const words = container.querySelectorAll('.kui-split-word')
+    expect(words).toHaveLength(2)
+
+    const firstWord = words[0]!
+    const secondWord = words[1]!
+    expect(firstWord.querySelectorAll('.kui-split-item')).toHaveLength(2)
+    expect(secondWord.querySelectorAll('.kui-split-item')).toHaveLength(2)
+    expect(firstWord).not.toBe(secondWord)
+
+    const aSpan = firstWord.querySelector('.kui-split-item')!
+    const bSpan = firstWord.querySelectorAll('.kui-split-item')[1]!
+    expect(aSpan.parentElement).toBe(firstWord)
+    expect(bSpan.parentElement).toBe(firstWord)
+
+    const cSpan = secondWord.querySelector('.kui-split-item')!
+    expect(cSpan.parentElement).toBe(secondWord)
+    expect(cSpan.parentElement).not.toBe(firstWord)
   })
 })
 
@@ -114,6 +153,20 @@ describe('appendLineSpans', () => {
     appendLineSpans(container, document, ' one two')
     expect(container.textContent).toBe(' one two')
   })
+
+  it('does not leave the intermediate word spans marked as their own split item', () => {
+    // appendLineSpans builds word spans first (each marked .kui-split-item by appendWordSpans)
+    // purely to measure offsetTop for bucketing, then moves them inside a .kui-split-line. Left
+    // marked, a line and the words nested inside it both get the reveal keyframe: opacity
+    // compounds (parent and child both animate 0->1 at once) and the words replay their own
+    // per-word --kui-i stagger on top of the line's, instead of the line revealing as one unit.
+    const container = document.createElement('span')
+    appendLineSpans(container, document, 'one two three')
+    const lines = container.querySelectorAll('.kui-split-line')
+    for (const line of lines) {
+      expect(line.querySelectorAll('.kui-split-item')).toHaveLength(0)
+    }
+  })
 })
 
 describe('split-chars / split-text', () => {
@@ -124,7 +177,7 @@ describe('split-chars / split-text', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ unit: 'chars', direction: 'fade', duration: '500ms', stagger: '30ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
 
     // Deferred: nothing happens until activate().
@@ -148,7 +201,7 @@ describe('split-chars / split-text', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ unit: 'chars', direction: 'fade', duration: '2s', stagger: '30ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
 
     instance.activate()
@@ -173,7 +226,7 @@ describe('typewriter', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ step: '50ms', loop: 'false' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
 
     instance.activate()
@@ -189,21 +242,51 @@ describe('typewriter', () => {
     instance.destroy()
     expect(el.textContent).toBe('Hi')
   })
+
+  it('honors delay: — typewriter has no authored duration to carry a positional delay, so the keyword spelling is the only one that reaches it', () => {
+    const resolved = registry.resolve('typewriter')!
+    const el = document.createElement('p')
+    el.textContent = 'Hi'
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ step: '50ms', loop: 'false', delay: '200ms' }),
+      fakeCtx(el),
+    )
+
+    instance.activate()
+    const decorative = el.querySelector('.kui-typewriter')!
+
+    vi.advanceTimersByTime(200)
+    expect(decorative.textContent).toBe('')
+
+    vi.advanceTimersByTime(50)
+    expect(decorative.textContent).toBe('H')
+
+    instance.destroy()
+  })
 })
 
 describe('scramble/decode/glitch', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('renders nonsense behind an aria-hidden layer while a real twin holds the true text', () => {
-    const resolved = registry.resolve('scramble')!
+  /**
+   * A two-grapheme `scramble` resolving one grapheme per 10ms tick, so it is half-done at 10ms and
+   * finished at 20ms, over the laid-out box jsdom will never compute on its own.
+   *
+   * @param authoredMinWidth - Inline `min-width` the author set, present before the effect runs.
+   */
+  function startScramble(authoredMinWidth?: string) {
     const el = document.createElement('p')
     el.textContent = 'ok'
-    const instance = resolved.primitive.prepare!(
-      el,
-      createParams({ step: '10ms', revealEvery: '1', charset: 'upper' }),
-      fakeCtx(),
-    )
+    if (authoredMinWidth) el.style.minWidth = authoredMinWidth
+    stubRect(el, { width: 42, height: 21 })
+    const params = createParams({ step: '10ms', revealEvery: '1', charset: 'upper' })
+    return { el, instance: registry.resolve('scramble')!.primitive.prepare!(el, params, fakeCtx(el)) }
+  }
+
+  it('renders nonsense behind an aria-hidden layer while a real twin holds the true text', () => {
+    const { el, instance } = startScramble()
 
     instance.activate()
     expect(el.querySelector('.kui-scramble')?.getAttribute('aria-hidden')).toBe('true')
@@ -219,6 +302,52 @@ describe('scramble/decode/glitch', () => {
     instance.destroy()
     expect(el.textContent).toBe('ok')
   })
+
+  it('reserves the resting-state box before the first scrambled frame paints, so a resolve cannot shrink its layout', () => {
+    const { el, instance } = startScramble()
+
+    instance.activate()
+    expect(el.style.minWidth).toBe('42px')
+    expect(el.style.minHeight).toBe('21px')
+  })
+
+  it('unpins the reserved box when the run is cancelled part-way, not only when it resolves', () => {
+    const { el, instance } = startScramble()
+
+    instance.activate()
+    vi.advanceTimersByTime(10)
+    expect(el.style.minWidth).toBe('42px')
+
+    instance.cancel()
+    expect(el.style.minWidth).toBe('')
+    expect(el.style.minHeight).toBe('')
+  })
+
+  it('does not mistake a pin left by a previous run for an authored min-width when re-triggered', () => {
+    const { el, instance } = startScramble()
+
+    // An `on:hover`/`on:click` scramble restarts on the same instance. A pin surviving the cancel
+    // would be read back as the author's own value and written straight out again by the second
+    // run's release, so even this natural completion would leave the element pinned.
+    instance.activate()
+    vi.advanceTimersByTime(10)
+    instance.cancel()
+    instance.activate()
+    vi.advanceTimersByTime(20)
+
+    expect(el.querySelector('.kui-scramble')?.textContent).toBe('ok')
+    expect(el.style.minWidth).toBe('')
+    expect(el.style.minHeight).toBe('')
+  })
+
+  it('hands a cancelled element back its authored inline min-width rather than deleting it', () => {
+    const { el, instance } = startScramble('10rem')
+
+    instance.activate()
+    vi.advanceTimersByTime(10)
+    instance.cancel()
+    expect(el.style.minWidth).toBe('10rem')
+  })
 })
 
 describe('word-cycler', () => {
@@ -232,7 +361,7 @@ describe('word-cycler', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ words: 'alpha|beta', interval: '1000ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
 
     instance.activate()
@@ -249,7 +378,7 @@ describe('word-cycler', () => {
     const resolved = registry.resolve('word-cycler')!
     const el = document.createElement('span')
     el.textContent = 'placeholder'
-    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx())
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el))
 
     expect(() => instance.activate()).not.toThrow()
     expect(el.textContent).toBe('placeholder')
@@ -264,7 +393,7 @@ describe('word-cycler', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ words: 'alpha|beta', interval: '1000ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
     instance.activate()
     expect(() => instance.finish()).not.toThrow()
@@ -278,7 +407,7 @@ describe('word-cycler', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ words: 'alone', interval: '1000ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
 
     instance.activate()
@@ -348,7 +477,7 @@ describe('destroy() restores the authored subtree, not merely its text', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ unit: 'words', direction: 'fade' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
     instance.activate()
     expect(el.querySelector('.kui-split-decorative')).not.toBeNull()
@@ -378,7 +507,7 @@ describe('destroy() restores the authored subtree, not merely its text', () => {
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ words: 'alpha|beta', interval: '1000ms' }),
-      fakeCtx(),
+      fakeCtx(el),
     )
     instance.activate()
     expect(el.textContent).toBe('alpha')

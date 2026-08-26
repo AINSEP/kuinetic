@@ -41,25 +41,19 @@ function keyframeBody(css: string, name: string): string {
 }
 
 /**
- * Every rule body whose selector list contains `[data-kui-fx~='name']` as a standalone,
- * comma-delimited entry — not merely as a *substring* of some other selector.
+ * Every rule body whose selector list mentions `[data-kui-fx~='name']` — on its own or inside a
+ * compound like `[data-kui-fx~='flip-in-x'][data-kui-state='ready']`.
  *
- * The regression this guards against: an earlier version of this helper was `css.indexOf(token)`,
- * the first substring match anywhere in the file. That is ambiguous in two ways a real edit to
- * this stylesheet can trigger. First, ordering: a *new* rule placed earlier in the file that
- * happens to also carry this exact selector (in its own comma list) would be found instead of the
- * intended one, and the test would silently start asserting about the wrong rule's body rather
- * than failing loud. Second, specificity: `[data-kui-fx~='flip-in-x']` is a literal substring of
- * the *compound* selector `[data-kui-fx~='flip-in-x'][data-kui-state='ready']` a few lines below
- * it in this same file — `indexOf` cannot tell "the whole selector is this token" from "this token
- * is a prefix of some other selector," so if that compound rule were ever moved earlier than the
- * unconditional one, the substring match would grab it instead, silently swapping in a rule that
- * does not (and should not) reference `--kui-perspective` at all.
+ * Both forms count, because what the caller asks is "does *anything* targeting this preset declare
+ * the `perspective` property," and a compound selector declares it just as effectively as a
+ * standalone one. An earlier version of this helper looked only for standalone entries, which was
+ * right for the question it was written for (which rule feeds `--kui-perspective`) and wrong for
+ * this one.
  *
- * Comments are stripped first so prose that happens to mention the token (this doc comment, or
- * `entrance.css`'s own neighbouring comments) can never be mistaken for a real selector.
+ * Comments are stripped first so prose that happens to mention the token — this doc comment, or
+ * `entrance.css`'s own long note about why the property is gone — can never be read as a selector.
  */
-function ruleBodiesFor(css: string, name: string): string[] {
+function rulesMentioning(css: string, name: string): string[] {
   const token = `[data-kui-fx~='${name}']`
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '')
   const bodies: string[] = []
@@ -71,15 +65,11 @@ function ruleBodiesFor(css: string, name: string): string[] {
     const char = stripped[i]
     if (char !== '{' && char !== '}') continue
     if (char === '{') {
-      const selectors = stripped
-        .slice(from, i)
-        .split(',')
-        .map((selector) => selector.trim())
+      const selectors = stripped.slice(from, i)
       if (selectors.includes(token)) bodies.push(readBalancedBlock(stripped, i + 1))
     }
     from = i + 1
   }
-  if (bodies.length === 0) throw new Error(`no rule has ${token} as a standalone selector`)
   return bodies
 }
 
@@ -113,13 +103,33 @@ describe('flip-in/-out keyframes carry their own perspective', () => {
     expect(body).not.toMatch(/(?:^|[{;\s])rotate:\s*[xy]\s/)
   })
 
+  it.each(FLIPS)('$name reads --kui-perspective, so the parameter is not inert', ({ name }) => {
+    // The regression this guards: the parameter existed and validated, but nothing consumed
+    // `--kui-perspective` anywhere in this file, so an author's override was silently inert. It is
+    // consumed by the keyframe's own `perspective()` now — there is deliberately no rule setting
+    // the `perspective` property to consume it instead (see the next block).
+    expect(keyframeBody(CSS, name)).toContain('--kui-perspective')
+  })
+
   it.each(['flip-in-x', 'flip-in-y', 'flip-out-x', 'flip-out-y'])(
-    '%s has an unconditional rule feeding it --kui-perspective',
+    '%s never sets the perspective *property* on the animating element',
     (name) => {
-      // The regression this guards: the parameter existed and validated, but nothing consumed
-      // `--kui-perspective` anywhere in this file, so an author's override was silently inert.
-      const bodies = ruleBodiesFor(CSS, name)
-      expect(bodies.some((body) => body.includes('--kui-perspective'))).toBe(true)
+      // Regression: these four used to carry `perspective: var(--kui-perspective, 1200px)` "in case
+      // an author nests 3D content". On a card that clips its own content — `overflow` anything but
+      // `visible` — that property put the children in a 3D rendering context Chromium
+      // intermittently failed to raster, so the card painted its border and background while its
+      // `<img>` and caption painted nothing, sometimes permanently. Verified in Chrome on
+      // `demo/reveals.html`: `data-kui-state` was `finished`, computed `opacity` `1`, `transform`
+      // identity, `playbackRate` `1`, image decoded — and the card was still empty.
+      //
+      // Nothing was lost: a clipped element's used `transform-style` is `flat` anyway (CSS
+      // Transforms 2 grouping), so its children were never in that scene, and a side-by-side at
+      // 0/30/60/75deg renders identically with and without the declaration.
+      for (const body of rulesMentioning(CSS, name)) {
+        expect(body, `${name} must not declare the perspective property`).not.toMatch(
+          /(?:^|[;{\s])perspective:/,
+        )
+      }
     },
   )
 })

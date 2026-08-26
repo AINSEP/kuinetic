@@ -225,21 +225,34 @@ export function createStepRunner(win: Window, options: StepRunOptions): StepRun 
  * wrapping the space itself, the same way `appendWordSpans` already leaves inter-word whitespace
  * unwrapped.
  *
+ * Per the CSS Text line-breaking spec, browsers insert a line-break opportunity between any two
+ * adjacent atomic inline-level boxes, even without whitespace between them — so a bare run of
+ * `.kui-split-item` spans could wrap mid-word. Each word's char-spans are nested inside a shared
+ * `.kui-split-word` wrapper (itself `display: inline-block`) so the only break opportunities left
+ * are between words, same as the source text.
+ *
  * @complexity O(n) time and space in grapheme count.
  * @overallScore 100
  */
 export function appendCharSpans(container: Element, doc: Document, text: string): HTMLElement[] {
   const spans: HTMLElement[] = []
   let index = 0
+  let wordWrapper: HTMLElement | null = null
   for (const grapheme of segmentGraphemes(text)) {
     if (grapheme.trim() === '') {
       container.append(doc.createTextNode(grapheme))
+      wordWrapper = null
       continue
+    }
+    if (!wordWrapper) {
+      wordWrapper = doc.createElement('span')
+      wordWrapper.className = 'kui-split-word'
+      container.append(wordWrapper)
     }
     const span = doc.createElement('span')
     markItem(span, index)
     span.textContent = grapheme
-    container.append(span)
+    wordWrapper.append(span)
     spans.push(span)
     index++
   }
@@ -313,7 +326,21 @@ export function appendLineSpans(container: Element, doc: Document, text: string)
   return buckets.map((nodes, index) => {
     const line = doc.createElement('span')
     markItem(line, index, 'kui-split-line')
-    for (const node of nodes) line.append(node)
+    for (const node of nodes) {
+      // `nodes` carries the word spans `appendWordSpans` marked `.kui-split-item` — needed only
+      // to measure `offsetTop` for bucketing above. Left marked, they'd nest a second animated
+      // `.kui-split-item` inside this line's own, and the reveal keyframe would apply to both:
+      // compounding opacity (each fading 0→1 independently multiplies into the other) and two
+      // conflicting `--kui-i` schedules on one word (its original per-word index, and the line's
+      // per-line index it now inherits). Stripping the marking here is what makes a line reveal
+      // as the one unit `text.html`'s caption promises, not six words doing their own thing
+      // inside it.
+      if (node instanceof HTMLElement) {
+        node.removeAttribute('class')
+        node.style.removeProperty('--kui-i')
+      }
+      line.append(node)
+    }
     container.append(line)
     return line
   })

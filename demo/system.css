@@ -244,6 +244,26 @@ button, a.btn { font-family: inherit; cursor: pointer; }
 }
 .theme-toggle:hover { opacity: 0.85; }
 
+/* ---------- demo hero ---------- */
+/* The pull-up + full-viewport pairing every demo page's hero shares. Each page keeps its own
+   hero layout local (a two-column grid on most, a centered flex column on scroll.html); only
+   these two declarations were byte-identical on all seven, so only these two live here.
+
+   `.site-header` is `position: sticky`, so it still reserves its own box in normal flow — without
+   the pull-up the hero sat below a header-shaped gap of dead space on top of its own padding.
+   Pulling up by roughly the header's reserved height (its margin + box) lets the header float
+   over the hero instead of pushing it down.
+
+   `min-height` then buys the hero one full viewport, so whatever section follows starts at the
+   fold instead of peeking in under a hero shorter than the screen. `min-height`, not `height`:
+   hero content taller than the viewport (a narrow phone stacking everything) still grows past it
+   rather than clipping. `dvh`, not `vh`: `vh` counts the mobile address bar's height, which is
+   exactly the sliver that used to read as the next section bleeding in. */
+.demo-hero {
+  margin-top: calc(-1 * (1rem + 3.4rem));
+  min-height: 100dvh;
+}
+
 /* ---------- buttons ---------- */
 .btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
@@ -286,12 +306,21 @@ button, a.btn { font-family: inherit; cursor: pointer; }
 .btn-ghost:hover { border-color: var(--fg); }
 
 /* ---------- kicker / eyebrow ---------- */
+/* Was `var(--muted)` — the same grey as every other secondary label on the page, which read as
+   "disabled" rather than as a category tag. Owner's call: yellow in light mode, white in dark.
+   Not literal `--accent` in light mode though — that near-yellow-green is a fill color, tuned to
+   sit behind black ink (the logo dot, the show-code chip), not to be read as text on white; as
+   text it measures well under WCAG AA. `#a16207` is the same hue pushed dark enough to read,
+   still unambiguously gold/yellow rather than brown. Dark mode has no such problem — white on
+   near-black is high-contrast on its own. `currentColor` on the dot keeps it locked to whichever
+   one is active without a second override. */
 .kicker {
   display: inline-flex; align-items: center; gap: 0.5rem;
   font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 1rem;
+  color: #a16207; margin-bottom: 1rem;
 }
-.kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+.kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+:root[data-theme='dark'] .kicker { color: #ffffff; }
 
 /* ---------- footer ---------- */
 footer { padding: 3rem 0 4rem; border-top: 1px solid var(--border); }

@@ -1,7 +1,9 @@
-import { CHANNEL, inertInstance } from '../../core/types.js'
-import type { Preset, Primitive } from '../../core/types.js'
+import { CHANNEL } from '../../core/types.js'
+import type { Cleanup, EffectParams, Preset, PrepareContext, Primitive } from '../../core/types.js'
+import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from '../shared.js'
+import { supportsFineHover } from '../catalog/interaction-shared.js'
 
 /**
  * 3D, perspective, and page-transition effects — all CSS-rendered.
@@ -10,6 +12,58 @@ import { cssPrimitive } from '../shared.js'
  * natively, so these cost a keyframe block and a registry row each. That ratio is the whole
  * architecture, and it is why tripling the catalog does not triple the payload.
  */
+
+/** The card's own state lives on this control's `aria-pressed`; three-d.css reads it via `:has()`. */
+const FLIP_CONTROL_SELECTOR = ':scope > .kui-flip-control'
+
+/**
+ * Wire a hover trigger onto a flip card, for the `trigger:` values that need one.
+ *
+ * `click` needs nothing here — the control is a real `<button>` and toggling it is the author's
+ * one line, exactly as before this parameter existed. The two latching modes deliberately do not
+ * listen for `pointerleave`: "stays where you left it" is the whole difference between them and
+ * `hover`, and a leave handler is precisely what would undo it.
+ *
+ * No-ops without fine hover. On a touch screen `pointerenter` fires from a tap, so a hover-flipped
+ * card would flip on the same tap that was trying to press something inside it — the control stays
+ * clickable, which is the accessible path on those devices anyway.
+ *
+ * @complexity O(1) time and space; one listener.
+ * @overallScore 100
+ */
+function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  const trigger = params.text('trigger', 'click')
+  if (trigger === 'click') return () => {}
+  if (!supportsFineHover(ctx.win)) return () => {}
+
+  const control = el.querySelector(FLIP_CONTROL_SELECTOR)
+  if (!control) {
+    // The two bail-outs above are silent by design — `click` has nothing to wire, and a coarse
+    // pointer is a documented no-op. This one is a misconfiguration: the card renders, the pointer
+    // does nothing, and the usual cause is a control nested one level deeper than the direct child
+    // the `:has()` rule and this lookup both require.
+    ctx.warn(`flip-card trigger:${trigger} found no direct-child .kui-flip-control — the card will not flip`)
+    return () => {}
+  }
+
+  const set = (flipped: boolean): void => control.setAttribute('aria-pressed', String(flipped))
+  const isFlipped = (): boolean => control.getAttribute('aria-pressed') === 'true'
+
+  const onEnter = (): void => {
+    // `hover-toggle` alternates on each entry; `hover` and `hover-latch` both just turn it on,
+    // and differ only in whether anything ever turns it back off (see `onLeave`).
+    set(trigger === 'hover-toggle' ? !isFlipped() : true)
+  }
+  const onLeave = (): void => set(false)
+
+  el.addEventListener('pointerenter', onEnter, { passive: true })
+  if (trigger === 'hover') el.addEventListener('pointerleave', onLeave, { passive: true })
+
+  return () => {
+    el.removeEventListener('pointerenter', onEnter)
+    el.removeEventListener('pointerleave', onLeave)
+  }
+}
 
 /**
  * A two-sided card that stays on whichever face you turned it to.
@@ -24,8 +78,11 @@ import { cssPrimitive } from '../shared.js'
  * is `aria-pressed` on the control *inside* the card, reached with `:has()`, which means the
  * accessibility state and the visual state cannot drift apart — there is only one of them.
  *
- * `prepare` is inert. Registration exists to stamp `data-kui-fx` and resolve the timing parameters
- * onto the card, which the faces then inherit.
+ * `trigger:` is the one thing JS does here, and only because a hover that *latches* cannot be
+ * expressed in CSS at all: `:hover` is true exactly while the pointer is inside, so it can style
+ * `hover`, but the moment a card is meant to stay turned after the pointer leaves, the state has
+ * to outlive the selector that set it. All three hover modes still write the same `aria-pressed`
+ * the click path writes, so there remains exactly one source of truth.
  */
 const CARD_TOGGLE_PRIMITIVE: Primitive = {
   id: 'card-toggle',
@@ -35,13 +92,19 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
     duration: { type: 'time', default: '700ms', cssProperty: '--kui-duration' },
     ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
     perspective: { type: 'length', default: '1600px', cssProperty: '--kui-perspective' },
+    trigger: {
+      type: 'keyword',
+      default: 'click',
+      cssProperty: '--kui-flip-trigger',
+      values: ['click', 'hover', 'hover-latch', 'hover-toggle'],
+    },
   },
   supportedTimelines: ['time'],
   supportedActivations: ['load'],
   defaultActivation: 'load',
   perfClass: 'compositor',
   reducedMotion: 'disable',
-  prepare: () => inertInstance(),
+  prepare: deferPrepare(prepareCardToggle),
 }
 
 export const THREE_D_PRIMITIVES: Primitive[] = [

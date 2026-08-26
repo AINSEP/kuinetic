@@ -27,6 +27,9 @@
 <script defer src="./nav.js"></script>
 <style>
   /* ---------- demo hero ---------- */
+  /* The pull-up margin and the full-viewport `min-height` live in system.css, shared by every
+     showcase hero. What is local is the two-column row below: `align-items: center` does the
+     vertical centering for free once that row is taller than its own content. */
   .demo-hero {
     padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
     display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
@@ -34,8 +37,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -48,6 +49,7 @@
   /* ---------- section heads ---------- */
   .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
   .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 54ch; line-height: 1.6; }
+  .section-head button { margin-top: 10px; }
 
   /* ---------- matrix groups (entrance matrix, grouped by primitive family) ---------- */
   .matrix-group { margin-top: 2.5rem; }
@@ -162,11 +164,6 @@
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Reveals</p>
           <h1 data-kui="fade-up 700ms">Everything here is one HTML attribute.</h1>
-          <p class="lede" data-kui="fade-up 700ms 90ms">
-            No JavaScript on this page configures anything. Each element carries a
-            <code>data-kui</code> value, and the library compiles it into a single CSS
-            <code>@keyframes</code> rule — entrance, composition, parameters, and trigger, all in one string.
-          </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -186,13 +183,10 @@
       <section id="matrix" data-od-id="matrix">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">The entrance matrix</h2>
-          <p data-kui="blur-in 700ms">
-            All 32 entrance names the library ships, grouped the same way the
-            <a href="./docs.html?doc=catalog">catalog</a> groups them. The matching 16 exit names
-            (<code>fade-out</code>, <code>slide-out-left</code>, and friends) aren't shown here —
-            an exit effect's resting state is invisible, so there's nothing honest to demo with a
-            scroll-triggered card.
+          <p id="matrix-intro" data-kui="blur-in 700ms">
+            All 32 entrance names the library ships, grouped like the <a href="./docs.html?doc=catalog">catalog</a>.
           </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="matrix-intro">Show code</button>
         </div>
 
         <div class="matrix-group">
@@ -210,9 +204,12 @@
               <img src="./assets/modeling/lilac-turban.jpg" alt="Profile portrait in a sculpted lilac wrapped turban and matching fringed knit" loading="lazy" />
               <figcaption>data-kui="fade-down 2000ms"</figcaption>
             </figure>
-            <figure class="demo-card" data-kui="fade-left 2000ms" data-show-code>
+            <figure class="demo-card" data-kui="fade-left 2000ms delay:2000ms" data-show-code>
+              <!-- `2000ms` positional duration next to `delay:` as a keyword, in the same
+                   attribute — proof either spelling works, and that they compose. Same duration
+                   as its four siblings once it starts; it just starts two seconds later. -->
               <img src="./assets/modeling/modeling_16.jpg" alt="Portrait in an emerald blazer and afro, dramatic window-shadow lighting against green" loading="lazy" />
-              <figcaption>data-kui="fade-left 2000ms"</figcaption>
+              <figcaption>data-kui="fade-left 2000ms delay:2000ms"</figcaption>
             </figure>
             <figure class="demo-card" data-kui="fade-right 2000ms" data-show-code>
               <img src="./assets/modeling/modeling_06.jpg" alt="Black-and-white beauty close-up, hand at chin, statement drop earrings" loading="lazy" />
@@ -385,9 +382,9 @@
           <p data-kui="fade-up 700ms, blur-in 500ms">Two or three effects in one attribute. They compile into a single declaration with parallel value lists, and are only allowed when the CSS channels they own are disjoint.</p>
         </div>
         <div class="demo-grid" data-kui-stagger="90ms">
-          <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms 1800ms" data-show-code>
+          <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms delay:1800ms" data-show-code>
             <img src="./assets/modeling/modeling_10.jpg" alt="Portrait dripping in glossy pink paint, eyes closed, dramatic pink backdrop" loading="lazy" />
-            <figcaption>slide-up 900ms, blur-in 600ms 1800ms — blur waits a full beat after the slide finishes</figcaption>
+            <figcaption>slide-up 900ms, blur-in 600ms delay:1800ms — blur waits a full beat after the slide finishes</figcaption>
           </figure>
           <figure class="demo-card" data-kui="fade-up 900ms, zoom-in 700ms" data-show-code>
             <img src="./assets/modeling/modeling_04.jpg" alt="Red silk fabric swept across the eyes, bold red lips exposed below" loading="lazy" />

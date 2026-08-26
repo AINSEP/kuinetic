@@ -10,6 +10,14 @@
  * the primitive's declared
  * `reducedMotion: 'disable'` plus the generic `[data-kui-rm='disable']` policy in `base.css`; no
  * effect here needs its own media query.
+ *
+ * Author colours come in through `--kui-ambient-c1`..`--kui-ambient-c4`, section J's own palette.
+ * The `ambient-` prefix is load-bearing: `shine-sweep` (interaction.css) and `confetti-burst`
+ * (feedback.css) read the unprefixed `--kui-c1`..`--kui-c4`, and custom properties inherit, so
+ * writing an ambient author colour to the bare names recoloured any descendant carrying one of
+ * those. Each slot still falls back to its unprefixed twin so pages that hand-set `--kui-cN` to
+ * tint an ambient effect keep working; only the library stopped writing them. `from:`/`to:`
+ * (ambient.ts) write c1/c2; c3/c4 are author-set by hand, which is why they have no parameter.
  */
 @layer kui.effects {
   /* --- gradient-mesh / aurora / wave-blob / spotlight-follow: soft multi-stop gradient drift,
@@ -17,9 +25,9 @@
 
   [data-kui-fx~='gradient-mesh'] {
     background-image:
-      radial-gradient(at 15% 20%, color-mix(in srgb, var(--kui-c1, #7c3aed) 55%, transparent), transparent 55%),
-      radial-gradient(at 85% 15%, color-mix(in srgb, var(--kui-c2, #06b6d4) 50%, transparent), transparent 55%),
-      radial-gradient(at 50% 85%, color-mix(in srgb, var(--kui-c3, #f97316) 45%, transparent), transparent 55%);
+      radial-gradient(at 15% 20%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #7c3aed)) 55%, transparent), transparent 55%),
+      radial-gradient(at 85% 15%, color-mix(in srgb, var(--kui-ambient-c2, var(--kui-c2, #06b6d4)) 50%, transparent), transparent 55%),
+      radial-gradient(at 50% 85%, color-mix(in srgb, var(--kui-ambient-c3, var(--kui-c3, #f97316)) 45%, transparent), transparent 55%);
     background-size: 200% 200%;
     --kui-fx-gradient-mesh-iterations: infinite;
   }
@@ -35,9 +43,9 @@
 
   [data-kui-fx~='aurora'] {
     background-image:
-      linear-gradient(120deg, color-mix(in srgb, var(--kui-c1, #34d399) 45%, transparent), transparent 45%),
-      linear-gradient(240deg, color-mix(in srgb, var(--kui-c2, #60a5fa) 45%, transparent), transparent 45%),
-      linear-gradient(0deg, color-mix(in srgb, var(--kui-c3, #c084fc) 40%, transparent), transparent 50%);
+      linear-gradient(120deg, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #34d399)) 45%, transparent), transparent 45%),
+      linear-gradient(240deg, color-mix(in srgb, var(--kui-ambient-c2, var(--kui-c2, #60a5fa)) 45%, transparent), transparent 45%),
+      linear-gradient(0deg, color-mix(in srgb, var(--kui-ambient-c3, var(--kui-c3, #c084fc)) 40%, transparent), transparent 50%);
     background-size: 260% 260%;
     --kui-fx-aurora-iterations: infinite;
   }
@@ -54,7 +62,7 @@
   [data-kui-fx~='wave-blob'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--kui-c1, #22d3ee) 50%, transparent),
+      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #22d3ee)) 50%, transparent),
       transparent 60%
     );
     background-size: 140% 140%;
@@ -80,7 +88,7 @@
   [data-kui-fx~='spotlight-follow'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--kui-c1, #fde68a) 65%, transparent),
+      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #fde68a)) 65%, transparent),
       transparent 65%
     );
     background-size: 55% 55%;
@@ -111,11 +119,11 @@
     position: relative;
     background-image: linear-gradient(
       90deg,
-      var(--kui-c1, #f472b6),
-      var(--kui-c2, #60a5fa),
-      var(--kui-c3, #34d399),
-      var(--kui-c4, #fbbf24),
-      var(--kui-c1, #f472b6)
+      var(--kui-ambient-c1, var(--kui-c1, #f472b6)),
+      var(--kui-ambient-c2, var(--kui-c2, #60a5fa)),
+      var(--kui-ambient-c3, var(--kui-c3, #34d399)),
+      var(--kui-ambient-c4, var(--kui-c4, #fbbf24)),
+      var(--kui-ambient-c1, var(--kui-c1, #f472b6))
     );
     background-size: 300% 100%;
     padding: 3px;
@@ -125,6 +133,42 @@
     --kui-fx-gradient-rotate-border-iterations: infinite;
   }
   @keyframes kui-gradient-rotate-border {
+    from {
+      background-position: 0% 50%;
+    }
+    to {
+      background-position: 300% 50%;
+    }
+  }
+
+  /* --- gradient-border: gradient-rotate-border's author-coloured sibling. Same ring mask, same
+     `background-position` animation — a *native* property, deliberately, not an angle held in a
+     custom property the way `beam-border`'s conic gradient does it; a native property needs no
+     `@property` registration to interpolate, so this keeps working in any engine.
+     The only real difference is the stop list: `from → to → from` rather than a four-stop
+     rainbow, so authoring the pair reads as one clean sweep. That repeated `from` at 100% is
+     what makes the loop seamless — the strip's right edge meets its own left edge.
+     It was called `gradient` until the name was found to be a lie: `mask-composite: exclude`
+     subtracts this element's own content box, so `data-kui="gradient"` on real content deletes
+     the content. Like `gradient-rotate-border` and `beam-border`, it paints an edge, not a fill,
+     and needs its own element — the ring goes behind or around the content, never on it. --- */
+
+  [data-kui-fx~='gradient-border'] {
+    position: relative;
+    background-image: linear-gradient(
+      90deg,
+      var(--kui-ambient-c1, var(--kui-c1, #7c3aed)),
+      var(--kui-ambient-c2, var(--kui-c2, #fbbf24)),
+      var(--kui-ambient-c1, var(--kui-c1, #7c3aed))
+    );
+    background-size: 300% 100%;
+    padding: var(--kui-gradient-border-width, 3px);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    --kui-fx-gradient-border-iterations: infinite;
+  }
+  @keyframes kui-gradient-border {
     from {
       background-position: 0% 50%;
     }
@@ -143,7 +187,7 @@
      */
     background-image: repeating-radial-gradient(
       circle at 0 0,
-      color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0,
+      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 30%, transparent) 0,
       transparent 1.4px,
       transparent 3px
     );
@@ -175,7 +219,7 @@
     background-image: linear-gradient(
       to bottom,
       transparent,
-      color-mix(in srgb, var(--kui-c1, currentColor) 35%, transparent) 50%,
+      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 35%, transparent) 50%,
       transparent
     );
     background-size: 100% 220%;
@@ -196,7 +240,7 @@
   [data-kui-fx~='dot-grid-drift'] {
     background-image: radial-gradient(
       circle,
-      color-mix(in srgb, var(--kui-c1, currentColor) 45%, transparent) 1.5px,
+      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 45%, transparent) 1.5px,
       transparent 1.5px
     );
     background-size: 22px 22px;
@@ -214,12 +258,12 @@
   [data-kui-fx~='line-grid-drift'] {
     background-image: repeating-linear-gradient(
         0deg,
-        color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0 1px,
+        color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 30%, transparent) 0 1px,
         transparent 1px 26px
       ),
       repeating-linear-gradient(
         90deg,
-        color-mix(in srgb, var(--kui-c1, currentColor) 30%, transparent) 0 1px,
+        color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 30%, transparent) 0 1px,
         transparent 1px 26px
       );
     --kui-fx-line-grid-drift-iterations: infinite;
@@ -234,11 +278,11 @@
   }
 
   [data-kui-fx~='starfield'] {
-    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--kui-c1, #ffffff) 90%, transparent), transparent),
-      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--kui-c1, #ffffff) 70%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--kui-c1, #ffffff) 85%, transparent), transparent),
-      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--kui-c1, #ffffff) 60%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--kui-c1, #ffffff) 80%, transparent), transparent);
+    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 90%, transparent), transparent),
+      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 70%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 85%, transparent), transparent),
+      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 60%, transparent), transparent),
+      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 80%, transparent), transparent);
     background-size: 220px 220px;
     background-repeat: repeat;
     --kui-fx-starfield-iterations: infinite;

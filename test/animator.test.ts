@@ -161,6 +161,40 @@ describe('Animator — activation', () => {
     build('<div data-kui="parallax-y" data-kui-timeline="view"></div>', { viewTimeline: false })
     expect(binder.bindings[0]?.activation).toBe('enter')
   })
+
+  it('spends the one-shot enter binding on a programmatic activation', () => {
+    // Regression: a reveal started by `activate()` left its enter-observer armed, so scrolling the
+    // element into view afterwards delivered a SECOND activation to the same instance —
+    // `createCssInstance` reads that as a repeat and answers with `animation.reverse()`, wiping a
+    // finished `wipe-circle` back down to `circle(0)`. Verified in Chrome: `playbackRate` flipped
+    // to -1 and `clip-path` counted 75% → 0% the moment the element scrolled in.
+    const animator = build('<div data-kui="wipe-circle"></div>')
+    const target = el()
+    expect(binder.bindings[0]?.activation).toBe('enter')
+
+    const instance = animator.stateOf(target)?.instances[0]
+    const activate = vi.spyOn(instance!, 'activate')
+
+    animator.activate(target)
+    expect(activate).toHaveBeenCalledTimes(1)
+    expect(binder.unbound).toBe(1)
+
+    binder.fire(target)
+    expect(activate).toHaveBeenCalledTimes(1)
+
+    // `releaseOnce` is also reachable from the element's own abort signal on teardown — an
+    // already-spent binding hitting that second path must no-op, not double-release.
+    expect(() => animator.destroy()).not.toThrow()
+    expect(binder.unbound).toBe(1)
+  })
+
+  it('keeps a toggle binding armed after activation, so a repeat trigger can still fire', () => {
+    // The other side of the fix: releasing a `click`/`hover` binding on first use is exactly what
+    // would stop a card flip flipping back, which is what `createCssInstance`'s reverse exists for.
+    const animator = build('<div data-kui="card-flip-y on:click"></div>')
+    animator.activate(el())
+    expect(binder.unbound).toBe(0)
+  })
 })
 
 describe('Animator — recompilation and teardown', () => {

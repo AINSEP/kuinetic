@@ -15,9 +15,14 @@
 // `[data-kui-fx~='<name>'][data-kui-state='ready']` rule, scoped to each preset, that neutralizes
 // the collapsing custom property back to a real value (with `!important`, since a paused CSS
 // animation's own value can only be beaten by `!important`, not specificity or layer order) for
-// exactly as long as `data-kui-state='ready'` holds — paired with an explicit `opacity: 0
-// !important`, since none of the six own an opacity channel of their own and flattening the
-// geometry alone would trade the invisible-forever bug for a visible-wrong-shape one.
+// exactly as long as `data-kui-state='ready'` holds — paired with an explicit `opacity: 0`, since
+// none of the six own an opacity channel of their own and flattening the geometry alone would trade
+// the invisible-forever bug for a visible-wrong-shape one. That opacity carries no `!important`, and
+// the asymmetry with the token beside it is load-bearing: `!important` in an author layer outranks
+// the Animations origin, so it would beat the opacity keyframes of a *composed* effect that
+// genuinely declares the channel — interference the conflict detector was never told to look for,
+// since no primitive here claims `opacity`. Left normal it applies whenever nothing else writes
+// opacity (an unclaimed channel has no owner to fight) and yields when something does.
 //
 // `cloak: true` is deliberately not the signal this file scans for: three of the six shipped with
 // `cloak: true` *and* the bug (`cloak` only ever hid the pre-JS flash, never the post-JS collapsed

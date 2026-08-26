@@ -186,6 +186,7 @@
     --kui-to: 128400;
     --kui-format: compact;
     --kui-count-duration: 1600ms;
+    --kui-count-delay: 0ms;
   }
 
   [data-kui-fx~='count-currency'] {
@@ -194,12 +195,14 @@
     --kui-format: currency;
     --kui-decimals: 0;
     --kui-count-duration: 1600ms;
+    --kui-count-delay: 0ms;
   }
 
   [data-kui-fx~='count-down'] {
     --kui-from: 100;
     --kui-to: 0;
     --kui-count-duration: 1600ms;
+    --kui-count-delay: 0ms;
   }
 
   [data-kui-fx~='count-percent'] {
@@ -208,12 +211,14 @@
     --kui-format: percent;
     --kui-decimals: 0;
     --kui-count-duration: 1600ms;
+    --kui-count-delay: 0ms;
   }
 
   [data-kui-fx~='count-up'] {
     --kui-from: 0;
     --kui-to: 100;
     --kui-count-duration: 1600ms;
+    --kui-count-delay: 0ms;
   }
 
   [data-kui-fx~='cross-draw'] {
@@ -263,6 +268,7 @@
 
   [data-kui-fx~='decode'] {
     --kui-charset: binary;
+    --kui-scramble-text-delay: 0ms;
   }
 
   [data-kui-fx~='depth-layer'] {
@@ -279,9 +285,9 @@
   }
 
   [data-kui-fx~='dot-grid-drift'] {
-    --kui-ambient-gradient-duration: 16s;
-    --kui-ambient-gradient-ease: linear;
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-tint-duration: 16s;
+    --kui-ambient-tint-ease: linear;
+    --kui-ambient-tint-delay: 0ms;
   }
 
   [data-kui-fx~='drag-inertia'] {
@@ -498,12 +504,19 @@
 
   [data-kui-fx~='glitch'] {
     --kui-charset: symbols;
+    --kui-scramble-text-delay: 0ms;
   }
 
   [data-kui-fx~='glow-pulse'] {
     --kui-ambient-pulse-duration: 2.2s;
     --kui-ambient-pulse-delay: 0ms;
     --kui-ambient-pulse-ease: ease-in-out;
+  }
+
+  [data-kui-fx~='gradient-border'] {
+    --kui-ambient-gradient-ring-duration: 6s;
+    --kui-ambient-gradient-ring-ease: linear;
+    --kui-ambient-gradient-ring-delay: 0ms;
   }
 
   [data-kui-fx~='gradient-mesh'] {
@@ -513,9 +526,9 @@
   }
 
   [data-kui-fx~='gradient-rotate-border'] {
-    --kui-ambient-gradient-duration: 6s;
-    --kui-ambient-gradient-ease: linear;
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-gradient-ring-duration: 6s;
+    --kui-ambient-gradient-ring-ease: linear;
+    --kui-ambient-gradient-ring-delay: 0ms;
   }
 
   [data-kui-fx~='gradient-shimmer'] {
@@ -627,9 +640,9 @@
   }
 
   [data-kui-fx~='line-grid-drift'] {
-    --kui-ambient-gradient-duration: 16s;
-    --kui-ambient-gradient-ease: linear;
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-tint-duration: 16s;
+    --kui-ambient-tint-ease: linear;
+    --kui-ambient-tint-delay: 0ms;
   }
 
   [data-kui-fx~='loading-bar'] {
@@ -695,15 +708,16 @@
   }
 
   [data-kui-fx~='noise-overlay'] {
-    --kui-ambient-gradient-duration: 650ms;
-    --kui-ambient-gradient-ease: steps(6);
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-tint-duration: 650ms;
+    --kui-ambient-tint-ease: steps(6);
+    --kui-ambient-tint-delay: 0ms;
   }
 
   [data-kui-fx~='odometer-roll'] {
     --kui-from: 0;
     --kui-to: 4820;
     --kui-count-odometer-duration: 1600ms;
+    --kui-count-odometer-delay: 0ms;
   }
 
   [data-kui-fx~='orbit'] {
@@ -894,13 +908,14 @@
   }
 
   [data-kui-fx~='scanline'] {
-    --kui-ambient-gradient-duration: 3.5s;
-    --kui-ambient-gradient-ease: linear;
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-tint-duration: 3.5s;
+    --kui-ambient-tint-ease: linear;
+    --kui-ambient-tint-delay: 0ms;
   }
 
   [data-kui-fx~='scramble'] {
     --kui-charset: upper;
+    --kui-scramble-text-delay: 0ms;
   }
 
   [data-kui-fx~='scroll-desaturate'] {
@@ -1112,6 +1127,7 @@
   [data-kui-fx~='split-chars'] {
     --kui-unit: chars;
     --kui-direction: fade;
+    --kui-stagger: 30ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
@@ -1125,6 +1141,7 @@
   [data-kui-fx~='split-lines'] {
     --kui-unit: lines;
     --kui-direction: fade;
+    --kui-stagger: 160ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
@@ -1133,15 +1150,16 @@
   [data-kui-fx~='split-words'] {
     --kui-unit: words;
     --kui-direction: fade;
+    --kui-stagger: 90ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
   }
 
   [data-kui-fx~='spotlight-follow'] {
-    --kui-ambient-gradient-duration: 9s;
-    --kui-ambient-gradient-delay: 0ms;
-    --kui-ambient-gradient-ease: ease-in-out;
+    --kui-ambient-tint-duration: 9s;
+    --kui-ambient-tint-delay: 0ms;
+    --kui-ambient-tint-ease: ease-in-out;
   }
 
   [data-kui-fx~='stacking-cards'] {
@@ -1155,9 +1173,9 @@
   }
 
   [data-kui-fx~='starfield'] {
-    --kui-ambient-gradient-duration: 40s;
-    --kui-ambient-gradient-ease: linear;
-    --kui-ambient-gradient-delay: 0ms;
+    --kui-ambient-tint-duration: 40s;
+    --kui-ambient-tint-ease: linear;
+    --kui-ambient-tint-delay: 0ms;
   }
 
   [data-kui-fx~='step-progress'] {
@@ -1202,6 +1220,7 @@
 
   [data-kui-fx~='text-jitter'] {
     --kui-motion: jitter;
+    --kui-split-text-motion-delay: 0ms;
   }
 
   [data-kui-fx~='text-outline-fill'] {
@@ -1213,6 +1232,7 @@
   [data-kui-fx~='text-reveal-down'] {
     --kui-unit: words;
     --kui-direction: down;
+    --kui-stagger: 90ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
@@ -1221,6 +1241,7 @@
   [data-kui-fx~='text-reveal-mask'] {
     --kui-unit: lines;
     --kui-direction: mask;
+    --kui-stagger: 160ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
@@ -1229,6 +1250,7 @@
   [data-kui-fx~='text-reveal-up'] {
     --kui-unit: words;
     --kui-direction: up;
+    --kui-stagger: 90ms;
     --kui-split-text-duration: 500ms;
     --kui-split-text-delay: 0ms;
     --kui-split-text-ease: ease-out;
@@ -1236,6 +1258,7 @@
 
   [data-kui-fx~='text-wave'] {
     --kui-motion: wave;
+    --kui-split-text-motion-delay: 0ms;
   }
 
   [data-kui-fx~='throwable'] {
@@ -1257,10 +1280,12 @@
 
   [data-kui-fx~='typewriter'] {
     --kui-loop: false;
+    --kui-typewriter-delay: 0ms;
   }
 
   [data-kui-fx~='typewriter-loop'] {
     --kui-loop: true;
+    --kui-typewriter-delay: 0ms;
   }
 
   [data-kui-fx~='underline-center'] {
@@ -1310,9 +1335,9 @@
   }
 
   [data-kui-fx~='wave-blob'] {
-    --kui-ambient-gradient-duration: 12s;
-    --kui-ambient-gradient-delay: 0ms;
-    --kui-ambient-gradient-ease: ease-in-out;
+    --kui-ambient-tint-duration: 12s;
+    --kui-ambient-tint-delay: 0ms;
+    --kui-ambient-tint-ease: ease-in-out;
   }
 
   [data-kui-fx~='wipe-circle'] {
@@ -1355,6 +1380,10 @@
     --kui-feedback-wobble-duration: 600ms;
     --kui-feedback-wobble-ease: ease-in-out;
     --kui-feedback-wobble-delay: 0ms;
+  }
+
+  [data-kui-fx~='word-cycler'] {
+    --kui-word-cycler-delay: 0ms;
   }
 
   [data-kui-fx~='zoom-in'] {

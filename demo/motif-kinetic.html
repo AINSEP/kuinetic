@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — write motion in HTML</title>
-<meta name="description" content="kUInetic is a CSS animation library you author in HTML attributes. 252 named effects built from 30 primitive families — around 70% of them pure CSS keyframes with zero runtime JavaScript." />
+<meta name="description" content="kUInetic is a CSS animation library you author in HTML attributes. 255 named effects built from 31 primitive families — around 70% of them pure CSS keyframes with zero runtime JavaScript." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -45,12 +45,12 @@
      3. NOTHING HERE ANIMATES ITSELF. There is not one `@keyframes` block in this
         file. Every moving thing on the page is a `data-kui` attribute, which means
         the library's own per-effect reduced-motion policy ('shorten' for entrances,
-        'disable' for continuous ambient/marquee) is the page's policy too, with
-        nothing of mine to fight it. The reduced-motion block below therefore covers
-        only two things: my own hover *transitions*, which the library never sees,
-        and native smooth scrolling, which `smooth-scroll-to` installs as an inline
-        style under a 'shorten' policy — the one case where an author rule has to
-        outrank the library rather than defer to it. Both are argued at the block.
+        'disable' for continuous ambient/marquee and for everything scroll-driven) is
+        the page's policy too, with nothing of mine to fight it. The reduced-motion
+        block below therefore covers only two things: my own hover *transitions*,
+        which the library never sees, and one narrow residue of native smooth
+        scrolling that only a live preference flip can leave behind. Both are argued
+        at the block.
 
      CASCADE: everything in this <style> element is UNLAYERED, and the entire library
      sheet lives in `@layer kui.effects` / `kui.presets`. Unlayered author styles beat
@@ -232,11 +232,13 @@
 
   /*
    * `line-height: 0.79` makes the line box shorter than the glyphs it holds, and `mask`'s resting
-   * frame is `clip-path: inset(0)` — which clips to that short border box, shaving the caps. The
-   * padding grows the clip window; the equal negative margin gives the space straight back, so
-   * interlocked leading is unchanged.
+   * frame is `clip-path: inset(0)` — which clips to that short border box, shaving the caps.
+   * `--kui-mask-bleed` is the library's own knob for exactly this: it grows the clip window by
+   * that much padding and hands the space straight back as an equal negative margin, so the
+   * interlocked leading is unchanged. Set here and inherited down; nothing on this page reaches
+   * into `.kui-split-line` itself.
    */
-  .stack .kui-split-line { padding-block: 0.1em; margin-block: -0.1em; }
+  .stack { --kui-mask-bleed: 0.1em; }
 
   .t-mega { font-size: var(--t-mega); }
   .t-huge { font-size: var(--t-huge); }
@@ -870,13 +872,20 @@
   @media (prefers-reduced-motion: reduce) {
     .btn, .lab-chip, .route { transition-duration: 1ms; }
     /*
-     * `!important`, and it is not decoration. `smooth-scroll-to` is a `prepare` effect whose whole
-     * body is `ctx.style.set('scroll-behavior', 'smooth')` — an *inline* style on <html>, which no
-     * ordinary author rule can outrank. Its primitive declares the default `shorten` policy rather
-     * than `disable`, so the runtime installs it under reduced motion too, and animated scrolling
-     * is close to the definition of what a vestibular preference is asking to be spared. This is
-     * the one place on the page where beating the library is the correct answer; the `behavior`
-     * parameter is authored per element and cannot know what a media query knows.
+     * `!important`, and it is not decoration — but it is narrower than it looks. `smooth-scroll-to`
+     * is a `prepare` effect whose whole body is `ctx.style.set('scroll-behavior', 'smooth')`, an
+     * *inline* style on <html> that no ordinary author rule can outrank. Its primitive declares
+     * `reducedMotion: 'disable'`, not the default `shorten` — every scroll-mechanics primitive
+     * does, through the shared `scrollPrimitive()` factory — so on a load where the preference is
+     * already set the animator's gate never opens, the deferred `prepare` body never runs, and
+     * that inline style is never written at all.
+     *
+     * What is left for this rule is the *live* flip. A media query re-evaluates the instant the
+     * preference changes; the library's capability detection does not — it is read once and
+     * cached, with no change listener — so an effect installed before the flip stays installed,
+     * inline style and all. This declaration is the only thing on the page that can still reach
+     * it, and animated scrolling is close to the definition of what a vestibular preference is
+     * asking to be spared.
      */
     html { scroll-behavior: auto !important; }
   }
@@ -970,7 +979,7 @@
           <p class="micro micro-row" data-kui="fade-up 600ms on:load">
             <span>CSS animation library</span>
             <span>authored in HTML attributes</span>
-            <span>252 effects · 30 primitives</span>
+            <span>255 effects · 31 primitives</span>
           </p>
 
           <!--
@@ -996,7 +1005,7 @@
               and no JavaScript for you to write.
             </p>
             <p class="note" style="margin-top:1.1rem;" data-kui="fade-up 700ms 640ms on:load">
-              252 named effects over 30 primitive families. Roughly 70% of the catalog is keyframes
+              255 named effects over 31 primitive families. Roughly 70% of the catalog is keyframes
               plus a metadata row, and ships with zero runtime JS on browsers with native timelines.
             </p>
           </div>
@@ -1057,7 +1066,7 @@
         </p>
       </div>
 
-      <div class="lab-grid">
+      <div class="lab-grid" data-playground>
         <div>
           <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="35ms">
             <button type="button" class="lab-chip" aria-pressed="true" data-kui="fade-up 450ms" data-fx="wipe-circle 1500ms">wipe-circle</button>
@@ -1097,7 +1106,7 @@
                on a wrapper too, which keeps every chip on the same footing. The child stays a
                plain <img> for the same reason. -->
           <div class="lab-clip">
-            <div class="lab-frame" id="lab-target" data-kui="wipe-circle 1500ms">
+            <div class="lab-frame" id="lab-target" data-playground-target data-kui="wipe-circle 1500ms">
               <img
                 src="./assets/modeling/modeling_20.jpg"
                 alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting"
@@ -1105,7 +1114,7 @@
             </div>
           </div>
           <div class="lab-bar">
-            <p class="lab-attr">data-kui="<b id="lab-attr">wipe-circle 1500ms</b>"</p>
+            <p class="lab-attr">data-kui="<b data-playground-attr>wipe-circle 1500ms</b>"</p>
             <button type="button" class="kui-show-code-toggle" data-show-code-target="lab-target">Show code</button>
           </div>
         </div>
@@ -1174,11 +1183,11 @@
 
       <dl class="counts">
         <div>
-          <dt><span data-kui="count-up 1600ms to:252">252</span></dt>
+          <dt><span data-kui="count-up 1600ms to:255">255</span></dt>
           <dd>named effects</dd>
         </div>
         <div>
-          <dt><span data-kui="count-up 1600ms 120ms to:30">30</span></dt>
+          <dt><span data-kui="count-up 1600ms 120ms to:31">31</span></dt>
           <dd>primitive families</dd>
         </div>
         <div>
@@ -1210,7 +1219,7 @@
 
   <!-- ======================================================================
        6 — ROUTES · BONE FIELD
-       252 effects is not a wall to dump on one page. Nine real demo pages,
+       255 effects is not a wall to dump on one page. Nine real demo pages,
        each an oversized index line rather than a card.
        ====================================================================== -->
   <section class="field f-bone" id="pages">
@@ -1304,7 +1313,7 @@
           </p>
           <div class="btn-row" style="margin-top:1.8rem;" data-kui-stagger="80ms">
             <a class="btn btn-solid" href="./docs.html?doc=getting-started" data-kui="fade-up 600ms">Getting started</a>
-            <a class="btn btn-line" href="./docs.html?doc=catalog" data-kui="fade-up 600ms">All 252 effects</a>
+            <a class="btn btn-line" href="./docs.html?doc=catalog" data-kui="fade-up 600ms">All 255 effects</a>
           </div>
         </div>
         <div data-kui="fade-up 800ms 160ms">
@@ -1333,7 +1342,7 @@
   <div class="wrap">
     <div class="foot-marks">
       <p class="micro">kUInetic — a CSS animation library authored in HTML attributes</p>
-      <p class="micro" style="opacity:0.6;">252 effects · 30 primitives · 15 catalog sections</p>
+      <p class="micro" style="opacity:0.6;">255 effects · 31 primitives · 15 catalog sections</p>
     </div>
     <span class="foot-word" data-kui="var-width from:78% to:118% 700ms on:hover" title="Hover me">k<b>UI</b>netic</span>
   </div>
@@ -1346,38 +1355,7 @@
   window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
 </script>
 
-<script>
-  // --- The chip playground -----------------------------------------------------------------
-  //
-  // `reset()` + `process()` + `activate()`, the same trio index.html's playground uses.
-  // `process()` short-circuits when an element's configuration hasn't changed, so `reset()` —
-  // which releases the installed state — is what makes running a *different* attribute on the
-  // same element recompile rather than no-op. And `process()` alone leaves the effect GATED on
-  // its activation trigger, which here is `on:enter`: the frame never left the viewport, so the
-  // observer never re-fires and the animation sits paused at time 0 forever. Invisible for
-  // `blur-up`; total for `wipe-up`, whose frame 0 is `inset(100% ...)` — nothing at all. The
-  // click IS the activation, so say so.
-  ;(function () {
-    var target = document.getElementById('lab-target')
-    var label = document.getElementById('lab-attr')
-    var chips = document.querySelectorAll('.lab-chip')
-    if (!target || !label || !chips.length) return
-
-    chips.forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var fx = chip.getAttribute('data-fx')
-        chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
-        label.textContent = fx
-        target.setAttribute('data-kui', fx)
-        var kui = window.__kui
-        if (!kui || typeof kui.reset !== 'function') return
-        kui.reset(target)
-        kui.process(target)
-        kui.activate(target)
-      })
-    })
-  })()
-</script>
+<script src="./motif-controller.js"></script>
 
 <script>
   // --- The full-screen menu ----------------------------------------------------------------

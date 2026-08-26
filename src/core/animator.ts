@@ -319,10 +319,26 @@ export class Animator {
     }
     // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
     // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
-    state.controller.signal.addEventListener(
-      'abort',
-      this.binder.bind(el, stylePlan.activation!, config.threshold, () => this.activate(el)),
+    const releaseBinding = this.binder.bind(el, stylePlan.activation!, config.threshold, () =>
+      this.activate(el),
     )
+    let released = false
+    const releaseOnce = (): void => {
+      if (released) return
+      released = true
+      releaseBinding()
+    }
+    state.controller.signal.addEventListener('abort', releaseOnce)
+    // `enter` is the one activation designed to fire exactly once — `activation.ts`'s observer
+    // callback releases the binding immediately after invoking it. A programmatic activation
+    // (`play()`, `kui.activate()`, a demo lab's reset/process/activate) never reaches that
+    // callback, so it left the observer armed: when the element later scrolled into view it
+    // delivered a *second* activation, which `createCssInstance` reads as a repeat and answers
+    // with `animation.reverse()` — a finished reveal playing backwards to nothing (an opened
+    // `wipe-circle` closing itself on scroll-in). Recording the release here spends the one shot
+    // whichever path takes it. A toggle activation must NOT be recorded: releasing a `hover` or
+    // `click` binding on first use is exactly what would stop a card flip flipping back.
+    if (stylePlan.activation === 'enter') state.releaseActivation = releaseOnce
   }
 
   /**
@@ -343,6 +359,10 @@ export class Animator {
   activate(el: Element): void {
     const state = this.states.get(el)
     if (!state || state.status === 'running') return
+    // A one-shot binding is spent by whichever path actually starts the effect, not only by the
+    // observer callback that would otherwise be the sole releaser. See `openGate`.
+    state.releaseActivation?.()
+    state.releaseActivation = undefined
     state.status = 'running'
     state.attributes.set(ATTR.state, 'running')
 

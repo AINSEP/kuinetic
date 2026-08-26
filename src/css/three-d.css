@@ -188,11 +188,14 @@
    * `fold-panel` owns no opacity channel, so flattening the angle alone would leave the panel fully
    * visible at rest instead of hidden — paired with an explicit `opacity: 0` to keep the "waiting"
    * look invisible (matching what `cloak: true` on this preset now promises pre-JS) while the
-   * geometry `IntersectionObserver` measures is real.
+   * geometry `IntersectionObserver` measures is real. Not `!important` — see the full account on
+   * `entrance.css`'s `flip-in-x` rule: an `!important` opacity outranks the Animations origin and
+   * would silently beat a composed effect that genuinely declares the opacity channel, which is
+   * the interference the channel model exists to report rather than commit.
    */
   [data-kui-fx~='fold-panel'][data-kui-state='ready'] {
     --kui-from-angle: 0deg !important;
-    opacity: 0 !important;
+    opacity: 0;
   }
 
   /* --- page transitions (channels: opacity, translate, clip) --- */
@@ -243,15 +246,20 @@
    * the real animation reads whatever the author authored the instant the trigger fires, same as
    * `entrance.css`'s `--kui-distance` rule.
    *
-   * `opacity: 0 !important` sits alongside it because `loading-bar` owns no opacity channel of its
-   * own: flattening the scale alone would leave the bar sitting fully visible, at full width, for
-   * the entire wait — trading the old invisible-forever bug for a visible-wrong-state one. Both
-   * revert together in the same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so
-   * a visitor never sees that half-fixed frame; they see nothing, then the real reveal.
+   * `opacity: 0` sits alongside it because `loading-bar` owns no opacity channel of its own:
+   * flattening the scale alone would leave the bar sitting fully visible, at full width, for the
+   * entire wait — trading the old invisible-forever bug for a visible-wrong-state one. Both revert
+   * together in the same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so a
+   * visitor never sees that half-fixed frame; they see nothing, then the real reveal.
+   *
+   * Deliberately *not* `!important`, unlike `--kui-bar-from` above — see the full account on
+   * `entrance.css`'s `flip-in-x` rule. The token is beating this element's own paused keyframe;
+   * the opacity would be beating somebody else's declared channel, which the channel model exists
+   * to report rather than quietly win.
    */
   [data-kui-fx~='loading-bar'][data-kui-state='ready'] {
     --kui-bar-from: 1 !important;
-    opacity: 0 !important;
+    opacity: 0;
   }
 
   /*

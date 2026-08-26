@@ -43,6 +43,9 @@ const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
 }
 
 /** Resolves a URL path to a file under `base`, refusing to escape it via `..` traversal. */

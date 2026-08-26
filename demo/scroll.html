@@ -35,18 +35,21 @@
   figure { margin: 0; }
 
   /* ---------- demo hero ---------- */
+  /* The pull-up and the 100dvh floor are shared with every other demo hero and live in
+     system.css. This page's hero is the one variant: a centered flex column rather than the
+     two-column grid, because its anchor is a full-width video, not a side image. */
   .demo-hero {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
     padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(3rem, 5vw, 5rem);
     text-align: center;
   }
-  .demo-hero .kicker { display: block; }
+  /* The negative margin-top in system.css pulls the hero up under the floating header for the
+     overlap trick, which left the kicker sitting almost flush against it — this pushes just
+     the kicker back down without touching the padding-top clamp every other child relies on. */
+  .demo-hero .kicker { margin-top: 1.5rem; }
   .demo-hero h1 {
     margin: 0 auto; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02;
     letter-spacing: -0.03em; max-width: 18ch;
-  }
-  .demo-hero .lede {
-    margin: 0.85rem auto 0; max-width: 46ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem);
-    line-height: 1.6; color: var(--muted);
   }
   .demo-hero .hero-video {
     margin: 2rem auto 0; max-width: 50rem; overflow: clip; border-radius: 14px; box-shadow: var(--shadow-float);
@@ -76,6 +79,73 @@
      section states out loud: nothing on this page is cropped to a box someone picked. */
   .showcase-media img,
   .showcase-media video { display: block; width: 100%; max-width: 1200px; height: auto; }
+  /* WoodNest's own poster is 1200x900 (4:3) — matching both faces to that ratio, rather than the
+     16:9 the other flip-cards on this page use, means the front video still renders at its native
+     size (no crop) and the back face's YouTube thumbnail crops by the same modest amount either
+     face would need if the two didn't share a ratio. */
+  .showcase-flip { display: grid; }
+  .showcase-flip > .kui-face-front,
+  .showcase-flip > .kui-face-back { aspect-ratio: 4 / 3; }
+  .showcase-flip .video-frame { width: 100%; height: 100%; aspect-ratio: 4 / 3; }
+  /* `cover` (the `.video-frame img` default) crops a 16:9 thumbnail down to this 4:3 box by
+     ~25% off each side — reads as squeezed. `contain` letterboxes on the frame's own black
+     background instead, matching this page's own "nothing here is cropped to a box someone
+     picked" rule stated above for the front face. */
+  .showcase-flip .video-frame img { object-fit: contain; }
+  /* The `.kui-flip-control` in this card exists first of all to hold `aria-pressed` state — under
+     a hover trigger nobody is meant to press it, so it is hidden here rather than being left to the
+     `hidden` attribute, which loses outright to `.kui-flip-control`'s own `display: flex` (further
+     down) and left an empty dark pill sitting in the card's corner. */
+  #showcase-flip-demo > .kui-flip-control { display: none; }
+  /* Except in the one mode where hiding it removes the whole interaction. `trigger:click` wires no
+     listener at all — the control *is* the affordance — so the card grows its Flip pill back the
+     moment the chips below select it, keyed off the same attribute string the contract bar prints.
+     `~=` matches one whitespace-separated token, which is what a `data-kui` parameter is. */
+  #showcase-flip-demo[data-kui~='trigger:click'] > .kui-flip-control { display: flex; }
+  /* And in every mode, for the two readers the hover trigger deliberately never wires itself for.
+     On a touch screen `pointerenter` fires from a tap, so a hover-flipped card would turn on the
+     same tap that was reaching for the play button on the face in front of it — the library checks
+     `(hover: hover) and (pointer: fine)` and declines. Under reduced motion the animator refuses to
+     activate the primitive at all (`reducedMotion: 'disable'`), which takes the listener with it,
+     though the card itself still turns because the transition is stamped by `data-kui-fx` either
+     way. Both cases leave three of the four modes unreachable without a button; the button is the
+     honest affordance for both anyway. */
+  @media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+    #showcase-flip-demo > .kui-flip-control { display: flex; }
+  }
+
+  /* ---------- the trigger switcher, under the showcase card ----------
+     `flip-card`'s four `trigger:` values differ entirely in what happens *after* the pointer
+     leaves, which is a thing you have to feel rather than read — so the chips rewrite one token of
+     the live `data-kui` and the contract bar above them prints the result. Same arrangement, and
+     deliberately the same chip treatment, as index.html's "click the attribute, watch it change"
+     lab: mono, outline at rest, filled with the accent when it is the selected value. The point
+     being made is that what changed is one token in a string you could have typed yourself. */
+  /* The one token the chips rewrite, marked inside the bar so the thing that changed is visible
+     rather than having to be spotted. Same tinted inner chip the Flip pill's side label uses — a
+     translucent white over the light-mode black bar, a translucent black over the dark-mode accent
+     one — so it needs no colour of its own and cannot collide with either fill. */
+  #flip-trigger-token {
+    padding: 0.05rem 0.35rem; border-radius: 5px; background: rgb(255 255 255 / 0.17);
+  }
+  :root[data-theme='dark'] #flip-trigger-token { background: rgb(0 0 0 / 0.14); }
+
+  .trigger-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.7rem; }
+  .trigger-switch-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; color: var(--muted);
+  }
+  .trigger-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    padding: 0.35rem 0.7rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .trigger-chip:hover { border-color: var(--fg); color: var(--fg); }
+  .trigger-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .trigger-chip[aria-pressed='true'] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
   .showcase-media figcaption {
     margin-top: 0.7rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.75rem; color: var(--muted); line-height: 1.5;
@@ -473,7 +543,8 @@
      as the faces or it lands in a second row and pushes the layout around. */
   .hero-flip { border-radius: 12px; }
   .hero-flip > .kui-face-front,
-  .hero-flip > .kui-face-back { border-radius: 12px; overflow: clip; }
+  .hero-flip > .kui-face-back { border-radius: 12px; overflow: clip; aspect-ratio: 16 / 9; }
+  .hero-flip video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
   /* Both controls share one grid cell with the faces and one set of pill metrics, so they sit on
      the same baseline and read as a pair rather than as two unrelated buttons that happen to be
      near each other. Only the corner and the fill differ. */
@@ -680,8 +751,12 @@
   }
 
   .stack-group { margin-top: 2rem; }
+  /* All four share one min-height, first card included. It used to get its own 60vh — shorter
+     than the rest — but that undercut the card's own rendered height (~66vh of padding-top plus
+     the card at its 62vh cap), leaving `position: sticky` about 26px of room to hold in versus
+     193px for cards 2-4. 26px reads as "not pinning" — it sticks for a beat and lets go before a
+     scroll registers as intentional. */
   .stack-item { min-height: 92vh; display: flex; align-items: flex-start; justify-content: center; padding-top: 4vh; }
-  .stack-item:first-child { min-height: 60vh; }
   /* 16:10 rather than the old fixed `58vh`/`max-height: 460px`, which at 680px wide worked out to
      1.48 — narrower than every card in the deck. The four portfolio shots run 1.50 to 1.78, so
      `cover` was cropping the sides and taking the corner labels with them ("GHL Specialist" lost
@@ -989,7 +1064,7 @@
     flex: none; width: min(78vw, 420px); scroll-snap-stop: always;
     border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface);
   }
-  .snap-x-row img { display: block; width: 100%; height: 260px; object-fit: cover; }
+  .snap-x-row img, .snap-x-row video { display: block; width: 100%; height: 260px; object-fit: cover; }
   .snap-x-row figcaption { padding: 0.6rem 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; color: var(--muted); }
 
   /* `overflow-y` is the library's now; the height that gives it something to overflow is a look
@@ -1102,38 +1177,26 @@
         <!-- Two videos, one slot. `flip-card` is the library's stateful two-sided card — not
              `card-flip-y`, which is a one-shot entrance with nothing on the other side. The state
              is `aria-pressed` on the control, read with `:has()`, so the button's accessibility
-             state and the card's visual state are the same fact rather than two that can drift. -->
+             state and the card's visual state are the same fact rather than two that can drift.
+             Both faces are self-hosted `data-autoplay-in-view` loops (same asset pipeline as the
+             gallery cards below), not the YouTube facade pattern the pin-section demo further down
+             uses — there is no poster `<img>` to derive a flip label from, so `data-flip-label`
+             on each face gives the flip script an explicit name instead. -->
         <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
           <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
-            <div class="kui-face-front">
-              <div class="video-frame" data-yt-id="EcbgbKtOELY">
-              <!-- `eager` + `fetchpriority="high"`, because this is the largest element in the
-                   first viewport — it is the LCP candidate for the whole page. It was `lazy`,
-                   which tells the browser to *deprioritise* the one image the visitor is waiting
-                   on. `reveals.html` and `interactive.html` both leave their heroes at the default
-                   (eager), so this page was the odd one out rather than the convention. -->
-              <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="eager" fetchpriority="high" />
-              <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
-                <svg viewBox="0 0 68 48" aria-hidden="true">
-                  <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                  <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                </svg>
-              </button>
+            <div class="kui-face-front" data-flip-label="Noomo Labs">
+              <video data-autoplay-in-view poster="./assets/webdesign/noomo-labs-3d-interaction-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Noomo Labs homepage animating — a pink 3D jellyfish dissolving through the oversized NOOMO LABS wordmark as it tilts and resolves into the heading DESIGN, promoting the studio's 3D websites, AR activations and interactive experiences">
+                <source src="./assets/webdesign/noomo-labs-3d-interaction.webm" type="video/webm" />
+                <source src="./assets/webdesign/noomo-labs-3d-interaction.mp4" type="video/mp4" />
+              </video>
             </div>
-            </div>
-            <div class="kui-face-back">
-              <div class="video-frame" data-yt-id="f2mGqlLLqok">
-              <!-- The flip card's back face is also in the first viewport (it is a 3D face, not a
-                   hidden element), so it loads with the front. `eager` without `fetchpriority`:
-                   it should not be lazy, but it must not compete with the face actually showing. -->
-              <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="eager" />
-              <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
-                <svg viewBox="0 0 68 48" aria-hidden="true">
-                  <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                  <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                </svg>
-              </button>
-            </div>
+            <div class="kui-face-back" data-flip-label="Sandhill Studio">
+              <video data-autoplay-in-view poster="./assets/webdesign/lagunitas-ipa-landing-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Lagunitas IPA landing page — bottle hero shots under an UNLIMITED RELEASE IPA headline with ingredient callouts">
+                <source src="./assets/webdesign/lagunitas-ipa-landing.webm" type="video/webm" />
+                <source src="./assets/webdesign/lagunitas-ipa-landing.mp4" type="video/mp4" />
+              </video>
             </div>
             <!-- Two controls, opposite corners, so neither has to make room for the other. Flip
                  is the primary action and carries the filled treatment; Show code is an outline of
@@ -1142,12 +1205,11 @@
             <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
             <button type="button" class="kui-flip-control" aria-pressed="false">
               <span class="flip-label">Flip</span>
-              <span class="flip-side">Kole Jain</span>
+              <span class="flip-side">Noomo Labs</span>
             </button>
           </div>
         </div>
 
-        <p class="lede" data-kui="fade-up 700ms 160ms">Real scroll position drives every effect below — no fixed timers, no faked progress.</p>
         <div class="demo-hero-actions" data-kui="fade-up 700ms 220ms">
           <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
           <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -1167,24 +1229,78 @@
                  Putting the radius, border, and shadow on a wrapper with `overflow: clip` keeps the
                  corners honest for the whole hold. -->
             <div class="showcase-frame">
-              <!-- A moving reference, not a still one. The point this section argues is that a hero
-                   gets one job — make you stop — and a lit cabin resolving out of the mist makes it
-                   in a way a screenshot cannot. `preload="none"` plus a poster
-                   because this sits directly under the fold: the poster is the first paint, and the
-                   2MB of video is only fetched once the frame is actually on screen. `muted` is not
-                   optional for autoplay, and the source has no audio track at all. -->
-              <video
-                data-autoplay-in-view
-                poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg"
-                muted loop playsinline preload="none"
-                data-kui="parallax-scale from:1 scale:1.06 timeline:pin"
-                aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night"
-              >
-                <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
-                <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
-              </video>
+              <!-- Hover-flipped, unlike every other flip-card on this page: the owner asked for
+                   this one specifically to reveal on hover rather than on a click control. That
+                   used to be fifteen lines of hand-rolled `pointerenter` script at the bottom of
+                   this file, reaching in and setting `aria-pressed` itself. It is a parameter now —
+                   `trigger:` — so the page states what it wants instead of implementing it, and the
+                   chips under the frame switch between all four values live. Front face is the same
+                   self-hosted, pin-scrubbed WoodNest video as before, untouched. -->
+              <div class="showcase-flip" id="showcase-flip-demo" data-kui="flip-card trigger:hover-toggle">
+                <div class="kui-face-front" data-flip-label="WoodNest">
+                  <!-- A moving reference, not a still one. The point this section argues is that a
+                       hero gets one job — make you stop — and a lit cabin resolving out of the mist
+                       makes it in a way a screenshot cannot. `preload="none"` plus a poster because
+                       this sits directly under the fold: the poster is the first paint, and the 2MB
+                       of video is only fetched once the frame is actually on screen. `muted` is not
+                       optional for autoplay, and the source has no audio track at all. -->
+                  <video
+                    data-autoplay-in-view
+                    poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg"
+                    muted loop playsinline preload="none"
+                    data-kui="parallax-scale from:1 scale:1.06 timeline:pin"
+                    aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night"
+                  >
+                    <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
+                    <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
+                  </video>
+                </div>
+                <div class="kui-face-back">
+                  <div class="video-frame" data-yt-id="PKYNTm2m8eA">
+                    <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                      <svg viewBox="0 0 68 48" aria-hidden="true">
+                        <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                        <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <!-- Required in every mode, visible in some: this is where the card's state lives,
+                     and `trigger:hover*` writes exactly the `aria-pressed` a click would. The CSS
+                     above hides it while a hover trigger is driving the card and shows it for
+                     `trigger:click`, which is the mode where a card with no visible control is a
+                     card with no way in. The `hidden` attribute is gone with it — one mechanism
+                     deciding visibility, and it is the one that can tell the modes apart. -->
+                <button type="button" class="kui-flip-control" aria-pressed="false">
+                  <span class="flip-label">Flip</span>
+                  <span class="flip-side">WoodNest</span>
+                </button>
+              </div>
             </div>
-            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin"</figcaption>
+            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" · breathing on data-kui="parallax-scale timeline:pin" · the frame is a two-sided flip-card, and the second reference is on its back (Sam Crawford)</figcaption>
+
+            <!-- The live half of the flip-card contract. The bar prints the attribute; the chips
+                 under it rewrite one token of it and re-plan the card in place through the
+                 animator's own reset/process/activate — the supported way to re-apply an element
+                 whose `data-kui` changed, and the same three calls index.html's effect lab uses.
+                 Nothing here reaches for `aria-pressed`: that is the library's job now.
+
+                 Deliberately no "Show code" chip on this one bar, unlike every other contract on
+                 the page. That modal prints from a freshly fetched copy of this file, so it would
+                 keep saying `trigger:hover-toggle` after the reader had switched to `click` —
+                 a code block disagreeing with the live attribute two lines above it. The bar
+                 itself is the code here, and it is the copy that updates. The markup contract the
+                 modal would have taught (two faces, one control outside both) is already one
+                 "Show code" away on the hero card at the top of this page. -->
+            <p class="kui-contract"><code>data-kui="flip-card <span id="flip-trigger-token">trigger:hover-toggle</span>"</code></p>
+            <div class="trigger-switch" role="group" aria-label="flip-card trigger value">
+              <span class="trigger-switch-label" aria-hidden="true">trigger:</span>
+              <button type="button" class="trigger-chip" aria-pressed="false" data-trigger="click">click</button>
+              <button type="button" class="trigger-chip" aria-pressed="false" data-trigger="hover">hover</button>
+              <button type="button" class="trigger-chip" aria-pressed="false" data-trigger="hover-latch">hover-latch</button>
+              <button type="button" class="trigger-chip" aria-pressed="true" data-trigger="hover-toggle">hover-toggle</button>
+            </div>
           </figure>
 
           <div class="showcase-copy">
@@ -1234,12 +1350,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Same effects, different elements &mdash; 2</p>
-          <p class="matrix-group-note">A still on the left, a video on the right, and nothing about either
-            primitive knows or cares which is which. The left card composes an entrance with a blur, the right
-            one uses a scroll primitive instead &mdash; both scrub with scroll position and run backwards on the
-            way up. The video is <code>muted</code>, <code>loop</code>, <code>playsinline</code> and
-            <code>preload="none"</code>, and only starts once it is actually on screen.</p>
+          <p class="matrix-group-label">Same effects, different elements</p>
           <div class="demo-grid">
             <figure class="demo-card" style="--ar: 808 / 632" data-kui="fade-up, blur-in timeline:view" data-show-code>
               <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe, with a 47.2% Reality stat and a client avatar row" loading="lazy" />
@@ -1257,7 +1368,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Entrances on a view timeline &mdash; 4</p>
+          <p class="matrix-group-label">Entrances on a view timeline</p>
           <div class="demo-grid">
             <figure class="demo-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view" data-show-code>
               <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
@@ -1283,7 +1394,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Reveal, fade &amp; skew — 3</p>
+          <p class="matrix-group-label">Reveal, fade &amp; skew</p>
           <div class="demo-grid">
             <figure class="demo-card" style="--ar: 1200 / 900" data-kui="reveal-once" data-show-code>
               <video data-autoplay-in-view poster="./assets/webdesign/fuselab-spatial-clinic-poster.jpg" muted loop playsinline preload="none"
@@ -1305,7 +1416,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Parallax — 5</p>
+          <p class="matrix-group-label">Parallax</p>
           <div class="demo-grid">
             <figure class="parallax-card is-tall" data-kui="parallax-y distance:200px timeline:view" data-show-code>
               <div class="parallax-frame" style="--ar: 941 / 1672">
@@ -1374,7 +1485,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Pinning — 4</p>
+          <p class="matrix-group-label">Pinning</p>
 
                     <div class="rev-notes">
             <ul>
@@ -1395,13 +1506,32 @@
             <div class="pin-section-stage">
               <div class="pin-section-card" data-kui="pin-section distance:200vh">
                 <div class="pin-section-media">
-                  <div class="video-frame" data-yt-id="1NTKwpAVcHg">
-                    <img src="https://img.youtube.com/vi/1NTKwpAVcHg/maxresdefault.jpg" alt="Give Me 7 Minutes &amp; Your Web Design Skills Will Take Off — Self-Made Web Designer" loading="lazy" />
-                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Give Me 7 Minutes and Your Web Design Skills Will Take Off">
-                      <svg viewBox="0 0 68 48" aria-hidden="true">
-                        <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                        <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                      </svg>
+                  <div class="pin-flip" id="pin-flip-demo" data-kui="flip-card">
+                    <div class="kui-face-front">
+                      <div class="video-frame" data-yt-id="1NTKwpAVcHg">
+                        <img src="https://img.youtube.com/vi/1NTKwpAVcHg/maxresdefault.jpg" alt="Give Me 7 Minutes &amp; Your Web Design Skills Will Take Off — Self-Made Web Designer — 7 Minutes" loading="lazy" />
+                        <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Give Me 7 Minutes and Your Web Design Skills Will Take Off">
+                          <svg viewBox="0 0 68 48" aria-hidden="true">
+                            <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                            <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="kui-face-back">
+                      <div class="video-frame" data-yt-id="vbFn0C-pvis">
+                        <img src="https://img.youtube.com/vi/vbFn0C-pvis/maxresdefault.jpg" alt="The Only 5 Web Design Skills That Actually Matter (2026) — Self-Made Web Designer — 5 Skills" loading="lazy" />
+                        <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Only 5 Web Design Skills That Actually Matter">
+                          <svg viewBox="0 0 68 48" aria-hidden="true">
+                            <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                            <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <button type="button" class="kui-flip-control" aria-pressed="false">
+                      <span class="flip-label">Flip</span>
+                      <span class="flip-side">7 Minutes</span>
                     </button>
                   </div>
                 </div>
@@ -1534,7 +1664,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Scrollytelling — 1</p>
+          <p class="matrix-group-label">Scrollytelling</p>
                     <div class="rev-notes">
             <ul>
               <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scrollytelling-step</code></strong> writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
@@ -1569,7 +1699,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Horizontal travel — 1</p>
+          <p class="matrix-group-label">Horizontal travel</p>
           <!-- One "Show code" for the mechanism, not ten for the pictures inside it.
                Every figure in the track used to carry its own `data-show-code`, which mounted ten
                chips that each opened a `<figure><img></figure>` with no `data-kui` in it at all —
@@ -1639,7 +1769,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Media scrub — 1 of 2</p>
+          <p class="matrix-group-label">Media scrub</p>
           <!-- Was a ten-line `.matrix-group-note` paragraph carrying six inline `<code>` spans,
                including the CSS-escape-guard rationale for `src`. Both sibling groups in this
                section explain themselves with `.rev-notes` bullets, so this one was the odd
@@ -1667,7 +1797,7 @@
                Only the first frame carries alt text. The five are one picture as far as a
                reader is concerned, and only ever one is visible, so describing each would read
                out five descriptions of a single element. -->
-          <div class="scrub-viewport" id="scrub-demo" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
+          <div class="scrub-viewport" id="scrub-demo" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)" data-show-code-key="scrub-viewport">
             <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
             <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
             <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
@@ -1676,22 +1806,24 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Navigation — 1</p>
+          <p class="matrix-group-label">Navigation</p>
                     <div class="rev-notes">
             <ul>
               <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scroll-spy</code></strong> marks the section you are currently looking at.</li>
-              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at — here, the matching nav link.</li>
+              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at as <code>data-kui-active="true"</code> — here, the matching nav link, styled with a plain <code>a[data-kui-active='true']</code> rule.</li>
             </ul>
           </div>
           <!-- Container form: one data-kui on the shared ancestor, `sections:` and `target:`
                scoped to it. Pairing is automatic — each section's id against each link's
                href="#id" — so the five sections below carry no data-kui of their own at all.
-               `data-show-code-key` names the classes the CSS actually selects on, plus
-               `data-kui-active` — the attribute `scroll-spy` writes onto the target, which is the
-               whole contract of the effect and the one thing a reader copying this needs to know
-               exists. -->
+               `data-show-code-key` names the classes the CSS actually selects on. It used to also
+               list `data-kui-active`, which highlighted nothing and never could: the key list
+               marks class and id *tokens present in the printed markup*, and `data-kui-active` is
+               written at runtime by `scroll-spy` onto the target — it is not in the authored
+               source this modal prints. The note above says it in words instead, which is where a
+               fact about an attribute that does not exist yet belongs. -->
           <p class="kui-contract"><code>data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="spy-demo">Show code</button></p>
-          <div class="spy-layout" id="spy-demo" data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'" data-show-code-key="spy-layout spy-nav spy-sections spy-section data-kui-active">
+          <div class="spy-layout" id="spy-demo" data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'" data-show-code-key="spy-layout spy-nav spy-sections spy-section">
             <nav class="spy-nav" aria-label="Jump to product">
               <a id="spy-link-bottle" href="#spy-bottle">Botole</a>
               <a id="spy-link-airpods-dark" href="#spy-airpods-dark">AirPods dark</a>
@@ -1725,7 +1857,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Native CSS passthroughs — 2</p>
+          <p class="matrix-group-label">Native CSS passthroughs</p>
                     <div class="rev-notes">
             <ul>
               <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two are pure CSS</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>. No JS runs at all.</li>
@@ -1754,39 +1886,43 @@
           <p class="kui-contract"><code>data-kui="scroll-snap-x target:figure"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="snap-x-demo">Show code</button></p>
           <div class="snap-x-row" id="snap-x-demo" data-kui="scroll-snap-x target:figure">
             <figure>
-              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
+              <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
+                     aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
+                <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
+              </video>
               <figcaption>scroll-snap-x — 1 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="The Dua Lipa artist site — a portrait in a red ruffled dress against a deep red field, under an oversized Dua Lipa wordmark" loading="lazy" />
+              <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
               <figcaption>scroll-snap-x — 2 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
+              <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="The Dua Lipa artist site — a portrait in a red ruffled dress against a deep red field, under an oversized Dua Lipa wordmark" loading="lazy" />
               <figcaption>scroll-snap-x — 3 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="A Grammy Awards site on Best Rap Album — Kendrick Lamar in monochrome beside the DAMN. sleeve, track details, and a yellow by-the-numbers panel" loading="lazy" />
+              <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
               <figcaption>scroll-snap-x — 4 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
+              <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="A Grammy Awards site on Best Rap Album — Kendrick Lamar in monochrome beside the DAMN. sleeve, track details, and a yellow by-the-numbers panel" loading="lazy" />
               <figcaption>scroll-snap-x — 5 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/scrub-starboy.jpg" alt="A Starboy artist site — a monochrome portrait of The Weeknd beside heavy display type" loading="lazy" />
+              <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
               <figcaption>scroll-snap-x — 6 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT" loading="lazy" />
+              <img src="./assets/webdesign/scrub-starboy.jpg" alt="A Starboy artist site — a monochrome portrait of The Weeknd beside heavy display type" loading="lazy" />
               <figcaption>scroll-snap-x — 7 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/scrub-hendrix.jpg" alt="The Hendrix Project site — a close-up of Jimi Hendrix behind an outlined PROJECT wordmark, with a 1968-2022 timeline" loading="lazy" />
+              <img src="./assets/webdesign/abstract-dark-hero.jpg" alt="The Abstract agency homepage — a pale sculptural form floating on a near-black starfield beneath the wordmark ABSTRACT" loading="lazy" />
               <figcaption>scroll-snap-x — 8 of 9</figcaption>
             </figure>
             <figure>
-              <img src="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" alt="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above" loading="lazy" />
+              <img src="./assets/webdesign/scrub-hendrix.jpg" alt="The Hendrix Project site — a close-up of Jimi Hendrix behind an outlined PROJECT wordmark, with a 1968-2022 timeline" loading="lazy" />
               <figcaption>scroll-snap-x — 9 of 9</figcaption>
             </figure>
           </div>
@@ -1876,6 +2012,53 @@
     })()
   </script>
   <script>
+    // WoodNest showcase card: the `trigger:` switcher.
+    //
+    // What used to be here was the hover behaviour itself — a `pointerenter` listener reaching into
+    // the card and flipping `aria-pressed` by hand. That is `trigger:hover-toggle` now, authored on
+    // the element, and the whole of it is gone. What is left is the demo affordance: four chips
+    // that rewrite one token of the attribute so a reader can feel the difference between the
+    // values, which is entirely a difference in what happens *after* the pointer leaves and so
+    // cannot be shown in a still.
+    //
+    // `reset()` releases the installed state (including the trigger's listener — that is what makes
+    // switching modes not accumulate them) and `process()` re-plans from the new attribute.
+    // `activate()` completes the trio the effect lab on index.html uses; `flip-card` activates
+    // `on:load`, so `process()` has already opened its gate synchronously by the time this runs and
+    // the call is a no-op here rather than a second setup.
+    ;(function () {
+      var card = document.getElementById('showcase-flip-demo')
+      var token = document.getElementById('flip-trigger-token')
+      var chips = document.querySelectorAll('.trigger-chip')
+      if (!card || !token || !chips.length) return
+      var control = card.querySelector('.kui-flip-control')
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var value = chip.getAttribute('data-trigger')
+          chips.forEach(function (other) {
+            other.setAttribute('aria-pressed', String(other === chip))
+          })
+          token.textContent = 'trigger:' + value
+          card.setAttribute('data-kui', 'flip-card trigger:' + value)
+          // Every mode starts from the front face. `reset()` restores the attributes the library
+          // owns, and `aria-pressed` is deliberately not one of them — it is the author's state —
+          // so a card left showing its back would otherwise carry that over into a mode whose
+          // first hover is supposed to be the reveal. Going back through the control's own click
+          // rather than writing the attribute here is what also stops a YouTube iframe playing on
+          // the face we are turning away, and keeps the pill's side label honest; that teardown
+          // already lives in the flip script below and does not want a second copy.
+          if (control && control.getAttribute('aria-pressed') === 'true') control.click()
+          var kui = window.__kui
+          if (!kui || typeof kui.reset !== 'function') return
+          kui.reset(card)
+          kui.process(card)
+          kui.activate(card)
+        })
+      })
+    })()
+  </script>
+  <script>
     // flip-card is CSS; the one thing it cannot do for itself is toggle the attribute. That is the
     // author's line, the same as the icon toggles in catalog section E.
     //
@@ -1892,8 +2075,13 @@
         ]
         // Just the presenter. The full title is already the button's accessible name via the
         // poster's alt, and a chip carrying the whole thing spans half the card.
+        // A face with a real poster `<img>` (the YouTube facade pattern) derives its label from
+        // the alt text's last ` — ` segment; a self-hosted `data-autoplay-in-view` video has no
+        // such img, so `data-flip-label` on the face is the explicit fallback.
         var names = sides.map(function (side) {
-          var img = side && side.querySelector('img')
+          if (!side) return ''
+          if (side.dataset.flipLabel) return side.dataset.flipLabel
+          var img = side.querySelector('img')
           if (!img) return ''
           var parts = img.alt.split(' — ')
           return parts[parts.length - 1]
@@ -1908,7 +2096,7 @@
               if (frame.__restore) frame.__restore()
             })
           }
-          if (label) label.textContent = names[flipped ? 1 : 0]
+          if (label && names[flipped ? 1 : 0]) label.textContent = names[flipped ? 1 : 0]
         })
         if (label && names[0]) label.textContent = names[0]
       })

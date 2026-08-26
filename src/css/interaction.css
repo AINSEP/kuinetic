@@ -124,6 +124,12 @@
    * color; the rest is transparent, which is what reads as a travelling beam rather than a
    * full-ring rainbow. `-webkit-mask`/`-webkit-mask-composite` are the Safari-required forms of
    * the same two standard properties — both are needed, not a progressive-enhancement fallback.
+   *
+   * `color:` (interaction.ts's `beamParams`) only ever writes `--kui-beam-border-c1` inline. c2-c4
+   * fall back to c1 before their own hardcoded default, so authoring one color turns the four-stop
+   * rainbow into a single-color beam without a second param — and c2-c4 stay independently
+   * overridable by hand (raw custom properties, not a `data-kui` param) for anyone who wants the
+   * original multi-stop look with different colors.
    */
   [data-kui-fx~='beam-border'],
   [data-kui-fx~='beam-border-auto'] {
@@ -133,7 +139,19 @@
   [data-kui-fx~='beam-border-auto']::before {
     content: '';
     position: absolute;
-    inset: 0;
+    /*
+     * An absolutely positioned box resolves `inset` against its containing block's *padding* box,
+     * so every pixel of border on the host pushes the ring that far inward — a 1px-bordered button
+     * renders the beam floating 1px inside its own edge rather than on it. There is no way to make
+     * this automatic: no CSS length can read the host's `border-width`, and anchor positioning
+     * (the one feature that names an anchor's *border* box) does not apply here — a pseudo-element
+     * anchored to its own originating element silently falls back to its static position, measured
+     * in Chrome 151. So the compensation is authored: `outset:` (interaction.ts's `beamParams`)
+     * writes the host's border width and the ring lands flush on the outer edge. `0px` default
+     * keeps every existing borderless host pixel-identical, since there the padding box already
+     * *is* the border box.
+     */
+    inset: calc(-1 * var(--kui-beam-border-outset, 0px));
     border-radius: inherit;
     padding: var(--kui-beam-border-width, 3px);
     background: conic-gradient(
@@ -141,9 +159,9 @@
       transparent 0deg,
       transparent 260deg,
       var(--kui-beam-border-c1, #ff5f6d) 282deg,
-      var(--kui-beam-border-c2, #ffc371) 306deg,
-      var(--kui-beam-border-c3, #4facfe) 330deg,
-      var(--kui-beam-border-c4, #a855f7) 354deg,
+      var(--kui-beam-border-c2, var(--kui-beam-border-c1, #ffc371)) 306deg,
+      var(--kui-beam-border-c3, var(--kui-beam-border-c1, #4facfe)) 330deg,
+      var(--kui-beam-border-c4, var(--kui-beam-border-c1, #a855f7)) 354deg,
       transparent 360deg
     );
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -157,10 +175,15 @@
     opacity: 1;
     animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
   }
-  /* beam-border-auto: the always-on sibling — unconditional, no :hover/:focus-visible gate. */
+  /* beam-border-auto: the always-on sibling — unconditional, no :hover/:focus-visible gate.
+     Its own namespaced `--kui-beam-border-auto-duration` (from `duration:`), not the plain
+     `--kui-beam-border-duration` above — the two primitives register separately, and
+     `registry.ts`'s `namespaceTiming` writes each one's authored `duration:` under its own
+     primitive id. Sharing the hover variant's property name here meant `duration:` on
+     `beam-border-auto` silently wrote to a property nothing read. */
   [data-kui-fx~='beam-border-auto']::before {
     opacity: 1;
-    animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
+    animation: kui-beam-rotate var(--kui-beam-border-auto-duration, 4260ms) linear infinite;
   }
   @keyframes kui-beam-rotate {
     to { --kui-border-angle: 360deg; }

@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { createParams } from '../src/core/js-params.js'
 import { createRegistry } from '../src/effects/index.js'
 import { GESTURE_PRESETS } from '../src/effects/gestures/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
@@ -43,9 +44,14 @@ const registry = createRegistry()
  *
  * `flip-card` is a two-sided card that stays on the face you turned it to. A one-shot keyframe
  * cannot express that — it has no way to come back — so the whole effect is a CSS transition in
- * `three-d.css` keyed off `aria-pressed` on the control inside the card, and its primitive prepares
- * to an inert instance. Named here rather than inferred, so a *new* preset that quietly stops
+ * `three-d.css` keyed off `aria-pressed` on the control inside the card, and its primitive
+ * animates nothing itself. Named here rather than inferred, so a *new* preset that quietly stops
  * declaring keyframes still fails the assertions below instead of being silently excused.
+ *
+ * "Animates nothing" is not the same as "does nothing": `trigger:` gave `flip-card`'s `prepare` one
+ * job — attaching a hover listener that writes the same `aria-pressed` a click would — and the last
+ * test in this file is written to survive that distinction. See `test/three-d-flip-trigger.test.ts`
+ * for the behaviour of the four trigger values, which needs a DOM and so lives in its own file.
  */
 const STATE_DRIVEN = new Set(['flip-card'])
 
@@ -157,23 +163,36 @@ describe('v3 registration', () => {
   it('the state-driven presets render nothing themselves — the stylesheet does all of it', () => {
     for (const name of STATE_DRIVEN) {
       const resolved = registry.resolve(name)!
-      // `javascript` here means "the animator holds an inert handle", not "this ships a frame
-      // loop": the primitive's `prepare` returns `inertInstance()` and never touches the DOM. The
-      // registration exists to stamp `data-kui-fx` and resolve the timing params onto the card,
-      // which the faces then inherit — exactly the forms.css native-state arrangement.
+      // `javascript` here means "the animator holds the handle", not "this ships a frame loop":
+      // the primitive's `prepare` writes no styles and drives no clock — at most it attaches the
+      // one hover listener `trigger:` asks for, and that listener sets an attribute the stylesheet
+      // transitions off. The registration exists to stamp `data-kui-fx` and resolve the timing
+      // params onto the card, which the faces then inherit — exactly the forms.css native-state
+      // arrangement.
       expect(resolved.primitive.renderer, name).toBe('javascript')
       expect(resolved.primitive.reducedMotion, name).toBe('disable')
     }
   })
 
-  it('the state-driven presets\' prepare is genuinely inert, not merely declared inert', async () => {
+  it('the state-driven presets\' prepare animates nothing, whatever else it wires up', async () => {
     // The assertions above read the primitive's *metadata*. That is not the same claim: a
-    // `renderer: 'javascript'` primitive is still handed to the animator, which calls every hook
-    // on the instance it returns. So call it. `prepare` here ignores all three arguments by
-    // construction, which is why passing none is safe and is itself part of what is being checked.
+    // `renderer: 'javascript'` primitive is still handed to the animator, which calls every hook on
+    // the instance it returns, so the guarantee that has to hold is behavioural — activate, cancel,
+    // finish and destroy are all safe, and `finished` settles.
+    //
+    // `prepare` stopped ignoring its arguments when `trigger:` landed, so it can no longer be
+    // invoked with none. It is still invoked here without a DOM, and deliberately: this file is
+    // `environment: node` (line 1), and `createParams({})` is the empty-attribute case — the
+    // `click` default, which is where a state-driven preset must animate nothing. On that path
+    // `prepare` reads the keyword and returns a no-op teardown without ever reaching for the
+    // element or the context, so `undefined` for both is not a stub that papers over anything: if a
+    // preset listed above ever starts touching the DOM on its *default* path, that lands inside the
+    // `not.toThrow()` below and fails, which is the correct answer rather than a missed one. The
+    // trigger values that do need a DOM are covered in `test/three-d-flip-trigger.test.ts`.
+    const noDom = undefined as unknown as never
     for (const name of STATE_DRIVEN) {
       const prepare = registry.resolve(name)!.primitive.prepare!
-      const instance = (prepare as unknown as () => ReturnType<typeof prepare>)()
+      const instance = prepare(noDom, createParams({}), noDom)
 
       expect(() => {
         instance.activate()

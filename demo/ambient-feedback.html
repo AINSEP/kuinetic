@@ -34,8 +34,6 @@
   @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
   .demo-hero .hero-copy { max-width: 46rem; }
   .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 20ch; }
-  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
-  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
   .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
   .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
   .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
@@ -154,9 +152,10 @@
   .ambient-shape:nth-child(2) { left: 55%; top: 22%; background: color-mix(in srgb, #60a5fa 65%, white 15%); }
   .ambient-shape:nth-child(3) { left: 68%; top: 58%; background: color-mix(in srgb, #34d399 65%, white 15%); }
   /* Border-family effects. beam-border paints its ring into a `::before` pseudo-element (safe to
-     nest real content inside), but gradient-rotate-border applies `mask-composite: exclude`
-     directly to the element carrying `data-kui` — which also masks away any real DOM children
-     placed inside it, not just its own background. So the ring and the photo can't be parent/child
+     nest real content inside), but gradient-rotate-border and gradient-border apply
+     `mask-composite: exclude` directly to the element carrying `data-kui` — which also masks away
+     any real DOM children placed inside it, not just its own background (the `-border` suffix on
+     both names is there to say so). So the ring and the photo can't be parent/child
      here: `.ambient-border-ring` is an empty sibling absolutely filling the pad (nothing lost when
      its content-box gets masked out), and `.ambient-border-inner` independently shows the photo,
      inset by the same 3px the ring's own padding reserves. */
@@ -322,12 +321,6 @@
         <div class="hero-copy">
           <p class="kicker">CSS Animations · Ambient &amp; Feedback</p>
           <h1 data-kui="fade-up 700ms">Ambient backgrounds &amp; feedback states.</h1>
-          <p class="lede" data-kui="fade-up 700ms 90ms">
-            Catalog sections <code>J</code> and <code>K</code> — 14 continuous ambient effects and
-            17 loading/reaction effects. Every ambient effect below loops forever and disables
-            entirely under <code>prefers-reduced-motion</code> rather than shortening to a
-            meaningless 1ms.
-          </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#ambient" class="btn btn-primary">Scroll the effects</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -348,10 +341,7 @@
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">J — Ambient backgrounds</h2>
           <p data-kui="slide-right 900ms, blur-in 500ms, zoom-in 700ms">
-            14 continuous, decorative effects, <code>on:load</code> by default — plus
-            <code>beam-border</code>, a related hover/border primitive worth knowing even though
-            it's catalogued separately from these 14. Loops run at full speed here; nothing waits
-            for scroll or a click.
+            14 continuous effects, plus <code>beam-border</code>, all <code>on:load</code>.
           </p>
         </div>
 
@@ -370,7 +360,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Border treatments — 2</p>
+          <p class="matrix-group-label">Border treatments — 4</p>
           <div class="demo-grid" data-kui-stagger="90ms">
             <figure class="demo-card" data-show-code>
               <div class="ambient-border-pad">
@@ -382,12 +372,29 @@
               <figcaption>data-kui="gradient-rotate-border"</figcaption>
             </figure>
             <figure class="demo-card" data-show-code>
-              <div class="ambient-border-pad" data-kui="beam-border-auto">
+              <div class="ambient-border-pad" data-kui="beam-border-auto duration:12s">
                 <div class="ambient-border-inner">
                   <img src="./assets/product/future-glasses.jpg" alt="Futuristic white smart glasses with dark reflective lenses, twin cameras on the temples, and a HUD readout visible in the lens" loading="lazy" />
                 </div>
               </div>
-              <figcaption>data-kui="beam-border-auto" — hover/border family, not one of J's 14</figcaption>
+              <figcaption>data-kui="beam-border-auto duration:12s" — hover/border family, not one of J's 14</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <div class="ambient-border-pad">
+                <div class="ambient-border-ring" data-kui="gradient-border from:purple to:yellow"></div>
+                <div class="ambient-border-inner">
+                  <img src="./assets/product/aesop_shampoo.jpg" alt="Aesop shampoo and conditioner bottles resting in a round leather tray, lit by warm directional sunlight with strong shadow" loading="lazy" />
+                </div>
+              </div>
+              <figcaption>data-kui="gradient-border from:purple to:yellow"</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <div class="ambient-border-pad" data-kui="beam-border-auto color:gold duration:12s">
+                <div class="ambient-border-inner">
+                  <img src="./assets/product/kuinetic_spray.jpg" alt="White kUInetic-branded spray bottle mockup resting on a dark driftwood branch against a grey backdrop" loading="lazy" />
+                </div>
+              </div>
+              <figcaption>data-kui="beam-border-auto color:gold duration:12s"</figcaption>
             </figure>
           </div>
         </div>
