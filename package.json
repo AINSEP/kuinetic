@@ -10,8 +10,8 @@
   "main": "./dist/esm/index.mjs",
   "module": "./dist/esm/index.mjs",
   "types": "./dist/types/index.d.ts",
-  "unpkg": "dist/kuinetic.js",
-  "jsdelivr": "dist/kuinetic.js",
+  "unpkg": "dist/kuinetic.min.js",
+  "jsdelivr": "dist/kuinetic.min.js",
   "files": [
     "dist"
   ],
@@ -42,7 +42,7 @@
     "ci": "npm run build:dist && npm run typecheck && npm run lint && npm run lint:deps && npm run lint:dead && npm run check:css-coverage && npm run test:coverage && npm run test:browser",
     "size": "npm run build:dist && size-limit",
     "build": "npm run generate:css && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --outfile=demo/kuinetic.js && esbuild src/css/index.css --bundle --outfile=demo/kuinetic.css && npx @tailwindcss/cli -i demo/tailwind-entry.css -o demo/tailwind.css && node scripts/build-standalone.mjs demo",
-    "build:dist": "npm run clean:dist && npm run generate:css && esbuild src/index.ts src/core/index.ts src/effects/index.ts --bundle --format=esm --splitting --outdir=dist/esm --out-extension:.js=.mjs && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --outfile=dist/kuinetic.js && esbuild src/css/index.css --bundle --outfile=dist/kuinetic.css && tsc -p tsconfig.build.json && node scripts/build-standalone.mjs",
+    "build:dist": "npm run clean:dist && npm run generate:css && esbuild src/index.ts src/core/index.ts src/effects/index.ts --bundle --format=esm --splitting --outdir=dist/esm --out-extension:.js=.mjs && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --outfile=dist/kuinetic.js && esbuild src/css/index.css --bundle --outfile=dist/kuinetic.css && esbuild src/index.ts --bundle --format=iife --global-name=kuinetic --minify --outfile=dist/kuinetic.min.js && esbuild src/css/index.css --bundle --minify --outfile=dist/kuinetic.min.css && tsc -p tsconfig.build.json && node scripts/build-standalone.mjs",
     "verify:standalone": "npm run build:dist && node scripts/verify-standalone.mjs",
     "verify:pack": "npm run build:dist && node scripts/verify-pack.mjs",
     "clean:dist": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
