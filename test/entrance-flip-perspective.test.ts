@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/css/entrance.css', import.meta.url)), 'utf8')
 
@@ -135,7 +135,7 @@ describe('flip-in/-out keyframes carry their own perspective', () => {
 })
 
 describe('flip-3d primitive channel matches what it writes', () => {
-  const registry = createRegistry()
+  const registry = catalogRegistry()
 
   it.each(['flip-in-x', 'flip-in-y', 'flip-out-x', 'flip-out-y'])(
     '%s is on the skew channel (claims the transform shorthand), not rotate',

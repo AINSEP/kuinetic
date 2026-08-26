@@ -7,8 +7,8 @@ import { defaultCapabilities } from '../src/core/capabilities.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import { Registry } from '../src/core/registry.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
-import { createRegistry } from '../src/effects/index.js'
 import type { Activation, EffectInstance, Primitive } from '../src/core/types.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Regression tests for the lifecycle defects found in the second external review.
@@ -99,7 +99,7 @@ function build(html: string, options: Partial<ConstructorParameters<typeof Anima
   document.body.innerHTML = html
   return new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     binder: createActivationBinder({ createObserver: undefined }),
     scheduler: idleScheduler,
@@ -227,7 +227,7 @@ describe('teardown restores what it wrote', () => {
     document.body.innerHTML = '<div data-kui="fade-up" style="animation-name: mine"></div>'
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: createActivationBinder({ createObserver: undefined }),
       scheduler: idleScheduler,

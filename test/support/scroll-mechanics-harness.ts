@@ -4,7 +4,7 @@ import { createActivationBinder } from '../../src/core/activation.js'
 import { collectingReporter } from '../../src/core/reporter.js'
 import type { CollectingReporter } from '../../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler, ScrollSubscriber } from '../../src/core/scroll-scheduler.js'
-import { createRegistry } from '../../src/effects/index.js'
+import { catalogRegistry } from './registry.js'
 
 /**
  * Shared scroll-mechanics test rig: a fake scheduler and a fake measurer.
@@ -99,7 +99,7 @@ export function build(html: string) {
   reporter = collectingReporter()
   const animator = new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     reporter,
     binder: createActivationBinder({ createObserver: undefined }),

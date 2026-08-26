@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -19,6 +18,7 @@ import {
   nextStep,
   nextSubmitStage,
 } from '../src/effects/forms/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 // A relative `new URL(..., import.meta.url)` throws under the jsdom test environment (its `URL`
 // implementation rejects the resolved result) — resolving through `node:path` off this file's own
@@ -40,7 +40,7 @@ const CSS_TIER_PRESETS = ['focus-ring-grow', 'validate-shake', 'validate-check']
 
 describe('forms catalog', () => {
   it('registers all 12 section O names', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(FORMS_PRESETS).toHaveLength(12)
     expect(FORMS_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
@@ -53,7 +53,7 @@ describe('forms catalog', () => {
   })
 
   it('gives label-float/input-underline-grow/checkbox-draw an inert instance — the browser drives them, not JS', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const names = ['label-float', 'input-underline-grow', 'checkbox-draw']
     for (const name of names) {
       const resolved = registry.resolve(name)
@@ -62,7 +62,7 @@ describe('forms catalog', () => {
   })
 
   it('gives toggle-morph/radio-fill their own primitive, for the sibling-scale write their shared scale param needs', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(registry.resolve('toggle-morph')?.primitive.id).toBe('toggle-morph')
     expect(registry.resolve('radio-fill')?.primitive.id).toBe('radio-fill')
   })

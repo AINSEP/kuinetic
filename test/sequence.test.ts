@@ -21,7 +21,7 @@ import type { SequenceMember } from '../src/core/sequence.js'
 import { detect } from '../src/core/capabilities.js'
 import { inertInstance } from '../src/core/types.js'
 import type { EffectParams, Timeline } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry, extendableRegistry } from './support/registry.js'
 
 /* ------------------------------------------------------------------------------------------------
  * Layer one: the grammar and the arithmetic, driven directly.
@@ -339,7 +339,7 @@ describe('resolveSequence — scroll-driven timelines', () => {
 let registry: Registry
 
 beforeEach(() => {
-  registry = createRegistry()
+  registry = catalogRegistry()
 })
 
 function run(source: string, timeline: Timeline = 'time') {
@@ -492,7 +492,7 @@ describe('at: — JavaScript-rendered effects', () => {
     // is the *rule*: a JS renderer with no `delay` in its schema cannot be positioned and must say
     // so by name. §9.4 asks for exactly that, and a locally-registered primitive is the only way to
     // keep asserting it once the catalog no longer contains an example.
-    const registry = createRegistry()
+    const registry = extendableRegistry()
     registry.registerPrimitive({
       id: 'undelayable',
       renderer: 'javascript',
@@ -517,7 +517,7 @@ describe('at: — JavaScript-rendered effects', () => {
     // The route that works whether or not the schema declares a look-alike `delay` — see the
     // two-routes design note in `js-effect-preparer.ts`.
     const seen: EffectParams[] = []
-    const registryWithProbe = createRegistry()
+    const registryWithProbe = extendableRegistry()
     registryWithProbe.registerPrimitive({
       id: 'probe',
       renderer: 'javascript',

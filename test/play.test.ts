@@ -8,7 +8,7 @@ import { play, resolveTargets, toAttributeValue } from '../src/core/play.js'
 import type { PlayOptions } from '../src/core/play.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
 import type { EffectInstance } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Regression coverage for the adversarial-review finding that `toAttributeValue`'s serializer
@@ -50,7 +50,7 @@ function build(html: string): Animator {
   document.body.innerHTML = html
   return new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     binder: createActivationBinder({ createObserver: undefined }),
     scheduler: idleScheduler,

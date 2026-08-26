@@ -5,7 +5,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { PRESETS } from '../src/effects/catalog/core.js'
 import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
 import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
@@ -20,6 +19,7 @@ import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Structural guard on the channel model.
@@ -186,7 +186,7 @@ function extractBaseRuleProperties(css: string): Map<string, Set<string>> {
 const scannedCss = EFFECT_FILES.map((file) => SOURCES.get(file)).join('\n')
 const keyframes = extractKeyframes(scannedCss)
 const baseRules = extractBaseRuleProperties(scannedCss)
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 /** `channels` a resolved preset's primitive is allowed to write, as concrete CSS property names. */
 function allowedProperties(primitiveChannels: readonly string[]): Set<string> {
@@ -462,7 +462,7 @@ const GENERATED_CSS = readFileSync(
 
 describe('pre-JS cloak', () => {
   const generated = GENERATED_CSS
-  const registry = createRegistry()
+  const registry = catalogRegistry()
   const declared = registry
     .names()
     .filter((name) => registry.resolve(name)?.preset.cloak === true)

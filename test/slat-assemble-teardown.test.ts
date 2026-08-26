@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * A pending `land()` timer must never outlive `destroy()`.
@@ -25,7 +25,7 @@ function fakeCtx(el: Element, win: Window & typeof globalThis = window): Prepare
   return { win, doc: win.document, style: createStyleLedger(el) } as unknown as PrepareContext
 }
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 describe('slat-assemble teardown', () => {
   it('destroy() before land() cancels the pending timer — it must never write after teardown', async () => {

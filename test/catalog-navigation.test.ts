@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import type { ScrollRoot, ScrollScheduler, ScrollSubscriber } from '../src/core/scroll-scheduler.js'
 import { NAV_CSS_PRESETS, NAV_JS_PRIMITIVES, NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 // A relative `new URL(..., import.meta.url)` throws under the jsdom test environment (its `URL`
 // implementation rejects the resolved result) — resolving through `node:path` off this file's own
@@ -62,7 +62,7 @@ const findJs = (id: string) => NAV_JS_PRIMITIVES.find((primitive) => primitive.i
 
 describe('navigation catalog', () => {
   it('registers all 8 section M names', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(NAVIGATION_PRESETS).toHaveLength(8)
     expect(NAVIGATION_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
@@ -75,7 +75,7 @@ describe('navigation catalog', () => {
   })
 
   it('keeps the three scroll-position primitives at reducedMotion disable', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const name of ['header-shrink', 'header-hide-on-scroll', 'back-to-top-fade']) {
       expect(registry.resolve(name)?.primitive.reducedMotion).toBe('disable')
     }
@@ -84,7 +84,7 @@ describe('navigation catalog', () => {
   it('does not claim ownership of focus/aria state for menu content', () => {
     // Structural guard on the documented boundary: none of these primitives declare a `state`
     // or `aria` channel, which would signal they own more than motion.
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const name of ['menu-stagger-open', 'dropdown-open', 'drawer-slide', 'mega-menu-drop']) {
       const channels = registry.resolve(name)?.primitive.channels ?? []
       expect(channels).not.toContain('aria')

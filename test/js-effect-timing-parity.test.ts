@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { collectingReporter } from '../src/core/reporter.js'
-import { createRegistry } from '../src/effects/index.js'
 import { animatorOverBody, build, el } from './support/js-effect-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Timing parity for JavaScript-rendered effects, second half: the primitives that were *not*
@@ -475,7 +475,7 @@ const TIMING_REFUSALS: Record<string, string> = {
 }
 
 describe('every JS-rendered primitive either accepts a delay or is on the record refusing one', () => {
-  const registry = createRegistry()
+  const registry = catalogRegistry()
   const jsPrimitives = [
     ...new Map(
       registry

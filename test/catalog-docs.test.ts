@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { CHANNEL } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Drift guard between the catalog document and the effects that actually exist.
@@ -213,7 +213,7 @@ const KNOWN_PLANNED = [
 ]
 
 const documented = documentedNames()
-const registered = new Set(createRegistry().names())
+const registered = new Set(catalogRegistry().names())
 
 describe('docs/catalog.md against the live registry', () => {
   it('extracts a plausible number of names from the document', () => {

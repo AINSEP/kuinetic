@@ -2,14 +2,14 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { MEDIA_CSS_PRESETS, MEDIA_JS_PRESETS, MEDIA_PRESETS } from '../src/effects/catalog/media.js'
+import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/media.css', import.meta.url)), 'utf8')
 
 describe('media catalog', () => {
   it('registers all 20 section G names', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(MEDIA_PRESETS).toHaveLength(20)
     expect(MEDIA_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
@@ -22,14 +22,14 @@ describe('media catalog', () => {
   })
 
   it('gives every CSS-tier preset a css-keyframes renderer', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const preset of MEDIA_CSS_PRESETS) {
       expect(registry.resolve(preset.name)?.primitive.renderer).toBe('css-keyframes')
     }
   })
 
   it('renders every JS-tier preset through the javascript renderer', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const preset of MEDIA_JS_PRESETS) {
       expect(registry.resolve(preset.name)?.primitive.renderer).toBe('javascript')
     }
@@ -48,7 +48,7 @@ describe('media catalog', () => {
    * have made the correct policy here fail the suite.
    */
   it('disables slat-assemble under reduced motion and installs the backdrop anyway', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(registry.resolve('slat-assemble')?.primitive.reducedMotion).toBe('disable')
     expect(registry.resolve('bg')?.primitive.reducedMotion).toBe('shorten')
   })
@@ -56,7 +56,7 @@ describe('media catalog', () => {
   it('keeps hover effects keyboard and coarse-pointer reachable', () => {
     expect(css).toContain('@media (pointer: coarse)')
     for (const name of ['duotone-hover', 'grayscale-hover', 'saturate-hover']) {
-      expect(createRegistry().resolve(name)?.primitive.defaultActivation).toBe('hover')
+      expect(catalogRegistry().resolve(name)?.primitive.defaultActivation).toBe('hover')
     }
   })
 })

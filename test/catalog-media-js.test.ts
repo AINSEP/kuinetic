@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams, readEffectParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -9,6 +8,7 @@ import {
   slatAssembleFinishMs,
   slatOrder,
 } from '../src/effects/catalog/media-shared.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * `prepareSlatAssemble` reads `ctx.win` and `ctx.style` (to conditionally claim `position:
@@ -20,7 +20,7 @@ function fakeCtx(el: Element, win: Window & typeof globalThis = window): Prepare
   return { win, doc: win.document, style: createStyleLedger(el) } as unknown as PrepareContext
 }
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 describe('slatOrder', () => {
   it('is always 0 for a single slat', () => {

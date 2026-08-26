@@ -6,9 +6,9 @@ import { resolveConfig } from '../src/core/element-config.js'
 import type { ElementAttributes } from '../src/core/element-config.js'
 import { parse } from '../src/core/parse.js'
 import { planStyles } from '../src/core/style-plan.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 const CAPS = defaultCapabilities({
   viewTimeline: true,

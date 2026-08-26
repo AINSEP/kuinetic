@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
-import { createRegistry } from '../src/effects/index.js'
 import { build, el, fakeRoot, fakeScheduler, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 /*
  * The managed contract: `data-kui` on the outer element, `target:` naming the row that moves, and
@@ -78,7 +78,7 @@ describe('horizontal-scroll, managed by target:', () => {
   })
 
   it('tracks the host itself when it has no parent to track instead', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const resolved = registry.resolve('horizontal-scroll')!
     const detached = document.createElement('div')
     detached.innerHTML = '<div class="rail"><i></i></div>'

@@ -8,7 +8,7 @@ import type { DomWatcher } from '../src/core/dom-watcher.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
 import type { Activation } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 const CAPS = defaultCapabilities({
   viewTimeline: true,
@@ -62,7 +62,7 @@ function build(html: string, capabilities: Partial<Capabilities> = {}) {
   binder = fakeBinder()
   const animator = new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: { ...CAPS, ...capabilities },
     reporter,
     binder,
@@ -97,7 +97,7 @@ describe('Animator.scan', () => {
     document.body.innerHTML = '<section data-kui="fade-up"><p>x</p></section>'
     const animator = new Animator({
       root: document.body.firstElementChild as ParentNode,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
     })
@@ -300,7 +300,7 @@ describe('createAnimator', () => {
     document.body.innerHTML = '<div data-kui="fade-up"></div>'
     const animator = createAnimator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
     })
@@ -337,7 +337,7 @@ describe('Animator — stagger group indexed at the scan root itself', () => {
     const ul = document.body.firstElementChild as HTMLElement
     const animator = new Animator({
       root: ul,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
     })
@@ -370,7 +370,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     document.body.innerHTML = ''
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,
@@ -393,7 +393,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     const target = wrapper.firstElementChild as HTMLElement
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,
@@ -414,7 +414,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     const target = document.body.firstElementChild as HTMLElement
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,
@@ -435,7 +435,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     const target = document.body.firstElementChild as HTMLElement
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,
@@ -455,7 +455,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     document.body.innerHTML = ''
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,
@@ -476,7 +476,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     document.body.innerHTML = ''
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: fakeBinder(),
       observe: true,

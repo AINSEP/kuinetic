@@ -5,7 +5,7 @@ import { ATTR } from '../src/core/attrs.js'
 import { defaultCapabilities } from '../src/core/capabilities.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { Activation } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * A marquee has to start by itself.
@@ -75,7 +75,7 @@ function build(html: string): void {
   binder = recordingBinder()
   new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     reporter: collectingReporter(),
     binder,

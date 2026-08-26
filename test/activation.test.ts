@@ -26,8 +26,8 @@ import { defaultCapabilities } from '../src/core/capabilities.js'
 import { Registry } from '../src/core/registry.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
-import { createRegistry } from '../src/effects/index.js'
 import type { EffectInstance, Primitive } from '../src/core/types.js'
+import { catalogRegistry } from './support/registry.js'
 
 describe('resolveActivationSpec', () => {
   it('keeps the six original names bound to exactly what they always bound', () => {
@@ -697,7 +697,7 @@ describe('paired activations at the animator', () => {
   })
 
   it('ignores both halves for an element it does not know', () => {
-    const animator = new Animator({ registry: createRegistry(), capabilities: CAPS })
+    const animator = new Animator({ registry: catalogRegistry(), capabilities: CAPS })
     const stranger = document.createElement('div')
     expect(() => animator.activate(stranger)).not.toThrow()
     expect(() => animator.deactivate(stranger)).not.toThrow()
@@ -789,7 +789,7 @@ describe('activation diagnostics', () => {
     el.setAttribute(ATTR.source, effect)
     el.setAttribute(ATTR.on, attribute)
     root.append(el)
-    new Animator({ root, registry: createRegistry(), capabilities: CAPS, reporter }).start()
+    new Animator({ root, registry: catalogRegistry(), capabilities: CAPS, reporter }).start()
     return reporter.messages
   }
 
@@ -866,7 +866,7 @@ describe('activation diagnostics', () => {
     el.setAttribute(ATTR.on, 'teleport')
     root.append(el)
 
-    new Animator({ root, registry: createRegistry(), capabilities: CAPS, reporter }).start()
+    new Animator({ root, registry: catalogRegistry(), capabilities: CAPS, reporter }).start()
     expect(reporter.messages).toEqual([])
   })
 })

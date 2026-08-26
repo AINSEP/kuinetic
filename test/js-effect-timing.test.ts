@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
 import { collectingReporter } from '../src/core/reporter.js'
-import { createRegistry } from '../src/effects/index.js'
 import type { EffectInstance } from '../src/core/types.js'
 import { build, el } from './support/js-effect-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * End-to-end regression tests for gaps two rounds of adversarial review found in the JS renderer.
@@ -510,7 +510,7 @@ describe('the delay: spelling reaches JS-rendered effects', () => {
  * probe, which is what the per-primitive tests above are for.
  */
 describe('every trigger-activated effect accepts a delay', () => {
-  const registry = createRegistry()
+  const registry = catalogRegistry()
   const triggered = registry
     .names()
     .map((name) => ({ name, resolved: registry.resolve(name)! }))

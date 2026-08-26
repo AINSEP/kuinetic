@@ -10,14 +10,14 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import type { Registry } from '../src/core/registry.js'
-import { createRegistry } from '../src/effects/index.js'
 import { TWEEN_GROUP_CHANNELS, TWEEN_GROUP_ORDER } from '../src/effects/tween/properties.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import { catalogRegistry } from './support/registry.js'
 
 let registry: Registry
 
 beforeEach(() => {
-  registry = createRegistry()
+  registry = catalogRegistry()
 })
 
 function run(source: string, timeline: 'time' | 'view' | 'scroll' | 'pin' = 'time') {

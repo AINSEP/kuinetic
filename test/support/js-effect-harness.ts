@@ -3,7 +3,7 @@ import { Animator } from '../../src/core/animator.js'
 import { defaultCapabilities } from '../../src/core/capabilities.js'
 import type { Reporter } from '../../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler } from '../../src/core/scroll-scheduler.js'
-import { createRegistry } from '../../src/effects/index.js'
+import { catalogRegistry } from './registry.js'
 
 /**
  * Shared rig for the JS-renderer timing suites.
@@ -64,7 +64,7 @@ export const fakeRoot: ScrollRoot = {
 export function animatorOverBody(reporter?: Reporter): Animator {
   return new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     binder: createActivationBinder({ createObserver: undefined }),
     scheduler: idleScheduler,

@@ -9,12 +9,12 @@ import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { ParamSpec } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
 import {
   MOTION_PATH_PRESETS,
   MOTION_PATH_PRIMITIVES,
   registerMotionPath,
 } from '../src/effects/motion-path/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Motion paths — catalog section P.
@@ -39,7 +39,7 @@ const CAPS = defaultCapabilities({
   motionPath: true,
 })
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 function run(source: string) {
   return compile(parse(source), registry, 'time')
@@ -240,7 +240,7 @@ describe('motion-path through the animator', () => {
   function build(html: string, capabilities: Capabilities = CAPS) {
     document.body.innerHTML = html
     const reporter = collectingReporter()
-    const animator = new Animator({ registry: createRegistry(), capabilities, reporter })
+    const animator = new Animator({ registry: catalogRegistry(), capabilities, reporter })
     animator.start()
     return { animator, reporter, el: document.body.firstElementChild! }
   }
