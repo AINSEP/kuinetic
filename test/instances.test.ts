@@ -111,6 +111,138 @@ describe('createCssInstance ownership', () => {
   })
 })
 
+describe('createCssInstance directional playback', () => {
+  /**
+   * `Animation.play()` is not on the shared `fakeAnimation` because only these tests need it, and
+   * `playbackRate` has to be a real writable property rather than a spy for the assertions to mean
+   * anything.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  function playableAnimation(name: string): FakeAnimation & { play: ReturnType<typeof vi.fn> } {
+    return Object.assign(fakeAnimation(name), { playbackRate: 1, play: vi.fn() })
+  }
+
+  it('drives the owned animations backwards on reverse and forwards again on play', () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+
+    instance.reverse?.()
+    expect(owned.playbackRate).toBe(-1)
+    expect(owned.play).toHaveBeenCalledOnce()
+
+    instance.play?.()
+    expect(owned.playbackRate).toBe(1)
+    expect(owned.play).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes running to the ledger, so a paused instance can still be paused after an exit', () => {
+    // `drive()` plays. It used to play without telling the ledger, so `control().pause()` followed
+    // by a `pointerleave` left the inline declaration saying `paused` while the animations ran.
+    // The next `pause()` then wrote `paused` over `paused` — no computed-value change, nothing for
+    // the browser to re-apply — and the element could not be paused again for the rest of its life.
+    // `createCssControl.reverse()` has always written this; only the route the animator takes was
+    // missing it.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.control!.pause()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('paused')
+
+    instance.reverse?.()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('running')
+
+    // The second pause is the one that used to be a no-op write.
+    instance.control!.pause()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('paused')
+
+    // Forwards is the same call and needs the same write — a paused element told to `play()`.
+    instance.play?.()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('running')
+  })
+
+  it('sets the rate absolutely rather than flipping it, so a repeated exit stays an exit', () => {
+    // `Animation.reverse()` means "turn around", which is right for the click toggle in
+    // `activate()` and wrong here: a pointer skimming an element's edge fires `pointerleave`
+    // twice, and the second one must not play the entrance back in.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.reverse?.()
+    instance.reverse?.()
+
+    expect(owned.playbackRate).toBe(-1)
+    expect(owned.reverse).not.toHaveBeenCalled()
+  })
+
+  it('leaves consumer animations alone', () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    const consumer = playableAnimation('pulse')
+    withAnimations(el, [owned, consumer])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.reverse?.()
+
+    expect(consumer.playbackRate).toBe(1)
+    expect(consumer.play).not.toHaveBeenCalled()
+  })
+
+  it('re-arms finished so the caller can tell when the exit has landed', async () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    let settleReverse: () => void = () => {}
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    await expect(instance.finished).resolves.toBeUndefined()
+
+    Object.defineProperty(owned, 'finished', {
+      value: new Promise<void>((resolve) => {
+        settleReverse = () => resolve()
+      }),
+      configurable: true,
+    })
+    instance.reverse?.()
+    const pending = instance.finished
+    settleReverse()
+    await expect(pending).resolves.toBeUndefined()
+  })
+
+  it('refuses to drive a scrubbed instance in either direction', () => {
+    // A `timeline: pin` frame is a pure function of `--kui-progress` through the compiled negative
+    // `animation-delay`. Playing it would hand it to the document timeline on top of the seek.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'], true)
+    instance.activate()
+    instance.reverse?.()
+    instance.play?.()
+
+    expect(owned.play).not.toHaveBeenCalled()
+    expect(owned.playbackRate).toBe(1)
+    // And the play-state write `drive()` makes for everything else must not leak past that guard:
+    // a scrub with `animation-play-state: running` is handed to the document timeline and runs
+    // forward in wall-clock time on top of the seek.
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('')
+  })
+})
+
 describe('deferredInstance completion', () => {
   it('leaves finished pending until a timed setup says its work is done', async () => {
     let complete: (() => void) | undefined

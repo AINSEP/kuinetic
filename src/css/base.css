@@ -47,6 +47,26 @@
   [data-kui-fx] {
     --kui-dir: 1;
     --kui-i: 0;
+
+    /*
+     * The motion-path properties, reset for the same reason `--kui-i` above is.
+     *
+     * A custom property inherits, and it does not stop at the effect that set it. An author who
+     * writes `data-kui="path-arc rotate:auto anchor:center"` on a card sets those two properties
+     * inline, and every descendant inherits them — so a `path-wave` on a badge *inside* that card
+     * silently picks up an auto-rotation and a centred anchor nobody asked it for. That is exactly
+     * the shape of the `--kui-i` leak that opened a nested dropdown 660ms late.
+     *
+     * `initial` on a custom property is the guaranteed-invalid value, so `var(--kui-motion-path)`
+     * with no fallback drops its declaration and `offset-path` stays `none` — the correct "this
+     * element has no path" state. The reset lives in `kui.tokens`, the earliest layer, so a
+     * preset's own rule in `kui.presets` still wins, and an author's inline value beats both.
+     */
+    --kui-motion-path: initial;
+    --kui-motion-rotate: initial;
+    --kui-motion-anchor: initial;
+    --kui-motion-from: initial;
+    --kui-motion-to: initial;
   }
 
   :dir(rtl) [data-kui-fx] {
@@ -174,6 +194,14 @@
       scale: none !important;
       rotate: none !important;
       filter: none !important;
+      /*
+       * Dropping the path, not the distance. `animation: none` above leaves `offset-distance` at
+       * whatever the element's own rules specify — 0%, the *start* of the path — so a path-driven
+       * entrance would be stranded wherever its curve begins instead of landing where it belongs.
+       * With no `offset-path` there is no curve to be anywhere on, and the element sits exactly
+       * where layout put it, which is what "disabled" has to mean for every path in the family.
+       */
+      offset-path: none !important;
     }
   }
 
@@ -186,6 +214,9 @@
       scale: none !important;
       rotate: none !important;
       filter: none !important;
+      /* Same reasoning as the disable rule above: on paper an element belongs where the layout
+         put it, not at the start of a curve it never got to travel. */
+      offset-path: none !important;
     }
   }
 }

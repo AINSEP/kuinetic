@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams, readEffectParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -10,6 +9,7 @@ import {
   isVideoSource,
 } from '../src/effects/catalog/background-media.js'
 import { isSameOriginPath } from '../src/core/params.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * `prepareBackgroundMedia` reads `ctx.win` (for `getComputedStyle` and the observer constructor),
@@ -34,7 +34,7 @@ function fakeCtx(
   } as unknown as PrepareContext
 }
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 /** Build a host with one authored child, so "the author's markup survives" has something to say. */
 function hostWithText(): { el: HTMLElement; child: HTMLElement } {

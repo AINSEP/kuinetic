@@ -6,14 +6,14 @@ import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
 import { FEEDBACK_PRESETS, FEEDBACK_PRIMITIVES, registerFeedback } from '../src/effects/catalog/feedback.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/feedback.css', import.meta.url)), 'utf8')
 
 /**
  * A standalone registry (feedback primitives/presets only) is enough for tests that only ever
  * resolve feedback names. The channel-collision regression below needs `gradient-mesh` too —
- * that's an ambient preset — so it uses the full `createRegistry()` instead.
+ * that's an ambient preset — so it uses the full `catalogRegistry()` instead.
  */
 function feedbackRegistry(): Registry {
   return registerFeedback(new Registry())
@@ -73,7 +73,7 @@ describe('feedback catalog', () => {
  * alone — a wiring mistake between the two would otherwise slip past a metadata-only check.
  */
 describe('feedback catalog — channel collisions with an ambient background effect', () => {
-  const registry = createRegistry()
+  const registry = catalogRegistry()
 
   function run(source: string) {
     return compile(parse(source), registry, 'time')

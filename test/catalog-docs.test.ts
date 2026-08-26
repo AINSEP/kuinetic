@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { CHANNEL } from '../src/core/types.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Drift guard between the catalog document and the effects that actually exist.
@@ -132,7 +132,11 @@ function totalsRows(): Map<string, string> {
     const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
     if (cells.length !== 2) continue
     const letter = cells[0]!.split(' ')[0]!
-    if (letter.length === 1 && letter >= 'A' && letter <= 'O') rows.set(letter, cells[1]!)
+    // A–P: the lettered catalog sections as they stand. A row outside the range is not a section
+    // row — the totals table also carries `**Total shipped**` and the planned-count line, and both
+    // are read separately below. Widen the range when a section letter is added, or the new
+    // section silently reports "no row in the totals table" while the row is sitting right there.
+    if (letter.length === 1 && letter >= 'A' && letter <= 'P') rows.set(letter, cells[1]!)
   }
   return rows
 }
@@ -209,7 +213,7 @@ const KNOWN_PLANNED = [
 ]
 
 const documented = documentedNames()
-const registered = new Set(createRegistry().names())
+const registered = new Set(catalogRegistry().names())
 
 describe('docs/catalog.md against the live registry', () => {
   it('extracts a plausible number of names from the document', () => {

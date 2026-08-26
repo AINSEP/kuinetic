@@ -6,12 +6,12 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
 import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
 import { TEXT_CSS_PRESETS } from '../src/effects/catalog/text.js'
 import { MEDIA_PRESETS } from '../src/effects/catalog/media.js'
 import type { Preset } from '../src/core/types.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Regression coverage for the bug fixed alongside this file: `compile.ts`'s `pushTrack` composes
@@ -60,7 +60,7 @@ const scannedCss = EFFECT_FILES.map((file) =>
   readFileSync(fileURLToPath(new URL(`../src/css/${file}`, import.meta.url)), 'utf8'),
 ).join('\n')
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 /** Every preset from the catalogs whose primitives are known to use `reducedMotion: 'disable'`. */
 const CANDIDATE_PRESETS: Preset[] = [

@@ -3,7 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
-import { cssPrimitive, TRIGGER_DELAY_PARAM } from '../shared.js'
+import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 import { createStepMarker, resolveTarget } from '../step-marking.js'
 
 /**
@@ -34,6 +34,28 @@ const timing: ParameterSchema = {
 
 // --- native-state-driven, CSS transitions only ---
 
+/**
+ * Why the native-state trio refuses all three timing tokens rather than gaining a `delay`.
+ *
+ * This is the `text.ts` "the stylesheet pins it" case, and it is a case to *warn* about rather
+ * than to fix. Every rule these five names stand for is written out in `forms.css` with literal
+ * times — `transition: translate 180ms ease-out` — because the motion lands on a sibling or a
+ * pseudo-element the resolved custom properties cannot reach: a property written inline on the
+ * `<input>` does not inherit across `~` to the label or the track, which is the whole reason
+ * `prepareSiblingScale` exists for the one value that had to get there.
+ *
+ * They do have a start moment — `:checked` flips, focus lands — so a delay is not *incoherent*
+ * here the way it is for a pin. It is simply not something the shipped rules can honour without
+ * copying three more properties onto satellites per instance, for a knob whose most plausible use
+ * ("wait 200ms before floating this label") is a worse form than not delaying at all. Saying so is
+ * cheap; a `delay:` that parses and does nothing is not.
+ */
+const FORM_STATE_TIMING = {
+  because:
+    'forms.css pins its timing literally — the motion lands on a sibling that inline custom ' +
+    'properties cannot reach',
+}
+
 export const NATIVE_STATE_PRIMITIVE: Primitive = {
   id: 'native-state',
   renderer: 'javascript',
@@ -47,7 +69,7 @@ export const NATIVE_STATE_PRIMITIVE: Primitive = {
   // carries the attribute, so base.css's policy layer enforces this through its sibling
   // `transition-duration` rules rather than the `animation-*` ones.
   reducedMotion: 'disable',
-  prepare: () => inertInstance(),
+  prepare: withTimingContract('native-state', FORM_STATE_TIMING, () => inertInstance()),
 }
 
 /**
@@ -77,7 +99,7 @@ function siblingScalePrimitive(id: string, cssProperty: string): Primitive {
     defaultActivation: 'load',
     perfClass: 'compositor',
     reducedMotion: 'disable',
-    prepare: deferPrepare(prepareSiblingScale(cssProperty)),
+    prepare: withTimingContract(id, FORM_STATE_TIMING, deferPrepare(prepareSiblingScale(cssProperty))),
   }
 }
 

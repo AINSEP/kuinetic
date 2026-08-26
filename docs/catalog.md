@@ -1,10 +1,10 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into fifteen sections (A–O).
+This catalog lists every named effect the library ships, grouped into sixteen sections (A–P).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **255** named effects, over **31 primitive families**. Note that 48 names come from a
+**Counts:** **262** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -14,8 +14,9 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–O sections below — see [Gestures & physics](#gestures-physics) at the end
-of this document.
+outside the lettered A–P sections below — see [Gestures & physics](#gestures-physics) at the end
+of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
+here that is not a named effect at all: it is how you animate something the catalog does not name.
 
 ## Legend
 
@@ -26,7 +27,7 @@ of this document.
 
 ---
 
-## The 31 primitive families
+## The 33 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -61,6 +62,8 @@ of this document.
 | 29 | `sequence-scrub` | js | x | image/video frame scrub |
 | 30 | `slat-assemble` | prep | — | image slats fly in and land assembled |
 | 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`) |
+| 32 | `tween` | css | per attribute | generic property tween — `tween`, `tween-from` |
+| 33 | `motion-path` | css | x | travel along an arbitrary curve (`offset-path`) |
 
 ---
 
@@ -666,6 +669,57 @@ Primitives 1, 10, 15.
 
 ---
 
+## P. Motion paths — 5 names
+
+Primitive 32. All `css`.
+
+`motion-path` · `path-arc` · `path-wave` · `path-loop` · `path-swoop`
+
+> **What this closes.** `orbit` and `float` are fixed shapes — a full turn, a bob. These follow an
+> arbitrary curve, which is the one thing the catalog previously could not express at all and the
+> reason GSAP's MotionPathPlugin had no counterpart here. It is native CSS end to end: `offset-path`
+> holds the curve and a keyframe animates `offset-distance` along it, so the motion composites off
+> the main thread like every other entry in this table and costs no runtime JavaScript.
+>
+> **Bring your own curve.** Every name takes `path:`, as SVG path data. Quote it — it is full of
+> spaces and commas, and the same rule applies as to a selector in `target:`:
+>
+> ```html
+> <div data-kui="motion-path path:'M 0 0 C 60 -80 180 -80 240 0' 1400ms"></div>
+> ```
+>
+> Coordinates are px, measured from the element's **own top-left corner**, so `M 0 0` is exactly
+> where the element already sits and the rest of the path is a set of offsets from there. That
+> holds in a flex row, a grid cell, or the middle of a paragraph — nothing has to know about the
+> containing block. `path-swoop` is written the other way round for the same reason: it starts
+> displaced and *ends* at `0 0`, so it flies in and lands precisely on its resting position.
+>
+> **Facing the direction of travel** is `rotate:auto` — GSAP calls it autoRotate — and is **off by
+> default**, unlike the CSS property underneath. Tipping a card or a headline as it moves is almost
+> never wanted; an arrow or a paper plane is the case that is, and it asks. `rotate:reverse` follows
+> the tangent backwards, and any angle (`rotate:45deg`) pins a fixed rotation instead. Pair
+> `rotate:auto` with `anchor:center`, because the anchor is also the pivot the rotation turns about
+> and an arrow spinning on its corner looks broken.
+>
+> **Which point rides the path** is `anchor:`, defaulting to the element's top-left corner (that is
+> what makes the coordinates read as offsets). `anchor:center`, `anchor:"top right"` and the other
+> CSS position keywords are available; quote anything with a space in it.
+>
+> **A stretch of the path** rather than all of it: `from:` and `to:` are percentages of the curve's
+> length, defaulting to `0%` and `100%`. `from:100% to:0%` runs the same curve backwards without
+> rewriting the data by hand, and `from:20% to:80%` lets several elements each travel a different
+> stretch of one shared route.
+>
+> **Scroll-driven** works too — `timeline:scroll` or `timeline:view` scrubs the travel against
+> scroll position rather than a clock, which is the plane-crossing-the-page effect people otherwise
+> build a ScrollTrigger rig for.
+>
+> **Where it is unsupported** (no `offset-path`), nothing breaks and nothing hides: the animation
+> still runs and completes, and the element stays exactly where layout put it. The library warns in
+> development so that stillness is not unexplained.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -685,10 +739,12 @@ Primitives 1, 10, 15.
 | M Navigation | 8 |
 | N 3D & perspective | 6 (+2 planned) |
 | O Forms & inputs | 12 |
-| **Total shipped** | **255** |
+| P Motion paths | 5 |
+| Generic tween | 2 |
+| **Total shipped** | **262** |
 | Documented but not yet shipped | 4 |
 
-Renderer split: **~168 `css`** · ~12 `prep` · ~58 `js`.
+Renderer split: **~175 `css`** · ~12 `prep` · ~58 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -697,7 +753,7 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 ## Gestures & physics
 
 Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
-outside the lettered A–O sections above. `js`.
+outside the lettered A–P sections above. `js`.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
 `snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
@@ -705,3 +761,40 @@ outside the lettered A–O sections above. `js`.
 > The drag family differs only in what happens on release: nothing (`drag`), back to origin
 > (`elastic-pull`, `rubber-band`, `snap-back` — spring stiffness varies), or onward with
 > momentum (`drag-inertia`, `throwable`). One primitive, several parameter presets.
+
+---
+
+## Generic tween
+
+Two names over one primitive family, sitting outside the lettered A–P sections above. `css`.
+
+`tween` · `tween-from`
+
+> Everything else in this document is a name with a fixed meaning. This is the escape hatch: you
+> name the properties instead of the effect, and the compiler builds the keyframes. `tween`
+> animates **to** the values you give, from wherever the element already is; `tween-from` animates
+> **from** them to the element's natural state. Direction is in the name because the grammar's
+> first token is the effect name and every later bare token is a duration, a delay or an easing —
+> there is no slot for a bare `from`.
+>
+>     <div data-kui="tween x:100 opacity:0 rotate:45deg 800ms">
+>     <div data-kui="tween-from y:40 opacity:0 600ms on:enter">
+>
+> **Properties.** `x` `y` `z` (translate) · `rotate` · `scale` `scale-x` `scale-y` · `opacity` ·
+> `blur` `brightness` `saturate` `grayscale` (filter) · `color` · `background-color`. Anything
+> else is reported by name rather than ignored. A bare number takes the unit the property implies
+> — `x:100` is `100px`, `rotate:45` is `45deg` — and a value containing spaces or a comma must be
+> quoted, e.g. `x:"calc(100% - 20px)"`.
+>
+> **Channels are read off your attribute**, not fixed in advance: `tween x:100` owns `translate`
+> and so cannot be composed with `fade-up`, while `tween opacity:0` owns `opacity` and can be
+> composed with anything that does not. That is why this is one family and not one effect.
+>
+> **A property is written whole.** `translate` is a single CSS property, so an axis you do not name
+> resolves to its initial value rather than to whatever the element currently has: on an element
+> already carrying `translate: 0 50px`, `tween x:100` returns y to 0 as well. Same for `scale` and
+> for the four `filter` functions. Name every axis you need to keep.
+>
+> **`tween-from scale:0` is a trap and warns.** An element scaled to nothing has no box, an
+> `IntersectionObserver` measures geometry, and the default `on:enter` therefore never fires — so
+> it would stay invisible forever. Use a small non-zero scale, or `on:load`.

@@ -4,8 +4,10 @@ import {
   Animator,
   CHANNEL,
   Registry,
+  KUI_EVENT,
   collectingReporter,
   consoleReporter,
+  control,
   createActivationBinder,
   createAnimator,
   detect,
@@ -24,12 +26,20 @@ import type {
   Channel,
   Cleanup,
   CollectingReporter,
+  ControlHandle,
   EffectInstance,
   EffectParams,
+  EffectVariant,
+  InstanceControl,
+  LifecycleDetail,
+  LifecycleEvent,
+  LifecycleEventType,
+  LifecycleReason,
   ParamSpec,
   ParameterSchema,
   PerfClass,
   PlaybackHandle,
+  PlaybackState,
   PlayOptions,
   PrepareContext,
   Preset,
@@ -59,6 +69,15 @@ describe('kuinetic/core public surface', () => {
     expect(typeof Registry).toBe('function')
     expect(typeof detect).toBe('function')
     expect(typeof play).toBe('function')
+    expect(typeof control).toBe('function')
+    // Every event name, not a sample: these strings are the listener-side contract, so a rename or
+    // a dropped member is a breaking change that has to fail here rather than in an author's page.
+    expect(KUI_EVENT).toEqual({
+      start: 'kui:start',
+      finish: 'kui:finish',
+      reverseFinish: 'kui:reverse-finish',
+      cancel: 'kui:cancel',
+    })
     expect(typeof resolveTargets).toBe('function')
     expect(typeof toAttributeValue).toBe('function')
     expect(typeof consoleReporter).toBe('function')
@@ -77,6 +96,7 @@ describe('kuinetic/core public surface', () => {
     expectTypeOf<ParameterSchema>().not.toBeNever()
     expectTypeOf<ParamSpec>().not.toBeNever()
     expectTypeOf<EffectParams>().not.toBeNever()
+    expectTypeOf<EffectVariant>().not.toBeNever()
     expectTypeOf<PrepareContext>().not.toBeNever()
     expectTypeOf<Cleanup>().not.toBeNever()
     expectTypeOf<EffectInstance>().not.toBeNever()
@@ -90,6 +110,13 @@ describe('kuinetic/core public surface', () => {
     expectTypeOf<AnimatorOptions>().not.toBeNever()
     expectTypeOf<Capabilities>().not.toBeNever()
     expectTypeOf<PlaybackHandle>().not.toBeNever()
+    expectTypeOf<PlaybackState>().not.toBeNever()
+    expectTypeOf<ControlHandle>().not.toBeNever()
+    expectTypeOf<InstanceControl>().not.toBeNever()
+    expectTypeOf<LifecycleDetail>().not.toBeNever()
+    expectTypeOf<LifecycleEvent>().not.toBeNever()
+    expectTypeOf<LifecycleEventType>().not.toBeNever()
+    expectTypeOf<LifecycleReason>().not.toBeNever()
     expectTypeOf<PlayOptions>().not.toBeNever()
     expectTypeOf<Target>().not.toBeNever()
     expectTypeOf<ResolvedEffect>().not.toBeNever()
@@ -114,6 +141,8 @@ describe('kuinetic/core public surface', () => {
       'describeConflicts',
       'findConflicts',
       'applyStagger',
+      'createCssControl',
+      'emitLifecycle',
       'indexStaggerGroup',
       'suggest',
       'resetCapabilities',

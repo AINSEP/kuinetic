@@ -35,7 +35,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { PRESETS } from '../src/effects/catalog/core.js'
 import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
 import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
@@ -45,8 +44,10 @@ import { NUMBERS_PRESETS } from '../src/effects/catalog/numbers.js'
 import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { FORMS_PRESETS } from '../src/effects/forms/index.js'
 import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Same file list `css-invariants.test.ts` scans, minus `base.css` (no preset keyframes live
@@ -68,6 +69,7 @@ const EFFECT_FILES = [
   'media.css',
   'text.css',
   'svg.css',
+  'motion-path.css',
 ]
 
 const CSS = EFFECT_FILES.map((file) =>
@@ -85,6 +87,7 @@ const ALL_PRESETS = [
   ...FORMS_PRESETS,
   ...NAVIGATION_PRESETS,
   ...SVG_PRESETS,
+  ...MOTION_PATH_PRESETS,
   ...THREE_D_PRESETS,
 ]
 
@@ -240,7 +243,7 @@ function hasReadyGate(css: string, name: string): boolean {
   return false
 }
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 /**
  * Presets that declare a `keyframes` name on a primitive that can be activated on `enter` — the

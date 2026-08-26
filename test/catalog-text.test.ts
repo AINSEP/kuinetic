@@ -4,15 +4,15 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
-import { createRegistry } from '../src/effects/index.js'
 import { readEffectParams } from '../src/core/js-params.js'
 import { TEXT_CSS_PRESETS, TEXT_JS_PRESETS, TEXT_PRESETS } from '../src/effects/catalog/text.js'
+import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/text.css', import.meta.url)), 'utf8')
 
 describe('text catalog', () => {
   it('registers all 26 section D names', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(TEXT_PRESETS).toHaveLength(26)
     expect(TEXT_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
@@ -25,7 +25,7 @@ describe('text catalog', () => {
   })
 
   it('keeps every JS-tier primitive at reducedMotion "disable"', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const preset of TEXT_JS_PRESETS) {
       const resolved = registry.resolve(preset.name)
       expect(resolved?.primitive.reducedMotion).toBe('disable')
@@ -33,7 +33,7 @@ describe('text catalog', () => {
   })
 
   it('gives duotone/hover-style CSS-tier effects a css-keyframes renderer', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const preset of TEXT_CSS_PRESETS) {
       const resolved = registry.resolve(preset.name)
       expect(resolved?.primitive.renderer).toBe('css-keyframes')
@@ -41,7 +41,7 @@ describe('text catalog', () => {
   })
 
   it('points marquee and marquee-scroll-linked at the same keyframe and primitive', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const marquee = registry.resolve('marquee')!
     const scrollLinked = registry.resolve('marquee-scroll-linked')!
     expect(scrollLinked.primitive.id).toBe(marquee.primitive.id)
@@ -50,7 +50,7 @@ describe('text catalog', () => {
   })
 
   it('resolves each split-text preset to its documented unit/direction/stagger defaults', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const cases: Array<[string, string, string, number]> = [
       ['split-chars', 'chars', 'fade', 30],
       ['split-words', 'words', 'fade', 90],
@@ -73,7 +73,7 @@ describe('text catalog', () => {
     // spread) and vanishes on 6 words (150ms) or 3 lines (60ms) — both were reported as "not
     // animating" when they were animating, just with nothing to see. Fewer, bigger units need a
     // proportionally bigger gap, so the ordering below is the invariant, not the exact numbers.
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const staggerOf = (name: string): number => {
       const resolved = registry.resolve(name)!
       return readEffectParams(
@@ -89,7 +89,7 @@ describe('text catalog', () => {
   it('lets an authored stagger override the preset default', () => {
     // `js-effect-preparer` spreads authored `spec.params` over the preset's, so the per-unit
     // defaults above stay defaults — `split-words stagger:200ms` has to still win.
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const resolved = registry.resolve('split-words')!
     const params = readEffectParams(
       { ...resolved.preset.params, stagger: '200ms' },
@@ -100,7 +100,7 @@ describe('text catalog', () => {
   })
 
   it('resolves scramble/decode/glitch to distinct charsets', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const cases: Array<[string, string]> = [
       ['scramble', 'upper'],
       ['decode', 'binary'],
@@ -114,7 +114,7 @@ describe('text catalog', () => {
   })
 
   it('composes underline-draw or highlight-sweep with text-outline-fill — they touch disjoint channels', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const bg of ['underline-draw', 'highlight-sweep']) {
       expect(compile(parse(`${bg}, text-outline-fill`), registry, 'time').fxNames).toEqual([
         bg,
@@ -128,7 +128,7 @@ describe('text catalog', () => {
   })
 
   it('still flags gradient-sweep against text-outline-fill as a real glyph-fill conflict', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     expect(compile(parse('gradient-sweep, text-outline-fill'), registry, 'time').fxNames).toEqual([
       'gradient-sweep',
     ])

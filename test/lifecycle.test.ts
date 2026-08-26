@@ -3,12 +3,12 @@ import { createActivationBinder } from '../src/core/activation.js'
 import type { ActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import type { Capabilities } from '../src/core/capabilities.js'
+import { defaultCapabilities } from '../src/core/capabilities.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import { Registry } from '../src/core/registry.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
-import { createRegistry } from '../src/effects/index.js'
 import type { Activation, EffectInstance, Primitive } from '../src/core/types.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Regression tests for the lifecycle defects found in the second external review.
@@ -18,16 +18,11 @@ import type { Activation, EffectInstance, Primitive } from '../src/core/types.js
  * while leaving every inline property it had written.
  */
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
-}
+  motionPath: true,
+})
 
 const idleScheduler: ScrollScheduler = {
   subscribe: () => () => {},
@@ -88,9 +83,9 @@ function capturingBinder(): CapturingBinder {
   let trigger: (() => void) | undefined
   return {
     bound,
-    bind(_el, activation, _threshold, onActivate) {
+    bind(_el, activation, request) {
       bound.push({ activation })
-      trigger = onActivate
+      trigger = () => request.activate()
       return () => {
         trigger = undefined
       }
@@ -104,7 +99,7 @@ function build(html: string, options: Partial<ConstructorParameters<typeof Anima
   document.body.innerHTML = html
   return new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     binder: createActivationBinder({ createObserver: undefined }),
     scheduler: idleScheduler,
@@ -232,7 +227,7 @@ describe('teardown restores what it wrote', () => {
     document.body.innerHTML = '<div data-kui="fade-up" style="animation-name: mine"></div>'
     const animator = new Animator({
       root: document.body,
-      registry: createRegistry(),
+      registry: catalogRegistry(),
       capabilities: CAPS,
       binder: createActivationBinder({ createObserver: undefined }),
       scheduler: idleScheduler,

@@ -6,10 +6,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createParams } from '../src/core/js-params.js'
-import { createRegistry } from '../src/effects/index.js'
 import { GESTURE_PRESETS } from '../src/effects/gestures/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import { catalogRegistry } from './support/registry.js'
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/css/three-d.css', import.meta.url)), 'utf8')
 
@@ -36,7 +36,7 @@ function extractKeyframes(css: string): Map<string, Set<string>> {
 }
 
 const keyframes = extractKeyframes(CSS)
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 /**
  * Section N presets that are state, not animation, and so deliberately have no `@keyframes` and no

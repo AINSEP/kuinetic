@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
-import { createRegistry } from '../src/effects/index.js'
+import { catalogRegistry } from './support/registry.js'
 
 let registry: Registry
 
 beforeEach(() => {
-  registry = createRegistry()
+  registry = catalogRegistry()
 })
 
 function run(source: string, timeline: 'time' | 'view' | 'scroll' = 'time') {

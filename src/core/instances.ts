@@ -1,3 +1,4 @@
+import { createCssControl } from './control.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Cleanup, EffectInstance } from './types.js'
 
@@ -70,6 +71,30 @@ function restartCssAnimation(el: Element, ledger: StyleLedger): void {
 }
 
 /**
+ * Settle an instance's completion once every animation it just started has ended.
+ *
+ * A module-level helper rather than a closure inside `createCssInstance` only so that function
+ * stays under the 60-line ceiling `eslint.config.js` enforces; `settle` is passed as a thunk
+ * because the instance replaces its own resolver on every activation, and capturing the current
+ * one here would settle a promise two replays out of date.
+ *
+ * @param animations - Owned handles started by this activation. An empty list settles at once —
+ *   there is nothing to wait for, and leaving it open strands `data-kui-state` on "running".
+ * @param settle - Reads the instance's *current* resolver each time it is called.
+ * @complexity O(a) time in animations; O(a) space for the composed promise.
+ * @overallScore 100
+ */
+function watchCompletion(animations: Animation[], settle: () => void): void {
+  if (animations.length === 0) {
+    settle()
+    return
+  }
+  // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
+  // ordinary case of an effect being torn down.
+  void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle())
+}
+
+/**
  * Wrap a CSS-rendered effect.
  *
  * Gating is `animation-play-state` rather than a class toggle: `animation-fill-mode: both`
@@ -92,6 +117,11 @@ function restartCssAnimation(el: Element, ledger: StyleLedger): void {
  * @complexity O(a) per call in the number of running animations; O(1) space.
  * @overallScore 100
  */
+// Closure over one element's playback state (`finished`, `settle`, `activatedBefore`); the body is
+// a handful of small named operations sharing that state, not one long procedure. Splitting them
+// into free functions would mean threading a mutable state object through every one of them, which
+// is more code and less readable, not less.
+// eslint-disable-next-line max-lines-per-function
 export function createCssInstance(
   el: Element,
   ledger: StyleLedger,
@@ -104,18 +134,64 @@ export function createCssInstance(
     settle = resolve
   })
   let activatedBefore = false
+  const watch = (animations: Animation[]): void => watchCompletion(animations, () => settle?.())
 
-  function watch(animations: Animation[]): void {
-    if (animations.length === 0) {
-      settle?.()
-      return
+  /**
+   * Drive the owned animations in one direction from wherever they currently sit.
+   *
+   * This is what an exit half of a paired activation (`on="pointerenter/pointerleave"`) is built
+   * on, and it is deliberately *not* `Animation.reverse()`. `reverse()` flips whatever the current
+   * playback rate happens to be, so it means "turn around" — correct for the click-toggle in
+   * `activate()` below, and wrong here, where two `pointerleave`s in a row must both mean "play
+   * out" rather than the second one playing back in. Setting the rate absolutely makes an exit
+   * idempotent, which is what an author gets when a pointer skims the edge of an element.
+   *
+   * `animation-fill-mode: both` is already on the compiled declaration, so a run that reaches time
+   * 0 holds the from-state rather than snapping to the element's rest state — the exit lands
+   * exactly where the entrance began.
+   *
+   * Driving *plays*, so the ledger has to be told. It is the one place that can be: the scrubbed
+   * bail-out below is the guard that keeps a `timeline: pin` instance out of here, and a
+   * play-state write is exactly what a scrub must never get.
+   *
+   * @complexity O(a) time in the element's owned animations; O(1) space.
+   * @overallScore 100
+   */
+  function drive(rate: number): void {
+    // A scrubbed effect (`timeline: pin`) has no playhead to drive: its frame is a pure function
+    // of `--kui-progress` through the compiled negative `animation-delay`. Playing it in either
+    // direction would hand it to the document timeline on top of the seek — the same trap
+    // `activate()` guards against below. Re-arming `finished` for a run that will never happen
+    // would also strand `data-kui-state`, so bail before touching either.
+    if (scrubbed) return
+    const animations = ownedAnimationsOf(el, ownedNames)
+    finished = new Promise((resolve) => {
+      settle = resolve
+    })
+    for (const animation of animations) {
+      animation.playbackRate = rate
+      animation.play()
     }
-    // Cancellation resolves rather than rejects, so callers are not forced into try/catch for the
-    // ordinary case of an effect being torn down.
-    void Promise.all(animations.map((a) => a.finished.catch(() => undefined))).then(() => settle?.())
+    // The ledger's copy of the play state has to move with the playhead, and this call moves it.
+    // Without this write, `control().pause()` followed by an exit — a paused element that a
+    // pointer then leaves, which is `deactivate()`'s whole job — left the inline declaration
+    // saying `paused` while the animations were running. The next `pause()` then wrote `paused`
+    // over `paused`: no computed-value change, so nothing to re-apply, and the browser ignored it.
+    // The element could not be paused again for the rest of its life. `createCssControl.reverse()`
+    // has always written this for the same reason; it was only ever missing on the route the
+    // animator actually takes. Pre-dates the reversal work — an exit has played through here
+    // since paired activations shipped.
+    ledger.set('animation-play-state', 'running')
+    watch(animations)
   }
 
   return {
+    // Attached unconditionally, including for a scrubbed instance. Whether control is *allowed*
+    // here is a policy question about the element's timeline, not a capability question about this
+    // instance — a scrubbed animation has a perfectly real playhead, it just belongs to the
+    // scroller. Keeping that decision in one place (`InstanceState.progressDriven`, read by
+    // `control.ts`) beats splitting it across both files and letting them drift.
+    control: createCssControl(() => ownedAnimationsOf(el, ownedNames), ledger),
     activate() {
       finished = new Promise((resolve) => {
         settle = resolve
@@ -157,6 +233,12 @@ export function createCssInstance(
       }
       activatedBefore = true
       watch(animations)
+    },
+    play() {
+      drive(1)
+    },
+    reverse() {
+      drive(-1)
     },
     cancel() {
       for (const animation of ownedAnimationsOf(el, ownedNames)) animation.cancel()

@@ -138,10 +138,59 @@ describe('parse', () => {
       expect(parse('fade-up on:hover').specs[0]?.params).toEqual({})
     })
 
-    it('warns on an unknown activation and leaves it unset', () => {
-      const result = parse('fade-up on:teleport')
+    it('lifts at: onto the spec rather than leaving it in params', () => {
+      // Per-spec, not element-scoped: the whole point of a position is that each segment can sit
+      // somewhere different. But still not a parameter — no schema declares it, so leaving it in
+      // `params` would make `resolveParams` warn "unknown parameter" on all 255 effects.
+      const result = parse('fade-up 600ms, blur-in 400ms at:-200ms')
+      expect(result.specs[0]?.at).toBeUndefined()
+      expect(result.specs[1]?.at).toBe('-200ms')
+      expect(result.specs[1]?.params).toEqual({})
+      expect(result.warnings).toEqual([])
+    })
+
+    it('does not interpret the at: value, leaving that to core/sequence.ts', () => {
+      // The parser's job is the grammar of the attribute, not the grammar of a position — an
+      // unusable value has to reach the compiler so the warning can name the effect it was on.
+      expect(parse('fade-up at:nonsense').specs[0]?.at).toBe('nonsense')
+      expect(parse('fade-up at:nonsense').warnings).toEqual([])
+    })
+
+    it('warns on a second at: in one segment', () => {
+      expect(parse('fade-up at:with at:-200ms').warnings.join()).toContain(
+        'duplicate parameter "at"',
+      )
+    })
+
+    it('accepts any event name, because the activation list is open', () => {
+      // This used to warn "unknown activation" and leave the value unset, which is what made
+      // `on:input`, `on:submit` and `on:pointerleave` inexpressible. The check that a name is a
+      // *real* event needs an element and lives in `animator.ts` — see its `warnUnknownEvents`.
+      for (const value of ['input', 'submit', 'pointerleave', 'cart:updated', 'teleport']) {
+        const result = parse(`fade-up on:${value}`)
+        expect(result.activation, value).toBe(value)
+        expect(result.warnings, value).toEqual([])
+      }
+    })
+
+    it('hoists a start/end pair', () => {
+      // A slash rather than a comma or a space: both of those are structural to the tokenizer, so
+      // either would have forced quoting for the commonest case in the feature.
+      const result = parse('fade-up on:pointerenter/pointerleave')
+      expect(result.activation).toBe('pointerenter/pointerleave')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('warns on a value that could not be an event name and leaves it unset', () => {
+      const result = parse('fade-up on:a/b/c')
       expect(result.activation).toBeUndefined()
-      expect(result.warnings.join()).toContain('unknown activation "teleport"')
+      expect(result.warnings.join()).toContain('more than one "/"')
+    })
+
+    it('warns on an exit half that could never fire', () => {
+      const result = parse('fade-up on:click/load')
+      expect(result.activation).toBeUndefined()
+      expect(result.warnings.join()).toContain('cannot end on "load"')
     })
 
     it('keeps the first value and warns when two segments disagree', () => {

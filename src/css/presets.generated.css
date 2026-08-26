@@ -7,6 +7,7 @@
 @layer kui.presets {
   [data-kui-fx~='accordion-height'] {
     --kui-auto-height-duration: 400ms;
+    --kui-auto-height-delay: 0ms;
     --kui-auto-height-ease: ease-out;
   }
 
@@ -38,12 +39,11 @@
 
   [data-kui-fx~='beam-border'] {
     --kui-beam-border-duration: 220ms;
-    --kui-beam-border-ease: ease-out;
+    --kui-beam-border-delay: 0ms;
   }
 
   [data-kui-fx~='beam-border-auto'] {
     --kui-beam-border-auto-duration: 220ms;
-    --kui-beam-border-auto-ease: ease-out;
   }
 
   [data-kui-fx~='before-after-wipe'] {
@@ -54,6 +54,8 @@
 
   [data-kui-fx~='blob-morph'] {
     --kui-path-morph-duration: 800ms;
+    --kui-path-morph-delay: 0ms;
+    --kui-path-morph-ease: linear;
   }
 
   [data-kui-fx~='blur-in'] {
@@ -96,11 +98,13 @@
 
   [data-kui-fx~='border-draw'] {
     --kui-border-draw-duration: 220ms;
+    --kui-border-draw-delay: 0ms;
     --kui-border-draw-ease: ease-out;
   }
 
   [data-kui-fx~='border-glow'] {
     --kui-border-glow-duration: 220ms;
+    --kui-border-glow-delay: 0ms;
     --kui-border-glow-ease: ease-out;
   }
 
@@ -346,6 +350,7 @@
   [data-kui-fx~='expand-to-modal'] {
     --kui-flip-scale: true;
     --kui-flip-container-duration: 500ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -423,11 +428,13 @@
 
   [data-kui-fx~='flip-card'] {
     --kui-card-toggle-duration: 700ms;
+    --kui-card-toggle-delay: 0ms;
     --kui-card-toggle-ease: ease-in-out;
   }
 
   [data-kui-fx~='flip-filter'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -457,16 +464,19 @@
 
   [data-kui-fx~='flip-reorder'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='flip-shuffle'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='flip-sort'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -558,11 +568,13 @@
   [data-kui-fx~='grid-to-list'] {
     --kui-flip-scale: true;
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='hamburger-to-x'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
@@ -588,20 +600,24 @@
 
   [data-kui-fx~='icon-bounce'] {
     --kui-icon-bounce-duration: 220ms;
+    --kui-icon-bounce-delay: 0ms;
     --kui-icon-bounce-ease: ease-out;
   }
 
   [data-kui-fx~='icon-morph'] {
     --kui-path-morph-duration: 300ms;
+    --kui-path-morph-delay: 0ms;
+    --kui-path-morph-ease: linear;
   }
 
   [data-kui-fx~='icon-spin'] {
     --kui-icon-spin-duration: 220ms;
-    --kui-icon-spin-ease: ease-out;
+    --kui-icon-spin-delay: 0ms;
   }
 
   [data-kui-fx~='icon-wiggle'] {
     --kui-icon-wiggle-duration: 220ms;
+    --kui-icon-wiggle-delay: 0ms;
     --kui-icon-wiggle-ease: ease-out;
   }
 
@@ -625,11 +641,13 @@
 
   [data-kui-fx~='lift'] {
     --kui-lift-duration: 220ms;
+    --kui-lift-delay: 0ms;
     --kui-lift-ease: ease-out;
   }
 
   [data-kui-fx~='lift-shadow'] {
     --kui-lift-shadow-duration: 220ms;
+    --kui-lift-shadow-delay: 0ms;
     --kui-lift-shadow-ease: ease-out;
   }
 
@@ -686,6 +704,7 @@
 
   [data-kui-fx~='masonry-reflow'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -705,6 +724,13 @@
     --kui-nav-reveal-duration: 600ms;
     --kui-nav-reveal-delay: 0ms;
     --kui-nav-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='motion-path'] {
+    --kui-motion-path: "M 0 0 L 120 0";
+    --kui-motion-path-duration: 1200ms;
+    --kui-motion-path-delay: 0ms;
+    --kui-motion-path-ease: ease-out;
   }
 
   [data-kui-fx~='noise-overlay'] {
@@ -762,6 +788,34 @@
     --kui-parallax-ease: ease-out;
   }
 
+  [data-kui-fx~='path-arc'] {
+    --kui-motion-path: "M 0 0 C 40 -70 120 -70 160 0";
+    --kui-motion-path-duration: 1200ms;
+    --kui-motion-path-ease: ease-in-out;
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-loop'] {
+    --kui-motion-path: "M 0 0 C 0 -70 110 -70 110 0 C 110 70 0 70 0 0";
+    --kui-motion-path-duration: 2400ms;
+    --kui-motion-path-ease: linear;
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-swoop'] {
+    --kui-motion-path: "M -120 70 C -70 70 -25 25 0 0";
+    --kui-motion-path-duration: 900ms;
+    --kui-motion-path-ease: var(--kui-ease-expo-out, ease-out);
+    --kui-motion-path-delay: 0ms;
+  }
+
+  [data-kui-fx~='path-wave'] {
+    --kui-motion-path: "M 0 0 C 45 -45 105 45 150 0";
+    --kui-motion-path-duration: 1600ms;
+    --kui-motion-path-ease: ease-in-out;
+    --kui-motion-path-delay: 0ms;
+  }
+
   [data-kui-fx~='pin-section'] {
     --kui-distance: 100vh;
     --kui-spacer: true;
@@ -777,16 +831,19 @@
 
   [data-kui-fx~='play-to-pause'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
   [data-kui-fx~='plus-to-minus'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
   [data-kui-fx~='pop'] {
     --kui-pop-duration: 220ms;
+    --kui-pop-delay: 0ms;
     --kui-pop-ease: ease-out;
   }
 
@@ -978,6 +1035,7 @@
 
   [data-kui-fx~='shine-sweep'] {
     --kui-shine-sweep-duration: 220ms;
+    --kui-shine-sweep-delay: 0ms;
     --kui-shine-sweep-ease: ease-out;
   }
 
@@ -1135,6 +1193,7 @@
 
   [data-kui-fx~='split-flap'] {
     --kui-split-flap-duration: 220ms;
+    --kui-split-flap-delay: 0ms;
     --kui-split-flap-ease: ease-out;
   }
 
@@ -1209,6 +1268,7 @@
 
   [data-kui-fx~='tab-indicator-slide'] {
     --kui-flip-indicator-duration: 300ms;
+    --kui-flip-indicator-delay: 0ms;
     --kui-flip-indicator-ease: ease-out;
   }
 
@@ -1278,6 +1338,18 @@
     --kui-feedback-toast-delay: 0ms;
   }
 
+  [data-kui-fx~='tween'] {
+    --kui-tween-duration: 600ms;
+    --kui-tween-delay: 0ms;
+    --kui-tween-ease: ease-out;
+  }
+
+  [data-kui-fx~='tween-from'] {
+    --kui-tween-from-duration: 600ms;
+    --kui-tween-from-delay: 0ms;
+    --kui-tween-from-ease: ease-out;
+  }
+
   [data-kui-fx~='typewriter'] {
     --kui-loop: false;
     --kui-typewriter-delay: 0ms;
@@ -1290,6 +1362,7 @@
 
   [data-kui-fx~='underline-center'] {
     --kui-underline-center-duration: 220ms;
+    --kui-underline-center-delay: 0ms;
     --kui-underline-center-ease: ease-out;
   }
 
@@ -1301,6 +1374,7 @@
 
   [data-kui-fx~='underline-slide'] {
     --kui-underline-slide-duration: 220ms;
+    --kui-underline-slide-delay: 0ms;
     --kui-underline-slide-ease: ease-out;
   }
 
@@ -1457,6 +1531,7 @@
   html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
@@ -1477,6 +1552,7 @@
   html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
@@ -1522,6 +1598,7 @@
   html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
@@ -1542,6 +1619,7 @@
   html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),

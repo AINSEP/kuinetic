@@ -1,10 +1,10 @@
 import { Animator } from '../../src/core/animator.js'
-import type { Capabilities } from '../../src/core/capabilities.js'
+import { defaultCapabilities } from '../../src/core/capabilities.js'
 import { createActivationBinder } from '../../src/core/activation.js'
 import { collectingReporter } from '../../src/core/reporter.js'
 import type { CollectingReporter } from '../../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler, ScrollSubscriber } from '../../src/core/scroll-scheduler.js'
-import { createRegistry } from '../../src/effects/index.js'
+import { catalogRegistry } from './registry.js'
 
 /**
  * Shared scroll-mechanics test rig: a fake scheduler and a fake measurer.
@@ -17,16 +17,12 @@ import { createRegistry } from '../../src/effects/index.js'
  * suite of its own; eslint's broader `test/**\/*.ts` block still lints it.
  */
 
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
+const CAPS = defaultCapabilities({
   individualTransforms: true,
   scrollTimelineName: true,
-  viewTransitions: false,
   intersectionObserver: true,
-  reducedMotion: false,
-}
+  motionPath: true,
+})
 
 export interface FakeScheduler extends ScrollScheduler {
   /** Deliver a frame to every subscriber. */
@@ -103,7 +99,7 @@ export function build(html: string) {
   reporter = collectingReporter()
   const animator = new Animator({
     root: document.body,
-    registry: createRegistry(),
+    registry: catalogRegistry(),
     capabilities: CAPS,
     reporter,
     binder: createActivationBinder({ createObserver: undefined }),

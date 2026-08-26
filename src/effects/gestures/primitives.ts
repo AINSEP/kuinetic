@@ -6,6 +6,8 @@ import type { GestureVector } from '../../core/gesture.js'
 import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../core/spring.js'
 import type { SpringConfig, SpringDeps, SpringRunner } from '../../core/spring.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
+import { withTimingContract } from '../shared.js'
+import type { TimingToken } from '../shared.js'
 
 /**
  * Gesture and physics primitives.
@@ -45,12 +47,30 @@ const springParams: ParameterSchema = {
   },
 }
 
+/**
+ * What a gesture can and cannot be told about timing.
+ *
+ * `pressable` is the only member with a `duration`, and it does not mean what `duration` means
+ * anywhere else in the catalog: it is the hold threshold — how long a press must last to count —
+ * not how long a motion runs. Everything else here is driven by the finger's own position and
+ * velocity, which is the point of the category (see this file's header on why no
+ * duration-plus-easing formulation can express a flick). None of them has a start moment ahead of
+ * the pointer arriving, so a `delay` has nothing to be relative to, and none of them runs on a
+ * curve the author picks.
+ */
+const GESTURE_TIMING_REASON =
+  'it is driven by pointer position and velocity, so it has no start moment and no authored curve'
+
 function gesturePrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  prepare: Primitive['prepare'],
+  prepare: NonNullable<Primitive['prepare']>,
 ): Primitive {
+  // Read off the schema rather than passed in, because for this category the schema is already the
+  // honest record: `pressable` is the one member that declares `duration` and the one member that
+  // reads it. Nothing here declares `delay` or `ease`, so both are always refused.
+  const honours: readonly TimingToken[] = Object.hasOwn(parameters, 'duration') ? ['duration'] : []
   return {
     id,
     renderer: 'javascript',
@@ -61,7 +81,7 @@ function gesturePrimitive(
     defaultActivation: 'load',
     perfClass: 'continuous',
     reducedMotion: 'disable',
-    prepare,
+    prepare: withTimingContract(id, { honours, because: GESTURE_TIMING_REASON }, prepare),
   }
 }
 
@@ -363,6 +383,9 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     'pressable',
     ['state'],
     { duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' } },
+    // `duration` here is the hold threshold, not a span of motion — `long-press 800ms` means
+    // "count it once the finger has been down for 800ms". It is read (see `preparePressable`), so
+    // declaring it is what stops the contract above from warning about it.
     deferPrepare(preparePressable),
   ),
 

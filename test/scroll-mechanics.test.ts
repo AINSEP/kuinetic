@@ -3,7 +3,6 @@ import { progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tra
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
-import { createRegistry } from '../src/effects/index.js'
 import {
   build,
   el,
@@ -14,6 +13,7 @@ import {
   stubRect,
   stubRectWithSpacer,
 } from './support/scroll-mechanics-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 // Fake scheduler, fake measurer, `build`/`stubRect`/`el` helpers, and the `scheduler`/`reporter`
 // state `build` populates all live in test/support/scroll-mechanics-harness.ts — every describe
@@ -216,7 +216,7 @@ describe('pin', () => {
   })
 
   it('tracks the pin element itself when it has no parent to track instead', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     const resolved = registry.resolve('pin-section')!
     const detached = document.createElement('div')
     // Never appended to the document, so parentElement is null — preparePin must fall back to
@@ -493,7 +493,7 @@ describe('smooth-scroll-to', () => {
 
 describe('registration and parameters', () => {
   it('registers every v2 scroll name', () => {
-    const registry = createRegistry()
+    const registry = catalogRegistry()
     for (const name of [
       'pin-section',
       'pin-until',

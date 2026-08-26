@@ -176,7 +176,7 @@ export function resolveEasing(
   if (keyword) return cubicBezier(...keyword)
   const fn = CUBIC_BEZIER_FN.exec(easing)
   if (fn) return cubicBezier(Number(fn[1]), Number(fn[2]), Number(fn[3]), Number(fn[4]))
-  warn(`easing "${easing}" has no JS equivalent for a counter tween — using the default ease-out`)
+  warn(`easing "${easing}" has no JS equivalent for a JS-driven tween — using the default ease-out`)
   return easeOutCubic
 }
 

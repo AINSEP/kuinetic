@@ -1,13 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createActivationBinder } from '../src/core/activation.js'
-import { Animator } from '../src/core/animator.js'
+import type { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import type { Capabilities } from '../src/core/capabilities.js'
 import { collectingReporter } from '../src/core/reporter.js'
-import type { Reporter } from '../src/core/reporter.js'
-import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
-import { createRegistry } from '../src/effects/index.js'
 import type { EffectInstance } from '../src/core/types.js'
+import { build, el } from './support/js-effect-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * End-to-end regression tests for gaps two rounds of adversarial review found in the JS renderer.
@@ -18,53 +15,6 @@ import type { EffectInstance } from '../src/core/types.js'
  * for several primitives, and several deferred JS instances inherited a `finished` that was either
  * already resolved before the effect started or never accounted for child work still in flight.
  */
-
-const CAPS: Capabilities = {
-  viewTimeline: false,
-  scrollTimeline: false,
-  animationRange: false,
-  individualTransforms: true,
-  scrollTimelineName: false,
-  viewTransitions: false,
-  intersectionObserver: true,
-  reducedMotion: false,
-}
-
-const idleScheduler: ScrollScheduler = {
-  subscribe: () => () => {},
-  invalidate: () => {},
-  rootCount: () => 0,
-  destroy: () => {},
-}
-
-const fakeRoot: ScrollRoot = {
-  key: 'fake',
-  metrics: () => ({
-    scrollTop: 0,
-    scrollLeft: 0,
-    viewportWidth: 800,
-    viewportHeight: 600,
-    viewportTop: 0,
-    viewportLeft: 0,
-  }),
-  onScroll: () => () => {},
-  onResize: () => () => {},
-}
-
-function build(html: string, reporter?: Reporter): Animator {
-  document.body.innerHTML = html
-  return new Animator({
-    root: document.body,
-    registry: createRegistry(),
-    capabilities: CAPS,
-    binder: createActivationBinder({ createObserver: undefined }),
-    scheduler: idleScheduler,
-    rootResolver: () => fakeRoot,
-    reporter,
-  })
-}
-
-const el = (): HTMLElement => document.body.querySelector('[data-kui]') as HTMLElement
 
 /** The one JS instance an element's plan produced. */
 function jsInstance(animator: Animator): EffectInstance {
@@ -560,7 +510,7 @@ describe('the delay: spelling reaches JS-rendered effects', () => {
  * probe, which is what the per-primitive tests above are for.
  */
 describe('every trigger-activated effect accepts a delay', () => {
-  const registry = createRegistry()
+  const registry = catalogRegistry()
   const triggered = registry
     .names()
     .map((name) => ({ name, resolved: registry.resolve(name)! }))

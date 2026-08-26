@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createRegistry } from '../src/effects/index.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -14,6 +13,7 @@ import {
   segmentGraphemes,
   splitRevealFinishMs,
 } from '../src/effects/catalog/text-shared.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * A real per-element `StyleLedger` alongside `win` — `scramble`/`decode`/`glitch` read `ctx.style`
@@ -35,7 +35,7 @@ function stubRect(el: Element, box: { width: number; height: number }): void {
   })
 }
 
-const registry = createRegistry()
+const registry = catalogRegistry()
 
 describe('segmentGraphemes', () => {
   it('treats a ZWJ emoji sequence as one grapheme, not five code points', () => {

@@ -56,6 +56,23 @@ function easingValue(value) {
 }
 
 /**
+ * A `path` parameter's value, as the CSS `<string>` the custom property has to hold.
+ *
+ * `offset-path: path(...)` takes a string, and `var()` substitutes tokens rather than text, so
+ * `--kui-motion-path` only works if the quotes are part of its value. A preset declares its path
+ * the way an author would type it in `data-kui` — raw path data, no quotes — exactly as every
+ * other preset parameter is declared in the spelling the attribute grammar uses. So the quotes are
+ * added here, mirroring `easingValue` above: the same "the schema's spelling is not the
+ * stylesheet's spelling" step, for the same reason.
+ *
+ * `validate()` in `src/core/params.ts` does this for *authored* paths and is the one that has to
+ * be careful about it; a preset's path is repository source, not untrusted input.
+ */
+function pathValue(value) {
+  return `"${value}"`
+}
+
+/**
  * Timing parameters are namespaced per primitive at registration (`--kui-<primitive>-duration`
  * and friends, see `registry.ts`'s `namespaceTiming`), and `compile.ts` emits them as
  * `var(--kui-ambient-float-duration, 600ms)` — with a *hardcoded* fallback that knows nothing
@@ -81,6 +98,7 @@ function declarationsFor(resolved) {
     // `text` parameters are JS-only and must never reach a stylesheet.
     if (!spec || spec.type === 'text') return []
     if (spec.type === 'easing') return [`  ${spec.cssProperty}: ${easingValue(value)};`]
+    if (spec.type === 'path') return [`  ${spec.cssProperty}: ${pathValue(value)};`]
     return [`  ${spec.cssProperty}: ${value};`]
   }
 
