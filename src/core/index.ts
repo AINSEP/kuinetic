@@ -1,7 +1,11 @@
-export { createActivationBinder } from './activation.js'
-export type { ActivationBinder, ActivationBinderOptions, ActivationRequest } from './activation.js'
-export { resolveActivationSpec } from './activation-vocabulary.js'
-export type { ActivationSpec, ActivationTrigger } from './activation-vocabulary.js'
+export { createActivationBinder, resolveActivationSpec } from './activation.js'
+export type {
+  ActivationBinder,
+  ActivationBinderOptions,
+  ActivationRequest,
+  ActivationSpec,
+  ActivationTrigger,
+} from './activation.js'
 export { Animator, createAnimator, ATTR } from './animator.js'
 export type { AnimatorOptions } from './animator.js'
 export { detect } from './capabilities.js'

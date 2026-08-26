@@ -58,7 +58,7 @@ export type Channel = (typeof CHANNEL)[keyof typeof CHANNEL] | (string & {})
 
 /**
  * The activations the library gives a name of its own, because the DOM has no event for them or
- * because the name bundles more than one event. See `core/activation-vocabulary.ts` for what each
+ * because the name bundles more than one event. See `core/activation.ts` for what each
  * one binds.
  */
 export type NamedActivation =
@@ -311,7 +311,7 @@ export interface Primitive {
    * animation), but a primitive declaring what it supports is choosing from a closed vocabulary —
    * it is saying "I work when observed" or "I work on a listener", not enumerating event types it
    * has never heard of. `animator.ts` maps an authored half onto this vocabulary before checking
-   * it; see `SUPPORT_PROXIES` in `activation-vocabulary.ts`.
+   * it; see `SUPPORT_PROXIES` in `activation.ts`.
    */
   supportedActivations: NamedActivation[]
   /**
