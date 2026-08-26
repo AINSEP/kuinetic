@@ -10,6 +10,32 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **`word-cycler` and `header-shrink` each transition a property outside their own declared
+      channel.** Found 2026-08-26 while building the pseudo-element and transition scanners. This is
+      a *different shape* from the clobber bug above and the skipped invariant does not catch it:
+      that one asks a cross-preset question (two disjoint-channel presets both owning a
+      `transition`, so composing them discards one), whereas this is per-preset self-consistency —
+      a single preset transitioning something it never declared. Both presets are also among the
+      ten clobber writers, so they will surface in that pair list once the invariant is enabled,
+      but for the wrong reason. Needs its own assertion.
+      Owner: `src/effects/catalog/text.ts` + `src/effects/catalog/navigation.ts`.
+
+- [ ] **`demo/show-code.js` hand-rolls its own drag.** Same class as the `docs.html` TOC item, and
+      the same ground-rule violation: `pointerdown` plus manual `dragX`/`dragY` transform maths at
+      `show-code.js:266-284`, while the library ships four drag effects — `drag`, `drag-inertia`,
+      `drag-x`, `drag-y`. Check whether a named effect covers the modal's constraint (it keeps a
+      minimum area on screen so the panel can never be dragged out of reach) before assuming it
+      needs the hand-rolled version.
+
+- [ ] **The four modern CSS techniques are not wired up at all — zero usage in `src/`.** Verified
+      2026-08-26: `@starting-style`, `interpolate-size`, anchor positioning (`anchor-name` /
+      `position-anchor`) and `@container` appear nowhere in the library. The only hits in the repo
+      are inside `demo/tailwind.css`, which is Tailwind's own vendored output, not ours. So each is
+      greenfield, not "present but unused". Two look like they retire real JavaScript:
+      `@starting-style` animates first paint including from `display: none` (today's entrances need
+      a JS-stamped attribute), and `interpolate-size` animates to `height: auto`. `@container`
+      complements the `above:`/`below:` gates merged in `4f18816`.
+
 - [ ] **A viewport gate can't veto a pin's hold while leaving its progress publish running.** Found
       2026-08-26 verifying whether `above:`/`below:` (merged in `4f18816`) closed the "only pin
       where there is room" gap. It half does. `.pin-until-aside` on `scroll.html` now gates cleanly
