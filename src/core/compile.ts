@@ -159,7 +159,48 @@ export function compile(
   }
 
   const composed = resolveComposition(entries, registry, warnings)
-  return buildPlan(composed, timeline, unknown, warnings)
+  const plan = buildPlan(composed, timeline, unknown, warnings)
+  plan.reducedMotion = resolvedPolicy(plan.reducedMotion, parsed.rm, warnings)
+  return plan
+}
+
+/**
+ * Fold an authored `rm:` into the policy the composed primitives declared.
+ *
+ * `rm:` is the one thing an author can say about reduced motion, and it is deliberately a
+ * *one-way ratchet*: it can only make the policy stricter, never weaker.
+ *
+ * The rule is not invented for this key — it is `strictestPolicy`'s, applied one more time. That
+ * function already encodes "if any effect must not run, none of the list should", and an author
+ * key that could overrule it would make the whole fold advisory: `parallax` declares `disable`
+ * because parallax is a documented vestibular trigger, not because the library is being cautious
+ * on the author's behalf, and `rm:shorten` on it would hand a visitor who has explicitly asked
+ * their operating system for less motion exactly the motion they asked not to receive. The useful
+ * direction is the other one and it stays open: `rm:disable` on a spinning logo whose primitive
+ * only claims `shorten` is a real request the library previously had no spelling for.
+ *
+ * A weakening attempt warns by name rather than being ignored, because the author wrote a value
+ * and is otherwise owed an explanation for why the page does not behave as they asked.
+ *
+ * @param declared - Strictest policy among the composed primitives.
+ * @param authored - The hoisted `rm:` value, already validated by `parse.ts`.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function resolvedPolicy(
+  declared: ReducedMotionPolicy,
+  authored: ReducedMotionPolicy | undefined,
+  warnings: string[],
+): ReducedMotionPolicy {
+  if (authored === undefined) return declared
+  if (RM_RANK[authored] < RM_RANK[declared]) {
+    warnings.push(
+      `"rm:${authored}" is weaker than the "${declared}" these effects declare — ` +
+        `keeping "${declared}" (rm: may only strengthen the reduced-motion policy)`,
+    )
+    return declared
+  }
+  return authored
 }
 
 function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {

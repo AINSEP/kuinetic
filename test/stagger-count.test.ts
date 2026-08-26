@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { indexStaggerGroup, parseStaggerAttribute, staggerRanks } from '../src/core/stagger.js'
+import {
+  applyStagger,
+  indexStaggerGroup,
+  parseStaggerAttribute,
+  resolveStaggerConfig,
+  staggerRanks,
+} from '../src/core/stagger.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import { ATTR } from '../src/core/attrs.js'
 
@@ -9,6 +15,24 @@ function group(childCount: number, animatedCount = childCount, stagger = '90ms')
   for (let i = 0; i < childCount; i++) {
     const li = document.createElement('li')
     if (i < animatedCount) li.setAttribute(ATTR.source, 'fade-up timeline:pin')
+    ul.append(li)
+  }
+  return ul
+}
+
+/**
+ * A group whose declaration lives in `data-kui` rather than `data-kui-stagger`.
+ *
+ * The wrapper carries a `data-kui` of its own, which is the case the hoist exists for: an author
+ * who is already animating the container should not have to reach for a second attribute to say
+ * how its children follow on.
+ */
+function hoistedGroup(childCount: number, source: string): HTMLElement {
+  const ul = document.createElement('ul')
+  ul.setAttribute(ATTR.source, source)
+  for (let i = 0; i < childCount; i++) {
+    const li = document.createElement('li')
+    li.setAttribute(ATTR.source, 'fade-up')
     ul.append(li)
   }
   return ul
@@ -314,5 +338,149 @@ describe('parseStaggerAttribute', () => {
     for (const from of ['start', 'end', 'center', 'edges', 'random']) {
       expect(parseStaggerAttribute(`from:${from}`).from).toBe(from)
     }
+  })
+})
+
+describe('the data-kui spelling of a stagger group', () => {
+  it('indexes a group declared entirely with cascade: and order:', () => {
+    const ul = hoistedGroup(5, 'fade-up cascade:90ms order:center')
+    indexStaggerGroup(ul)
+    expect(ul.style.getPropertyValue('--kui-stagger')).toBe('90ms')
+    expect(ranksOf(ul)).toEqual(['2', '1', '0', '1', '2'])
+    // maxRank + 1, not the child count — `center` on five children tops out at rank 2.
+    expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('3')
+  })
+
+  /*
+   * The migration shape: the step already lives on the longhand attribute and only the ordering is
+   * new. Blanking the step because the *other* attribute mentioned ordering would be a silent
+   * regression, so the two are merged per key rather than per attribute.
+   */
+  it('merges the two attributes per key, so each may carry half the declaration', () => {
+    const ul = group(5, 5, '90ms')
+    ul.setAttribute(ATTR.source, 'fade-up order:end')
+    const reporter = collectingReporter()
+    indexStaggerGroup(ul, reporter)
+    expect(ul.style.getPropertyValue('--kui-stagger')).toBe('90ms')
+    expect(ranksOf(ul)).toEqual(['4', '3', '2', '1', '0'])
+    expect(reporter.messages).toEqual([])
+  })
+
+  it('does not call an unwritten ordering a conflict', () => {
+    // `StaggerConfig.from` is `'start'` both when the author wrote it and when they wrote nothing,
+    // so a value comparison alone would report a clash with markup nobody typed.
+    const warnings: string[] = []
+    resolveStaggerConfig('90ms', 'fade-up order:center', warnings)
+    expect(warnings).toEqual([])
+  })
+
+  it('lets data-kui win a real conflict and names the value it displaced', () => {
+    const warnings: string[] = []
+    const config = resolveStaggerConfig('90ms from:end', 'fade-up cascade:200ms order:center', warnings)
+    expect(config).toEqual({ step: '200ms', from: 'center' })
+    expect(warnings.join()).toContain('90ms')
+    expect(warnings.join()).toContain('data-kui wins')
+  })
+
+  it('says nothing when both attributes name the same ordering', () => {
+    const warnings: string[] = []
+    expect(resolveStaggerConfig('90ms from:2', 'fade-up order:2', warnings)?.from).toBe(2)
+    expect(resolveStaggerConfig('90ms from:edges', 'fade-up order:edges', warnings)?.from).toBe(
+      'edges',
+    )
+    expect(warnings).toEqual([])
+  })
+
+  /*
+   * `from:0` and `order:start` *are* the same wave (see `originOf`), and this still reports a
+   * conflict. Deliberate: the other boundary identity — `from:<last>` is `end` — needs a group size
+   * `resolveStaggerConfig` does not have, so normalising only the half that happens to be knowable
+   * would be a rule an author could not predict. The resolved ordering is right either way; the
+   * warning only names which spelling won.
+   */
+  it('does not normalise the boundary spellings, and resolves them identically anyway', () => {
+    const warnings: string[] = []
+    expect(resolveStaggerConfig('90ms from:0', 'fade-up order:start', warnings)?.from).toBe('start')
+    expect(staggerRanks(3, 0)).toEqual(staggerRanks(3, 'start'))
+    expect(warnings.join()).toContain('data-kui wins')
+  })
+
+  it('reports no group when neither attribute declares one', () => {
+    expect(resolveStaggerConfig(null, 'fade-up 600ms on:enter')).toBeUndefined()
+  })
+
+  /*
+   * `border:` ends in `order:`, so the substring screen that keeps `applyStagger` cheap lets it
+   * through on purpose — the real parse is what decides. A regex with a word-boundary guard would
+   * have to agree with `splitTopLevel`'s quote- and paren-aware tokenizer in every case, and where
+   * it did not the failure would be a group that silently does not stagger.
+   */
+  it('is not fooled by a parameter that merely ends in "order:"', () => {
+    expect(resolveStaggerConfig(null, 'tween border:1px')).toBeUndefined()
+  })
+
+  it('refuses a step that could escape the declaration, while keeping the expression forms', () => {
+    const warnings: string[] = []
+    expect(resolveStaggerConfig(null, 'fade-up cascade:var(--speed)')?.step).toBe('var(--speed)')
+    expect(resolveStaggerConfig('calc(90ms * 2)', '')?.step).toBe('calc(90ms * 2)')
+    expect(resolveStaggerConfig('90ms;color:red', '', warnings)?.step).toBeUndefined()
+    expect(warnings.join()).toContain('disallowed CSS syntax')
+  })
+})
+
+describe('applyStagger over both spellings', () => {
+  function tree(html: string): HTMLElement {
+    const root = document.createElement('div')
+    root.innerHTML = html
+    return root
+  }
+
+  it('finds a group declared in data-kui as well as one declared in data-kui-stagger', () => {
+    const root = tree(
+      `<ul data-kui="fade-up cascade:90ms order:end"><li data-kui="fade-up"></li>` +
+        `<li data-kui="fade-up"></li></ul>` +
+        `<ol data-kui-stagger="40ms"><li data-kui="fade-up"></li></ol>`,
+    )
+    applyStagger(root)
+    expect(ranksOf(root.querySelector('ul')!)).toEqual(['1', '0'])
+    expect(root.querySelector('ol')!.style.getPropertyValue('--kui-stagger')).toBe('40ms')
+  })
+
+  /*
+   * The reason `applyStagger` re-narrows its widened selector, and it is a correctness
+   * requirement rather than an optimisation. `--kui-stagger-count` is deliberately *not* reset in
+   * `kui.tokens`, because a group publishes it to be inherited. Writing `1` onto an ordinary
+   * animated child would shadow its own group's real count, and `compile.ts`'s `staggerDelay`
+   * reads it off that very child to size a `timeline: pin` scrub head — so every pinned staggered
+   * group would collapse its head back to one duration and strand its later children short of
+   * their final frame.
+   */
+  it('leaves --kui-stagger-count untouched on an animated element that is not a group', () => {
+    const root = tree(
+      `<ul data-kui-stagger="90ms"><li data-kui="fade-up timeline:pin"></li></ul>`,
+    )
+    applyStagger(root)
+    const child = root.querySelector('li')!
+    expect(child.style.getPropertyValue('--kui-stagger-count')).toBe('')
+    expect(root.querySelector('ul')!.style.getPropertyValue('--kui-stagger-count')).toBe('1')
+  })
+
+  it('indexes the root itself when the root is the group', () => {
+    const root = tree(`<li data-kui="fade-up"></li><li data-kui="fade-up"></li>`)
+    root.setAttribute(ATTR.source, 'fade-up cascade:90ms')
+    applyStagger(root)
+    expect(ranksOf(root)).toEqual(['0', '1'])
+  })
+})
+
+describe('order: as a synonym for from: on data-kui-stagger', () => {
+  it('accepts either spelling', () => {
+    expect(parseStaggerAttribute('90ms order:edges')).toEqual({ step: '90ms', from: 'edges' })
+  })
+
+  it('treats the two spellings as one key, so writing both is a duplicate', () => {
+    const warnings: string[] = []
+    expect(parseStaggerAttribute('from:end order:center', warnings).from).toBe('end')
+    expect(warnings[0]).toContain('duplicate')
   })
 })

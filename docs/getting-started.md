@@ -161,13 +161,15 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
-| `data-kui-threshold` | how much of the element must be visible before `on:enter` fires | `data-kui-threshold="30%"` |
-| `data-kui-stagger` | delay increment applied to matched children in a group, and optionally the order they go in | `data-kui-stagger="60ms from:center"` |
+| `threshold:` | how much of the element must be visible before `on:enter` fires | `fade-up threshold:30%` |
+| `cascade:` | delay increment applied to this element's animated children | `cascade:60ms` |
+| `order:` | where the cascade starts | `cascade:60ms order:center` |
+| `rm:` | reduced-motion policy for this element; may only be made *stricter* | `spin rm:disable` |
 
 Only the element-scoped settings have longhand attribute forms — `data-kui-on`,
 `data-kui-timeline`, `data-kui-threshold`, and `data-kui-stagger`. Where an inline key also exists
-it wins (`on:hover` beats `data-kui-on="click"`). Timing has no longhand: duration, delay, and
-easing are read from the `data-kui` value only.
+it wins (`on:hover` beats `data-kui-on="click"`, `cascade:60ms` beats `data-kui-stagger="90ms"`).
+Timing has no longhand: duration, delay, and easing are read from the `data-kui` value only.
 
 ---
 
@@ -233,27 +235,43 @@ Three things worth knowing:
 
 ---
 
-## Staggering a group — `data-kui-stagger`
+## Staggering a group
 
-Put `data-kui-stagger` on the **parent** and every direct child that carries `data-kui` animates one
-step after the one before it:
+Declare the group on the **parent** and every direct child that carries `data-kui` animates one step
+after the one before it. There are two spellings and they mean exactly the same thing.
+
+Inside `data-kui`, as `cascade:` — use this when the parent is already animating, so everything you
+write stays in one attribute:
 
 ```html
-<div class="grid" data-kui-stagger="90ms">
+<div class="grid" data-kui="fade-up cascade:90ms">
   <article data-kui="fade-up"></article>
   <article data-kui="fade-up"></article>
   <article data-kui="fade-up"></article>
 </div>
 ```
 
-### Choosing where the stagger starts — `from:`
-
-By default the group runs first child to last. Add `from:` to the *same* attribute to change where
-the wave begins:
+Or on the longhand `data-kui-stagger`, for the very common case where the parent is a bare wrapper
+with no animation of its own:
 
 ```html
+<div class="grid" data-kui-stagger="90ms">
+```
+
+### Choosing where the stagger starts — `order:`
+
+By default the group runs first child to last. Add `order:` to change where the wave begins:
+
+```html
+<div class="grid" data-kui="fade-up cascade:90ms order:center">
+<div class="grid" data-kui-stagger="90ms order:center">
 <div class="grid" data-kui-stagger="90ms from:center">
 ```
+
+All three are the same request. `from:` is the original spelling on `data-kui-stagger` and keeps
+working forever; `order:` works in both attributes, and is the only spelling `data-kui` accepts —
+`from` is already a parameter name on eighteen effects (`count-up from:0`, `scale-in from:1`), so it
+could not be given a second, element-wide meaning there without becoming ambiguous.
 
 | `from:` | Order | Use it for |
 |---|---|---|
@@ -266,6 +284,9 @@ the wave begins:
 
 Both parts are optional and order-independent: `data-kui-stagger="from:edges"` orders the group and
 leaves the step to CSS, and `data-kui-stagger="90ms"` is the plain stagger every example above uses.
+The two attributes are merged **per key**, so a parent may carry the step on one and the ordering on
+the other; where they disagree about the same key, `data-kui` wins and the displaced value is named
+in a warning.
 
 Four things worth knowing:
 
@@ -276,8 +297,13 @@ Four things worth knowing:
 - **A number is a child index, counting from 0**, and it is *clamped* to the group with a warning if
   it falls outside — `from:0` is `from:start` and `from:<last>` is `from:end`, so the clamp lands on
   a real ordering rather than on a long delay before anything moves.
-- **`from:` here is not the `from:` inside `data-kui`.** `count-up from:0` and `scale-in from:1` are
-  effect parameters and unrelated; group ordering only ever lives on `data-kui-stagger`.
+- **`cascade:` is not the same key as `stagger:`.** `split-lines stagger:320ms` is an *effect
+  parameter* — the gap between the pieces `split-text` generates for itself — and several effects
+  read it directly to know when they have finished. `cascade:` is the gap between the children
+  *you* wrote. They land on the same CSS custom property, so writing both on one element is a
+  conflict worth avoiding.
+- **`from:` inside `data-kui` is never a group ordering.** `count-up from:0` and `scale-in from:1`
+  are effect parameters; the group ordering there is always `order:`.
 - **The order is DOM order, not visual order.** In RTL that is what you want — `start` is the child
   where its row begins. Under `flex-direction: row-reverse` you have separated the two yourself, and
   `from:end` is the fix.
@@ -398,11 +424,12 @@ requestAnimationFrame(frame)
 - **Two effects fighting over the same channel.** `fade-up` (opacity + translate) and `slide-left`
   (also translate) collide; compose `fade-up` with `blur-in` (filter) instead, or check the
   Channels column in the [Catalog](?doc=catalog) before combining two names.
-- **Forgetting `data-kui-stagger` needs a group, not a target.** Put it on the *parent*
-  (`data-kui-stagger="60ms"` on a list), not on each child — the stagger is a group behavior.
+- **Forgetting a cascade needs a group, not a target.** Put it on the *parent*
+  (`cascade:60ms` or `data-kui-stagger="60ms"` on a list), not on each child — it is a group
+  behavior.
 - **Reaching for `from:` inside `data-kui` to order a group.** It means something else there —
   `count-up from:0`, `scale-in from:1` — and fourteen effects use it as their own parameter. Group
-  ordering is `from:` on `data-kui-stagger`, on the parent.
+  ordering is `order:` (or `from:`) on the parent, beside the step.
 
 ---
 
