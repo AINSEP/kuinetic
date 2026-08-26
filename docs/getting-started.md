@@ -233,6 +233,96 @@ Three things worth knowing:
 
 ---
 
+## Knowing when an animation finished
+
+Every animated element dispatches three `CustomEvent`s at its own lifecycle points. They're plain
+DOM events on the element itself, so you listen with `addEventListener` and write nothing
+library-specific:
+
+```js
+document.querySelector('.hero').addEventListener('kui:finish', (event) => {
+  console.log(event.detail.effects) // ['fade-up', 'blur-in']
+})
+```
+
+| event | when |
+|---|---|
+| `kui:start` | the activation fired and the effects began |
+| `kui:finish` | every finite effect on the element completed |
+| `kui:cancel` | the effects were torn down or cancelled before completing |
+
+They bubble, so one listener on `document` covers a whole page of animations:
+
+```js
+document.addEventListener('kui:finish', (event) => {
+  event.target.classList.add('is-revealed')
+})
+```
+
+`event.detail` carries `{ effects, activation, timeline, reason }`. `effects` is the same name list
+`data-kui-fx` holds, so a delegated listener can tell which effect just finished without reading
+the DOM. `reason` distinguishes routes to the same event — in particular, `kui:finish` arrives with
+`reason: 'reduced-motion'`, and no preceding `kui:start`, for an effect that was skipped because
+the visitor asked for reduced motion. The element really is at its end state, so anything you chain
+off `kui:finish` still runs for those visitors.
+
+There is deliberately **no per-frame event**. A `CustomEvent` for every animated element on every
+frame would drag every compiled animation back onto the main thread, which is the one thing this
+library is built to avoid. Read progress instead — see below.
+
+---
+
+## Controlling a running animation
+
+`control()` hands you the playhead of anything already animating. It takes the same targets `play()`
+does — a selector, an element, or any iterable of elements — and its methods chain:
+
+```js
+const kui = kuinetic({ observe: true }).start()
+
+const hero = kui.control('.hero')
+hero.pause()
+hero.seek(0.5)        // progress is normalized 0..1, never milliseconds
+hero.timeScale(0.25)  // quarter speed; a negative value runs backwards
+hero.play()
+hero.reverse()
+
+hero.progress // 0..1, the least-advanced element in the selection
+hero.state    // 'idle' | 'running' | 'paused' | 'finished'
+```
+
+Progress spans the element's **whole** timeline — from the instant the activation fired to the end
+of its last composed effect, authored delays included. So for
+`data-kui="fade-up 600ms, blur-in 400ms delay:600ms"`, `seek(0.5)` lands at 500 ms, halfway through
+the second of the two.
+
+Two kinds of effect have no playhead to hand you, and `control()` says so by name rather than
+quietly doing nothing:
+
+- **JavaScript-rendered effects** (drag, pin, scroll-spy, the counters). They have no `Animation`
+  object and no shared notion of progress, so pause, seek and `timeScale` do not reach them.
+- **Scroll-driven effects** (`timeline: view | scroll | pin`). Their playhead belongs to the
+  scroller — pausing or seeking one would be overwritten on the next scroll frame.
+
+Both are listed on `handle.uncontrolled`, and both are reported through the animator's reporter, so
+`kuinetic({ reporter: consoleReporter() })` prints the reason during development. An element that
+composes both kinds is still controlled as far as it can be: the CSS half responds, the rest is
+named.
+
+Want a value each frame? Read `progress` from your own loop, and pay only for the one element you
+care about:
+
+```js
+const hero = kui.control('.hero')
+const frame = () => {
+  bar.style.width = `${hero.progress * 100}%`
+  if (hero.state === 'running') requestAnimationFrame(frame)
+}
+requestAnimationFrame(frame)
+```
+
+---
+
 ## Common mistakes
 
 - **Mixing up `on:` and `timeline:`.** `on:enter` plays once and stays finished. `timeline: view()`

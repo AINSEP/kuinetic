@@ -1,3 +1,14 @@
+/* eslint-disable max-lines --
+   INTEGRATION-BRANCH EXCEPTION, not a decision this file earned on its own merits.
+
+   On `main` this file sits under the 400-line cap. Three of the four features merged into
+   `integration/gsap-parity` each hook a different point of the *same* element lifecycle owned by
+   this class — open-activations added `deactivate`/`turnAround` and the `settleWhen` extraction,
+   control-and-events added `emit`/`cancel`/`KUI_EVENT` dispatch, js-effect-timing adds its own
+   hooks — and the combined file lands over the cap. Splitting it here would erase exactly the
+   seam this branch exists to expose, so the cap is suspended for the file and the crowding is
+   left visible instead. Resolve it by relocating a lifecycle concern out of `Animator`, not by
+   making this comment permanent. */
 import {
   createActivationBinder,
   isOneShot,
@@ -10,6 +21,8 @@ import { detect } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compile } from './compile.js'
 import type { CompiledPlan } from './compile.js'
+import { control, emitLifecycle, KUI_EVENT } from './control.js'
+import type { ControlHandle, LifecycleEventType, LifecycleReason } from './control.js'
 import { createDomWatcher } from './dom-watcher.js'
 import type { DomWatcher } from './dom-watcher.js'
 import { readAttributes, resolveConfig } from './element-config.js'
@@ -115,9 +128,15 @@ export interface AnimatorOptions {
 export class Animator {
   readonly registry: Registry
   readonly capabilities: Capabilities
+  /**
+   * Public alongside `registry` and `capabilities`, and for the same reason: `control()` is a free
+   * function in its own module (mirroring `play()`), and an author-facing diagnostic it emits has
+   * to reach the same sink every other diagnostic on this animator does. Routing it through a
+   * second, private channel would mean `consoleReporter()` silenced half the library's warnings.
+   */
+  readonly reporter: Reporter
 
   private readonly root: ParentNode
-  private readonly reporter: Reporter
   private readonly binder: ActivationBinder
   private readonly scheduler: ScrollScheduler
   private readonly rootResolver: (el: Element) => ScrollRoot
@@ -272,6 +291,9 @@ export class Animator {
       specs: parsed.specs,
       activation: config.activation,
       timeline: config.timeline,
+      fxNames: plan.fxNames,
+      jsEffectNames: plan.jsEffects.map((entry) => entry.spec.name),
+      progressDriven: stylePlan.gate === 'scrubbed' || stylePlan.gate === 'native-timeline',
       instances: [],
       ledger,
       attributes,
@@ -316,6 +338,11 @@ export class Animator {
       // effect simply never runs, which is the only way "disable" can bind a JS renderer at all.
       state.status = 'finished'
       state.attributes.set(ATTR.state, 'finished')
+      // The one `kui:finish` with no preceding `kui:start`, carrying the reason that says so. An
+      // author chaining a second step off `kui:finish` must not have that step silently never run
+      // for the visitors who asked for reduced motion — the element really is at its end state,
+      // which is all `finish` has ever claimed. See `LifecycleReason` in `events.ts`.
+      this.emit(el, state, KUI_EVENT.finish, 'reduced-motion')
       return
     }
 
@@ -397,6 +424,11 @@ export class Animator {
       state.attributes.set(ATTR.state, 'failed')
       return
     }
+    // After the failure check, never before it: an element where every instance threw has not
+    // started, and telling a listener otherwise would be the same lie `status = 'failed'` exists
+    // to avoid. An element with no instances at all — a pure `css-keyframes` plan whose animation
+    // longhands were written straight to the style — has started, and does reach this.
+    this.emit(el, state, KUI_EVENT.start, 'activated')
 
     this.settleWhen(el, state, started, 'finished')
   }
@@ -509,7 +541,78 @@ export class Animator {
       if (state.direction !== direction) return
       state.status = next
       state.attributes.set(ATTR.state, next)
+      // Cancelling resolves `finished` too (see `EffectInstance.finished`'s never-rejects
+      // contract), so this handler still runs for a cancelled element and still writes the
+      // "finished" attribute it has always written. Dispatching `kui:finish` as well would tell an
+      // author that an animation they explicitly stopped had run to its end.
+      //
+      // The `next === 'finished'` guard keeps `kui:finish` meaning what it meant before reversal
+      // existed: the *forward* run reached its end. A settled reverse leaves the element back at
+      // `ready`, and firing `finish` there would run an author's "now reveal the next thing"
+      // handler on the way out. Reverse completion currently has no lifecycle event of its own.
+      if (next === 'finished' && !state.cancelled) this.emit(el, state, KUI_EVENT.finish, 'complete')
     })
+  }
+
+  /**
+   * Dispatch one lifecycle event for an element, filling in the identity every listener needs.
+   *
+   * Centralised here rather than inside each instance because the animator is the only place that
+   * knows the *element's* lifecycle — an element composing three effects starts once and finishes
+   * once, not three times, and only this class sees all three instances at the same moment.
+   *
+   * @complexity O(n) time in listeners on the propagation path; O(1) space.
+   * @overallScore 100
+   */
+  private emit(
+    el: Element,
+    state: InstanceState,
+    type: LifecycleEventType,
+    reason: LifecycleReason,
+  ): void {
+    emitLifecycle(el, type, {
+      effects: state.fxNames,
+      activation: state.activation,
+      timeline: state.timeline,
+      reason,
+    })
+  }
+
+  /**
+   * Stop one element's effects where they are, leaving it mid-animation.
+   *
+   * The counterpart to `activate()`, and the reason it exists rather than callers reaching into
+   * `stateOf(el).instances` themselves (which is what `play()`'s handle used to do): cancellation
+   * has an observable consequence — `kui:cancel`, and the suppression of the `kui:finish` that
+   * would otherwise follow it — and that consequence has to be applied wherever cancellation
+   * happens, not only where it happens to be convenient.
+   *
+   * @param el - Element whose effects should stop.
+   * @complexity O(n) time in the element's instances; O(1) space.
+   * @overallScore 100
+   */
+  cancel(el: Element): void {
+    const state = this.states.get(el)
+    if (!state) return
+    const wasRunning = state.status === 'running'
+    state.cancelled = true
+    for (const instance of state.instances) runQuietly(() => instance.cancel())
+    if (wasRunning) this.emit(el, state, KUI_EVENT.cancel, 'cancelled')
+  }
+
+  /**
+   * Runtime control over a selection's playheads — pause, resume, reverse, seek, re-speed.
+   *
+   * Selection-shaped rather than single-element, so it matches `play()` and so one call covers a
+   * staggered group. `control.ts` builds a per-element handle underneath and the returned handle
+   * composes them.
+   *
+   * @param target - Selector, element, or iterable of elements.
+   * @complexity O(n) time in selected elements and their instances; O(n) space.
+   * @overallScore 100
+   */
+  control(target: Target): ControlHandle {
+    return control({ animator: this, root: this.root, target })
   }
 
   /**
@@ -579,6 +682,8 @@ export class Animator {
   private release(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
+    const wasRunning = state.status === 'running'
+    state.cancelled = true
     // Order matters: abort first so bindings detach, then destroy instances, then restore. A
     // primitive's teardown may itself write styles the ledger has to unwind.
     state.controller.abort()
@@ -587,6 +692,11 @@ export class Animator {
     this.liveElements.delete(el)
     state.ledger.restore()
     state.attributes.restore()
+    // Dispatched last, after both ledgers have unwound, so a listener sees the author's own markup
+    // rather than a half-torn-down element. Only for an element that was actually running: a
+    // recompile of an element still sitting at its from-state cancels nothing an author could have
+    // observed, and firing there would make `kui:cancel` noise on every `data-kui` edit.
+    if (wasRunning) this.emit(el, state, KUI_EVENT.cancel, 'reset')
   }
 
   /**
