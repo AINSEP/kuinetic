@@ -89,22 +89,74 @@
   }
 
   /*
-   * A `transition` settling at 180deg would leave the face permanently edge-on/hidden by
-   * `backface-visibility: hidden` for as long as `:hover` matches — a full 360deg one-shot
-   * animation instead passes through that hidden midpoint and lands back face-front, reading as a
-   * single flap-and-return rather than a button that vanishes while hovered.
+   * `transform: perspective(...) rotateX(...)`, not the individual `rotate:` property — and a
+   * flap that stops well short of edge-on. Both halves of that are fixing the same report:
+   * hovering this and holding still spun it "like crazy" instead of flapping once.
+   *
+   * The runaway is a feedback loop the old geometry could not avoid. `:hover` is what applies the
+   * animation, and the animation rotated the element out of the pointer's own hit area:
+   * `backface-visibility: hidden` stopped painting it the moment it passed 90deg, and an unpainted
+   * element is not hit-tested. At the 220ms this preset actually runs (`presets.generated.css`
+   * sets `--kui-split-flap-duration: 220ms`; the 600ms fallback below is never reached) 90deg
+   * arrives at 55ms, so `:hover` un-matched, the animation was *removed*, the element snapped
+   * flat-on under the still-stationary cursor, `:hover` matched again and the whole thing
+   * restarted — about eighteen times a second, and never once past the first quarter turn.
+   *
+   * `animation-fill-mode: forwards` cannot fix that, which is worth writing down because it is the
+   * obvious first thing to reach for: fill only applies to an animation that exists, and this one
+   * is removed outright when its selector stops matching. There is no CSS that keeps `:hover` on
+   * an element that rotates edge-on, so the fix has to be geometric.
+   *
+   * Two changes make the hit area survive the whole flip:
+   *
+   * 1. The angle caps at 32deg instead of turning a full circle. That alone is not enough — an
+   *    orthographic 32deg tip is only a vertical squash to 85% height, because the `perspective`
+   *    *property* below creates depth for this element's *children* and never for the element it
+   *    sits on. This is the same mistake `three-d.css` and `entrance.css` already document and
+   *    fix; `split-flap` was the last rule in the library still making it. Moving the angle into
+   *    `transform: perspective(...) rotateX(...)` — the one form of perspective that applies to
+   *    its own element — is what turns 32deg into a card visibly tipping in space.
+   *
+   * 2. `translateZ` lifts the card toward the viewer by exactly enough to cancel the
+   *    foreshortening. Preserving projected height needs a scale of `1 / cos(angle)`, and
+   *    perspective scale is `d / (d - z)`, so `z = d * 0.16` against `cos(32deg) = 0.848` holds
+   *    the rendered height at or just above 100% for every frame of the tween, whatever `d` is —
+   *    which is why the offset is expressed as a fraction of the perspective rather than a fixed
+   *    length. Move one of those numbers and you must move the other. The card grows about 19% in
+   *    *width* at the midpoint; that is the visible price, and it reads as the flick toward you.
+   *
+   * With the height never dropping below its resting value the pointer cannot fall off the
+   * element, `:hover` holds for the full 220ms, and it flaps once. `backface-visibility: hidden`
+   * is gone with the full rotation that needed it: nothing here ever shows a back face now.
+   *
+   * NOTE for whoever picks this up: the primitive still declares `channels: ['rotate']` in
+   * `effects/catalog/interaction.ts`. Writing `transform` makes that stale — this catalog's name
+   * for "claims the whole `transform` shorthand" is `skew` (see `three-d.css`, which changed its
+   * own primitives' channel for exactly this reason). Until that one word changes, composing
+   * `split-flap` with `scroll-skew` or a `flip-*` preset collides on `transform` without being
+   * flagged.
    */
   [data-kui-fx~='split-flap'] {
     display: inline-block;
-    perspective: 600px;
-    backface-visibility: hidden;
+    /* Not depth for this element — see above; the element's own depth comes from the
+       `perspective()` function in the keyframe. Kept because it still gives any 3D-transformed
+       content *inside* a flapping card a shared scene rather than a flattened one, the same
+       reasoning `three-d.css` records for its own perspective context, and because it is what
+       makes this element a containing block. */
+    perspective: var(--kui-split-flap-perspective, 600px);
   }
   [data-kui-fx~='split-flap']:focus-visible {
     animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out) var(--kui-split-flap-delay, 0ms);
   }
   @keyframes kui-split-flap {
-    from { rotate: x 0deg; }
-    to { rotate: x 360deg; }
+    0%,
+    100% {
+      transform: perspective(var(--kui-split-flap-perspective, 600px)) translateZ(0) rotateX(0deg);
+    }
+    50% {
+      transform: perspective(var(--kui-split-flap-perspective, 600px))
+        translateZ(calc(var(--kui-split-flap-perspective, 600px) * 0.16)) rotateX(-32deg);
+    }
   }
 
   /* --- border family --- */

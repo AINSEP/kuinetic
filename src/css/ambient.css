@@ -184,34 +184,65 @@
      * `currentColor`, not a hardcoded white: a fixed light speckle reads fine on a dark surface
      * and disappears on a light one. Inheriting the surrounding text color keeps contrast in
      * both themes, the same trick already used for `spinner`/`spinner-dots`.
+     *
+     * Two layers on coprime tiles, not one on a 5px tile — and the keyframes below re-scale them
+     * as well as re-position them. This preset was reported as "no animation there", and it was
+     * never a wiring bug: the `650ms steps(6)` its preset declares does reach the element (see
+     * `presets.generated.css`), and `--kui-fx-noise-overlay-iterations` does bind. The motion was
+     * simply below the threshold where anything reads as motion, for a reason that no amount of
+     * extra `background-position` travel could have fixed. A tiled pattern's appearance depends
+     * only on its offset *modulo* the tile, so a 5px tile can never look more than 2.5px
+     * displaced however far you pan it; at 30% alpha on a near-isotropic speckle, that ceiling is
+     * invisible. Panning a single fine repeating pattern is a no-op you can watch.
+     *
+     * So the pattern has to change, not travel. Coprime 9px/7px tiles beat against each other
+     * over 63px, which kills the visible repeat, and each keyframe lands the two layers on a
+     * different relative phase. The small `background-size` wobble is what actually re-rolls the
+     * field: scaling a tile by 4% shifts the hundredth tile across the element by four whole
+     * tiles, so every region of the element resolves differently rather than sliding as a block.
+     * The ring periods (4.1px, 3.3px) are deliberately not integer fractions of their tiles, so
+     * the tile seam cuts a ring instead of landing on one and the grain stays irregular.
      */
-    background-image: repeating-radial-gradient(
-      circle at 0 0,
-      color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 30%, transparent) 0,
-      transparent 1.4px,
-      transparent 3px
-    );
-    background-size: 5px 5px;
+    background-image:
+      repeating-radial-gradient(
+        circle at 0 0,
+        color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 40%, transparent) 0,
+        transparent 1.8px,
+        transparent 4.1px
+      ),
+      repeating-radial-gradient(
+        circle at 0 0,
+        color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, currentColor)) 26%, transparent) 0,
+        transparent 1.3px,
+        transparent 3.3px
+      );
+    background-size: 9px 9px, 7px 7px;
     --kui-fx-noise-overlay-iterations: infinite;
   }
   @keyframes kui-noise-overlay {
     0% {
-      background-position: 0 0;
+      background-position: 0 0, 0 0;
+      background-size: 9px 9px, 7px 7px;
     }
     20% {
-      background-position: -3px 1px;
+      background-position: 4px -6px, -5px 3px;
+      background-size: 9.4px 9.4px, 6.7px 6.7px;
     }
     40% {
-      background-position: 2px -2px;
+      background-position: -6px 3px, 2px -5px;
+      background-size: 8.6px 8.6px, 7.3px 7.3px;
     }
     60% {
-      background-position: -1px 3px;
+      background-position: 2px 5px, -3px -2px;
+      background-size: 9.2px 9.2px, 6.8px 6.8px;
     }
     80% {
-      background-position: 3px 2px;
+      background-position: -3px -2px, 5px 6px;
+      background-size: 8.7px 8.7px, 7.2px 7.2px;
     }
     100% {
-      background-position: 0 0;
+      background-position: 0 0, 0 0;
+      background-size: 9px 9px, 7px 7px;
     }
   }
 
@@ -278,21 +309,47 @@
   }
 
   [data-kui-fx~='starfield'] {
-    background-image: radial-gradient(1px 1px at 10% 20%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 90%, transparent), transparent),
-      radial-gradient(1px 1px at 70% 60%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 70%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 40% 80%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 85%, transparent), transparent),
-      radial-gradient(1px 1px at 90% 30%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 60%, transparent), transparent),
-      radial-gradient(1.5px 1.5px at 25% 55%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 80%, transparent), transparent);
-    background-size: 220px 220px;
+    /*
+     * Seven layers on seven different tile sizes, not five on one shared 220px tile.
+     *
+     * Three things were wrong with the old field. The dots were `1px`/`1.5px` *ending shapes*
+     * with the colour stop at position 0 and `transparent` at the edge — a gradient that is
+     * already fading at its own centre, so no pixel in it ever reached the authored alpha and a
+     * "1px star" was really a sub-pixel smudge. Every layer here now holds its colour solid to an
+     * explicit core stop before the falloff begins, which is what makes a dot read as a star with
+     * a halo rather than as dust, and the sizes step 1.5px -> 3px so the field has three distinct
+     * brightness classes instead of two nearly identical ones.
+     *
+     * Second, one shared 220px tile repeats the same five-star constellation everywhere; at any
+     * real viewport you see the same pentagon four or five times over, which is what makes a
+     * starfield read as wallpaper. Seven tiles between 170px and 290px put the composite repeat
+     * far past any screen.
+     *
+     * Third — a real bug, not a judgement call — the old keyframe panned layer 1 to `220px 90px`
+     * on a 220px tile. 90px is not a multiple of 220px, so the end state was not the start state
+     * and the whole field snapped sideways once per iteration. Every travel below is a whole
+     * number of that layer's own tile, so the loop closes invisibly. Using *different* multiples
+     * is also where the parallax comes from: all seven drift the same way (a field moves as one
+     * sky), the brighter/nearer layers simply cross more tiles in the same 40s.
+     */
+    background-image:
+      radial-gradient(1.5px 1.5px at 22% 34%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 45%, transparent) 0 0.45px, transparent 100%),
+      radial-gradient(2.6px 2.6px at 68% 12%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 92%, transparent) 0 1px, transparent 100%),
+      radial-gradient(1.6px 1.6px at 41% 77%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 50%, transparent) 0 0.5px, transparent 100%),
+      radial-gradient(1.7px 1.7px at 85% 58%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 58%, transparent) 0 0.55px, transparent 100%),
+      radial-gradient(2.2px 2.2px at 12% 88%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 78%, transparent) 0 0.8px, transparent 100%),
+      radial-gradient(3px 3px at 57% 45%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 100%, transparent) 0 1.2px, transparent 100%),
+      radial-gradient(1.9px 1.9px at 33% 63%, color-mix(in srgb, var(--kui-ambient-c1, var(--kui-c1, #ffffff)) 68%, transparent) 0 0.65px, transparent 100%);
+    background-size: 170px 170px, 190px 190px, 210px 210px, 230px 230px, 250px 250px, 270px 270px, 290px 290px;
     background-repeat: repeat;
     --kui-fx-starfield-iterations: infinite;
   }
   @keyframes kui-starfield {
     from {
-      background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+      background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
     }
     to {
-      background-position: 220px 90px, -160px 220px, 90px -140px, -220px -90px, 140px 160px;
+      background-position: 170px 170px, 380px 380px, 210px 210px, 230px 230px, 250px 250px, 540px 540px, 290px 290px;
     }
   }
 
