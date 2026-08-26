@@ -415,6 +415,25 @@ a:focus-visible {
   outline-offset: 3px;
 }
 
+/* `.btn`/`.btn-primary` — this old-system sheet's own copy of system.css's pair (same shape,
+   same --accent/--accent-ink fill, both already equal in both files). Every other demo page
+   pulls these from system.css; landing-studio.html and landing-minimal.html link this sheet
+   instead, so the component has to live here too rather than send an old-system page reaching
+   into the new one for one class. `position: relative; overflow: hidden` matches system.css —
+   safe with `data-kui="beam-border"` (landing-studio.html's CTA), since that effect paints
+   into a `::before` at `inset: 0`, not the host's own background/border. */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 6px;
+  font-size: 0.95rem; font-weight: 700;
+  text-decoration: none !important;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: var(--accent-ink); position: relative; overflow: hidden; }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, black); }
+
 /* Replay-all FAB, injected by ./replay.js on every showcase page. A class selector so it wins
    over the generic `button` rule above without needing !important. */
 .kui-replay-fab {

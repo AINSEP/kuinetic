@@ -831,7 +831,7 @@
       <hr class="rule rule-thick" style="margin-top: 1.1rem" />
 
       <div class="masthead-body" style="margin-top: clamp(1.75rem, 3.5vw, 2.75rem)">
-        <div data-kui-stagger="140ms">
+        <div data-kui="cascade:140ms">
           <p class="deck" data-kui="fade-up 1100ms expo-out on:enter">
             A CSS animation library you author in <strong>HTML attributes.</strong>
           </p>
@@ -843,7 +843,7 @@
           </p>
         </div>
 
-        <div class="figures" data-kui-stagger="120ms">
+        <div class="figures" data-kui="cascade:120ms">
           <div data-kui="fade-up 900ms expo-out on:enter">
             <b data-kui="count-up 2400ms 300ms quart-out on:enter to:255">0</b>
             <span class="cap">Named effects</span>
@@ -904,7 +904,7 @@
       </div>
 
       <div class="columns">
-        <div class="col-a" data-kui-stagger="120ms">
+        <div class="col-a" data-kui="cascade:120ms">
           <p data-kui="fade-up 1000ms expo-out on:enter">
             Every animation on this page began as a value in an HTML attribute. Not a
             configuration object, not a hook, not a timeline assembled in JavaScript and handed to
@@ -925,7 +925,7 @@
           </p>
         </div>
 
-        <div class="col-b" data-kui-stagger="120ms">
+        <div class="col-b" data-kui="cascade:120ms">
           <p data-kui="fade-up 1000ms expo-out on:enter">
             Of the two hundred and fifty-two names, roughly one hundred and sixty-eight are
             keyframes and a metadata row and nothing else. About fifty-eight need genuine
@@ -1016,7 +1016,7 @@
       </div>
 
       <div class="specimen" data-playground>
-        <div class="spec-index" role="group" aria-label="Choose a specimen" data-kui-stagger="45ms">
+        <div class="spec-index" role="group" aria-label="Choose a specimen" data-kui="cascade:45ms">
           <button type="button" class="spec-row" aria-pressed="true" data-kui="fade-up 700ms expo-out on:enter" data-fx="mask-reveal 1600ms">
             <span class="spec-num">01</span><span class="spec-name">mask-reveal</span>
           </button>
@@ -1086,7 +1086,7 @@
 
   <!-- ==========================================================================================
        THE PICTURE PAGE. A staggered wash of reveals across six unequal plates — the plainest
-       possible demonstration of `data-kui-stagger`, and the section that would be a card grid on
+       possible demonstration of `cascade:`, and the section that would be a card grid on
        any other motif.
        ========================================================================================== -->
   <section class="band-tight">
@@ -1099,7 +1099,7 @@
         </h2>
       </div>
 
-      <div class="picture-page" data-kui-stagger="180ms">
+      <div class="picture-page" data-kui="cascade:180ms">
         <figure class="p1" data-kui="fade-up 1400ms expo-out on:enter">
           <div class="frame r34">
             <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" />
@@ -1139,7 +1139,7 @@
       </div>
 
       <p class="credit" style="padding-inline: 0; margin-top: 2.5rem; max-width: 58ch">
-        One <span style="font-family: var(--mono); font-style: normal; font-size: 0.92em">data-kui-stagger="180ms"</span>
+        One <span style="font-family: var(--mono); font-style: normal; font-size: 0.92em">data-kui="cascade:180ms"</span>
         on the container. The plates carry the effect; the wrapper carries the delay between them.
       </p>
     </div>
@@ -1147,8 +1147,8 @@
 
   <!-- ==========================================================================================
        IN THIS ISSUE — the routing. Nine demonstration pages, set as a contents page rather than
-       dumped as two hundred and fifty-two tiles. The last two are marked unlisted because they
-       are: both work, and neither appears in the site navigation.
+       dumped as two hundred and fifty-two tiles. The last three are marked unlisted because they
+       are: all work, and none appears in the site navigation.
        ========================================================================================== -->
   <section id="issue" class="band">
     <div class="sheet">
@@ -1161,7 +1161,7 @@
       </div>
 
       <div class="issue">
-        <div class="contents" data-kui-stagger="70ms">
+        <div class="contents" data-kui="cascade:70ms">
           <a class="entry" href="./reveals.html" data-kui="fade-up 900ms expo-out on:enter">
             <span class="entry-folio">I</span>
             <span class="entry-thumb"><img src="./assets/modeling/modeling_09.jpg" alt="Side-profile portrait in red-toned light, red headphones and a swept-up updo" loading="lazy" /></span>
@@ -1222,6 +1222,7 @@
             <span>
               <span class="entry-title">Nav &amp; Forms</span>
               <span class="entry-deck">Eight navigation primitives and twelve form primitives, where the library owns only the motion — never the open state, and never focus handling.</span>
+              <span class="entry-note">Unlisted in the site navigation</span>
             </span>
           </a>
 
@@ -1296,7 +1297,7 @@
       </div>
 
       <div class="colophon-body">
-        <dl data-kui-stagger="90ms">
+        <dl data-kui="cascade:90ms">
           <dt data-kui="fade-up 900ms expo-out on:enter">Installation</dt>
           <dd>Two files. No build step, no bundler configuration. A CDN pair or an
               <code>import</code> from a bundler both work unchanged.</dd>

@@ -650,7 +650,7 @@ figure .kui-show-code-toggle {
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html"
         >
           CSS Animations
         </button>
@@ -661,7 +661,6 @@ figure .kui-show-code-toggle {
           <a href="./text.html" data-nav-link="text.html">Text</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="js-animations">
@@ -767,7 +766,7 @@ figure .kui-show-code-toggle {
         <div class="pillars-head">
           <h2 data-kui="fade-up on:enter">Three things it actually does</h2>
         </div>
-        <div class="pillars" data-kui-stagger="100ms">
+        <div class="pillars" data-kui="cascade:100ms">
           <div class="pillar" data-kui="fade-right 500ms on:enter" data-show-code>
             <div class="pillar-swatch" data-kui="tilt-3d maxAngle:24 perspective:500px">tilt-3d</div>
             <h3>CSS-native</h3>
@@ -796,7 +795,7 @@ figure .kui-show-code-toggle {
               own — nothing here waits for a hover.</p>
           </div>
         </div>
-        <div class="gallery" data-kui-stagger="80ms">
+        <div class="gallery" data-kui="cascade:80ms">
           <div class="g-card g-wide g-parallax" data-kui="fade-up 500ms on:enter">
             <img src="./assets/product/red_headphones.jpg" alt="Red Sony over-ear headphones floating against a red-to-blue gradient backdrop" data-kui="parallax-y distance:120px timeline:view" />
             <span class="g-tag">parallax-y</span>
@@ -820,7 +819,7 @@ figure .kui-show-code-toggle {
             <p class="num-note" data-kui="blur-in 600ms, scramble 1500ms 600ms">from 30 primitives across 15 catalog categories — entrance, scroll mechanics, 3D, text, forms, navigation, gestures, and more.</p>
           </div>
         </div>
-        <div class="catalog-demos" data-kui-stagger="100ms" aria-label="Three effects from the catalog, playing as each card scrolls into view">
+        <div class="catalog-demos" data-kui="cascade:100ms" aria-label="Three effects from the catalog, playing as each card scrolls into view">
           <div class="catalog-demo" data-kui="fade-right 500ms on:enter" data-show-code>
             <p class="catalog-demo-kicker">Text</p>
             <div class="catalog-demo-preview">

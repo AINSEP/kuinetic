@@ -187,7 +187,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html"
         >
           CSS Animations
         </button>
@@ -198,7 +198,6 @@
           <a href="./text.html" data-nav-link="text.html">Text</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -317,7 +316,7 @@
             default <code>length:100</code> exact without measuring anything in JS — the library
             never calls <code>getTotalLength()</code>.
           </p>
-          <div class="demo-grid" data-kui-stagger="80ms">
+          <div class="demo-grid" data-kui="cascade:80ms">
             <div class="demo-card" data-show-code>
               <div class="draw-stage">
                 <svg viewBox="0 0 100 60" fill="none" aria-hidden="true">
@@ -393,7 +392,7 @@
             <a href="./data-hover.html">data-hover.html</a>: an outline copy behind, a filled copy
             in front, and <code>clip-path</code> reveals the filled one.
           </p>
-          <div class="demo-grid" data-kui-stagger="100ms">
+          <div class="demo-grid" data-kui="cascade:100ms">
             <div class="demo-card" data-show-code>
               <div class="fill-stage">
                 <svg viewBox="0 0 64 60" aria-hidden="true">
@@ -432,10 +431,10 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Logo build — 1</p>
-          <p class="note">Goes on the parts, with <code>data-kui-stagger</code> on their wrapper — that stagger is what makes it a build rather than one more scale-in.</p>
+          <p class="note">Goes on the parts, with <code>cascade:</code> on their wrapper — that stagger is what makes it a build rather than one more scale-in.</p>
           <div class="demo-grid">
             <div class="demo-card" data-show-code>
-              <div class="logo-stage" data-kui-stagger="110ms">
+              <div class="logo-stage" data-kui="cascade:110ms">
                 <span class="logo-part logo-part-a" data-kui="logo-build on:enter" aria-hidden="true"></span>
                 <span class="logo-part logo-part-b" data-kui="logo-build on:enter" aria-hidden="true"></span>
                 <span class="logo-part logo-part-c" data-kui="logo-build on:enter" aria-hidden="true"></span>
@@ -569,7 +568,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Simulated with the replay button — 3</p>
-          <div class="demo-grid" data-kui-stagger="100ms">
+          <div class="demo-grid" data-kui="cascade:100ms">
             <div class="demo-card" data-show-code>
               <div class="transition-window">
                 <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>

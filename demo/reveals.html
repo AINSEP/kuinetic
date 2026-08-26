@@ -107,7 +107,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html"
         >
           CSS Animations
         </button>
@@ -118,7 +118,6 @@
           <a href="./text.html" data-nav-link="text.html">Text</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -191,7 +190,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Fade — 5</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="fade-in 2000ms" data-show-code>
               <img src="./assets/modeling/modeling_09.jpg" alt="Side-profile portrait in red-toned light, red headphones and a swept-up updo" loading="lazy" />
               <figcaption>data-kui="fade-in 2000ms"</figcaption>
@@ -220,7 +219,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Slide — 4</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="slide-up distance:480px" data-show-code>
               <img src="./assets/modeling/modeling_20.jpg" alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting" loading="lazy" />
               <figcaption>data-kui="slide-up distance:480px"</figcaption>
@@ -242,7 +241,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Logical (RTL-aware) — 4</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="slide-inline-start distance:480px" data-show-code>
               <img src="./assets/yellow_mc.jpg" alt="Editorial fashion portrait in monochrome mustard-gold, oversized coat" loading="lazy" />
               <figcaption>data-kui="slide-inline-start distance:480px"</figcaption>
@@ -264,7 +263,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Zoom — 4</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="zoom-in scale:0.05" data-show-code>
               <img src="./assets/modeling/modeling_12.jpg" alt="Bold black and yellow face paint with cat-eye glasses, red lips" loading="lazy" />
               <figcaption>data-kui="zoom-in scale:0.05"</figcaption>
@@ -286,7 +285,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Flip — 2</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="flip-in-x" data-show-code>
               <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" />
               <figcaption>data-kui="flip-in-x"</figcaption>
@@ -300,7 +299,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Rotate — 5</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="rotate-in" data-show-code>
               <img src="./assets/modeling/silver-glitter.jpg" alt="Beauty portrait in a rhinestone-mesh hood and matching bodysuit, bold red lips" loading="lazy" />
               <figcaption>data-kui="rotate-in"</figcaption>
@@ -326,7 +325,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Blur — 1</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="blur-in 2000ms" data-show-code>
               <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
               <figcaption>data-kui="blur-in 2000ms"</figcaption>
@@ -336,7 +335,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Combo presets — 2</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="fade-blur-up 2000ms" data-show-code>
               <img src="./assets/modeling/modeling_13.jpg" alt="Side profile portrait in yellow duotone, checkered turtleneck sweater" loading="lazy" />
               <figcaption>data-kui="fade-blur-up 2000ms"</figcaption>
@@ -350,7 +349,7 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Character easing — 5</p>
-          <div class="demo-grid" data-kui-stagger="90ms">
+          <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card" data-kui="bounce-in 1500ms" data-show-code>
               <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" loading="lazy" />
               <figcaption>data-kui="bounce-in 1500ms"</figcaption>
@@ -381,7 +380,7 @@
           <h2 data-kui="fade-up on:enter">Composition</h2>
           <p data-kui="fade-up 700ms, blur-in 500ms">Two or three effects in one attribute. They compile into a single declaration with parallel value lists, and are only allowed when the CSS channels they own are disjoint.</p>
         </div>
-        <div class="demo-grid" data-kui-stagger="90ms">
+        <div class="demo-grid" data-kui="cascade:90ms">
           <figure class="demo-card" data-kui="slide-up 900ms, blur-in 600ms delay:1800ms" data-show-code>
             <img src="./assets/modeling/modeling_10.jpg" alt="Portrait dripping in glossy pink paint, eyes closed, dramatic pink backdrop" loading="lazy" />
             <figcaption>slide-up 900ms, blur-in 600ms delay:1800ms — blur waits a full beat after the slide finishes</figcaption>
@@ -403,7 +402,7 @@
           <h2 data-kui="fade-up on:enter">Parameters</h2>
           <p data-kui="fade-up 700ms distance:100px">Any parameter the primitive declares can be tuned inline, and is validated before it ever reaches CSS.</p>
         </div>
-        <div class="demo-grid" data-kui-stagger="90ms">
+        <div class="demo-grid" data-kui="cascade:90ms">
           <figure class="demo-card" data-kui="fade-up 800ms distance:140px" data-show-code>
             <img src="./assets/modeling/modeling_03.jpg" alt="Portrait lit entirely in gold, tinted round sunglasses and a black turtleneck" loading="lazy" />
             <figcaption>distance:140px</figcaption>
@@ -436,7 +435,7 @@
           <h2 data-kui="fade-up on:enter">Triggers</h2>
           <p data-kui="zoom-in 600ms on:load">Effects don't have to fire on enter — hover, click, and load are first-class triggers too.</p>
         </div>
-        <div class="demo-grid" data-kui-stagger="90ms">
+        <div class="demo-grid" data-kui="cascade:90ms">
           <figure class="demo-card" data-kui="zoom-in 400ms on:hover" data-show-code>
             <img src="./assets/modeling/modeling_19.jpg" alt="Side profile portrait lit entirely in green, curly hair and bare shoulder" loading="lazy" />
             <figcaption>on:hover — point at me</figcaption>

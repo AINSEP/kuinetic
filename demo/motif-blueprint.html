@@ -888,11 +888,12 @@
         where every part of it lives in the source.
       </p>
 
-      <!-- `data-kui-stagger` indexes DIRECT children that themselves carry `data-kui` (see
-           src/core/stagger.ts) — so the cell, not the number inside it, has to be the animated
-           child for the stagger to be real. The cells wash in one after another; each one's
+      <!-- `cascade:` (inside `data-kui`) indexes DIRECT children that themselves carry `data-kui`
+           (see src/core/stagger.ts) — so the cell, not the number inside it, has to be the
+           animated child for the stagger to be real. The cells wash in one after another; each
+           one's
            counter runs on its own. -->
-      <div class="titleblock" data-kui-stagger="70ms">
+      <div class="titleblock" data-kui="cascade:70ms">
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Effects</span><span class="tb-v" data-kui="count-up 1200ms to:255">0</span></div>
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">Primitives</span><span class="tb-v" data-kui="count-up 1200ms to:31">0</span></div>
         <div class="tb" data-kui="fade-up 420ms 0ms steps(5,end)"><span class="tb-k">CSS-only</span><span class="tb-v" data-kui="count-up 1200ms to:168">0</span></div>
@@ -1123,7 +1124,7 @@ animation-fill-mode: both;</code></pre>
         <code>draw-stroke</code>, the library's own SVG primitive.
       </p>
 
-      <div class="profiles" data-kui-stagger="180ms">
+      <div class="profiles" data-kui="cascade:180ms">
 
         <figure class="profile frame" data-kui="fade-up 460ms 0ms steps(6,end)">
           <p class="ref">Ref. C-1 <span class="src">keyword</span></p>
@@ -1324,7 +1325,7 @@ animation-range: <span class="a">entry 0% cover 60%</span>;</code></pre>
         running, with the attribute that produced it printed alongside.
       </p>
 
-      <nav class="index" aria-label="Demo sheets" data-kui-stagger="45ms">
+      <nav class="index" aria-label="Demo sheets" data-kui="cascade:45ms">
 
         <a class="idx" href="./reveals.html" data-kui="fade-up 400ms 0ms steps(5,end)">
           <span class="idx-no">SHT. 02</span>
@@ -1370,7 +1371,7 @@ animation-range: <span class="a">entry 0% cover 60%</span>;</code></pre>
 
         <a class="idx" href="./nav-forms.html" data-kui="fade-up 400ms 0ms steps(5,end)">
           <span class="idx-no">SHT. 08</span>
-          <span class="idx-title">Nav &amp; Forms</span>
+          <span class="idx-title">Nav &amp; Forms <span class="hid">[UNLISTED]</span></span>
           <span class="idx-desc">Sections M and O — 8 navigation names and 12 form names. The library owns the motion only; never the open/close state, never focus handling.</span>
           <span class="idx-arrow" aria-hidden="true">→</span>
         </a>
@@ -1393,7 +1394,7 @@ animation-range: <span class="a">entry 0% cover 60%</span>;</code></pre>
 
       <p class="note" style="margin-top:1rem">
         <span class="tag b">Note</span>
-        The two sheets marked <b>UNLISTED</b> work but are not in the site's own navigation.
+        The three sheets marked <b>UNLISTED</b> work but are not in the site's own navigation.
         They are on the index because a drawing set does not hide sheets.
       </p>
     </section>

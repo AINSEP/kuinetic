@@ -1184,7 +1184,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html,nav-forms.html"
+          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html"
         >
           CSS Animations
         </button>
@@ -1195,7 +1195,6 @@
           <a href="./text.html" data-nav-link="text.html">Text</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
           <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-          <a href="./nav-forms.html" data-nav-link="nav-forms.html">Nav &amp; Forms</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -1214,7 +1213,7 @@
         </div>
       </div>
     </nav>
-    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;" data-kui="lift-shadow">Get started</a>
+    <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
     <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
       <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
     </button>
@@ -1356,7 +1355,7 @@
         <div class="play-grid">
           <div>
             <h2 data-kui="text-reveal-mask 700ms on:enter stagger:320ms">Click the attribute. Watch it change.</h2>
-            <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui-stagger="45ms">
+            <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui="cascade:45ms">
               <!-- `wipe-circle` leads: it is the one that reads instantly at this size and it is
                    not on reveals.html, so the first thing you see here is something you have not
                    already seen. The eight after `fold-panel` are the names the rest of the
@@ -1649,7 +1648,7 @@
           <h2 data-kui="fade-up on:enter">A slice of every category</h2>
         </div>
 
-        <div class="slices" data-kui-stagger="60ms">
+        <div class="slices" data-kui="cascade:60ms">
 
           <a class="slice" href="./reveals.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media">
