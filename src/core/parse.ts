@@ -1,4 +1,4 @@
-import { validateActivation } from './activation-vocabulary.js'
+import { validateActivation } from './activation.js'
 import type { EffectSpec, ParsedValue } from './types.js'
 
 /**

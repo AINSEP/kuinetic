@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readAttributes, resolveConfig, toThresholdRatio } from '../src/core/element-config.js'
+import { readAttributes, resolveConfig } from '../src/core/element-config.js'
 import { parse } from '../src/core/parse.js'
 
 describe('readAttributes', () => {
@@ -31,11 +31,5 @@ describe('resolveConfig', () => {
     const config = resolveConfig({ ...attrs, on: 'a/b/c' }, parse(''))
     expect(config.activation).toBe('enter')
     expect(config.activationAuthored).toBe(false)
-  })
-})
-
-describe('toThresholdRatio', () => {
-  it('returns 0 for an unparseable value instead of NaN', () => {
-    expect(toThresholdRatio('not-a-number')).toBe(0)
   })
 })

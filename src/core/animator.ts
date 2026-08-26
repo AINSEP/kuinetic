@@ -1,7 +1,10 @@
-import { createActivationBinder } from './activation.js'
+import {
+  createActivationBinder,
+  isOneShot,
+  resolveActivationSpec,
+  warnAboutActivation,
+} from './activation.js'
 import type { ActivationBinder } from './activation.js'
-import { warnAboutActivation } from './activation-diagnostics.js'
-import { isOneShot, resolveActivationSpec } from './activation-vocabulary.js'
 import { ATTR } from './attrs.js'
 import { detect } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
@@ -232,7 +235,7 @@ export class Animator {
    *
    * Declared capability metadata was previously never checked anywhere, which made
    * `supportedActivations` documentation rather than a contract. The checks themselves live in
-   * `activation-diagnostics.ts` — they grew a good deal when the activation list opened, and they
+   * `activation.ts`'s diagnostics half — they grew a good deal when the list opened, and they
    * decide nothing, so keeping them here would have made this class the place where "which
    * activation" and "is that a real event" were the same paragraph.
    *
@@ -344,7 +347,7 @@ export class Animator {
     // whichever path takes it. A toggle activation must NOT be recorded: releasing a `hover` or
     // `click` binding on first use is exactly what would stop a card flip flipping back — and
     // neither must a *paired* observed activation, because `enter/leave` has to keep observing to
-    // ever deliver its exit. `isOneShot` is that distinction; see `activation-vocabulary.ts`.
+    // ever deliver its exit. `isOneShot` is that distinction; see `activation.ts`.
     if (isOneShot(resolveActivationSpec(stylePlan.activation!))) {
       state.releaseActivation = releaseOnce
     }

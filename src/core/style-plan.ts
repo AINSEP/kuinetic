@@ -1,4 +1,4 @@
-import { startKindOf } from './activation-vocabulary.js'
+import { startKindOf } from './activation.js'
 import { ATTR } from './attrs.js'
 import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'

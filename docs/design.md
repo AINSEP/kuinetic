@@ -217,7 +217,7 @@ Contract:
   `load`, `enter`, `leave`, `hover`, `unhover`, `focus`, `blur`, `click` and `manual`, and any
   other value is passed straight to `addEventListener` — `on:input`, `on:submit`,
   `on:pointerleave`, `on:cart:updated`. A `start/end` pair (`on:pointerenter/pointerleave`) plays
-  the effect forward on the first and backwards on the second. See `core/activation-vocabulary.ts`.
+  the effect forward on the first and backwards on the second. See `core/activation.ts`.
 - `timeline:` uses native CSS timelines when available.
 - Non-native fallback for `timeline:` either samples via the shared scheduler, or degrades to a
   **documented non-scrub reveal**. Same *degradation*, never "same behavior".
