@@ -273,6 +273,61 @@ library should own it. Never call something "not the library's job" without grep
       cover with overlay text.
 
 
+## GSAP parity — what's left after the overnight run
+
+Written 2026-08-26, after measuring kUInetic against GSAP 3.15 plugin by plugin. Six tasks (A–F)
+were queued as overnight cloud agents and are specified in
+`docs/implementation-outline-gsap-parity.md`; these are what remains once those land, ranked by how
+often an author would actually hit them.
+
+- [ ] **Responsive / breakpoint variants — the biggest remaining gap.** There is no way to say
+      "fade-up on desktop, nothing on mobile." `matchMedia` appears exactly once in the whole
+      source (`src/core/capabilities.ts:44`) and only for `prefers-reduced-motion`. GSAP's
+      equivalent is `gsap.matchMedia()`, which also handles teardown when a breakpoint changes.
+      Settle the design question first: an attribute (`data-kui-md=`, i.e. more attributes, which
+      the owner has asked to avoid) or a parameter inside the existing `data-kui` — probably the
+      latter, given the `target:`/`at:` precedent. Best done after E and C land so it can borrow
+      whatever syntax they settled on.
+
+- [ ] **Cross-element triggering.** "When the form submits, animate the badge." The element that
+      fires the event is not the element that animates, so an attribute on the animating element
+      cannot express it on its own. Explicitly ruled out of scope for task E (§7.5 of the
+      outline), which was asked to leave a clean seam for it. Needs a selector-valued parameter —
+      follow the `target:` convention. Read E's PR for where it left the seam.
+
+- [ ] **Stagger ordering.** `src/core/stagger.ts` assigns a linear index and nothing else. GSAP's
+      stagger takes `from: "center" | "edges" | "random" | <index>`. Cheap: the arithmetic already
+      lives in CSS `calc()` off `--kui-i` and `--kui-stagger-count`, so this is mostly a matter of
+      computing a different index. Read the `--kui-i` leak comment in that file before starting.
+
+- [ ] **Universal `repeat:` / yoyo.** `loop` and `direction` exist as parameters on *some*
+      primitives; there is no universal repeat. `compile.ts:294` already writes
+      `animation-iteration-count` per track off `--kui-fx-<preset>-iterations`, so the plumbing
+      exists — what's missing is an author-facing knob plus a decision on whether it belongs on
+      every primitive or only where looping is meaningful. That overlaps task F's one-shot vs
+      continuous classification; read F's PR table first.
+
+- [ ] **Arbitrary scroll ranges.** ScrollTrigger takes `start: "top 80%"`, `end: "bottom 20%"`.
+      kUInetic ships named scroll effects instead, with no free-form range. Needs a spelling for a
+      range pair and a mapping onto `animation-range`. Check what task C concluded about `at:`
+      under a scroll timeline (§9.4) before designing.
+
+- [ ] **`data-kui="func:nameOfFunc"` — decide after task A lands, not before.** Owner asked for it
+      2026-08-26. Task A ships lifecycle `CustomEvent`s, which cover the same need better:
+      `addEventListener('kui:complete', fn)` works with bundlers and ES modules, allows several
+      listeners, and needs no global. `func:` requires a `window[name]` lookup — the `onclick=""`
+      pattern the platform spent fifteen years walking away from — and becomes "call any function
+      by name" if that value ever originates in a CMS field. Not a refusal: look at A's actual
+      event names first, then decide whether `func:` still earns its place as sugar for no-build
+      sites, which are a real part of this library's audience.
+
+- [ ] **Canvas / WebGL — deliberately NOT doing this.** Recorded so it stops getting re-litigated.
+      The entire model is attributes on elements, and canvas has no elements to carry them. If it
+      is ever wanted it belongs in a separate opt-in plugin, the way GSAP keeps `PixiPlugin`
+      (2.9KB gz) and `EaselPlugin` (2.2KB gz) out of core — never in the main bundle.
+
+---
+
 ## Tier 3 — parked, low priority
 
 Owner parked these on 2026-08-23: "not interested in spending time on it right now."
