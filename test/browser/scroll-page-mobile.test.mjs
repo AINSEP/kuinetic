@@ -5,18 +5,29 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  * `demo/scroll.html` at a real phone viewport.
  *
  * Unlike every other suite here this one drives the shipped demo page rather than a fixture,
- * because the thing being gated is a property of that page's own CSS and it has already regressed
- * once. `ce7a87a` fixed a genuine mobile overlap — three sticky sidebars riding down over the
- * content beside them in a single column — by writing `position: static !important` over the
- * `position: sticky` that `data-kui="pin-until"` sets inline. That is the right call for the two
+ * because the thing being gated is a property of that page's own markup and it has already
+ * regressed once. `ce7a87a` fixed a genuine mobile overlap — three sticky sidebars riding down over
+ * the content beside them in a single column — by writing `position: static !important` over the
+ * `position: sticky` that `data-kui="pin-until"` sets inline. That was the right call for the two
  * sidebar pins (see the comments on `.showcase-media` and `.pin-until-aside`: `pin-until` is the
  * sticky-*sidebar* pattern and there is no sidebar in one column), but the same stroke applied one
  * selector wider would take the page's other nine pins with it, and nothing would have failed.
  *
- * So this suite fixes both halves in place:
+ * `4f18816` offered a better fix for one of the two: `above:lg` on `.pin-until-aside`'s own
+ * `data-kui` attribute, so `preparePin` never calls `installSticky` below the gate and there is
+ * nothing for a page-level override to beat. `lg` (1024px) is the nearest name on the gate's
+ * closed five-name scale that is never inside its one-column band (800px), so it sits idle-with-
+ * room from 800px up to 1024px rather than pinning a moment too early. `.showcase-media` was tried
+ * the same way and is not gated after all — see `SIDEBAR_PINS` below for why, and its own comment
+ * in `demo/scroll.html` for the full account; it keeps the `ce7a87a` CSS override. This suite locks
+ * in both: the gate on one sidebar, at its boundary and across a live resize, and the CSS override
+ * still holding the other.
+ *
+ * So this suite fixes/locks three things in place:
  *   - the nine full-width pins still pin on a phone,
- *   - the two sidebar pins are deliberately static there, do not overlap the content they used to
- *     cover, and still publish progress so `timeline:pin` effects keep running,
+ *   - the two sidebar pins are kept off in one column — one by never asking for sticky at all, one
+ *     by an overridden ask — do not overlap the content they used to cover, and still publish
+ *     progress so `timeline:pin` effects keep running,
  *   - and all of it still pins on a desktop viewport, so "fix mobile" cannot quietly mean
  *     "unpin everything".
  *
@@ -36,12 +47,40 @@ const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch:
 const SMALL_PHONE = { viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }
 const WIDE_PHONE = { viewport: { width: 430, height: 932 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }
 const DESKTOP = { viewport: { width: 1280, height: 800 } }
+// Inside `.pin-until-aside`'s own two-column layout breakpoint (800px) but below the `above:lg`
+// gate (1024px) that switches its pin — the band the gate trades away. `.showcase-media` is not
+// tested at this width: it does not use the gate (see SIDEBAR_PINS below), so it has no boundary
+// here to lock in.
+const TABLET = { viewport: { width: 1000, height: 900 } }
+// Exactly `lg` (`min-width: 64rem`) — where the gate opens.
+const GATE_EDGE = { viewport: { width: 1024, height: 900 } }
 
-/** The two `pin-until` sidebars, and the breakpoint each one's own layout collapses at. */
+/**
+ * The two `pin-until` sidebars, and how each one is kept off below its own two-column layout
+ * breakpoint.
+ *
+ * Not the same mechanism, and deliberately so. `above:lg` on `.pin-until-aside`'s own `data-kui`
+ * (`4f18816`) is a real fix — proven below at the gate boundary and by live resize — because that
+ * subtree has no `timeline:pin` child depending on `--kui-progress`, so gating the whole
+ * `pin-until` instance off costs nothing. `.showcase-media` was tried the same way first and
+ * reverted: its video's `parallax-scale timeline:pin` went dead the moment the gate suppressed the
+ * effect, because `applyViewportGates` (`core/animator.ts`) gates a JS-rendered primitive as one
+ * unit — there is no way to keep `trackProgress` running while refusing only `installSticky`. It
+ * still uses the `ce7a87a` CSS `!important` override, which vetoes the position only.
+ */
 const SIDEBAR_PINS = [
-  { selector: '.showcase-media', twoColumnFrom: 900, beside: '.showcase-copy' },
-  { selector: '.pin-until-aside', twoColumnFrom: 800, beside: '.pin-until-content' },
+  { selector: '.showcase-media', twoColumnFrom: 900, mechanism: 'css-override', beside: '.showcase-copy' },
+  { selector: '.pin-until-aside', twoColumnFrom: 800, mechanism: 'gate', gateFrom: 1024, beside: '.pin-until-content' },
 ]
+
+/** Whether a CSS grid container has resolved to more than one column track. */
+async function isTwoColumn(page, gridSelector) {
+  return page.evaluate(
+    (selector) =>
+      getComputedStyle(document.querySelector(selector)).gridTemplateColumns.trim().split(/\s+/).length > 1,
+    gridSelector,
+  )
+}
 
 /** `margin: 0.85rem` on a 16px root. The corner inset every control in a card shares. */
 const CORNER_INSET = 13.6
@@ -76,7 +115,13 @@ async function openPage(browser, contextOptions) {
  *
  * `installSticky` writes `position: sticky` inline, so `el.style.position === 'sticky'` is the ask
  * and `getComputedStyle(el).position` is the answer. A page rule that overrides the ask shows up
- * here as the two disagreeing, which is exactly the state this suite is here to keep deliberate.
+ * here as the two disagreeing — the state `ce7a87a` used to produce and this suite still watches
+ * for, since a page-level CSS override remains a legal (if now unused) way to refuse a pin. An
+ * `above:`/`below:` gate is a different, cleaner kind of "no": the primitive never calls
+ * `installSticky` outside its own gate, so `asked` is false and `data-kui-pinned` is absent rather
+ * than `"false"` — `preparePin` only ever sets that attribute from inside the same callback that
+ * calls `installSticky`. `pinned` is `null` when the attribute was never written at all, which is
+ * how a gate-refused pin is told apart from one CSS merely overrode.
  */
 function readPins(page) {
   return page.evaluate(() =>
@@ -87,6 +132,7 @@ function readPins(page) {
         label: el.id || el.className.toString().split(/\s+/)[0] || el.tagName,
         asked: el.style.position === 'sticky',
         resolved: getComputedStyle(el).position,
+        pinned: el.getAttribute('data-kui-pinned'),
       })),
   )
 }
@@ -205,11 +251,19 @@ export async function run({ browser, ARTIFACT_DIR }) {
 
     for (const pin of SIDEBAR_PINS) {
       const row = pins.find((entry) => entry.label === pin.selector.slice(1))
-      check(
-        `${pin.selector} is deliberately stacked below its ${pin.twoColumnFrom}px two-column breakpoint`,
-        row !== undefined && row.asked && row.resolved === 'static',
-        row ? `asked=${row.asked ? 'sticky' : 'none'}, resolved=${row.resolved}` : 'element not found',
-      )
+      if (pin.mechanism === 'gate') {
+        check(
+          `${pin.selector} never asks for sticky below its ${pin.gateFrom}px gate, at 390px`,
+          row !== undefined && !row.asked && row.resolved === 'static' && row.pinned === null,
+          row ? `asked=${row.asked ? 'sticky' : 'none'}, resolved=${row.resolved}, pinned=${row.pinned}` : 'element not found',
+        )
+      } else {
+        check(
+          `${pin.selector} is deliberately stacked below its ${pin.twoColumnFrom}px two-column breakpoint`,
+          row !== undefined && row.asked && row.resolved === 'static',
+          row ? `asked=${row.asked ? 'sticky' : 'none'}, resolved=${row.resolved}` : 'element not found',
+        )
+      }
     }
 
     // The overlap that `ce7a87a` was reacting to. Whatever replaces the current rule has to keep
@@ -253,6 +307,88 @@ export async function run({ browser, ARTIFACT_DIR }) {
       `parallax-scale over the section: ${scales.map((value) => value.toFixed(4)).join(' -> ')}`,
     )
 
+    await context.close()
+  }
+
+  // ---------------------------------------------------------------- gate boundary: idle with room to spare
+  {
+    const { context, page } = await openPage(browser, TABLET)
+
+    const showcaseTwoCol = await isTwoColumn(page, '.showcase-grid')
+    const asideTwoCol = await isTwoColumn(page, '.pin-until-layout')
+    check(
+      "both sidebars' own two-column layouts are already active at 1000px",
+      showcaseTwoCol && asideTwoCol,
+      `showcase-grid two-column=${showcaseTwoCol}, pin-until-layout two-column=${asideTwoCol}`,
+    )
+
+    // The trade `above:lg` makes, stated as a check rather than only as a comment: the gated
+    // sidebar is still idle here even though its own layout already has room to hold against,
+    // because the gate's closed scale has no name between its layout breakpoint (800px) and `lg`
+    // (1024px). Idle-with-room, not held-too-early, is the whole point of picking `lg` over `md`.
+    // Only the gated sidebar is checked here — `.showcase-media` does not use the gate (see
+    // `SIDEBAR_PINS`) and is already covered by the 390px and 1280px checks above/below.
+    const gatedPins = SIDEBAR_PINS.filter((pin) => pin.mechanism === 'gate')
+    const pins = await readPins(page)
+    for (const pin of gatedPins) {
+      const row = pins.find((entry) => entry.label === pin.selector.slice(1))
+      check(
+        `${pin.selector} still declines sticky at 1000px, though its own layout already has room`,
+        row !== undefined && !row.asked && row.resolved === 'static' && row.pinned === null,
+        row ? `asked=${row.asked ? 'sticky' : 'none'}, resolved=${row.resolved}, pinned=${row.pinned}` : 'element not found',
+      )
+    }
+    await snap(page, 'tablet-1000-idle-with-room')
+    await context.close()
+  }
+
+  // ---------------------------------------------------------------- gate boundary: engages at lg (1024px)
+  {
+    const { context, page } = await openPage(browser, GATE_EDGE)
+    const pins = await readPins(page)
+    for (const pin of SIDEBAR_PINS.filter((p) => p.mechanism === 'gate')) {
+      const row = pins.find((entry) => entry.label === pin.selector.slice(1))
+      check(
+        `${pin.selector} asks for sticky again at exactly its ${pin.gateFrom}px gate`,
+        row !== undefined && row.asked && row.resolved === 'sticky',
+        row ? `asked=${row.asked ? 'sticky' : 'none'}, resolved=${row.resolved}` : 'element not found',
+      )
+    }
+    await context.close()
+  }
+
+  // ---------------------------------------------------------------- gate boundary: live resize, no reload
+  {
+    // The gate's `MediaQueryList` listener (`createGateWatcher`), not just the install-time read.
+    // A reader never reloads on resize, so a gate that only worked at load would be a gate that
+    // silently stopped working the moment a window changed size — the one failure mode a purely
+    // static repro (open once at each width) cannot see.
+    const { context, page } = await openPage(browser, TABLET)
+
+    await page.setViewportSize({ width: 1100, height: 900 })
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    await page.waitForTimeout(150)
+    const afterUp = await readPins(page)
+
+    await page.setViewportSize({ width: 1000, height: 900 })
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)))
+    await page.waitForTimeout(150)
+    const afterDown = await readPins(page)
+
+    for (const pin of SIDEBAR_PINS.filter((p) => p.mechanism === 'gate')) {
+      const up = afterUp.find((entry) => entry.label === pin.selector.slice(1))
+      const down = afterDown.find((entry) => entry.label === pin.selector.slice(1))
+      check(
+        `${pin.selector} engages on a live resize across 1024px, with no reload`,
+        up !== undefined && up.asked && up.resolved === 'sticky',
+        up ? `asked=${up.asked ? 'sticky' : 'none'}, resolved=${up.resolved}` : 'element not found',
+      )
+      check(
+        `${pin.selector} disengages again on a live resize back down, with no reload`,
+        down !== undefined && !down.asked && down.resolved === 'static',
+        down ? `asked=${down.asked ? 'sticky' : 'none'}, resolved=${down.resolved}` : 'element not found',
+      )
+    }
     await context.close()
   }
 

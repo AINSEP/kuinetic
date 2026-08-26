@@ -93,8 +93,20 @@
      it. That is the CSS escape hatch doing its job, but it is also the seam: the library has no way
      to say "pin only where there is room", and every author of a sticky sidebar will land here.
 
-     The figcaption says the same thing in prose, because a caption that claims a pin is running
-     while nothing is held is the part that reads as broken. */
+     `4f18816` landed `above:`/`below:` viewport gates on the `data-kui` attribute itself
+     (`core/breakpoints.ts`), which looked like exactly this knob — and for `.pin-until-aside`
+     below, it is (see that comment). It is not one for this figure, and that was proven in a real
+     browser rather than assumed: `applyViewportGates` (`core/animator.ts`) gates the whole
+     JS-rendered `pin-until` instance as one unit, because `preparePin` does both its jobs —
+     `installSticky` and the `trackProgress` call that publishes `--kui-progress` — from inside one
+     `prepare()`. Adding `above:lg` here does refuse the hold below 1024px, exactly as intended, but
+     it takes the progress publish with it, and `parallax-scale timeline:pin` on the video inside
+     this frame goes dead — measured at 390px with the gate applied: scale pinned at 1.0000 across
+     the whole section instead of scaling 1 -> 1.06. That is precisely the regression the comment
+     two paragraphs up says removing `data-kui` would cause, arrived at by a different door. The
+     gate has no way to switch off only the hold and leave the progress publish running, so the
+     `!important` override stays here — a real, current limit of the gate, not a design decision
+     this page is choosing not to take advantage of. */
   @media (max-width: 899.98px) {
     .showcase-media {
       position: static !important;
@@ -712,14 +724,23 @@
     align-self: start; padding: 1.65rem; border-radius: 14px; border: 1px solid var(--border);
     background: var(--surface); box-shadow: var(--shadow-float);
   }
-  /* The same deliberate decision as `.showcase-media` above — see that comment for the whole
-     argument — gated to this layout's own 800px breakpoint rather than the showcase's 900px.
-     `pin-until` is the sticky-sidebar pattern; in one column there is nothing beside this aside to
-     hold against, so pinning it does not keep the panel next to its itinerary, it puts the panel on
-     top of it. Measured before this rule: pinned at 6rem, covering 239px of
-     `.pin-until-content`'s screenshots for the whole section. Below 800px the layout stacks — panel
-     first, then the three stops it names, in reading order — and the aside's own prose says so, so
-     the reader is not told a pin is holding while nothing holds.
+  /* The same argument as `.showcase-media` above — `pin-until` is the sticky-sidebar pattern; in
+     one column there is nothing beside this aside to hold against, so pinning it does not keep the
+     panel next to its itinerary, it puts the panel on top of it. Measured before this was first
+     fixed: pinned at 6rem, covering 239px of `.pin-until-content`'s screenshots for the whole
+     section. Below 800px the layout stacks — panel first, then the three stops it names, in
+     reading order — and the aside's own prose says so, so the reader is not told a pin is holding
+     while nothing holds.
+
+     Unlike the showcase, this one *does* use `4f18816`'s `above:lg` gate on the `data-kui`
+     attribute below instead of a CSS override — the aside has no `timeline:pin` child depending on
+     its `--kui-progress`, so gating the whole `pin-until` instance off below the breakpoint (which
+     is what `above:`/`below:` does — see the showcase's comment for why that is a real limit, not
+     a style choice, over there) costs nothing here. `lg` (1024px) rather than this layout's own
+     800px for the reason given at the showcase: the gate's scale has no name at 800px, and `md`
+     (768px) is still inside the one-column band. The trade is the same too — idle rather than held
+     for 800-1024px, never held too early. Verified in a real browser at the boundary and across a
+     live resize crossing it in both directions, by `test/browser/scroll-page-mobile.test.mjs`.
 
      `min-width: 0` is a separate fix that would be needed either way: the aside's min-content is
      474px — `.kui-contract` is `inline-flex` with `flex-wrap: nowrap`, so the code and its chip
@@ -730,7 +751,7 @@
      got the chance, because nothing let the aside itself shrink. With the item free, the bar lands
      at 287px and the attribute scrolls inside it. */
   @media (max-width: 799.98px) {
-    .pin-until-aside { position: static !important; min-width: 0; }
+    .pin-until-aside { min-width: 0; }
   }
   /* --fg, not --accent-text: an eyebrow label on --surface/--bg, and --accent-text is now the
      same #e4f222 as --accent (~1.2:1 there). */
@@ -1645,11 +1666,11 @@
                blank strip under every screenshot to hold them. The effect lives on the aside, so
                the control does too. `data-show-code-target` opens the whole layout at once. -->
           <div class="pin-until-layout" id="pin-until-demo">
-            <aside class="pin-until-aside" data-kui="pin-until offset-top:6rem">
+            <aside class="pin-until-aside" data-kui="pin-until offset-top:6rem above:lg">
               <p class="kicker">pin-until</p>
               <h4>Three stops, one scroll.</h4>
               <p>This panel sticks at <code>offset-top:6rem</code> while the itinerary beside it scrolls past underneath. <code>pin-until</code> is the sticky-<em>sidebar</em> pattern: below the two-column breakpoint there is nothing beside it to hold against, so it stacks instead.</p>
-              <p class="kui-contract"><code>data-kui="pin-until offset-top:6rem"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
+              <p class="kui-contract"><code>data-kui="pin-until offset-top:6rem above:lg"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-until-demo">Show code</button></p>
             </aside>
             <div class="pin-until-content">
               <figure class="pin-until-block">
