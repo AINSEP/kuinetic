@@ -141,6 +141,34 @@ describe('createCssInstance directional playback', () => {
     expect(owned.play).toHaveBeenCalledTimes(2)
   })
 
+  it('writes running to the ledger, so a paused instance can still be paused after an exit', () => {
+    // `drive()` plays. It used to play without telling the ledger, so `control().pause()` followed
+    // by a `pointerleave` left the inline declaration saying `paused` while the animations ran.
+    // The next `pause()` then wrote `paused` over `paused` — no computed-value change, nothing for
+    // the browser to re-apply — and the element could not be paused again for the rest of its life.
+    // `createCssControl.reverse()` has always written this; only the route the animator takes was
+    // missing it.
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.activate()
+    instance.control!.pause()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('paused')
+
+    instance.reverse?.()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('running')
+
+    // The second pause is the one that used to be a no-op write.
+    instance.control!.pause()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('paused')
+
+    // Forwards is the same call and needs the same write — a paused element told to `play()`.
+    instance.play?.()
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('running')
+  })
+
   it('sets the rate absolutely rather than flipping it, so a repeated exit stays an exit', () => {
     // `Animation.reverse()` means "turn around", which is right for the click toggle in
     // `activate()` and wrong here: a pointer skimming an element's edge fires `pointerleave`
@@ -208,6 +236,10 @@ describe('createCssInstance directional playback', () => {
 
     expect(owned.play).not.toHaveBeenCalled()
     expect(owned.playbackRate).toBe(1)
+    // And the play-state write `drive()` makes for everything else must not leak past that guard:
+    // a scrub with `animation-play-state: running` is handed to the document timeline and runs
+    // forward in wall-clock time on top of the seek.
+    expect((el as HTMLElement).style.getPropertyValue('animation-play-state')).toBe('')
   })
 })
 

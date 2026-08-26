@@ -150,6 +150,10 @@ export function createCssInstance(
    * 0 holds the from-state rather than snapping to the element's rest state — the exit lands
    * exactly where the entrance began.
    *
+   * Driving *plays*, so the ledger has to be told. It is the one place that can be: the scrubbed
+   * bail-out below is the guard that keeps a `timeline: pin` instance out of here, and a
+   * play-state write is exactly what a scrub must never get.
+   *
    * @complexity O(a) time in the element's owned animations; O(1) space.
    * @overallScore 100
    */
@@ -168,6 +172,16 @@ export function createCssInstance(
       animation.playbackRate = rate
       animation.play()
     }
+    // The ledger's copy of the play state has to move with the playhead, and this call moves it.
+    // Without this write, `control().pause()` followed by an exit — a paused element that a
+    // pointer then leaves, which is `deactivate()`'s whole job — left the inline declaration
+    // saying `paused` while the animations were running. The next `pause()` then wrote `paused`
+    // over `paused`: no computed-value change, so nothing to re-apply, and the browser ignored it.
+    // The element could not be paused again for the rest of its life. `createCssControl.reverse()`
+    // has always written this for the same reason; it was only ever missing on the route the
+    // animator actually takes. Pre-dates the reversal work — an exit has played through here
+    // since paired activations shipped.
+    ledger.set('animation-play-state', 'running')
     watch(animations)
   }
 

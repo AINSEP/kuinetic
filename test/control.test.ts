@@ -371,6 +371,29 @@ describe('control() over a live animator', () => {
     expect(el.style.getPropertyValue('animation-play-state')).toBe('running')
   })
 
+  it('can pause a paused element again after it has been reversed', () => {
+    // The sequence an author actually hits: pause an element, then let it play out — a
+    // `pointerleave` through `deactivate()`, or `control().reverse()`, both of which land on
+    // `EffectInstance.reverse` and therefore on `drive()` in `instances.ts`. `drive()` plays, so a
+    // ledger left saying `paused` disagrees with the browser, and the *next* `pause()` writes
+    // `paused` over `paused` — a value the browser treats as unchanged and therefore ignores. The
+    // element stops being pausable at all. Pre-dates the reversal work: the exit half of a paired
+    // activation has gone through this call since paired activations shipped.
+    const { animator } = build('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
+    const el = document.getElementById('a')!
+    withAnimations(el, [fakeAnimation({ name: 'kui-fake-fade' })])
+    const handle = animator.control('#a')
+
+    handle.pause()
+    expect(el.style.getPropertyValue('animation-play-state')).toBe('paused')
+
+    handle.reverse()
+    expect(el.style.getPropertyValue('animation-play-state')).toBe('running')
+
+    handle.pause()
+    expect(el.style.getPropertyValue('animation-play-state')).toBe('paused')
+  })
+
   it('chains every mutator', () => {
     const { animator } = build('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')
     withAnimations(document.getElementById('a')!, [fakeAnimation({})])
