@@ -45,6 +45,7 @@ import { NUMBERS_PRESETS } from '../src/effects/catalog/numbers.js'
 import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { FORMS_PRESETS } from '../src/effects/forms/index.js'
 import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
+import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 
@@ -68,6 +69,7 @@ const EFFECT_FILES = [
   'media.css',
   'text.css',
   'svg.css',
+  'motion-path.css',
 ]
 
 const CSS = EFFECT_FILES.map((file) =>
@@ -85,6 +87,7 @@ const ALL_PRESETS = [
   ...FORMS_PRESETS,
   ...NAVIGATION_PRESETS,
   ...SVG_PRESETS,
+  ...MOTION_PATH_PRESETS,
   ...THREE_D_PRESETS,
 ]
 

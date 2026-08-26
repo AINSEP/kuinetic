@@ -132,7 +132,11 @@ function totalsRows(): Map<string, string> {
     const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
     if (cells.length !== 2) continue
     const letter = cells[0]!.split(' ')[0]!
-    if (letter.length === 1 && letter >= 'A' && letter <= 'O') rows.set(letter, cells[1]!)
+    // A–P: the lettered catalog sections as they stand. A row outside the range is not a section
+    // row — the totals table also carries `**Total shipped**` and the planned-count line, and both
+    // are read separately below. Widen the range when a section letter is added, or the new
+    // section silently reports "no row in the totals table" while the row is sitting right there.
+    if (letter.length === 1 && letter >= 'A' && letter <= 'P') rows.set(letter, cells[1]!)
   }
   return rows
 }

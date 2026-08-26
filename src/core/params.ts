@@ -34,6 +34,31 @@ const ABSOLUTE_OR_PROTOCOL_RELATIVE = /^(?:[a-z][a-z0-9+.-]*:|[/\\]{2})/i
 
 const MAX_VALUE_LENGTH = 200
 
+/**
+ * `path` values get their own, much larger cap.
+ *
+ * 200 characters is a sensible ceiling for a length, an angle, or a colour — anything longer is
+ * far more likely to be an attack than an animation. Path data is the one authored value that is
+ * legitimately long: a hand-drawn curve exported from a vector editor runs to hundreds of
+ * characters before it says anything unusual, and truncating it at 200 would reject ordinary
+ * input. What bounds the risk for a path is not its length but {@link PATH_DATA} — an allowlist
+ * with no quote, paren, semicolon, or backslash in it — so the length check here is only a
+ * memory-and-sanity bound, not the security control.
+ */
+const MAX_PATH_LENGTH = 2000
+
+/**
+ * Every character SVG path data is allowed to contain: the twenty command letters, digits, the
+ * exponent forms a float can take, and the separators between coordinates.
+ *
+ * Nothing else. In particular no `"`, `'`, `(`, `)`, `;`, `\`, or `/` — which is what makes
+ * wrapping an accepted value in double quotes (see {@link checkPath}) unconditionally safe: the
+ * value cannot terminate the string it is about to be placed inside, so it cannot reach the rest
+ * of the declaration. A single character class, so matching is linear and there is nothing for a
+ * pathological input to backtrack over.
+ */
+const PATH_DATA = /^[MmZzLlHhVvCcSsQqTtAa0-9eE.,+\-\s]+$/
+
 const NUM = String.raw`-?(?:\d+(?:\.\d+)?|\.\d+)`
 const LENGTH_UNITS = 'px|rem|em|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc|q|%'
 
@@ -79,11 +104,44 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
   if (rejection) return rejection
 
   if (spec.type === 'keyword') return checkKeyword(value, spec)
+  // A non-keyword parameter may still declare literals it accepts beside its own grammar, for a
+  // CSS property whose value is "a keyword or a number" — `offset-rotate` takes `auto`, `reverse`,
+  // or an `<angle>`. Checked before the type, so a declared literal is never measured against a
+  // pattern it was never meant to satisfy. See `ParamSpec.values`.
+  if (spec.values?.includes(value)) return { value, ok: true }
   // `text` has no shape to match — it is a selector or URL pattern. It still passed the
   // escape screen above, and `resolveParams` drops it before anything reaches a stylesheet.
   if (spec.type === 'text') return { value, ok: true }
+  if (spec.type === 'path') return checkPath(value, spec)
   if (isAcceptable(value, spec.type)) return checkNumericConstraints(value, spec)
   return reject(spec, `not a valid ${spec.type}`)
+}
+
+/**
+ * Validate SVG path data and return it as a CSS `<string>`, quotes included.
+ *
+ * The quotes are added here rather than in the stylesheet because `offset-path: path(...)` takes a
+ * string, and a custom property can only supply one if the quotes are *inside* the property's
+ * value — CSS substitutes `var()` as tokens, so `path(var(--kui-motion-path))` is only ever valid
+ * if `--kui-motion-path` computes to a quoted string. Quoting at the point of validation is also
+ * the only place it can be done safely: this is the one function that has already proved the value
+ * contains no quote of its own to close the string early.
+ *
+ * The leading-moveto check is not pedantry. A path that starts with anything else is invalid SVG,
+ * every browser drops the whole `offset-path` declaration, and the element then sits perfectly
+ * still with no error anywhere — the exact silent-nothing outcome this library treats as the worst
+ * possible one. Naming it costs one regex.
+ *
+ * @param value - Author-supplied path data, already screened for length and escapes.
+ * @param spec - The parameter's declared type and default.
+ * @returns The path wrapped in double quotes, or the rejection reason.
+ * @complexity O(n) time in value length; O(n) space for the quoted copy.
+ * @overallScore 100
+ */
+function checkPath(value: string, spec: ParamSpec): ValidationResult {
+  if (!PATH_DATA.test(value)) return reject(spec, 'path data contains an unsupported character')
+  if (!/^[Mm]/.test(value)) return reject(spec, 'path data must start with a moveto (M or m)')
+  return { value: `"${value}"`, ok: true }
 }
 
 /**
@@ -95,8 +153,9 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
  */
 function screen(value: string, spec: ParamSpec): ValidationResult | null {
   if (!value) return reject(spec, 'empty value')
-  if (value.length > MAX_VALUE_LENGTH) {
-    return reject(spec, `value exceeds ${MAX_VALUE_LENGTH} characters`)
+  const limit = spec.type === 'path' ? MAX_PATH_LENGTH : MAX_VALUE_LENGTH
+  if (value.length > limit) {
+    return reject(spec, `value exceeds ${limit} characters`)
   }
   if (DANGEROUS.test(value)) return reject(spec, 'value contains disallowed CSS syntax')
   return null

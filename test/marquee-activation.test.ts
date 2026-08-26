@@ -34,6 +34,7 @@ const CAPS: Capabilities = {
   viewTransitions: true,
   intersectionObserver: true,
   reducedMotion: false,
+  motionPath: true,
 }
 
 /**

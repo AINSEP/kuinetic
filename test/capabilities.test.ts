@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { detect, resetCapabilities } from '../src/core/capabilities.js'
+import { detect, resetCapabilities, unsupportedChannelWarnings } from '../src/core/capabilities.js'
+import type { Capabilities } from '../src/core/capabilities.js'
 
 describe('detect caching', () => {
   beforeEach(() => {
@@ -42,6 +43,7 @@ describe('supports() — probed through detect()', () => {
     expect(caps.animationRange).toBe(false)
     expect(caps.individualTransforms).toBe(false)
     expect(caps.scrollTimelineName).toBe(false)
+    expect(caps.motionPath).toBe(false)
   })
 
   it('reports false when CSS exists but CSS.supports is not a function', () => {
@@ -94,5 +96,49 @@ describe('supports() — probed through detect()', () => {
 
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     expect(detect(true).reducedMotion).toBe(false)
+  })
+})
+
+/**
+ * `unsupportedChannelWarnings` is the whole of the degradation story for CSS Motion Path, so it is
+ * worth stating what that story is. An `offset-*` effect in a browser with no `offset-path` does
+ * not fail, stall, or hide anything: the compiled keyframe still runs, `finished` still resolves,
+ * and the element sits exactly where layout put it. There is nothing for `style-plan.ts` to gate
+ * differently — which is precisely why a warning is the entire treatment, and why it has to exist.
+ * Without it an author gets a motionless element and no explanation anywhere.
+ */
+describe('unsupportedChannelWarnings', () => {
+  const caps = (motionPath: boolean): Capabilities =>
+    ({
+      viewTimeline: true,
+      scrollTimeline: true,
+      animationRange: true,
+      individualTransforms: true,
+      scrollTimelineName: true,
+      viewTransitions: true,
+      intersectionObserver: true,
+      reducedMotion: false,
+      motionPath,
+    })
+
+  it('names the offset channel when the browser cannot render a motion path', () => {
+    const warnings = unsupportedChannelWarnings(['offset'], caps(false))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('offset-path')
+  })
+
+  it('says nothing when the capability is present', () => {
+    expect(unsupportedChannelWarnings(['offset'], caps(false)).length).toBe(1)
+    expect(unsupportedChannelWarnings(['offset'], caps(true))).toEqual([])
+  })
+
+  it('says nothing about channels with no capability requirement', () => {
+    // `translate`/`rotate`/`scale` have a capability of their own but deliberately no entry here:
+    // `style-plan.ts` changes the gate for those rather than merely mentioning them.
+    expect(unsupportedChannelWarnings(['opacity', 'translate', 'filter'], caps(false))).toEqual([])
+  })
+
+  it('is unbothered by an empty channel list', () => {
+    expect(unsupportedChannelWarnings([], caps(false))).toEqual([])
   })
 })

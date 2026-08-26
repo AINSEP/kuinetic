@@ -16,6 +16,7 @@ import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { FORMS_PRESETS } from '../src/effects/forms/index.js'
 import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
 import { SCROLL_PRESETS } from '../src/effects/scroll-mechanics/presets.js'
+import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
@@ -58,6 +59,7 @@ const EFFECT_FILES = [
   'media.css',
   'text.css',
   'svg.css',
+  'motion-path.css',
 ]
 
 /**
@@ -88,6 +90,7 @@ const ALL_PRESETS = [
   ...FORMS_PRESETS,
   ...NAVIGATION_PRESETS,
   ...SVG_PRESETS,
+  ...MOTION_PATH_PRESETS,
   ...THREE_D_PRESETS,
 ]
 
@@ -603,4 +606,70 @@ describe('clip-path keyframes', () => {
     }
   })
 
+})
+
+/*
+ * Motion paths (section P). Two claims that live in the stylesheet and nowhere else, and that a
+ * plausible-looking "tidy-up" edit would quietly reverse.
+ */
+describe('motion path', () => {
+  const css = SOURCES.get('motion-path.css') ?? ''
+
+  it('reads the path with no var() fallback, so "no path" stays "do not move"', () => {
+    /*
+     * `path(var(--kui-motion-path))` with the property unset is invalid at computed-value time, so
+     * the declaration drops and `offset-path` stays at its initial `none` — the element sits
+     * exactly where layout put it. Adding a fallback here (`var(--kui-motion-path, "M 0 0")`)
+     * looks like defensive hygiene and is the opposite: it would give an element with no path a
+     * path, so a preset whose custom property failed to arrive would travel a phantom curve
+     * instead of staying still, and the mistake would be invisible.
+     */
+    expect(css).toContain('offset-path: path(var(--kui-motion-path));')
+  })
+
+  it('anchors the path at the element own corner rather than the CSS default', () => {
+    /*
+     * Verified in Chromium: `offset-anchor: 0 0` makes the path's `0,0` the element's top-left,
+     * i.e. exactly where it already sits, which is what lets every preset path be written as plain
+     * offsets. The CSS default (`auto`, resolving to the centre) shifts every element by half its
+     * own size the instant the effect installs — a visible jump before any animation runs.
+     */
+    expect(css).toContain('offset-anchor: var(--kui-motion-anchor, 0 0);')
+  })
+
+  it('resets its custom properties per element, so an authored value cannot leak to a descendant', () => {
+    /*
+     * The `--kui-i` leak, in a new namespace. A custom property inherits and does not stop at the
+     * effect that set it, so `data-kui="path-arc rotate:auto anchor:center"` on a card would hand
+     * an auto-rotation and a centred anchor to a `path-wave` on a badge inside it. Reset in
+     * `kui.tokens` — the earliest layer — so a preset's own rule and the runtime's inline write
+     * both still win.
+     */
+    const base = SOURCES.get('base.css') ?? ''
+    const rule = /\[data-kui-fx\]\s*\{([^}]*)\}/.exec(base)?.[1] ?? ''
+    for (const property of ['path', 'rotate', 'anchor', 'from', 'to']) {
+      expect(rule, property).toContain(`--kui-motion-${property}: initial;`)
+    }
+  })
+
+  it('drops the path entirely when motion is disabled or printed', () => {
+    /*
+     * `animation: none` alone leaves `offset-distance` at the element's specified 0% — the *start*
+     * of the path — so `path-swoop` would be stranded off to the lower left rather than landing
+     * where it belongs. With no path there is no curve to be anywhere on.
+     */
+    const base = SOURCES.get('base.css') ?? ''
+    const disable = /\[data-kui-rm='disable'\]\s*\{([\s\S]*?)\n {4}\}/.exec(base)?.[1] ?? ''
+    expect(disable).toContain('offset-path: none !important;')
+    const print = base.slice(base.indexOf('@media print'))
+    expect(print).toContain('offset-path: none !important;')
+  })
+
+  it('drives the travel from the from/to parameters, not a hardcoded 0-100%', () => {
+    const body = keyframes.get('kui-motion-travel')
+    expect(body).toBeDefined()
+    expect(body).toEqual(new Set(['offset-distance']))
+    expect(css).toContain('var(--kui-motion-from, 0%)')
+    expect(css).toContain('var(--kui-motion-to, 100%)')
+  })
 })

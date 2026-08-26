@@ -1,0 +1,73 @@
+/*
+ * Motion paths (catalog section P).
+ *
+ * The whole family is three declarations and one keyframe block. That is not an accident of a
+ * small feature — it is the point. CSS Motion Path already does everything `MotionPathPlugin`
+ * does: `offset-path` holds the curve, `offset-distance` is the position along it, `offset-rotate`
+ * turns the element to face where it is going. All this file has to do is wire those to the custom
+ * properties the compiler writes, and animate one of them.
+ *
+ * ### Why the path arrives as a quoted string
+ *
+ * `offset-path: path(...)` takes a CSS `<string>`, and `var()` substitutes *tokens*, not text —
+ * so `path(var(--kui-motion-path))` only parses if `--kui-motion-path` computes to something that
+ * already is a string token, quotes included. `validate()` in `core/params.ts` adds those quotes,
+ * which it can do safely because the same function has just proved the value contains no quote of
+ * its own. `scripts/generate-preset-css.mjs` does the same for a preset's declared default, which
+ * is why the rules in `presets.generated.css` read `--kui-motion-path: "M 0 0 ..."`.
+ *
+ * ### There is deliberately no fallback in the `var()`
+ *
+ * `path(var(--kui-motion-path))` with the property unset is invalid at computed-value time, so the
+ * whole declaration drops and `offset-path` stays at its initial `none`. An element with no path
+ * has nothing to travel along: the animation still runs, still finishes, still resolves
+ * `finished`, and the element simply stays exactly where layout put it. That is the correct
+ * behaviour for "no path", it needs no fallback string to express, and it is the same shape as
+ * what an unsupporting browser does — see `unsupportedChannelWarnings` in `core/capabilities.ts`,
+ * which is what stops that silence from being unexplained.
+ *
+ * ### `offset-anchor: 0 0`, overriding the CSS default
+ *
+ * Verified in Chromium: with the anchor at the top-left corner, the path's `0,0` is exactly where
+ * the element already sits, so path data reads as offsets from the element's own position and a
+ * preset path works in any layout. The CSS default (`auto`, i.e. the transform-origin, i.e. the
+ * centre) would instead shift every element by half its own size the instant the effect installs
+ * — a visible jump before a frame of animation has run. `anchor:center` puts it back, and is what
+ * you want with `rotate:auto`, since the anchor is also the pivot the rotation turns about.
+ *
+ * ### One thing to know before nesting
+ *
+ * A non-`none` `offset-path` makes the element a containing block for fixed/absolute descendants
+ * and gives it a stacking context, exactly as `transform` does. The same caution applies as for
+ * animated 3D frames: a path-driven ancestor changes the coordinate space of everything inside it.
+ */
+@layer kui.effects {
+  /*
+   * `from`/`to` rather than a hardcoded 0%–100%, so the same block serves a full traverse, a
+   * partial one (`from:20% to:80%`), and a reversed one (`from:100% to:0%`). The fallbacks are the
+   * declared parameter defaults; nothing writes them unless the author asked for something else.
+   */
+  @keyframes kui-motion-travel {
+    from {
+      offset-distance: var(--kui-motion-from, 0%);
+    }
+    to {
+      offset-distance: var(--kui-motion-to, 100%);
+    }
+  }
+
+  /*
+   * One rule for every name in the family. Unlike the stroke draws in `svg.css`, these presets
+   * differ only in the value of a custom property — there is nothing per-name to say here, and a
+   * copy per name would be five identical blocks waiting to drift.
+   */
+  [data-kui-fx~='motion-path'],
+  [data-kui-fx~='path-arc'],
+  [data-kui-fx~='path-wave'],
+  [data-kui-fx~='path-loop'],
+  [data-kui-fx~='path-swoop'] {
+    offset-path: path(var(--kui-motion-path));
+    offset-rotate: var(--kui-motion-rotate, 0deg);
+    offset-anchor: var(--kui-motion-anchor, 0 0);
+  }
+}

@@ -18,6 +18,7 @@ const CAPS: Capabilities = {
   viewTransitions: true,
   intersectionObserver: true,
   reducedMotion: false,
+  motionPath: true,
 }
 
 interface FakeBinder extends ActivationBinder {

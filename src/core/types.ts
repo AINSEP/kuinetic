@@ -105,6 +105,17 @@ export type ParamType =
    * `resolveParams` drops these on the CSS path; `readParams` keeps them for `prepare`.
    */
   | 'text'
+  /**
+   * SVG path data, for `offset-path: path(...)`.
+   *
+   * Deliberately *not* `text`. `text` is the "arbitrary characters, never reaches CSS" escape
+   * hatch, and the whole point of a motion path is that the geometry reaches a stylesheet: the
+   * travel is a real CSS animation, not something JavaScript drives frame by frame. So this needs
+   * a type of its own, validated by an allowlist narrow enough to be safe in a declaration —
+   * command letters, digits, and separators, nothing else. See `validate` in `core/params.ts`,
+   * which also explains why an accepted value comes back wrapped in quotes.
+   */
+  | 'path'
 
 export interface ParamSpec {
   type: ParamType
@@ -112,7 +123,16 @@ export interface ParamSpec {
   default: string
   /** Custom property this parameter feeds, e.g. `--kui-reveal-distance`. */
   cssProperty: string
-  /** For `keyword` params. */
+  /**
+   * The accepted values of a `keyword` param — and, for every other type, extra literals accepted
+   * *alongside* the type's own grammar.
+   *
+   * The second reading exists because CSS properties routinely take a keyword or a value:
+   * `offset-rotate` is `[ auto | reverse ] || <angle>`, so `motion-path`'s `rotate:` has to accept
+   * `auto`, `reverse`, and `45deg` from one parameter. Declaring it `keyword` would mean
+   * enumerating every angle anybody might want; declaring it `angle` alone would drop `auto`,
+   * which is the default and the whole feature. See `validate` in `core/params.ts`.
+   */
   values?: readonly string[]
   /** Require a numeric parameter to convert to a finite JavaScript number. */
   finite?: boolean
