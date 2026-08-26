@@ -1633,4 +1633,75 @@
       animation: none;
     }
   }
+
+  /* The same argument on the width axis — see `gateReleaseRules`. */
+  @media not all and (min-width: 40rem) {
+    html[data-kui-cloak] [data-kui~='above:sm']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media (min-width: 40rem) {
+    html[data-kui-cloak] [data-kui~='below:sm']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media not all and (min-width: 48rem) {
+    html[data-kui-cloak] [data-kui~='above:md']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    html[data-kui-cloak] [data-kui~='below:md']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media not all and (min-width: 64rem) {
+    html[data-kui-cloak] [data-kui~='above:lg']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    html[data-kui-cloak] [data-kui~='below:lg']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media not all and (min-width: 80rem) {
+    html[data-kui-cloak] [data-kui~='above:xl']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    html[data-kui-cloak] [data-kui~='below:xl']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media not all and (min-width: 96rem) {
+    html[data-kui-cloak] [data-kui~='above:2xl']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  @media (min-width: 96rem) {
+    html[data-kui-cloak] [data-kui~='below:2xl']:not([data-kui-state]) {
+      opacity: 1;
+      animation: none;
+    }
+  }
 }

@@ -1,3 +1,4 @@
+import { gatedAnimationName } from './breakpoints.js'
 import { describeConflicts, findConflicts } from './channels.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
@@ -110,6 +111,18 @@ export interface CompiledPlan {
   vars: Record<string, string>
   /** Longhand animation declarations, compiled as parallel lists so effects compose. */
   declarations: Record<string, string>
+  /**
+   * The bare `@keyframes` idents behind those declarations, one per track, in the same order.
+   *
+   * Carried separately because `animation-name` is no longer a list of idents that can be recovered
+   * by splitting it: a gated segment compiles to `var(--kui-above-md, kui-in-up)` (see
+   * `core/breakpoints.ts`), and `String.split(',')` shreds that into `var(--kui-above-md` and
+   * `kui-in-up)`. `animator.ts` hands this list to `createCssInstance`, which matches it against
+   * `getAnimations()` to decide which handles it owns — so a re-parse that produced `kui-in-up)`
+   * would own nothing, settle its completion promise immediately, and strand `data-kui-state` on
+   * `finished` while the animation was still visibly running.
+   */
+  keyframeNames: string[]
   /** Effects whose renderer needs JS setup. */
   jsEffects: Entry[]
   /** Names that are not registered. Must NOT be stamped, or the element is never rescanned. */
@@ -167,6 +180,7 @@ function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {
     fxNames: [],
     vars: {},
     declarations: {},
+    keyframeNames: [],
     jsEffects: [],
     unknown,
     reducedMotion: 'shorten',
@@ -219,6 +233,10 @@ function resolveEntries(
  * A genuine collision falls back to the first effect rather than emitting a visibly wrong
  * animation, and always warns.
  *
+ * Each segment's viewport gate goes to the detector along with its channels: two effects that can
+ * never be live at the same width cannot collide, and `fade-up below:md, parallax-y above:md` —
+ * the case the gate exists for — shares a channel in every other respect. See `channels.ts`.
+ *
  * @returns The entries to compile — either the original list, a single combo, or a single effect.
  * @complexity O(e * c) time in effects and their channels; O(c) space.
  * @overallScore 100
@@ -227,7 +245,7 @@ function resolveComposition(entries: Entry[], registry: Registry, warnings: stri
   if (entries.length <= 1) return entries
 
   const conflicts = findConflicts(
-    entries.map((e) => ({ name: e.spec.name, channels: channelsFor(e) })),
+    entries.map((e) => ({ name: e.spec.name, channels: channelsFor(e), gate: e.spec.gate })),
   )
   if (conflicts.length === 0) return entries
 
@@ -254,6 +272,7 @@ function buildPlan(
   const plan = emptyPlan(unknown, warnings)
   const tracks: AnimationTracks = {
     names: [],
+    keyframes: [],
     durations: [],
     delays: [],
     easings: [],
@@ -293,6 +312,7 @@ function buildPlan(
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
+  plan.keyframeNames = tracks.keyframes
   // `activations`/`timelines` start `undefined` only until the loop's first iteration; `compile`
   // already returns `emptyPlan` before `buildPlan` is ever called with zero entries, so the loop
   // above always runs at least once and both are real arrays (possibly empty) by here.
@@ -395,7 +415,10 @@ function intersect<T>(accumulated: T[] | undefined, supported: T[]): T[] {
 }
 
 interface AnimationTracks {
+  /** What is written to `animation-name` — an ident, or a `var()` around one when gated. */
   names: string[]
+  /** The ident inside it, for `CompiledPlan.keyframeNames`. Same length, same order. */
+  keyframes: string[]
   durations: string[]
   delays: string[]
   easings: string[]
@@ -448,7 +471,11 @@ function pushTrack(
   const iterations = `var(${iterationCountProperty(resolved.preset.name)}, 1)`
 
   for (const name of keyframesFor(entry)) {
-    tracks.names.push(name)
+    // Every track this segment compiles carries the same gate, including the several a `tween`
+    // variant produces: the author wrote one effect with one condition, and splitting it across
+    // properties is an implementation detail of CSS keyframes that the gate must not leak through.
+    tracks.names.push(gatedAnimationName(name, spec.gate))
+    tracks.keyframes.push(name)
     tracks.durations.push(duration)
     tracks.delays.push(delay)
     tracks.easings.push(easing)

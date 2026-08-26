@@ -162,6 +162,61 @@ describe('parse', () => {
       )
     })
 
+    it('lifts above:/below: onto the spec as a viewport gate', () => {
+      // Per-segment for a reason of its own, and a stronger one than `at:`'s: the case this exists
+      // for is two segments on one element carrying *different* conditions, which an element-scoped
+      // hoist (the way `on:` is hoisted) could not express at all.
+      const result = parse('fade-up below:md, parallax above:md')
+      expect(result.specs[0]?.gate).toEqual({ below: 'md' })
+      expect(result.specs[1]?.gate).toEqual({ above: 'md' })
+      expect(result.specs[0]?.params).toEqual({})
+      expect(result.specs[1]?.params).toEqual({})
+      expect(result.warnings).toEqual([])
+    })
+
+    it('accepts both halves as a band', () => {
+      expect(parse('fade-up above:md below:xl').specs[0]?.gate).toEqual({
+        above: 'md',
+        below: 'xl',
+      })
+    })
+
+    it('leaves an ungated segment with no gate at all', () => {
+      expect(parse('fade-up').specs[0]?.gate).toBeUndefined()
+    })
+
+    it('refuses a breakpoint that is not on the scale, naming the ones that are', () => {
+      // Fail-open: the effect still runs, unconditionally. A refused gate that silently disabled
+      // the effect everywhere would be the worst of both — no animation, and no clue why.
+      const result = parse('fade-up above:tablet')
+      expect(result.specs[0]?.gate).toBeUndefined()
+      expect(result.warnings.join()).toContain('unknown breakpoint "tablet"')
+      expect(result.warnings.join()).toContain('sm, md, lg, xl, 2xl')
+    })
+
+    it('refuses an inherited Object.prototype key as a breakpoint', () => {
+      // Same trap `HOISTS` documents: a plain object's lookup falls through to `Object.prototype`,
+      // so `above:constructor` resolves to something truthy and would compile a `var()` on a
+      // property nothing declares — which falls back, leaving the gate on at every width.
+      expect(parse('fade-up above:constructor').specs[0]?.gate).toBeUndefined()
+      expect(parse('fade-up below:__proto__').specs[0]?.gate).toBeUndefined()
+    })
+
+    it('warns on a second above: in one segment', () => {
+      expect(parse('fade-up above:md above:lg').warnings.join()).toContain(
+        'duplicate parameter "above"',
+      )
+    })
+
+    it('warns on a band no viewport can satisfy', () => {
+      // `above:lg below:md` is `width >= 1024px AND width < 768px`. Perfectly valid CSS that never
+      // matches — exactly the silent no-op the grammar promises never to produce — and an easy
+      // mistake, because the pair reads like a range whichever order it is written in.
+      expect(parse('fade-up above:lg below:md').warnings.join()).toContain('can never match')
+      expect(parse('fade-up above:md below:md').warnings.join()).toContain('can never match')
+      expect(parse('fade-up above:md below:lg').warnings).toEqual([])
+    })
+
     it('accepts any event name, because the activation list is open', () => {
       // This used to warn "unknown activation" and leave the value unset, which is what made
       // `on:input`, `on:submit` and `on:pointerleave` inexpressible. The check that a name is a

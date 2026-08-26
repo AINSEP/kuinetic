@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { BREAKPOINTS } from '../src/core/breakpoints.js'
 import { PRESETS } from '../src/effects/catalog/core.js'
 import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
 import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
@@ -468,7 +469,12 @@ describe('pre-JS cloak', () => {
     .filter((name) => registry.resolve(name)?.preset.cloak === true)
   const emitted = [
     ...new Set(
-      [...generated.matchAll(/html\[data-kui-cloak\] \[data-kui~='([^']+)'\]/g)].map((m) => m[1]!),
+      [...generated.matchAll(/html\[data-kui-cloak\] \[data-kui~='([^']+)'\]/g)]
+        .map((m) => m[1]!)
+        // The cloak layer also carries the viewport-gate release, which keys on the *gate* token
+        // in the same authored attribute (`above:md`) rather than on a preset name. Those are
+        // generic — ten rules covering the whole catalog — and are asserted separately below.
+        .filter((token) => !/^(above|below):/.test(token)),
     ),
   ].sort((a, b) => a.localeCompare(b))
 
@@ -508,6 +514,48 @@ describe('pre-JS cloak', () => {
     // moment it is no longer needed, which is the one way to build a cloak that does nothing.
     const cloakLayer = generated.slice(generated.indexOf('@layer kui.cloak'))
     expect(cloakLayer).not.toContain('data-kui-fx')
+  })
+
+  it('releases the cloak at any width where a viewport gate is off', () => {
+    // Same argument as the reduced-motion release above, on the width axis: an effect that will
+    // not run at this width has no entrance to smooth, so cloaking is pure cost — a few
+    // milliseconds with JS working, the full two seconds of `kui-cloak-release` without it.
+    // `not all and (min-width: X)` rather than a `max-width`: the complement has to be exact, or a
+    // sliver of widths just under the boundary stays hidden for an animation that never runs.
+    for (const [name, width] of Object.entries(BREAKPOINTS)) {
+      expect(generated, `above:${name}`).toContain(
+        `@media not all and (min-width: ${width}) {\n    html[data-kui-cloak] [data-kui~='above:${name}']`,
+      )
+      expect(generated, `below:${name}`).toContain(
+        `@media (min-width: ${width}) {\n    html[data-kui-cloak] [data-kui~='below:${name}']`,
+      )
+    }
+  })
+
+  /**
+   * The other CSS half of a viewport gate, and the one nothing else can catch.
+   *
+   * `compile.ts` emits `var(--kui-above-md, kui-in-up)` and `breakpoints.ts` builds that property
+   * name, but neither can tell whether the stylesheet actually *declares* it. A `var()` on an
+   * undeclared property silently falls through to its fallback, so a typo or a dropped media query
+   * would leave every gate permanently ON at every width — animating exactly as it did before the
+   * feature existed, and failing no other test in the suite.
+   *
+   * The `@media (min-width: X) {` lookup doubles as the guard against the `(width >= X)` range
+   * syntax: a browser that cannot parse a range query drops the whole block, which would leave
+   * every `--kui-above-*` at its `none` default and silently disable every `above:` gate.
+   */
+  it('declares both switch properties, and flips both inside one min-width block', () => {
+    const base = SOURCES.get('base.css') ?? ''
+    for (const [name, width] of Object.entries(BREAKPOINTS)) {
+      expect(base, name).toContain(`--kui-above-${name}: none;`)
+      expect(base, name).toContain(`--kui-below-${name}: initial;`)
+      const header = `@media (min-width: ${width}) {`
+      expect(base.indexOf(header), `no ${header} in base.css`).toBeGreaterThan(-1)
+      const body = readBalancedBlock(base, base.indexOf(header) + header.length)
+      expect(body, name).toContain(`--kui-above-${name}: initial;`)
+      expect(body, name).toContain(`--kui-below-${name}: none;`)
+    }
   })
 })
 

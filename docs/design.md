@@ -88,14 +88,16 @@ effect-spec  := <effect-name> [<duration>] [<delay>] [<easing>] <key:value>*
 <h1 data-kui="fade-up 800ms distance:40px">
 <h1 data-kui="slide-up 800ms, blur-in 400ms">
 <h1 data-kui="slide-up 800ms, blur-in 400ms at:-200ms">
+<h1 data-kui="fade-up below:md, fade-left above:md">
 ```
 
 Rules:
 - Positional args must appear in the order above. Unknown or out-of-order tokens produce a
   **dev-mode console warning naming the element and the token** — never a silent no-op.
-- Three `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
+- Five `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
   `timeline:` and `threshold:` are hoisted element-wide (below). `at:` is per-segment and positions
-  that segment relative to the one before it in the comma list — see §3.1.
+  that segment relative to the one before it in the comma list — see §3.1. `above:`/`below:` are
+  per-segment too and gate it to a range of viewport widths — see §3.2.
 - Parser must be paren-aware (`ease:cubic-bezier(.2,.8,.2,1)` contains commas). ~30 lines.
 - Attribute values may contain newlines; whitespace normalizes.
 - Element-scoped settings (`on`, `timeline`, `threshold`) also have longhand attribute forms
@@ -164,6 +166,56 @@ Scope and boundaries, all warned by name rather than left silent:
 
 Implementation: `src/core/sequence.ts`.
 
+### 3.2 Viewport gates — `above:` / `below:`
+
+"Fade up on desktop, nothing on mobile", as one token on the segment it applies to:
+
+```html
+<h1 data-kui="fade-up above:md">
+<h2 data-kui="fade-up below:md, fade-left above:md">
+<p  data-kui="blur-in above:md below:xl">
+```
+
+**A breakpoint is a media query, so this compiles to CSS and has no runtime.** A gated segment's
+`animation-name` is emitted as `var(--kui-above-md, kui-in-up)`; `base.css` declares that property
+`none` by default and the guaranteed-invalid `initial` inside `@media (min-width: 48rem)`. The
+browser re-resolves it on every resize with no script running, which is why there is no
+`kuinetic.matchMedia()` and nothing to tear down when a breakpoint changes — the problem GSAP's
+`gsap.matchMedia()` exists to manage does not arise. It also means a gated page behaves correctly
+before, and without, the library's JavaScript.
+
+Turning a track *off* means naming no keyframes, not shortening it to zero: the track keeps its
+index so a composed element's parallel longhand lists stay aligned, and with no animation there is
+no `animation-fill-mode: both` holding a from-state, so the element paints at its ordinary rest
+state. "Nothing on mobile" therefore leaves the element visible and in place, which is the one
+outcome that has to be guaranteed — an element stranded at a from-state that never releases is a
+failure mode this library has hit before (see the zero-area notes in `src/css/base.css`).
+
+**At the boundary**, a CSS-gated effect behaves the way any media-query-driven declaration does. A
+running animation whose track is switched off is removed mid-flight and the element snaps to its
+rest state — visible and correctly positioned, never stranded, because the from-state only ever
+existed inside the animation. Crossing the other way starts the animation from its first frame; on
+an element whose entrance has already been triggered that reads as a replay, which is the honest
+consequence of the treatment genuinely changing. The runtime is not involved and does not restamp
+`data-kui-state`, so an element that replays this way can be reported as `finished` while it runs.
+
+Decisions worth stating, all four of them consequences of compiling ahead of time:
+
+- **A closed vocabulary.** `sm`/`md`/`lg`/`xl`/`2xl`, Tailwind v4's scale in `rem`, adopted rather
+  than invented because `demo/` already authors against it. A stylesheet compiled ahead of time
+  cannot hold a width the author makes up, so `above:900px` is refused by name.
+- **`above` is inclusive, `below` is exclusive**, and both flip inside the same `min-width` block,
+  so a complementary pair tiles the width axis with no gap and no double-run at the boundary.
+- **Gates narrow the channel model rather than bypassing it.** Two effects that can never be live
+  at the same width cannot collide, so `fade-up below:md, fade-left above:md` composes despite
+  sharing two channels. Overlapping conditions conflict exactly as unconditional ones do (§4).
+- **JavaScript-rendered effects are the one case that needs JS**, because they emit no
+  `animation-name` for a stylesheet to neutralise. Those are gated at install and re-decided on a
+  `MediaQueryList` change, which releases and reinstalls the element through the same path an
+  attribute edit takes. Nothing is bound unless such an effect actually carries a gate.
+
+Implementation: `src/core/breakpoints.ts`.
+
 ---
 
 ## 4. Composition — the channel model
@@ -210,6 +262,11 @@ Compiler resolution order for a comma list:
 2. **Channel collision** → dev warning naming both effects and the channel they share, and only
    the **first** effect in the list compiles. Falling back to one effect is deliberate: the
    alternative is emitting a visibly wrong animation.
+
+Two segments whose viewport gates (§3.2) cannot both be satisfied are never compared at all: they
+are never live together, so they cannot collide. `fade-up below:md, fade-left above:md` therefore
+composes despite sharing `opacity` and `translate`, and the pair remains a real conflict at any
+width both can run.
 
 A registered combo preset (`fade-up, blur-in` → `fade-blur-up`) is *not* substituted
 automatically. It is looked up on the collision path only, so the warning can name a concrete
