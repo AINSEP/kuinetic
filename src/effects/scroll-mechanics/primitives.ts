@@ -6,7 +6,7 @@ import { isSameOriginPath } from '../../core/params.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
-import { TIMELINE_AGNOSTIC } from '../shared.js'
+import { TIMELINE_AGNOSTIC, withTimingContract } from '../shared.js'
 import { createStepMarker, resolveTarget } from '../step-marking.js'
 import { prepareScrollSpy } from './scroll-spy.js'
 import { trackProgress } from './tracker.js'
@@ -80,7 +80,7 @@ interface ScrollSpec {
   id: string
   channels: string[]
   parameters: ParameterSchema
-  prepare: Primitive['prepare']
+  prepare: NonNullable<Primitive['prepare']>
   perfClass?: Primitive['perfClass']
 }
 
@@ -102,7 +102,28 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
     defaultActivation: 'load',
     perfClass,
     reducedMotion: 'disable',
-    prepare,
+    /*
+     * The refusal side of `TIMELINE_AGNOSTIC` above, and for the same underlying reason: these
+     * primitives are driven by *where the page is*, not by a clock. A pin engages when its range
+     * enters the scrollport and disengages when it leaves; a scrub's frame is a pure function of
+     * progress. There is no instant an authored `delay` could be measured from, no span a
+     * `duration` could set, and no curve an `ease` could bend — so all three are refused rather
+     * than accepted and discarded.
+     *
+     * The `delay:` spelling already warned, because none of these declares the parameter and
+     * `readParams` rejects unknown names. The positional `pin-section 0ms 300ms` did not: it is
+     * lifted out to `params.timing` before the schema is ever consulted, so it reached a
+     * primitive that never reads it and vanished without a word. This is what closes that half.
+     */
+    prepare: withTimingContract(
+      id,
+      {
+        because:
+          'it is driven by scroll position rather than a clock, so it has no start moment and ' +
+          'no fixed span',
+      },
+      prepare,
+    ),
   }
 }
 

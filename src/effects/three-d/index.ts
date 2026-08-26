@@ -2,7 +2,7 @@ import { CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, Preset, PrepareContext, Primitive } from '../../core/types.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { cssPrimitive } from '../shared.js'
+import { ALL_TIMING_TOKENS, cssPrimitive, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { supportsFineHover } from '../catalog/interaction-shared.js'
 
 /**
@@ -32,6 +32,14 @@ const FLIP_CONTROL_SELECTOR = ':scope > .kui-flip-control'
  * @overallScore 100
  */
 function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  // Before any trigger branch, and before either bail-out below: three-d.css reads
+  // `--kui-card-toggle-duration`/`-delay`/`-ease`, and only the `key:value` spelling of those
+  // reaches it on its own (`compile.pushTrack` writes the positional tokens for `css-keyframes`
+  // primitives and no others). So `flip-card 900ms` used to turn at the 700ms default while
+  // `flip-card duration:900ms` worked. A `trigger:click` card has no listeners to wire and still
+  // needs this, which is why it is not inside the hover branch.
+  mirrorTimingToCss('card-toggle', ALL_TIMING_TOKENS, params, ctx)
+
   const trigger = params.text('trigger', 'click')
   if (trigger === 'click') return () => {}
   if (!supportsFineHover(ctx.win)) return () => {}
@@ -90,6 +98,10 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
   channels: [CHANNEL.rotate],
   parameters: {
     duration: { type: 'time', default: '700ms', cssProperty: '--kui-duration' },
+    // The turn has a start moment — the click, or the pointer arriving — so a delay before it is
+    // coherent. three-d.css spends it as a `transition-delay` on the turned-face rules only, so it
+    // delays turning to the back and never turning back to the front; see that file's comment.
+    ...TRIGGER_DELAY_PARAM,
     ease: { type: 'easing', default: 'ease-in-out', cssProperty: '--kui-ease' },
     perspective: { type: 'length', default: '1600px', cssProperty: '--kui-perspective' },
     trigger: {

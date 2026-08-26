@@ -7,6 +7,18 @@
  * `@media (hover: hover) and (pointer: fine)` so a tap on a touchscreen never leaves an element
  * stuck "hovered" with no pointer to leave it; the matching `:focus-visible` rule is never scoped
  * that way, so keyboard users reach the same state on every pointer type.
+ *
+ * `--kui-<primitive>-delay` is declared on the `:hover`/`:focus-visible` rules and deliberately
+ * *not* on the base rule they transition from. A `transition` shorthand resets `transition-delay`
+ * to 0, so the base rule zeroes it and only the state rule reinstates it: the delay applies to
+ * entering the hovered state and never to leaving it. That asymmetry is the point. An author
+ * writing `lift delay:200ms` wants hover-intent — don't lift until I've meant it for 200ms — and
+ * emphatically does not want the button hanging in the air for 200ms after the pointer has gone,
+ * which is what a symmetric `transition-delay` on the base rule would give them.
+ *
+ * The keyframe members (`shine-sweep`, `split-flap`, the icons, `beam-border`) get the same shape
+ * for free: their `animation` shorthand lives in the state rule already, so the fourth value is
+ * simply `animation-delay` and there is no un-hover side to it.
  */
 @layer kui.effects {
   @property --kui-border-angle {
@@ -27,6 +39,7 @@
   }
   [data-kui-fx~='lift']:focus-visible {
     translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
+    transition-delay: var(--kui-lift-delay, 0ms);
   }
 
   /* `pop` is `lift`'s sibling on the scale channel. The family had no plain grow-on-hover, so
@@ -40,6 +53,7 @@
   }
   [data-kui-fx~='pop']:focus-visible {
     scale: var(--kui-pop-scale, 1.06);
+    transition-delay: var(--kui-pop-delay, 0ms);
   }
 
   [data-kui-fx~='lift-shadow'] {
@@ -50,6 +64,7 @@
   [data-kui-fx~='lift-shadow']:focus-visible {
     translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
     box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
+    transition-delay: var(--kui-lift-shadow-delay, 0ms);
   }
 
   [data-kui-fx~='shine-sweep'] {
@@ -66,7 +81,7 @@
     pointer-events: none;
   }
   [data-kui-fx~='shine-sweep']:focus-visible::after {
-    animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out);
+    animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out) var(--kui-shine-sweep-delay, 0ms);
   }
   @keyframes kui-shine-sweep {
     from { background-position: 120% 0; }
@@ -85,7 +100,7 @@
     backface-visibility: hidden;
   }
   [data-kui-fx~='split-flap']:focus-visible {
-    animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out);
+    animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out) var(--kui-split-flap-delay, 0ms);
   }
   @keyframes kui-split-flap {
     from { rotate: x 0deg; }
@@ -106,6 +121,7 @@
   }
   [data-kui-fx~='border-draw']:focus-visible {
     --kui-border-pct: 100%;
+    transition-delay: var(--kui-border-draw-delay, 0ms);
   }
 
   [data-kui-fx~='border-glow'] {
@@ -113,6 +129,7 @@
   }
   [data-kui-fx~='border-glow']:focus-visible {
     box-shadow: 0 0 0 3px var(--kui-border-glow-color, var(--accent, #d2691e));
+    transition-delay: var(--kui-border-glow-delay, 0ms);
   }
 
   /*
@@ -173,7 +190,8 @@
   }
   [data-kui-fx~='beam-border']:focus-visible::before {
     opacity: 1;
-    animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
+    transition-delay: var(--kui-beam-border-delay, 0ms);
+    animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear var(--kui-beam-border-delay, 0ms) infinite;
   }
   /* beam-border-auto: the always-on sibling — unconditional, no :hover/:focus-visible gate.
      Its own namespaced `--kui-beam-border-auto-duration` (from `duration:`), not the plain
@@ -219,6 +237,7 @@
   }
   [data-kui-fx~='underline-slide']:focus-visible::after {
     scale: 1 1;
+    transition-delay: var(--kui-underline-slide-delay, 0ms);
   }
 
   [data-kui-fx~='underline-center'] {
@@ -239,12 +258,13 @@
   }
   [data-kui-fx~='underline-center']:focus-visible::after {
     scale: 1 1;
+    transition-delay: var(--kui-underline-center-delay, 0ms);
   }
 
   /* --- icon family --- */
 
   [data-kui-fx~='icon-wiggle']:focus-visible {
-    animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out);
+    animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out) var(--kui-icon-wiggle-delay, 0ms);
   }
   @keyframes kui-icon-wiggle {
     0%, 100% { rotate: 0deg; }
@@ -255,7 +275,7 @@
   }
 
   [data-kui-fx~='icon-spin']:focus-visible {
-    animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear;
+    animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear var(--kui-icon-spin-delay, 0ms);
   }
   @keyframes kui-icon-spin {
     from { rotate: 0deg; }
@@ -263,7 +283,7 @@
   }
 
   [data-kui-fx~='icon-bounce']:focus-visible {
-    animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out);
+    animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out) var(--kui-icon-bounce-delay, 0ms);
   }
   @keyframes kui-icon-bounce {
     0%, 100% { translate: 0 0; }
@@ -275,36 +295,54 @@
   /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
      reach the identical state — grouped in one block so the two never drift apart. */
   @media (hover: hover) and (pointer: fine) {
-    [data-kui-fx~='lift']:hover { translate: 0 calc(var(--kui-lift-distance, 6px) * -1); }
-    [data-kui-fx~='pop']:hover { scale: var(--kui-pop-scale, 1.06); }
+    [data-kui-fx~='lift']:hover {
+      translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
+      transition-delay: var(--kui-lift-delay, 0ms);
+    }
+    [data-kui-fx~='pop']:hover {
+      scale: var(--kui-pop-scale, 1.06);
+      transition-delay: var(--kui-pop-delay, 0ms);
+    }
     [data-kui-fx~='lift-shadow']:hover {
       translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
       box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
+      transition-delay: var(--kui-lift-shadow-delay, 0ms);
     }
     [data-kui-fx~='shine-sweep']:hover::after {
-      animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out);
+      animation: kui-shine-sweep var(--kui-shine-sweep-duration, 700ms) var(--kui-shine-sweep-ease, ease-out) var(--kui-shine-sweep-delay, 0ms);
     }
     [data-kui-fx~='split-flap']:hover {
-      animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out);
+      animation: kui-split-flap var(--kui-split-flap-duration, 600ms) var(--kui-split-flap-ease, ease-in-out) var(--kui-split-flap-delay, 0ms);
     }
-    [data-kui-fx~='border-draw']:hover { --kui-border-pct: 100%; }
+    [data-kui-fx~='border-draw']:hover {
+      --kui-border-pct: 100%;
+      transition-delay: var(--kui-border-draw-delay, 0ms);
+    }
     [data-kui-fx~='border-glow']:hover {
       box-shadow: 0 0 0 3px var(--kui-border-glow-color, var(--accent, #d2691e));
+      transition-delay: var(--kui-border-glow-delay, 0ms);
     }
     [data-kui-fx~='beam-border']:hover::before {
       opacity: 1;
-      animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear infinite;
+      transition-delay: var(--kui-beam-border-delay, 0ms);
+      animation: kui-beam-rotate var(--kui-beam-border-duration, 4260ms) linear var(--kui-beam-border-delay, 0ms) infinite;
     }
-    [data-kui-fx~='underline-slide']:hover::after { scale: 1 1; }
-    [data-kui-fx~='underline-center']:hover::after { scale: 1 1; }
+    [data-kui-fx~='underline-slide']:hover::after {
+      scale: 1 1;
+      transition-delay: var(--kui-underline-slide-delay, 0ms);
+    }
+    [data-kui-fx~='underline-center']:hover::after {
+      scale: 1 1;
+      transition-delay: var(--kui-underline-center-delay, 0ms);
+    }
     [data-kui-fx~='icon-wiggle']:hover {
-      animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out);
+      animation: kui-icon-wiggle var(--kui-icon-wiggle-duration, 500ms) var(--kui-icon-wiggle-ease, ease-in-out) var(--kui-icon-wiggle-delay, 0ms);
     }
     [data-kui-fx~='icon-spin']:hover {
-      animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear;
+      animation: kui-icon-spin var(--kui-icon-spin-duration, 700ms) linear var(--kui-icon-spin-delay, 0ms);
     }
     [data-kui-fx~='icon-bounce']:hover {
-      animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out);
+      animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out) var(--kui-icon-bounce-delay, 0ms);
     }
   }
 

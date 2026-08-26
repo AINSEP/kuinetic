@@ -101,6 +101,32 @@ Rules:
 - Element-scoped settings (`on`, `timeline`, `threshold`) also have longhand attribute forms
   (`data-kui-on` etc.) for server-side templating; the inline key wins when both are present.
   Timing is grammar-only — there is no `data-kui-duration`.
+- The three timing tokens also have a `key:value` spelling (`fade-up duration:800ms delay:200ms`).
+  The two are one intent, not two features; where both appear on one spec the **positional token
+  wins**, because that is the spelling `play()` emits.
+
+### 3.1 The timing contract
+
+"Never a silent no-op" is the hard part of that promise, and it is hardest on the JavaScript
+renderer, where an effect may have no clock at all. Each primitive therefore declares which of
+`duration`/`delay`/`ease` it can act on, and an authored token it cannot act on **warns by name
+and says why** rather than evaporating. `TimingContract` in `src/effects/shared.ts` is that
+declaration; `test/js-effect-timing-parity.test.ts` holds the table of which primitives refuse
+what.
+
+The classifying question is *does this effect have a start moment?*
+
+| kind | example | `delay` |
+|---|---|---|
+| one-shot, played from a trigger | `fade-up`, `count-up`, `split-flap` | yes |
+| a state transition with a discrete flip | `lift`, `hamburger-to-x`, `flip-card`, `flip-reorder` | yes |
+| driven by pointer position | `tilt-3d`, `magnetic`, `drag` | **no** — nothing to be relative to |
+| driven by scroll position | `pin-section`, `header-shrink`, `video-scrub` | **no** — same |
+| pinned by the shipped stylesheet | `label-float`, `radio-fill` | **no** — the rule owns the timing |
+
+A state transition's delay is one-directional: it delays *entering* the effect's active state and
+never leaving it, so `lift delay:200ms` is hover-intent rather than a button that hangs in the air
+after the pointer has gone.
 
 ### 3.1 Sequencing — `at:`
 

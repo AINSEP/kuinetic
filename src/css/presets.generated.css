@@ -7,6 +7,7 @@
 @layer kui.presets {
   [data-kui-fx~='accordion-height'] {
     --kui-auto-height-duration: 400ms;
+    --kui-auto-height-delay: 0ms;
     --kui-auto-height-ease: ease-out;
   }
 
@@ -38,12 +39,11 @@
 
   [data-kui-fx~='beam-border'] {
     --kui-beam-border-duration: 220ms;
-    --kui-beam-border-ease: ease-out;
+    --kui-beam-border-delay: 0ms;
   }
 
   [data-kui-fx~='beam-border-auto'] {
     --kui-beam-border-auto-duration: 220ms;
-    --kui-beam-border-auto-ease: ease-out;
   }
 
   [data-kui-fx~='before-after-wipe'] {
@@ -54,6 +54,8 @@
 
   [data-kui-fx~='blob-morph'] {
     --kui-path-morph-duration: 800ms;
+    --kui-path-morph-delay: 0ms;
+    --kui-path-morph-ease: linear;
   }
 
   [data-kui-fx~='blur-in'] {
@@ -96,11 +98,13 @@
 
   [data-kui-fx~='border-draw'] {
     --kui-border-draw-duration: 220ms;
+    --kui-border-draw-delay: 0ms;
     --kui-border-draw-ease: ease-out;
   }
 
   [data-kui-fx~='border-glow'] {
     --kui-border-glow-duration: 220ms;
+    --kui-border-glow-delay: 0ms;
     --kui-border-glow-ease: ease-out;
   }
 
@@ -346,6 +350,7 @@
   [data-kui-fx~='expand-to-modal'] {
     --kui-flip-scale: true;
     --kui-flip-container-duration: 500ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -423,11 +428,13 @@
 
   [data-kui-fx~='flip-card'] {
     --kui-card-toggle-duration: 700ms;
+    --kui-card-toggle-delay: 0ms;
     --kui-card-toggle-ease: ease-in-out;
   }
 
   [data-kui-fx~='flip-filter'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -457,16 +464,19 @@
 
   [data-kui-fx~='flip-reorder'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='flip-shuffle'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='flip-sort'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -558,11 +568,13 @@
   [data-kui-fx~='grid-to-list'] {
     --kui-flip-scale: true;
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
   [data-kui-fx~='hamburger-to-x'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
@@ -588,20 +600,24 @@
 
   [data-kui-fx~='icon-bounce'] {
     --kui-icon-bounce-duration: 220ms;
+    --kui-icon-bounce-delay: 0ms;
     --kui-icon-bounce-ease: ease-out;
   }
 
   [data-kui-fx~='icon-morph'] {
     --kui-path-morph-duration: 300ms;
+    --kui-path-morph-delay: 0ms;
+    --kui-path-morph-ease: linear;
   }
 
   [data-kui-fx~='icon-spin'] {
     --kui-icon-spin-duration: 220ms;
-    --kui-icon-spin-ease: ease-out;
+    --kui-icon-spin-delay: 0ms;
   }
 
   [data-kui-fx~='icon-wiggle'] {
     --kui-icon-wiggle-duration: 220ms;
+    --kui-icon-wiggle-delay: 0ms;
     --kui-icon-wiggle-ease: ease-out;
   }
 
@@ -625,11 +641,13 @@
 
   [data-kui-fx~='lift'] {
     --kui-lift-duration: 220ms;
+    --kui-lift-delay: 0ms;
     --kui-lift-ease: ease-out;
   }
 
   [data-kui-fx~='lift-shadow'] {
     --kui-lift-shadow-duration: 220ms;
+    --kui-lift-shadow-delay: 0ms;
     --kui-lift-shadow-ease: ease-out;
   }
 
@@ -686,6 +704,7 @@
 
   [data-kui-fx~='masonry-reflow'] {
     --kui-flip-container-duration: 400ms;
+    --kui-flip-container-delay: 0ms;
     --kui-flip-container-ease: ease-out;
   }
 
@@ -812,16 +831,19 @@
 
   [data-kui-fx~='play-to-pause'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
   [data-kui-fx~='plus-to-minus'] {
     --kui-icon-toggle-duration: 260ms;
+    --kui-icon-toggle-delay: 0ms;
     --kui-icon-toggle-ease: ease-out;
   }
 
   [data-kui-fx~='pop'] {
     --kui-pop-duration: 220ms;
+    --kui-pop-delay: 0ms;
     --kui-pop-ease: ease-out;
   }
 
@@ -1013,6 +1035,7 @@
 
   [data-kui-fx~='shine-sweep'] {
     --kui-shine-sweep-duration: 220ms;
+    --kui-shine-sweep-delay: 0ms;
     --kui-shine-sweep-ease: ease-out;
   }
 
@@ -1170,6 +1193,7 @@
 
   [data-kui-fx~='split-flap'] {
     --kui-split-flap-duration: 220ms;
+    --kui-split-flap-delay: 0ms;
     --kui-split-flap-ease: ease-out;
   }
 
@@ -1244,6 +1268,7 @@
 
   [data-kui-fx~='tab-indicator-slide'] {
     --kui-flip-indicator-duration: 300ms;
+    --kui-flip-indicator-delay: 0ms;
     --kui-flip-indicator-ease: ease-out;
   }
 
@@ -1337,6 +1362,7 @@
 
   [data-kui-fx~='underline-center'] {
     --kui-underline-center-duration: 220ms;
+    --kui-underline-center-delay: 0ms;
     --kui-underline-center-ease: ease-out;
   }
 
@@ -1348,6 +1374,7 @@
 
   [data-kui-fx~='underline-slide'] {
     --kui-underline-slide-duration: 220ms;
+    --kui-underline-slide-delay: 0ms;
     --kui-underline-slide-ease: ease-out;
   }
 

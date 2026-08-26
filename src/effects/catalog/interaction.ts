@@ -1,4 +1,3 @@
-import { inertInstance } from '../../core/types.js'
 import type {
   Cleanup,
   EffectParams,
@@ -14,6 +13,13 @@ import { createStyleLedger } from '../../core/owned-styles.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import { DEFAULT_SPRING, createSpringRunner, defaultSpringDeps } from '../../core/spring.js'
 import type { SpringConfig, SpringDeps } from '../../core/spring.js'
+import {
+  ALL_TIMING_TOKENS,
+  stylesheetTimingPrepare,
+  TRIGGER_DELAY_PARAM,
+  withTimingContract,
+} from '../shared.js'
+import type { TimingContract, TimingToken } from '../shared.js'
 import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
 
 /**
@@ -23,10 +29,17 @@ import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-sha
  * library's own `on:hover` activation only listens for `pointerenter`/`focusin` and never
  * un-triggers on leave (see `core/activation.ts`), which is right for a one-shot reveal but wrong
  * for a button that should visibly settle back down when the pointer moves away. These are
- * therefore registered with a no-op `prepare` purely so `data-kui="lift"` parses, channel-conflicts,
- * and picks up author parameter overrides — the actual, fully reversible motion is native
- * `:hover`/`:focus-visible` CSS in `interaction.css`, gated to fine-pointer devices so a tap does
- * not leave an element stuck "hovered".
+ * therefore registered with a near-no-op `prepare` purely so `data-kui="lift"` parses,
+ * channel-conflicts, and picks up author parameter overrides — the actual, fully reversible motion
+ * is native `:hover`/`:focus-visible` CSS in `interaction.css`, gated to fine-pointer devices so a
+ * tap does not leave an element stuck "hovered".
+ *
+ * "Near"-no-op because of one thing only: the positional spelling of timing. `lift duration:400ms`
+ * reaches the stylesheet on its own (`resolveParams` writes every `key:value` override inline),
+ * but `lift 400ms` does not — `compile.pushTrack`, which is what turns the positional tokens into
+ * declarations, runs for `css-keyframes` primitives and no others. So `stylesheetTimingPrepare`
+ * mirrors the positional tokens onto the same namespaced properties the rules already read, and
+ * warns for the ones a given rule pins. See `effects/shared.ts`.
  *
  * The other seven (`tilt-3d`, `tilt-parallax`, `cursor-*`) genuinely need JavaScript: continuous
  * pointer position, not a two-state toggle. They wire their own `pointermove`/`pointerleave`
@@ -38,8 +51,33 @@ import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-sha
 
 const hoverTiming: ParameterSchema = {
   duration: { type: 'time', default: '220ms', cssProperty: '--kui-duration' },
+  // A hover state has a start moment — the pointer arrives, or focus lands — so "wait 200ms
+  // before lifting" is a coherent request even though nothing here plays on a clock at load.
+  // interaction.css spends it as `transition-delay`/`animation-delay` on the `:hover` and
+  // `:focus-visible` rules *only*, never on the base rule, so it delays entering the state and
+  // never leaving it: an author asking for hover-intent does not also want the button to hang in
+  // the air for 200ms after the pointer has gone.
+  ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
 }
+
+/**
+ * The two members whose motion is a *continuous rotation*, which is linear by construction.
+ *
+ * `beam-border` spins a conic gradient around a border and `icon-spin` turns an icon through a
+ * full circle; both are written `animation: ... linear` in interaction.css on purpose, because any
+ * other curve makes a loop visibly stutter at the seam. They still declare `duration` (how long
+ * one revolution takes) and now `delay`, so the honest report is "two of the three", not "none".
+ */
+const LINEAR_HOVER: TimingContract = {
+  honours: ['duration', 'delay'],
+  because:
+    'it is a continuous rotation and interaction.css runs it linear, so a curve would visibly ' +
+    'stutter at the seam of every revolution',
+}
+
+/** Reason for the family's default contract; unreachable, since it honours all three. */
+const PINNED_REASON = 'interaction.css pins that value on this effect'
 
 const liftParams: ParameterSchema = {
   distance: { type: 'length', default: '6px', cssProperty: '--kui-lift-distance' },
@@ -60,12 +98,38 @@ const beamParams: ParameterSchema = {
   outset: { type: 'length', default: '', cssProperty: '--kui-beam-border-outset' },
 }
 
-function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSchema = {}): Primitive {
+/**
+ * Keep the declared schema and the declared contract from drifting apart.
+ *
+ * A parameter that is *declared* but unread is the quiet half of the same defect this whole file
+ * is fixing: `readParams` only warns about names the schema does not know, so leaving `ease` on
+ * `icon-spin` — whose rule hardcodes `linear` — would advertise a knob and swallow it. Dropping
+ * the declaration is what makes `icon-spin ease:back-out` say "unknown parameter", and the
+ * contract below is what makes the positional `icon-spin 700ms 0ms back-out` say the same thing.
+ * Nothing an existing page can write changes behaviour: the property those two never read is
+ * still never read, it just now answers instead of shrugging.
+ *
+ * @complexity O(t) time and space in the token count — three, fixed.
+ * @overallScore 100
+ */
+function hoverTimingFor(honours: readonly TimingToken[]): ParameterSchema {
+  return Object.fromEntries(
+    Object.entries(hoverTiming).filter(([name]) => honours.includes(name as TimingToken)),
+  )
+}
+
+function hoverPrimitive(
+  id: string,
+  channels: string[],
+  extraParams: ParameterSchema = {},
+  timing: TimingContract = { honours: ALL_TIMING_TOKENS, because: PINNED_REASON },
+): Primitive {
+  const honours = timing.honours ?? []
   return {
     id,
     renderer: 'javascript' as Renderer,
     channels,
-    parameters: { ...hoverTiming, ...extraParams },
+    parameters: { ...hoverTimingFor(honours), ...extraParams },
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
@@ -76,7 +140,11 @@ function hoverPrimitive(id: string, channels: string[], extraParams: ParameterSc
     // (here unused) compiled `animation-*` path, so the policy layer shortens it via the
     // `transition-duration` and `::before`/`::after` rules in base.css.
     reducedMotion: 'shorten',
-    prepare: () => inertInstance(),
+    // Not `inertInstance()` any more. The rule this primitive stands in for reads
+    // `--kui-<id>-duration`/`-delay`/`-ease`, and `resolveParams` only ever writes those from the
+    // `key:value` spelling — so `lift 400ms` reached nothing while `lift duration:400ms` worked.
+    // See `stylesheetTimingPrepare`.
+    prepare: stylesheetTimingPrepare(id, timing),
   }
 }
 
@@ -88,11 +156,11 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('split-flap', ['rotate']),
   hoverPrimitive('border-draw', ['border']),
   hoverPrimitive('border-glow', ['shadow']),
-  hoverPrimitive('beam-border', ['border'], beamParams),
+  hoverPrimitive('beam-border', ['border'], beamParams, LINEAR_HOVER),
   hoverPrimitive('underline-slide', ['scale']),
   hoverPrimitive('underline-center', ['scale']),
   hoverPrimitive('icon-wiggle', ['rotate']),
-  hoverPrimitive('icon-spin', ['rotate']),
+  hoverPrimitive('icon-spin', ['rotate'], {}, LINEAR_HOVER),
   hoverPrimitive('icon-bounce', ['translate']),
 ]
 
@@ -114,13 +182,20 @@ export const CONTINUOUS_BORDER_PRIMITIVES: Primitive[] = [
     id: 'beam-border-auto',
     renderer: 'javascript' as Renderer,
     channels: ['border'],
-    parameters: { ...hoverTiming, ...beamParams },
+    // `duration` only, of the three. Unlike its hover twin this one has no start moment at all —
+    // it is `animation: ... infinite` with no `:hover` gate, running from the moment the rule
+    // lands — so there is nothing for a delay to be relative to; and it spins linear for the same
+    // seam reason `icon-spin` does. `duration` still means something: one revolution.
+    parameters: { duration: hoverTiming.duration!, ...beamParams },
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
     perfClass: 'compositor',
     reducedMotion: 'disable',
-    prepare: () => inertInstance(),
+    prepare: stylesheetTimingPrepare('beam-border-auto', {
+      honours: ['duration'],
+      because: 'it is an always-on linear loop with no start moment and no curve',
+    }),
   },
 ]
 
@@ -160,7 +235,7 @@ function pointerPrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  prepare: Primitive['prepare'],
+  prepare: NonNullable<Primitive['prepare']>,
 ): Primitive {
   return {
     id,
@@ -175,7 +250,19 @@ function pointerPrimitive(
     // meaningful "shortened" version of tracking a position. `prepare` itself checks
     // `supportsFineHover` and no-ops on touch, which is the coarse-pointer half of this rule.
     reducedMotion: 'disable',
-    prepare,
+    // None of the three timing tokens has anything to bite on here: a tilt is a pure function of
+    // where the pointer is *right now*, and the cursor dots are springs chasing it, so there is no
+    // instant an authored delay could be measured from and no fixed span a duration could set.
+    // Refused out loud — `tilt-3d 400ms` otherwise parses, installs, and discards the number in
+    // silence, which is indistinguishable from a broken effect.
+    prepare: withTimingContract(
+      id,
+      {
+        because:
+          'it tracks pointer position continuously, so it has no start moment and no fixed span',
+      },
+      prepare,
+    ),
   }
 }
 
