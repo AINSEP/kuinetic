@@ -162,7 +162,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `data-kui-threshold` | how much of the element must be visible before `on:enter` fires | `data-kui-threshold="30%"` |
-| `data-kui-stagger` | delay increment applied to matched children in a group | `data-kui-stagger="60ms"` |
+| `data-kui-stagger` | delay increment applied to matched children in a group, and optionally the order they go in | `data-kui-stagger="60ms from:center"` |
 
 Only the element-scoped settings have longhand attribute forms — `data-kui-on`,
 `data-kui-timeline`, `data-kui-threshold`, and `data-kui-stagger`. Where an inline key also exists
@@ -230,6 +230,57 @@ Three things worth knowing:
 - **It compiles to a delay**, so a scroll-driven `timeline:view`/`timeline:scroll` ignores it —
   position those with a range instead (`data-kui-timeline="view entry 0% cover 60%"`). It does work
   on `timeline:pin`, where the delay is the scrub head.
+
+---
+
+## Staggering a group — `data-kui-stagger`
+
+Put `data-kui-stagger` on the **parent** and every direct child that carries `data-kui` animates one
+step after the one before it:
+
+```html
+<div class="grid" data-kui-stagger="90ms">
+  <article data-kui="fade-up"></article>
+  <article data-kui="fade-up"></article>
+  <article data-kui="fade-up"></article>
+</div>
+```
+
+### Choosing where the stagger starts — `from:`
+
+By default the group runs first child to last. Add `from:` to the *same* attribute to change where
+the wave begins:
+
+```html
+<div class="grid" data-kui-stagger="90ms from:center">
+```
+
+| `from:` | Order | Use it for |
+|---|---|---|
+| `start` | first child to last (the default) | a list reading top to bottom |
+| `end` | last child to first | a list that should resolve *toward* the heading above it |
+| `center` | outward from the middle | a grid blooming from its centre |
+| `edges` | inward from both ends | a row closing on its middle |
+| `random` | scattered | a wall of tiles with no reading order |
+| a number | outward from that child index | drawing the eye to one card in the grid |
+
+Both parts are optional and order-independent: `data-kui-stagger="from:edges"` orders the group and
+leaves the step to CSS, and `data-kui-stagger="90ms"` is the plain stagger every example above uses.
+
+Four things worth knowing:
+
+- **`random` is the same scatter every time.** It is a deterministic function of the group's size,
+  not `Math.random()`, so a re-render, a re-activation, or a page reload will not reshuffle a list
+  under the reader — and an order you saw in a bug is an order you can reproduce. The trade-off is
+  that two same-sized grids on one page scatter identically.
+- **A number is a child index, counting from 0**, and it is *clamped* to the group with a warning if
+  it falls outside — `from:0` is `from:start` and `from:<last>` is `from:end`, so the clamp lands on
+  a real ordering rather than on a long delay before anything moves.
+- **`from:` here is not the `from:` inside `data-kui`.** `count-up from:0` and `scale-in from:1` are
+  effect parameters and unrelated; group ordering only ever lives on `data-kui-stagger`.
+- **The order is DOM order, not visual order.** In RTL that is what you want — `start` is the child
+  where its row begins. Under `flex-direction: row-reverse` you have separated the two yourself, and
+  `from:end` is the fix.
 
 ---
 
@@ -349,6 +400,9 @@ requestAnimationFrame(frame)
   Channels column in the [Catalog](?doc=catalog) before combining two names.
 - **Forgetting `data-kui-stagger` needs a group, not a target.** Put it on the *parent*
   (`data-kui-stagger="60ms"` on a list), not on each child — the stagger is a group behavior.
+- **Reaching for `from:` inside `data-kui` to order a group.** It means something else there —
+  `count-up from:0`, `scale-in from:1` — and fourteen effects use it as their own parameter. Group
+  ordering is `from:` on `data-kui-stagger`, on the parent.
 
 ---
 

@@ -144,6 +144,8 @@ describe('kuinetic/core public surface', () => {
       'createCssControl',
       'emitLifecycle',
       'indexStaggerGroup',
+      'parseStaggerAttribute',
+      'staggerRanks',
       'suggest',
       'resetCapabilities',
     ]

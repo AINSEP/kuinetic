@@ -42,7 +42,15 @@
    * beats a layer, so genuine group members are untouched and only the leak is cut.
    *
    * `--kui-stagger` is deliberately NOT reset: authors set it on a wrapper precisely so children
-   * inherit it, and that is the documented way to time a group.
+   * inherit it, and that is the documented way to time a group. `--kui-stagger-count` is in the
+   * same category and must stay out of this block for the same reason — the group publishes it on
+   * itself so its members inherit it (see `src/core/stagger.ts`), so resetting it here would zero
+   * it for every genuine member rather than only for a leak.
+   *
+   * Ordering (`data-kui-stagger="90ms from:center"`) needed no new property here, by design: it
+   * changes which integer goes into `--kui-i`, not which property carries it, so it inherits this
+   * reset for free. A `--kui-order` or `--kui-from` would have leaked exactly the way `--kui-i`
+   * once did and needed its own line.
    */
   [data-kui-fx] {
     --kui-dir: 1;
