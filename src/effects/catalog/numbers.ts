@@ -338,7 +338,9 @@ export const METER_PRIMITIVES: Primitive[] = [
   // `from` gives `progress-bar` a real knob on its start scale — it had none before. `--kui-bar-from`
   // is also what the `[data-kui-fx~='progress-bar'][data-kui-state='ready']` gate in numbers.css
   // neutralizes; see that rule's comment for the on:enter fix this parameter doubles as.
-  cssPrimitive('meter-bar', [CHANNEL.scale], {
+  // `transform-origin: left center` pins the bar's growth edge on the same unconditional rule —
+  // undeclared until channel-properties.ts gained an entry for it.
+  cssPrimitive('meter-bar', [CHANNEL.scale, 'transform-origin'], {
     parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
   }),
   cssPrimitive('meter-segments', [CHANNEL.opacity]),

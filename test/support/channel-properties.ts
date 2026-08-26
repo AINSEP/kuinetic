@@ -51,6 +51,20 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
     'background-size',
     'background-color',
     'background',
+    /**
+     * `background-repeat` and `background-clip` (`-webkit-background-clip` its prefixed twin, same
+     * reasoning as `-webkit-mask-composite` above) were the two remaining background longhands
+     * with no channel to land in. Widening an existing channel rather than opening a new one,
+     * because every current writer of either already declares `background` for the shorthand or a
+     * sibling longhand: `ambient-tint` (`scanline`/`starfield`/`spotlight-follow`/`wave-blob`),
+     * `feedback-burst` (`confetti-burst`), and `text-shimmer`/`text-sweep`
+     * (`gradient-shimmer`/`gradient-sweep`/`highlight-sweep`/`underline-draw`) all declare
+     * `background` already — confirmed against every writer of either property before adding this,
+     * not assumed from the primitive names.
+     */
+    'background-repeat',
+    'background-clip',
+    '-webkit-background-clip',
   ],
   /**
    * `-webkit-text-fill-color` is a text glyph's *fill*, distinct from `color` everywhere it is
@@ -70,7 +84,18 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   // above. Filed under `stroke` because that is the channel `text-outline-fill` already declares,
   // grouping it with the SVG stroke properties above as "an outline traced around a shape,"
   // text glyphs included.
-  stroke: ['stroke-dashoffset', 'stroke-dasharray', 'stroke', '-webkit-text-stroke'],
+  /**
+   * `fill` joins the SVG-outline properties below it, not `background`: every current writer is a
+   * `path-draw` or `stroke-sweep` preset that pairs `fill: none` with `stroke-dasharray` on the same
+   * unconditional rule, so an unclosed path does not paint its interior while the stroke draws
+   * (`svg.css`'s `draw-stroke`/`draw-signature`/`draw-underline`/`checkmark-draw`/`cross-draw`/
+   * `chart-line-draw`, `numbers.css`'s `progress-ring`/`gauge-sweep`/`donut-sweep`/`sparkline-draw`
+   * — all six declare `channels: ['stroke']` already). Static today — none of them animate `fill` —
+   * so nothing currently exercises this beyond the static-rule check, but the day an SVG effect
+   * *does* animate a shape's fill, a composed `background`- or `color`-channel effect would
+   * otherwise be free to paint over it unflagged.
+   */
+  stroke: ['stroke-dashoffset', 'stroke-dasharray', 'stroke', '-webkit-text-stroke', 'fill'],
   /**
    * `skew` claims the whole `transform` shorthand, because CSS never gave skew an independent
    * property the way it did `translate`/`rotate`/`scale`. Anything that writes `transform` replaces
@@ -117,4 +142,60 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * `rotate`/`translate` for the whole time the hole was open.
    */
   'text-shadow': ['text-shadow'],
+  /**
+   * `border-draw`'s only channel-tracked writes: the shorthand it uses to seed a transparent 2px
+   * base ring, and the two `border-image-*` longhands that paint the animated conic-gradient over
+   * it (`interaction.css`'s `[data-kui-fx~='border-draw']` rule). `allowedProperties()` returned an
+   * empty set for `channels: ['border']` before this entry existed, which made every property
+   * `border-draw` writes structurally invisible to the static-rule check — the same "absent, not
+   * merely unasserted" hole the top-of-file note describes for `text-shadow`.
+   *
+   * Deliberately narrow. Plain `border-color`/`border-width`/`border-style`/`border-top-color` stay
+   * untracked on purpose: `feedback.css`'s `spinner`/`spinner-ring` (primitive `feedback-spin`,
+   * declared channel `rotate`) and `forms.css`'s `.kui-spinner` each paint a static ring with a
+   * plain `border`/`border-top-color` that never varies and was never meant to compose against
+   * anything. Tracking the shorthand itself would flag both as new violations for a primitive this
+   * map does not own the fix for, the day this entry went from absent to present. `beam-border`/
+   * `beam-border-auto` also declare `border`, but their ring lives entirely on `::before` — nothing
+   * here checks a pseudo-element's own rule (see "pseudo-element ownership" in
+   * `css-invariants.test.ts`), so their static rule contributes nothing to this channel today.
+   */
+  border: ['border-image-source', 'border-image-slice'],
+  /**
+   * `shine-sweep` is the one primitive on this channel, and every property its sweep actually
+   * paints — `background`, `background-size`, `background-position` — lives on its own `::after`
+   * (`interaction.css`), which both `extractBaseRuleProperties` and `extractHostAnimationBindings`
+   * deliberately skip (see their doc comments: a pseudo-element paints a different box than the one
+   * `data-kui-fx` sits on, so it cannot clobber a composed effect's property there the way an
+   * always-on base-selector rule can). So there is nothing on the *host* element for this channel to
+   * police yet, and an empty array is the honest answer rather than a placeholder for properties
+   * that would just create the "two channel names, one physical property" hazard this file's
+   * opening note warns about if filed under `background` too.
+   *
+   * Declaring the channel anyway — rather than leaving it absent — turns `allowedProperties(['sweep'])`
+   * from an unintentional `?? []` fallback into an intentional, documented one, and gives it a home
+   * to grow into if the pseudo-element audit ever gets extended to check that box directly.
+   */
+  sweep: [],
+  /**
+   * One property, its own channel — same shape as `text-shadow` above, and for the same reason:
+   * `transform-origin` does not collide with a transform the way writing `transform` itself would
+   * (that failure already has a channel — `skew`, above). It changes what every transform on the
+   * element *pivots around*. Two primitives that compose because their `translate`/`scale`/`rotate`/
+   * `skew` channels are disjoint can still silently disagree about where "home" is, if only one of
+   * them gets to declare the origin.
+   *
+   * Seven primitives write it on their own unconditional rule, covering all eight named writers:
+   * `progress` (`scroll-progress-bar`/`scroll-progress-bar-y`, `core.ts`/`scroll.css`),
+   * `feedback-progress-track` (`progress-indeterminate`, `feedback.ts`/`feedback.css`),
+   * `feedback-ripple` (`ripple`, `feedback.ts`/`feedback.css`), `meter-bar` (`progress-bar`,
+   * `numbers.ts`/`numbers.css`), `flip-face` (`book-page-turn`/`fold-panel`, of its five presets —
+   * `card-flip-x`/`-y`/`cube-rotate` don't write it — `three-d/index.ts`/`three-d.css`), `bar`
+   * (`loading-bar`, `three-d/index.ts`/`three-d.css`), and `bar-grow` (`chart-bar-grow`,
+   * `effects/svg/index.ts`/`svg.css`). `underline-slide`/`underline-center`/`label-float`/
+   * `input-underline-grow` also write `transform-origin`, but on a pseudo-element or a sibling —
+   * never the host `data-kui-fx` element — so neither scanner reaches them and they need no
+   * channel entry here.
+   */
+  'transform-origin': ['transform-origin'],
 }

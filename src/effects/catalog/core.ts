@@ -182,7 +182,10 @@ export const PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
   }),
 
-  css('progress', [CHANNEL.scale], {
+  // `'transform-origin'` alongside `scale`: `scroll-progress-bar`/`-y` pin the bar's growth edge
+  // with `transform-origin: left center` (scroll.css) — undeclared until channel-properties.ts
+  // gained an entry for it, which made the write structurally invisible to the static-rule check.
+  css('progress', [CHANNEL.scale, 'transform-origin'], {
     timelines: ['scroll', 'view'],
     activations: ['manual'],
     reducedMotion: 'disable',

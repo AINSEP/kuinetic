@@ -126,7 +126,12 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
   // `perspective()` transform *function*, which only exists inside the `transform` shorthand.
   // `CHANNEL.skew` is this catalog's name for "claims the whole `transform` shorthand"; see the
   // comment on it in `core/types.ts`.
-  cssPrimitive('flip-face', [CHANNEL.skew], {
+  // `'transform-origin'` alongside `skew`: two of this primitive's five presets pin one —
+  // `book-page-turn` (`left center`) and `fold-panel` (`top center`), each on its own unconditional
+  // rule in three-d.css — undeclared until channel-properties.ts gained an entry for it.
+  // `card-flip-x`/`-y`/`cube-rotate` don't write it, but the channel only says what this primitive
+  // is *allowed* to paint, not what every preset built on it does.
+  cssPrimitive('flip-face', [CHANNEL.skew, 'transform-origin'], {
     parameters: {
       angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
       perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
@@ -143,7 +148,9 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
   // `flip-face`'s `angle:` two rows up. `--kui-bar-from` is also what the fold-panel-style
   // `[data-kui-fx~='loading-bar'][data-kui-state='ready']` gate neutralizes in three-d.css; see
   // that rule's comment for the on:enter fix this parameter doubles as.
-  cssPrimitive('bar', [CHANNEL.scale], {
+  // `transform-origin: left center` pins the bar's growth edge on the same unconditional rule —
+  // undeclared until channel-properties.ts gained an entry for it.
+  cssPrimitive('bar', [CHANNEL.scale, 'transform-origin'], {
     parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
   }),
 

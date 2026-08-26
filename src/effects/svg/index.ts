@@ -121,8 +121,13 @@ const SHAPE_FILL_PRIMITIVE: Primitive = cssPrimitive('shape-fill', [CHANNEL.clip
  * `from` gives `chart-bar-grow` a real knob on its start scale — it had none before. `--kui-bar-from`
  * is also what the `[data-kui-fx~='chart-bar-grow'][data-kui-state='ready']` gate in svg.css
  * neutralizes; see that rule's comment for the on:enter fix this parameter doubles as.
+ *
+ * `'transform-origin'` alongside `scale`: the same rule pins `transform-origin: bottom center` so
+ * the bar grows from its base rather than its centre — undeclared until `channel-properties.ts`
+ * gained an entry for it, which made the write structurally invisible to the static-rule check the
+ * same way `background`-shorthand writers were before that channel existed.
  */
-const BAR_GROW_PRIMITIVE: Primitive = cssPrimitive('bar-grow', [CHANNEL.scale], {
+const BAR_GROW_PRIMITIVE: Primitive = cssPrimitive('bar-grow', [CHANNEL.scale, 'transform-origin'], {
   parameters: { from: { type: 'number', default: '0', cssProperty: '--kui-bar-from' } },
 })
 

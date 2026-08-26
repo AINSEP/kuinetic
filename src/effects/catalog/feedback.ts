@@ -94,13 +94,19 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     perfClass: 'continuous',
   }),
   // Same shape as feedback-dot-pulse above: `[data-kui-fx~='progress-indeterminate']` sets
-  // `background: currentColor` unconditionally for the bar itself, outside the keyframe.
-  cssPrimitive('feedback-progress-track', [CHANNEL.translate, CHANNEL.scale, CHANNEL.background], {
-    parameters: progressTrack,
-    defaultActivation: 'load',
-    reducedMotion: 'disable',
-    perfClass: 'continuous',
-  }),
+  // `background: currentColor` unconditionally for the bar itself, outside the keyframe. It also
+  // pins `transform-origin: 0% 50%` there, undeclared until channel-properties.ts gained an entry
+  // for it — the same structurally-invisible gap `background` was closed for above.
+  cssPrimitive(
+    'feedback-progress-track',
+    [CHANNEL.translate, CHANNEL.scale, CHANNEL.background, 'transform-origin'],
+    {
+      parameters: progressTrack,
+      defaultActivation: 'load',
+      reducedMotion: 'disable',
+      perfClass: 'continuous',
+    },
+  ),
   cssPrimitive('feedback-toast', [CHANNEL.opacity, CHANNEL.translate], {
     parameters: toast,
     defaultActivation: 'manual',
@@ -114,10 +120,15 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
   }),
   // `[data-kui-fx~='ripple']` sets `background: currentColor` unconditionally for the ripple
   // disc itself, outside the keyframe — same gap as feedback-dot-pulse/feedback-progress-track.
-  cssPrimitive('feedback-ripple', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background], {
-    parameters: ripple,
-    defaultActivation: 'click',
-  }),
+  // It also pins `transform-origin: center` there, same structurally-invisible gap as above.
+  cssPrimitive(
+    'feedback-ripple',
+    [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'transform-origin'],
+    {
+      parameters: ripple,
+      defaultActivation: 'click',
+    },
+  ),
   cssPrimitive('feedback-pop', [CHANNEL.scale], {
     parameters: pop,
     defaultActivation: 'manual',

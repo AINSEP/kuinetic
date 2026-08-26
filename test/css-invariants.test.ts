@@ -25,6 +25,7 @@ import {
   extractHostAnimationBindings,
   extractKeyframes,
   readBalancedBlock,
+  stripComments,
 } from './support/css-scan.js'
 import { catalogRegistry } from './support/registry.js'
 
@@ -113,7 +114,13 @@ const ALL_PRESETS = [
  * (`--kui-fx-*-iterations`) that the channel model was never meant to police. */
 const TRACKED_PROPERTIES = new Set(Object.values(CHANNEL_PROPERTIES).flat())
 
-const scannedCss = EFFECT_FILES.map((file) => SOURCES.get(file)).join('\n')
+// Comment-stripped before any scan runs — see `stripComments`'s own doc comment. Without this, a
+// retired preset's CSS kept commented-out for reference (`ambient.css`'s `noise-overlay` cut is
+// the live example) reads to every regex below as if it were still shipping: its `@keyframes`
+// block looked like a real, orphaned one to `extractKeyframes`, and its `animation:`/`[data-kui-fx~=]`
+// text would have been equally readable by `extractBaseRuleProperties`/`extractHostAnimationBindings`
+// and the `inlineAnimationRefs` scan just below, had either happened to collide with something live.
+const scannedCss = stripComments(EFFECT_FILES.map((file) => SOURCES.get(file)).join('\n'))
 const keyframes = extractKeyframes(scannedCss)
 const baseRules = extractBaseRuleProperties(scannedCss)
 const registry = catalogRegistry()
