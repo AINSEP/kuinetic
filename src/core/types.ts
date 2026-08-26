@@ -467,6 +467,17 @@ export interface EffectSpec {
   duration?: string
   delay?: string
   easing?: string
+  /**
+   * Authored `at:` position — where this segment starts relative to the one before it in the comma
+   * list. Untrusted and unparsed; `core/sequence.ts` owns the grammar and every diagnostic.
+   *
+   * Beside `delay` rather than inside `params` for the same reason `delay` itself is: it is not a
+   * parameter. No `ParameterSchema` declares it, it means the same thing for every effect in the
+   * catalog, and `resolveParams` would reject it as unknown on all 255 of them. It is also not
+   * hoisted to `ParsedValue` the way `on:`/`timeline:` are, because a position is per-segment by
+   * definition — the whole point is that each segment can sit somewhere different.
+   */
+  at?: string
   params: Record<string, string>
 }
 

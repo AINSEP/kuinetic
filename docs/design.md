@@ -87,16 +87,56 @@ effect-spec  := <effect-name> [<duration>] [<delay>] [<easing>] <key:value>*
 <h1 data-kui="fade-up 800ms 200ms ease-out">
 <h1 data-kui="fade-up 800ms distance:40px">
 <h1 data-kui="slide-up 800ms, blur-in 400ms">
+<h1 data-kui="slide-up 800ms, blur-in 400ms at:-200ms">
 ```
 
 Rules:
 - Positional args must appear in the order above. Unknown or out-of-order tokens produce a
   **dev-mode console warning naming the element and the token** — never a silent no-op.
+- Three `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
+  `timeline:` and `threshold:` are hoisted element-wide (below). `at:` is per-segment and positions
+  that segment relative to the one before it in the comma list — see §3.1.
 - Parser must be paren-aware (`ease:cubic-bezier(.2,.8,.2,1)` contains commas). ~30 lines.
 - Attribute values may contain newlines; whitespace normalizes.
 - Element-scoped settings (`on`, `timeline`, `threshold`) also have longhand attribute forms
   (`data-kui-on` etc.) for server-side templating; the inline key wins when both are present.
   Timing is grammar-only — there is no `data-kui-duration`.
+
+### 3.1 Sequencing — `at:`
+
+Comma-separated effects start together. `at:` moves one **relative to the previous segment**:
+
+| Spelling | Anchor |
+|---|---|
+| `at:-200ms` | 200ms before the previous segment ends |
+| `at:+100ms` | 100ms after the previous segment ends |
+| `at:after` | the previous segment's end |
+| `at:with` | the previous segment's start |
+| `at:with+150ms` | 150ms after the previous segment's start |
+
+**Only relative.** Serial and parallel playback were already expressible — parallel is a comma list
+with no delay, serial is a `delay:` offset past the earlier duration — so an *absolute* `at:200ms`
+would be `delay:200ms` renamed, and is refused by name. The capability that was genuinely missing is
+GSAP's `"-=0.2"`: start B before A ends, without the author recomputing
+`previousDelay + previousDuration - 200ms` every time either of the other numbers moves.
+
+**Compiled, not driven.** `at:` produces a longer `animation-delay` expression and nothing else —
+no timer, no playhead, no runtime state, so a sequence stays a real CSS animation off the main
+thread. Most of the expression stays symbolic (`var(--kui-reveal-duration, 600ms)`, not `600ms`), so
+restyling a duration in a consumer stylesheet re-derives every position after it with no recompile.
+
+Scope and boundaries, all warned by name rather than left silent:
+
+- **Within one element only.** Sequencing across sibling elements is not implemented; `at:` on the
+  first segment has nothing to follow and is refused.
+- **JavaScript-rendered effects** need a concrete number rather than an expression, so they are
+  positioned only when the primitive declares a `delay`. One that does not is named in a warning.
+- **`view`/`scroll` timelines** are driven by scroll position and ignore `animation-delay`; use an
+  `animation-range` instead. `pin` positions normally — there the delay *is* the scrub head.
+- **Stagger composes without double-counting**: `at:` spaces segments within one element, stagger
+  shifts the whole element against its siblings.
+
+Implementation: `src/core/sequence.ts`.
 
 ---
 

@@ -157,6 +157,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | duration | first positional arg, or `duration:` | `fade-up 800ms` |
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
+| `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
@@ -186,6 +187,49 @@ declaration — no extra markup, no wrapper element.
 If two effects in the same list *do* write the same CSS property, the library keeps the first and
 warns in the console naming both — never a silent drop — see
 [Architecture §4](?doc=design#4-composition-the-channel-model) for the full resolution order.
+
+---
+
+## Sequencing — `at:`
+
+Comma-separated effects all start at the same instant. `at:` moves one of them **relative to the
+one before it in the list**, so you stop hand-computing delays:
+
+```html
+<h1 data-kui="fade-up 600ms, blur-in 400ms at:-200ms">
+```
+
+`blur-in` starts 200ms *before* `fade-up` ends — a 400ms delay, which the compiler works out for
+you and re-works if you change either number.
+
+```live
+<div class="doc-demo-box" data-kui="fade-up 600ms, blur-in 400ms at:-200ms" data-kui-on="load">overlapped by 200ms</div>
+<div class="doc-demo-box" data-kui="fade-up 600ms, blur-in 400ms at:+100ms" data-kui-on="load">100ms gap after fade-up</div>
+```
+
+| Spelling | Where it starts |
+|---|---|
+| `at:-200ms` | 200ms **before** the previous effect ends — they overlap |
+| `at:+100ms` | 100ms **after** the previous effect ends — a gap |
+| `at:after` | exactly when the previous effect ends |
+| `at:with` | the same instant the previous effect starts |
+| `at:with+150ms` | 150ms after the previous effect *starts* |
+
+Each `at:` chains off the one before it, so a three-effect list reads front to back:
+
+```html
+<h1 data-kui="fade-up 600ms, blur-in 400ms at:-200ms, zoom-in 300ms at:+50ms">
+```
+
+Three things worth knowing:
+
+- **`at:` is always relative.** `at:200ms` is refused, with a warning, because it would be nothing
+  but `delay:200ms` under a second name.
+- **It positions against the previous *effect*, not the previous *element*.** Sequencing across
+  sibling elements is not built yet; use `data-kui-stagger` on the parent for that.
+- **It compiles to a delay**, so a scroll-driven `timeline:view`/`timeline:scroll` ignores it —
+  position those with a range instead (`data-kui-timeline="view entry 0% cover 60%"`). It does work
+  on `timeline:pin`, where the delay is the scrub head.
 
 ---
 

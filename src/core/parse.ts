@@ -10,6 +10,10 @@ import type { EffectSpec, ParsedValue } from './types.js'
  * Positional tokens must appear in that order. Unknown or out-of-order tokens warn by name
  * rather than failing silently.
  *
+ * Two `key:value` keys are reserved and never reach a primitive's parameters: `on`/`timeline`/
+ * `threshold` are hoisted element-wide (see `HOISTS`), and `at:` is lifted onto the spec as a
+ * relative position — `core/sequence.ts` owns what it means.
+ *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
  */
@@ -270,6 +274,16 @@ function applyToken(
     result.warnings.push(
       `unrecognised token "${token.value}" in "${segment}" — expected [duration] [delay] [easing] or key:value`,
     )
+    return
+  }
+
+  // Lifted onto the spec rather than left in `params`, exactly as the positional times are: `at:`
+  // is a position, not a parameter, and no primitive's `ParameterSchema` declares it — so leaving
+  // it in `params` would make `resolveParams` warn "unknown parameter" on every effect in the
+  // catalog. See `EffectSpec.at` in `types.ts` for why it is not hoisted element-wide either.
+  if (token.key === 'at') {
+    if (spec.at !== undefined) result.warnings.push(`duplicate parameter "at" in "${segment}"`)
+    spec.at = token.value
     return
   }
 

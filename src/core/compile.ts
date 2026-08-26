@@ -2,13 +2,17 @@ import { describeConflicts, findConflicts } from './channels.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest, timingProperty } from './registry.js'
+import { durationExpression, resolveSequence } from './sequence.js'
+import type { SequenceMember, SequenceStep } from './sequence.js'
 import type {
   Activation,
   Channel,
   EffectSpec,
   EffectVariant,
   NamedActivation,
+  ParameterSchema,
   ParsedValue,
+  Preset,
   ReducedMotionPolicy,
   Timeline,
 } from './types.js'
@@ -36,6 +40,19 @@ export interface Entry {
    * that is fully described without seeing an attribute, which is all but the generic tween.
    */
   variant?: EffectVariant
+  /**
+   * Concrete milliseconds an `at:` position resolved to, for JS-rendered entries only.
+   *
+   * A CSS-rendered entry needs no such field: its position is a symbolic `calc()` the browser
+   * evaluates, which is both more accurate and re-evaluated when a stylesheet moves one of the
+   * durations underneath it (see `core/sequence.ts`). A JS-rendered one has no `animation-delay`
+   * to write to and needs a number, so the sequencer's numeric mirror is carried here and applied
+   * by `js-effect-preparer.ts` over whatever `readEffectTiming` read off the spec.
+   *
+   * Absent when the segment carries no `at:`, when the position was refused, or when the numeric
+   * mirror could not resolve — in all three cases the effect keeps its own authored delay.
+   */
+  sequencedDelayMs?: number
 }
 
 /**
@@ -245,9 +262,14 @@ function buildPlan(
   // `[]` (the composed effects genuinely share nothing) — see `intersect`.
   let activations: NamedActivation[] | undefined
   let timelines: Timeline[] | undefined
+  // Resolved for the whole list up front, and over the *composed* entries rather than the parsed
+  // specs: `resolveComposition` may already have dropped a conflicting effect, and an `at:` must
+  // never be measured against a neighbour that is not being compiled.
+  const sequence = resolveSequence(entries.map(memberFor), timeline, (m) => warnings.push(m))
 
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     const { preset, primitive } = entry.resolved
+    const step = sequence[index]!
     plan.fxNames.push(preset.name)
     plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
     plan.defaultActivation ??= primitive.defaultActivation
@@ -264,8 +286,8 @@ function buildPlan(
       resolveParams(authoredParams(entry), primitive.parameters, (m) => warnings.push(m)),
     )
 
-    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline)
-    else plan.jsEffects.push(entry)
+    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline, step)
+    else plan.jsEffects.push(positioned(entry, step, warnings))
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
@@ -276,6 +298,78 @@ function buildPlan(
   plan.supportedTimelines = timelines!
   plan.channels = [...channels]
   return plan
+}
+
+/**
+ * Describe one entry to the sequencer.
+ *
+ * The sequencer is deliberately given a flat description rather than the `Entry` itself: it does
+ * arithmetic on times and has no business reaching into a registry, and a structural input is what
+ * lets its whole grammar be tested without building a catalog.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function memberFor(entry: Entry): SequenceMember {
+  const { spec, resolved } = entry
+  const { preset, primitive } = resolved
+  const authored = authoredParams(entry)
+  return {
+    name: preset.name,
+    primitiveId: primitive.id,
+    at: spec.at,
+    delay: spec.delay,
+    duration: spec.duration,
+    cascadeDelay: cascadeValue(authored, preset, primitive.parameters, 'delay'),
+    cascadeDuration: cascadeValue(authored, preset, primitive.parameters, 'duration'),
+    // A `css-keyframes` segment is always positionable — it compiles to an `animation-delay` and
+    // the browser honours it. A JavaScript-rendered one is positionable only if it declares the
+    // parameter, which is the single compile-time signal that it reads a delay at all.
+    positionable:
+      primitive.renderer === 'css-keyframes' || Object.hasOwn(primitive.parameters, 'delay'),
+  }
+}
+
+/**
+ * What a timing custom property is expected to resolve to, following the same precedence
+ * `scripts/generate-preset-css.mjs` writes it with: the author's named key, then the preset's own
+ * override, then the primitive's declared default.
+ *
+ * The generated stylesheet is built from these very values, which is what makes the sequencer's
+ * numeric mirror agree with its symbolic half for everything the library ships.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function cascadeValue(
+  authored: Record<string, string>,
+  preset: Preset,
+  schema: ParameterSchema,
+  name: 'delay' | 'duration',
+): string | undefined {
+  return authored[name] ?? preset.params?.[name] ?? schema[name]?.default
+}
+
+/**
+ * Carry a resolved `at:` position onto a JS-rendered entry.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function positioned(entry: Entry, step: SequenceStep, warnings: string[]): Entry {
+  if (!step.sequenced) return entry
+  if (step.delayMs === undefined) {
+    // The symbolic half is still correct — it just cannot be turned into a number here, because
+    // something upstream in the chain carries a duration this compiler cannot read. A JS effect
+    // has nowhere to put the symbolic form, so it says so rather than starting somewhere invented.
+    warnings.push(
+      `"${entry.resolved.preset.name}" is rendered in JavaScript, so its at: position has to ` +
+        `resolve to a concrete time, and an effect before it in the list carries a duration this ` +
+        `compiler cannot read — it starts at its own delay instead`,
+    )
+    return entry
+  }
+  return { ...entry, sequencedDelayMs: step.delayMs }
 }
 
 /**
@@ -326,16 +420,23 @@ function iterationCountProperty(presetName: string): string {
  * effect the author gave one duration, rendered as two tracks only because CSS has no way to write
  * two unrelated properties from one keyframe without also writing everything in between.
  *
+ * @param step - Where the sequencer placed this segment. For a segment with no `at:` this is the
+ *   segment's own delay, so the compiled output is unchanged from before sequencing existed.
  * @complexity O(k) time in the entry's keyframe count; O(k) space in the tracks.
  * @overallScore 100
  */
-function pushTrack(tracks: AnimationTracks, entry: Entry, timeline: Timeline): void {
+function pushTrack(
+  tracks: AnimationTracks,
+  entry: Entry,
+  timeline: Timeline,
+  step: SequenceStep,
+): void {
   const { spec, resolved } = entry
   const id = resolved.primitive.id
   // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
-  const duration = spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`
-  const delay = staggerDelay(spec.delay, id, timeline, duration)
+  const duration = durationExpression(spec.duration, id)
+  const delay = staggerDelay(step.delayExpr, timeline, duration)
   const easing = easingValue(spec.easing, id)
   // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
   // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
@@ -396,16 +497,18 @@ function warnUnsupportedTimeline(
  * track, index 0/1/2 render at 50%/30%/10%. That is the staggered scroll-scrub that pages
  * previously had to hand-write as `calc((var(--kui-progress) - var(--step)) * 5)` per child.
  *
+ * A sequenced `at:` position arrives here already folded into `base`, and the two compose without
+ * double-counting because they answer different questions: `at:` positions a segment against its
+ * *neighbouring segments on this element*, while stagger shifts *this whole element* against its
+ * siblings. Every track on the element takes the same stagger term, so the relative spacing `at:`
+ * established inside the list survives the shift intact.
+ *
+ * @param base - The segment's start, from `core/sequence.ts`. An unwrapped sum, so it nests here
+ *   without a second `calc()`.
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function staggerDelay(
-  delay: string | undefined,
-  primitiveId: string,
-  timeline: Timeline,
-  duration: string,
-): string {
-  const base = delay ?? `var(${timingProperty(primitiveId, 'delay')}, 0ms)`
+function staggerDelay(base: string, timeline: Timeline, duration: string): string {
   const staggered = `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
   if (timeline !== 'pin') return `calc(${staggered})`
   // The head spans one duration *plus* the group's whole stagger span, so the last-staggered
