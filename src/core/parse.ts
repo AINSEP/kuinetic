@@ -1,5 +1,5 @@
 import { validateActivation } from './activation.js'
-import type { EffectSpec, ParsedValue } from './types.js'
+import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
  * Grammar — ours, deliberately NOT "the CSS animation shorthand" (see docs/design.md §3):
@@ -10,9 +10,9 @@ import type { EffectSpec, ParsedValue } from './types.js'
  * Positional tokens must appear in that order. Unknown or out-of-order tokens warn by name
  * rather than failing silently.
  *
- * Two `key:value` keys are reserved and never reach a primitive's parameters: `on`/`timeline`/
- * `threshold` are hoisted element-wide (see `HOISTS`), and `at:` is lifted onto the spec as a
- * relative position — `core/sequence.ts` owns what it means.
+ * Some `key:value` keys are reserved and never reach a primitive's parameters:
+ * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm` are hoisted element-wide (see `HOISTS`), and
+ * `at:` is lifted onto the spec as a relative position — `core/sequence.ts` owns what it means.
  *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
@@ -301,9 +301,47 @@ function applyToken(
   spec.params[token.key] = token.value
 }
 
+/** The three values `rm:` accepts, mirroring `ReducedMotionPolicy` in `types.ts`. */
+const RM_POLICIES: ReadonlySet<string> = new Set(['shorten', 'crossfade', 'disable'])
+
 /**
  * Element-scoped keys, hoisted out of the per-effect grammar because one element has exactly one
- * activation and one timeline. A table keeps `applyToken` free of a growing branch chain.
+ * activation, one timeline, one stagger group and one reduced-motion policy. A table keeps
+ * `applyToken` free of a growing branch chain.
+ *
+ * ## Why the stagger keys are spelled `cascade:` and `order:`
+ *
+ * The goal is that everything an author writes lives in one attribute, so the group step and the
+ * group ordering both need a home here. Neither could keep the name it has on `data-kui-stagger`,
+ * and the two reasons are different:
+ *
+ * **`from:` → `order:`.** `from` is a parameter name on eighteen primitives — `count-up from:0`,
+ * `scale-in from:1`, `gradient-shift from:#f00`, `path-morph from:...`. Hoisting it would make
+ * every one of those unwritable, because a hoisted key never reaches `spec.params` at all. `order`
+ * is declared by no primitive in the catalog (checked against all 131 by building the registry
+ * from `createRegistry()` and unioning every `primitive.parameters` key), and it reads as what it
+ * is beside `on:` and `timeline:` — what starts it, what drives it, what order it goes in.
+ * `data-kui-stagger` keeps `from:` working and accepts `order:` as a synonym, so one word works in
+ * both attributes.
+ *
+ * **`stagger:` → `cascade:`.** This one is subtler and was nearly missed. `stagger` is *also* an
+ * existing parameter — on seventy-seven primitives, from `shared.ts`'s `COMMON` block — and it
+ * writes the very same `--kui-stagger` custom property this hoist would, so it looks at first like
+ * a merge rather than a collision. It is not, and `split-text` is the proof: the primitive reads
+ * `params.ms('stagger', 30)` in `splitRevealFinishMs` to size the timer that resolves its
+ * `finished` promise, and several presets set a *per-preset* default for it (`split-chars` 18ms,
+ * `split-lines` 90ms). Hoisting the word would lift `data-kui="split-lines stagger:320ms"` out of
+ * `spec.params`, the primitive would silently fall back to the preset default, and the effect
+ * would report finished long before it was — with the CSS still visibly staggering at 320ms,
+ * because the custom property would still have been written. A silent timing lie is exactly the
+ * failure mode this codebase warns about everywhere else.
+ *
+ * So the two words are kept apart because they genuinely mean two things: `stagger:` is the step
+ * between the pieces a primitive *generates* (split-text's own spans), `cascade:` is the step
+ * between the animated children an *author* wrote. `cascade` is declared by no primitive either.
+ * The one ambiguity it carries — this codebase talks about the CSS cascade a great deal — is
+ * documentation-only: `cascade:90ms` takes a time, and there is no CSS-cascade concept an author
+ * would ever write inside `data-kui`.
  */
 const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
   /**
@@ -330,6 +368,46 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
   threshold(result, value) {
     assignOnce(result, 'threshold', value, 'thresholds')
   },
+  /**
+   * Deliberately unvalidated here. `data-kui-stagger` has always written its step straight into
+   * `--kui-stagger`, which is what makes `var(--speed)` and `calc(90ms * 2)` work today, and the
+   * two spellings have to accept the same values or "move it into `data-kui`" would silently be a
+   * narrowing. `stagger.ts` owns the one screen both spellings get.
+   */
+  cascade(result, value) {
+    assignOnce(result, 'cascade', value, 'stagger steps')
+  },
+  /**
+   * Also unvalidated here, for a different reason: the legal set depends on the *group size*
+   * (`order:7` is in range for eight children and clamped for three), which only `stagger.ts`
+   * knows. Validating the keyword half here and the index half there would split one diagnostic
+   * across two modules.
+   */
+  order(result, value) {
+    assignOnce(result, 'order', value, 'stagger orders')
+  },
+  /**
+   * The one hoist that is not a move.
+   *
+   * `data-kui-rm` is *output*, not input: `style-plan.ts` stamps it from `plan.reducedMotion`,
+   * which `compile.ts` folds out of the composed primitives' own declared policies, and ~40
+   * selectors in `base.css` key on it. No author has ever written it, so there was nothing to
+   * hoist — what this adds is the ability to *choose* the policy, which the library had no
+   * spelling for at all. The stamped attribute keeps its exact meaning ("the policy in force
+   * here"), so every one of those selectors is untouched.
+   *
+   * Validated against the closed set here rather than in `compile.ts`, so a typo (`rm:disabled`)
+   * is named at the point the author's text is read, next to every other grammar diagnostic.
+   */
+  rm(result, value) {
+    if (!RM_POLICIES.has(value)) {
+      result.warnings.push(
+        `unrecognised "rm:${value}" — expected ${[...RM_POLICIES].join(', ')}`,
+      )
+      return
+    }
+    assignOnce(result, 'rm', value as ReducedMotionPolicy, 'reduced-motion policies')
+  },
 }
 
 /**
@@ -339,7 +417,7 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function assignOnce<K extends 'activation' | 'timeline' | 'threshold'>(
+function assignOnce<K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'order' | 'rm'>(
   result: ParsedValue,
   key: K,
   value: ParsedValue[K],

@@ -224,7 +224,7 @@ export class Animator {
     const selector = `[${ATTR.source}]`
     if (isElementNode(root) && root.matches(selector)) this.process(root)
     for (const el of root.querySelectorAll(selector)) this.process(el)
-    applyStagger(root)
+    applyStagger(root, this.reporter)
     return this
   }
 

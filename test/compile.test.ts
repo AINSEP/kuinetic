@@ -281,6 +281,29 @@ describe('compile — reduced motion policy', () => {
     const plan = compile(parse('slide-up, parallax-scale'), registry, 'view')
     expect(plan.reducedMotion).toBe('disable')
   })
+
+  it('lets an authored rm: strengthen the policy the primitives declared', () => {
+    // The capability the library had no spelling for at all: `fade-up` claims `shorten`, but an
+    // author who knows this particular reveal is a full-screen wipe can ask for it not to run.
+    expect(run('fade-up rm:disable').reducedMotion).toBe('disable')
+  })
+
+  /*
+   * A one-way ratchet, on `strictestPolicy`'s own rule rather than a new one. `parallax` declares
+   * `disable` because parallax is a documented vestibular trigger, not because the library is
+   * being cautious on the author's behalf — so `rm:shorten` there would hand a visitor who asked
+   * their OS for less motion exactly the motion they asked not to receive.
+   */
+  it('refuses to let rm: weaken a policy, and says so by name', () => {
+    const plan = compile(parse('parallax-y rm:shorten'), registry, 'view')
+    expect(plan.reducedMotion).toBe('disable')
+    expect(plan.warnings.join()).toContain('rm:shorten')
+    expect(plan.warnings.join()).toContain('may only strengthen')
+  })
+
+  it('leaves the policy alone when no rm: was written', () => {
+    expect(run('fade-up').warnings.join()).not.toContain('rm:')
+  })
 })
 
 describe('compile — timeline support', () => {

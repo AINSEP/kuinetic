@@ -138,6 +138,55 @@ describe('parse', () => {
       expect(parse('fade-up on:hover').specs[0]?.params).toEqual({})
     })
 
+    it('hoists cascade: and order:, the two stagger keys data-kui-stagger owns', () => {
+      const result = parse('fade-up cascade:90ms order:center')
+      expect(result.cascade).toBe('90ms')
+      expect(result.order).toBe('center')
+      expect(result.specs[0]?.params).toEqual({})
+    })
+
+    /*
+     * The whole reason the words are `cascade:`/`order:` and not `stagger:`/`from:`. `from` is a
+     * parameter on eighteen primitives and `stagger` on seventy-seven, and a hoist would make
+     * every one of them unwritable — `split-text` reads `params.stagger` in `splitRevealFinishMs`
+     * to size the timer that resolves its `finished` promise, so hoisting the word would have made
+     * the effect report finished while it was visibly still staggering.
+     */
+    it('leaves the colliding words from: and stagger: in params where the primitives read them', () => {
+      const params = parse('split-lines stagger:320ms').specs[0]?.params
+      expect(params).toEqual({ stagger: '320ms' })
+      expect(parse('count-up from:0').specs[0]?.params).toEqual({ from: '0' })
+    })
+
+    it('does not interpret cascade:/order:, leaving both to core/stagger.ts', () => {
+      // The step's legal set includes `var()` and `calc()`, and the ordering's depends on the
+      // group size — neither is knowable here, so the raw text is carried through unjudged.
+      const result = parse('fade-up cascade:calc(90ms * 2) order:99')
+      expect(result.cascade).toBe('calc(90ms * 2)')
+      expect(result.order).toBe('99')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('hoists rm: and refuses a value outside the three policies', () => {
+      expect(parse('parallax-y rm:disable').rm).toBe('disable')
+      const bad = parse('fade-up rm:disabled')
+      expect(bad.rm).toBeUndefined()
+      expect(bad.warnings.join()).toContain('rm:disabled')
+      expect(bad.specs[0]?.params).toEqual({})
+    })
+
+    it('warns on conflicting hoists rather than letting token order decide', () => {
+      expect(parse('fade-up cascade:90ms, blur-in cascade:200ms').warnings.join()).toContain(
+        'conflicting stagger steps',
+      )
+      expect(parse('fade-up order:center, blur-in order:end').warnings.join()).toContain(
+        'conflicting stagger orders',
+      )
+      expect(parse('fade-up rm:shorten, blur-in rm:disable').warnings.join()).toContain(
+        'conflicting reduced-motion policies',
+      )
+    })
+
     it('lifts at: onto the spec rather than leaving it in params', () => {
       // Per-spec, not element-scoped: the whole point of a position is that each segment can sit
       // somewhere different. But still not a parameter — no schema declares it, so leaving it in

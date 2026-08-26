@@ -553,10 +553,31 @@ export interface EffectSpec {
 /** The full parse of one element's `data-kui` attribute. */
 export interface ParsedValue {
   specs: EffectSpec[]
-  /** Hoisted from reserved `on:` / `timeline:` / `threshold:` keys. Element-scoped. */
+  /**
+   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `order:` / `rm:` keys.
+   * Element-scoped: one element has one activation, one timeline, one stagger group, one
+   * reduced-motion policy — so none of these can sensibly differ between the comma-separated
+   * segments of a single attribute, and all six are lifted out of the per-effect `params`.
+   */
   activation?: Activation
   timeline?: string
   threshold?: string
+  /**
+   * Stagger step for this element's animated children — the `data-kui` spelling of
+   * `data-kui-stagger`'s positional step. Raw text, deliberately unvalidated here: `stagger.ts`
+   * owns the grammar for both spellings and has always passed the step through verbatim so
+   * `var(--speed)` and `calc(90ms * 2)` keep working.
+   */
+  cascade?: string
+  /** Where the stagger wave starts — `data-kui-stagger`'s `from:`, under a name `data-kui` can hold. */
+  order?: string
+  /**
+   * Author-chosen reduced-motion policy, folded into the primitives' own by `compile.ts`.
+   *
+   * Validated at parse time (unlike `cascade`/`order`) because it is a closed three-value set with
+   * no expression forms, so there is nothing a later stage could know that `parse.ts` does not.
+   */
+  rm?: ReducedMotionPolicy
   warnings: string[]
 }
 

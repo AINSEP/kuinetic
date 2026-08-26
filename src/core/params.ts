@@ -118,6 +118,31 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
 }
 
 /**
+ * The escape screen on its own, for a value that has no type to be validated against.
+ *
+ * Every authored value normally reaches `style.setProperty` through {@link validate}, which runs
+ * this screen and then a type match. One value cannot take the second half: `data-kui-stagger`'s
+ * step (and its `cascade:` spelling inside `data-kui`) has always been passed through verbatim so
+ * that `var(--speed)` and `calc(90ms * 2)` work, and narrowing it to a `<time>` literal now would
+ * break every group written against that promise. That left it as the one authored string in the
+ * library with no screen at all — and `data-kui` is explicitly not assumed to be site-owner text
+ * (see the module doc above; a CMS field or a comment can reach it).
+ *
+ * So the half that costs the expression forms nothing is available separately. It is deliberately
+ * *not* a type check: anything shaped like a length, a time, a `calc()` or a `var()` passes, and
+ * only the characters and functions that can escape a declaration or reach the network are
+ * refused.
+ *
+ * @param value - Author-supplied text bound for a custom property.
+ * @returns Whether it is safe to write as-is.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+export function isSafeCssValue(value: string): boolean {
+  return value.length <= MAX_VALUE_LENGTH && !DANGEROUS.test(value)
+}
+
+/**
  * Validate SVG path data and return it as a CSS `<string>`, quotes included.
  *
  * The quotes are added here rather than in the stylesheet because `offset-path: path(...)` takes a
