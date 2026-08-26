@@ -2,7 +2,7 @@ import { describeConflicts, findConflicts } from './channels.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest, timingProperty } from './registry.js'
-import { durationExpression, resolveSequence } from './sequence.js'
+import { durationExpression, isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
 import type {
   Activation,
@@ -49,8 +49,10 @@ export interface Entry {
    * to write to and needs a number, so the sequencer's numeric mirror is carried here and applied
    * by `js-effect-preparer.ts` over whatever `readEffectTiming` read off the spec.
    *
-   * Absent when the segment carries no `at:`, when the position was refused, or when the numeric
-   * mirror could not resolve — in all three cases the effect keeps its own authored delay.
+   * Absent when the segment carries no `at:`, and when the position was refused — in both cases the
+   * effect keeps its own authored delay. There is no third case: a sequenced step always carries a
+   * real number, because the sequencer refuses a duration it cannot read rather than passing an
+   * unknown along.
    */
   sequencedDelayMs?: number
 }
@@ -287,7 +289,7 @@ function buildPlan(
     )
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline, step)
-    else plan.jsEffects.push(positioned(entry, step, warnings))
+    else plan.jsEffects.push(positioned(entry, step))
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
@@ -338,7 +340,13 @@ function memberFor(entry: Entry): SequenceMember {
  * The generated stylesheet is built from these very values, which is what makes the sequencer's
  * numeric mirror agree with its symbolic half for everything the library ships.
  *
- * @complexity O(1) time and space.
+ * The first *readable* candidate rather than simply the first, because that is what the cascade
+ * itself does: `resolveParams` drops a value the validator rejected, so `duration:banana` never
+ * reaches `--kui-reveal-duration` and CSS lands on the preset default. Taking the authored string
+ * regardless would leave the two halves of a sequence built from different durations — the symbolic
+ * one positioned off the preset default, the numeric one off nothing at all.
+ *
+ * @complexity O(1) time and space — three candidates, each a short-string time match.
  * @overallScore 100
  */
 function cascadeValue(
@@ -347,28 +355,23 @@ function cascadeValue(
   schema: ParameterSchema,
   name: 'delay' | 'duration',
 ): string | undefined {
-  return authored[name] ?? preset.params?.[name] ?? schema[name]?.default
+  const candidates = [authored[name], preset.params?.[name], schema[name]?.default]
+  return candidates.find((value) => value !== undefined && isReadableTime(value))
 }
 
 /**
  * Carry a resolved `at:` position onto a JS-rendered entry.
  *
+ * Unconditional once the step is sequenced: `SequenceStep.delayMs` is always a real number, because
+ * the sequencer refuses a duration it cannot read at the point it would have been added rather than
+ * threading an unknown down the chain. There is deliberately no "could not resolve" branch here —
+ * it would be unreachable code pretending to be caution.
+ *
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function positioned(entry: Entry, step: SequenceStep, warnings: string[]): Entry {
+function positioned(entry: Entry, step: SequenceStep): Entry {
   if (!step.sequenced) return entry
-  if (step.delayMs === undefined) {
-    // The symbolic half is still correct — it just cannot be turned into a number here, because
-    // something upstream in the chain carries a duration this compiler cannot read. A JS effect
-    // has nowhere to put the symbolic form, so it says so rather than starting somewhere invented.
-    warnings.push(
-      `"${entry.resolved.preset.name}" is rendered in JavaScript, so its at: position has to ` +
-        `resolve to a concrete time, and an effect before it in the list carries a duration this ` +
-        `compiler cannot read — it starts at its own delay instead`,
-    )
-    return entry
-  }
   return { ...entry, sequencedDelayMs: step.delayMs }
 }
 

@@ -156,6 +156,15 @@ describe('at: — JavaScript-rendered effects', () => {
     expect(run('fade-up, count-up at:+100ms').jsEffects[0]!.sequencedDelayMs).toBe(700)
   })
 
+  it('falls through a rejected duration to the same default CSS lands on', () => {
+    // `resolveParams` drops `duration:banana`, so `--kui-reveal-duration` keeps the preset's 600ms
+    // and the symbolic half positions off that. The numeric mirror has to make the same choice, or
+    // the two halves of one sequence would be built from different durations.
+    const plan = run('fade-up duration:banana, count-up at:+100ms')
+    expect(plan.jsEffects[0]!.sequencedDelayMs).toBe(700)
+    expect(plan.warnings.join()).toContain('parameter "duration"')
+  })
+
   it('refuses loudly when the primitive declares no delay it could honour', () => {
     const plan = run('fade-up 600ms, split-flap at:+100ms')
     expect(plan.jsEffects[0]!.sequencedDelayMs).toBeUndefined()

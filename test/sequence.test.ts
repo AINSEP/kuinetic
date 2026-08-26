@@ -120,6 +120,13 @@ describe('resolveSequence — a segment with no at: is untouched', () => {
       sequenced: false,
     })
   })
+
+  it('reads an unreadable cascade delay as the same 0ms the compiled var() falls back to', () => {
+    // `compile` screens its candidates before they get here, so this is the module holding up its
+    // own end of a structural contract rather than a path the compiler can reach — but the contract
+    // is real: `delayMs` is documented as always a number, and a caller can hand in anything.
+    expect(resolve([member({ cascadeDelay: 'banana' })]).steps[0]).toMatchObject({ delayMs: 0 })
+  })
 })
 
 describe('resolveSequence — relative positioning', () => {
@@ -242,16 +249,17 @@ describe('resolveSequence — refusals leave the effect where it would have been
     expect(warnings[0]).toContain('has both a positional delay (100ms)')
   })
 
-  it('propagates "unknown" rather than treating an unreadable time as zero', () => {
+  it('refuses an unreadable duration rather than reading it as zero', () => {
+    // Defaulting it to 0 would stack `b` straight on top of `a` — a plausible-looking wrong answer
+    // rather than a missing one. Refusing here is what lets `delayMs` be a plain number everywhere
+    // downstream instead of an "unknown" threaded through the chain.
     const members = [
       member({ name: 'a', primitiveId: 'a', cascadeDuration: 'calc(1s / 2)' }),
       member({ name: 'b', primitiveId: 'b', at: '+100ms' }),
     ]
-    const { steps } = resolve(members)
-    // The symbolic half is still right; only the numeric mirror gives up, and it says so with
-    // `undefined` instead of anchoring everything downstream to the start of the timeline.
-    expect(steps[1]!.delayExpr).toBe('var(--kui-a-delay, 0ms) + var(--kui-a-duration, 600ms) + 100ms')
-    expect(steps[1]!.delayMs).toBeUndefined()
+    const { steps, warnings } = resolve(members)
+    expect(steps[1]).toMatchObject({ sequenced: false, delayMs: 0 })
+    expect(warnings[0]).toContain('"a" has no readable duration')
   })
 })
 

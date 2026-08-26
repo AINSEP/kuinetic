@@ -221,8 +221,15 @@ export interface SequenceStep {
    * legal, buries the arithmetic an author has to read in a devtools panel.
    */
   delayExpr: string
-  /** The same instant in milliseconds, or `undefined` when no number could be derived. */
-  delayMs: number | undefined
+  /**
+   * The same instant in milliseconds — always a real number, never "unknown".
+   *
+   * That is an invariant this module maintains rather than a fact about its inputs: a duration it
+   * cannot read is refused at the point it would have been added (`follow`), with a warning naming
+   * both effects, so nothing downstream ever has to carry an unknown through the arithmetic and
+   * every consumer of a sequenced step gets a number it can act on.
+   */
+  delayMs: number
   /** Whether `at:` actually moved this segment, as opposed to being refused or absent. */
   sequenced: boolean
 }
@@ -285,7 +292,10 @@ export function resolveSequence(
 function unsequenced(member: SequenceMember): SequenceStep {
   return {
     delayExpr: delayExpression(member.delay, member.primitiveId),
-    delayMs: timeMs(member.delay ?? member.cascadeDelay ?? DELAY_FALLBACK),
+    // Falls back to the same `0ms` the compiled `var()` does. An unreadable delay can only reach
+    // here from a direct caller — `compile` screens its candidates with `isReadableTime`, and a
+    // positional delay was already matched against the parser's own time pattern.
+    delayMs: timeMs(member.delay ?? member.cascadeDelay ?? DELAY_FALLBACK) ?? 0,
     sequenced: false,
   }
 }
@@ -371,24 +381,24 @@ function follow(
   if (position.anchor === 'start') {
     return {
       delayExpr: `${anchor.delayExpr}${position.term}`,
-      delayMs: sum(anchor.delayMs, position.offsetMs),
+      delayMs: anchor.delayMs + position.offsetMs,
       sequenced: true,
     }
   }
 
-  if (previous.duration === undefined && previous.cascadeDuration === undefined) {
+  const durationMs = timeMs(previous.duration ?? previous.cascadeDuration ?? '')
+  if (durationMs === undefined) {
     // A continuous effect — a pin, a drag handler, a scroll progress track — has no end to
-    // measure from; `at:with` is the only relative position that means anything after one.
+    // measure from; `at:with` is the only relative position that means anything after one. This is
+    // also the single place an unreadable duration is caught, which is what lets `delayMs` be a
+    // plain number everywhere else rather than an "unknown" threaded through the whole chain.
     return refuseUnmeasurable(chain, index, own)
   }
   return {
     delayExpr:
       `${anchor.delayExpr} + ${durationExpression(previous.duration, previous.primitiveId)}` +
       position.term,
-    delayMs: sum(
-      sum(anchor.delayMs, timeMs(previous.duration ?? previous.cascadeDuration!)),
-      position.offsetMs,
-    ),
+    delayMs: anchor.delayMs + durationMs + position.offsetMs,
     sequenced: true,
   }
 }
@@ -404,8 +414,8 @@ function refuseUnmeasurable(chain: Chain, index: number, own: SequenceStep): Seq
   const previous = chain.members[index - 1]!
   chain.warn(
     `cannot start "${member.name}" relative to the end of "${previous.name}": "${previous.name}" ` +
-      `declares no duration, so it has no end to measure from — give it an explicit duration, or ` +
-      `use at:with to start alongside it instead`,
+      `has no readable duration, so it has no end to measure from — give it an explicit duration, ` +
+      `or use at:with to start alongside it instead`,
   )
   return own
 }
@@ -433,9 +443,10 @@ function timelineRefusal(timeline: Timeline): string {
 /**
  * Milliseconds from a CSS time, or `undefined` when it is not one.
  *
- * Distinct from `toMilliseconds`' own fallback parameter because "unknown" has to survive the rest
- * of the chain: a `0` here would silently anchor everything downstream to the start of the
- * timeline, which is a plausible-looking wrong answer rather than a missing one.
+ * Distinct from `toMilliseconds`' own fallback parameter because the caller has to be able to tell
+ * "unreadable" from "zero": defaulting a duration it could not parse to `0` would stack the next
+ * effect straight on top of this one, which is a plausible-looking wrong answer rather than a
+ * missing one, and `follow` refuses it by name instead.
  *
  * @complexity O(n) time in value length; O(1) space.
  * @overallScore 100
@@ -445,7 +456,18 @@ function timeMs(value: string): number | undefined {
   return Number.isFinite(ms) ? ms : undefined
 }
 
-/** Addition that propagates "unknown" rather than treating it as zero. */
-function sum(a: number | undefined, b: number | undefined): number | undefined {
-  return a === undefined || b === undefined ? undefined : a + b
+/**
+ * Whether a value is a time this module can do arithmetic with.
+ *
+ * Exported for `compile`, which has to choose between several candidates for what a timing custom
+ * property will resolve to. The CSS cascade skips a value the validator rejected and falls through
+ * to the next one; the numeric mirror has to make the same choice, or the two halves of a sequence
+ * would be built from different durations — `duration:banana` would leave CSS on the preset default
+ * and the JS path with nothing.
+ *
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+export function isReadableTime(value: string): boolean {
+  return timeMs(value) !== undefined
 }
