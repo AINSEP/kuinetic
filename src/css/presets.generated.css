@@ -1278,6 +1278,18 @@
     --kui-feedback-toast-delay: 0ms;
   }
 
+  [data-kui-fx~='tween'] {
+    --kui-tween-duration: 600ms;
+    --kui-tween-delay: 0ms;
+    --kui-tween-ease: ease-out;
+  }
+
+  [data-kui-fx~='tween-from'] {
+    --kui-tween-from-duration: 600ms;
+    --kui-tween-from-delay: 0ms;
+    --kui-tween-from-ease: ease-out;
+  }
+
   [data-kui-fx~='typewriter'] {
     --kui-loop: false;
     --kui-typewriter-delay: 0ms;
@@ -1477,6 +1489,7 @@
   html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
@@ -1542,6 +1555,7 @@
   html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
+  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
   html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),

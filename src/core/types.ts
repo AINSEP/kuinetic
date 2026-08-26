@@ -295,6 +295,49 @@ export interface EffectParams {
 }
 
 /**
+ * A primitive's refinement of itself for one authored spec.
+ *
+ * Almost every primitive in the catalog is fully described before it ever meets an attribute:
+ * `fade-up 200ms` and `fade-up 900ms` claim the same channels and compile the same keyframe. The
+ * generic tween (`effects/tween`) is the exception this exists for — `tween x:100` writes
+ * `translate` and `tween opacity:0` writes `opacity`, so *which* channels it owns, and therefore
+ * whether it may compose with a neighbour at all, is a fact about the attribute rather than about
+ * the primitive.
+ *
+ * Neither static answer is honest. Declaring every channel a tween *could* write makes it collide
+ * with everything and compose with nothing; declaring none makes the conflict detector wave
+ * through two effects that both animate `opacity`, which is the one failure `core/channels.ts`
+ * exists to prevent. So the primitive is asked, once per spec, instead.
+ *
+ * Every field is optional, and an absent field means "use the primitive's own declaration". A
+ * primitive with no `variantFor` at all — which is all but two of them — is unaffected.
+ */
+export interface EffectVariant {
+  /**
+   * Channels this spec writes, unioned with the primitive's own declared list.
+   *
+   * Unioned rather than replacing, so a variant can only ever *widen* what a primitive admits to
+   * touching. A refinement that could quietly drop a declared channel would be a way to opt out of
+   * conflict detection, which is exactly backwards.
+   */
+  channels?: Channel[]
+  /**
+   * Keyframe blocks to compile, one animation track each, replacing the preset's single
+   * `keyframes` name. Empty means this spec animates nothing and emits no `animation` declaration.
+   */
+  keyframes?: string[]
+  /**
+   * Authored parameter values to resolve in place of `spec.params`.
+   *
+   * For normalisation the schema cannot express — the tween reads `x:100` as `100px`, because a
+   * bare number is the spelling the syntax was designed around and `params.ts` is deliberately
+   * strict about units for everyone else. Still untrusted author input: it goes through
+   * `resolveParams` exactly as `spec.params` would have.
+   */
+  params?: Record<string, string>
+}
+
+/**
  * A primitive is an implementation. Presets are names that point at a primitive with different
  * default parameters — 48 of the entrance/exit names come from one primitive.
  */
@@ -373,6 +416,19 @@ export interface Primitive {
    * `params` are validated and defaulted — never raw author input.
    */
   prepare?(el: Element, params: EffectParams, ctx: PrepareContext): EffectInstance
+  /**
+   * Refine this primitive for one authored spec — see {@link EffectVariant}.
+   *
+   * Called once per spec by `compile`, *before* composition analysis, because the answer decides
+   * whether the spec's neighbours may compose with it at all. It is handed the raw `EffectSpec`
+   * (author input, unvalidated — `resolveParams` still runs afterwards on whatever it returns) and
+   * a warning sink, so a spec the primitive cannot make sense of can say so by name rather than
+   * compiling to silence.
+   *
+   * Must be pure and must not mutate `spec`: `compile` is a pure function and the same parsed
+   * value is compiled again on every rescan of the element.
+   */
+  variantFor?(spec: EffectSpec, warn: (message: string) => void): EffectVariant
 }
 
 export interface Preset {

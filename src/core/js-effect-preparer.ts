@@ -1,4 +1,5 @@
 import type { Capabilities } from './capabilities.js'
+import { authoredParams } from './compile.js'
 import type { CompiledPlan } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
 import { readEffectParams, readEffectTiming } from './js-params.js'
@@ -81,7 +82,8 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
 
       const ctx = contextFor(el, signal, ledger)
 
-      for (const { spec, resolved } of plan.jsEffects) {
+      for (const entry of plan.jsEffects) {
+        const { spec, resolved } = entry
         const prepare = resolved.primitive.prepare
         if (!prepare) continue
         const warn = (message: string): void => reporter.warn(message, el)
@@ -93,8 +95,12 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
         // it off the spec for CSS-rendered effects, and a JS-rendered one has no other route to it
         // — merging it into the record instead would warn "unknown parameter" on every primitive
         // whose schema does not happen to declare a look-alike `duration`/`delay`/`ease`.
+        // `authoredParams`, not `spec.params`: a primitive with a `variantFor` may normalise what
+        // the author wrote before it is validated, and the CSS path already reads it through the
+        // same accessor. No JS-rendered primitive declares one today; going through the accessor
+        // is what stops the first one that does from silently seeing different input here.
         const params = readEffectParams(
-          { ...resolved.preset.params, ...spec.params },
+          { ...resolved.preset.params, ...authoredParams(entry) },
           resolved.primitive.parameters,
           warn,
           readEffectTiming(spec, warn),

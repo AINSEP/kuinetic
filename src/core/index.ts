@@ -19,6 +19,7 @@ export type {
   Cleanup,
   EffectInstance,
   EffectParams,
+  EffectVariant,
   NamedActivation,
   ParamSpec,
   ParameterSchema,

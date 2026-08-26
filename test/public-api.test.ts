@@ -26,6 +26,7 @@ import type {
   CollectingReporter,
   EffectInstance,
   EffectParams,
+  EffectVariant,
   ParamSpec,
   ParameterSchema,
   PerfClass,
@@ -77,6 +78,7 @@ describe('kuinetic/core public surface', () => {
     expectTypeOf<ParameterSchema>().not.toBeNever()
     expectTypeOf<ParamSpec>().not.toBeNever()
     expectTypeOf<EffectParams>().not.toBeNever()
+    expectTypeOf<EffectVariant>().not.toBeNever()
     expectTypeOf<PrepareContext>().not.toBeNever()
     expectTypeOf<Cleanup>().not.toBeNever()
     expectTypeOf<EffectInstance>().not.toBeNever()

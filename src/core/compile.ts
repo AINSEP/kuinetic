@@ -6,6 +6,7 @@ import type {
   Activation,
   Channel,
   EffectSpec,
+  EffectVariant,
   NamedActivation,
   ParsedValue,
   ReducedMotionPolicy,
@@ -29,6 +30,58 @@ const RM_RANK: Record<ReducedMotionPolicy, number> = { shorten: 0, crossfade: 1,
 export interface Entry {
   spec: EffectSpec
   resolved: ResolvedEffect
+  /**
+   * Per-spec refinement from `primitive.variantFor`, computed once in `resolveEntries` and carried
+   * on the entry so nothing downstream has to call it a second time. Absent for every primitive
+   * that is fully described without seeing an attribute, which is all but the generic tween.
+   */
+  variant?: EffectVariant
+}
+
+/**
+ * Channels one entry actually writes — the primitive's declaration, widened by any variant.
+ *
+ * Read by conflict detection *and* by the plan's channel union, which must agree: a `tween x:100`
+ * that is checked for collisions on `translate` but reports no channel to `style-plan.ts` would
+ * compose correctly and then skip the individual-transform fallback that same channel exists to
+ * trigger.
+ *
+ * @complexity O(c) time and space in the entry's channel count.
+ * @overallScore 100
+ */
+export function channelsFor(entry: Entry): Channel[] {
+  const declared = entry.resolved.primitive.channels
+  if (!entry.variant?.channels) return declared
+  return [...declared, ...entry.variant.channels]
+}
+
+/**
+ * Authored parameter values in force for one entry — `spec.params`, or a variant's normalisation
+ * of them. Exported because the JS-effect path reads them too, and the two must not disagree about
+ * what the author wrote.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function authoredParams(entry: Entry): Record<string, string> {
+  return entry.variant?.params ?? entry.spec.params
+}
+
+/**
+ * Keyframe blocks one entry compiles, one animation track each.
+ *
+ * A preset names exactly one block, so this is a single-element list for the whole catalog. A
+ * variant may name several — the generic tween compiles one block per CSS property group it
+ * touches, because `translate` and `opacity` cannot be written from the same `@keyframes` without
+ * that block also writing the properties the author never asked for. It may also name *none*,
+ * which is how `data-kui="tween 400ms"` — a tween with nothing to tween — emits no animation.
+ *
+ * @complexity O(k) time and space in the number of blocks.
+ * @overallScore 100
+ */
+function keyframesFor(entry: Entry): string[] {
+  const { preset } = entry.resolved
+  return entry.variant?.keyframes ?? [preset.keyframes ?? `kui-${preset.name}`]
 }
 
 export interface CompiledPlan {
@@ -124,7 +177,10 @@ function resolveEntries(
   for (const spec of specs) {
     const resolved = registry.resolve(spec.name)
     if (resolved) {
-      entries.push({ spec, resolved })
+      // Asked here, not in `buildPlan`, because `resolveComposition` runs in between and needs the
+      // variant's channels to decide whether this spec may compose with its neighbours at all.
+      const variant = resolved.primitive.variantFor?.(spec, (m) => warnings.push(m))
+      entries.push(variant ? { spec, resolved, variant } : { spec, resolved })
       continue
     }
     unknown.push(spec.name)
@@ -152,7 +208,7 @@ function resolveComposition(entries: Entry[], registry: Registry, warnings: stri
   if (entries.length <= 1) return entries
 
   const conflicts = findConflicts(
-    entries.map((e) => ({ name: e.spec.name, channels: e.resolved.primitive.channels })),
+    entries.map((e) => ({ name: e.spec.name, channels: channelsFor(e) })),
   )
   if (conflicts.length === 0) return entries
 
@@ -197,7 +253,7 @@ function buildPlan(
     plan.defaultActivation ??= primitive.defaultActivation
     activations = intersect(activations, primitive.supportedActivations)
     timelines = intersect(timelines, primitive.supportedTimelines)
-    for (const channel of primitive.channels) channels.add(channel)
+    for (const channel of channelsFor(entry)) channels.add(channel)
     warnUnsupportedTimeline(preset.name, primitive.supportedTimelines, timeline, warnings)
 
     // Only the author's own overrides go inline. Preset defaults are emitted as cascade rules by
@@ -205,7 +261,7 @@ function buildPlan(
     // any consumer stylesheet, which contradicts the library's whole cascade promise.
     Object.assign(
       plan.vars,
-      resolveParams(entry.spec.params, primitive.parameters, (m) => warnings.push(m)),
+      resolveParams(authoredParams(entry), primitive.parameters, (m) => warnings.push(m)),
     )
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline)
@@ -260,29 +316,40 @@ function iterationCountProperty(presetName: string): string {
 }
 
 /**
- * Append one effect to the parallel animation lists.
+ * Append one effect to the parallel animation lists, as one track per keyframe block it compiles.
  *
  * Separate rules cannot both contribute an `animation` declaration — the cascade discards one —
  * so composition is expressed as parallel longhand value lists on a single declaration.
  *
- * @complexity O(1) time, O(1) space.
+ * Usually one block, so usually one track. A variant naming several (`keyframesFor`) gets the same
+ * timing repeated across all of them, which is the point: `tween x:100 opacity:0 800ms` is *one*
+ * effect the author gave one duration, rendered as two tracks only because CSS has no way to write
+ * two unrelated properties from one keyframe without also writing everything in between.
+ *
+ * @complexity O(k) time in the entry's keyframe count; O(k) space in the tracks.
  * @overallScore 100
  */
 function pushTrack(tracks: AnimationTracks, entry: Entry, timeline: Timeline): void {
   const { spec, resolved } = entry
   const id = resolved.primitive.id
-  tracks.names.push(resolved.preset.keyframes ?? `kui-${resolved.preset.name}`)
   // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
   const duration = spec.duration ?? `var(${timingProperty(id, 'duration')}, 600ms)`
-  tracks.durations.push(duration)
-  tracks.delays.push(staggerDelay(spec.delay, id, timeline, duration))
-  tracks.easings.push(easingValue(spec.easing, id))
+  const delay = staggerDelay(spec.delay, id, timeline, duration)
+  const easing = easingValue(spec.easing, id)
   // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
   // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
   // infinite` in that CSS, is what stops a composed one-shot effect from inheriting the loop: CSS
   // repeats a shorter value list to match the longest one across every longhand in the group.
-  tracks.iterationCounts.push(`var(${iterationCountProperty(resolved.preset.name)}, 1)`)
+  const iterations = `var(${iterationCountProperty(resolved.preset.name)}, 1)`
+
+  for (const name of keyframesFor(entry)) {
+    tracks.names.push(name)
+    tracks.durations.push(duration)
+    tracks.delays.push(delay)
+    tracks.easings.push(easing)
+    tracks.iterationCounts.push(iterations)
+  }
 }
 
 function declarationsFor(tracks: AnimationTracks): Record<string, string> {
