@@ -1,6 +1,6 @@
 {
   "name": "kuinetic",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Declarative web animation from HTML attributes. Native CSS where possible, JS only where necessary.",
   "type": "module",
   "license": "MIT",
