@@ -1,4 +1,4 @@
-import { validateActivation } from './activation-vocabulary.js'
+import { validateActivation } from './activation.js'
 import { ATTR } from './attrs.js'
 import type { Activation, ParsedValue, Timeline } from './types.js'
 
@@ -80,19 +80,4 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
  */
 function readActivation(attribute: string | null): Activation | undefined {
   return attribute && validateActivation(attribute).length === 0 ? attribute : undefined
-}
-
-/**
- * Convert an IntersectionObserver threshold from `"30%"` or `"0.3"` into a clamped ratio.
- *
- * @param raw - Authored threshold value.
- * @returns A ratio in [0, 1]; unparseable input yields 0 rather than throwing.
- * @complexity O(1) time, O(1) space.
- * @overallScore 100
- */
-export function toThresholdRatio(raw: string): number {
-  const value = Number.parseFloat(raw)
-  if (Number.isNaN(value)) return 0
-  const ratio = raw.includes('%') ? value / 100 : value
-  return Math.min(1, Math.max(0, ratio))
 }
