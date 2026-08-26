@@ -10,13 +10,13 @@ export type { ControlHandle } from './control.js'
 // barrel: dispatching a lifecycle event is the animator's job, and an element that reported
 // "started" because a third party said so would make these events unreliable for everyone.
 // `KUI_EVENT` and the detail types are here because a *listener* needs them.
-export { KUI_EVENT } from './events.js'
+export { KUI_EVENT } from './control.js'
 export type {
   LifecycleDetail,
   LifecycleEvent,
   LifecycleEventType,
   LifecycleReason,
-} from './events.js'
+} from './control.js'
 export { play, resolveTargets, toAttributeValue } from './play.js'
 export type { PlaybackHandle, PlayOptions, Target } from './play.js'
 export { Registry } from './registry.js'
