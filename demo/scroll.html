@@ -572,18 +572,42 @@
      is the library's answer to exactly that. This block used to carry the rotation as a
      hand-written `rotate: calc(-180deg + var(--kui-progress) * 180deg)`, which meant copying the
      data-kui attribute off this page got you a pinned card that did not turn. */
-  /* 300vh is not arbitrary, and it is not the sibling's number either — measured at a 723px
-     viewport it is the card (~65vh) plus the 200vh spacer `pin-section distance:200vh` inserts,
-     plus ~35vh of deliberate hold. That hold is the point: sticky releases when the containing
-     block scrolls past, not when the rotation finishes, so the surplus is the only stretch where
-     the card sits upright and still — and upright is the only way its own `data-kui` caption and
-     SHOW CODE chip can be read, which on this page is the whole reason the card exists.
+  /* The pinned box is the stage, not the card. This is the one distinction the pinning group
+     turns on: `.pin-section-card` and `.pin-spacer-card` are full-bleed boxes that genuinely
+     should *be* the room a pin holds, and giving them `--kui-pin-room` is the whole fix. A media
+     card is not that kind of box. It has an aspect ratio, a border and a background, so flooring
+     it at the room's height does not centre it — it inflates it into a full-screen slab with the
+     picture stranded somewhere inside. (Tried, on both at once, from inside the `pin` primitive:
+     unit tests all green, and in a browser it was worse than the bug it replaced.)
+     So the card keeps its natural height and a stage the height of the room carries the pin and
+     centres it. Before this, sticky pinned the card's top edge at 88px and left every one of the
+     remaining 446px underneath it — measured at 414x896, card 362px in 808px of room.
+
+     `--kui-progress` reaches the card by ordinary custom-property inheritance, which is how the
+     `timeline:pin` list items inside `.pin-section-card` have always read it — they are children
+     of the pinned element too. Splitting the attribute across two elements changes nothing about
+     the arithmetic either: `preparePin` tracks `node.parentElement`, and that is `.rotate-stage`
+     both before and after. */
+  .rotate-pin-stage { min-height: var(--kui-pin-room); display: grid; place-items: center; }
+  /* 235vh is not arbitrary, and it is not the sibling's number either: it is the 200vh spacer
+     `pin-section distance:200vh` inserts, plus ~35vh of deliberate hold. That hold is the point:
+     sticky releases when the containing block scrolls past, not when the rotation finishes, so the
+     surplus is the only stretch where the card sits upright and still — and upright is the only way
+     its own caption and SHOW CODE chip can be read, which on this page is the whole reason the card
+     exists. The stage's own height is the third term and no longer a guess: it was `300vh` while
+     the card's height had to be estimated at "~65vh", and it is `var(--kui-pin-room)` now that the
+     thing being pinned is a box whose height this stylesheet sets.
 
      It has to be `min-height`. `padding-bottom` looks equivalent and is not: sticky is confined to
      its containing block's content box, which padding does not grow, so the card releases the
      instant the rotation lands and the caption whips away unread. Tried, measured, reverted. */
-  .rotate-stage { position: relative; min-height: 300vh; margin-top: 2.5rem; }
-  .rotate-pin-card { width: min(560px, 100%); margin-inline: auto; }
+  .rotate-stage { position: relative; min-height: calc(var(--kui-pin-room) + 235vh); margin-top: 2.5rem; }
+  /* `66vw` is the term that only ever bites on a phone. A card turning through 45deg needs a
+     bounding box of (w + h) / sqrt(2), so at 366px wide and 362px tall it swept 515px across a
+     414px viewport and left the screen on the left through the middle of its own turn. 66vw holds
+     the sweep inside the viewport at every width — 405px at 414, and past ~850px the 560px cap
+     takes over again and nothing changes. */
+  .rotate-pin-card { width: min(560px, 100%, 66vw); margin-inline: auto; }
 
   /* ---------- hero video ---------- */
   /* The card is `display: grid` from the library rule, so the control has to claim the same cell
@@ -684,17 +708,46 @@
   /* This card holds the viewport for the whole 200vh pin, so it has to BE the viewport.
      Sized to its own content it was ~430px tall in a 723px window: the composition sat
      jammed under the sticky header with ~40% of the screen empty below it. min-height +
-     align-content:center makes the leftover space symmetric instead of all bottom. */
+     align-content:center makes the leftover space symmetric instead of all bottom.
+
+     `--kui-pin-room`, not `100dvh`. This card is pinned at `--kui-pin-offset` (88px), so the room
+     it holds is the viewport *minus* that offset — `100dvh` made it exactly one offset too tall.
+     Measured at 414x896: top 88, bottom 984, fold at 896, so the last 88px of the card and half
+     the symmetry `align-content: center` was buying hung below the screen for the whole pin, and
+     the composition sat 87px lower than centred. */
   .pin-section-card {
     position: relative; overflow: clip; background: var(--surface);
-    min-height: 100dvh; box-sizing: border-box;
+    min-height: var(--kui-pin-room); box-sizing: border-box;
     display: grid; grid-template-columns: 1fr;
     align-content: center; align-items: center; gap: 2rem;
-    /* Was 6.5rem on top to clear the sticky pill header. The header now hides itself on the way
-       down and only returns when you scroll back up, and you are always scrolling down while
-       this card is pinned — so it is never there to clear. Symmetric padding puts the
-       composition in the middle of the viewport instead of pushed 3rem below centre. */
+    /* Was 6.5rem on top to clear the sticky pill header, and for a while this comment claimed the
+       header hid itself on the way down so there was nothing to clear. It does not. `.site-header`
+       is unconditionally `position: sticky` and renders at exactly top:16/bottom:72 at every scroll
+       position on this page — measured at five of them. The library does ship a
+       `header-hide-on-scroll` preset, but this page's header (`:1208`) does not use it; only
+       `nav-forms.html:385` does. The padding is symmetric for a better reason than the false one:
+       `offset-top` already pins this card at 88px, below the header's 72px bottom edge, so the
+       header is cleared by the offset and the padding is free to just centre the composition. */
     padding: 3.5rem clamp(1.25rem, 3vw, 2.5rem) 3.5rem;
+  }
+  /* 3.5rem top and bottom is 112px of the room, and on a phone the room is all there is. At
+     360x780 the video plus the six-item list measures 610px against 692px of room, so the padding
+     was the 42px that pushed the card past its own `min-height` and back over the fold — the bug
+     this section just fixed, re-entering through the one property that was still sized for a
+     desktop. 2rem keeps the composition off the edges and leaves 20px spare at the smallest phone
+     this page targets. Above 700px nothing changes. */
+  @media (max-width: 700px) { .pin-section-card { padding-block: 2rem; } }
+  /* A short phone is a different problem from a narrow one, and only the height tells you which.
+     At 375x667 the room is 579px and the composition still measured 628 — a 49px overhang, and on
+     a card that is `overflow: clip` the thing it cuts is list item six, the last one to reveal.
+     Three small trims, measured: 1.5rem padding (-16), a 2:1 media band instead of 16:9 (-18, an
+     11% crop off a centred thumbnail, not a squash), and the list at 0.86rem/0.7rem (-39). 73px
+     against a 49px deficit. Keyed on height as well as width so 390x844 and 414x896 — which fit
+     without any of it — keep the roomier setting. */
+  @media (max-width: 700px) and (max-height: 760px) {
+    .pin-section-card { padding-block: 1.5rem; }
+    .pin-section-media .video-frame { aspect-ratio: 2 / 1; }
+    .pin-section-card .mechanics-list { font-size: 0.86rem; gap: 0.7rem; }
   }
   /* reclaim .wrap's own gutter so the video gets the full 1200px — a pure inset pull,
      no 100vw, so it can never introduce a horizontal scrollbar */
@@ -708,8 +761,10 @@
   .pin-section-media { min-width: 0; }
   .pin-section-media .video-frame {
     /* cap by available height on short/wide viewports so the 16:9 frame can never
-       outgrow the pin and push the copy off-screen */
-    width: min(100%, calc((100dvh - 10rem) * 16 / 9));
+       outgrow the pin and push the copy off-screen. The budget is the card's content box —
+       `--kui-pin-room` less its own 3.5rem of padding top and bottom — not the viewport; the
+       old `100dvh` spelling was over by the pin offset for the same reason the card was. */
+    width: min(100%, calc((var(--kui-pin-room) - 7rem) * 16 / 9));
     margin-inline: auto; border-radius: 14px; box-shadow: var(--shadow-float);
   }
   .pin-section-card .pin-copy { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
@@ -807,9 +862,27 @@
      70vh plus `distance:120vh` on the attribute — a third number restating two others. The pin
      inserts a `distance`-tall spacer itself, so the track's height is now derived from its
      contents and cannot drift out of step with the attribute. */
-  .pin-spacer-track { position: relative; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  /* `--kui-pin-room` is a CEILING here, not a target — this is the one pin on the page that must
+     NOT fill it.
+
+     The dashed box under this card is the whole demo: it is the real `<div data-kui-spacer>` the
+     primitive inserts, and the section exists to show you that the library reserved that room for
+     itself. Sizing the card to `--kui-pin-room` (tried, and it measured perfectly) pushes the
+     spacer entirely below the fold for all 120vh of the hold and leaves a demo that demonstrates
+     nothing. `- 11rem` is the band the annotation needs to be legible, taken off the ceiling — so
+     the card is as tall as it can be while still showing its own point, at every viewport. At
+     414x896 that lands within 5px of the 70vh this replaces: the old number was right here, it
+     was just measured against a ruler that started 88px too high, which is why the leftover band
+     was a different size at every viewport.
+
+     The height is a token because the sticky label below reads it too — the card's height is
+     exactly how far down the label has to hold. */
+  .pin-spacer-track {
+    position: relative; --pin-spacer-h: calc(var(--kui-pin-room) - 11rem);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
   .pin-spacer-card {
-    position: relative; height: 70vh; overflow: clip; border-radius: 0;
+    position: relative; height: var(--pin-spacer-h); overflow: clip; border-radius: 0;
     display: grid; place-items: center;
   }
   .pin-spacer-card img,
@@ -840,20 +913,81 @@
     color: #fff; margin-top: 0; text-shadow: 0 1px 12px rgb(0 0 0 / 0.55);
   }
   /* Makes the JS-inserted spacer node visible for teaching purposes — this dashed box IS the
-     `distance`-tall <div data-kui-spacer> the pin primitive creates automatically after the card. */
-  .pin-spacer-track [data-kui-spacer] { outline: 1px dashed var(--border); outline-offset: -1px; }
+     `distance`-tall <div data-kui-spacer> the pin primitive creates automatically after the card.
+
+     It used to read as a rendering failure rather than as an annotation, and the owner said so
+     ("there's so much black space here. Why?"). Three reasons, all presentational: it was an empty
+     1px outline around nothing; the dash was `--border`, the same colour as every divider, rule
+     and card edge on the page, so it read as chrome; and its label was the page's lowest-emphasis
+     text attached to its largest empty area. A hatch fills it — the standing notation for
+     reserved-not-content — and the dash moves up to ink weight so the box reads as an annotation
+     rather than as structure.
+
+     `--fg`, not `--accent`, and that is the same call `--kui-border-draw-color` makes a few lines
+     into `demo/system.css`: the brand acid-lime is near-invisible as a thin stroke on a white
+     light-mode surface. Checked in a browser in both themes — an accent hatch at 10% simply is not
+     there in light mode. `--fg` is already black in light and white in dark, so one declaration
+     reads as deliberate in both. */
+  .pin-spacer-track [data-kui-spacer] {
+    outline: 1px dashed color-mix(in srgb, var(--fg) 38%, transparent); outline-offset: -1px;
+    background: repeating-linear-gradient(
+      45deg, color-mix(in srgb, var(--fg) 8%, transparent) 0 1px, transparent 1px 9px);
+  }
+  /* Sticky, because the label sits at the spacer's top edge and the spacer's top edge spends the
+     hold behind the card. Measured before this: the caption naming the box was on screen for the
+     first ~165px of a 1075px hold and hidden for the other 85% — an annotation you can only read
+     before the thing it annotates arrives. Held at the card's underside instead, it is legible for
+     the whole pin. A chip rather than floating text so it reads as a callout on a drawing. */
   .pin-spacer-track [data-kui-spacer]::before {
-    content: 'auto-inserted spacer · height = distance'; display: block; margin: 1rem auto 0; width: fit-content;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--muted);
+    content: 'auto-inserted spacer · height = distance'; display: block; width: fit-content;
+    position: sticky; top: calc(var(--kui-pin-offset) + var(--pin-spacer-h) + 1rem);
+    margin: 1rem auto 0; padding: 0.4rem 0.75rem; border-radius: 999px;
+    background: var(--bg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; color: var(--fg);
   }
 
-  .stack-group { margin-top: 2rem; }
-  /* All four share one min-height, first card included. It used to get its own 60vh — shorter
-     than the rest — but that undercut the card's own rendered height (~66vh of padding-top plus
-     the card at its 62vh cap), leaving `position: sticky` about 26px of room to hold in versus
-     193px for cards 2-4. 26px reads as "not pinning" — it sticks for a beat and lets go before a
-     scroll registers as intentional. */
-  .stack-item { min-height: 92vh; display: flex; align-items: flex-start; justify-content: center; padding-top: 4vh; }
+  /* One containing block for the whole deck, and this is the fix that makes the section be what
+     it is named after.
+
+     Every card used to sit in its own `.stack-item` (`min-height: 92vh`, `padding-top: 4vh`), and
+     `.stack-item` is therefore what `position: sticky` was confined to. Sticky releases when its
+     containing block scrolls past — so each card released at the end of its *own* item, which is
+     before the next item has even reached the top of the screen. Card N is stuck while its item's
+     bottom edge runs from `offsetN + cardH` up to `offsetN - paddingTop`; card N+1 sticks only
+     once that same edge reaches `offsetN+1 - paddingTop`. Overlap needs
+     `offsetN+1 - paddingTop > offsetN + cardH` — a 20px offset step against a 229px card, so it is
+     not close, and no viewport changes it. Swept 10px at a time across the whole group at 414x896:
+     **261 samples, one card stuck at most, two never**. The 5.5/6.75/8/9.25rem ladder the demo is
+     named for and prints on its own cards has never once been visible.
+
+     With `.stack-group` as the single containing block, each card stays stuck until the *group*
+     runs out, so they accumulate: 88, then 108 over it, then 128, then 148 — three 20px slivers
+     and a finished pile. Travel is the flow gap between cards now, which is what `spacer:'false'`
+     on the `stacking-cards` preset (`src/effects/scroll-mechanics/presets.ts:15`) always meant:
+     this pin reserves no room of its own and expects the page to space its own deck.
+
+     The travel between cards is `row-gap`, and it has to be — `margin-bottom` looks equivalent and
+     is not. A sticky box is clamped so that its *margin box* stays inside the containing block, so
+     a 55vh bottom margin took 493px off the end of every card's stick range: measured, cards 1-3
+     released together at 493px early and bunched at one position instead of holding their ladder.
+     `gap` is spacing between grid items, not part of any item's margin box, so the clamp is the
+     card itself and each one holds to the end. (Grid also settles the containing-block question
+     the same way the showcase's sticky figure does higher up this file: a sticky grid item clamps
+     to the grid *container*, not to its own row.) */
+  .stack-group {
+    margin-top: 2rem; padding-top: 4vh;
+    display: grid; row-gap: 55vh; justify-items: center;
+  }
+  /* An empty fifth row, and it is load-bearing twice over.
+     `padding-bottom` was the obvious way to buy the assembled deck a beat and it does nothing —
+     the same trap `.rotate-stage` documents above: sticky is clamped to the containing block's
+     *content* box, which padding does not grow. Measured with `padding-bottom: 35vh` in place: the
+     group ran out 58px before card 4 could reach its 148px offset, so the fourth card slid past
+     its own mark without ever sticking and all four released together with the ladder one short.
+     A zero-height row adds one more `row-gap` inside the content box — 493px at 414x896 — which is
+     both the room card 4 needs to arrive and the beat where the finished pile sits still. It costs
+     no DOM node and no new number. */
+  .stack-group::after { content: ''; }
   /* 16:10 rather than the old fixed `58vh`/`max-height: 460px`, which at 680px wide worked out to
      1.48 — narrower than every card in the deck. The four portfolio shots run 1.50 to 1.78, so
      `cover` was cropping the sides and taking the corner labels with them ("GHL Specialist" lost
@@ -861,7 +995,12 @@
      1.50 one a little height, and the 1.62 one is untouched. Trimming a screenshot's edge beats
      cutting through a wordmark. */
   .stack-card {
-    width: min(680px, 92%); aspect-ratio: 16 / 10; max-height: 62vh;
+    /* `100%`, not `92%`. The 8% inset is invisible at desktop, where 680px wins the `min()`
+       anyway, and on a phone it was 29px of the only dimension the card had left. Full width also
+       lands the card on the same gutter as every other block on the page instead of floating
+       inside it. `margin-inline: auto` because the centring used to come from the deleted
+       `.stack-item`'s `justify-content: center`. */
+    width: min(680px, 100%); margin-inline: auto; aspect-ratio: 16 / 10; max-height: 62vh;
     border-radius: 16px; overflow: clip; border: 1px solid var(--border);
     box-shadow: var(--shadow-float); position: relative;
   }
@@ -1216,23 +1355,37 @@
           <a href="./docs.html?doc=design">Architecture</a>
         </div>
       </div>
-      <div class="kui-nav-dropdown" data-nav-group="css-animations">
+      <div class="kui-nav-dropdown" data-nav-group="basic">
         <button
           type="button"
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="reveals.html,scroll.html,interactive.html,text.html,data-hover.html,ambient-feedback.html"
+          data-nav-pages="reveals.html,text.html,ambient-feedback.html"
         >
-          CSS Animations
+          Basic
         </button>
         <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
           <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="advanced">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="demo-js.html,scroll.html,interactive.html,data-hover.html"
+        >
+          Advanced
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./demo-js.html" data-nav-link="demo-js.html">Demo JS</a>
           <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
           <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
-          <a href="./text.html" data-nav-link="text.html">Text</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
-          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -1570,12 +1723,21 @@
                second or two an unpinned card spends crossing the viewport. -->
           <p class="matrix-group-note" style="margin-top:2.5rem;">parallax-rotate, pinned — half a turn unwound across a 200vh hold.</p>
           <div class="rotate-stage">
-            <figure class="parallax-card rotate-pin-card" data-kui="pin-section distance:200vh, parallax-rotate from:-180deg angle:0deg timeline:pin" data-show-code>
-              <div class="parallax-frame" style="--ar: 617 / 450">
-                <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
-              </div>
-              <figcaption>pin-section distance:200vh, parallax-rotate from:-180deg angle:0deg timeline:pin</figcaption>
-            </figure>
+            <!-- Two elements, two attributes: the stage is what gets pinned and the card is what
+                 turns. See `.rotate-pin-stage` in the stylesheet for why they cannot be the same
+                 element — flooring a media card at the pin's room inflates the card, it does not
+                 centre it. `data-show-code` sits on the stage so the modal prints both halves of
+                 the pattern; the chip still mounts into the card's own figcaption, because
+                 `mountToggle` looks for one anywhere inside the element it is given. The caption
+                 names the card's own effect, matching every other card in this group. -->
+            <div class="rotate-pin-stage" data-kui="pin-section distance:200vh" data-show-code>
+              <figure class="parallax-card rotate-pin-card" data-kui="parallax-rotate from:-180deg angle:0deg timeline:pin">
+                <div class="parallax-frame" style="--ar: 617 / 450">
+                  <img src="./assets/webdesign/zenrixa-agency-hero.jpg" alt="The Zenrixa creative agency homepage — a black 3D bust in orange visor beside the headline &quot;We start from zero&quot;" loading="lazy" />
+                </div>
+                <figcaption>parallax-rotate — from:-180deg angle:0deg timeline:pin</figcaption>
+              </figure>
+            </div>
           </div>
         </div>
 
@@ -1740,30 +1902,22 @@
                leaves 14px of air below the header; the 1.25rem step between cards is unchanged, so
                the stagger reads exactly as before, just below the chrome instead of under it. -->
           <div class="stack-group">
-            <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset-top:5.5rem" data-show-code>
-                <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
-                <figcaption>offset-top:5.5rem</figcaption>
-              </figure>
-            </div>
-            <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset-top:6.75rem" data-show-code>
-                <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
-                <figcaption>offset-top:6.75rem</figcaption>
-              </figure>
-            </div>
-            <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset-top:8rem" data-show-code>
-                <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
-                <figcaption>offset-top:8rem</figcaption>
-              </figure>
-            </div>
-            <div class="stack-item">
-              <figure class="stack-card" data-kui="stacking-cards offset-top:9.25rem" data-show-code>
-                <img src="./assets/webdesign/portfolio-yash-sharma.jpg" alt="Yash Sharma's creative portfolio homepage — a heavy white PORTFOLIO wordmark over a figure in a dark suit, with Creative scripted in yellow above it" loading="lazy" />
-                <figcaption>offset-top:9.25rem</figcaption>
-              </figure>
-            </div>
+            <figure class="stack-card" data-kui="stacking-cards offset-top:5.5rem" data-show-code>
+              <img src="./assets/webdesign/portfolio-bazil-webdesigner.jpg" alt="Bazil's freelance portfolio homepage — a heavy black Webdesigner set over an outlined &amp; Photographer, with a monochrome portrait rising between the two lines" loading="lazy" />
+              <figcaption>offset-top:5.5rem</figcaption>
+            </figure>
+            <figure class="stack-card" data-kui="stacking-cards offset-top:6.75rem" data-show-code>
+              <img src="./assets/webdesign/portfolio-michael-carter.jpg" alt="Michael Carter's portfolio homepage — a smiling designer in round glasses on white, beside the headline Carter is solving problems through strategic design and compelling visuals" loading="lazy" />
+              <figcaption>offset-top:6.75rem</figcaption>
+            </figure>
+            <figure class="stack-card" data-kui="stacking-cards offset-top:8rem" data-show-code>
+              <img src="./assets/webdesign/portfolio-mila-designer.jpg" alt="Mila Laura's portfolio homepage — two monochrome portraits either side of a stacked white DESIGNER wordmark on near-black, with a single yellow square as the only colour" loading="lazy" />
+              <figcaption>offset-top:8rem</figcaption>
+            </figure>
+            <figure class="stack-card" data-kui="stacking-cards offset-top:9.25rem" data-show-code>
+              <img src="./assets/webdesign/portfolio-yash-sharma.jpg" alt="Yash Sharma's creative portfolio homepage — a heavy white PORTFOLIO wordmark over a figure in a dark suit, with Creative scripted in yellow above it" loading="lazy" />
+              <figcaption>offset-top:9.25rem</figcaption>
+            </figure>
           </div>
         </div>
 

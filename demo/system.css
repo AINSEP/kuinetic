@@ -64,6 +64,21 @@
    "how far down does a held thing sit" is one number for the whole showcase. */
 :root { --kui-pin-offset: 5.5rem; }
 
+/* The other half of that number, and the one every page kept forgetting.
+   `--kui-pin-offset` reserves 88px at the top of the scrollport for the entire hold, so a pinned
+   box does not get the viewport — it gets the viewport minus the offset. Nothing knew that. Pages
+   sized their pinned boxes against `100dvh`, `70vh`, `92vh` or nothing at all, which fails in both
+   directions at once: a box sized to `100dvh` hangs exactly one offset past the fold (measured on
+   `scroll.html`'s `.pin-section-card` at 414x896 — top 88, bottom 984, viewport 896), and a box
+   shorter than the room dumps all of its slack at the bottom, because `position: sticky` pins the
+   top edge and nothing centres what is left (the same page's rotate card: 362px held in 808px of
+   room, 446px of dead space under it).
+   `--kui-pin-room` is that room. Size a pinned box against it, or give the box this height and
+   centre the real content inside it — the second form is the one to reach for when the held thing
+   has an aspect ratio of its own, because stretching a media card to fill the room does not centre
+   it, it inflates it. */
+:root { --kui-pin-room: calc(100dvh - var(--kui-pin-offset)); }
+
 :root { --kui-border-draw-color: var(--fg); }
 
 :root[data-theme='dark'] main h1,
