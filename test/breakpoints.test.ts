@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import {
+  axisOf,
   BREAKPOINTS,
   breakpointQuery,
   breakpointRank,
@@ -144,6 +145,18 @@ describe('the breakpoint scale', () => {
   it('names the custom property base.css declares', () => {
     expect(gateProperty('above', 'md')).toBe('--kui-above-md')
     expect(gateProperty('below', '2xl')).toBe('--kui-below-2xl')
+    // Shared verbatim with the container axis — one function, both axes, see its own comment.
+    expect(gateProperty('wide', 'md')).toBe('--kui-wide-md')
+    expect(gateProperty('narrow', '2xl')).toBe('--kui-narrow-2xl')
+  })
+})
+
+describe('axisOf', () => {
+  it('pairs each direction with the other half of its own axis', () => {
+    expect(axisOf('above')).toEqual(['above', 'below'])
+    expect(axisOf('below')).toEqual(['above', 'below'])
+    expect(axisOf('wide')).toEqual(['wide', 'narrow'])
+    expect(axisOf('narrow')).toEqual(['wide', 'narrow'])
   })
 })
 
@@ -161,6 +174,28 @@ describe('gatedAnimationName', () => {
     expect(gatedAnimationName('kui-in-up', { above: 'md', below: 'xl' })).toBe(
       'var(--kui-above-md, var(--kui-below-xl, kui-in-up))',
     )
+  })
+
+  it('wraps a container gate the same way, switch property named wide/narrow', () => {
+    expect(gatedAnimationName('kui-in-up', { wide: 'md' })).toBe('var(--kui-wide-md, kui-in-up)')
+    expect(gatedAnimationName('kui-in-up', { narrow: 'lg' })).toBe(
+      'var(--kui-narrow-lg, kui-in-up)',
+    )
+  })
+
+  it('nests both halves of a container band, wide outermost', () => {
+    expect(gatedAnimationName('kui-in-up', { wide: 'md', narrow: 'xl' })).toBe(
+      'var(--kui-wide-md, var(--kui-narrow-xl, kui-in-up))',
+    )
+  })
+
+  it('nests all four conditions when both axes are gated, viewport outermost', () => {
+    // Order is readability only — every condition ANDs together through the chain of fallbacks —
+    // but the compiled output has to be exact and stable, since `compile.test.ts` and
+    // `css-invariants.test.ts` both depend on the literal string.
+    expect(
+      gatedAnimationName('kui-in-up', { above: 'md', below: 'xl', wide: 'sm', narrow: 'lg' }),
+    ).toBe('var(--kui-above-md, var(--kui-below-xl, var(--kui-wide-sm, var(--kui-narrow-lg, kui-in-up))))')
   })
 })
 
@@ -231,6 +266,27 @@ describe('gatesOverlap', () => {
   it('separates adjacent bands', () => {
     expect(gatesOverlap({ above: 'md', below: 'lg' }, { above: 'lg' })).toBe(false)
     expect(gatesOverlap({ above: 'md', below: 'lg' }, { below: 'md' })).toBe(false)
+  })
+
+  it('separates a complementary pair on the container axis exactly as it does on the viewport one', () => {
+    expect(gatesOverlap({ narrow: 'md' }, { wide: 'md' })).toBe(false)
+    expect(gatesOverlap({ wide: 'md' }, { narrow: 'md' })).toBe(false)
+  })
+
+  it('requires agreement on BOTH axes: a viewport overlap does not survive a container disjunction', () => {
+    // `wide:md` and `above:md` are independent questions — a wide container in a narrow viewport
+    // is ordinary layout — so two effects that clearly overlap on one axis still cannot collide if
+    // they are disjoint on the other. This is the case `channels.ts` needs: two effects sharing a
+    // channel, both live at every viewport width, but never live in the same container width.
+    expect(gatesOverlap({ above: 'md', narrow: 'lg' }, { above: 'md', wide: 'lg' })).toBe(false)
+  })
+
+  it('overlaps when both axes agree', () => {
+    expect(gatesOverlap({ above: 'md', wide: 'sm' }, { above: 'lg', wide: 'md' })).toBe(true)
+  })
+
+  it('treats a gate with only a container half as live at every viewport width', () => {
+    expect(gatesOverlap({ wide: 'md' }, { above: 'lg' })).toBe(true)
   })
 })
 

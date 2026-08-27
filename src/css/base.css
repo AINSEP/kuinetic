@@ -75,6 +75,35 @@
     --kui-motion-anchor: initial;
     --kui-motion-from: initial;
     --kui-motion-to: initial;
+
+    /*
+     * Container gates — the CSS half of `data-kui="fade-up wide:md"`. Declared here rather than
+     * beside `--kui-above-*`/`--kui-below-*` below, because those are page-wide constants that
+     * belong on `:root`, and these cannot be: a `@container` query only ever matches an element
+     * that has an ancestor `container-type`, and `:root` never has an ancestor at all. So the
+     * switch lives directly on the element it gates instead, and the `@container` overrides
+     * further down target this same selector.
+     *
+     * Both default to `initial` — the guaranteed-invalid value, gate ON — which is the opposite
+     * of `--kui-above-*`'s default and deliberately so. `above:`/`below:` chose `min-width` so a
+     * non-parsing browser never actually hits its `none` default; `@container` has no such escape
+     * — an unsupporting browser drops the blocks below entirely, and an element with no
+     * `data-kui-container` ancestor never matches them either. Defaulting `--kui-wide-*` to `none`
+     * the way `--kui-above-*` does would leave every `wide:` gate silently off in both of those
+     * cases — exactly the failure `above:`/`below:` engineered around by picking a query syntax
+     * that cannot fail. There is no such syntax for `@container` itself, so both switches default
+     * ON instead, and the blocks below turn OFF only the one that does not apply.
+     */
+    --kui-wide-sm: initial;
+    --kui-narrow-sm: initial;
+    --kui-wide-md: initial;
+    --kui-narrow-md: initial;
+    --kui-wide-lg: initial;
+    --kui-narrow-lg: initial;
+    --kui-wide-xl: initial;
+    --kui-narrow-xl: initial;
+    --kui-wide-2xl: initial;
+    --kui-narrow-2xl: initial;
   }
 
   :dir(rtl) [data-kui-fx] {
@@ -166,6 +195,100 @@
       --kui-above-2xl: initial;
       --kui-below-2xl: none;
     }
+  }
+
+  /*
+   * Container gates, continued — the `@container` half of the switch declared on `[data-kui-fx]`
+   * above.
+   *
+   * Two blocks per breakpoint rather than one, unlike `above:`/`below:`'s single `@media` block:
+   * both switches here start ON (`initial`), so tiling the axis takes one condition to turn OFF
+   * `--kui-narrow-*` when the container *is* wide enough, and a second, independent condition to
+   * turn OFF `--kui-wide-*` when it is not. `@container not (...)` is the exact negation of
+   * `@container (...)` — not an epsilon-width approximation — so the two conditions still meet at
+   * the boundary with no gap and no overlap, the same guarantee `above:`/`below:` gets from
+   * flipping both switches inside one query.
+   *
+   * `[data-kui-fx]`, not `:root`: a `@container` query only matches an element that has an
+   * ancestor `container-type`, and a rule that can never match is not a fallback, it is dead code.
+   * Every `[data-kui-fx]` element that sits inside a `data-kui-container` re-decides its own two
+   * switches against its own nearest container, independent of any other gated element on the
+   * page — which is the whole point of a container query over a viewport one.
+   */
+  @container (min-width: 40rem) {
+    [data-kui-fx] {
+      --kui-narrow-sm: none;
+    }
+  }
+  @container not (min-width: 40rem) {
+    [data-kui-fx] {
+      --kui-wide-sm: none;
+    }
+  }
+
+  @container (min-width: 48rem) {
+    [data-kui-fx] {
+      --kui-narrow-md: none;
+    }
+  }
+  @container not (min-width: 48rem) {
+    [data-kui-fx] {
+      --kui-wide-md: none;
+    }
+  }
+
+  @container (min-width: 64rem) {
+    [data-kui-fx] {
+      --kui-narrow-lg: none;
+    }
+  }
+  @container not (min-width: 64rem) {
+    [data-kui-fx] {
+      --kui-wide-lg: none;
+    }
+  }
+
+  @container (min-width: 80rem) {
+    [data-kui-fx] {
+      --kui-narrow-xl: none;
+    }
+  }
+  @container not (min-width: 80rem) {
+    [data-kui-fx] {
+      --kui-wide-xl: none;
+    }
+  }
+
+  @container (min-width: 96rem) {
+    [data-kui-fx] {
+      --kui-narrow-2xl: none;
+    }
+  }
+  @container not (min-width: 96rem) {
+    [data-kui-fx] {
+      --kui-wide-2xl: none;
+    }
+  }
+
+  /*
+   * The one attribute that opts an element into being a query container for `wide:`/`narrow:`
+   * gates on its descendants — Q2 in the design: an author-written `container-type: inline-size`
+   * in the page's own CSS would be structural CSS the `target:` contract rules out, so the library
+   * asks for one attribute instead, the same shape as `data-kui-cloak`.
+   *
+   * `inline-size`, not `size`: querying block size too would make every container also contain
+   * block-axis layout (`contain: size`), which requires an explicit height and silently collapses
+   * an author's auto-height wrapper to zero. `wide:`/`narrow:` only ever compare widths, so there
+   * is nothing to gain from opting into the block axis and a real layout footgun in doing it
+   * anyway.
+   *
+   * This one rule is also what makes `contain: layout style inline-size` — `container-type`'s
+   * implied containment — an opt-in rather than a silent side effect: `contain: layout` makes the
+   * element a containing block for absolutely-positioned descendants, a real, observable layout
+   * change nothing should apply without being asked.
+   */
+  [data-kui-container] {
+    container-type: inline-size;
   }
 }
 

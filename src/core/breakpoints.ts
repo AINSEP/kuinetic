@@ -60,17 +60,50 @@ export type Breakpoint = keyof typeof BREAKPOINTS
 export const BREAKPOINT_NAMES = Object.keys(BREAKPOINTS) as Breakpoint[]
 
 /**
- * A segment's viewport condition, lifted onto the spec by `parse.ts`.
+ * A segment's condition, lifted onto the spec by `parse.ts`. Two independent axes:
  *
- * Both keys may be present, which is a band: `above:md below:xl` runs only between the two. That
- * falls out of the CSS for free — the two `var()`s nest — so it is supported rather than refused.
+ * - `above`/`below` — the **viewport** condition, `data-kui="fade-up above:md"`. Compiled into
+ *   `:root`-scoped custom properties in `base.css` (see `gatedAnimationName`), so the browser
+ *   re-decides on every resize with no script involved.
+ * - `wide`/`narrow` — the **container** condition, `data-kui="fade-up wide:md"`, decided against
+ *   the element's nearest `data-kui-container` ancestor rather than the viewport. Neither axis
+ *   subsumes the other: `above:md` answers "is the window at least 768px", `wide:md` answers "is
+ *   the box I sit in at least 768px", and a component reused at more than one width on the same
+ *   page needs the second question. `wide`/`narrow` compile the same way `above`/`below` do
+ *   (`gatedAnimationName` wraps both axes), with one deliberate asymmetry in their CSS
+ *   defaults — see the `@container` block in `base.css` for why.
+ *
+ * All four keys may be present at once, each pair forming a band the same way: `above:md
+ * below:xl` runs only between the two, and `wide:md narrow:xl` does the same against the
+ * container. That falls out of the CSS for free — the `var()`s nest arbitrarily deep — so bands
+ * are supported rather than refused on either axis.
  */
 export interface EffectGate {
   above?: Breakpoint
   below?: Breakpoint
+  wide?: Breakpoint
+  narrow?: Breakpoint
 }
 
 export type GateDirection = keyof EffectGate
+
+/** Which two directions tile one axis, upper bound (inclusive-side) first. */
+const GATE_AXES: readonly (readonly [GateDirection, GateDirection])[] = [
+  ['above', 'below'],
+  ['wide', 'narrow'],
+]
+
+/**
+ * The other direction on this one's axis — `above` pairs with `below`, `wide` pairs with `narrow`.
+ * Used wherever a check has to reason about a *band* rather than a single direction, so a new axis
+ * only ever needs an entry in {@link GATE_AXES} rather than a new branch at every call site.
+ *
+ * @complexity O(1) time (two axes, checked in a fixed order); O(1) space.
+ * @overallScore 100
+ */
+export function axisOf(direction: GateDirection): readonly [GateDirection, GateDirection] {
+  return GATE_AXES.find((axis) => axis.includes(direction))!
+}
 
 /**
  * Whether a token names a breakpoint on the scale.
@@ -98,13 +131,16 @@ export function breakpointRank(name: Breakpoint): number {
 }
 
 /**
- * The custom property one direction/breakpoint pair is switched by.
+ * The custom property one direction/breakpoint pair is switched by. Shared by both axes — `above`/
+ * `below` name a `@media`-declared switch, `wide`/`narrow` name an `@container`-declared one — the
+ * spelling is identical either way, so one function serves both rather than a `containerProperty`
+ * duplicate of it.
  *
- * This name is a contract with `src/css/base.css`, which declares all ten. Changing the spelling
- * here without changing it there compiles a `var()` that resolves to nothing, and a `var()` that
- * resolves to nothing falls through to its fallback — so every gate would silently be *on*
- * everywhere, which is the failure a reader would be least likely to notice.
- * `test/breakpoints.test.ts` asserts the two agree.
+ * This name is a contract with `src/css/base.css`, which declares all twenty (ten per axis).
+ * Changing the spelling here without changing it there compiles a `var()` that resolves to
+ * nothing, and a `var()` that resolves to nothing falls through to its fallback — so every gate
+ * would silently be *on* everywhere, which is the failure a reader would be least likely to
+ * notice. `test/breakpoints.test.ts` asserts the two agree.
  *
  * @complexity O(1) time and space.
  * @overallScore 100
@@ -141,7 +177,10 @@ export function breakpointQuery(breakpoint: Breakpoint): string {
  * from-state here to release.
  *
  * A band nests the two, and the order matters only for readability: `above` outermost reads as
- * "not wide enough → off; otherwise, too wide → off; otherwise run".
+ * "not wide enough → off; otherwise, too wide → off; otherwise run". `wide`/`narrow` nest the same
+ * way, innermost, so all four conditions the author wrote — viewport band and container band
+ * together — AND together through the same chain of `var()` fallbacks: any one of them resolving
+ * to `none` neutralises the whole expression, regardless of which axis it came from.
  *
  * @complexity O(1) time and space.
  * @overallScore 100
@@ -149,6 +188,8 @@ export function breakpointQuery(breakpoint: Breakpoint): string {
 export function gatedAnimationName(keyframes: string, gate: EffectGate | undefined): string {
   if (!gate) return keyframes
   let expression = keyframes
+  if (gate.narrow) expression = `var(${gateProperty('narrow', gate.narrow)}, ${expression})`
+  if (gate.wide) expression = `var(${gateProperty('wide', gate.wide)}, ${expression})`
   if (gate.below) expression = `var(${gateProperty('below', gate.below)}, ${expression})`
   if (gate.above) expression = `var(${gateProperty('above', gate.above)}, ${expression})`
   return expression
@@ -169,6 +210,13 @@ export function gatedAnimationName(keyframes: string, gate: EffectGate | undefin
  * gated effect is off, which is a silent no-op, and "never a silent no-op" is the one promise the
  * grammar makes everywhere else.
  *
+ * Reads only the viewport axis (`above`/`below`). The container axis (`wide`/`narrow`) has no
+ * equivalent here on purpose — there is no `matchContainer()`, and building one is a
+ * `ResizeObserver` per container plus a re-entrancy-safe notify path for one attribute. A
+ * JavaScript-rendered primitive refuses a container gate at compile time instead of faking it (see
+ * `refuseContainerGate` in `compile.ts`), so a gate reaching this function has already had `wide`/
+ * `narrow` stripped if it ever had them — there is nothing left for this function to ignore.
+ *
  * @param gate - The segment's condition; `undefined` is an ungated segment and always matches.
  * @param win - Window to query. Injected rather than reached for, exactly as
  *   `effects/catalog/interaction-shared.ts` injects it for its `(hover: hover)` probe.
@@ -186,36 +234,50 @@ export function gateMatches(gate: EffectGate | undefined, win: Window | undefine
 }
 
 /**
- * Whether two gates can ever be satisfied at the same viewport width.
+ * Whether two gates can ever be satisfied at the same time, on both axes at once.
  *
  * Read by `channels.ts`: two effects that are never live together cannot collide on a channel, so
  * `fade-up below:md, parallax-y above:md` composes even though both own `translate`. Without this
  * the compiler would refuse that pair — the exact list the gate exists to make expressible — and
- * silently drop its second half at every width.
+ * silently drop its second half at every width. `wide:md` and `above:md` are independent
+ * conditions — a wide container inside a narrow viewport is ordinary layout — so overlap requires
+ * agreement on **both** axes: two gates that are disjoint on either one alone can never be live
+ * together, however the other axis compares.
  *
- * Each gate is a half-open interval over the scale's *ranks*, which is exact because the only
- * boundaries that exist are the five breakpoints themselves: `above:X` starts at `rank(X)` and an
- * absent `above` starts below the narrowest name; `below:Y` ends at `rank(Y)` and an absent `below`
- * runs past the widest. Half-open is what makes the boundary come out right — `[below:md)` ends
- * exactly where `[above:md)` begins, so the two touch without overlapping, which is the same
- * property that makes the pair tile the axis in the first place.
+ * Each direction is a half-open interval over the scale's *ranks*, which is exact because the only
+ * boundaries that exist are the five breakpoints themselves: `above:X`/`wide:X` starts at `rank(X)`
+ * and an absent upper bound starts below the narrowest name; `below:Y`/`narrow:Y` ends at `rank(Y)`
+ * and an absent lower bound runs past the widest. Half-open is what makes the boundary come out
+ * right — `[below:md)` ends exactly where `[above:md)` begins, so the two touch without
+ * overlapping, which is the same property that makes a complementary pair tile an axis.
  *
  * @complexity O(b) time in the scale's length; O(1) space.
  * @overallScore 100
  */
 export function gatesOverlap(a: EffectGate | undefined, b: EffectGate | undefined): boolean {
   if (!a || !b) return true
-  const span = (gate: EffectGate): [number, number] => [
-    gate.above ? breakpointRank(gate.above) : -1,
-    gate.below ? breakpointRank(gate.below) : BREAKPOINT_NAMES.length,
+  const span = (gate: EffectGate, [upper, lower]: readonly [GateDirection, GateDirection]): [
+    number,
+    number,
+  ] => [
+    gate[upper] ? breakpointRank(gate[upper]) : -1,
+    gate[lower] ? breakpointRank(gate[lower]) : BREAKPOINT_NAMES.length,
   ]
-  const [aStart, aEnd] = span(a)
-  const [bStart, bEnd] = span(b)
-  return aStart < bEnd && bStart < aEnd
+  const overlapsOn = (axis: readonly [GateDirection, GateDirection]): boolean => {
+    const [aStart, aEnd] = span(a, axis)
+    const [bStart, bEnd] = span(b, axis)
+    return aStart < bEnd && bStart < aEnd
+  }
+  return GATE_AXES.every(overlapsOn)
 }
 
 /**
  * Breakpoints a set of gates depends on, deduplicated. Empty for an ungated list.
+ *
+ * Only ever called on `EffectGate`s already filtered to JavaScript-rendered effects
+ * (`Animator.applyViewportGates`), and those never carry `wide`/`narrow` — `refuseContainerGate`
+ * in `compile.ts` strips both before a gate reaches `plan.jsEffects`. Reading only `above`/`below`
+ * here is therefore not a gap, it mirrors `gateMatches`'s own scope.
  *
  * @complexity O(g) time in the gate count; O(b) space, bounded by the scale's five names.
  * @overallScore 100
