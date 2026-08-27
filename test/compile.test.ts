@@ -62,7 +62,12 @@ describe('compile — single effect', () => {
     // pop-in sets ease:back-out. Sharing one --kui-ease meant blur-in silently inherited it,
     // even though their channels are disjoint and composition was therefore allowed.
     const plan = run('pop-in ease:back-out, blur-in')
-    expect(plan.vars['--kui-scale-ease']).toBe('back-out')
+    // `var(--kui-ease-back-out, …)`, not the bare token this used to assert. `back-out` is a
+    // kUInetic name, not a CSS timing function, so `animation-timing-function: var(--kui-scale-ease,
+    // ease-out)` resolving to it was invalid at computed-value time and the browser fell back to
+    // `ease` — every effect written with the `ease:` spelling silently ran on the wrong curve. The
+    // positional spelling always resolved the token; both go through `core/easing.ts` now.
+    expect(plan.vars['--kui-scale-ease']).toBe('var(--kui-ease-back-out, ease-out)')
     expect(plan.declarations['animation-timing-function']).toBe(
       'var(--kui-scale-ease, ease-out), var(--kui-blur-ease, ease-out)',
     )

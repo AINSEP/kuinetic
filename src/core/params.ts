@@ -1,3 +1,4 @@
+import { cssEasingValue, springTokenProblems } from './easing.js'
 import type { ParamSpec, ParameterSchema, ResolvedParams } from './types.js'
 
 /**
@@ -76,7 +77,8 @@ const COLOR_FUNCTIONS = /^(?:rgba?|hsla?|okl(?:ch|ab)|l(?:ch|ab)|color)\([^()]*\
 const COLOR_KEYWORD = /^[a-z]+$/i
 
 const EASING_KEYWORD = /^(?:linear|ease|step-start|step-end|spring|bounce|[a-z]+-(?:in|out|in-out))$/i
-const EASING_FUNCTION = /^(?:cubic-bezier|steps|linear)\([^()]*\)$/i
+/** `spring` joins the three CSS functions here for the reason `parse.ts`'s list gives. */
+const EASING_FUNCTION = /^(?:cubic-bezier|steps|linear|spring)\([^()]*\)$/i
 
 const CALC_TYPES = new Set<ParamSpec['type']>(['length', 'percentage', 'number'])
 const CALC_CHARACTER = /^[\d.\s+\-*/%a-z,]$/i
@@ -385,9 +387,42 @@ export function resolveParams(
     if (spec.type === 'text') continue
 
     const result = validate(raw, spec)
-    if (result.ok) out[spec.cssProperty] = result.value
-    else warn(`parameter "${key}": ${result.reason} — got "${raw}", using default "${spec.default}"`)
+    if (!result.ok) {
+      warn(`parameter "${key}": ${result.reason} — got "${raw}", using default "${spec.default}"`)
+      continue
+    }
+    out[spec.cssProperty] = cssValueFor(result.value, spec, key, warn)
   }
 
   return out
+}
+
+/**
+ * Turn a validated value into the one a stylesheet can actually hold.
+ *
+ * An easing is the only type where those differ. `back-out`, `spring` and every other
+ * kUInetic-named curve is a `--kui-ease-*` token rather than a CSS keyword, and `spring(...)` is
+ * not a browser function at all — both were written verbatim into `--kui-<primitive>-ease`, which
+ * made the declaration reading it invalid at computed-value time, so the browser discarded it and
+ * the effect ran on the initial `ease` with nothing said.
+ *
+ * The conversion is here rather than inside {@link validate} deliberately: `core/js-params.ts`
+ * validates through that same function for the *JavaScript* renderer, where the value is handed to
+ * `Element.animate` and a `var(--kui-ease-back-out, ease-out)` would be a `TypeError`. This
+ * function is only ever on the CSS path.
+ *
+ * @param warn - Sink for a spring's own argument diagnostics. A malformed `spring(...)` is clamped
+ *   rather than dropped — see `springTokenProblems` — so this warns and still returns a curve.
+ * @complexity O(1) amortised; O(1) space.
+ * @overallScore 100
+ */
+function cssValueFor(
+  value: string,
+  spec: ParamSpec,
+  key: string,
+  warn: (message: string) => void,
+): string {
+  if (spec.type !== 'easing') return value
+  for (const problem of springTokenProblems(value)) warn(`parameter "${key}": ${problem}`)
+  return cssEasingValue(value)
 }

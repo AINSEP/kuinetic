@@ -1,3 +1,4 @@
+import { cssEasingValue } from '../../core/easing.js'
 import type { Cleanup, EffectParams } from '../../core/types.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
 
@@ -428,7 +429,8 @@ export function applySlatTimingVars(stage: HTMLElement, params: EffectParams): v
   const delay = delayMs === undefined ? params.text('delay', '0ms') : `${delayMs}ms`
   stage.style.setProperty('--kui-duration', duration)
   stage.style.setProperty('--kui-delay', delay)
-  stage.style.setProperty('--kui-ease', easing ?? params.text('ease', 'ease-out'))
+  // See `applyStaggerVars` in `text-shared.ts` — `--kui-ease` reaches a timing function unread.
+  stage.style.setProperty('--kui-ease', cssEasingValue(easing ?? params.text('ease', 'ease-out')))
   stage.style.setProperty('--kui-stagger', params.text('stagger', '60ms'))
 }
 

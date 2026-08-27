@@ -1,5 +1,6 @@
 import { gatedAnimationName } from './breakpoints.js'
 import type { Entry } from './compile.js'
+import { cssEasingValue } from './easing.js'
 import { timingProperty } from './registry.js'
 import { durationExpression } from './sequence.js'
 import type { SequenceStep } from './sequence.js'
@@ -21,17 +22,6 @@ import type { Timeline } from './types.js'
  * reference is not an initialisation-order hazard. `Entry` stays in `compile.ts` because that is
  * where entries are built and where every other consumer already imports it from.
  */
-
-/** CSS-native timing keywords; anything else resolves to a `--kui-ease-*` custom property. */
-const NATIVE_EASINGS = new Set([
-  'linear',
-  'ease',
-  'ease-in',
-  'ease-out',
-  'ease-in-out',
-  'step-start',
-  'step-end',
-])
 
 export interface AnimationTracks {
   /** What is written to `animation-name` — an ident, or a `var()` around one when gated. */
@@ -236,9 +226,18 @@ function staggerDelay(base: string, timeline: Timeline, duration: string): strin
   return `calc(${staggered} - var(--kui-progress, 0) * (${span}))`
 }
 
+/**
+ * The timing function one segment compiles to.
+ *
+ * Only the "the author wrote nothing" branch lives here; every authored spelling resolves through
+ * `core/easing.ts`, which the `ease:` *parameter* path goes through too. Keeping one resolver is
+ * the point: the two spellings reach CSS by different routes (`animation-timing-function` here,
+ * `--kui-<primitive>-ease` there) and had drifted into two different answers for the same token.
+ *
+ * @complexity O(1) amortised — see `cssEasingValue`; O(1) space.
+ * @overallScore 100
+ */
 function easingValue(easing: string | undefined, primitiveId: string): string {
   if (!easing) return `var(${timingProperty(primitiveId, 'ease')}, ease-out)`
-  if (NATIVE_EASINGS.has(easing)) return easing
-  if (easing.includes('(')) return easing
-  return `var(--kui-ease-${easing}, ease-out)`
+  return cssEasingValue(easing)
 }

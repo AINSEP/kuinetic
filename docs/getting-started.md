@@ -73,6 +73,43 @@ Three positional args, always in this order: duration, delay, easing.
 <div class="doc-demo-box" data-kui="bounce-in-up 900ms 300ms" data-kui-on="load">bounce-in-up, 300ms delay</div>
 ```
 
+### Springs
+
+Besides the named curves (`ease-out`, `back-out`, `expo-out`, `spring`, `bounce`, …) and the CSS
+functions (`cubic-bezier()`, `steps()`, `linear()`), you can ask for a spring and tune it:
+
+```html
+<div data-kui="fade-up 700ms spring(bounce:0.5)">
+<div data-kui="fade-up 700ms ease:spring(stiffness:400 damping:20 mass:1)">
+```
+
+`bounce` runs from `0` (settles straight onto the target, no overshoot) to `0.85` (several visible
+crossings). Bare `spring()` is `bounce:0.33`, which is what the `spring` keyword has always looked
+like — so you can add the parentheses without changing anything, then tune.
+
+`stiffness` / `damping` / `mass` are the same numbers `spring.ts` uses for gestures, if you think in
+those terms. Missing ones default to `180` / `17.9` / `1`.
+
+```live
+<div class="doc-demo-box" data-kui="fade-up 700ms spring(bounce:0)" data-kui-on="load">bounce:0</div>
+<div class="doc-demo-box" data-kui="fade-up 700ms spring(bounce:0.4)" data-kui-on="load">bounce:0.4</div>
+<div class="doc-demo-box" data-kui="fade-up 700ms spring(bounce:0.75)" data-kui-on="load">bounce:0.75</div>
+```
+
+**The duration is still yours.** A real spring's duration falls out of its constants; a CSS
+animation's is declared. kUInetic keeps yours: the spring is sampled into a `linear()` curve that
+starts at 0, ends at 1, and fills exactly the duration you wrote. The constants decide the *shape* —
+how far it overshoots and how many times it crosses back — never how long it takes.
+
+One consequence is worth knowing before it surprises you: because the time axis is normalised, the
+three constants are not independent. Only their ratio `damping / (2 × √(stiffness × mass))`
+survives, so `spring(stiffness:400 damping:20)` and `spring(stiffness:100 damping:10)` are the same
+curve. Each knob still changes the curve; none of them makes the animation faster. That is what
+`bounce:` is: the one number that actually varies, spelled directly.
+
+A spring that never settles cannot be an easing, so `bounce` above `0.85` (equivalently `damping:0`)
+is capped, with a warning naming the value.
+
 ---
 
 ## Hover and interaction effects
@@ -157,6 +194,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | duration | first positional arg, or `duration:` | `fade-up 800ms` |
 | delay | second positional arg, or `delay:` | `fade-up 800ms 200ms` |
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
+| `spring(…)` | a tuned spring, in either easing slot — see [Springs](#springs) | `fade-up 700ms spring(bounce:0.5)` |
 | `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
 | `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
 | `below:` | run this effect only below a breakpoint | `fade-up below:md` |
