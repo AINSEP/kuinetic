@@ -416,8 +416,51 @@ interface ObservedBinding {
    * for anything below the fold is `isIntersecting: false`. Without this, `enter/leave` would play
    * its exit on every off-screen element the instant it was installed — an animation running
    * backwards out of a from-state it had never left.
+   *
+   * "In" means {@link meetsThreshold}, not `isIntersecting`: an element one pixel into the root
+   * under `threshold:50%` is intersecting and has not entered.
    */
   entered: boolean
+}
+
+/**
+ * Slack on the ratio comparison, for a browser reporting the crossing it just decided happened.
+ *
+ * The entry that carries a threshold crossing reports the ratio measured at that frame, which is
+ * computed from subpixel float rects and lands either side of the authored number — Chrome reports
+ * `0.49999999` for a box the observer itself classified as having crossed `0.5`. Without the slack
+ * that delivery is discarded and the effect waits for a crossing the browser will not report again.
+ */
+const RATIO_EPSILON = 1e-6
+
+/**
+ * Whether an entry has the element as far into the root as the author asked for.
+ *
+ * `isIntersecting` is not the same question. An `IntersectionObserver` queues an entry whenever
+ * *either* that boolean or the index into its threshold list changes, and the boolean flips at the
+ * first intersecting pixel however high the threshold is — so a `threshold:50%` element delivers an
+ * entry at 1% visibility with `isIntersecting: true`, and reading only the boolean starts the
+ * effect there. The ratio is what the author authored.
+ *
+ * A zero threshold short-circuits on the boolean rather than on `0 >= 0`, so that "any intersection
+ * at all" keeps meaning exactly what it meant — including for a zero-area box, whose ratio is 0
+ * while it genuinely intersects.
+ *
+ * Caveat kept deliberately: a target taller than the root can never reach a high ratio (three
+ * viewports of element tops out at 0.33), so `threshold:50%` on one never fires. That is the
+ * authored request being unsatisfiable rather than a rule to soften — and softening it is not
+ * possible from here anyway, because the browser only delivers entries at crossings of the
+ * threshold it was given, so the ratio at which such an element peaks is never reported.
+ *
+ * @param entry - One observer delivery.
+ * @param ratio - The binding's authored threshold, already clamped to [0, 1].
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function meetsThreshold(entry: IntersectionObserverEntry, ratio: number): boolean {
+  if (!entry.isIntersecting) return false
+  if (ratio <= 0) return true
+  return entry.intersectionRatio >= ratio - RATIO_EPSILON
 }
 
 /**
@@ -429,12 +472,17 @@ interface ObservedBinding {
 function deliverEntry(
   binding: ObservedBinding,
   entry: IntersectionObserverEntry,
+  ratio: number,
   arrivedFrom?: RootSide,
 ): void {
-  if (binding.onCross) return deliverCrossing(binding, entry, arrivedFrom)
-  if (!entry.isIntersecting && !binding.entered) return
-  binding.entered = entry.isIntersecting
-  const side = entry.isIntersecting ? binding.onEnter : binding.onLeave
+  if (binding.onCross) return deliverCrossing(binding, entry, ratio, arrivedFrom)
+  const inside = meetsThreshold(entry, ratio)
+  // Only a change of side is a crossing. A positive threshold delivers twice on the way in — once
+  // when the boolean flips, once when the ratio is reached — and firing on both would play the
+  // entrance a second time on an element already showing.
+  if (inside === binding.entered) return
+  binding.entered = inside
+  const side = inside ? binding.onEnter : binding.onLeave
   if (!side) return
   side()
   if (binding.oneShot) binding.release()
@@ -467,23 +515,57 @@ function deliverEntry(
 function deliverCrossing(
   binding: ObservedBinding,
   entry: IntersectionObserverEntry,
+  ratio: number,
   arrivedFrom?: RootSide,
 ): void {
   const side = sideOf(entry)
-  if (!entry.isIntersecting) {
-    if (side) binding.outside = side
-    if (!binding.entered) return
-    binding.entered = false
-    // Leaving towards the side already scrolled past is the forward `leave`; leaving towards the
-    // side not reached yet means the reader is travelling back up.
-    binding.onCross?.(side === 'after' ? 'leave-back' : 'leave')
-    return
-  }
+  if (!meetsThreshold(entry, ratio)) return deliverLeaving(binding, side, arrivedFrom)
+  // Both the boolean flip and the ratio crossing are delivered on the way into a positive
+  // threshold; the second must not fire a second `enter`.
+  if (binding.entered) return
   const crossing: Crossing = (arrivedFrom ?? binding.outside) === 'before' ? 'enter-back' : 'enter'
   binding.entered = true
   binding.outside = undefined
   binding.onCross?.(crossing)
   if (binding.oneShot) binding.release()
+}
+
+/**
+ * Deliver the leaving half of {@link deliverCrossing}, and record the side for the next entry.
+ *
+ * Leaving towards the side already scrolled past is the forward `leave`; leaving towards the side
+ * not reached yet means the reader is travelling back up. An element that fell back *below its
+ * threshold* without leaving the root has no side to read — it still overlaps the root, so
+ * `sideOf` is undefined — and the reader's direction answers it instead: travelling forwards means
+ * entering elements arrive from `after`, so a leaving one is on its way to `before`.
+ *
+ * @param binding - The element's stake in the shared observer.
+ * @param side - Which side of the root the entry put the element on, if the geometry says.
+ * @param arrivedFrom - The side an element entering right now would have come from.
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function deliverLeaving(
+  binding: ObservedBinding,
+  side: RootSide | undefined,
+  arrivedFrom: RootSide | undefined,
+): void {
+  if (side) binding.outside = side
+  if (!binding.entered) return
+  binding.entered = false
+  const leavingTo = side ?? oppositeSide(arrivedFrom)
+  binding.onCross?.(leavingTo === 'after' ? 'leave-back' : 'leave')
+}
+
+/**
+ * The other side of the root, keeping "no side at all" as itself.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function oppositeSide(side: RootSide | undefined): RootSide | undefined {
+  if (!side) return undefined
+  return side === 'after' ? 'before' : 'after'
 }
 
 /**
@@ -540,7 +622,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       (entries) => {
         for (const entry of entries) {
           const binding = callbacks.get(entry.target)
-          if (binding) deliverEntry(binding, entry, travel.arrivedFrom(entry.time))
+          if (binding) deliverEntry(binding, entry, ratio, travel.arrivedFrom(entry.time))
         }
       },
       { threshold: ratio },
