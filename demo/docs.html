@@ -311,7 +311,7 @@
   }
 
   /* Sidebar TOC — mirrors .doc-body's h2 list, highlighting whichever section is currently in
-     view (see the buildToc/updateActive script below). Sticky under the floating pill header. */
+     view (see buildToc's scroll-spy instance below). Sticky under the floating pill header. */
   .doc-toc {
     position: sticky;
     top: 96px;
@@ -334,7 +334,9 @@
     transition: color 150ms ease, border-color 150ms ease;
   }
   .doc-toc a:hover { color: var(--fg); }
-  .doc-toc a.is-active { color: var(--fg); border-right-color: var(--accent); font-weight: 600; }
+  /* `data-kui-active` is `scroll-spy`'s own attribute contract, not a class this page invents —
+     see demo/scroll.html's identical `.spy-nav a[data-kui-active='true']` rule. */
+  .doc-toc a[data-kui-active='true'] { color: var(--fg); border-right-color: var(--accent); font-weight: 600; }
   /* Must come after the base .doc-toc rule above — same specificity, so source order decides the
      cascade, and this losing that order is exactly how the sidebar ended up stuck visible below
      900px despite the media query "matching": the unconditional display:flex above was later in
@@ -466,7 +468,7 @@
     ;(function () {
       var body = document.getElementById('doc-body')
       var toc = document.getElementById('doc-toc')
-      var stopTocTracking = null // torn down and rebuilt on every doc switch — see buildToc
+      var docLayout = document.querySelector('.doc-layout') // shared ancestor scroll-spy needs — see buildToc
       var currentDoc = null
 
       var DOCS = {
@@ -536,54 +538,53 @@
       })
 
       // Sidebar TOC: lists each H2 section and highlights whichever one the user is currently
-      // reading. Headings scroll in document order under normal flow, so the last heading whose
-      // top has crossed the strip below the sticky header is "current" — no IntersectionObserver
-      // edge cases around gaps between sections needed.
+      // reading. `scroll-spy`'s container form owns the tracking — one instance on `.doc-layout`
+      // (the shared ancestor of both `#doc-body`'s headings and `#doc-toc`'s links) measures
+      // every section itself and marks the last one whose top has crossed the strip below the
+      // sticky header, exactly the rule this page used to hand-roll with its own scroll listener.
       function buildToc(container, nav) {
-        if (stopTocTracking) { stopTocTracking(); stopTocTracking = null }
+        // Tear down the previous instance before its headings/links are replaced below, so a
+        // stale in-flight frame never marks an element already on its way out. Mirrors the old
+        // stopTocTracking()-before-rebuild order this replaced.
+        if (docLayout.hasAttribute('data-kui')) window.__kui.reset(docLayout)
 
         var headings = Array.prototype.slice.call(container.querySelectorAll('h2'))
         if (!headings.length) {
           nav.hidden = true
+          docLayout.removeAttribute('data-kui')
           return
         }
         nav.hidden = false
         nav.innerHTML = ''
-        var links = headings.map(function (h) {
+        headings.forEach(function (h) {
           var a = document.createElement('a')
           a.href = '#' + h.id
           a.textContent = h.textContent
           nav.appendChild(a)
-          return a
         })
 
-        // A few px past .doc-body h2's scroll-margin-top (96px): a heading landed exactly at its
-        // scroll-margin-top via a native anchor jump sits at ~96.03px after sub-pixel scroll
-        // rounding, which failed a bare `<= 96` check and left the *previous* link highlighted
-        // right after clicking its own TOC link. The slack absorbs that rounding.
-        var STRIP = 104
-        var ticking = false
-        function updateActive() {
-          ticking = false
-          var current = -1
-          for (var i = 0; i < headings.length; i++) {
-            if (headings[i].getBoundingClientRect().top - STRIP <= 0) current = i
-            else break
-          }
-          links.forEach(function (a, i) { a.classList.toggle('is-active', i === current) })
+        // `offset-top:104px` is the strip below the sticky header a heading must cross to count
+        // as "current" — a few px past `.doc-body h2`'s scroll-margin-top (96px), the same slack
+        // the old STRIP constant absorbed: a heading landed exactly at its scroll-margin-top via
+        // a native anchor jump sits at ~96.03px after sub-pixel scroll rounding, which failed a
+        // bare `<= 96` check and left the *previous* link highlighted right after clicking its
+        // own TOC link.
+        //
+        // The attribute is authored once and left alone after that. `reset()` above already
+        // cleared the previous instance's state, so `process()` here always recompiles fresh
+        // against the headings/links just rebuilt — the same reset()+process()+activate() replay
+        // sequence show-code.js's lab uses to force a rerun regardless of an unchanged data-kui
+        // string. `activate()` is a no-op once scroll-spy's own `on:load` gate has already started
+        // it, but it is what actually starts a manually reprocessed effect whose gate is not
+        // immediate, so it stays paired with `process()` here on purpose rather than assumed away.
+        if (!docLayout.hasAttribute('data-kui')) {
+          docLayout.setAttribute(
+            'data-kui',
+            "scroll-spy sections:'#doc-body h2' target:'#doc-toc a' offset-top:104px",
+          )
         }
-        function onScroll() {
-          if (ticking) return
-          ticking = true
-          requestAnimationFrame(updateActive)
-        }
-        window.addEventListener('scroll', onScroll, { passive: true })
-        window.addEventListener('resize', onScroll)
-        updateActive()
-        stopTocTracking = function () {
-          window.removeEventListener('scroll', onScroll)
-          window.removeEventListener('resize', onScroll)
-        }
+        window.__kui.process(docLayout)
+        window.__kui.activate(docLayout)
       }
 
       loadDoc(docFromSearch(location.search), false)
