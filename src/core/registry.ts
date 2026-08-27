@@ -35,6 +35,20 @@ export class Registry {
         `kuinetic: effect "${preset.name}" references unknown primitive "${preset.primitive}"`,
       )
     }
+    // `all`/`none` would swallow every other segment `compile.ts`'s `pushTransitions` merges into
+    // the shared `--kui-transition` list — the same failure a shared `transition: all` shorthand
+    // has today, reintroduced one property name at a time. Refused at registration rather than
+    // left for the merge to silently mishandle, because every other preset's transitions ride in
+    // that one shared list.
+    for (const segment of preset.transitions ?? []) {
+      if (segment.property === 'all' || segment.property === 'none') {
+        throw new Error(
+          `kuinetic: effect "${preset.name}" declares a transition on "${segment.property}", ` +
+            `which would swallow every other preset's segment in the merged transition list — ` +
+            `name the real property instead`,
+        )
+      }
+    }
     this.presets.set(preset.name, preset)
     return this
   }

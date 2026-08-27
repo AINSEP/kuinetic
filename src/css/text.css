@@ -180,11 +180,14 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* --- word-cycler: real words, so only the swap transition lives here --- */
+  /* --- word-cycler: real words, so only the swap state lives here --- */
 
+  /* The swap transition itself is compiled from this preset's `Preset.transitions`
+     (catalog/text.ts) into the shared `--kui-transition` custom property `base.css`'s
+     `:where([data-kui-fx])` rule consumes, rather than a bare `transition:` on this rule — see
+     that rule's own comment for why. */
   [data-kui-fx~='word-cycler'] {
     display: inline-block;
-    transition: opacity 150ms ease-out;
   }
 
   [data-kui-fx~='word-cycler'].kui-word-cycler-swap {

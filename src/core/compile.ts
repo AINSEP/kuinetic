@@ -142,6 +142,19 @@ export interface CompiledPlan {
   supportedTimelines: Timeline[]
   /** Union of channels every composed effect writes to, so callers can react to what actually moves. */
   channels: Channel[]
+  /**
+   * Merged `transition` shorthand value for the composed effects' declared {@link TransitionSegment}s,
+   * or absent when none of them transitions anything. Consumed by the one
+   * `:where([data-kui-fx])` rule in `base.css` through the ledger, the same way `vars`/`declarations`
+   * are.
+   *
+   * Deliberately NOT folded into `declarations`: `style-plan.ts` reads that field's emptiness as
+   * "this element has a CSS animation" and would gate every one of these ten presets — all
+   * `renderer: 'javascript'` — behind `animation-play-state: paused`, pausing an animation that
+   * does not exist. Deliberately NOT folded into `vars` either: that field means "author parameter
+   * overrides", and several tests assert its exact contents with `toEqual`.
+   */
+  transition?: string
   warnings: string[]
 }
 
@@ -320,6 +333,14 @@ function buildPlan(
     iterationCounts: [],
   }
   const channels = new Set<Channel>()
+  // One comma-separated `transition:` segment per declared `TransitionSegment`, in authoring
+  // order — the same parallel-list shape `tracks` builds for `animation`, and for the same reason:
+  // a bare `transition:` on two separate rules cannot both apply, so composition has to happen
+  // here instead. `transitionOwners` is who most recently claimed a given property, purely to name
+  // both presets in the duplicate-property warning below; it carries no other weight; a browser
+  // that is handed the same property twice in one shorthand already resolves it last-wins.
+  const transitionSegments: string[] = []
+  const transitionOwners = new Map<string, string>()
   // Accumulated outside `plan` so `undefined` (no effect has contributed yet) stays distinct from
   // `[]` (the composed effects genuinely share nothing) — see `intersect`.
   let activations: NamedActivation[] | undefined
@@ -350,10 +371,12 @@ function buildPlan(
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline, step)
     else plan.jsEffects.push(positioned(entry, step))
+    pushTransitions(transitionSegments, transitionOwners, entry, warnings)
   }
 
   Object.assign(plan.declarations, declarationsFor(tracks))
   plan.keyframeNames = tracks.keyframes
+  if (transitionSegments.length > 0) plan.transition = transitionSegments.join(', ')
   // `activations`/`timelines` start `undefined` only until the loop's first iteration; `compile`
   // already returns `emptyPlan` before `buildPlan` is ever called with zero entries, so the loop
   // above always runs at least once and both are real arrays (possibly empty) by here.
@@ -521,6 +544,58 @@ function pushTrack(
     tracks.delays.push(delay)
     tracks.easings.push(easing)
     tracks.iterationCounts.push(iterations)
+  }
+}
+
+/**
+ * Append one entry's declared {@link TransitionSegment}s to the element's merged transition list.
+ *
+ * Reuses `durationExpression`/`easingValue` — the same two functions `pushTrack` resolves an
+ * `animation-duration`/`-timing-function` through — so `data-kui="lift 400ms"` reaches a
+ * transitioned property and a keyframed one through one code path that cannot disagree with
+ * itself. The delay is a per-*preset* custom-property slot (`--kui-tx-delay-<name>`) rather than a
+ * shared `animation-delay`-style list: the CSS state rule (`:hover`, `[aria-expanded]`) that
+ * actually triggers the transition writes that slot directly (see `interaction.css`), and distinct
+ * property names per preset are what let two composed presets carry independent delays without a
+ * second clobber one level down.
+ *
+ * Mutates `segments`/`owners` rather than returning a value, the same accumulator shape `pushTrack`
+ * already uses for `tracks` — a per-entry return would need concatenating at every call site for no
+ * benefit, since every caller already owns one shared list for the whole composed entry set.
+ *
+ * @param segments - Accumulator of `"property duration easing delay"` strings, mutated in place.
+ * @param owners - property → the preset name that most recently claimed it, mutated in place, kept
+ *   only to name both presets in the duplicate-property warning below.
+ * @param entry - The composed entry to read `preset.transitions` from.
+ * @param warnings - Diagnostic sink. Two presets transitioning the same property compose — the
+ *   channel model does not forbid it, and CSS resolves the shorthand's last occurrence
+ *   deterministically — but the author is owed a name for which one wins.
+ * @complexity O(t) time and space in the preset's declared transition segment count.
+ * @overallScore 100
+ */
+function pushTransitions(
+  segments: string[],
+  owners: Map<string, string>,
+  entry: Entry,
+  warnings: string[],
+): void {
+  const { spec, resolved } = entry
+  const { preset, primitive } = resolved
+
+  for (const segment of preset.transitions ?? []) {
+    const previousOwner = owners.get(segment.property)
+    if (previousOwner !== undefined && previousOwner !== preset.name) {
+      warnings.push(
+        `"${previousOwner}" and "${preset.name}" both transition ${segment.property} — ` +
+          `"${preset.name}" wins (last in the list)`,
+      )
+    }
+    owners.set(segment.property, preset.name)
+
+    const duration = segment.duration ?? durationExpression(spec.duration, primitive.id)
+    const easing = segment.easing ?? easingValue(spec.easing, primitive.id)
+    const delay = `var(--kui-tx-delay-${preset.name}, 0ms)`
+    segments.push(`${segment.property} ${duration} ${easing} ${delay}`)
   }
 }
 

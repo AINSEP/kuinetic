@@ -254,7 +254,13 @@ export const SVG_PRESETS: Preset[] = [
   // aria state, not a compiled animation. Same shape as forms.ts's native-state presets.
   { name: 'hamburger-to-x', primitive: 'icon-toggle' },
   { name: 'play-to-pause', primitive: 'icon-toggle' },
-  { name: 'plus-to-minus', primitive: 'icon-toggle' },
+  // Only `plus-to-minus` transitions on the shared `icon-toggle` primitive's host box — the other
+  // two only move their `.kui-bar` children, a different box `transitions` deliberately does not
+  // describe (see `Preset.transitions`'s own doc comment). Transcribed from svg.css's
+  // `[data-kui-fx~='plus-to-minus'] { transition: rotate ... }`; no literal timing, because
+  // `icon-toggle` already has a generated `--kui-icon-toggle-duration`/`-ease` pair the way the
+  // hover family's five do.
+  { name: 'plus-to-minus', primitive: 'icon-toggle', transitions: [{ property: 'rotate' }] },
 ]
 
 /**

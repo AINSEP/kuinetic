@@ -1,5 +1,12 @@
 import { CHANNEL } from '../../core/types.js'
-import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type {
+  Cleanup,
+  EffectParams,
+  ParameterSchema,
+  Preset,
+  Primitive,
+  TransitionSegment,
+} from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
@@ -169,7 +176,14 @@ function prepareBackToTop(el: Element, params: EffectParams, ctx: PrepareContext
 export const NAV_JS_PRIMITIVES: Primitive[] = [
   navPrimitive(
     'header-shrink',
-    ['layout'],
+    // `'shadow'` alongside `'layout'`: `header-shrink`'s host rule also transitions `box-shadow`
+    // (navigation.css), which `layout` alone does not cover — see `header-shrink`'s own
+    // `Preset.transitions` below and `channel-properties.ts`'s `layout` entry for why the two
+    // interpolated properties (`padding-block`/`font-size`) stay on `layout` while this one moves
+    // to the channel that already owns every other box-shadow writer (`lift-shadow`,
+    // `border-glow`). Composing `header-shrink` with either of those is now a refused conflict
+    // instead of a silent clobber on the same property — the self-consistency bug this closes.
+    ['layout', 'shadow'],
     { offset: { type: 'number', default: '120', cssProperty: '--kui-offset' } },
     deferPrepare(prepareHeaderShrink),
   ),
@@ -187,10 +201,31 @@ export const NAV_JS_PRIMITIVES: Primitive[] = [
   ),
 ]
 
+/** Every literal transition timing pinned here is transcribed from navigation.css's own bare
+ * `transition:` declarations, none of which read a `--kui-<id>-duration` var the way the hover
+ * family does — these three react to scroll position, not a clock, so there is no generated
+ * per-primitive duration to defer to (see `NAV_SCROLL_TIMING_REASON` above). */
+const HEADER_SHRINK_TRANSITIONS: TransitionSegment[] = [
+  { property: 'padding-block', duration: '200ms', easing: 'ease-out' },
+  { property: 'font-size', duration: '200ms', easing: 'ease-out' },
+  { property: 'box-shadow', duration: '200ms', easing: 'ease-out' },
+]
+
 export const NAV_JS_PRESETS: Preset[] = [
-  { name: 'header-shrink', primitive: 'header-shrink' },
-  { name: 'header-hide-on-scroll', primitive: 'header-hide-on-scroll' },
-  { name: 'back-to-top-fade', primitive: 'back-to-top-fade' },
+  { name: 'header-shrink', primitive: 'header-shrink', transitions: HEADER_SHRINK_TRANSITIONS },
+  {
+    name: 'header-hide-on-scroll',
+    primitive: 'header-hide-on-scroll',
+    transitions: [{ property: 'translate', duration: '220ms', easing: 'ease-out' }],
+  },
+  {
+    name: 'back-to-top-fade',
+    primitive: 'back-to-top-fade',
+    transitions: [
+      { property: 'opacity', duration: '200ms', easing: 'ease-out' },
+      { property: 'translate', duration: '200ms', easing: 'ease-out' },
+    ],
+  },
 ]
 
 export const NAVIGATION_PRIMITIVES: Primitive[] = [...NAV_CSS_PRIMITIVES, ...NAV_JS_PRIMITIVES]

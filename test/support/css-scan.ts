@@ -254,14 +254,11 @@ function transitionedProperties(body: string): Set<string> {
  * `channels` was never describing, not real gaps — the same false-positive shape
  * `extractBaseRuleProperties`'s own doc comment warns against for the static-rule check.
  *
- * This function backs the *self*-consistency invariant — "does this preset ever transition a
- * property its own declared channels don't cover, on its own host box" — not the *composition*
- * hazard `css-composition-invariants.test.ts`'s "transition channel" describes: two disjoint-channel presets
- * each owning a bare `transition:` shorthand still clobber each other's `transition-property` list
- * when both rules match one element, because `transition:` resets every longhand it covers the same
- * way `background:`/`mask:` do. That merge is a compile-time decision (`src/core/compile.ts`), not a
- * static fact this scanner can supply — see the invariant's own comment for why it stays
- * `describe.skip` until that lands.
+ * Now backs one direction of the "transition channel" invariant in
+ * `css-composition-invariants.test.ts`: after the compile-time merge (`Preset.transitions`,
+ * `src/core/compile.ts`'s `pushTransitions`), no preset has any legitimate reason left to carry a
+ * bare host-rule `transition:` of its own, so this scanner finding one at all is the violation —
+ * asserted as an empty result, not a named clobber-pair list the way it used to be.
  *
  * @complexity O(n) time and space in the length of the scanned CSS.
  * @overallScore 100
@@ -282,15 +279,17 @@ export function extractTransitionedProperties(css: string): Map<string, Set<stri
 
 /**
  * Every pair, among those given, whose channels are disjoint — the set the compiler treats as safe
- * to compose (`findConflicts` in `core/channels.ts` reports nothing for a disjoint pair). Shared by
- * two audits in `css-composition-invariants.test.ts`: the pseudo-element ownership gap and the transition-clobber
- * gap are the same shape of bug — a box or mechanism outside what `channels` describes, fought over
- * by two presets the compiler waves through as safe. Takes a lookup rather than a registry directly,
- * so this file's dependency graph stays what it has always been: string/regex analysis, nothing that
- * knows what a `Registry` is.
+ * to compose (`findConflicts` in `core/channels.ts` reports nothing for a disjoint pair). Backs the
+ * pseudo-element ownership audit in `css-composition-invariants.test.ts`: a box outside what
+ * `channels` describes, fought over by two presets the compiler waves through as safe. Formerly
+ * shared with a second, now-removed "transition-clobber" audit of the same shape — the compile-time
+ * transition merge (`Preset.transitions`, `src/core/compile.ts`) made that hazard unreachable rather
+ * than merely detected, so its own caller (`transitionClobberPairs`) was deleted rather than kept
+ * finding nothing. Takes a lookup rather than a registry directly, so this file's dependency graph
+ * stays what it has always been: string/regex analysis, nothing that knows what a `Registry` is.
  *
- * @complexity O(n^2) time in `items.length`; every pair is compared once. Both call sites pass a
- * preset count with a pseudo-element or host `transition:` rule specifically — tens, not the full
+ * @complexity O(n^2) time in `items.length`; every pair is compared once. The one remaining call
+ * site passes a preset count with a pseudo-element rule specifically — tens, not the full
  * ~260-preset catalog — cheap even squared.
  * @overallScore 100
  */
@@ -358,19 +357,6 @@ export function pseudoElementCollisions(
   const pseudoElements = extractPseudoElementProperties(css)
   const pairs = disjointPairs([...pseudoElements.keys()], channelsOf)
   return formatPseudoCollisions(pseudoElements, pairs)
-}
-
-/**
- * Named clobber pairs ready for the "transition channel" assertion: every disjoint-channel preset
- * pair that each own a bare `transition:` on their host rule, per `extractTransitionedProperties`'s
- * own comment for why that is a real, if currently un-mergeable, hazard.
- */
-export function transitionClobberPairs(
-  css: string,
-  channelsOf: (name: string) => readonly string[] | undefined,
-): string[] {
-  const transitioned = extractTransitionedProperties(css)
-  return disjointPairs([...transitioned.keys()], channelsOf).map(([a, b]) => `${a} + ${b}`)
 }
 
 /**

@@ -3,7 +3,14 @@
  * `cursor-*` family) — kept separate from DOM/timer wiring so the position → transform arithmetic
  * is assertable without a browser, the same separation `text-shared.ts` uses for its state
  * machines.
+ *
+ * `HOVER_TRANSITIONS` at the bottom is an unrelated second concern sharing this file only because
+ * `interaction.ts` hit its own 400-line lint ceiling — the same reason `css-invariants.test.ts`
+ * split into `css-scan.ts`/`channel-properties.ts`, not a claim that a lookup table belongs beside
+ * pointer-tracking arithmetic.
  */
+
+import type { TransitionSegment } from '../../core/types.js'
 
 export interface TiltAngles {
   rotateX: number
@@ -81,4 +88,24 @@ export function parallaxOffset(point: LocalPoint, size: ElementSize, strengthPx:
  */
 export function supportsFineHover(win: Window): boolean {
   return win.matchMedia?.('(hover: hover) and (pointer: fine)').matches ?? true
+}
+
+/**
+ * Transition segments for the five hover-family presets whose motion is a bare host-rule
+ * `transition:` in `interaction.css` (`lift`, `pop`, `lift-shadow`, `border-draw`, `border-glow`).
+ * The other eight — `shine-sweep`, `split-flap`, `beam-border`, `underline-slide`,
+ * `underline-center`, `icon-wiggle`, `icon-spin`, `icon-bounce` — animate via a keyframed
+ * `animation:` on `:hover`/`:focus-visible`, or transition a pseudo-element (`::after`) rather than
+ * the host box `Preset.transitions` describes, so they declare none here.
+ *
+ * A lookup keyed by primitive id, not a parallel array, so a typo in one list can't silently pair
+ * the wrong segments with the wrong preset — `HOVER_PRESETS` (`interaction.ts`) still derives its
+ * name/primitive pair from `HOVER_PRIMITIVES` the same way it always has.
+ */
+export const HOVER_TRANSITIONS: Partial<Record<string, TransitionSegment[]>> = {
+  lift: [{ property: 'translate' }],
+  pop: [{ property: 'scale' }],
+  'lift-shadow': [{ property: 'translate' }, { property: 'box-shadow' }],
+  'border-draw': [{ property: '--kui-border-pct' }],
+  'border-glow': [{ property: 'box-shadow' }],
 }

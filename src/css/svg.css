@@ -304,9 +304,12 @@
    * is turned upright. Once the control itself rotates 90deg those swap: bar 1 is now the upright
    * one. Collapsing bar 2 would leave a vertical line, not a minus — so bar 1 is the one that goes.
    */
-  [data-kui-fx~='plus-to-minus'] {
-    transition: rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
-  }
+  /* The control's own rotate transition is compiled from this preset's `Preset.transitions`
+     (effects/svg/index.ts) into the shared `--kui-transition` custom property `base.css`'s
+     `:where([data-kui-fx])` rule consumes, rather than a bare `transition:` on this rule — see
+     that rule's own comment for why. `.kui-bar` below is a different box: it keeps its own
+     static `transition:`, untouched by the merge (see `Preset.transitions`'s own doc comment on
+     why the field only ever describes the host box). */
 
   [data-kui-fx~='plus-to-minus'] .kui-bar {
     transition: scale var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
@@ -316,13 +319,16 @@
     rotate: 90deg;
   }
 
-  [data-kui-fx~='plus-to-minus'][aria-expanded='true'],
-  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] .kui-bar {
-    transition-delay: var(--kui-icon-toggle-delay, 0ms);
-  }
-
+  /* Split from a single shared selector list: the host half now writes the merged transition's
+     per-preset delay slot, while `.kui-bar` — a different box the merge does not reach — keeps
+     the plain `transition-delay` longhand it always had. */
   [data-kui-fx~='plus-to-minus'][aria-expanded='true'] {
     rotate: 90deg;
+    --kui-tx-delay-plus-to-minus: var(--kui-icon-toggle-delay, 0ms);
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] .kui-bar {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
   }
 
   [data-kui-fx~='plus-to-minus'][aria-expanded='true'] .kui-bar:nth-child(1) {

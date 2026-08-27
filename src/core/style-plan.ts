@@ -63,6 +63,7 @@ export function planStyles(input: StylePlanInput): StylePlan {
     plan.supportedTimelines.includes(config.timeline)
 
   const properties: Record<string, string> = { ...plan.vars, ...plan.declarations }
+  Object.assign(properties, transitionProperty(plan))
   Object.assign(properties, timelineProperties(config, capabilities, useNativeTimeline))
 
   const hasCssAnimation = Object.keys(plan.declarations).length > 0
@@ -95,6 +96,23 @@ export function planStyles(input: StylePlanInput): StylePlan {
     gate,
     activation: gate === 'deferred' ? effectiveActivation(config) : null,
   }
+}
+
+/**
+ * The one custom property `base.css`'s `:where([data-kui-fx])` rule reads into `transition:`.
+ *
+ * A separate pure function rather than an inline branch in `planStyles`, purely to keep that
+ * function's own cyclomatic complexity from crossing the project's lint ceiling — the same reason
+ * `timelineProperties` beside it is a function and not an inline `if`. Empty rather than an
+ * empty-string value when nothing composed transitions anything, so `Object.assign` is a no-op and
+ * `var(--kui-transition)` in `base.css` fails closed to `unset` for the ~245 presets that never
+ * touch this — see `CompiledPlan.transition`'s own doc comment for why that field exists at all.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function transitionProperty(plan: CompiledPlan): Record<string, string> {
+  return plan.transition ? { '--kui-transition': plan.transition } : {}
 }
 
 /**

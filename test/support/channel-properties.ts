@@ -1,3 +1,5 @@
+import type { Registry } from '../../src/core/registry.js'
+
 /**
  * Which CSS properties each channel is allowed to claim.
  *
@@ -160,7 +162,17 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * here checks a pseudo-element's own rule (see "pseudo-element ownership" in
    * `css-invariants.test.ts`), so their static rule contributes nothing to this channel today.
    */
-  border: ['border-image-source', 'border-image-slice'],
+  /**
+   * `--kui-border-pct` joins the two longhands below it: `border-draw`'s compiled transition
+   * (`Preset.transitions`, `catalog/interaction.ts`) eases this registered custom property, which
+   * drives `border-image-source` above it on the same rule — a custom property is attributed to
+   * the channel of the physical property it feeds, the same reasoning `--kui-redaction-x`
+   * (text.css) would need if anything animated it through a channel this map polices. Before this
+   * entry, `border-draw`'s own transition was invisible to the self-consistency check
+   * (`transitionsOutsideChannels`, below) the same way the two longhands were invisible before
+   * `border` existed at all.
+   */
+  border: ['border-image-source', 'border-image-slice', '--kui-border-pct'],
   /**
    * `shine-sweep` is the one primitive on this channel, and every property its sweep actually
    * paints — `background`, `background-size`, `background-position` — lives on its own `::after`
@@ -198,4 +210,80 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * channel entry here.
    */
   'transform-origin': ['transform-origin'],
+  /**
+   * `header-shrink`'s only channel-tracked writes on its own unconditional host rule: the two
+   * properties `navigation.css` interpolates from the JS-published `--kui-shrink` progress, and
+   * the two properties its compiled transition (`Preset.transitions`, `effects/navigation/index.ts`)
+   * eases. `header-shrink`'s `box-shadow` write is deliberately NOT added here — it already lives
+   * under `shadow`, and `header-shrink`'s primitive now declares that channel too (see
+   * `navPrimitive('header-shrink', ...)`), for the same "two channels, one physical property"
+   * reason `text-shadow` stays split from `shadow` above.
+   *
+   * `pin`/`stacking-cards`/`smooth-scroll` (`scroll-mechanics/primitives.ts`) and
+   * `parallax-background` (`catalog/media.ts`) are this channel's other members; none of them
+   * writes `padding-block`/`font-size` on an unconditional host rule, so widening this list from
+   * empty admits nothing new for them — confirmed against every current writer of either property
+   * before adding this, the same discipline the `background` entry above documents.
+   */
+  layout: ['padding-block', 'font-size'],
+  /**
+   * Declared explicitly empty rather than left absent, so `allowedProperties(['content'])` reads
+   * as an intentional "this channel paints no channel-tracked CSS property" instead of an
+   * accidental `?? []` fallback — the same reasoning `sweep` above gives for its own empty array.
+   * `scramble-text`/`word-cycler` (`catalog/text.ts`) and `count-up` (`catalog/numbers.ts`) are its
+   * only members. `word-cycler` also declares `opacity` now, which is the channel its own compiled
+   * transition (`Preset.transitions`) actually falls under; `content` itself covers no physical
+   * property any of the three writes.
+   */
+  content: [],
+}
+
+/**
+ * `channels` a resolved preset's primitive is allowed to write, as concrete CSS property names —
+ * the one-line fold `css-invariants.test.ts`'s own local `allowedProperties` already does over
+ * `CHANNEL_PROPERTIES`, exported here so `transitionsOutsideChannels` below can share it rather
+ * than growing a second private copy that drifts the way the map itself used to.
+ *
+ * @complexity O(c) time and space in the channel count.
+ * @overallScore 100
+ */
+export function allowedProperties(channels: readonly string[]): Set<string> {
+  return new Set(channels.flatMap((channel) => CHANNEL_PROPERTIES[channel] ?? []))
+}
+
+/**
+ * Every registered preset whose declared `transitions` name a property outside its own
+ * primitive's declared channels — the self-consistency question
+ * `css-composition-invariants.test.ts`'s "transition channel" assertion 3 asks.
+ *
+ * This is what keeps the duplicate-transition-property case visible to `findConflicts`: a preset
+ * that transitions a property its channels do not cover is invisible to conflict detection for
+ * that property, which is exactly the bug `word-cycler` (declaring only `content`) had — it faded
+ * `opacity` with nothing to flag a composed effect that also touched it. Fixing the three
+ * offenders (`word-cycler`, `header-shrink`, `border-draw`) is what this function exists to keep
+ * fixed, not merely to have fixed once.
+ *
+ * @param registry - Catalog to check every registered preset against.
+ * @returns One message per violation, empty when every declared transition is self-consistent.
+ * @complexity O(p * t) time in registered presets times their transition segment count; O(v) space
+ *   in violation count.
+ * @overallScore 100
+ */
+export function transitionsOutsideChannels(registry: Registry): string[] {
+  const violations: string[] = []
+  for (const name of registry.names()) {
+    const resolved = registry.resolve(name)!
+    const { preset, primitive } = resolved
+    if (!preset.transitions || preset.transitions.length === 0) continue
+    const allowed = allowedProperties(primitive.channels)
+    for (const segment of preset.transitions) {
+      if (!allowed.has(segment.property)) {
+        violations.push(
+          `"${name}" transitions "${segment.property}", not covered by channels ` +
+            `[${primitive.channels.join(', ')}]`,
+        )
+      }
+    }
+  }
+  return violations
 }

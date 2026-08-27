@@ -501,6 +501,27 @@ export interface Primitive {
   variantFor?(spec: EffectSpec, warn: (message: string) => void): EffectVariant
 }
 
+/**
+ * One property a preset transitions on its own host box — the `data-kui-fx` element itself, never
+ * a pseudo-element, sibling, or descendant. `compile.ts`'s `pushTransitions` reads these to build
+ * the merged `--kui-transition` custom property `base.css`'s one `:where([data-kui-fx])` rule
+ * consumes; see that rule's comment for why the merge has to happen here rather than in CSS.
+ */
+export interface TransitionSegment {
+  /**
+   * CSS property or registered custom property (e.g. `--kui-border-pct`) this segment eases.
+   * `registerPreset` rejects `all` and `none` here: either would swallow every other segment in
+   * the merged list, the same failure mode a shared `transition: all` shorthand has today.
+   */
+  property: string
+  /** Literal, when the preset pins its own timing regardless of what the author writes. Omitted
+   * means "the primitive's namespaced `--kui-<id>-duration`, or the author's positional value" —
+   * the same precedence `pushTrack` already gives a compiled `animation-duration`. */
+  duration?: string
+  /** Same precedence as `duration`, for the easing curve. */
+  easing?: string
+}
+
 export interface Preset {
   name: string
   primitive: string
@@ -508,6 +529,19 @@ export interface Preset {
   params?: Record<string, string>
   /** CSS `@keyframes` name this preset animates, when renderer is `css-keyframes`. */
   keyframes?: string
+  /**
+   * Properties this preset transitions on its own host box, merged by `compile.ts` into one
+   * `--kui-transition` custom property so composed presets never fight over a bare `transition:`
+   * shorthand the way two rules once did (`data-kui="lift, border-glow"` used to compile
+   * `transition-property: box-shadow` only — `border-glow`'s rule replaced `lift`'s by source
+   * order, and `lift` snapped instead of easing).
+   *
+   * Per-*preset*, not per-primitive, for the same reason `keyframes`/`cloak` are: `plus-to-minus`
+   * and `hamburger-to-x` share the `icon-toggle` primitive, but only `plus-to-minus`'s control
+   * itself rotates — the other two only move their `.kui-bar` children, a different box this field
+   * deliberately does not describe (see `base.css`'s consuming rule for the host-box boundary).
+   */
+  transitions?: TransitionSegment[]
   /**
    * This effect begins from a state the visitor must not see — invisible, displaced, unsplit, or
    * un-assembled — so painting the element at its rest state before the runtime installs that

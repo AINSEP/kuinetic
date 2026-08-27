@@ -14,9 +14,10 @@ import {
   extractTransitionedProperties,
   pseudoElementCollisions,
   stripComments,
-  transitionClobberPairs,
 } from './support/css-scan.js'
+import { transitionsOutsideChannels } from './support/channel-properties.js'
 import { catalogRegistry } from './support/registry.js'
+import type { Registry } from '../src/core/registry.js'
 
 /** Same file list `css-invariants.test.ts` scans — a collision can span two files (`beam-border` in
  * `interaction.css`, `redaction-reveal` in `text.css`), so narrowing this to "just the files this
@@ -52,6 +53,12 @@ const registry = catalogRegistry()
 /** A preset name's declared channels, or `undefined` if it isn't a registered preset. */
 const channelsOf = (name: string): readonly string[] | undefined =>
   registry.resolve(name)?.primitive.channels
+
+/** Every registered preset that declares its own `transitions` — the compile-time merge's source
+ * of truth, replacing the bare host-rule `transition:` the stylesheets used to carry. */
+function presetsWithTransitions(effectRegistry: Registry): string[] {
+  return effectRegistry.names().filter((name) => effectRegistry.resolve(name)?.preset.transitions)
+}
 
 /**
  * Pseudo-element ownership.
@@ -99,45 +106,55 @@ describe('pseudo-element ownership', () => {
 })
 
 /**
- * Transition channel — compose-time clobber, held until the compile-time merge lands.
+ * Transition channel — compile-time merge.
  *
  * `transition:` is a shorthand: writing it resets `transition-property`/`-duration`/`-delay`/
  * `-timing-function` together, the same way `background:`/`mask:` reset every longhand they cover
  * (see the top-of-file note on `CHANNEL_PROPERTIES` in `channel-properties.ts`). Two presets that
- * each own a bare `transition:` on their host rule and compose because their `channels` are disjoint
- * do not merge into "transition both properties" the way two `@keyframes`-driven animations do —
- * `compile.ts` concatenates composed keyframe names into one combined `animation:` list, but nothing
- * does the equivalent for a hand-authored CSS `transition:` shorthand, because these are static
- * stylesheet rules, not per-instance compiled output. Whichever preset's rule is later in
- * source/cascade order wins the *entire* shorthand for that element, and the earlier one's
- * transition vanishes outright.
+ * each owned a bare `transition:` on their host rule and composed because their `channels` were
+ * disjoint used to fight over that one shorthand instead of merging into "transition both
+ * properties" the way two `@keyframes`-driven animations do: `compile.ts` has always concatenated
+ * composed keyframe names into one combined `animation:` list, but nothing did the equivalent for a
+ * hand-authored CSS `transition:`, because these were static stylesheet rules, not per-instance
+ * compiled output. Whichever preset's rule was later in source/cascade order won the *entire*
+ * shorthand for that element, and the earlier one's transition vanished outright.
  *
- * The concrete case: `data-kui="lift, border-glow"` declares `['translate']` vs `['shadow']` —
- * disjoint, so the compiler composes them — then `border-glow`'s `transition: box-shadow` replaces
- * `lift`'s `transition: translate` by source order in `interaction.css`, and `lift` snaps to its
- * hovered position instead of easing into it.
- *
- * `extractTransitionedProperties` found exactly ten presets holding a bare host-rule `transition:`
- * today: `back-to-top-fade`, `border-draw`, `border-glow`, `header-hide-on-scroll`, `header-shrink`,
- * `lift`, `lift-shadow`, `plus-to-minus`, `pop`, `word-cycler` — 33 of their 45 possible pairs are
- * channel-disjoint, and every one of those 33 clobbers the way `lift, border-glow` does. That is
- * "the ten violators" this describe block would need to name if it asserted zero, and why it does
- * not: the real fix is the compile-time transition merge in `src/core/compile.ts` (`compile` owns
- * that file; this cluster does not touch it), which Wave 3 is scoped to build. Flipping this block's
- * `describe.skip` to `describe` is the unblocker once that merge lands — no other change should be
- * needed here.
+ * The concrete case this closes: `data-kui="lift, border-glow"` declares `['translate']` vs
+ * `['shadow']` — disjoint, so the compiler composes them — and `border-glow`'s rule used to replace
+ * `lift`'s by source order in `interaction.css`, so `lift` snapped to its hovered position instead
+ * of easing into it. The fix moves each preset's transition timing out of a bare stylesheet
+ * `transition:` and into `Preset.transitions`, merged at compile time (`compile.ts`'s
+ * `pushTransitions`) into one `--kui-transition` custom property that `base.css`'s single
+ * `:where([data-kui-fx])` rule reads — see that rule's own comment for the full mechanism.
  *
  * Not a `CHANNEL_PROPERTIES` entry: adding `transition` as a tracked channel would put all ten
- * presets on one channel and forbid every legal hover combination among them, which is the opposite
- * of what composing `lift` with `border-glow` is supposed to mean.
+ * migrated presets on one channel and forbid every legal hover combination among them, which is the
+ * opposite of what composing `lift` with `border-glow` is supposed to mean.
  */
-describe.skip('transition channel (compose-time clobber)', () => {
-  it('has presets with a bare host-rule transition, so this suite cannot pass vacuously', () => {
-    expect(extractTransitionedProperties(scannedCss).size).toBeGreaterThan(0)
+describe('transition channel (compile-time merge)', () => {
+  // Non-vacuity, on the new source of truth. `extractTransitionedProperties` below now asserts an
+  // *empty* scan, which would otherwise pass just as trivially by scanning nothing — this is what
+  // makes that emptiness meaningful.
+  it('has presets declaring transitions, so this suite cannot pass vacuously', () => {
+    expect(presetsWithTransitions(registry).length).toBeGreaterThanOrEqual(10)
   })
 
-  it('no two composable presets each own a bare transition: on their host rule', () => {
-    expect(transitionClobberPairs(scannedCss, channelsOf)).toEqual([])
+  // Strictly stronger than the clobber-pair assertion this replaced: the merge is now the only
+  // legal spelling, so a host-rule `transition:` is a violation whether or not it happens to pair
+  // with a disjoint sibling today. Fails the moment a future preset #11 reaches for the old
+  // spelling instead of `Preset.transitions`.
+  it('no preset writes a host-rule transition in the stylesheet', () => {
+    expect([...extractTransitionedProperties(scannedCss).keys()]).toEqual([])
+  })
+
+  // Self-consistency: what keeps the duplicate-transition-property case (two composed presets
+  // easing the same physical property, allowed and warned rather than refused — see
+  // `compile.ts`'s `pushTransitions`) visible to `findConflicts` at all. A preset that transitions
+  // a property outside its own declared channels is invisible to conflict detection for exactly
+  // that property, which is the bug `word-cycler`/`header-shrink`/`border-draw` had before their
+  // channels were widened to cover what they actually transition.
+  it("every declared transition property falls inside that preset's own channels", () => {
+    expect(transitionsOutsideChannels(registry)).toEqual([])
   })
 })
 

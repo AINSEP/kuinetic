@@ -20,7 +20,7 @@ import {
   withTimingContract,
 } from '../shared.js'
 import type { TimingContract, TimingToken } from '../shared.js'
-import { parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
+import { HOVER_TRANSITIONS, parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
 
 /**
  * Hover and pointer effects (catalog section I).
@@ -174,6 +174,7 @@ export const HOVER_PRIMITIVES: Primitive[] = [
 export const HOVER_PRESETS: Preset[] = HOVER_PRIMITIVES.map((primitive) => ({
   name: primitive.id,
   primitive: primitive.id,
+  ...(HOVER_TRANSITIONS[primitive.id] ? { transitions: HOVER_TRANSITIONS[primitive.id] } : {}),
 }))
 
 // --- continuous variant: same beam-border visual, always running instead of hover-gated ---

@@ -169,6 +169,45 @@
   }
 }
 
+@layer kui.effects {
+  /*
+   * The compile-time transition merge's one consuming rule — see `Preset.transitions` and
+   * `compile.ts`'s `pushTransitions` for how `--kui-transition` gets built.
+   *
+   * A bare `transition:` on two separate per-preset rules cannot both apply to one element — the
+   * shorthand resets every longhand it covers, so whichever rule is later in source order wins the
+   * entire property list and the earlier preset's transition vanishes outright. That is what made
+   * `data-kui="lift, border-glow"` compile `transition-property: box-shadow` only, and `lift` snap
+   * to its hovered position instead of easing into it. The fix moves the *timing* list — which
+   * property, how long, what curve, what delay — into one compiler-built custom property; the
+   * *values* a transition eases into still live in ordinary CSS state rules (`:hover`,
+   * `[aria-expanded]`), because those are per-instance and cannot be precompiled.
+   *
+   * `:where()`, not a bare attribute selector — specificity 0, three ways it matters:
+   *   1. An author's own `.btn { transition: … }` on a `lift` button still wins outright, exactly
+   *      as before this rule existed; the library never seizes a property it was merely asked to
+   *      animate. An author who wants both writes the library's property into their own list.
+   *   2. A later, more specific preset rule can still add to the shorthand — `transition-behavior:
+   *      allow-discrete` for `@starting-style` support, for instance — without this rule's own
+   *      specificity getting in the way.
+   *   3. For every preset that transitions nothing (most of the catalog), `--kui-transition` stays
+   *      at its `initial` value below, `var(--kui-transition)` fails at computed-value time, and
+   *      `transition` computes to its own initial value — exactly "no transition", with no
+   *      per-preset opt-out list to keep in sync.
+   *
+   * `initial` on `--kui-transition` blocks inheritance for the same reason `--kui-i` is reset in
+   * `kui.tokens` above: an inherited custom property does not stop at the element that set it, so
+   * a nested `data-kui-fx` element composing no transitioning preset would otherwise inherit its
+   * ancestor's list and ease properties nobody asked it to. The runtime's inline write (through the
+   * ledger, same as `vars`/`declarations`) beats this rule regardless of layer, so a genuine
+   * transitioning element is untouched — only the leak is cut.
+   */
+  :where([data-kui-fx]) {
+    --kui-transition: initial;
+    transition: var(--kui-transition);
+  }
+}
+
 @layer kui.policy {
   /*
    * The manual cloak override — `data-kui-reveal` on an individual element.

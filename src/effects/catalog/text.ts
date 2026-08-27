@@ -530,7 +530,12 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
     prepare: deferPrepare(prepareScramble),
     perfClass: 'continuous',
   }),
-  jsTextPrimitive('word-cycler', ['content'], {
+  // `CHANNEL.opacity` alongside `'content'`: the host rule's swap transition (text.css) fades
+  // `opacity`, which `content` alone does not cover — see this preset's own `transitions` below
+  // and text.css's `[data-kui-fx~='word-cycler']` rule. Undeclared before, this primitive's fade
+  // was invisible to `findConflicts`: composing it with any other opacity-channel effect looked
+  // disjoint to the compiler while both silently fought over the same fade.
+  jsTextPrimitive('word-cycler', ['content', CHANNEL.opacity], {
     parameters: wordCyclerParams,
     prepare: deferPrepare(prepareWordCycler),
     perfClass: 'continuous',
@@ -575,7 +580,14 @@ export const TEXT_JS_PRESETS: Preset[] = [
   { name: 'decode', primitive: 'scramble-text', params: { charset: 'binary' } },
   { name: 'glitch', primitive: 'scramble-text', params: { charset: 'symbols' } },
 
-  { name: 'word-cycler', primitive: 'word-cycler' },
+  {
+    name: 'word-cycler',
+    primitive: 'word-cycler',
+    // Transcribed from text.css's own `transition: opacity 150ms ease-out` — a cycler paces
+    // itself off `interval:`, not a generated `--kui-word-cycler-duration`, so this is a literal
+    // the same way `header-shrink`'s three segments are.
+    transitions: [{ property: 'opacity', duration: '150ms', easing: 'ease-out' }],
+  },
 ]
 
 export const TEXT_PRIMITIVES: Primitive[] = [...TEXT_CSS_PRIMITIVES, ...TEXT_JS_PRIMITIVES]

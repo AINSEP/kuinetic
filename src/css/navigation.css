@@ -2,8 +2,11 @@
  * Navigation effects (catalog section M).
  *
  * `header-shrink`, `header-hide-on-scroll`, and `back-to-top-fade` are JS-rendered — the JS side
- * (src/effects/navigation/index.ts) only ever writes a custom property or an attribute; every
- * visible transition below is a plain CSS `transition`, so the browser interpolates every frame.
+ * (src/effects/navigation/index.ts) only ever writes a custom property or an attribute; the
+ * transition that interpolates every frame is compiled from each preset's own `Preset.transitions`
+ * (`effects/navigation/index.ts`) into the shared `--kui-transition` custom property `base.css`'s
+ * `:where([data-kui-fx])` rule consumes, rather than a bare `transition:` living on the rules
+ * below — see that rule's own comment for why the merge has to happen at compile time.
  */
 @layer kui.effects {
   @keyframes kui-nav-reveal {
@@ -43,15 +46,10 @@
     --kui-shrink: 0;
     padding-block: calc(1.4rem - 0.7rem * var(--kui-shrink, 0));
     font-size: calc(1rem - 0.15rem * var(--kui-shrink, 0));
-    transition: padding-block 200ms ease-out, font-size 200ms ease-out, box-shadow 200ms ease-out;
   }
 
   [data-kui-fx~='header-shrink'][data-kui-shrunk='true'] {
     box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
-  }
-
-  [data-kui-fx~='header-hide-on-scroll'] {
-    transition: translate 220ms ease-out;
   }
 
   [data-kui-fx~='header-hide-on-scroll'][data-kui-hidden='true'] {
@@ -62,7 +60,6 @@
     opacity: 0;
     translate: 0 12px;
     pointer-events: none;
-    transition: opacity 200ms ease-out, translate 200ms ease-out;
   }
 
   [data-kui-fx~='back-to-top-fade'][data-kui-visible='true'] {
