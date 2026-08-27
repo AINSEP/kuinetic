@@ -131,10 +131,11 @@ export function pushTrack(
   //
   // An authored `repeat:` replaces that `var()` with a literal rather than writing the custom
   // property inline, and the difference matters: `--kui-*` is a flat inherited namespace, so an
-  // inline `--kui-fx-pulse-iterations` would be picked up by any descendant also carrying `pulse`.
-  // `animation-iteration-count` is not inherited, so the literal cannot travel. It is a sanitized
-  // value by the time it arrives — `compile.ts`'s `refusePlayback` has already dropped anything the
-  // renderer or the timeline cannot honour.
+  // inline `--kui-fx-glow-pulse-iterations` would be picked up by any descendant also carrying
+  // `glow-pulse`. `animation-iteration-count` is not inherited, so the literal cannot travel.
+  //
+  // It is a sanitized value by the time it arrives — `compile.ts`'s `refusePlayback` has already
+  // dropped anything the renderer or the timeline cannot honour.
   const iterations = spec.repeat ?? `var(${iterationCountProperty(resolved.preset.name)}, 1)`
   const direction = directionValue(spec.yoyo)
 

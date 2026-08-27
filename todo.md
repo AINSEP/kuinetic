@@ -494,16 +494,27 @@ often an author would actually hit them.
       `from:` on the `data-kui-stagger` longhand. As predicted, it computes a different index and
       the CSS `calc()` was left alone. Verified in source 2026-08-27.
 
-- [ ] **Universal `repeat:` / yoyo — STILL OPEN, and now the cheapest real win on this list.**
-      `loop` and `direction` exist as parameters on *some* primitives; there is no universal
-      repeat, and `src/core/parse.ts` has no `repeat` key at all (checked 2026-08-27).
-      `compile.ts:294` already writes `animation-iteration-count` per track off
-      `--kui-fx-<preset>-iterations`, so the plumbing exists — what's missing is an author-facing
-      knob plus a decision on whether it belongs on every primitive or only where looping is
-      meaningful. That overlaps task F's one-shot vs continuous classification; read F's PR table
-      first. On yoyo: reuse the existing `direction` vocabulary rather than inventing a second
-      word for `animation-direction: alternate`, unless there's a concrete reason it can't carry
-      the meaning. Owner ranked this #1 of what's left, 2026-08-27.
+- [x] **Universal `repeat:` / yoyo — SHIPPED 2026-08-27.** Spelled `repeat:<count|infinite>` and
+      `yoyo:<true|false>`, both **per-segment** (lifted onto `EffectSpec` beside `at:` and the
+      gate, in the new `src/core/repeat.ts`), not hoisted element-wide: `animation-iteration-count`
+      is written as a per-*track* value list precisely so a composed one-shot effect cannot inherit
+      its neighbour's loop, and an element-scoped key would have undone that in the grammar.
+      `direction:` was **not** reusable after all — it is a live parameter on the split-text
+      primitive (`values: fade|up|down|mask`, `effects/catalog/text.ts`) and a lifted key never
+      reaches `spec.params`, so `split-chars direction:up` would have become unwritable. Same
+      collision `parse.ts` documents for `from:` → `order:`.
+      `repeat:N` is N *total* plays (1:1 with CSS, not GSAP's "N extra"); `repeat:0` warns.
+      Refused with a named warning, modifier dropped and effect kept: JS-rendered primitives
+      (no iteration count exists to set), and `repeat:infinite` under `view`/`scroll` (the active
+      duration collapses to zero and the element freezes at its end state) or `pin` (the scrub head
+      spans one playthrough). A *finite* repeat under `pin` widens that head to `N x duration` so
+      every play is reachable. `at:after` measures the whole playback; `at:after` an infinite
+      repeat is refused the way an unreadable duration already was.
+      Task F's classification turned out not to be the right axis — it answers "does this effect
+      have a start moment" (delay), where repeat asks "does it compile an
+      `animation-iteration-count"`, which is exactly `renderer === 'css-keyframes'`.
+      **Not verified in a browser:** the exact native behaviour of `animation-iteration-count:
+      infinite` under `view()`/`scroll()` is reasoned from the spec, not measured.
 
 - [ ] **Arbitrary scroll ranges — HALF BUILT, and this entry overstated the gap.** A free-form
       range does ship, on the longhand: `data-kui-timeline="view entry 0% cover 35%"` works today

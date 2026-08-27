@@ -29,8 +29,8 @@ import type { EffectSpec, Renderer, Timeline } from './types.js'
  * `declarations.ts` writes `animation-iteration-count` as a **per-track** value list precisely so a
  * composed one-shot effect cannot inherit its neighbour's loop. Hoisting `repeat:` to the element
  * (the `on:`/`timeline:` pattern) would undo that in the grammar layer after the compiler had gone
- * to the trouble of preventing it in the CSS layer: `data-kui="pulse repeat:infinite, fade-up"`
- * has to leave `fade-up` alone. So this is lifted onto the `EffectSpec`, beside `at:` and the
+ * to the trouble of preventing it in the CSS layer: `data-kui="glow-pulse repeat:infinite,
+ * fade-up"` has to leave `fade-up` alone. So this is lifted onto the `EffectSpec`, beside `at:` and
  * breakpoint gate, which are per-segment for the same "each segment can differ" reason.
  *
  * ## Why no new custom property
@@ -229,8 +229,8 @@ export function resolvePlayback(input: PlaybackInput): PlaybackResolution {
  * warned and kept rather than refused; silently dropping the yoyo would change the motion the
  * author asked for to hide a problem they can fix in one character.
  *
- * Only cloaked presets are named. An even yoyo on `pulse` or `shake` ends at rest and is simply
- * what yoyo means; warning about it would be noise on every correct use of the feature.
+ * Only cloaked presets are named. An even yoyo on `glow-pulse` or `shake-error` ends at rest and is
+ * simply what yoyo means; warning about it would be noise on every correct use of the feature.
  *
  * @returns The warning, or `null` when this segment does not end hidden.
  * @complexity O(1) time and space.

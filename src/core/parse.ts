@@ -353,7 +353,7 @@ function applyToken(
  *   thing it exists to stop being the only option.
  * - **`above:`/`below:`/`wide:`/`narrow:`** gate a segment on width; `fade-up below:md, parallax-y
  *   above:md` is the case gates exist for and an element-scoped gate could not express it at all.
- * - **`repeat:`/`yoyo:`** set playback; `pulse repeat:infinite, fade-up` must leave `fade-up`
+ * - **`repeat:`/`yoyo:`** set playback; `glow-pulse repeat:infinite, fade-up` must leave `fade-up`
  *   playing once, which is exactly why `declarations.ts` writes `animation-iteration-count` as a
  *   per-track list in the first place.
  *
