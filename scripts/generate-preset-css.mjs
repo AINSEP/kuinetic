@@ -21,6 +21,8 @@ const bundle = `${tmpDir}/effects.mjs`
 // third copy in the generator would be the one nobody thinks to update, producing a cloak release
 // keyed on a width no gate ever uses.
 const breakpointsBundle = `${tmpDir}/breakpoints.mjs`
+/** Bundled for the same reason the breakpoint scale is — see {@link easingValue}. */
+const easingBundle = `${tmpDir}/easing.mjs`
 const outFile = `${root}src/css/presets.generated.css`
 
 function build() {
@@ -31,35 +33,23 @@ function build() {
     })
   bundleOne(`${root}src/effects/index.ts`, bundle)
   bundleOne(`${root}src/core/breakpoints.ts`, breakpointsBundle)
+  bundleOne(`${root}src/core/easing.ts`, easingBundle)
 }
 
 /**
- * The CSS timing functions a browser accepts verbatim. Everything else the library names —
- * `back-out`, `expo-out`, `spring` — is a kUInetic token defined in `base.css` as
- * `--kui-ease-<name>`, and has to be emitted as a `var()` reference.
+ * How a preset's declared easing becomes a stylesheet value.
  *
- * Writing the bare token instead produced `animation-timing-function: back-out`, which is not a
- * valid value, so the browser threw the declaration away and fell back to the initial `ease`.
- * Every "easing character" preset — `bounce-in`, `bounce-in-up`, `back-in-up`, `pop-in`,
- * `swing-in` — therefore animated on the default curve and none of them actually bounced. This
- * mirrors `easingValue()` in `src/core/compile.ts`, which already gets the inline
- * `ease:back-out` grammar right; only this generated stylesheet was missing the same step.
+ * Everything the library names — `back-out`, `expo-out`, `spring` — is a kUInetic token defined in
+ * `base.css` as `--kui-ease-<name>`, not a CSS keyword, and `spring(...)` is not a CSS function at
+ * all. Writing either verbatim produced `animation-timing-function: back-out`, which browsers throw
+ * away, so every "easing character" preset — `bounce-in`, `bounce-in-up`, `back-in-up`, `pop-in`,
+ * `swing-in` — animated on the default curve and none of them actually bounced.
+ *
+ * This used to be a copy of the runtime's rule, with a comment saying it mirrored it. It is now the
+ * rule itself, bundled from `src/core/easing.ts`: two implementations of "what CSS does this token
+ * mean" is exactly how the two halves drifted apart in the first place.
  */
-const NATIVE_EASINGS = new Set([
-  'linear',
-  'ease',
-  'ease-in',
-  'ease-out',
-  'ease-in-out',
-  'step-start',
-  'step-end',
-])
-
-function easingValue(value) {
-  if (NATIVE_EASINGS.has(value)) return value
-  if (value.includes('(')) return value
-  return `var(--kui-ease-${value}, ease-out)`
-}
+let easingValue
 
 /**
  * A `path` parameter's value, as the CSS `<string>` the custom property has to hold.
@@ -246,6 +236,7 @@ async function main() {
   build()
   const { createRegistry } = await import(bundle)
   const { BREAKPOINTS } = await import(breakpointsBundle)
+  easingValue = (await import(easingBundle)).cssEasingValue
   const registry = createRegistry()
 
   const blocks = []

@@ -1,6 +1,7 @@
 import { validateActivation } from './activation.js'
 import { axisOf, BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
 import type { EffectGate, GateDirection } from './breakpoints.js'
+import { springTokenProblems } from './easing.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -27,7 +28,14 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * `1.2.3.4.5ms` backtrack super-linearly on the trailing-unit check.
  */
 const TIME_RE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:ms|s)$/
-const EASING_FUNCTIONS = ['cubic-bezier(', 'steps(', 'linear(']
+/**
+ * `spring(` is the one entry here the browser has never heard of. The other three are handed to
+ * CSS verbatim; a `spring(...)` is sampled into a `linear()` by `core/easing.ts` before it reaches
+ * a declaration. It needs no quoting despite its spaces and colons, for the same reason
+ * `cubic-bezier(.2, .8, .2, 1)` needs none: `splitTopLevel` does not separate inside parentheses
+ * and `splitPair` only splits on a top-level colon.
+ */
+const EASING_FUNCTIONS = ['cubic-bezier(', 'steps(', 'linear(', 'spring(']
 
 const EASING_KEYWORDS: ReadonlySet<string> = new Set([
   'linear',
@@ -311,8 +319,7 @@ function applyToken(
   result: ParsedValue,
 ): void {
   if (token.kind === 'easing') {
-    if (spec.easing) result.warnings.push(`duplicate easing "${token.value}" in "${segment}"`)
-    spec.easing = token.value
+    applyEasing(token.value, spec, segment, result)
     return
   }
   if (token.kind === 'unknown') {
@@ -352,6 +359,33 @@ function applyToken(
     result.warnings.push(`duplicate parameter "${token.key}" in "${segment}"`)
   }
   spec.params[token.key] = token.value
+}
+
+/**
+ * Lift an easing token onto the spec, naming anything wrong inside a `spring(...)` on the way.
+ *
+ * The spring diagnostics are raised here rather than where the curve is built: by the time
+ * `core/easing.ts` has sampled it there is nothing left but digits, and no idea what the author
+ * typed. This is the point every other grammar diagnostic in the library comes from.
+ *
+ * Warn-and-keep, never reject — the resolver clamps whatever it is handed and always produces a
+ * settling curve, so an out-of-range `bounce:` still animates. That is the same fail-open
+ * `applyGate` uses, for the same reason: a named warning plus motion beats silence plus stillness.
+ *
+ * @complexity O(a) time in a spring's argument count; O(1) otherwise.
+ * @overallScore 100
+ */
+function applyEasing(
+  value: string,
+  spec: EffectSpec,
+  segment: string,
+  result: ParsedValue,
+): void {
+  if (spec.easing) result.warnings.push(`duplicate easing "${value}" in "${segment}"`)
+  for (const problem of springTokenProblems(value)) {
+    result.warnings.push(`${problem} in "${segment}"`)
+  }
+  spec.easing = value
 }
 
 /** A table, not a branch: `axisOf` grows the same way when a third axis ever lands. */

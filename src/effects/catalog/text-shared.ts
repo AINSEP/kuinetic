@@ -1,3 +1,4 @@
+import { cssEasingValue } from '../../core/easing.js'
 import type { Cleanup, EffectParams } from '../../core/types.js'
 import { captureChildren } from './subtree-capture.js'
 
@@ -120,7 +121,10 @@ export function applyStaggerVars(el: HTMLElement, params: EffectParams): void {
   const delay = delayMs === undefined ? params.text('delay', '0ms') : `${delayMs}ms`
   el.style.setProperty('--kui-duration', duration)
   el.style.setProperty('--kui-delay', delay)
-  el.style.setProperty('--kui-ease', easing ?? params.text('ease', 'ease-out'))
+  // `cssEasingValue`, because `--kui-ease` is read straight into `animation-timing-function` by
+  // `text.css`. `params.text` deliberately skips validation, so nothing else on this path turns
+  // `back-out` or `spring(bounce:0.5)` into something a browser accepts.
+  el.style.setProperty('--kui-ease', cssEasingValue(easing ?? params.text('ease', 'ease-out')))
   el.style.setProperty('--kui-stagger', params.text('stagger', '30ms'))
 }
 
