@@ -153,7 +153,7 @@ const PRECISION = 1000
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-export function isSpringToken(token: string): boolean {
+function isSpringToken(token: string): boolean {
   return token.startsWith(SPRING_PREFIX) && token.endsWith(')')
 }
 
@@ -342,7 +342,7 @@ const curves = new Map<number, string>()
  *   bounded by {@link MAX_SIM_STEPS} — and O(s) space for the trajectory.
  * @overallScore 100
  */
-export function springLinearCurve(dampingRatio: number): string {
+function springLinearCurve(dampingRatio: number): string {
   const key = Math.round(dampingRatio * PRECISION)
   const cached = curves.get(key)
   if (cached !== undefined) return cached
