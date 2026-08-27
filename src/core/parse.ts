@@ -1,6 +1,6 @@
 import { validateActivation } from './activation.js'
-import { BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
-import type { Breakpoint, GateDirection } from './breakpoints.js'
+import { axisOf, BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
+import type { EffectGate, GateDirection } from './breakpoints.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -15,7 +15,8 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
  * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm` are hoisted element-wide (see `HOISTS`);
  * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns; and
- * `above:`/`below:` are lifted onto the spec as a viewport gate, which `core/breakpoints.ts` owns.
+ * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
+ * pair, container for the second — which `core/breakpoints.ts` owns.
  *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
@@ -226,6 +227,7 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
   // inner space-split can never consume as a separator, guaranteeing at least one token here.
   const name = tokens.shift()!
   if (splitPair(name)) {
+    if (applyGroupOnlySegment(name, tokens, result)) return null
     result.warnings.push(`effect name expected, got "${name}"`)
     return null
   }
@@ -240,6 +242,46 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
   }
   return spec
 }
+
+/**
+ * The two hoists that are legitimately the *whole* attribute.
+ *
+ * A stagger group is not the thing animating — its children are — so the element carrying
+ * `cascade:`/`order:` names no effect, and `parseSegment`'s "the first token is the effect name"
+ * rule reads that as a malformed segment. It warned and returned `null`, taking the hoists with
+ * it: `parse("cascade:90ms")` yielded `specs: []` and *no* `cascade`, so
+ * `resolveStaggerConfig(null, …)` returned `undefined`, `declaresGroup` said no, and
+ * `applyStagger` never indexed the group. No `--kui-stagger`, no `--kui-i`, every child on one
+ * identical delay. 69 groups across 16 demo pages were inert this way, each one warning to the
+ * silent default reporter.
+ *
+ * Only `cascade`/`order` qualify. The other hoists (`on:`, `timeline:`, `threshold:`, `rm:`) do
+ * nothing on an element with no effect to apply them to, so accepting a bare `on:enter` here
+ * would turn a real typo — a dropped effect name — into silence.
+ *
+ * @param first - The segment's first token, already known to split as `key:value`.
+ * @param rest - The remaining tokens, untouched.
+ * @returns Whether this was a group-only segment. `true` means the hoists were applied and the
+ *   caller must not warn; `false` leaves `result` untouched so the caller's diagnostic stands.
+ * @complexity O(t) time in the token count; O(t) space for the collected pairs.
+ * @overallScore 100
+ */
+function applyGroupOnlySegment(first: string, rest: string[], result: ParsedValue): boolean {
+  const pairs: [string, string][] = []
+  for (const token of [first, ...rest]) {
+    const pair = splitPair(token)
+    // `Object.hasOwn` for the same reason `applyToken` uses it — see the comment there.
+    if (!pair || !GROUP_ONLY_HOISTS.has(pair[0]) || !Object.hasOwn(HOISTS, pair[0])) return false
+    pairs.push(pair)
+  }
+  // Applied only after every token has been checked, so a half-valid segment like
+  // `cascade:90ms bogus:1` warns as one malformed segment instead of silently taking the cascade.
+  for (const [key, value] of pairs) HOISTS[key]!(result, value)
+  return true
+}
+
+/** The hoists that can stand alone as a whole attribute. See `applyGroupOnlySegment`. */
+const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set(['cascade', 'order'])
 
 /**
  * Assign a positional time value. The first is the duration, the second the delay — the same
@@ -312,8 +354,11 @@ function applyToken(
   spec.params[token.key] = token.value
 }
 
+/** A table, not a branch: `axisOf` grows the same way when a third axis ever lands. */
+const GATE_DIRECTIONS: ReadonlySet<string> = new Set(['above', 'below', 'wide', 'narrow'])
+
 function isGateDirection(key: string): key is GateDirection {
-  return key === 'above' || key === 'below'
+  return GATE_DIRECTIONS.has(key)
 }
 
 /** Where a gate token came from, so `applyGate` can quote it back without a fifth parameter. */
@@ -323,7 +368,8 @@ interface GateContext {
 }
 
 /**
- * Apply one half of a viewport gate to the spec being built.
+ * Apply one direction of a gate — either half of `above:`/`below:` (viewport) or of `wide:`/
+ * `narrow:` (container) — to the spec being built.
  *
  * Every rejection here is a *warning plus no gate*, never a warning plus a half-applied one. A
  * segment whose gate was refused runs unconditionally, which is the same fail-open the rest of the
@@ -351,30 +397,39 @@ function applyGate(
     result.warnings.push(`duplicate parameter "${direction}" in "${segment}"`)
   }
   gate[direction] = value
-  warnOnEmptyBand(gate.above, gate.below, segment, result)
+  // Checked against this direction's own axis, not always `above`/`below`: `wide:md narrow:md` is
+  // exactly as impossible a band as `above:md below:md` is, and `axisOf` is what lets one check
+  // serve both rather than a second copy hardcoded to the container pair.
+  warnOnEmptyBand(gate, axisOf(direction), segment, result)
 }
 
 /**
- * Name a band that no viewport can satisfy.
+ * Name a band that no width — viewport or container, whichever axis is given — can satisfy.
  *
  * `above:md below:md` is `width >= 768px AND width < 768px`; `above:lg below:md` is worse still.
  * Both compile to perfectly valid CSS that simply never matches, so without this the effect is
  * exactly the silent no-op the grammar promises never to produce — and it is an easy mistake,
- * because the pair reads like a range regardless of which order the two are written in.
+ * because the pair reads like a range regardless of which order the two are written in. The same
+ * mistake is exactly as easy to make with `wide:`/`narrow:`, so this takes an axis pair rather than
+ * hardcoding `above`/`below` — one check, either axis, no per-axis duplicate.
  *
+ * @param axis - Upper bound (inclusive-side) first, as `axisOf` returns it.
  * @complexity O(b) time in the scale's length; O(1) space.
  * @overallScore 100
  */
 function warnOnEmptyBand(
-  above: Breakpoint | undefined,
-  below: Breakpoint | undefined,
+  gate: Readonly<EffectGate>,
+  axis: readonly [GateDirection, GateDirection],
   segment: string,
   result: ParsedValue,
 ): void {
-  if (!above || !below || breakpointRank(above) < breakpointRank(below)) return
+  const [upperName, lowerName] = axis
+  const upperValue = gate[upperName]
+  const lowerValue = gate[lowerName]
+  if (!upperValue || !lowerValue || breakpointRank(upperValue) < breakpointRank(lowerValue)) return
   result.warnings.push(
-    `"above:${above} below:${below}" in "${segment}" can never match — ` +
-      `"above" must name a narrower breakpoint than "below"`,
+    `"${upperName}:${upperValue} ${lowerName}:${lowerValue}" in "${segment}" can never match — ` +
+      `"${upperName}" must name a smaller breakpoint than "${lowerName}"`,
   )
 }
 

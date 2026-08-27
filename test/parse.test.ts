@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse, splitTopLevel } from '../src/core/parse.js'
+import { resolveStaggerConfig } from '../src/core/stagger.js'
 
 describe('splitTopLevel', () => {
   it('splits on top-level commas', () => {
@@ -266,6 +267,56 @@ describe('parse', () => {
       expect(parse('fade-up above:md below:lg').warnings).toEqual([])
     })
 
+    it('lifts wide:/narrow: onto the spec as a container gate, independent of above:/below:', () => {
+      // The second, independent axis: a container question wearing the same grammar shape as the
+      // viewport one, so both can be authored on the same segment at once.
+      const result = parse('fade-up wide:md, parallax narrow:lg')
+      expect(result.specs[0]?.gate).toEqual({ wide: 'md' })
+      expect(result.specs[1]?.gate).toEqual({ narrow: 'lg' })
+      expect(result.warnings).toEqual([])
+    })
+
+    it('accepts both halves of a container band', () => {
+      expect(parse('fade-up wide:md narrow:xl').specs[0]?.gate).toEqual({
+        wide: 'md',
+        narrow: 'xl',
+      })
+    })
+
+    it('accepts a viewport gate and a container gate together on one segment', () => {
+      expect(parse('fade-up above:md wide:lg').specs[0]?.gate).toEqual({ above: 'md', wide: 'lg' })
+    })
+
+    it('refuses an unknown breakpoint on the container axis exactly as it does on the viewport one', () => {
+      const result = parse('fade-up wide:tablet')
+      expect(result.specs[0]?.gate).toBeUndefined()
+      expect(result.warnings.join()).toContain('unknown breakpoint "tablet"')
+    })
+
+    it('warns on a second wide: in one segment', () => {
+      expect(parse('fade-up wide:md wide:lg').warnings.join()).toContain(
+        'duplicate parameter "wide"',
+      )
+    })
+
+    it('warns on a container band no container can satisfy, and names the container directions', () => {
+      // Exactly the `above:`/`below:` mistake, on the other axis: `wide:lg narrow:md` reads like a
+      // range but is `container >= 1024px AND container < 768px`, which no width satisfies.
+      const result = parse('fade-up wide:lg narrow:md')
+      expect(result.warnings.join()).toContain('can never match')
+      expect(result.warnings.join()).toContain('"wide:lg narrow:md"')
+      expect(parse('fade-up wide:md narrow:lg').warnings).toEqual([])
+    })
+
+    it('does not cross-check a viewport band against a container band', () => {
+      // `above:lg below:md` alone can never match; pairing it with an unrelated, perfectly fine
+      // container band must not suppress or duplicate that warning, and must not invent a new one
+      // for the container pair, which is completely satisfiable.
+      const result = parse('fade-up above:lg below:md wide:sm narrow:xl')
+      expect(result.warnings.filter((w) => w.includes('can never match'))).toHaveLength(1)
+      expect(result.warnings.join()).toContain('"above:lg below:md"')
+    })
+
     it('accepts any event name, because the activation list is open', () => {
       // This used to warn "unknown activation" and leave the value unset, which is what made
       // `on:input`, `on:submit` and `on:pointerleave` inexpressible. The check that a name is a
@@ -334,6 +385,47 @@ describe('parse', () => {
       const result = parse('distance:40px')
       expect(result.specs).toEqual([])
       expect(result.warnings.join()).toContain('effect name expected')
+    })
+  })
+
+  // A stagger group is not the thing animating, so the element carrying `cascade:`/`order:` names
+  // no effect. "The first token is the effect name" read that as malformed and dropped the hoist
+  // with the segment, which left `declaresGroup` blind and 69 demo groups silently unstaggered.
+  describe('a group-only attribute, which names no effect at all', () => {
+    it('hoists a bare cascade and does not warn', () => {
+      const result = parse('cascade:90ms')
+      expect(result.specs).toEqual([])
+      expect(result.cascade).toBe('90ms')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('hoists a bare order, and both keys together', () => {
+      expect(parse('order:center').order).toBe('center')
+      const both = parse('cascade:90ms order:center')
+      expect([both.cascade, both.order]).toEqual(['90ms', 'center'])
+      expect(both.warnings).toEqual([])
+    })
+
+    it('makes the group resolvable, which is the whole point', () => {
+      expect(resolveStaggerConfig(null, 'cascade:90ms')).toEqual({ from: 'start', step: '90ms' })
+    })
+
+    // The narrow escape hatch stays narrow: anything else in the segment means the author most
+    // likely dropped an effect name, and turning that into silence is worse than the old bug.
+    it('still warns when a non-group key rides along', () => {
+      expect(parse('cascade:90ms bogus:1').warnings.join()).toContain('effect name expected')
+      expect(parse('cascade:90ms bogus:1').cascade).toBeUndefined()
+    })
+
+    it('still warns for a hoist that does nothing without an effect', () => {
+      expect(parse('on:enter').warnings.join()).toContain('effect name expected')
+      expect(parse('threshold:0.5').warnings.join()).toContain('effect name expected')
+    })
+
+    it('leaves the with-an-effect spelling exactly as it was', () => {
+      const result = parse('fade-up cascade:90ms')
+      expect(result.specs).toEqual([{ name: 'fade-up', params: {} }])
+      expect(result.cascade).toBe('90ms')
     })
   })
 })
