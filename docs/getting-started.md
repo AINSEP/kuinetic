@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-261 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+267 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -236,6 +236,66 @@ Three things worth knowing:
 - **It compiles to a delay**, so a scroll-driven `timeline:view`/`timeline:scroll` ignores it —
   position those with a range instead (`data-kui-timeline="view entry 0% cover 60%"`). It does work
   on `timeline:pin`, where the delay is the scrub head.
+
+---
+
+## Animating a different element — `target:` and `scope:`
+
+`data-kui` normally animates the element it is written on. `target:` points it at something else
+instead — a selector for what should actually move, authored on whichever element makes sense to
+hold the attribute:
+
+```html
+<header data-kui="fade-up target:h1">
+  <p class="eyebrow">New</p>
+  <h1>The headline that actually animates</h1>
+</header>
+```
+
+Only the `h1` moves. `header` never does — it just carries the instruction. Any effect can be
+retargeted this way, not only the handful (`scroll-progress`, `scroll-spy`, `sequence-scrub`,
+`step-progress`, and friends — catalog sections O/P) that already used `target:` for their own
+reasons before this existed; those six still read it themselves and are unaffected by anything
+below.
+
+**`target:` always means "search inside myself"** — the element carrying the attribute, by
+default. Add `scope:page` to search the whole document instead, for the case where what should
+animate genuinely lives somewhere else on the page:
+
+```html
+<nav data-kui="glow-pulse target:'#cart-badge' scope:page"></nav>
+```
+
+Quote a selector containing spaces or commas, the same escape every other selector-taking
+parameter in this library uses — `target:.stops > li` would otherwise parse `> li` as two stray
+tokens.
+
+Three things worth knowing:
+
+- **A selector matching `<html>`/`<body>`, or one that does not parse, is refused with a warning**
+  rather than stamping the whole document. So is a selector that simply matches nothing — check the
+  console.
+- **A handful of effects cannot be retargeted at all**, because their CSS assumes a child or
+  sibling exists right next to the element it animates — `card-flip-x`, `hamburger-to-x`,
+  `label-float`, and a dozen more in that shape. `target:` on one of these is dropped with a
+  warning and the effect runs on the host as if you had not written it, rather than compiling to
+  something that silently animates nothing.
+- **Matching more than one element stamps and animates every one of them.** `fade-up target:li` on
+  a list fades every `<li>` in — each independently, in document order, with `--kui-i` numbered the
+  same way a `data-kui-stagger` group's children are (see the next section), so pairing it with
+  `data-kui-stagger="90ms"` on the same host staggers the set.
+
+**`target:` is resolved once, when the element is first processed — not kept live.** An element
+matching the selector that is inserted afterwards is not picked up automatically, even with
+`observe: true` watching the page for new `data-kui` attributes — that only catches a *new* host,
+not a late arrival for an existing one's `target:`. If your page inserts matching content later,
+re-run the two steps that install effects by hand on your animator instance (the `kui` from
+[Controlling a running animation](#controlling-a-running-animation) below):
+
+```js
+kui.reset(headerEl)
+kui.process(headerEl)
+```
 
 ---
 
@@ -495,7 +555,7 @@ requestAnimationFrame(frame)
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 261 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 267 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.

@@ -36,6 +36,20 @@ export interface StylePlanInput {
   capabilities: Capabilities
   /** Whether the reduced-motion preference should be honoured. */
   respectReducedMotion: boolean
+  /**
+   * Whether this *element* — not just this call's own `plan` — has a CSS declaration anywhere.
+   *
+   * Only ever differs from `plan`'s own answer when `target:` has split one element's effects
+   * across more than one group and the groups don't render the same way: the gate is a fact about
+   * the element's one shared activation binding (`InstanceState` keeps a single gate — see D1 in
+   * `docs/plan-scope-page.md`), so a JavaScript-only group must still see `scrubbed` when a sibling
+   * group is the one carrying the CSS animation `timeline: pin` seeks. `animator.ts`'s `install`
+   * passes this once per element, computed across every `CompiledTarget`; every other caller,
+   * including every existing test, omits it and gets today's exact behaviour — this group's own
+   * `plan.declarations` answers the question by itself, which is correct whenever there is only
+   * one group.
+   */
+  elementHasCssAnimation?: boolean
 }
 
 /**
@@ -67,15 +81,18 @@ export function planStyles(input: StylePlanInput): StylePlan {
   Object.assign(properties, timelineProperties(config, capabilities, useNativeTimeline))
 
   const hasCssAnimation = Object.keys(plan.declarations).length > 0
+  // `??`, not `||`: an element-wide `false` (every group JS-only) is a real, meaningful answer and
+  // must not fall back to this group's own possibly-`true` one.
+  const elementHasCssAnimation = input.elementHasCssAnimation ?? hasCssAnimation
   const gate = resolveGate({
     useNativeTimeline,
-    scrubbed: scrubbed && hasCssAnimation,
+    scrubbed: scrubbed && elementHasCssAnimation,
     reduce,
     activation: config.activation,
     // JS effects are gated too. They emit no `animation` declaration, so only the play-state
     // write is skipped — the activation itself still has to be bound, or `on:enter` and
     // `on:click` would silently do nothing for every pinned, dragged, or morphing element.
-    hasWork: hasCssAnimation || plan.jsEffects.length > 0,
+    hasWork: elementHasCssAnimation || plan.jsEffects.length > 0,
     hasCssAnimation,
     // A browser lacking standalone translate/rotate/scale support silently ignores any
     // `@keyframes` step written in those properties — the animation never visibly completes. An

@@ -7,9 +7,11 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { TIMELINE_AGNOSTIC, withTimingContract } from '../shared.js'
-import { createStepMarker, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../step-marking.js'
-import type { TargetScope } from '../step-marking.js'
+import { createStepMarker } from '../step-marking.js'
+import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
+import type { TargetScope } from '../../core/target.js'
 import { prepareScrollSpy } from './scroll-spy.js'
+import { distanceParam, stickyParams } from './params.js'
 import { domPosition, trackProgress } from './tracker.js'
 
 /**
@@ -24,36 +26,6 @@ import { domPosition, trackProgress } from './tracker.js'
  */
 
 const PROGRESS_VAR = '--kui-progress'
-
-const distanceParam: ParameterSchema = {
-  distance: { type: 'length', default: '100vh', cssProperty: '--kui-distance' },
-}
-
-/**
- * Shared by every primitive that has to hold still while its scroll range passes.
- *
- * `pin` and `media-scrub` were solving the same problem twice from opposite ends. The pin declared
- * both of these and did the work; the scrub declared neither and left it to the page, which is why
- * `demo/scroll.html` carried a `.scrub-stage` whose entire job was `height: 260vh` and a
- * `.scrub-viewport` whose entire job was `position: sticky`. Two hand-written boxes to restate
- * something the library already knew, because `distance:` was on the attribute the whole time.
- *
- * Declaring it once means the two cannot drift, and it is what lets a scrub become one attribute
- * with no wrapper at all.
- */
-const stickyParams: ParameterSchema = {
-  'offset-top': {
-    type: 'length',
-    default: 'var(--kui-pin-offset, 0px)',
-    cssProperty: '--kui-offset-top',
-  },
-  spacer: {
-    type: 'keyword',
-    default: 'false',
-    cssProperty: '--kui-spacer',
-    values: ['true', 'false'],
-  },
-}
 
 /**
  * Hold an element still for its range, and reserve the room that requires.

@@ -561,6 +561,25 @@ export interface Preset {
    * hide and cloaking it would blank an element that should be visible until it leaves.
    */
   cloak?: boolean
+  /**
+   * This preset's CSS reaches past the `data-kui-fx`-stamped element — to a child, a sibling, or a
+   * descendant it assumes exists — rather than animating the fx element itself. `target:` may not
+   * relocate it: a relocated `data-kui-fx` would sit on the *matched* descendant instead of the
+   * host, and the reaching selector (`[data-kui-fx~='card-flip-x'] > .kui-card-face`, say) would
+   * then look for a grandchild the retargeted element was never authored with, compiling to
+   * silence rather than a visible effect.
+   *
+   * Declared per *preset*, the same granularity as {@link cloak}: whether a name's CSS reaches past
+   * itself is a fact only its author knows, and a primitive can back names on both sides of this —
+   * `step-progress` and `media-scrub` already resolve their own `target:` internally and never
+   * reach this flag at all, because `compile.ts` only consults it for a preset whose primitive does
+   * *not* declare a `target` parameter of its own.
+   *
+   * `test/css-invariants.test.ts` derives the true set from `src/css/*.css` and asserts every name
+   * on it declares this, so a future selector added without the flag fails a test instead of
+   * silently compiling to an empty subtree in production.
+   */
+  requiresOwnSubtree?: boolean
 }
 
 export type ResolvedParams = Record<string, string>
@@ -583,8 +602,10 @@ export interface EffectSpec {
    */
   at?: string
   /**
-   * Authored viewport condition — `above:md`, `below:lg`, or both for a band. Absent when the
-   * segment is unconditional, which is every segment written before this existed.
+   * Authored condition, on either or both of two independent axes: viewport (`above:md`,
+   * `below:lg`, or both for a band) and container (`wide:md`, `narrow:lg`, or both for a band,
+   * measured against the nearest `data-kui-container` ancestor). Absent when the segment is
+   * unconditional, which is every segment written before the viewport half of this existed.
    *
    * Beside `at` rather than inside `params` for the same reason `at` is: it is not a parameter. No
    * `ParameterSchema` declares it, it means the same thing for every effect in the catalog, and
@@ -594,7 +615,10 @@ export interface EffectSpec {
    * an element-scoped gate could not express it at all.
    *
    * Already validated by the time it lands here: `parse.ts` refuses a name that is not on the
-   * scale, and refuses a band that can never match. `core/breakpoints.ts` owns both.
+   * scale, and refuses a band that can never match, on either axis. `core/breakpoints.ts` owns all
+   * of it. The container half is further narrowed by `compile.ts`'s `refuseContainerGate`: a
+   * `wide`/`narrow` on a JavaScript-rendered primitive is stripped (with a warning) before the plan
+   * is built, because there is no JS mirror for it the way `above`/`below` have one.
    */
   gate?: EffectGate
   params: Record<string, string>

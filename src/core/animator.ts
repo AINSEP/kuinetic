@@ -41,8 +41,8 @@ import { breakpointsIn, createGateWatcher, gateMatches } from './breakpoints.js'
 import type { Breakpoint, EffectGate, GateWatcher } from './breakpoints.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
-import { compile } from './compile.js'
-import type { CompiledPlan } from './compile.js'
+import { compileTargets } from './compile.js'
+import type { CompiledDocument, CompiledPlan, CompiledTarget } from './compile.js'
 import { control, emitLifecycle, KUI_EVENT } from './control.js'
 import type { ControlHandle, LifecycleEventType, LifecycleReason } from './control.js'
 import { createDomWatcher } from './dom-watcher.js'
@@ -61,9 +61,11 @@ import { silentReporter } from './reporter.js'
 import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createLedgerSet } from './owned-styles.js'
-import { applyStagger } from './stagger.js'
-import { applyStylePlan, planStyles } from './style-plan.js'
+import type { LedgerSet } from './owned-styles.js'
+import { applyStagger, indexTargetGroup } from './stagger.js'
+import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
+import { queryScoped, selectorBreadth } from './target.js'
 import type { Activation, EffectInstance, InstanceState, ParsedValue } from './types.js'
 
 /** Longest a stalled initialisation may keep an opt-in cloak in place. */
@@ -109,7 +111,7 @@ interface InstallRequest {
   fingerprint: string
   parsed: ParsedValue
   config: ElementConfig
-  plan: CompiledPlan
+  document: CompiledDocument
 }
 
 export interface AnimatorOptions {
@@ -256,29 +258,38 @@ export class Animator {
 
     const parsed = parse(attributes.source)
     const config = resolveConfig(attributes, parsed)
-    const plan = compile(parsed, this.registry, config.timeline)
+    const document = compileTargets(parsed, this.registry, config.timeline)
+    // `targets[0]` for every element-scoped fact below: `compileTargets`' `mergeHostFacts` already
+    // folds `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/
+    // `channels` across every `target:` group and writes the merged answer onto all of them, so any
+    // one group's plan carries the element's real, single answer — see that function's own comment.
+    const facts = document.targets[0]!.plan
     // Before `planStyles` runs, so that an element whose only JS effect is gated off reports no
     // work and takes the `immediate` gate rather than sitting deferred on an activation that has
     // nothing left to release.
-    this.applyViewportGates(el, plan)
+    this.applyViewportGates(el, document)
 
-    config.activation = this.resolveActivation(el, config, plan)
-    for (const warning of plan.warnings) this.reporter.warn(warning, el)
-    // Separate from `plan.warnings` because `compile` is pure and environment-free by design — it
-    // is handed a registry and a timeline, never the browser it is running in. "This browser
-    // cannot render that channel" is only answerable here, where the detected capabilities live.
-    for (const warning of unsupportedChannelWarnings(plan.channels, this.capabilities)) {
+    config.activation = this.resolveActivation(el, config, facts)
+    for (const warning of document.warnings) this.reporter.warn(warning, el)
+    for (const target of document.targets) {
+      for (const warning of target.plan.warnings) this.reporter.warn(warning, el)
+    }
+    // Separate from the plan's own warnings because `compile` is pure and environment-free by
+    // design — it is handed a registry and a timeline, never the browser it is running in. "This
+    // browser cannot render that channel" is only answerable here, where the detected capabilities
+    // live. `facts.channels` is the merged union, so this runs once per element, not once per group.
+    for (const warning of unsupportedChannelWarnings(facts.channels, this.capabilities)) {
       this.reporter.warn(warning, el)
     }
 
-    if (plan.fxNames.length === 0) {
+    if (document.targets.every((target) => target.plan.fxNames.length === 0)) {
       // Deliberately does NOT stamp the normalized attribute: an effect registered later must
       // still be able to claim this element on a rescan.
-      el.setAttribute(ATTR.state, plan.unknown.length > 0 ? 'pending' : 'failed')
+      el.setAttribute(ATTR.state, facts.unknown.length > 0 ? 'pending' : 'failed')
       return
     }
 
-    this.install({ el, fingerprint, parsed, config, plan })
+    this.install({ el, fingerprint, parsed, config, document })
   }
 
   /**
@@ -325,8 +336,12 @@ export class Animator {
    * @complexity O(e) time in JS-rendered effects; O(b) space, bounded by the scale's five names.
    * @overallScore 100
    */
-  private applyViewportGates(el: Element, plan: CompiledPlan): void {
-    const gates = plan.jsEffects
+  private applyViewportGates(el: Element, document: CompiledDocument): void {
+    // Across every `target:` group, not just the host's: a gated JS effect on a retargeted group
+    // needs the same live re-evaluation a host-level one does, and there is exactly one watcher per
+    // element regardless of how many groups it compiled into.
+    const gates = document.targets
+      .flatMap((target) => target.plan.jsEffects)
       .map((entry) => entry.spec.gate)
       .filter((gate): gate is EffectGate => gate !== undefined)
     if (gates.length === 0) {
@@ -336,7 +351,9 @@ export class Animator {
       return
     }
     const win = el.ownerDocument.defaultView ?? undefined
-    plan.jsEffects = plan.jsEffects.filter((entry) => gateMatches(entry.spec.gate, win))
+    for (const target of document.targets) {
+      target.plan.jsEffects = target.plan.jsEffects.filter((entry) => gateMatches(entry.spec.gate, win))
+    }
     this.watchGates(el, win, breakpointsIn(gates))
   }
 
@@ -380,13 +397,20 @@ export class Animator {
   }
 
   private install(request: InstallRequest): void {
-    const { el, fingerprint, parsed, config, plan } = request
-    const stylePlan = planStyles({
-      plan,
-      config,
-      capabilities: this.capabilities,
-      respectReducedMotion: this.respectReducedMotion,
-    })
+    const { el, fingerprint, parsed, config, document } = request
+
+    // Resolved before anything else touches the DOM — every group's selector against the live
+    // document, once, warning by name for any that is invalid, too broad, or simply empty (see
+    // `resolveGroupMatches`). If none survive, this element has real compiled effects
+    // (`process()`'s own `fxNames.length === 0` guard already ruled out "no effects at all") but
+    // nowhere for any of them to run, so nothing here is registered and no ledger ever opens.
+    const groups = document.targets
+      .map((target) => ({ target, matches: this.resolveGroupMatches(el, target) }))
+      .filter((group) => group.matches.length > 0)
+    if (groups.length === 0) {
+      el.setAttribute(ATTR.state, 'failed')
+      return
+    }
 
     /*
      * One set per authored element, not one ledger pair. The host is the first member and always
@@ -401,16 +425,38 @@ export class Animator {
     const ledger = ledgers.style(el)
     const attributes = ledgers.attributes(el)
     const controller = new AbortController()
-    applyStylePlan({ el, plan: stylePlan, ledger, attributes })
+
+    // Whether *any* group has a CSS declaration — not just the host's own — because the gate is
+    // one shared fact about the element (D1: one `InstanceState`, one activation binding), even
+    // though `declarations` themselves are per group. See `StylePlanInput.elementHasCssAnimation`.
+    const elementHasCssAnimation = document.targets.some(
+      (target) => Object.keys(target.plan.declarations).length > 0,
+    )
+    // The gate for the whole element, computed once from whichever surviving group happens to be
+    // first — every group's own answer is identical by construction once `elementHasCssAnimation`
+    // is folded in, because every other input `resolveGate` reads
+    // (`reducedMotion`/`supportedActivations`/`supportedTimelines`/`channels`, plus
+    // `config.activation`/`config.timeline`, which are singular already) has already been merged
+    // onto every group's plan by `compile.ts`'s `mergeHostFacts`.
+    const elementStylePlan = planStyles({
+      plan: groups[0]!.target.plan,
+      config,
+      capabilities: this.capabilities,
+      respectReducedMotion: this.respectReducedMotion,
+      elementHasCssAnimation,
+    })
 
     const state: InstanceState = {
       fingerprint,
       specs: parsed.specs,
       activation: config.activation,
       timeline: config.timeline,
-      fxNames: plan.fxNames,
-      jsEffectNames: plan.jsEffects.map((entry) => entry.spec.name),
-      progressDriven: stylePlan.gate === 'scrubbed' || stylePlan.gate === 'native-timeline',
+      fxNames: document.targets.flatMap((target) => target.plan.fxNames),
+      jsEffectNames: document.targets.flatMap((target) =>
+        target.plan.jsEffects.map((entry) => entry.spec.name),
+      ),
+      progressDriven:
+        elementStylePlan.gate === 'scrubbed' || elementStylePlan.gate === 'native-timeline',
       instances: [],
       ledger,
       attributes,
@@ -420,20 +466,100 @@ export class Animator {
     }
     this.states.set(el, state)
     this.liveElements.add(el)
+    // Written once, unconditionally, and before any group's own writes below — same position this
+    // attribute has always been written at, and it is the host's own lifecycle marker regardless of
+    // where `target:` sends the rest (D6: stays on the host).
+    attributes.set(ATTR.state, 'ready')
 
-    if (Object.keys(stylePlan.properties).some((property) => property.startsWith('animation-'))) {
-      // `plan.keyframeNames`, not a re-split of the compiled `animation-name`: a viewport-gated
-      // track compiles to `var(--kui-above-md, kui-in-up)` and splitting that on commas yields two
-      // fragments, neither of which is a keyframe name. See `CompiledPlan.keyframeNames`.
-      state.instances.push(
-        createCssInstance(el, ledger, plan.keyframeNames, stylePlan.gate === 'scrubbed'),
+    for (const { target, matches } of groups) {
+      const stylePlan = planStyles({
+        plan: target.plan,
+        config,
+        capabilities: this.capabilities,
+        respectReducedMotion: this.respectReducedMotion,
+        elementHasCssAnimation,
+      })
+      const hasCssAnimation = Object.keys(stylePlan.properties).some((property) =>
+        property.startsWith('animation-'),
       )
-    }
-    state.instances.push(
-      ...this.jsEffectPreparer.prepare({ el, plan, signal: controller.signal, ledger }),
-    )
 
-    this.openGate({ el, state, stylePlan, config, plan })
+      for (const match of matches) {
+        const matchLedger = ledgers.style(match)
+        const matchAttributes = ledgers.attributes(match)
+        for (const [property, value] of Object.entries(stylePlan.properties)) {
+          matchLedger.set(property, value)
+        }
+        // `data-kui-state` is deliberately not written here — it is the host's own lifecycle
+        // marker (D6: stays on the host regardless of where `target:` sends the writes) and was
+        // already set, once, above. `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches on
+        // the same compound, so both land on every element this group's effects actually reach —
+        // the host itself for the host's own group, the matches for every other one.
+        matchAttributes.set(ATTR.normalized, stylePlan.attributes[ATTR.normalized]!)
+        matchAttributes.set(ATTR.rm, stylePlan.attributes[ATTR.rm]!)
+        matchLedger.claim('animation-play-state')
+
+        if (hasCssAnimation) {
+          // `target.plan.keyframeNames`, not a re-split of the compiled `animation-name`: a
+          // viewport-gated track compiles to `var(--kui-above-md, kui-in-up)` and splitting that on
+          // commas yields two fragments, neither of which is a keyframe name. See
+          // `CompiledPlan.keyframeNames`.
+          state.instances.push(
+            createCssInstance(match, matchLedger, target.plan.keyframeNames, stylePlan.gate === 'scrubbed'),
+          )
+        }
+        state.instances.push(
+          ...this.jsEffectPreparer.prepare({
+            el: match,
+            plan: target.plan,
+            signal: controller.signal,
+            ledger: matchLedger,
+          }),
+        )
+      }
+
+      // Only for a real `target:` group — the host's own single "match" (itself) has nothing to
+      // order relative to. `applyStagger`'s existing DOM-children pass, run once per `scan()` after
+      // every element has been processed, still owns an ordinary group's stagger numbering; this is
+      // the same job for a set `target:`/`scope:` resolved instead.
+      if (target.selector !== '') indexTargetGroup(el, matches, ledgers, this.reporter)
+    }
+
+    this.openGate({ el, state, stylePlan: elementStylePlan, config, plan: groups[0]!.target.plan })
+  }
+
+  /**
+   * Validate and resolve one `CompiledTarget`'s selector against the live document.
+   *
+   * `resolveTarget`'s document-wide/invalid rejection — the same rule the six built-in
+   * `target:`-declaring primitives apply inside their own `prepare` — has to run again here for
+   * every *other* primitive: a CSS-rendered retargeted effect never calls `prepare` at all, so
+   * compile-to-install time is the only point at which this element has a real `Document` to
+   * validate the selector against. `compileTargets` itself is pure and DOM-free by design and
+   * cannot do this check.
+   *
+   * @param el - The host. The search root under `'self'`, and the only "match" for the host group
+   *   (`target.selector === ''`), which is never queried at all.
+   * @returns The matches, in document order. Empty when the selector was invalid, too broad, or
+   *   simply matched nothing — every case already warned by name.
+   * @complexity O(1) for the host group; O(n) in document size otherwise, the query itself being
+   *   the DOM's.
+   * @overallScore 100
+   */
+  private resolveGroupMatches(el: Element, target: CompiledTarget): Element[] {
+    if (target.selector === '') return [el]
+    const doc = el.ownerDocument
+    const names = target.plan.fxNames.join(', ')
+    const breadth = selectorBreadth(target.selector, doc)
+    if (breadth !== 'ok') {
+      const reason = breadth === 'invalid' ? 'is not a valid selector' : 'matches the whole document'
+      this.reporter.warn(`target "${target.selector}" (${names}) ${reason} and will be ignored`, el)
+      return []
+    }
+    const matches = queryScoped(el, { doc }, target.selector, target.scope)
+    if (matches.length === 0) {
+      this.reporter.warn(`target "${target.selector}" (${names}) matched nothing`, el)
+    }
+    return matches
   }
 
   /**

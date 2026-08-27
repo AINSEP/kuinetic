@@ -7,7 +7,7 @@ import { continuousSetup } from '../../core/instances.js'
 import type { ContinuousSetup } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import type { AttributeLedger } from '../../core/owned-styles.js'
-import { queryScoped, resolveTarget, scopeParam } from '../step-marking.js'
+import { queryScoped, resolveTarget, scopeParam } from '../../core/target.js'
 import { domGeometry, trackProgress } from './tracker.js'
 
 /**

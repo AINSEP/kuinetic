@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PrepareContext } from '../src/core/effect-context.js'
-import {
-  STEP_STATE_ATTR,
-  createStepMarker,
-  resolveTarget,
-  selectorBreadth,
-  stepStateFor,
-} from '../src/effects/step-marking.js'
+import { resolveTarget, selectorBreadth } from '../src/core/target.js'
+import { STEP_STATE_ATTR, createStepMarker, stepStateFor } from '../src/effects/step-marking.js'
 
 /**
  * Direct tests for the step-marking units.

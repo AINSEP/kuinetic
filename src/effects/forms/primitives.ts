@@ -4,7 +4,8 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
-import { createStepMarker, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../step-marking.js'
+import { createStepMarker } from '../step-marking.js'
+import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 
 /**
  * Form and input primitives (catalog section O).

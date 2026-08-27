@@ -1,10 +1,12 @@
 import { gatedAnimationName } from './breakpoints.js'
+import type { EffectGate } from './breakpoints.js'
 import { describeConflicts, findConflicts } from './channels.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest, timingProperty } from './registry.js'
 import { durationExpression, isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
+import type { TargetScope } from './target.js'
 import type {
   Activation,
   Channel,
@@ -56,6 +58,22 @@ export interface Entry {
    * unknown along.
    */
   sequencedDelayMs?: number
+  /**
+   * Where the sequencer placed this segment, resolved once for the whole authored comma list
+   * before {@link compileTargets} partitions it by target — see that function's own comment for
+   * why the order matters. Always present once an entry leaves `compileTargets`; absent only on an
+   * `Entry` a test builds by hand without going through it.
+   */
+  step?: SequenceStep
+  /**
+   * Selector this entry retargets to, lifted out of `spec.params` by `resolveEntries` for any
+   * primitive that does not declare a `target` parameter of its own. Undefined means "compiles on
+   * the host", which is every entry today and every entry whose primitive owns `target:` itself
+   * (the six scroll-mechanics/forms primitives — they read the key from `spec.params`, unchanged).
+   */
+  target?: string
+  /** Which tree {@link target} is searched in. Only meaningful when `target` is set. */
+  scope?: TargetScope
 }
 
 /**
@@ -177,17 +195,189 @@ export function compile(
   registry: Registry,
   timeline: Timeline,
 ): CompiledPlan {
+  // The host's plan is always `targets[0]` — see `compileTargets` — so this keeps its exact
+  // original signature and behaviour for every caller that has never heard of `target:`: with no
+  // targeted segment there is exactly one group, and `mergeHostFacts` folding a single plan's own
+  // facts into itself is the identity, so the returned plan is byte-identical to before this
+  // feature existed.
+  return compileTargets(parsed, registry, timeline).targets[0]!.plan
+}
+
+/**
+ * One `target:`-partitioned group of a compiled `data-kui` attribute — the plan for the segments
+ * that share one `(scope, selector)` pair, plus which pair that is.
+ *
+ * `selector: ''` is the host: the element the attribute is authored on, always present, always
+ * `CompiledDocument.targets[0]`. Every other entry names a `target:` a primitive did not claim for
+ * itself — see `Entry.target`'s own comment for which primitives those are.
+ */
+export interface CompiledTarget {
+  /** `''` for the host group. */
+  selector: string
+  scope: TargetScope
+  plan: CompiledPlan
+}
+
+/**
+ * The full compilation of one authored `data-kui` value, before it is narrowed to a single plan.
+ *
+ * `warnings` here are the ones raised *before* partitioning — unknown effect names and the `at:`
+ * sequencer's own diagnostics, both of which are about the authored comma list as a whole rather
+ * than about any one target group. A group's own composition/parameter warnings live on
+ * `CompiledTarget.plan.warnings` instead, exactly where they always have.
+ */
+export interface CompiledDocument {
+  targets: CompiledTarget[]
+  warnings: string[]
+}
+
+/**
+ * Compile a parsed `data-kui` value into one plan per `target:`/`scope:` group.
+ *
+ * The host group (selector `''`) is always present and always first, whether or not the author
+ * targeted anything — `install` in `animator.ts` loops every group the same way, and a page that
+ * never uses `target:` compiles to exactly the one group it always has.
+ *
+ * A fixed order, not to be reshuffled:
+ *
+ * 1. **Resolve and lift**, once, over the whole authored list (`resolveEntries`). Every entry gets
+ *    a primitive; every entry whose primitive does not own `target:` itself gets `.target`/`.scope`
+ *    pulled off its params here, before anything downstream can see them.
+ * 2. **Sanitize container gates** (`refuseContainerGate`), before composition sees them — see that
+ *    function's own comment for why a stripped gate must not still count as "these can never
+ *    collide".
+ * 3. **Sequence**, once, over the whole *unpartitioned* list. `at:` positions a segment against its
+ *    neighbours in the authored comma list — `fade-up target:h1, slide-left target:p at:-200ms` is
+ *    one author's clearly-linked pair, and partitioning first would make them neighbourless.
+ * 4. **Partition, then compose and build, per group.** Channel conflicts are only real within a
+ *    group — two effects that land on different elements cannot collide — so `findConflicts`
+ *    (inside `resolveComposition`) has to run after the split, not before it.
+ *
+ * @param parsed - Output of `parse`.
+ * @param registry - Effect catalog to resolve names against.
+ * @param timeline - Element-scoped timeline, used to warn on unsupported combinations.
+ * @complexity O(e * p) time in composed effects and their parameters; O(e) space.
+ * @overallScore 100
+ */
+export function compileTargets(
+  parsed: ParsedValue,
+  registry: Registry,
+  timeline: Timeline,
+): CompiledDocument {
   const warnings = [...parsed.warnings]
   const { entries, unknown } = resolveEntries(parsed.specs, registry, warnings)
 
   if (entries.length === 0) {
-    return emptyPlan(unknown, warnings)
+    return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, warnings) }], warnings }
   }
 
-  const composed = resolveComposition(entries, registry, warnings)
-  const plan = buildPlan(composed, timeline, unknown, warnings)
-  plan.reducedMotion = resolvedPolicy(plan.reducedMotion, parsed.rm, warnings)
-  return plan
+  const sanitized = entries.map((entry) => refuseContainerGate(entry, warnings))
+  // Sequenced once, over the full list, before the group split below — see this function's own
+  // comment. `resolveSequence` always returns one step per member, in the same order, so zipping
+  // by index is safe.
+  const steps = resolveSequence(sanitized.map(memberFor), timeline, (m) => warnings.push(m))
+  const sequenced = sanitized.map((entry, index) => ({ ...entry, step: steps[index]! }))
+
+  const targets = partitionByTarget(sequenced).map(({ selector, scope, entries: group }) => {
+    const composed = resolveComposition(group, registry, warnings)
+    return { selector, scope, plan: buildPlan(composed, timeline, unknown, warnings) }
+  })
+  mergeHostFacts(targets)
+  for (const target of targets) {
+    target.plan.reducedMotion = resolvedPolicy(target.plan.reducedMotion, parsed.rm, warnings)
+  }
+  return { targets, warnings }
+}
+
+/**
+ * Group already-sequenced entries by `target:`/`scope:`, host first.
+ *
+ * The key is `` `${scope} ${target}` ``, not `target` alone: the same selector under `scope:self`
+ * and `scope:page` names two different match sets and must not share a group. `target` is always
+ * `''` for the host, so its key can never collide with a real selector's — a selector is never the
+ * empty string once `resolveEntries` has lifted it.
+ *
+ * The host group is moved to index 0 when it exists but was not first in authoring order —
+ * `data-kui="fade-up target:h1, blur-in"` still has to compile its host segment (`blur-in`) into
+ * `targets[0]`, which is the contract `compile()`'s single-plan return relies on. When there is no
+ * untargeted segment at all (`data-kui="fade-up target:h1"` alone), there is no host group to move
+ * and the one group present is already first by construction.
+ *
+ * @complexity O(e) time and space in the entry count.
+ * @overallScore 100
+ */
+function partitionByTarget(
+  entries: (Entry & { step: SequenceStep })[],
+): { selector: string; scope: TargetScope; entries: (Entry & { step: SequenceStep })[] }[] {
+  interface Group {
+    selector: string
+    scope: TargetScope
+    entries: (Entry & { step: SequenceStep })[]
+  }
+  const byKey = new Map<string, Group>()
+  const order: Group[] = []
+
+  for (const entry of entries) {
+    const selector = entry.target ?? ''
+    const scope = entry.scope ?? 'self'
+    const key = `${scope} ${selector}`
+    let group = byKey.get(key)
+    if (!group) {
+      group = { selector, scope, entries: [] }
+      byKey.set(key, group)
+      order.push(group)
+    }
+    group.entries.push(entry)
+  }
+
+  const hostIndex = order.findIndex((group) => group.selector === '')
+  if (hostIndex > 0) {
+    const [host] = order.splice(hostIndex, 1)
+    order.unshift(host!)
+  }
+  return order
+}
+
+/**
+ * Fold the four element-scoped `CompiledPlan` facts across every target group and write the merged
+ * answer back onto all of them.
+ *
+ * `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/`channels` are
+ * facts about the *element* — there is exactly one activation binding, one reduced-motion policy,
+ * one gate — even when its effects are split across several `target:` groups. `fade-up target:h1`
+ * and `pin target:.x` on one host cannot each ask for a different gate; the gate is decided once,
+ * from every group's facts merged, and every group's plan carries the same merged answer so
+ * whichever one `animator.ts` happens to read it from agrees with the others.
+ *
+ * Mutates the plans in place rather than returning a new list: `buildPlan` already built each one,
+ * and threading a copy through here for four field writes would cost more than it clarifies.
+ *
+ * @complexity O(g * c) time in groups and their channel counts; O(c) space.
+ * @overallScore 100
+ */
+function mergeHostFacts(targets: { plan: CompiledPlan }[]): void {
+  let reducedMotion: ReducedMotionPolicy = 'shorten'
+  let activations: NamedActivation[] | undefined
+  let timelines: Timeline[] | undefined
+  let defaultActivation: Activation | undefined
+  const channels = new Set<Channel>()
+
+  for (const { plan } of targets) {
+    reducedMotion = strictestPolicy(reducedMotion, plan.reducedMotion)
+    activations = intersect(activations, plan.supportedActivations)
+    timelines = intersect(timelines, plan.supportedTimelines)
+    defaultActivation ??= plan.defaultActivation
+    for (const channel of plan.channels) channels.add(channel)
+  }
+
+  const mergedChannels = [...channels]
+  for (const { plan } of targets) {
+    plan.reducedMotion = reducedMotion
+    plan.supportedActivations = activations ?? []
+    plan.supportedTimelines = timelines ?? []
+    plan.defaultActivation = defaultActivation
+    plan.channels = mergedChannels
+  }
 }
 
 /**
@@ -264,10 +454,21 @@ function resolveEntries(
   for (const spec of specs) {
     const resolved = registry.resolve(spec.name)
     if (resolved) {
-      // Asked here, not in `buildPlan`, because `resolveComposition` runs in between and needs the
-      // variant's channels to decide whether this spec may compose with its neighbours at all.
-      const variant = resolved.primitive.variantFor?.(spec, (m) => warnings.push(m))
-      entries.push(variant ? { spec, resolved, variant } : { spec, resolved })
+      const lifted = liftTarget(spec, resolved, warnings)
+      // Variant is computed from the *lifted* spec, not the original: the generic tween's
+      // `buildVariant` passes any parameter key it doesn't recognise straight through
+      // (`effects/tween`'s `params[key] = raw`), so a `target`/`scope` still sitting in
+      // `spec.params` here would ride along into `variant.params` and get validated as an
+      // "unknown parameter" a second time, on top of the warning `liftTarget` already gave it.
+      const variant = resolved.primitive.variantFor?.(lifted.spec, (m) => warnings.push(m))
+      const entry: Entry = variant
+        ? { spec: lifted.spec, resolved, variant }
+        : { spec: lifted.spec, resolved }
+      if (lifted.target !== undefined) {
+        entry.target = lifted.target
+        entry.scope = lifted.scope
+      }
+      entries.push(entry)
       continue
     }
     unknown.push(spec.name)
@@ -277,6 +478,94 @@ function resolveEntries(
   }
 
   return { entries, unknown }
+}
+
+/**
+ * Pull `target:`/`scope:` off a spec's params for any primitive that does not declare a `target`
+ * parameter of its own.
+ *
+ * The six scroll-mechanics/forms primitives that do declare `target` (`scroll-progress`,
+ * `horizontal-track`, `media-scrub`, `scroll-spy`, `scroll-snap`, `step-progress`) read the key
+ * themselves through `EffectParams` inside their own `prepare` — see `effects/step-marking.ts`'s
+ * module comment. Lifting it here too would be lifting nothing, since `Object.hasOwn` below is
+ * false for none of them; the early return is what keeps their existing behaviour untouched.
+ *
+ * For every other primitive, `target:h1` is not a parameter that primitive has ever heard of, so
+ * it must be gone from `spec.params` before `resolveParams`/`readParams` validate the rest — left
+ * in place it would warn "unknown parameter" on every retargeted effect in the catalog.
+ *
+ * `scope` travels with `target`, always, and is read here rather than through {@link scopeParam}:
+ * this runs on the raw `spec.params` record, before `readParams` builds an `EffectParams` reader
+ * over it, and the `'self'` default matches `target:`'s settled meaning — "search inside myself" —
+ * for every primitive that does not otherwise say so for itself.
+ *
+ * `Preset.requiresOwnSubtree` is checked here too, not as a separate pass, so a preset whose CSS
+ * cannot survive relocation is warned about and dropped in the same place the lift itself happens
+ * — see that field's own comment. Dropping keeps the effect on the host with `target:`/`scope:`
+ * still stripped from its params, rather than warning once for the refusal and a second time for
+ * an "unknown parameter" that was never really unknown, only unusable here.
+ *
+ * @returns The spec to compile with — copied and stripped only when a lift or a refusal happened —
+ *   plus the lifted target/scope. `target` is `undefined` when nothing was authored, the primitive
+ *   owns the key itself, or the preset refused relocation; `resolveEntries` reads that as "leave
+ *   this entry on the host group".
+ * @complexity O(p) time and space in the spec's parameter count.
+ * @overallScore 100
+ */
+function liftTarget(
+  spec: EffectSpec,
+  resolved: ResolvedEffect,
+  warnings: string[],
+): { spec: EffectSpec; target?: string; scope?: TargetScope } {
+  if (Object.hasOwn(resolved.primitive.parameters, 'target')) return { spec }
+  const target = spec.params.target
+  if (!target) return { spec }
+
+  const { target: _target, scope: authoredScope, ...rest } = spec.params
+  const stripped: EffectSpec = { ...spec, params: rest }
+
+  if (resolved.preset.requiresOwnSubtree) {
+    warnings.push(
+      `"${resolved.preset.name}" cannot be retargeted — its CSS reaches past the animated ` +
+        `element itself, so "target:${target}" is dropped and it stays on the host`,
+    )
+    return { spec: stripped }
+  }
+
+  const scope: TargetScope = authoredScope === 'page' ? 'page' : 'self'
+  return { spec: stripped, target, scope }
+}
+
+/**
+ * Strip a container gate (`wide:`/`narrow:`) off a JavaScript-rendered entry, warning by name.
+ *
+ * `wide:`/`narrow:` compile to the same kind of CSS custom-property switch `above:`/`below:` do
+ * (`gatedAnimationName`), and a `css-keyframes` primitive's `animation-name` reads it for free —
+ * no runtime involved, same as the viewport half. A `renderer: 'javascript'` primitive emits no
+ * `animation-name` at all, so there is nothing for that switch to neutralise. `above:`/`below:`
+ * already has a fallback for this gap — `gateMatches`/`createGateWatcher` mirror the media query in
+ * JS — but there is no `matchContainer()` to write the container equivalent with: it would need a
+ * `ResizeObserver` per container plus a re-entrancy-safe notify path, for one attribute, in v1.
+ *
+ * Refusing is the same fail-open the rest of the gate grammar uses (`parse.ts`'s `applyGate`,
+ * `breakpoints.ts`'s `gateMatches`): warn and run unconditionally, never warn and silently do
+ * nothing. `above:`/`below:` on the same segment are left alone — those still work.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function refuseContainerGate(entry: Entry, warnings: string[]): Entry {
+  const { spec, resolved } = entry
+  if (resolved.primitive.renderer === 'css-keyframes') return entry
+  if (!spec.gate?.wide && !spec.gate?.narrow) return entry
+
+  warnings.push(
+    `"${spec.name}" ignores "wide:"/"narrow:" — container gates are not supported on ` +
+      `JavaScript-rendered effects yet, so it runs unconditionally`,
+  )
+  const { above, below } = spec.gate
+  const gate: EffectGate | undefined = above || below ? { above, below } : undefined
+  return { ...entry, spec: { ...spec, gate } }
 }
 
 /**
@@ -345,14 +634,13 @@ function buildPlan(
   // `[]` (the composed effects genuinely share nothing) — see `intersect`.
   let activations: NamedActivation[] | undefined
   let timelines: Timeline[] | undefined
-  // Resolved for the whole list up front, and over the *composed* entries rather than the parsed
-  // specs: `resolveComposition` may already have dropped a conflicting effect, and an `at:` must
-  // never be measured against a neighbour that is not being compiled.
-  const sequence = resolveSequence(entries.map(memberFor), timeline, (m) => warnings.push(m))
 
-  for (const [index, entry] of entries.entries()) {
+  for (const entry of entries) {
     const { preset, primitive } = entry.resolved
-    const step = sequence[index]!
+    // Resolved once for the *whole authored comma list*, before `compileTargets` ever partitions
+    // or composes it — see that function's own comment for why. `entry.step` is always present by
+    // the time an entry reaches here: every caller of `buildPlan` sequences first.
+    const step = entry.step!
     plan.fxNames.push(preset.name)
     plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
     plan.defaultActivation ??= primitive.defaultActivation

@@ -252,15 +252,23 @@ export const SVG_PRESETS: Preset[] = [
 
   // Icon toggles — no `keyframes`, because their motion is a CSS transition in svg.css keyed off
   // aria state, not a compiled animation. Same shape as forms.ts's native-state presets.
-  { name: 'hamburger-to-x', primitive: 'icon-toggle' },
-  { name: 'play-to-pause', primitive: 'icon-toggle' },
+  // `requiresOwnSubtree: true` on all three: each moves its own `.kui-bar` children, assumed
+  // present under the fx element itself.
+  { name: 'hamburger-to-x', primitive: 'icon-toggle', requiresOwnSubtree: true },
+  { name: 'play-to-pause', primitive: 'icon-toggle', requiresOwnSubtree: true },
   // Only `plus-to-minus` transitions on the shared `icon-toggle` primitive's host box — the other
   // two only move their `.kui-bar` children, a different box `transitions` deliberately does not
   // describe (see `Preset.transitions`'s own doc comment). Transcribed from svg.css's
   // `[data-kui-fx~='plus-to-minus'] { transition: rotate ... }`; no literal timing, because
   // `icon-toggle` already has a generated `--kui-icon-toggle-duration`/`-ease` pair the way the
-  // hover family's five do.
-  { name: 'plus-to-minus', primitive: 'icon-toggle', transitions: [{ property: 'rotate' }] },
+  // hover family's five do. Still `requiresOwnSubtree`, for the same `.kui-bar` reason as its two
+  // siblings above, on top of the host-box rotation `transitions` already describes.
+  {
+    name: 'plus-to-minus',
+    primitive: 'icon-toggle',
+    transitions: [{ property: 'rotate' }],
+    requiresOwnSubtree: true,
+  },
 ]
 
 /**

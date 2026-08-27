@@ -28,19 +28,25 @@ export const FORMS_PRIMITIVES: Primitive[] = [
   SUBMIT_FLOW_PRIMITIVE,
 ]
 
+// `requiresOwnSubtree: true` on eight of these twelve — every one of `forms.css`'s 44 reaching
+// selectors, per the plan's own count, sits behind one of these names. Each keys on a sibling
+// `<label>`/`<input>` or a `.kui-*` child the CSS assumes exists beside or under the fx element;
+// `target:` relocating just the fx stamp would compile those rules to silence. `focus-ring-grow`,
+// `validate-shake`, `validate-check` and `range-fill` are not on the list — their CSS only ever
+// touches the fx element's own box.
 export const FORMS_PRESETS: Preset[] = [
-  { name: 'label-float', primitive: 'native-state' },
-  { name: 'input-underline-grow', primitive: 'native-state' },
+  { name: 'label-float', primitive: 'native-state', requiresOwnSubtree: true },
+  { name: 'input-underline-grow', primitive: 'native-state', requiresOwnSubtree: true },
   { name: 'focus-ring-grow', primitive: 'focus-ring', keyframes: 'kui-focus-ring-grow' },
   { name: 'validate-shake', primitive: 'validate-shake', keyframes: 'kui-validate-shake' },
   { name: 'validate-check', primitive: 'validate-check', keyframes: 'kui-validate-check' },
-  { name: 'strength-meter', primitive: 'strength-meter' },
-  { name: 'toggle-morph', primitive: 'toggle-morph' },
-  { name: 'checkbox-draw', primitive: 'native-state' },
-  { name: 'radio-fill', primitive: 'radio-fill' },
+  { name: 'strength-meter', primitive: 'strength-meter', requiresOwnSubtree: true },
+  { name: 'toggle-morph', primitive: 'toggle-morph', requiresOwnSubtree: true },
+  { name: 'checkbox-draw', primitive: 'native-state', requiresOwnSubtree: true },
+  { name: 'radio-fill', primitive: 'radio-fill', requiresOwnSubtree: true },
   { name: 'range-fill', primitive: 'range-fill' },
-  { name: 'submit-to-spinner-to-check', primitive: 'submit-flow' },
-  { name: 'step-progress', primitive: 'step-progress' },
+  { name: 'submit-to-spinner-to-check', primitive: 'submit-flow', requiresOwnSubtree: true },
+  { name: 'step-progress', primitive: 'step-progress', requiresOwnSubtree: true },
 ]
 
 /**

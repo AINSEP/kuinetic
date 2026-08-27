@@ -1,4 +1,5 @@
 import { ATTR } from './attrs.js'
+import type { LedgerSet } from './owned-styles.js'
 import { isSafeCssValue } from './params.js'
 import { parse, splitTopLevel } from './parse.js'
 import type { Reporter } from './reporter.js'
@@ -600,6 +601,82 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   ;(group as HTMLElement).style.setProperty('--kui-stagger-count', String(maxRank + 1))
 
   for (const warning of warnings) reporter?.warn(warning, group)
+}
+
+/**
+ * Number a retargeted set the same way {@link indexStaggerGroup} numbers `group.children` — for
+ * the set `target:`/`scope:` resolves instead, which has neither a parent relationship to the host
+ * nor `data-kui-source` on its members for that function's own selector to find.
+ *
+ * Called from `animator.ts`'s `install`, once per `CompiledTarget` whose selector is non-empty,
+ * because a retargeted group has no DOM occasion to be discovered by `applyStagger`'s subtree walk
+ * the way an ordinary stagger group is — `--kui-i` has to be assigned right where the matches are
+ * resolved.
+ *
+ * **Per-parent, not flat document order** — settled as D7 in `docs/plan-scope-page.md`, matching
+ * `createStepMarker`'s own numbering (`effects/step-marking.ts`) for the same reason that function
+ * gives: a target naming two parallel groups — copy lines and the dots that track them — should
+ * read 0..n-1 in each, not 0..2n-1 across both. Unlike that function, this one has to know each
+ * parent-group's full size before it can rank anything (`center`/`edges`/`random` all measure from
+ * a size-dependent origin — see {@link staggerRanks}), so matches are bucketed by parent first and
+ * ranked bucket by bucket, rather than counted in one streaming pass.
+ *
+ * **Writes through `ledgers`, never `element.style` directly** — the one place this deliberately
+ * does *not* follow {@link indexStaggerGroup}, whose direct `style.setProperty` calls are a
+ * pre-existing, independent leak that function's own doc comment already flags for a separate fix.
+ * Copying it here would be worse: under `scope:page` a match need not be a descendant of the host
+ * at all, so there is no ambient ledger it would otherwise fall under, and every write this
+ * function makes has to be unwound by `release()` the same way every other retargeted write is.
+ *
+ * @param host - The authored element. `--kui-stagger`/`--kui-stagger-count` are written here, from
+ *   its own `data-kui-stagger` attribute (or `cascade:`/`order:` inside `data-kui`) if present —
+ *   the same two spellings {@link resolveStaggerConfig} already reads for an ordinary group.
+ * @param matches - The elements `target:` resolved to, in document order.
+ * @param ledgers - The host's `LedgerSet`, so every property this function writes is restored by
+ *   the same `release()` call that unwinds everything else `target:` relocated.
+ * @param reporter - Diagnostic sink for a malformed `data-kui-stagger`. Optional, matching
+ *   {@link indexStaggerGroup}'s own contract.
+ * @complexity O(n) time and space in the match count.
+ * @overallScore 100
+ */
+export function indexTargetGroup(
+  host: Element,
+  matches: Element[],
+  ledgers: LedgerSet,
+  reporter?: Reporter,
+): void {
+  const warnings: string[] = []
+  const { step, from } = resolveStaggerConfig(
+    host.getAttribute(ATTR.stagger),
+    host.getAttribute(ATTR.source) ?? '',
+    warnings,
+  ) ?? { from: 'start' }
+  if (step) ledgers.style(host).set('--kui-stagger', step)
+
+  // Bucketed by parent, in the document order `matches` already carries, so each bucket's own
+  // order is preserved for `staggerRanks` to rank — see this function's own comment for why a
+  // single streaming pass (the shape `createStepMarker` uses) cannot do this job.
+  const byParent = new Map<Element | null, Element[]>()
+  for (const match of matches) {
+    const siblings = byParent.get(match.parentElement)
+    if (siblings) siblings.push(match)
+    else byParent.set(match.parentElement, [match])
+  }
+
+  let maxRank = 0
+  for (const siblings of byParent.values()) {
+    const ranks = staggerRanks(siblings.length, from, warnings)
+    for (const [index, match] of siblings.entries()) {
+      const rank = ranks[index] ?? 0
+      ledgers.style(match).set('--kui-i', String(rank))
+      if (rank > maxRank) maxRank = rank
+    }
+  }
+  // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
+  // largest offset in the group, not the member count, and the two only coincide for `start`.
+  ledgers.style(host).set('--kui-stagger-count', String(maxRank + 1))
+
+  for (const warning of warnings) reporter?.warn(warning, host)
 }
 
 /**

@@ -38,8 +38,12 @@ export const SCROLL_PRESETS: Preset[] = [
    *
    * `video-scrub` stays off: a video positioned by the page is not asking the library for a box.
    */
-  { name: 'sequence-scrub', primitive: 'media-scrub', params: { spacer: 'true' } },
-  { name: 'video-scrub', primitive: 'media-scrub' },
+  // `requiresOwnSubtree: true` on both — moot for `compile.ts`'s lift, since `media-scrub` already
+  // declares its own `target` parameter and is never lifted at all (see `liftTarget`), but still
+  // correct for `test/css-invariants.test.ts`'s generated scan, which derives the 16-name list from
+  // `src/css/*.css` alone and does not know which primitives self-manage `target:`.
+  { name: 'sequence-scrub', primitive: 'media-scrub', params: { spacer: 'true' }, requiresOwnSubtree: true },
+  { name: 'video-scrub', primitive: 'media-scrub', requiresOwnSubtree: true },
 
   // --- navigation --------------------------------------------------------------------------
   { name: 'scroll-spy', primitive: 'scroll-spy' },

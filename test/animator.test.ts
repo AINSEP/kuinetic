@@ -489,3 +489,85 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     expect(fakeWatcher.destroy).toHaveBeenCalledOnce()
   })
 })
+
+/**
+ * `target:` — docs/plan-scope-page.md steps 6/8/10. Unit-level coverage over jsdom, which can
+ * assert every attribute/inline-style write and every teardown, but cannot prove an effect
+ * actually *animates* — that is `test/browser/target-*.test.mjs`'s job (see the plan's step 11 and
+ * the recall note "tests never render a frame").
+ */
+describe('Animator — target: retargeting', () => {
+  it('moves data-kui-fx/data-kui-rm to the match, and leaves data-kui-state on the host', () => {
+    build('<div data-kui="fade-up target:h2"><h2>Title</h2></div>')
+    const host = el()
+    const h2 = el('h2')
+    expect(host.getAttribute(ATTR.state)).toBe('ready')
+    expect(host.hasAttribute(ATTR.normalized)).toBe(false)
+    expect(h2.getAttribute(ATTR.normalized)).toBe('fade-up')
+    expect(h2.hasAttribute(ATTR.rm)).toBe(true)
+    expect(h2.hasAttribute(ATTR.state)).toBe(false)
+  })
+
+  it('writes the compiled declarations onto the match, not the host', () => {
+    build('<div data-kui="fade-up 800ms target:h2"><h2>Title</h2></div>')
+    expect(el('h2').style.getPropertyValue('animation-duration')).toBe('800ms')
+    expect(el().style.getPropertyValue('animation-name')).toBe('')
+  })
+
+  it('keeps an untargeted segment on the host alongside a targeted one', () => {
+    build('<div data-kui="blur-in, fade-up target:h2"><h2>Title</h2></div>')
+    expect(el().getAttribute(ATTR.normalized)).toBe('blur-in')
+    expect(el().style.getPropertyValue('animation-name')).toBe('kui-blur-in')
+    expect(el('h2').getAttribute(ATTR.normalized)).toBe('fade-up')
+    expect(el('h2').style.getPropertyValue('animation-name')).toBe('kui-in-up')
+  })
+
+  it('resolves under scope:page against the whole document, not just descendants', () => {
+    build('<h2 id="elsewhere">Title</h2><div data-kui="fade-up target:#elsewhere scope:page"></div>')
+    expect(el('#elsewhere').getAttribute(ATTR.normalized)).toBe('fade-up')
+  })
+
+  it('restores the match to authored markup on reset, same as the host always has', () => {
+    const animator = build('<div data-kui="fade-up target:h2"><h2>Title</h2></div>')
+    animator.reset(el())
+    const h2 = el('h2')
+    expect(h2.hasAttribute(ATTR.normalized)).toBe(false)
+    expect(h2.hasAttribute(ATTR.rm)).toBe(false)
+    expect(h2.style.length).toBe(0)
+    expect(h2.hasAttribute('style')).toBe(false)
+  })
+
+  it('numbers --kui-i across the matched set, in document order', () => {
+    build('<div data-kui="fade-up target:li"><ul><li></li><li></li><li></li></ul></div>')
+    const items = [...document.querySelectorAll('li')] as HTMLElement[]
+    expect(items.map((li) => li.style.getPropertyValue('--kui-i'))).toEqual(['0', '1', '2'])
+    expect(el().style.getPropertyValue('--kui-stagger-count')).toBe('3')
+  })
+
+  it('warns and marks the host failed when the selector matches the whole document', () => {
+    const animator = build('<div data-kui="fade-up target:body"></div>')
+    expect(el().getAttribute(ATTR.state)).toBe('failed')
+    expect(reporter.messages.join()).toContain('matches the whole document')
+    void animator
+  })
+
+  it('warns and marks the host failed when the selector matches nothing', () => {
+    build('<div data-kui="fade-up target:.nope"></div>')
+    expect(el().getAttribute(ATTR.state)).toBe('failed')
+    expect(reporter.messages.join()).toContain('matched nothing')
+  })
+
+  it('keeps the host group running even when a sibling group matches nothing', () => {
+    build('<div data-kui="blur-in, fade-up target:.nope"></div>')
+    expect(el().getAttribute(ATTR.state)).toBe('ready')
+    expect(el().getAttribute(ATTR.normalized)).toBe('blur-in')
+    expect(reporter.messages.join()).toContain('matched nothing')
+  })
+
+  it('refuses target: on a preset whose CSS reaches past itself, and animates the host instead', () => {
+    build('<div data-kui="card-flip-x target:.face"><div class="face"></div></div>')
+    expect(el().getAttribute(ATTR.normalized)).toBe('card-flip-x')
+    expect(el('.face').hasAttribute(ATTR.normalized)).toBe(false)
+    expect(reporter.messages.join()).toContain('cannot be retargeted')
+  })
+})
