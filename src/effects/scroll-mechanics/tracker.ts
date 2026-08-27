@@ -199,20 +199,96 @@ export function trackProgress(
    */
   const geometry = createMeasureCache(() => {
     const box = measure(el)
-    const top = options.contentAnchor
-      ? measure(options.contentAnchor).top - box.height
-      : sourceTop(el, box, measure, positionOf)
+    const anchor = options.contentAnchor ? measure(options.contentAnchor) : null
+    const top = anchor ? anchor.top - box.height : sourceTop(el, box, measure, positionOf)
     const stickyOffset = options.stickyEl ? offsetOf(options.stickyEl) : 0
-    return { contentTop: top - stickyOffset - scrollportTop + scrollTop, height: box.height }
+    return {
+      contentTop: top - stickyOffset - scrollportTop + scrollTop,
+      height: box.height,
+      // Only read on the `opaqueDistance` path below, but measured here so it shares the one
+      // layout flush per epoch that everything else in this cache already pays for.
+      anchorHeight: anchor?.height ?? 0,
+    }
   })
+
+  /*
+   * Decided once, because it is a property of the authored string rather than of the viewport.
+   *
+   * `calc(100vh - 4rem)` is a valid `type: 'length'` (see `core/params.ts`) and reaches the
+   * spacer's `height` intact, where the browser resolves it perfectly. `toPixels` cannot: it owns
+   * no CSS expression engine on purpose, so it handed back its fallback — the element's own height
+   * — and progress scrubbed over a range that had nothing to do with the reserved scroll room. One
+   * authored distance, two different numbers, and nothing said so.
+   */
+  const authoredDistance = options.distance ?? ''
+  const opaqueDistance = authoredDistance !== '' && !resolvesToPixels(authoredDistance)
+  if (opaqueDistance && !options.contentAnchor) warnUnmeasurable(ctx, authoredDistance)
 
   return ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {
     scrollTop = frame.metrics.scrollTop
     scrollportTop = frame.metrics.viewportTop
     const box = geometry.read(frame.epoch)
-    const span = resolveDistance(options.distance, { top: 0, height: box.height }, frame)
+    /*
+     * An expression the browser has already resolved is read back off the spacer rather than
+     * re-derived — the same move `domOffsetTop` makes for `offset-top`, and for the same reason.
+     * `contentAnchor` is by definition a box the library inserted exactly `distance` tall, so its
+     * measured height *is* the authored distance: browser-resolved, re-measured every epoch, and
+     * therefore agreeing with the reserved scroll room by construction rather than by coincidence.
+     */
+    const span =
+      opaqueDistance && options.contentAnchor
+        ? box.anchorHeight
+        : resolveDistance(options.distance, { top: 0, height: box.height }, frame)
     onProgress(progressFrom(box.contentTop - scrollTop, span), frame)
   })
+}
+
+/**
+ * Any basis at all, for asking whether a value has a unit `toPixels` knows.
+ *
+ * The question is about the string's shape — which unit it carries, or whether it is an
+ * expression — so the numbers here never reach a result and are arbitrary.
+ */
+const PROBE_BASIS: LengthBasis = {
+  viewportWidth: 1,
+  viewportHeight: 1,
+  percentBasis: 1,
+  fontSize: 16,
+  rootFontSize: 16,
+}
+
+/**
+ * Whether `toPixels` can convert this authored length to a number at all.
+ *
+ * Asked with `NaN` as the fallback, which is the only way to tell a real conversion apart from
+ * `toPixels` giving up — the two are indistinguishable when the fallback is a plausible pixel
+ * value, which is exactly how a `calc()` distance passed for a working one.
+ *
+ * @param value - An authored value already accepted as `type: 'length'`.
+ * @returns Whether it is a plain number-and-unit this module can resolve.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function resolvesToPixels(value: string): boolean {
+  return Number.isFinite(toPixels(value, PROBE_BASIS, Number.NaN))
+}
+
+/**
+ * Say so when an authored distance cannot be measured and the element's height stands in.
+ *
+ * Silence is the failure mode this library treats as the worst one: the effect still scrubs, just
+ * over the wrong range, and nothing distinguishes that from a badly chosen distance. Naming the
+ * value and the way out costs one warning.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function warnUnmeasurable(ctx: PrepareContext, distance: string): void {
+  ctx.warn(
+    `distance "${distance}" is a CSS expression this effect cannot measure, so progress runs ` +
+      `over the element's own height instead — author a plain length like "200vh", or turn on ` +
+      `spacer:true so the distance can be measured from the box the library reserves.`,
+  )
 }
 
 /**
@@ -220,6 +296,9 @@ export function trackProgress(
  *
  * A zero or negative span is the degenerate case that matters — an element with no height, or one
  * measured before layout settles. `progressFrom` treats it as "not started" rather than dividing.
+ *
+ * Values `toPixels` cannot convert never reach here with a spacer in play: `trackProgress` measures
+ * those off the spacer instead, and warns when there is no spacer to measure.
  *
  * @complexity O(n) time in the authored value's length; O(1) space.
  * @overallScore 100

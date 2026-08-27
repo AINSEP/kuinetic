@@ -94,6 +94,51 @@ describe('flip-indicator', () => {
     el.remove()
   })
 
+  // The duration is varied because the leak is a dropped handle, not a long timer: a 60ms slide
+  // outliving teardown is the same defect as a 10s one, just harder to see on the page.
+  it.each(['120ms', '400ms', '10s'])(
+    'cancels a %s slide that is still playing when the effect is torn down',
+    (duration) => {
+      const el = document.createElement('div')
+      const target = document.createElement('button')
+      target.id = 'active-tab'
+      document.body.append(el, target)
+
+      // jsdom reports a zero rect for everything, so nothing would ever register as *moved* and
+      // no animation would be created at all. `prepareIndicator` reads the node three times per
+      // move — snapshot, current position, then the FLIP's own "last" — and only the first and
+      // third are compared, so shifting from the third read is what makes the indicator move.
+      let reads = 0
+      el.getBoundingClientRect = () => {
+        reads += 1
+        const left = reads >= 3 ? 120 : 0
+        return { top: 0, left, width: 80, height: 4, right: left + 80, bottom: 4 } as DOMRect
+      }
+
+      const cancel = vi.fn()
+      // Never-resolving `finished`: the run has to still be in flight when teardown arrives, which
+      // is the whole condition under test.
+      ;(el as HTMLElement & { animate: unknown }).animate = () =>
+        ({ finished: new Promise<void>(() => {}), cancel }) as unknown as Animation
+
+      const params = createParams({
+        follow: '#active-tab',
+        attribute: 'aria-selected',
+        duration,
+        ease: 'ease-out',
+      })
+      const instance = flipIndicator.prepare!(el, params, fakeCtx())
+      instance.activate()
+
+      expect(cancel).not.toHaveBeenCalled()
+      instance.destroy()
+      expect(cancel).toHaveBeenCalledOnce()
+
+      target.remove()
+      el.remove()
+    },
+  )
+
   it('does nothing when the follow selector is left at its default empty string', () => {
     const el = document.createElement('div')
     const setSpy = vi.fn()
