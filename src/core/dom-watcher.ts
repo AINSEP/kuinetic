@@ -91,7 +91,10 @@ export function createDomWatcher(options: DomWatcherOptions): DomWatcher {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold],
+        // `ATTR.stagger` is watched for the same reason `ATTR.source` is: both spell a stagger
+        // group, and an edit to either has to re-rank the group. Its absence here meant editing
+        // `data-kui-stagger` produced no record at all — not a missed handler, no mutation.
+        attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold, ATTR.stagger],
       })
     },
     destroy() {
