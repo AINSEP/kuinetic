@@ -123,6 +123,46 @@ reveal, and the pair keeps the observer live so the element fades back out when 
 in again when it returns. Existing markup is unaffected — `on:enter` on its own still fires exactly
 once.
 
+### The four crossings — `actions:`
+
+`enter/leave` is two moments out of four. Scrolling *down* an element enters the viewport and later
+leaves out of the top; scrolling back *up* it re-enters from the top and leaves again out of the
+bottom. `actions:` names what happens at each, in that order:
+
+```html
+<div data-kui="fade-up on:enter actions:play/pause/resume/none">
+```
+
+That one is the reason the feature exists: the reveal plays on the way in, **freezes where it is**
+when you scroll past, and **carries on from there** when you come back — which `enter/leave` cannot
+express, because its only two verbs are "play" and "play backwards".
+
+| Verb | What it does |
+|---|---|
+| `play` | start it, or turn a reversing element back around |
+| `pause` | freeze the playhead where it is |
+| `resume` | carry on from there (starts it, if it never started) |
+| `reverse` | play back out to the from-state — what `enter/leave`'s exit half does |
+| `reset` | rewind to the from-state and stop there |
+| `restart` | rewind and keep playing |
+| `complete` | jump to the end state |
+| `none` | nothing |
+
+Slash-separated so it needs no quoting, and in the same order GSAP's `toggleActions` uses. Slots
+you leave off are `none`, so `actions:play` is "play on the way in and nothing else" — today's
+default for a plain `on:enter`.
+
+Three things worth knowing:
+
+- **It refines `on:`, so it needs one of the observed activations** (`enter`, `leave`, or a pair
+  containing one). On `on:hover` there are no crossings and the library says so rather than binding
+  verbs nothing will reach.
+- **Writing it keeps the observer live.** A plain `on:enter` is spent by its first firing; an
+  element that named the other three crossings is asking to be told about them.
+- **The five verbs that move a playhead need one.** JavaScript-rendered effects (`split-flap`,
+  `count-up`, `draggable`) expose none, and a scroll-driven element's playhead belongs to the
+  scroller — both are named in a warning rather than doing nothing quietly.
+
 Reversing needs a real playhead, which only CSS-rendered effects have. Pair an exit with a
 JavaScript-rendered effect (`split-flap`, `draggable`, `count-up`) and the library warns rather than
 doing nothing quietly. And because the list is open, a misspelled event can no longer be rejected as
@@ -161,6 +201,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
 | `below:` | run this effect only below a breakpoint | `fade-up below:md` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
+| `actions:` | what to do at each of a scroll trigger's four crossings | `actions:play/pause/resume/none` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `threshold:` | how much of the element must be visible before `on:enter` fires | `fade-up threshold:30%` |

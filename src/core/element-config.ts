@@ -1,5 +1,7 @@
 import { validateActivation } from './activation.js'
 import { ATTR } from './attrs.js'
+import { parseToggleActions } from './toggle-actions.js'
+import type { ToggleActions } from './toggle-actions.js'
 import type { Activation, ParsedValue, Timeline } from './types.js'
 
 /** The subset of an element's attributes this module needs. Keeps resolution DOM-free. */
@@ -14,6 +16,14 @@ export interface ElementConfig {
   activation: Activation
   /** Whether the author named an activation, so a primitive default may fill in when not. */
   activationAuthored: boolean
+  /**
+   * What to do at each of the observer's four crossings, when the author wrote `actions:`.
+   *
+   * Absent — not a defaulted four-way table — because absent and "the default four-way table" are
+   * genuinely different bindings: without this the observer keeps its two-way delivery and its
+   * one-shot release, which is what every piece of existing markup depends on.
+   */
+  actions?: ToggleActions
   timeline: Timeline
   /** Trailing tokens of `data-kui-timeline`, e.g. `entry 0% cover 60%`. */
   range: string
@@ -63,6 +73,11 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
   return {
     activation: authored ?? 'enter',
     activationAuthored: authored !== undefined,
+    // Re-parsed rather than threaded down, and its warnings dropped: `parse.ts` has already
+    // reported every one of them against this same element through `validateToggleActions`, so
+    // forwarding them would double each diagnostic. There is no longhand attribute to merge with —
+    // `actions:` refines `on:` and has only the inline spelling.
+    ...(parsed.actions === undefined ? {} : { actions: parseToggleActions(parsed.actions) }),
     timeline: TIMELINES.has(head as Timeline) ? (head as Timeline) : 'time',
     range: rest.join(' '),
     threshold: parsed.threshold ?? attributes.threshold ?? '0%',

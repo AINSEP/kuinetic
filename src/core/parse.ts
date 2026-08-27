@@ -1,6 +1,7 @@
 import { validateActivation } from './activation.js'
 import { axisOf, BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
 import type { EffectGate, GateDirection } from './breakpoints.js'
+import { validateToggleActions } from './toggle-actions.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -13,7 +14,8 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * rather than failing silently.
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
- * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm`/`func` are hoisted element-wide (see `HOISTS`);
+ * `on`/`actions`/`timeline`/`threshold`/`cascade`/`spread`/`order`/`cols`/`along`/`rm`/`func` are
+ * hoisted element-wide (see `HOISTS`);
  * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns; and
  * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
  * pair, container for the second — which `core/breakpoints.ts` owns.
@@ -504,6 +506,25 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
   timeline(result, value) {
     assignOnce(result, 'timeline', value, 'timelines')
   },
+  /**
+   * What to do at each of a scroll trigger's four crossings —
+   * `actions:play/pause/resume/reset`, in the order enter, leave, enter-back, leave-back.
+   *
+   * Element-scoped for `on:`'s reason and then some: it *refines* `on:`, and an element has one
+   * activation to refine. Validated here against the closed verb set, exactly as `rm:` is and for
+   * the same reason — there is nothing a later stage could know about the word `pasue` that this
+   * one does not. The checks that need the element's compiled plan (is this activation even
+   * observed? can these effects be paused at all?) live in `toggle-actions.ts` and run from
+   * `animator.ts`.
+   */
+  actions(result, value) {
+    const problems = validateToggleActions(value)
+    if (problems.length > 0) {
+      result.warnings.push(...problems)
+      return
+    }
+    assignOnce(result, 'actions', value, 'crossing actions')
+  },
   threshold(result, value) {
     assignOnce(result, 'threshold', value, 'thresholds')
   },
@@ -639,6 +660,7 @@ function assignOnce<
     | 'activation'
     | 'timeline'
     | 'threshold'
+    | 'actions'
     | 'cascade'
     | 'spread'
     | 'order'

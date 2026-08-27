@@ -628,13 +628,22 @@ export interface EffectSpec {
 export interface ParsedValue {
   specs: EffectSpec[]
   /**
-   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `spread:` / `order:` /
-   * `rm:` / `func:` keys. Element-scoped: one element has one activation, one timeline, one stagger
-   * group, one reduced-motion policy and one completion — so none of these can sensibly differ
-   * between the comma-separated segments of a single attribute, and all eight are lifted out of the
-   * per-effect `params`.
+   * Hoisted from the reserved `on:` / `actions:` / `timeline:` / `threshold:` / `cascade:` /
+   * `spread:` / `order:` / `cols:` / `along:` / `rm:` / `func:` keys. Element-scoped: one element
+   * has one activation, one timeline, one stagger group, one reduced-motion policy and one
+   * completion — so none of these can sensibly differ between the comma-separated segments of a
+   * single attribute, and all of them are lifted out of the per-effect `params`.
    */
   activation?: Activation
+  /**
+   * What to do at each of the scroll trigger's four crossings, verbatim —
+   * `play/pause/resume/reset`, in the order enter, leave, enter-back, leave-back.
+   *
+   * A refinement of `activation` rather than a peer of it: without one of the observed activations
+   * there are no crossings to act on, and `toggle-actions.ts` says so rather than binding verbs
+   * nothing will ever reach.
+   */
+  actions?: string
   timeline?: string
   threshold?: string
   /**

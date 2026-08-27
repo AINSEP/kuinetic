@@ -102,8 +102,8 @@ Rules:
 - Positional args must appear in the order above. Unknown or out-of-order tokens produce a
   **dev-mode console warning naming the element and the token** — never a silent no-op.
 - Some `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
-  `timeline:`, `threshold:`, `cascade:`, `spread:`, `order:`, `cols:`, `along:`, `rm:` and `func:`
-  are hoisted element-wide
+  `actions:`, `timeline:`, `threshold:`, `cascade:`, `spread:`, `order:`, `cols:`, `along:`, `rm:`
+  and `func:` are hoisted element-wide
   (below), because one element has one activation, one timeline, one stagger group, one
   reduced-motion policy and one completion. `at:` is per-segment and positions that segment relative
   to the one before it in the comma list — see §3.1. `above:`/`below:` are per-segment too and gate
