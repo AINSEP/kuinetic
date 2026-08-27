@@ -396,7 +396,13 @@
      the video below it instead of the full (credit rail + video) box. */
   .hero-title-row {
     display: grid; grid-template-columns: auto 1fr; column-gap: 0.65rem;
-    width: 100%; max-width: 740px; margin: 0 auto;
+    width: 100%; max-width: 740px;
+    /* Raised by exactly the height of `.hero-title-caption` below it (0.85rem margin + its own
+       ~1.08rem line box). The gold line is meant to sit between the headline and the video, and
+       the video must not move — `.hero-media`'s negative top margin already absorbs the caption's
+       height, so the only place the line can come from is the title moving up into the space it
+       vacates. Change this and `.hero-media`'s margin-top together or the video shifts. */
+    margin: -1.93rem auto 0;
   }
   .hero-title-spacer {
     visibility: hidden;
@@ -423,6 +429,13 @@
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
+  /* The tagline's top half, dropped into the gap the headline and the video already leave
+     between them — `.hero-media`'s negative top margin below is tightened by this line's own
+     height (margin + line box) so the video does not move down to make room for it. Zeroes the
+     `<p>` UA bottom margin explicitly rather than trusting it to collapse away: this box has no
+     next sibling inside `.hero-title-col` for it to collapse against, so an unset one would
+     leak into `.hero`'s flex gap as silent extra space. */
+  .hero-title-caption { margin: 0.42rem 0 0.43rem; }
   /* Negative, for the same reason `.hero-media`'s top margin is: `.hero`'s row gap is one token
      shared by every child, so pulling just this row closer to the video means offsetting it here
      rather than shrinking a gap three other elements also read. */
@@ -572,8 +585,9 @@
   }
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-  /* Reuses `.kicker` — this is the same "CSS Animation Library. Made for Designers" tagline, just
-     relocated under the video instead of above the headline. */
+  /* Reuses `.kicker`, same as `.hero-title-caption` above the video — the tagline is now two
+     lines split across the two spots this comment used to describe as alternatives: "CSS
+     Animation Library" sits under the headline, and this line closes with the second half. */
   .hero-media-caption { margin-top: 1rem; }
 
   /* ---------- ticker ---------- */
@@ -1200,7 +1214,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="scroll.html,interactive.html,data-hover.html"
+          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
         >
           Advanced
         </button>
@@ -1208,6 +1222,7 @@
           <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
           <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -1264,6 +1279,7 @@
             <span class="hero-title-spacer" aria-hidden="true">Made by Leon A.</span>
             <div class="hero-title-col">
               <h1 data-kui="split-chars 2000ms on:load">HTML attributes → CSS3 Animations</h1>
+              <p class="kicker hero-title-caption" data-kui="fade-up 600ms 100ms">CSS Animation Library</p>
             </div>
           </div>
 
@@ -1322,7 +1338,7 @@
                 <span class="flip-label">Flip</span>
               </button>
             </div>
-            <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">CSS Animation Library. Made for Designers</p>
+            <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">Easy For Beginners. Made for Designers</p>
           </div>
 
           <div class="hero-actions" data-kui="fade-up 700ms 540ms">

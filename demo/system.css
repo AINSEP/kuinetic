@@ -111,7 +111,18 @@ p { margin: 0; }
 code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 a { color: inherit; }
-a:not(.btn):not(.nav-link):not(.chip) {
+/* The `:not([data-kui-fx*='underline'])` is load-bearing. The `underline-slide`/`underline-center`
+   presets draw their own rule with a `::after` and reset `text-decoration: none` themselves — but
+   they do it from inside `@layer kui.effects`, and an unlayered page rule beats any layer no
+   matter how specific. Without this exclusion the static underline below stayed painted and the
+   effect animated a second rule underneath one that never moved: the link looked permanently
+   underlined and the hover appeared to do nothing.
+
+   Excluded here rather than answered with a second, more specific rule: this selector is already
+   (0,3,1) and a plain `a[data-kui-fx~='...']` override is only (0,1,1), so the obvious-looking fix
+   silently loses. Carving the exception out of the one rule that causes it avoids that whole
+   specificity race. */
+a:not(.btn):not(.nav-link):not(.chip):not([data-kui-fx*='underline']) {
   text-decoration: underline;
   text-decoration-color: var(--border);
   text-underline-offset: 3px;

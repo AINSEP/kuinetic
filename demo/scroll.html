@@ -284,7 +284,17 @@
      card instead of a clipped image, every effect travels into the space around it — at the old
      1.5rem gap the scale card grew over three neighbours and parallax-x slid a third of the way
      into the next column. The gap is the travel budget, so distances stay under it. */
-  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 3rem 2rem; align-items: start; }
+  /* `clip`, not `hidden`: it contains a card's travel the same way `.parallax-card`/`.demo-card`
+     already clip their own content, but does NOT establish a scroll container — `hidden`/`auto`/
+     `scroll` would, and `animation-timeline: view()` resolves against the nearest scroll-container
+     ancestor (see the TRAP comment on src/css/scroll.css's keyframes), so `hidden` here would freeze
+     every scroll-linked effect in this grid at whatever progress first computed. At the desktop
+     2-column width the grid is wide enough that a card's travel never reaches this box's own edge,
+     so the clip is invisible there; at the single-column mobile width there is no neighbouring
+     column to travel into, and `parallax-x`/`depth-layer`/`parallax-scale` walked a solo card's
+     translate straight past the grid and widened the whole document — see
+     ADS-memory/.local-artifacts/no-sideways-scroll-record.md. */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 3rem 2rem; align-items: start; overflow: clip; }
   @media (min-width: 760px) { .demo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .matrix-group .demo-grid { margin-top: 0; }
   /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
@@ -1377,7 +1387,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="scroll.html,interactive.html,data-hover.html"
+          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
         >
           Advanced
         </button>
@@ -1385,6 +1395,7 @@
           <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
           <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">

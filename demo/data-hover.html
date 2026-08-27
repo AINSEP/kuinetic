@@ -170,6 +170,17 @@
   /* ---------- links (section I) ---------- */
   .link-row { display: flex; flex-wrap: wrap; gap: 2.5rem; margin-top: 1.4rem; }
   .link-row a { font-size: 1.15rem; font-weight: 500; }
+  /* The two underline links are ordinary `.demo-card`s like every other group on this page, so
+     their chips mount into a `.demo-card-caption` the same way and need no placement rule of
+     their own. `.fx-link` only carries the type; the card supplies the box. */
+  .fx-link { font-size: 1.15rem; font-weight: 500; }
+
+  /* The one composed card. `.fx-btn:hover` repaints the border to `--fg` — white in dark theme —
+     which drew a white ring between the button and `border-glow`'s shadow and read as a gap the
+     effect did not put there. The glow is this card's whole subject, so the button's own hover
+     border stays put and lets the shadow sit directly against the edge. Scoped to this card by
+     the `color:` param so no other `.fx-btn` on the page changes. */
+  .demo-card [data-kui*="border-glow color:"]:hover { border-color: var(--border); }
 
   /* ---------- card tilt (section I) — real photography, per the owner's asset library ---------- */
   .tilt-media { position: relative; flex: none; }
@@ -237,7 +248,7 @@
           class="kui-nav-dropdown-trigger"
           aria-haspopup="true"
           aria-expanded="false"
-          data-nav-pages="scroll.html,interactive.html,data-hover.html"
+          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
         >
           Advanced
         </button>
@@ -245,6 +256,7 @@
           <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
           <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
           <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
         </div>
       </div>
       <div class="kui-nav-dropdown" data-nav-group="designs">
@@ -505,10 +517,26 @@
         </div>
 
         <div class="matrix-group">
+          <p class="matrix-group-label">Composition — 1</p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body"><button class="fx-btn" data-kui="lift, border-glow color:#4f46e5">Lift + glow</button></div>
+              <p class="demo-card-caption">data-kui="lift, border-glow color:#4f46e5" — two presets, one eased merge</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
           <p class="matrix-group-label">Links — 2</p>
-          <div class="link-row">
-            <a href="#" data-kui="underline-slide">underline-slide</a>
-            <a href="#" data-kui="underline-center">underline-center</a>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body"><a href="#" class="fx-link" data-kui="underline-slide">underline-slide</a></div>
+              <p class="demo-card-caption">data-kui="underline-slide"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fx-body"><a href="#" class="fx-link" data-kui="underline-center">underline-center</a></div>
+              <p class="demo-card-caption">data-kui="underline-center"</p>
+            </div>
           </div>
         </div>
 
