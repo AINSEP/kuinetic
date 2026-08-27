@@ -196,6 +196,8 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | easing | third positional arg, or `ease:` | `fade-up 800ms 200ms ease-out` |
 | `spring(…)` | a tuned spring, in either easing slot — see [Springs](#springs) | `fade-up 700ms spring(bounce:0.5)` |
 | `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
+| `repeat:` | how many times this effect plays — a number, or `infinite` | `shake-error repeat:3` |
+| `yoyo:` | alternate direction between plays, so it goes there and comes back | `bob repeat:4 yoyo:true` |
 | `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
 | `below:` | run this effect only below a breakpoint | `fade-up below:md` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
@@ -275,6 +277,57 @@ Three things worth knowing:
 - **It compiles to a delay**, so a scroll-driven `timeline:view`/`timeline:scroll` ignores it —
   position those with a range instead (`data-kui-timeline="view entry 0% cover 60%"`). It does work
   on `timeline:pin`, where the delay is the scrub head.
+
+---
+
+## Playing it more than once — `repeat:` and `yoyo:`
+
+`repeat:` is how many times the effect plays. `yoyo:true` makes alternate plays run backwards, so
+it goes there and comes back.
+
+```html
+<button data-kui="shake-error 300ms repeat:3" data-kui-on="click">try again</button>
+<div data-kui="bob 900ms repeat:4 yoyo:true" data-kui-on="load">up, down, up, down</div>
+<div data-kui="glow-pulse repeat:infinite">ambient</div>
+```
+
+```live
+<div class="doc-demo-box" data-kui="shake-error 300ms repeat:3" data-kui-on="load">repeat:3</div>
+<div class="doc-demo-box" data-kui="bob 900ms repeat:4 yoyo:true" data-kui-on="load">repeat:4 yoyo:true</div>
+```
+
+Both are **per effect**, not per element — `glow-pulse repeat:infinite, fade-up` loops the pulse and
+leaves the fade playing once, which is the whole reason they are written inside the comma list
+rather than on the element.
+
+| Written | Means |
+|---|---|
+| `repeat:3` | plays **three times** in total |
+| `repeat:1` | plays once — the default, and the same as writing nothing |
+| `repeat:infinite` | loops forever |
+| `repeat:0` | never plays; the element jumps to the effect's end state. Warned, because it is rarely what anyone means |
+
+> **Coming from GSAP?** `repeat:` here is the *total* number of plays, matching CSS's
+> `animation-iteration-count` exactly, so what you write is what appears in devtools. GSAP's
+> `repeat: 2` means three plays; ours means two.
+
+Five things worth knowing:
+
+- **`yoyo:` and not `direction:`.** `direction` is already a parameter on the split-text effects
+  (`split-chars direction:up`), and one word cannot mean two things.
+- **An even `repeat:` with `yoyo:true` ends where it started.** That is what yoyo *is* — but for an
+  entrance effect, "where it started" is invisible, so `fade-up repeat:2 yoyo:true` finishes with a
+  blank element. The library warns and names the fix: use an odd count.
+- **`repeat:infinite` needs a clock.** On `timeline:view`, `timeline:scroll` or `timeline:pin` the
+  progress comes from a finite scroll range, "forever" has nowhere to go, and the browser renders
+  the element frozen at its end state. The repeat is dropped with a warning; a *finite* count works
+  fine on all three, and on `timeline:pin` the scrub runs through every play across the pin.
+- **`at:after` measures the whole playback.** `fade-up 400ms repeat:3, blur-in at:after` starts the
+  blur at 1200ms, not 400ms. Anchoring to the end of a `repeat:infinite` effect is refused with a
+  warning — it has no end — so use `at:with` to start alongside it instead.
+- **JavaScript-rendered effects cannot repeat.** `count-up`, `typewriter`, `pin-section` and the
+  rest compile no `animation-iteration-count` at all. Writing one warns by name rather than doing
+  nothing quietly; a couple of them carry their own loop parameter instead (`typewriter loop:true`).
 
 ---
 

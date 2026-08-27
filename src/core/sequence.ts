@@ -1,5 +1,6 @@
 import { toMilliseconds } from './js-params.js'
 import { timingProperty } from './registry.js'
+import { isInfiniteRepeat, playbackExpression, repeatCount } from './repeat.js'
 import type { Timeline } from './types.js'
 
 /**
@@ -202,6 +203,13 @@ export interface SequenceMember {
   cascadeDelay?: string
   cascadeDuration?: string
   /**
+   * The segment's sanitized `repeat:`, when it has one. Read only by the `after` anchor: an effect
+   * that plays three times ends three durations after it starts, and "start 200ms before the
+   * previous one ends" has to mean the end the visitor actually sees. `infinite` is refused here
+   * rather than multiplied — see `refuseEndless`.
+   */
+  repeat?: string
+  /**
    * Whether this segment's renderer can act on a computed delay at all.
    *
    * True for every `css-keyframes` segment. For a JavaScript-rendered one it means the primitive
@@ -386,6 +394,10 @@ function follow(
     }
   }
 
+  // Ahead of the duration read, because it is not a question about the duration: an effect that
+  // repeats forever has no end at any duration, readable or not.
+  if (isInfiniteRepeat(previous.repeat)) return refuseEndless(chain, index, own)
+
   const durationMs = timeMs(previous.duration ?? previous.cascadeDuration ?? '')
   if (durationMs === undefined) {
     // A continuous effect — a pin, a drag handler, a scroll progress track — has no end to
@@ -394,11 +406,15 @@ function follow(
     // plain number everywhere else rather than an "unknown" threaded through the whole chain.
     return refuseUnmeasurable(chain, index, own)
   }
+  // The previous segment's *whole* playback, not one iteration of it. `repeat:` defaults to no
+  // multiplier at all, so an unrepeated chain compiles exactly the expression it always has.
+  const played = playbackExpression(
+    durationExpression(previous.duration, previous.primitiveId),
+    previous.repeat,
+  )
   return {
-    delayExpr:
-      `${anchor.delayExpr} + ${durationExpression(previous.duration, previous.primitiveId)}` +
-      position.term,
-    delayMs: anchor.delayMs + durationMs + position.offsetMs,
+    delayExpr: `${anchor.delayExpr} + ${played}${position.term}`,
+    delayMs: anchor.delayMs + durationMs * (repeatCount(previous.repeat) ?? 1) + position.offsetMs,
     sequenced: true,
   }
 }
@@ -416,6 +432,37 @@ function refuseUnmeasurable(chain: Chain, index: number, own: SequenceStep): Seq
     `cannot start "${member.name}" relative to the end of "${previous.name}": "${previous.name}" ` +
       `has no readable duration, so it has no end to measure from — give it an explicit duration, ` +
       `or use at:with to start alongside it instead`,
+  )
+  return own
+}
+
+/**
+ * Refuse a position anchored to the end of an effect that repeats forever.
+ *
+ * This is the question the outline asked and there is no arithmetic answer to it: "start 200ms
+ * before the previous one ends" has no referent when the previous one does not end. The three
+ * candidate readings were all worse than refusing. Treating the *first* iteration as the end makes
+ * `at:` mean something different depending on a key written on a different segment, and reads
+ * correctly on the page only until the loop comes round. Stacking it after one iteration and
+ * letting the loop run underneath produces overlapping motion the author never described. And
+ * quietly ignoring the `at:` is the silent no-op the whole grammar is built to avoid.
+ *
+ * So it is the same shape as `refuseUnmeasurable` beside it — warn by name, leave the segment on
+ * its own delay, and point at `at:with`, which *is* well defined against an endless neighbour
+ * because a start moment still exists. Kept as its own function rather than a branch in that one
+ * because the reason differs: an unreadable duration is a measurement that failed, an infinite
+ * repeat is a measurement that cannot be posed.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function refuseEndless(chain: Chain, index: number, own: SequenceStep): SequenceStep {
+  const member = chain.members[index]!
+  const previous = chain.members[index - 1]!
+  chain.warn(
+    `cannot start "${member.name}" relative to the end of "${previous.name}": "${previous.name}" ` +
+      `has repeat:infinite, so it never ends — use at:with to start alongside it, or give it a ` +
+      `finite repeat count`,
   )
   return own
 }

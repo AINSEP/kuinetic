@@ -2,6 +2,7 @@ import { validateActivation } from './activation.js'
 import { axisOf, BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakpoints.js'
 import type { EffectGate, GateDirection } from './breakpoints.js'
 import { springTokenProblems } from './easing.js'
+import { applyPlayback, isPlaybackKey } from './repeat.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -15,9 +16,10 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
  * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm`/`func` are hoisted element-wide (see `HOISTS`);
- * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns; and
+ * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns;
  * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
- * pair, container for the second — which `core/breakpoints.ts` owns.
+ * pair, container for the second — which `core/breakpoints.ts` owns; and `repeat:`/`yoyo:` are
+ * lifted onto the spec as playback settings, which `core/repeat.ts` owns.
  *
  * The tokenizer is paren- and quote-aware because legitimate values contain both commas and
  * spaces: `ease:cubic-bezier(.2, .8, .2, 1)` is shredded by a naive split.
@@ -329,23 +331,7 @@ function applyToken(
     return
   }
 
-  // Lifted onto the spec rather than left in `params`, exactly as the positional times are: `at:`
-  // is a position, not a parameter, and no primitive's `ParameterSchema` declares it — so leaving
-  // it in `params` would make `resolveParams` warn "unknown parameter" on every effect in the
-  // catalog. See `EffectSpec.at` in `types.ts` for why it is not hoisted element-wide either.
-  if (token.key === 'at') {
-    if (spec.at !== undefined) result.warnings.push(`duplicate parameter "at" in "${segment}"`)
-    spec.at = token.value
-    return
-  }
-
-  // Lifted for the same reason `at:` is, and per-segment for a reason of its own: the whole point
-  // of a gate is that neighbouring segments can carry different ones, so hoisting it element-wide
-  // the way `on:` is hoisted would make `fade-up below:md, parallax-y above:md` inexpressible.
-  if (isGateDirection(token.key)) {
-    applyGate(spec, token.key, token.value, { segment, result })
-    return
-  }
+  if (applyLifted(token.key, token.value, spec, { segment, result })) return
 
   // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
   // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to
@@ -388,6 +374,59 @@ function applyEasing(
   spec.easing = value
 }
 
+/**
+ * Apply a `key:value` that belongs on the *spec* rather than in its `params` or on the element.
+ *
+ * Three families live here and they are all per-segment for the same reason, stated once: none of
+ * them is a parameter — no primitive's `ParameterSchema` declares any of them, so left in `params`
+ * they would make `resolveParams` warn "unknown parameter" on every effect in the catalog — and
+ * none of them can be hoisted element-wide the way `on:`/`timeline:` are, because the whole point
+ * of each is that neighbouring segments carry different ones:
+ *
+ * - **`at:`** positions a segment against its neighbours; two segments at the same position is the
+ *   thing it exists to stop being the only option.
+ * - **`above:`/`below:`/`wide:`/`narrow:`** gate a segment on width; `fade-up below:md, parallax-y
+ *   above:md` is the case gates exist for and an element-scoped gate could not express it at all.
+ * - **`repeat:`/`yoyo:`** set playback; `glow-pulse repeat:infinite, fade-up` must leave `fade-up`
+ *   playing once, which is exactly why `declarations.ts` writes `animation-iteration-count` as a
+ *   per-track list in the first place.
+ *
+ * Grouped into one function rather than three branches in `applyToken` so that shared reason has a
+ * single home, and so the token dispatch stays under the project's cognitive-complexity ceiling
+ * with room for the fourth family, whenever it lands.
+ *
+ * @returns Whether the key was one of these. `false` leaves the caller's own dispatch to run.
+ * @complexity O(n) time in the value's length; O(1) space.
+ * @overallScore 100
+ */
+function applyLifted(
+  key: string,
+  value: string,
+  spec: EffectSpec,
+  context: GateContext,
+): boolean {
+  const { segment, result } = context
+  if (key === 'at') {
+    if (spec.at !== undefined) result.warnings.push(`duplicate parameter "at" in "${segment}"`)
+    spec.at = value
+    return true
+  }
+  if (isGateDirection(key)) {
+    applyGate(spec, key, value, context)
+    return true
+  }
+  if (isPlaybackKey(key)) {
+    // `core/repeat.ts` owns the value grammar and every diagnostic; see its module comment for why
+    // this is spelled `yoyo` and not `direction`.
+    applyPlayback(spec, key, value, {
+      segment,
+      warn: (message) => result.warnings.push(message),
+    })
+    return true
+  }
+  return false
+}
+
 /** A table, not a branch: `axisOf` grows the same way when a third axis ever lands. */
 const GATE_DIRECTIONS: ReadonlySet<string> = new Set(['above', 'below', 'wide', 'narrow'])
 
@@ -395,7 +434,11 @@ function isGateDirection(key: string): key is GateDirection {
   return GATE_DIRECTIONS.has(key)
 }
 
-/** Where a gate token came from, so `applyGate` can quote it back without a fifth parameter. */
+/**
+ * Where a lifted token came from, so `applyGate` and its siblings can quote it back without a
+ * fifth parameter. Named for the gate because that is what first needed it; every family in
+ * {@link applyLifted} takes the same pair.
+ */
 interface GateContext {
   segment: string
   result: ParsedValue

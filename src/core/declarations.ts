@@ -2,6 +2,7 @@ import { gatedAnimationName } from './breakpoints.js'
 import type { Entry } from './compile.js'
 import { cssEasingValue } from './easing.js'
 import { timingProperty } from './registry.js'
+import { directionValue, playbackExpression } from './repeat.js'
 import { durationExpression } from './sequence.js'
 import type { SequenceStep } from './sequence.js'
 import type { Timeline } from './types.js'
@@ -32,6 +33,11 @@ export interface AnimationTracks {
   delays: string[]
   easings: string[]
   iterationCounts: string[]
+  /**
+   * One `animation-direction` per track. Almost always every entry is `normal`, which is the CSS
+   * initial value — see {@link declarationsFor} for why that case emits no declaration at all.
+   */
+  directions: string[]
 }
 
 /**
@@ -41,7 +47,15 @@ export interface AnimationTracks {
  * @overallScore 100
  */
 export function emptyTracks(): AnimationTracks {
-  return { names: [], keyframes: [], durations: [], delays: [], easings: [], iterationCounts: [] }
+  return {
+    names: [],
+    keyframes: [],
+    durations: [],
+    delays: [],
+    easings: [],
+    iterationCounts: [],
+    directions: [],
+  }
 }
 
 /**
@@ -98,13 +112,22 @@ export function pushTrack(
   // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
   const duration = durationExpression(spec.duration, id)
-  const delay = staggerDelay(step.delayExpr, timeline, duration)
+  const delay = staggerDelay(step.delayExpr, timeline, duration, spec.repeat)
   const easing = easingValue(spec.easing, id)
   // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
   // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
   // infinite` in that CSS, is what stops a composed one-shot effect from inheriting the loop: CSS
   // repeats a shorter value list to match the longest one across every longhand in the group.
-  const iterations = `var(${iterationCountProperty(resolved.preset.name)}, 1)`
+  //
+  // An authored `repeat:` replaces that `var()` with a literal rather than writing the custom
+  // property inline, and the difference matters: `--kui-*` is a flat inherited namespace, so an
+  // inline `--kui-fx-glow-pulse-iterations` would be picked up by any descendant also carrying
+  // `glow-pulse`. `animation-iteration-count` is not inherited, so the literal cannot travel.
+  //
+  // It is a sanitized value by the time it arrives — `compile.ts`'s `refusePlayback` has already
+  // dropped anything the renderer or the timeline cannot honour.
+  const iterations = spec.repeat ?? `var(${iterationCountProperty(resolved.preset.name)}, 1)`
+  const direction = directionValue(spec.yoyo)
 
   for (const name of keyframesFor(entry)) {
     // Every track this segment compiles carries the same gate, including the several a `tween`
@@ -116,6 +139,7 @@ export function pushTrack(
     tracks.delays.push(delay)
     tracks.easings.push(easing)
     tracks.iterationCounts.push(iterations)
+    tracks.directions.push(direction)
   }
 }
 
@@ -172,14 +196,22 @@ export function pushTransitions(
 }
 
 /**
- * Collapse the parallel track lists into the six `animation-*` longhands they compile to.
+ * Collapse the parallel track lists into the `animation-*` longhands they compile to.
+ *
+ * Six of them unconditionally, and `animation-direction` only when some track actually alternates.
+ * That last one is not tidiness: `normal` is the CSS initial value, so emitting a list of them
+ * would be a no-op declaration written onto every animated element on every page for the sake of
+ * the rare one that uses `yoyo:`. Omitting it is what keeps an attribute written before `yoyo:`
+ * existed compiling byte-for-byte identically. When it *is* emitted it carries one value per
+ * track, the full length — a shorter list would be repeated by the browser to match
+ * `animation-name` and would silently alternate a neighbour that never asked to.
  *
  * @complexity O(t) time and space in the track count.
  * @overallScore 100
  */
 export function declarationsFor(tracks: AnimationTracks): Record<string, string> {
   if (tracks.names.length === 0) return {}
-  return {
+  const declarations: Record<string, string> = {
     'animation-name': tracks.names.join(', '),
     'animation-duration': tracks.durations.join(', '),
     'animation-delay': tracks.delays.join(', '),
@@ -187,6 +219,10 @@ export function declarationsFor(tracks: AnimationTracks): Record<string, string>
     'animation-iteration-count': tracks.iterationCounts.join(', '),
     'animation-fill-mode': tracks.names.map(() => 'both').join(', '),
   }
+  if (tracks.directions.some((value) => value !== 'normal')) {
+    declarations['animation-direction'] = tracks.directions.join(', ')
+  }
+  return declarations
 }
 
 /**
@@ -211,18 +247,38 @@ export function declarationsFor(tracks: AnimationTracks): Record<string, string>
  * siblings. Every track on the element takes the same stagger term, so the relative spacing `at:`
  * established inside the list survives the shift intact.
  *
+ * An authored `repeat:` widens the head to the *whole* playback rather than one iteration, which is
+ * the only reading under which `repeat:3 timeline:pin` means anything: with a one-iteration head,
+ * progress 1 lands on the end of the first play and iterations 2 and 3 are unreachable no matter
+ * how far the page is scrolled — a knob that exists and does nothing, which is worse than a missing
+ * one. Widened, the pin scrubs all three, and with `yoyo:true` it scrubs forward and back. This is
+ * the same arithmetic the `at:` sequencer does for "after the previous one ends", through the same
+ * `playbackExpression`, so the two cannot disagree about how long a repeated effect takes.
+ *
+ * `repeat:infinite` never reaches here — `compile.ts`'s `refusePlayback` drops it under `pin` and
+ * says why — because there is no finite head that spans it and `calc(600ms * infinite)` is not an
+ * expression.
+ *
  * @param base - The segment's start, from `core/sequence.ts`. An unwrapped sum, so it nests here
  *   without a second `calc()`.
+ * @param repeat - The sanitized `repeat:`, or `undefined`, in which case every character of the
+ *   output is what it was before this parameter existed.
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function staggerDelay(base: string, timeline: Timeline, duration: string): string {
+function staggerDelay(
+  base: string,
+  timeline: Timeline,
+  duration: string,
+  repeat: string | undefined,
+): string {
   const staggered = `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
   if (timeline !== 'pin') return `calc(${staggered})`
-  // The head spans one duration *plus* the group's whole stagger span, so the last-staggered
+  // The head spans the whole playback *plus* the group's whole stagger span, so the last-staggered
   // child lands exactly on its final frame at progress 1 (see `stagger.ts`). Unstaggered, the
-  // `var()` fallbacks collapse the extra term to zero and this is `progress x duration`.
-  const span = `${duration} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
+  // `var()` fallbacks collapse the extra term to zero and this is `progress x playback`.
+  const played = playbackExpression(duration, repeat)
+  const span = `${played} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
   return `calc(${staggered} - var(--kui-progress, 0) * (${span}))`
 }
 
