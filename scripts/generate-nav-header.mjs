@@ -71,7 +71,6 @@ const BASIC_PAGES = [
  * demonstrated on pages filed under a heading that said CSS.
  */
 const ADVANCED_PAGES = [
-  ['demo-js.html', 'Demo JS'],
   ['scroll.html', 'Scroll'],
   ['interactive.html', 'Interactive'],
   ['data-hover.html', 'Data &amp; Hover'],
@@ -112,7 +111,6 @@ const DEFAULTS = { dataOdId: true, navCta: true, selfIndex: false, extraGroups: 
 const PAGES = [
   'ambient-feedback.html',
   'data-hover.html',
-  'demo-js.html',
   { file: 'docs.html', dataOdId: false, navCta: false },
   'icons-transitions.html',
   { file: 'index-basic.html', selfIndex: true },
