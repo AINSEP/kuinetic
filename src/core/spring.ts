@@ -171,9 +171,27 @@ export function createSpringRunner(
     handle = deps.requestFrame(frame)
   }
 
+  /**
+   * Begin — or renew — a run toward the current target.
+   *
+   * The two clocks are reset on different conditions, and conflating them is what made a
+   * pointer-driven spring crawl. `startedAt` is the settle-budget clock and *must* renew on every
+   * retarget: a spring being continuously re-aimed (`cursor-lag`, `magnetic`) has new work to do
+   * each time, and measuring the budget from the runner's birth would abort a perfectly healthy
+   * spring ten seconds into a mouse move.
+   *
+   * `lastTime` is the integration clock, and renewing it while a frame is already scheduled is a
+   * straight loss of physics. Pointer events land microseconds before the frame they cause, so a
+   * retarget that reset it left the pending frame integrating that microsecond gap instead of the
+   * full step since the previous spring step — the spring then advanced by a fraction of the time
+   * that actually passed, and how much depended on where each event happened to land relative to
+   * rAF. Only a loop that is genuinely idle (settled, stopped, or aborted — all of which leave no
+   * pending frame) needs a fresh integration clock, and skipping the idle gap is exactly why it
+   * has to be reset in that case.
+   */
   function start(): void {
-    lastTime = deps.now()
-    startedAt = lastTime
+    startedAt = deps.now()
+    if (handle === null) lastTime = startedAt
     schedule()
   }
 

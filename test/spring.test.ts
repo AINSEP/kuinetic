@@ -273,3 +273,101 @@ describe('defaultSpringDeps', () => {
     expect(() => deps.cancelFrame(handle)).not.toThrow()
   })
 })
+
+/**
+ * A retarget is not a restart.
+ *
+ * Pointer-driven springs (`cursor-lag`, `magnetic`) are re-aimed on every `pointermove`, which
+ * lands microseconds before the frame it causes. The integration clock has to survive that: a
+ * spring that re-aims at 120Hz must advance by exactly as much wall time as one that was aimed
+ * once, or the whole effect crawls and does so by a frame-order-dependent amount.
+ */
+describe('createSpringRunner retarget timing', () => {
+  /**
+   * Run the same spring for `frames` steps of `frameMs`, optionally re-aiming at the *same* target
+   * `retargetLeadMs` before each frame. Re-aiming at a value the spring is already pulling toward
+   * carries no new information, so it must not change a single integrated value.
+   */
+  function runFrames(options: {
+    frames: number
+    frameMs: number
+    retargetLeadMs: number | null
+  }): number {
+    let time = 0
+    const queue: Array<(t: number) => void> = []
+    const deps: SpringDeps = {
+      requestFrame: (callback) => queue.push(callback),
+      cancelFrame: () => {},
+      now: () => time,
+    }
+    let latest = 0
+    const runner = createSpringRunner(CONFIG, (value) => {
+      latest = value
+    }, deps)
+    runner.to(100)
+
+    for (let i = 0; i < options.frames; i++) {
+      if (options.retargetLeadMs === null) {
+        time += options.frameMs
+      } else {
+        time += options.frameMs - options.retargetLeadMs
+        runner.to(100)
+        time += options.retargetLeadMs
+      }
+      queue.shift()?.(time)
+    }
+    return latest
+  }
+
+  // The lead is varied deliberately: the defect scaled with how close the event landed to the
+  // frame, so freezing one lead would leave every other pointer cadence untested.
+  it.each([
+    { frameMs: 16, retargetLeadMs: 0.2 },
+    { frameMs: 16, retargetLeadMs: 1 },
+    { frameMs: 16, retargetLeadMs: 8 },
+    { frameMs: 8, retargetLeadMs: 0.5 },
+    { frameMs: 33, retargetLeadMs: 2 },
+  ])(
+    'integrates the same physics whether or not it is re-aimed $retargetLeadMs ms before each $frameMs ms frame',
+    ({ frameMs, retargetLeadMs }) => {
+      const frames = 20
+      const aimedOnce = runFrames({ frames, frameMs, retargetLeadMs: null })
+      const reAimed = runFrames({ frames, frameMs, retargetLeadMs })
+
+      // Guard against both runs being trivially equal at ~0.
+      expect(aimedOnce).toBeGreaterThan(50)
+      expect(reAimed).toBeCloseTo(aimedOnce, 6)
+    },
+  )
+
+  it('starts a fresh integration clock when re-aimed after the loop has gone idle', () => {
+    // The other half of the same rule: an idle gap is not physics either. A spring that settled,
+    // sat for five seconds, and is then re-aimed must integrate one frame, not five seconds
+    // clamped to the catch-up ceiling.
+    let time = 0
+    const queue: Array<(t: number) => void> = []
+    const deps: SpringDeps = {
+      requestFrame: (callback) => queue.push(callback),
+      cancelFrame: () => {},
+      now: () => time,
+    }
+    let latest = 0
+    const runner = createSpringRunner(CONFIG, (value) => {
+      latest = value
+    }, deps)
+
+    runner.to(100)
+    while (queue.length > 0) {
+      time += 16
+      queue.shift()?.(time)
+    }
+    expect(latest).toBe(100)
+
+    time += 5000
+    runner.to(0)
+    time += 16
+    queue.shift()?.(time)
+
+    expect(latest).toBeCloseTo(stepSpring({ value: 100, velocity: 0 }, 0, CONFIG, 0.016).value, 6)
+  })
+})
