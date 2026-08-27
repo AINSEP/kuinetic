@@ -10,6 +10,14 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **`demo/docs.html`'s new `scroll-spy` TOC is not browser-verified.** Landed in `33b12e2` with
+      lint/typecheck/`demo-markup` green, but the browser slot was held so nothing rendered a frame.
+      100% unit coverage proves registration, not that an effect animates. Still to assert: the
+      right heading highlights while scrolling each of the three docs; switching doc tabs mid-scroll
+      tears down and rebuilds with no console warning and no stuck highlight; and `offset-top:104px`
+      visually matches the old `STRIP=104` so no heading is marked active while still behind the
+      sticky header.
+
 - [ ] **`word-cycler` and `header-shrink` each transition a property outside their own declared
       channel.** Found 2026-08-26 while building the pseudo-element and transition scanners. This is
       a *different shape* from the clobber bug above and the skipped invariant does not catch it:
@@ -20,12 +28,17 @@ library should own it. Never call something "not the library's job" without grep
       but for the wrong reason. Needs its own assertion.
       Owner: `src/effects/catalog/text.ts` + `src/effects/catalog/navigation.ts`.
 
-- [ ] **`demo/show-code.js` hand-rolls its own drag.** Same class as the `docs.html` TOC item, and
-      the same ground-rule violation: `pointerdown` plus manual `dragX`/`dragY` transform maths at
-      `show-code.js:266-284`, while the library ships four drag effects — `drag`, `drag-inertia`,
-      `drag-x`, `drag-y`. Check whether a named effect covers the modal's constraint (it keeps a
-      minimum area on screen so the panel can never be dragged out of reach) before assuming it
-      needs the hand-rolled version.
+- [ ] **`draggable` has no hard, viewport-aware bound — so `show-code.js` hand-rolls its drag.**
+      Investigated 2026-08-26, and this is a real capability gap, not a lazy demo. All four drag
+      effects (`drag`, `drag-inertia`, `drag-x`, `drag-y`) route through one `draggable` primitive
+      whose only relevant parameter is `bounds` — a scalar *elastic resistance radius* around the
+      drag's rest position, explicitly "never a hard clamp" per its own comment, with no awareness
+      of viewport size or the dragged element's rect. `show-code.js`'s `KEEP_VISIBLE` is a hard
+      clamp that keeps ~140px of the panel on screen so it can never be dragged out of reach —
+      a different mechanism, not a tuning of the same one. Needs owner sign-off on adding a hard
+      bound (viewport-relative, element-size-aware) to `draggable`; until then `show-code.js:266-284`
+      stays hand-rolled and that is the correct call.
+      Related: the `docs.html` TOC half of this pair is closed (`33b12e2`).
 
 - [ ] **The four modern CSS techniques are not wired up at all — zero usage in `src/`.** Verified
       2026-08-26: `@starting-style`, `interpolate-size`, anchor positioning (`anchor-name` /
