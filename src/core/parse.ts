@@ -255,9 +255,9 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
  * identical delay. 69 groups across 16 demo pages were inert this way, each one warning to the
  * silent default reporter.
  *
- * Only `cascade`/`order` qualify. The other hoists (`on:`, `timeline:`, `threshold:`, `rm:`) do
- * nothing on an element with no effect to apply them to, so accepting a bare `on:enter` here
- * would turn a real typo — a dropped effect name — into silence.
+ * Only `cascade`/`spread`/`order` qualify. The other hoists (`on:`, `timeline:`, `threshold:`,
+ * `rm:`) do nothing on an element with no effect to apply them to, so accepting a bare `on:enter`
+ * here would turn a real typo — a dropped effect name — into silence.
  *
  * @param first - The segment's first token, already known to split as `key:value`.
  * @param rest - The remaining tokens, untouched.
@@ -281,7 +281,7 @@ function applyGroupOnlySegment(first: string, rest: string[], result: ParsedValu
 }
 
 /** The hoists that can stand alone as a whole attribute. See `applyGroupOnlySegment`. */
-const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set(['cascade', 'order'])
+const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set(['cascade', 'spread', 'order'])
 
 /**
  * Assign a positional time value. The first is the duration, the second the delay — the same
@@ -507,7 +507,21 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
    * narrowing. `stagger.ts` owns the one screen both spellings get.
    */
   cascade(result, value) {
+    warnStepMode(result, 'spread', 'cascade', value)
     assignOnce(result, 'cascade', value, 'stagger steps')
+  },
+  /**
+   * The total-time spelling of the same setting — GSAP's `stagger.amount` beside `cascade`'s
+   * `stagger.each`. `cascade:50ms` on a 200-item list takes ten seconds; `spread:600ms` takes six
+   * hundred milliseconds however many items there are, because `stagger.ts` divides the budget by
+   * the group's largest rank.
+   *
+   * Unvalidated here for exactly `cascade`'s reason: the value is divided inside a `calc()` and
+   * written to `--kui-stagger`, so `var(--speed)` and `calc(1s - 200ms)` have to survive.
+   */
+  spread(result, value) {
+    warnStepMode(result, 'cascade', 'spread', value)
+    assignOnce(result, 'spread', value, 'stagger budgets')
   },
   /**
    * Also unvalidated here, for a different reason: the legal set depends on the *group size*
@@ -559,6 +573,34 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
 }
 
 /**
+ * Name the *other* spelling of the stagger step when both are written on one element.
+ *
+ * `cascade:` and `spread:` are two answers to one question — how far apart do the children start —
+ * and an element that states both has stated a contradiction the group cannot honour twice.
+ * `assignOnce` cannot catch it because they are different keys, and it is worth catching: the
+ * resolution (`spread` wins, see `stagger.ts`) is silent otherwise, so an author who added a budget
+ * and forgot to delete the step would see neither the value they wrote nor a reason.
+ *
+ * @param other - The key that would already have been written if this is a conflict.
+ * @param key - The key being written now, for the warning's own text.
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function warnStepMode(
+  result: ParsedValue,
+  other: 'cascade' | 'spread',
+  key: 'cascade' | 'spread',
+  value: string,
+): void {
+  const written = result[other]
+  if (written === undefined) return
+  result.warnings.push(
+    `"${other}:${written}" and "${key}:${value}" are two ways to set one stagger step — ` +
+      `the total budget ("spread:") wins`,
+  )
+}
+
+/**
  * Write a hoisted value once. A second, differing value across segments is an authoring mistake;
  * first one wins so behaviour stays deterministic.
  *
@@ -566,7 +608,7 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
  * @overallScore 100
  */
 function assignOnce<
-  K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'order' | 'rm' | 'func',
+  K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'spread' | 'order' | 'rm' | 'func',
 >(
   result: ParsedValue,
   key: K,

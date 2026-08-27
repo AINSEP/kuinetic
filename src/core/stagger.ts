@@ -34,6 +34,18 @@ export interface StaggerConfig {
    * `calc(90ms * 2)` work today, and narrowing this to a `<time>` literal would break them.
    */
   step?: string
+  /**
+   * A total time budget for the whole group, instead of a per-item step — GSAP's `stagger.amount`
+   * beside `step`'s `stagger.each`.
+   *
+   * The two are alternatives, never a pair: {@link resolveStep} divides this by the group's largest
+   * rank to *produce* the step, so a group carrying both would be asking for two different steps.
+   * Where both are written, this one wins and the step is named in a warning.
+   *
+   * Unvalidated beyond the escape screen, for `step`'s exact reason — it is divided inside a
+   * `calc()`, and `var(--speed)` divides as well as `600ms` does.
+   */
+  spread?: string
   from: StaggerFrom
 }
 
@@ -49,6 +61,14 @@ const FROM_KEYWORDS: ReadonlySet<string> = new Set(['start', 'end', 'center', 'e
  * the word changes depending on which attribute they happen to be writing in.
  */
 const ORDER_KEYS: ReadonlySet<string> = new Set(['from', 'order'])
+
+/**
+ * The total-budget spelling, accepted in this attribute under the same word `data-kui` hoists it
+ * as. Unlike the step it has no positional form: the bare first token has meant "a per-item step"
+ * since before this existed, and a second bare token that quietly meant something else would be
+ * the worst possible way to spend the one positional slot this grammar has.
+ */
+const SPREAD_KEY = 'spread'
 
 /**
  * A `key:value` token in this attribute's grammar. The key is a bare identifier, which is what
@@ -139,37 +159,60 @@ function parseStaggerTokens(
   warnings: string[],
 ): { config: StaggerConfig; sawFrom: boolean } {
   const config: StaggerConfig = { from: 'start' }
-  let sawFrom = false
+  const seen = { from: false, spread: false }
 
   // Paren- and quote-aware, so `calc(90ms * 2)` survives as one token rather than three. That is
   // the same tokenizer `data-kui` uses; a plain `.split(' ')` here would shred exactly the values
   // this attribute has always accepted.
   for (const token of splitTopLevel(value, ' ', warnings)) {
     const pair = PAIR_RE.exec(token)
-    if (!pair) {
-      config.step = keepFirstStep(config.step, token, warnings)
-      continue
-    }
-
-    const [, key = '', raw = ''] = pair
-    if (!ORDER_KEYS.has(key)) {
-      warnings.push(
-        `unrecognised key "${key}" in data-kui-stagger — expected a time step, "from:" or "order:"`,
-      )
-      continue
-    }
-    // First one wins, matching `assignOnce` in `parse.ts`: a second, differing value across the
-    // same attribute is a mistake, and letting the last one win makes which mistake you get depend
-    // on token order. One flag rather than one per spelling, because `from:` and `order:` are the
-    // same key — writing both is the same mistake as writing `from:` twice, not a second chance.
-    if (sawFrom) {
-      warnings.push(`duplicate "${key}:" in data-kui-stagger — "${raw}" ignored`)
-      continue
-    }
-    sawFrom = true
-    config.from = parseFrom(raw, warnings)
+    if (pair) applyStaggerPair(pair[1] ?? '', pair[2] ?? '', { config, seen, warnings })
+    else config.step = keepFirstStep(config.step, token, warnings)
   }
-  return { config, sawFrom }
+  return { config, sawFrom: seen.from }
+}
+
+/** What {@link applyStaggerPair} is filling in, grouped so the call site stays one argument. */
+interface StaggerParseState {
+  config: StaggerConfig
+  seen: { from: boolean; spread: boolean }
+  warnings: string[]
+}
+
+/**
+ * Apply one `key:value` token from `data-kui-stagger`.
+ *
+ * Split out of {@link parseStaggerTokens} to keep that function's branch count under the budget;
+ * every rule it implements is documented inline below.
+ *
+ * @complexity O(n) time in the value's length; O(1) space.
+ * @overallScore 100
+ */
+function applyStaggerPair(key: string, raw: string, state: StaggerParseState): void {
+  const { config, seen, warnings } = state
+  if (key === SPREAD_KEY) {
+    if (seen.spread) warnings.push(`duplicate "spread:" in data-kui-stagger — "${raw}" ignored`)
+    else config.spread = raw.trim()
+    seen.spread = true
+    return
+  }
+  if (!ORDER_KEYS.has(key)) {
+    warnings.push(
+      `unrecognised key "${key}" in data-kui-stagger — ` +
+        `expected a time step, "spread:", "from:" or "order:"`,
+    )
+    return
+  }
+  // First one wins, matching `assignOnce` in `parse.ts`: a second, differing value across the
+  // same attribute is a mistake, and letting the last one win makes which mistake you get depend
+  // on token order. One flag rather than one per spelling, because `from:` and `order:` are the
+  // same key — writing both is the same mistake as writing `from:` twice, not a second chance.
+  if (seen.from) {
+    warnings.push(`duplicate "${key}:" in data-kui-stagger — "${raw}" ignored`)
+    return
+  }
+  seen.from = true
+  config.from = parseFrom(raw, warnings)
 }
 
 /**
@@ -214,7 +257,30 @@ export function resolveStaggerConfig(
   if (attribute === null && inline === undefined) return undefined
 
   const { config: longhand, sawFrom } = parseStaggerTokens(attribute ?? '', warnings)
-  return screenStep(mergeInline(longhand, sawFrom, inline ?? {}, warnings), warnings)
+  return oneStepMode(screenStep(mergeInline(longhand, sawFrom, inline ?? {}, warnings), warnings), warnings)
+}
+
+/**
+ * Reduce a config that states both a per-item step and a total budget to the one it can honour.
+ *
+ * The budget wins, and the rule is deliberately order-independent — the same answer whichever
+ * attribute each half arrived in and whichever order the tokens were written in. `spread:` is a
+ * constraint on the whole group ("everybody has started by 600ms") and `step` is the quantity a
+ * budget *solves for*, so honouring the budget is the one reading under which both statements
+ * cannot visibly contradict the result. Naming the loser is what keeps that from being a silent
+ * choice; `parse.ts` names the same conflict when both spellings sit in one `data-kui`, and this is
+ * the check that also catches the cross-attribute case.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function oneStepMode(config: StaggerConfig, warnings: string[]): StaggerConfig {
+  if (config.spread === undefined || config.step === undefined) return config
+  warnings.push(
+    `stagger step "${config.step}" is ignored — "spread:${config.spread}" already budgets the ` +
+      `whole group, and the step is what it divides out`,
+  )
+  return { from: config.from, spread: config.spread }
 }
 
 /**
@@ -228,14 +294,21 @@ export function resolveStaggerConfig(
  * @complexity O(n) time in the attribute length; O(1) space in the common case, O(n) when parsed.
  * @overallScore 100
  */
-function inlineGroupKeys(source: string): { cascade?: string; order?: string } | undefined {
+function inlineGroupKeys(source: string): InlineGroupKeys | undefined {
   if (!hasGroupKey(source)) return undefined
   // `parse()`'s warnings are deliberately dropped: `animator.process()` has already reported every
   // one of them against this same element, so forwarding them would double every grammar
-  // diagnostic on the page. Only the two hoisted values are taken.
-  const { cascade, order } = parse(source)
-  if (cascade === undefined && order === undefined) return undefined
-  return { cascade, order }
+  // diagnostic on the page. Only the hoisted values are taken.
+  const { cascade, spread, order } = parse(source)
+  if (cascade === undefined && spread === undefined && order === undefined) return undefined
+  return { cascade, spread, order }
+}
+
+/** The hoisted group keys, exactly as `parse()` returns them. */
+interface InlineGroupKeys {
+  cascade?: string
+  spread?: string
+  order?: string
 }
 
 /**
@@ -251,18 +324,36 @@ function inlineGroupKeys(source: string): { cascade?: string; order?: string } |
  * Dropped rather than defaulted, and warned by name: there is no safe step to substitute, and a
  * group with no step is a group that does not stagger, which is visible.
  *
- * @complexity O(n) time in the step length; O(1) space.
+ * The total budget gets the identical treatment, and needs it slightly more: it is written into a
+ * `calc()` rather than straight into the property, so an escape there would land inside an
+ * expression rather than beside one.
+ *
+ * A rebuilt object rather than a `delete`, so `StaggerConfig`'s optional fields are genuinely
+ * absent under `exactOptionalPropertyTypes` rather than present-and-undefined.
+ *
+ * @complexity O(n) time in the two values' length; O(1) space.
  * @overallScore 100
  */
 function screenStep(config: StaggerConfig, warnings: string[]): StaggerConfig {
-  if (config.step === undefined || isSafeCssValue(config.step)) return config
-  warnings.push(`stagger step "${config.step}" contains disallowed CSS syntax — ignored`)
-  // A fresh object rather than `delete config.step`: the caller's `config` is built from a spread
-  // of the longhand parse, and mutating a property off it would make the "no step at all" case
-  // (`{ from }`) and the "step refused" case structurally identical for the caller either way —
-  // but only this form leaves `StaggerConfig`'s optional `step` genuinely absent under
-  // `exactOptionalPropertyTypes` rather than present-and-undefined.
-  return { from: config.from }
+  const screened: StaggerConfig = { from: config.from }
+  if (keepValue('step', config.step, warnings)) screened.step = config.step
+  if (keepValue('spread', config.spread, warnings)) screened.spread = config.spread
+  return screened
+}
+
+/**
+ * Whether one authored time value survives the escape screen. Absent values pass silently — there
+ * is nothing to refuse — and a refused one is named, because the substitute (no step at all) is a
+ * group that does not stagger, which is visible but not self-explaining.
+ *
+ * @complexity O(n) time in the value's length; O(1) space.
+ * @overallScore 100
+ */
+function keepValue(label: 'step' | 'spread', value: string | undefined, warnings: string[]): value is string {
+  if (value === undefined) return false
+  if (isSafeCssValue(value)) return true
+  warnings.push(`stagger ${label} "${value}" contains disallowed CSS syntax — ignored`)
+  return false
 }
 
 /**
@@ -280,13 +371,17 @@ function screenStep(config: StaggerConfig, warnings: string[]): StaggerConfig {
 function mergeInline(
   longhand: StaggerConfig,
   sawFrom: boolean,
-  inline: { cascade?: string; order?: string },
+  inline: InlineGroupKeys,
   warnings: string[],
 ): StaggerConfig {
   const config: StaggerConfig = { ...longhand }
   if (inline.cascade !== undefined) {
     warnOverride('stagger step', longhand.step, inline.cascade, warnings)
     config.step = inline.cascade
+  }
+  if (inline.spread !== undefined) {
+    warnOverride('stagger budget', longhand.spread, inline.spread, warnings)
+    config.spread = inline.spread
   }
   if (inline.order !== undefined) {
     const order = parseFrom(inline.order, warnings, 'order')
@@ -320,7 +415,7 @@ function mergeInline(
  * @overallScore 100
  */
 function hasGroupKey(source: string): boolean {
-  return source.includes('cascade:') || source.includes('order:')
+  return source.includes('cascade:') || source.includes('spread:') || source.includes('order:')
 }
 
 /**
@@ -385,6 +480,43 @@ function parseFrom(raw: string, warnings: string[], key: 'from' | 'order' = 'fro
       `start, end, center, edges, random, or a child index`,
   )
   return 'start'
+}
+
+/**
+ * The value to write into `--kui-stagger` for a group whose largest rank is `maxRank`.
+ *
+ * A fixed step is passed through exactly as it always was. A total budget is divided by the largest
+ * rank, because that rank is what the delay formula multiplies the step by
+ * (`declarations.ts`'s `staggerDelay`) — so `budget / maxRank` is the step under which the
+ * last-starting child starts at exactly `budget`, and the group's whole stagger span is the number
+ * the author wrote, whatever the child count. Adding children tightens the gaps instead of
+ * lengthening the sequence, which is the entire point of the mode: a 200-item list at
+ * `cascade:50ms` takes ten seconds to finish entering, and the same list at `spread:600ms` takes
+ * six hundred milliseconds.
+ *
+ * The divisor is the largest *rank*, not `count - 1`, so this composes with `order:` for free:
+ * `center` on six children tops out at rank 2, and dividing by 2 is what keeps the *span* equal to
+ * the budget rather than stretching it to two and a half times the budget.
+ *
+ * **`maxRank === 0` is a division by zero and must never be written.** A one-child group, or any
+ * group whose ordering puts every child on beat 0, has no gaps to distribute — and
+ * `calc(600ms / 0)` is not an invalid-but-harmless value, it is an invalid declaration, so the
+ * browser drops it and the group silently inherits whatever `--kui-stagger` an ancestor happened to
+ * publish. `0ms` says the true thing: no gaps.
+ *
+ * @param config - The resolved group config; `spread` wins over `step` before this is reached.
+ * @param maxRank - Largest rank written across the group.
+ * @returns The step to write, or `undefined` when the author declared none.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function resolveStep(config: StaggerConfig, maxRank: number): string | undefined {
+  if (config.spread === undefined) return config.step
+  if (maxRank <= 0) return '0ms'
+  // Parenthesised because the budget is authored text: `spread:calc(1s - 200ms)` is legal and
+  // `calc(calc(1s - 200ms) / 2)` is what it has to become, not `calc(calc(...) / 2)`'s unbracketed
+  // cousin. Nesting `calc()` is valid CSS and costs nothing.
+  return `calc((${config.spread}) / ${String(maxRank)})`
 }
 
 /**
@@ -544,7 +676,8 @@ function scatterKey(index: number, count: number): number {
  * `--kui-order` or `--kui-from` would have needed its own reset and would have been one more thing
  * to remember.
  *
- * @param group - Element carrying `data-kui-stagger`, or a `data-kui` with `cascade:`/`order:`.
+ * @param group - Element carrying `data-kui-stagger`, or a `data-kui` with `cascade:`/`spread:`/
+ *   `order:`.
  * @param reporter - Diagnostic sink for a malformed attribute. Optional, so the two-argument
  *   contract every existing caller uses keeps working.
  * @complexity O(n) time in the number of children; O(n) space for the ranks.
@@ -552,24 +685,30 @@ function scatterKey(index: number, count: number): number {
  */
 export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   const warnings: string[] = []
+  const host = group as HTMLElement
   // Both spellings, merged. Falls back to the empty longhand parse when neither attribute declares
   // a group, so a direct call on any element still publishes the same defaults it always did —
   // `applyStagger` is what decides which elements are groups, and it never routes a non-group here.
-  const { step, from } = resolveStaggerConfig(
+  const config = resolveStaggerConfig(
     group.getAttribute(ATTR.stagger),
     group.getAttribute(ATTR.source) ?? '',
     warnings,
   ) ?? { from: 'start' }
-  if (step) (group as HTMLElement).style.setProperty('--kui-stagger', step)
 
   const children = animatedChildren(group)
-  const ranks = staggerRanks(children.length, from, warnings)
+  const ranks = staggerRanks(children.length, config.from, warnings)
   let maxRank = 0
   for (const [index, child] of children.entries()) {
     const rank = ranks[index] ?? 0
     child.style.setProperty('--kui-i', String(rank))
     if (rank > maxRank) maxRank = rank
   }
+
+  // After the ranks, not before them, which is the one ordering change a total budget forces: the
+  // step a `spread:` resolves to is the budget divided by the largest rank, and the largest rank is
+  // not known until every child has one. A fixed `cascade:` step does not care either way.
+  const step = resolveStep(config, maxRank)
+  if (step) host.style.setProperty('--kui-stagger', step)
 
   // The group's stagger span, published for `timeline: pin`. A time-driven stagger does not need
   // it — the clock keeps running past the last item's delay, so everything finishes eventually. A
@@ -598,7 +737,7 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   // group publishes 1 without a special case. That matters: 0 would make the scrub head one
   // stagger step *shorter* than a single duration, seeking past the final frame before progress
   // reached 1.
-  ;(group as HTMLElement).style.setProperty('--kui-stagger-count', String(maxRank + 1))
+  host.style.setProperty('--kui-stagger-count', String(maxRank + 1))
 
   for (const warning of warnings) reporter?.warn(warning, group)
 }
@@ -646,14 +785,18 @@ export function indexTargetGroup(
   reporter?: Reporter,
 ): void {
   const warnings: string[] = []
-  const { step, from } = resolveStaggerConfig(
+  const config = resolveStaggerConfig(
     host.getAttribute(ATTR.stagger),
     host.getAttribute(ATTR.source) ?? '',
     warnings,
   ) ?? { from: 'start' }
-  if (step) ledgers.style(host).set('--kui-stagger', step)
 
-  const maxRank = rankBuckets(bucketByParent(matches), from, ledgers, warnings)
+  const maxRank = rankBuckets(bucketByParent(matches), config.from, ledgers, warnings)
+  // Written after the ranks for the same reason `indexStaggerGroup` writes it there — see
+  // `resolveStep`. The budget is divided across the *largest bucket*'s span, since that is the one
+  // the last-starting match belongs to.
+  const step = resolveStep(config, maxRank)
+  if (step) ledgers.style(host).set('--kui-stagger', step)
   // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
   // largest offset in the group, not the member count, and the two only coincide for `start`.
   ledgers.style(host).set('--kui-stagger-count', String(maxRank + 1))

@@ -102,7 +102,7 @@ Rules:
 - Positional args must appear in the order above. Unknown or out-of-order tokens produce a
   **dev-mode console warning naming the element and the token** — never a silent no-op.
 - Some `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
-  `timeline:`, `threshold:`, `cascade:`, `order:`, `rm:` and `func:` are hoisted element-wide
+  `timeline:`, `threshold:`, `cascade:`, `spread:`, `order:`, `rm:` and `func:` are hoisted element-wide
   (below), because one element has one activation, one timeline, one stagger group, one
   reduced-motion policy and one completion. `at:` is per-segment and positions that segment relative
   to the one before it in the comma list — see §3.1. `above:`/`below:` are per-segment too and gate
@@ -261,7 +261,7 @@ definition site because it never renders and needs no `hidden`.
   (`a → b → a`) and drops that one reference, keeping the rest of the composition.
 - **A bundle carries `on:`, `timeline:`, `threshold:`, `rm:` and `func:`** to its usage site,
   taking the place an inline key would — so it also outranks the longhand `data-kui-on`. What the
-  element writes itself always wins; two bundles that disagree warn. `cascade:`/`order:` are the
+  element writes itself always wins; two bundles that disagree warn. `cascade:`/`spread:`/`order:` are the
   exception and are refused with a warning, because `stagger.ts` reads them off the group element's
   own attribute text in a pass that never sees an expansion.
 - **Every failure mode warns**: an empty or unwritable name, a name the catalog already owns

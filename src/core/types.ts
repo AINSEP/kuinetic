@@ -628,11 +628,11 @@ export interface EffectSpec {
 export interface ParsedValue {
   specs: EffectSpec[]
   /**
-   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `order:` / `rm:` /
-   * `func:` keys. Element-scoped: one element has one activation, one timeline, one stagger group,
-   * one reduced-motion policy and one completion — so none of these can sensibly differ between the
-   * comma-separated segments of a single attribute, and all seven are lifted out of the per-effect
-   * `params`.
+   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `spread:` / `order:` /
+   * `rm:` / `func:` keys. Element-scoped: one element has one activation, one timeline, one stagger
+   * group, one reduced-motion policy and one completion — so none of these can sensibly differ
+   * between the comma-separated segments of a single attribute, and all eight are lifted out of the
+   * per-effect `params`.
    */
   activation?: Activation
   timeline?: string
@@ -644,6 +644,15 @@ export interface ParsedValue {
    * `var(--speed)` and `calc(90ms * 2)` keep working.
    */
   cascade?: string
+  /**
+   * Total stagger budget for this element's animated children — GSAP's `stagger.amount` to
+   * `cascade`'s `stagger.each`. The whole group finishes within this time however many children it
+   * has, so `stagger.ts` divides it by the group's largest rank to get the per-item step.
+   *
+   * Raw text and unvalidated for the same reason `cascade` is: it ends up inside a `calc()` written
+   * to `--kui-stagger`, and `var(--speed)` divides exactly as well as `600ms` does.
+   */
+  spread?: string
   /** Where the stagger wave starts — `data-kui-stagger`'s `from:`, under a name `data-kui` can hold. */
   order?: string
   /**

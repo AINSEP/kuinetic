@@ -165,6 +165,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `threshold:` | how much of the element must be visible before `on:enter` fires | `fade-up threshold:30%` |
 | `cascade:` | delay increment applied to this element's animated children | `cascade:60ms` |
+| `spread:` | total time the whole cascade may take, however many children there are | `spread:600ms` |
 | `order:` | where the cascade starts | `cascade:60ms order:center` |
 | `rm:` | reduced-motion policy for this element; may only be made *stricter* | `spin rm:disable` |
 | `func:` | name a global function to call when this element finishes — see [below](#calling-a-function-when-it-finishes) | `fade-up func:onReveal` |
@@ -376,6 +377,31 @@ with no animation of its own:
 ```html
 <div class="grid" data-kui-stagger="90ms">
 ```
+
+### Budgeting the whole group — `spread:`
+
+`cascade:` is a gap *per child*, so the group's total length grows with the child count: a
+200-item list at `cascade:50ms` takes ten seconds to finish entering, and nobody ever intended
+that. `spread:` states the total instead and lets the gap fall out of it:
+
+```html
+<div class="grid" data-kui="fade-up spread:600ms">
+<div class="grid" data-kui-stagger="spread:600ms">
+```
+
+Three children or three hundred, the last one starts at 600ms. Adding children tightens the gaps
+rather than lengthening the sequence.
+
+- **They are alternatives, not a pair.** `spread:` is the budget; the step is what the budget
+  divides out. An element that writes both gets the budget and a warning naming the step it
+  ignored.
+- **It composes with `order:`.** `order:center` puts the two middle children on the same beat, so
+  a six-child group has three beats rather than six — `spread:600ms` still finishes at 600ms, with
+  wider gaps.
+- **A group with one animated child gets no gaps at all**, which is a step of `0ms` rather than a
+  division by zero.
+- The value is passed through to CSS, so `spread:var(--reveal-window)` works exactly as
+  `cascade:var(--step)` does.
 
 ### Choosing where the stagger starts — `order:`
 
