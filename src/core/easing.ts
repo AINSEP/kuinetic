@@ -44,6 +44,15 @@ import type { SpringConfig } from './spring.js'
  * each one changes the curve — but they are not independent, and an author who expects
  * `stiffness:` alone to make an 800ms animation feel faster will not get that. `bounce:` is the
  * honest spelling of the one thing that actually varies, which is why Motion.dev leads with it too.
+ *
+ * ### There is deliberately no `bounce(...)`
+ *
+ * `--kui-ease-bounce` stays a fixed token. A tunable `bounce()` would be the same ODE under a
+ * second name — `spring(bounce:0.8)` already *is* a bouncier bounce — and two spellings of one
+ * thing is the mistake `parse.ts` spends three paragraphs avoiding for `stagger:`/`cascade:`. The
+ * name is not free either: what CSS libraries usually call an ease-out-bounce is a *ball*, the
+ * absolute value of a damped sine, which never falls below its target. A spring does. Emitting one
+ * under the other's name would be a lie told in the one place an author cannot check it.
  */
 
 /** CSS-native timing keywords; anything else resolves to a `--kui-ease-*` custom property. */
