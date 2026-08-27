@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDomWatcher } from '../src/core/dom-watcher.js'
 
+/**
+ * These suites fabricate `MutationRecord`s rather than waiting for a real observer, so their
+ * fixtures have to be attached to the watcher's root by hand. That is not test bookkeeping: a real
+ * observer only ever reports nodes that were in the tree, and the watcher now asks whether an
+ * element it is about to *install* is still there — see `whileAttached` for what a detached one
+ * used to leak.
+ */
 describe('DomWatcher batching', () => {
   it('deduplicates nested additions before scheduled work runs', () => {
     const root = document.createElement('main')
     const parent = document.createElement('section')
     const child = document.createElement('div')
     parent.append(child)
+    root.append(parent)
     let mutationCallback: MutationCallback = () => {}
     const frames: Array<() => void> = []
     const added = vi.fn()
@@ -36,6 +44,7 @@ describe('DomWatcher batching', () => {
   it('flushes attribute changes to onAttributeChanged', () => {
     const root = document.createElement('main')
     const el = document.createElement('div')
+    root.append(el)
     let mutationCallback: MutationCallback = () => {}
     const frames: Array<() => void> = []
     const changed = vi.fn()
@@ -121,6 +130,7 @@ describe('DomWatcher batching', () => {
     const parent = document.createElement('section')
     const child = document.createElement('div')
     parent.append(child)
+    root.append(parent)
     let mutationCallback: MutationCallback = () => {}
     const frames: Array<() => void> = []
     const added = vi.fn()
@@ -176,6 +186,7 @@ describe('DomWatcher batching', () => {
     // Unrelated siblings (not nested), so queueRoot dedup keeps all 150 as distinct roots — well
     // over the 100-element work budget.
     const elements = Array.from({ length: 150 }, () => document.createElement('div'))
+    root.append(...elements)
     mutationCallback(
       [{ type: 'childList', addedNodes: elements, removedNodes: [] }] as unknown as MutationRecord[],
       {} as MutationObserver,
@@ -223,6 +234,109 @@ describe('DomWatcher batching', () => {
     expect(added).not.toHaveBeenCalled()
   })
 
+  /**
+   * An element that is gone by the time the queued frame runs.
+   *
+   * The queues describe a whole frame, not a single state, so an element appended and removed
+   * before the flush sits in both of them. Removals drain first and find nothing installed, and
+   * the addition then installed a detached element that nothing afterwards ever revisited — held
+   * by the animator's live set, its own listeners and its own observers until the animator was
+   * destroyed.
+   */
+  function sameFrame(records: MutationRecord[]): {
+    added: ReturnType<typeof vi.fn>
+    changed: ReturnType<typeof vi.fn>
+    removed: ReturnType<typeof vi.fn>
+    root: HTMLElement
+    run: () => void
+  } {
+    const root = document.createElement('main')
+    let mutationCallback: MutationCallback = () => {}
+    const frames: Array<() => void> = []
+    const added = vi.fn()
+    const changed = vi.fn()
+    const removed = vi.fn()
+    const watcher = createDomWatcher({
+      root,
+      onElementAdded: added,
+      onElementRemoved: removed,
+      onAttributeChanged: changed,
+      schedule: (callback) => frames.push(callback),
+      createObserver(callback) {
+        mutationCallback = callback
+        return { observe: vi.fn(), disconnect: vi.fn() } as unknown as MutationObserver
+      },
+    })
+    watcher.watch()
+    return {
+      added,
+      changed,
+      removed,
+      root,
+      run: () => {
+        mutationCallback(records, {} as MutationObserver)
+        while (frames.length > 0) frames.shift()?.()
+      },
+    }
+  }
+
+  it('does not install an element that was appended and removed before the flush', () => {
+    const el = document.createElement('div')
+    const { added, removed, run } = sameFrame([
+      { type: 'childList', addedNodes: [el], removedNodes: [] },
+      { type: 'childList', addedNodes: [], removedNodes: [el] },
+    ] as unknown as MutationRecord[])
+
+    run()
+    expect(added).not.toHaveBeenCalled()
+    expect(removed).toHaveBeenCalledWith(el)
+  })
+
+  it('still installs an element removed and then put back in the same frame', () => {
+    // The other order, and the discriminator for a fix that merely skipped anything named in both
+    // sets: this element *is* in the tree when the flush runs, so it has to be scanned.
+    const el = document.createElement('div')
+    const harness = sameFrame([
+      { type: 'childList', addedNodes: [], removedNodes: [el] },
+      { type: 'childList', addedNodes: [el], removedNodes: [] },
+    ] as unknown as MutationRecord[])
+    harness.root.append(el)
+
+    harness.run()
+    expect(harness.added).toHaveBeenCalledWith(el)
+  })
+
+  it('does not recompile an element whose subtree left in the same frame', () => {
+    // `queueRoot` cannot collapse this one: the removed root is the *ancestor* and the changed
+    // element is the descendant, so the two queues name different nodes entirely.
+    const section = document.createElement('section')
+    const el = document.createElement('div')
+    section.append(el)
+    const { changed, removed, run } = sameFrame([
+      { type: 'attributes', target: el, addedNodes: [], removedNodes: [] },
+      { type: 'childList', addedNodes: [], removedNodes: [section] },
+    ] as unknown as MutationRecord[])
+
+    run()
+    expect(changed).not.toHaveBeenCalled()
+    expect(removed).toHaveBeenCalledWith(section)
+  })
+
+  it('installs a nested subtree root that really is in the tree', () => {
+    // Containment is asked of the element itself, so a queued root some way below the watcher's
+    // own root still passes — the guard must not become "only direct children".
+    const section = document.createElement('section')
+    const el = document.createElement('div')
+    section.append(el)
+    const harness = sameFrame([
+      { type: 'childList', addedNodes: [el], removedNodes: [] },
+    ] as unknown as MutationRecord[])
+    harness.root.append(section)
+
+    harness.run()
+    expect(harness.added).toHaveBeenCalledWith(el)
+  })
+
   it('destroy() is a safe no-op if watch() was never called', () => {
     const watcher = createDomWatcher({
       root: document.createElement('main'),
@@ -247,8 +361,9 @@ describe('DomWatcher default collaborators', () => {
     vi.stubGlobal('requestAnimationFrame', raf)
     let mutationCallback: MutationCallback = () => {}
     const added = vi.fn()
+    const root = document.createElement('main')
     const watcher = createDomWatcher({
-      root: document.createElement('main'),
+      root,
       onElementAdded: added,
       onElementRemoved: vi.fn(),
       onAttributeChanged: vi.fn(),
@@ -259,6 +374,7 @@ describe('DomWatcher default collaborators', () => {
     })
     watcher.watch()
     const el = document.createElement('div')
+    root.append(el)
     mutationCallback(
       [{ type: 'childList', addedNodes: [el], removedNodes: [] }] as unknown as MutationRecord[],
       {} as MutationObserver,
@@ -272,8 +388,9 @@ describe('DomWatcher default collaborators', () => {
     vi.stubGlobal('requestAnimationFrame', undefined)
     let mutationCallback: MutationCallback = () => {}
     const added = vi.fn()
+    const root = document.createElement('main')
     const watcher = createDomWatcher({
-      root: document.createElement('main'),
+      root,
       onElementAdded: added,
       onElementRemoved: vi.fn(),
       onAttributeChanged: vi.fn(),
@@ -284,6 +401,7 @@ describe('DomWatcher default collaborators', () => {
     })
     watcher.watch()
     const el = document.createElement('div')
+    root.append(el)
     mutationCallback(
       [{ type: 'childList', addedNodes: [el], removedNodes: [] }] as unknown as MutationRecord[],
       {} as MutationObserver,
