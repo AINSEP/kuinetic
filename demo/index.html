@@ -543,7 +543,37 @@
      scroll.html's own `.track-stage`/`.track` for the same five lines) — this is only the card
      sizing, not the mechanism. */
   .track-stage { margin-top: 2rem; }
-  .track { gap: 1.5rem; padding: 0 4rem; }
+  /* Taken out of the stage's grid flow deliberately. In flow, the library's `align-content: center`
+     centres intro *and* row as one group, so any gap opened between them pushed the reel down by
+     half of whatever it moved the title up — the two could not be placed independently. Absolute
+     against the stage (sticky, so it is the containing block) lets the row keep the middle of the
+     viewport to itself while the title sits up near the header.
+     `.track` insets itself by 4rem and the column is as wide as that max-content row, so the
+     padding and the max-width both have to be restated here or the title hangs off to the left on
+     a line box as wide as the whole reel. */
+  .track-stage > .reel-intro {
+    position: absolute;
+    /* The pill nav is sticky at `top: 1rem` and 3.625rem tall, so its underside sits at 4.625rem
+       and the title clears it by 43. Not `18vh` or any other share of the viewport: the gap being
+       described here is to the *nav*, which does not move when the window resizes. */
+    top: calc(4.625rem + 43px);
+    /* `left: 0` is the stage's own left edge — the outer margin the rest of the page's headings sit
+       on. `.track` insets its cards by 4rem, so matching the first *card* instead would only look
+       aligned at rest and drift the moment the row starts travelling. */
+    left: 0;
+    max-width: min(100vw - 4rem, 46rem);
+  }
+  .track-stage > .reel-intro .reel-contract { margin-top: 1.1rem; }
+  /* Short viewports have no room to place the two independently — 18vh of a 600px window puts the
+     contract line straight through the first card. Back to normal flow, centred as one group. */
+  @media (max-height: 720px) {
+    .track-stage > .reel-intro { position: static; padding-bottom: 1.4rem; }
+  }
+  /* Nudged 20px below where the stage's `align-content: center` lands it, to sit better against
+     the title above. `position: relative` + `top`, not a margin: the library writes `translate` on
+     this row every frame to drive the horizontal travel, so anything using the transform would be
+     overwritten — and a margin would be inside the centred track and only move it half as far. */
+  .track { gap: 1.5rem; padding: 0 4rem; position: relative; top: 60px; }
   .track .reel-item { width: 340px; flex: none; margin: 0; }
   .track .reel-item figcaption { margin-top: 0.65rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
 
@@ -934,6 +964,16 @@
     cursor: grab; touch-action: none; user-select: none;
   }
   .slice-puck:active { cursor: grabbing; }
+  /* The tween tile's from/to pair. The dashed ghost is not decoration — it is placed at exactly
+     the `x:-44px rotate:-12deg scale:0.88` the attribute next to it names, so the outline really is
+     where the solid block starts. The two are one fact written twice; change either and the other
+     has to move with it. Individual `translate`/`rotate`/`scale` rather than a `transform`
+     shorthand, which is what the library writes too. */
+  .slice-tween { position: relative; display: grid; place-items: center; width: 100%; height: 100%; }
+  .slice-tween-ghost,
+  .slice-tween-block { grid-area: 1 / 1; width: 3.6rem; height: 3.6rem; border-radius: 10px; }
+  .slice-tween-ghost { border: 1px dashed var(--border); translate: -44px 0; rotate: -12deg; scale: 0.88; }
+  .slice-tween-block { background: var(--accent); }
   .slice-field { position: relative; width: 100%; padding-top: 1.1rem; }
   .slice-field input { width: 100%; font: inherit; font-size: 0.82rem; color: var(--fg); background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 0.3rem 0; }
   .slice-field input:focus { outline: none; border-bottom-color: var(--accent); }
@@ -1551,13 +1591,21 @@
            `horizontal-scroll` mechanism scroll.html's own "Horizontal travel" group demonstrates
            on screenshots. Four real videos cycled across seven cards. -->
       <section id="reel" data-od-id="reel">
-        <div class="section-head">
-          <h2 data-kui="fade-up on:enter">Scroll pulls the reel.</h2>
-        </div>
-
-        <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="reel-track">Show code</button></p>
-
+        <!-- The title and the contract line live INSIDE the pinned stage, not above it.
+             `horizontal-scroll` makes this element the sticky window and centres its grid rows, so
+             anything in here pins and travels with the reel. Left outside, they occupied the top of
+             the viewport while the stage sat that far below the fold, and the reel read as a strip
+             sliding past the bottom edge with its captions cut off. They are grid rows here, and
+             the row that moves is still only the one `target:` names. -->
         <div class="track-stage" id="reel-track" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+          <div class="reel-intro">
+            <div class="section-head reel-head">
+              <h2 data-kui="fade-up on:enter">Scroll pulls the reel.</h2>
+            </div>
+
+            <p class="kui-contract reel-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="reel-track">Show code</button></p>
+          </div>
+
           <div class="track">
             <figure class="reel-item">
               <div class="reel-frame" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
@@ -1679,7 +1727,7 @@
 
         <div class="slices" data-kui="cascade:60ms">
 
-          <a class="slice" href="./reveals.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./reveals.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media">
               <img src="./assets/modeling/akira-pantsuit.jpg" alt="Studio portrait in a cropped vest, tie, and voluminous wide-leg trousers with tan lace-up boots" loading="lazy" data-kui="bounce-in 900ms on:enter" />
             </span>
@@ -1701,7 +1749,7 @@
             </span>
           </span>
 
-          <a class="slice" href="./scroll.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./scroll.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media">
               <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
               <span class="slice-snap" data-kui="scroll-snap-x">
@@ -1718,7 +1766,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./text.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./text.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-word" data-kui="scramble 1600ms, blur-in 900ms on:enter">DECLARATIVE</span>
             </span>
@@ -1728,7 +1776,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./icons-transitions.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./icons-transitions.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <!-- pathLength="100" so the library's `--kui-path-length` default of 100 is exactly
                    right without measuring the path in JS. -->
@@ -1742,30 +1790,30 @@
             </span>
           </a>
 
-          <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
-                <span class="slice-num" data-kui="count-up 1600ms to:267, zoom-in 900ms scale:0.6 on:enter">0</span>
+                <span class="slice-num" data-kui="count-up 1600ms to:267, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
                 <span class="slice-num-note">named effects</span>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Numbers &amp; data <b>13</b></span>
-              <span class="slice-fx">count-up to:261, zoom-in</span>
+              <span class="slice-fx">count-up to:267, tween-from spring</span>
             </span>
           </a>
 
-          <span class="slice" data-kui="fade-up 500ms on:enter">
-            <span class="slice-media" data-kui="slat-assemble 1100ms axis:vertical on:enter">
+          <span class="slice" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+            <span class="slice-media" data-kui="tween-from scale:1.12 1200ms spring, slat-assemble 1100ms axis:vertical on:enter">
               <img src="./assets/modeling/modeling_05.jpg" alt="Black-and-white profile portrait in a wide-brim red hat and red cloak" loading="lazy" />
             </span>
             <span class="slice-body">
               <span class="slice-cat">Media &amp; images <b>18</b></span>
-              <span class="slice-fx"><a href="./reveals.html">slat-assemble</a></span>
+              <span class="slice-fx">tween-from scale spring, <a href="./reveals.html">slat-assemble</a></span>
             </span>
           </span>
 
-          <span class="slice" data-kui="fade-up 500ms on:enter">
+          <span class="slice" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-acc">
                 <button type="button" class="slice-acc-btn" aria-expanded="false" aria-controls="slice-acc-panel">
@@ -1783,7 +1831,7 @@
           </span>
 
           <!-- data-hover.html, not interactive.html: that is where `tilt-3d` is actually demoed. -->
-          <a class="slice" href="./data-hover.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media">
               <img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" data-kui="tilt-3d maxAngle:18 perspective:600px" />
             </span>
@@ -1793,17 +1841,17 @@
             </span>
           </a>
 
-          <a class="slice" href="./ambient-feedback.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./ambient-feedback.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media">
-              <span class="slice-aurora" data-kui="aurora 14s"></span>
+              <span class="slice-aurora" data-kui="tween-from scale:0.9 900ms spring, aurora 14s"></span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Ambient <b>15</b></span>
-              <span class="slice-fx">aurora</span>
+              <span class="slice-fx">tween-from scale spring, aurora</span>
             </span>
           </a>
 
-          <a class="slice" href="./ambient-feedback.html" data-kui="fade-up 500ms on:enter">
+          <a class="slice" href="./ambient-feedback.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
                 <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true" data-kui="spinner-ring 1s">
@@ -1819,20 +1867,23 @@
             </span>
           </a>
 
-          <span class="slice" data-kui="fade-up 500ms on:enter">
+          <!-- The generic tween — the one effect that is not in the catalog, so it is the one tile
+               here that names properties instead of an effect. The dashed box is where
+               `tween-from` starts and the solid one is rest: a ghost of the from-state, not a
+               picture of one. `spring` is an easing keyword, so the block really does overshoot
+               its mark and settle back. -->
+          <a class="slice" href="./tween.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
-              <span class="slice-menu">
-                <button type="button" class="slice-menu-trigger" aria-expanded="false" aria-haspopup="true">Products ▾</button>
-                <span class="slice-menu-panel" data-kui="dropdown-open on:manual" hidden>
-                  <span>Overview</span><span>Pricing</span><span>Changelog</span>
-                </span>
+              <span class="slice-tween">
+                <span class="slice-tween-ghost" aria-hidden="true"></span>
+                <span class="slice-tween-block" aria-hidden="true" data-kui="tween-from x:-44px rotate:-12deg scale:0.88 900ms spring, blur-in 700ms on:enter"></span>
               </span>
             </span>
             <span class="slice-body">
-              <span class="slice-cat">Navigation <b>8</b></span>
-              <span class="slice-fx"><a href="./nav-forms.html">dropdown-open</a></span>
+              <span class="slice-cat">Tween &amp; spring <b>14</b></span>
+              <span class="slice-fx">tween-from x rotate scale spring, blur-in</span>
             </span>
-          </span>
+          </a>
 
         </div>
 
