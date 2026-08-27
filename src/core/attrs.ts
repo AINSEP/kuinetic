@@ -2,6 +2,11 @@
 export const ATTR = {
   /** Authored. The rich grammar. */
   source: 'data-kui',
+  /**
+   * Authored. Names the composition in this element's {@link source} so other elements can reuse
+   * it by name. An element carrying it is a definition — data, never animated. See `core/bundles.ts`.
+   */
+  define: 'data-kui-define',
   /** Library-owned and unstable: normalized effect names, for CSS hooks and debugging. */
   normalized: 'data-kui-fx',
   state: 'data-kui-state',

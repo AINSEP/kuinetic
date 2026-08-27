@@ -769,6 +769,10 @@ export function applyStagger(root: ParentNode, reporter?: Reporter): void {
  * @overallScore 100
  */
 function declaresGroup(el: Element): boolean {
+  // A `data-kui-define` body is a bundle, not this element's own animation — see `core/bundles.ts`.
+  // Without this, a definition that happens to carry `cascade:` would index the *definition*
+  // element's children as a stagger group, which is markup nobody asked to animate.
+  if (el.hasAttribute(ATTR.define)) return false
   if (el.hasAttribute(ATTR.stagger)) return true
   return resolveStaggerConfig(null, el.getAttribute(ATTR.source) ?? '') !== undefined
 }

@@ -3,17 +3,18 @@
    artefact, and not something to resolve by splitting the file.
 
    The measurement, so a later reader can redo it rather than trust it. `max-lines` is configured
-   `skipBlankLines`/`skipComments`, so `wc -l` is the wrong instrument — it reads 932 here, and
+   `skipBlankLines`/`skipComments`, so `wc -l` is the wrong instrument — it reads 1326 here, and
    more than half of that is the WHY comments this codebase writes. What the rule actually counts
-   is 427, against a cap of 400: 27 over, about 7%. Reproduce with
+   is 570, against a cap of 400. Reproduce with
    `npx eslint src/core/animator.ts --no-inline-config --rule '{"max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}'`
    — `--no-inline-config` is needed to get past this very directive.
 
    The budget exists to catch complexity, and by the two metrics `eslint.config.js` names for it
-   nothing here is close to the ceiling. Cyclomatic, cap 10: `resolveCollaborators` 10, `process`
-   8, `activate` 8, `reverseFrom` 7, `scan`/`openGate`/`deactivate` 6, everything else 4 or less.
-   Cognitive, same cap: `process` 7, `activate`/`reverseFrom` 6, `openGate`/`deactivate` 5,
-   everything else 4 or less — and `resolveCollaborators`, the cyclomatic worst case, scores 0,
+   nothing here is close to the ceiling. Cyclomatic, cap 10: `resolveCollaborators` 10,
+   `scan`/`activate` 8, `reverseFrom`/`process` 7, `openGate`/`deactivate` 6, everything else 5 or
+   less. Cognitive, same cap: nothing above 6 — `process`, `scan`, `activate`, `reverseFrom` and
+   `deactivate` sit there, everything else at 5 or less — and `resolveCollaborators`, the
+   cyclomatic worst case, scores 0,
    because it is a flat chain of `??` defaults. That is exactly the "flat 12-case switch scores
    low" case the config's own header describes, and it is the shape of this whole file.
 
@@ -39,6 +40,7 @@ import type { ActivationBinder } from './activation.js'
 import { ATTR } from './attrs.js'
 import { breakpointsIn, createGateWatcher, gateMatches } from './breakpoints.js'
 import type { Breakpoint, EffectGate, GateWatcher } from './breakpoints.js'
+import { BundleTable } from './bundles.js'
 import { bindCallback } from './callback.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
@@ -193,6 +195,11 @@ export class Animator {
   readonly reporter: Reporter
 
   private readonly root: ParentNode
+  /**
+   * Author-defined bundles found in this animator's root. Per-animator, not per-module: two
+   * animators on two roots must not see each other's definitions.
+   */
+  private readonly bundles: BundleTable
   private readonly binder: ActivationBinder
   private readonly scheduler: ScrollScheduler
   private readonly rootResolver: (el: Element) => ScrollRoot
@@ -217,6 +224,7 @@ export class Animator {
   constructor(options: AnimatorOptions = {}) {
     const resolved = resolveCollaborators(options)
     this.registry = resolved.registry
+    this.bundles = new BundleTable(resolved.registry)
     this.capabilities = resolved.capabilities
     this.root = resolved.root
     this.reporter = resolved.reporter
@@ -258,17 +266,42 @@ export class Animator {
    * `querySelectorAll` excludes the root, but an inserted subtree very often carries the
    * attribute on its top node — skipping it silently drops those animations.
    *
+   * Two passes, and the order is the feature. Every `data-kui-define` in the subtree is registered
+   * before any element in it is compiled, so a `<template>` at the bottom of the document is
+   * already known to the card at the top that names it. Making forward references work by
+   * construction rather than by handling is the point — see `core/bundles.ts`.
+   *
    * @param root - Subtree to scan. Defaults to the animator's root.
    * @complexity O(n) time in the subtree size; O(1) extra space.
    * @overallScore 100
    */
   scan(root: ParentNode = this.root): this {
     if (!root) return this
+    const defined = this.bundles.collect(root, this.reporter)
     const selector = `[${ATTR.source}]`
     if (isElementNode(root) && root.matches(selector)) this.process(root)
     for (const el of root.querySelectorAll(selector)) this.process(el)
     applyStagger(root, this.reporter)
+    // The reverse of a forward reference: a definition *inserted* after the page was scanned. The
+    // elements that named it are already stamped `pending`, and nothing else would ever retry
+    // them. Only when this scan was of a subtree — a full-root scan reprocesses them anyway.
+    if (defined > 0 && root !== this.root) this.retryPending()
     return this
+  }
+
+  /**
+   * Recompile every element that stalled on a name the library did not know.
+   *
+   * `pending` is stamped for any unresolved name, not only an undefined bundle, so this can retry
+   * an element that will fail again. That is deliberate: the alternative is an index of which
+   * element is waiting on which name, and the cost of being wrong here is one wasted compile on a
+   * page that already has a warning about it.
+   *
+   * @complexity O(p) time in the number of pending elements.
+   * @overallScore 100
+   */
+  private retryPending(): void {
+    for (const el of this.root.querySelectorAll(`[${ATTR.state}="pending"]`)) this.process(el)
   }
 
   /**
@@ -279,6 +312,12 @@ export class Animator {
    * @overallScore 100
    */
   process(el: Element): void {
+    // A definition is data, not an animation. It carries `data-kui` so the existing parser can read
+    // its body unchanged, which means it matches every selector that finds an animated element —
+    // and guarding the selector would not be enough, because `dom-watcher.ts` routes an attribute
+    // change straight here. `scan` is what registers definitions; this method never does, so
+    // editing one after the page is scanned does nothing until the next scan.
+    if (el.hasAttribute(ATTR.define)) return
     const attributes = readAttributes(el)
     // The whole configuration, not just `data-kui`. Keying on the source alone meant a change to
     // `data-kui-on`, `data-kui-timeline`, or `data-kui-threshold` was ignored permanently — even
@@ -288,7 +327,10 @@ export class Animator {
     if (existing?.fingerprint === fingerprint) return
     if (existing) this.release(el)
 
-    const parsed = parse(attributes.source)
+    // Between parsing and compiling, so everything downstream — channel conflicts, sequencing,
+    // `target:` grouping, `data-kui-fx` — sees the segments the author would have written by hand.
+    // A bundle can therefore never behave differently from its own expansion.
+    const parsed = this.bundles.expand(parse(attributes.source))
     const config = resolveConfig(attributes, parsed)
     const document = compileTargets(parsed, this.registry, config.timeline)
     // `targets[0]` for every element-scoped fact below: `compileTargets`' `mergeHostFacts` already
@@ -302,17 +344,7 @@ export class Animator {
     this.applyViewportGates(el, document)
 
     config.activation = this.resolveActivation(el, config, facts)
-    for (const warning of document.warnings) this.reporter.warn(warning, el)
-    for (const target of document.targets) {
-      for (const warning of target.plan.warnings) this.reporter.warn(warning, el)
-    }
-    // Separate from the plan's own warnings because `compile` is pure and environment-free by
-    // design — it is handed a registry and a timeline, never the browser it is running in. "This
-    // browser cannot render that channel" is only answerable here, where the detected capabilities
-    // live. `facts.channels` is the merged union, so this runs once per element, not once per group.
-    for (const warning of unsupportedChannelWarnings(facts.channels, this.capabilities)) {
-      this.reporter.warn(warning, el)
-    }
+    this.reportCompiled(el, document)
 
     if (document.targets.every((target) => target.plan.fxNames.length === 0)) {
       // Deliberately does NOT stamp the normalized attribute: an effect registered later must
@@ -322,6 +354,29 @@ export class Animator {
     }
 
     this.install({ el, fingerprint, parsed, config, document })
+  }
+
+  /**
+   * Report everything a finished compile has to say about one element.
+   *
+   * Three sources, one place. The third is separate from the plan's own warnings because `compile`
+   * is pure and environment-free by design — it is handed a registry and a timeline, never the
+   * browser it is running in. "This browser cannot render that channel" is only answerable here,
+   * where the detected capabilities live, and `targets[0]`'s channel union is the merged one, so it
+   * runs once per element rather than once per `target:` group.
+   *
+   * @complexity O(w) time in the total warning count; O(1) space.
+   * @overallScore 100
+   */
+  private reportCompiled(el: Element, document: CompiledDocument): void {
+    for (const warning of document.warnings) this.reporter.warn(warning, el)
+    for (const target of document.targets) {
+      for (const warning of target.plan.warnings) this.reporter.warn(warning, el)
+    }
+    const channels = document.targets[0]!.plan.channels
+    for (const warning of unsupportedChannelWarnings(channels, this.capabilities)) {
+      this.reporter.warn(warning, el)
+    }
   }
 
   /**

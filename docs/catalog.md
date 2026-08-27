@@ -4,6 +4,10 @@ This catalog lists every named effect the library ships, grouped into seventeen 
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
+A composition of several of these names can itself be given a name, with no build step, using
+`data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
+names are yours and are not listed here.
+
 **Counts:** **267** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a

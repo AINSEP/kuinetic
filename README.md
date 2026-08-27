@@ -86,6 +86,16 @@ comma-separating them — no wrapper element, no extra markup:
 <h1 data-kui="slide-up 800ms, blur-in 400ms">
 ```
 
+A composition worth repeating gets a name, with no build step. Define it once in a `<template>` —
+which never renders, so it can sit anywhere on the page, including below the elements that use it:
+
+```html
+<template data-kui-define="card-in" data-kui="fade-up 700ms, blur-in 400ms at:-200ms"></template>
+
+<article data-kui="card-in"></article>
+<article data-kui="card-in 300ms">…the same bundle, faster</article>
+```
+
 Not every effect is a scroll reveal — switch `on:` to drive it from hover, click, focus, or call it
 manually:
 

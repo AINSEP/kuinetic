@@ -225,6 +225,54 @@ Decisions worth stating, all four of them consequences of compiling ahead of tim
 
 Implementation: `src/core/breakpoints.ts`.
 
+### 3.3 Named bundles — `data-kui-define`
+
+A composition long enough to be worth writing is long enough to be painful to repeat. `registerEffect()`
+solves that for anyone with a bundler; `data-kui-define` solves it for the no-build author this
+library exists for.
+
+```html
+<template data-kui-define="hero-entrance"
+          data-kui="fade-up 2000ms, blur-in 600ms at:-400ms"></template>
+
+<article data-kui="hero-entrance"></article>
+<article data-kui="hero-entrance 900ms"></article>
+```
+
+The name goes in its own attribute and the body stays in `data-kui`, so **this feature adds no
+syntax**: `parse()` reads a definition with exactly the code that reads any other element. The
+three alternatives all collide with grammar that already means something — `name:value` is a
+parameter, a comma composes the next effect, and `<div />` is not valid HTML. `<template>` is the
+definition site because it never renders and needs no `hidden`.
+
+- **A local parameter overrides the bundle.** `data-kui="hero-entrance 400ms"` runs at 400ms, the
+  way a more specific CSS rule wins. Every token beside the reference overlays the same field on
+  every segment the bundle expands to. Deliberately settled this way round and not reversible
+  later: pages written against it would change meaning.
+- **Expansion happens between parsing and compiling**, so everything downstream — channel
+  conflicts (§4), sequencing (§3.1), `target:` grouping, `data-kui-fx` — sees the segments the
+  author would have written by hand. A bundle cannot behave differently from its own expansion,
+  which is why a collision between a bundle's contents and a locally named effect reads exactly
+  like an inline one.
+- **Forward references work by construction, not by handling.** Scanning is two passes: every
+  definition in a subtree is registered before any element in it is compiled. And a definition is
+  stored *unexpanded*, so a bundle naming another bundle has no ordering requirement at all.
+- **A bundle may name another bundle**, with cycle detection; a cycle warns with the path it took
+  (`a → b → a`) and drops that one reference, keeping the rest of the composition.
+- **A bundle carries `on:`, `timeline:`, `threshold:`, `rm:` and `func:`** to its usage site,
+  taking the place an inline key would — so it also outranks the longhand `data-kui-on`. What the
+  element writes itself always wins; two bundles that disagree warn. `cascade:`/`order:` are the
+  exception and are refused with a warning, because `stagger.ts` reads them off the group element's
+  own attribute text in a pass that never sees an expansion.
+- **Every failure mode warns**: an empty or unwritable name, a name the catalog already owns
+  (the effect wins), a second definition of a name (the first wins), a definition that names no
+  effect, a definition on something other than `<template>`, a grammar mistake inside a definition,
+  and a reference one typo away from a defined bundle. An undefined name is reported by the
+  existing unknown-effect diagnostic and leaves the element `pending`, so a definition inserted
+  later can still claim it.
+
+Implementation: `src/core/bundles.ts`.
+
 ---
 
 ## 4. Composition — the channel model

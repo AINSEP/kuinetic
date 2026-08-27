@@ -240,6 +240,60 @@ Three things worth knowing:
 
 ---
 
+## Naming a composition — `data-kui-define`
+
+Once an attribute is three effects long you don't want to retype it on twelve cards. Give it a
+name once, in a `<template>`, and use the name:
+
+```html
+<template data-kui-define="card-in"
+          data-kui="fade-up 700ms, blur-in 400ms at:-200ms"></template>
+
+<article data-kui="card-in"></article>
+<article data-kui="card-in"></article>
+```
+
+```live
+<div class="doc-demo-box" data-kui="fade-up 700ms, blur-in 400ms at:-200ms" data-kui-on="load">card-in</div>
+```
+
+A `<template>` never renders, so the definition can sit anywhere in the page — including *below*
+the elements that use it. It needs no `hidden`, no CSS, and no script.
+
+**A local value overrides the bundle**, the way a more specific CSS rule wins:
+
+```html
+<article data-kui="card-in 300ms">   <!-- the whole bundle, but faster -->
+```
+
+Anything you write beside the name — a duration, a delay, an easing, a `key:value` — replaces that
+field on every effect the bundle expands to.
+
+You can compose a bundle with an effect the same way you compose two effects, and the same
+channel rules apply — if the bundle already writes a property, an effect that also writes it is
+refused with a warning naming both:
+
+```html
+<article data-kui="card-in, shine-sweep">
+```
+
+A bundle can also name another bundle. A bundle that reaches itself warns with the path it took
+and drops that one reference, so nothing hangs.
+
+Six things the library will tell you about in the console (with `consoleReporter()`), rather than
+failing quietly:
+
+| What you wrote | What you'll hear |
+|---|---|
+| `data-kui="crd-in"` | `unknown effect "crd-in"` — plus `did you mean the bundle "card-in"?` |
+| two `<template>`s with the same name | the first definition wins |
+| a name the catalog already uses | the built-in effect wins, your definition is ignored |
+| `data-kui-define="card in"` | a name can't contain spaces, commas, colons, brackets or quotes |
+| a definition with nothing in `data-kui` | it names no effect, so it animates nothing |
+| `cascade:` inside a definition | stagger belongs on the group element, not in a bundle |
+
+---
+
 ## Animating a different element — `target:` and `scope:`
 
 `data-kui` normally animates the element it is written on. `target:` points it at something else
