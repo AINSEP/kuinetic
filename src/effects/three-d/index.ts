@@ -95,7 +95,11 @@ function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContex
 const CARD_TOGGLE_PRIMITIVE: Primitive = {
   id: 'card-toggle',
   renderer: 'javascript',
-  channels: [CHANNEL.rotate],
+  // `'discrete'` alongside `rotate`: the unconditional `[data-kui-fx~='flip-card']` rule pins
+  // `display: grid` so the two faces stack in one cell instead of flowing as normal block
+  // siblings — unrelated to `catalog/discrete.ts`'s show/hide use of the same physical property,
+  // but `display` is tracked as one channel regardless of the value written into it.
+  channels: [CHANNEL.rotate, 'discrete'],
   parameters: {
     duration: { type: 'time', default: '700ms', cssProperty: '--kui-duration' },
     // The turn has a start moment — the click, or the pointer arriving — so a delay before it is
@@ -159,8 +163,22 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
 
 export const THREE_D_PRESETS: Preset[] = [
   // --- 3D & perspective ---
-  { name: 'card-flip-y', primitive: 'flip-face', keyframes: 'kui-card-flip-y', cloak: true },
-  { name: 'card-flip-x', primitive: 'flip-face', keyframes: 'kui-card-flip-x', cloak: true },
+  // `requiresOwnSubtree`: `three-d.css:106-154` branches on `:has(> :nth-child(2))` — a flip
+  // relocated onto a childless element silently takes the single-face branch and spins a bare box.
+  {
+    name: 'card-flip-y',
+    primitive: 'flip-face',
+    keyframes: 'kui-card-flip-y',
+    cloak: true,
+    requiresOwnSubtree: true,
+  },
+  {
+    name: 'card-flip-x',
+    primitive: 'flip-face',
+    keyframes: 'kui-card-flip-x',
+    cloak: true,
+    requiresOwnSubtree: true,
+  },
   { name: 'cube-rotate', primitive: 'flip-face', keyframes: 'kui-cube-rotate', params: { angle: '90deg' } },
   {
     name: 'book-page-turn',
@@ -195,7 +213,9 @@ export const THREE_D_PRESETS: Preset[] = [
 
   // No `keyframes`: its motion is a CSS transition in three-d.css keyed off the control's
   // aria-pressed, not a compiled animation. Same shape as the icon toggles in svg.ts.
-  { name: 'flip-card', primitive: 'card-toggle' },
+  // `requiresOwnSubtree`: the transition rotates `> .kui-face-front`/`.kui-face-back` children
+  // (three-d.css:297-306), assumed to exist under the fx element itself.
+  { name: 'flip-card', primitive: 'card-toggle', requiresOwnSubtree: true },
 ]
 
 /**

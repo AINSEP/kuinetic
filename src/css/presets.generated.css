@@ -330,6 +330,12 @@
     --kui-drawer-slide-ease: ease-out;
   }
 
+  [data-kui-fx~='drop-open'] {
+    --kui-drop-open-duration: 240ms;
+    --kui-drop-open-delay: 0ms;
+    --kui-drop-open-ease: ease-out;
+  }
+
   [data-kui-fx~='dropdown-open'] {
     --kui-panel-reveal-duration: 600ms;
     --kui-panel-reveal-delay: 0ms;
@@ -382,6 +388,12 @@
     --kui-reveal-duration: 600ms;
     --kui-reveal-delay: 0ms;
     --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='fade-open'] {
+    --kui-fade-open-duration: 240ms;
+    --kui-fade-open-delay: 0ms;
+    --kui-fade-open-ease: ease-out;
   }
 
   [data-kui-fx~='fade-out'] {
@@ -848,6 +860,12 @@
     --kui-scale-delay: 0ms;
   }
 
+  [data-kui-fx~='pop-open'] {
+    --kui-pop-open-duration: 240ms;
+    --kui-pop-open-delay: 0ms;
+    --kui-pop-open-ease: ease-out;
+  }
+
   [data-kui-fx~='pop-out'] {
     --kui-from-scale: 0.6;
     --kui-scale-ease: var(--kui-ease-back-in, ease-out);
@@ -956,6 +974,12 @@
     --kui-media-filter-duration: 600ms;
     --kui-media-filter-delay: 0ms;
     --kui-media-filter-ease: ease-out;
+  }
+
+  [data-kui-fx~='scale-open'] {
+    --kui-scale-open-duration: 240ms;
+    --kui-scale-open-delay: 0ms;
+    --kui-scale-open-ease: ease-out;
   }
 
   [data-kui-fx~='scanline'] {
@@ -1097,6 +1121,18 @@
     --kui-reveal-duration: 600ms;
     --kui-reveal-delay: 0ms;
     --kui-reveal-ease: ease-out;
+  }
+
+  [data-kui-fx~='slide-open-down'] {
+    --kui-slide-open-down-duration: 240ms;
+    --kui-slide-open-down-delay: 0ms;
+    --kui-slide-open-down-ease: ease-out;
+  }
+
+  [data-kui-fx~='slide-open-up'] {
+    --kui-slide-open-up-duration: 240ms;
+    --kui-slide-open-up-delay: 0ms;
+    --kui-slide-open-up-ease: ease-out;
   }
 
   [data-kui-fx~='slide-out-down'] {

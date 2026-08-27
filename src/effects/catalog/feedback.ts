@@ -74,7 +74,13 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
   cssPrimitive('feedback-fade', [CHANNEL.opacity], {
     defaultActivation: 'manual',
   }),
-  cssPrimitive('feedback-spin', [CHANNEL.rotate], {
+  // `'discrete'` alongside `rotate`: `spinner`/`spinner-ring`'s unconditional rule also pins
+  // `display: inline-block` so the ring sizes to its own box instead of running full-width as a
+  // bare `<div>` would. Unrelated to `catalog/discrete.ts`'s show/hide use of the same channel —
+  // `display` itself is one physical property regardless of which value a primitive sets it to,
+  // so both uses have to share the channel `channels.ts` polices it under. See that channel's own
+  // doc comment in `test/support/channel-properties.ts`.
+  cssPrimitive('feedback-spin', [CHANNEL.rotate, 'discrete'], {
     parameters: spin,
     defaultActivation: 'load',
     reducedMotion: 'disable',
@@ -82,17 +88,22 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
   }),
   // Declares every channel the preset's CSS actually paints, not just what the shared keyframe
   // animates: spinner-dots' `[data-kui-fx~='spinner-dots']` rule also sets `background:
-  // currentColor` (the dot itself) and `box-shadow` (the other two dots), entirely outside
-  // `@keyframes kui-spinner-dots`. Declaring only [scale, opacity] let a composed
-  // `background`-writing effect (e.g. gradient-mesh) pass channel-collision detection and then
-  // have its gradient silently overwritten by this rule — see css-invariants.test.ts's "CSS
-  // static rules" describe block, which now catches this class of omission directly.
-  cssPrimitive('feedback-dot-pulse', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'shadow'], {
-    parameters: dotPulse,
-    defaultActivation: 'load',
-    reducedMotion: 'disable',
-    perfClass: 'continuous',
-  }),
+  // currentColor` (the dot itself), `box-shadow` (the other two dots), and `display: inline-block`
+  // (same sizing reason as `feedback-spin` above), entirely outside `@keyframes kui-spinner-dots`.
+  // Declaring only [scale, opacity] let a composed `background`-writing effect (e.g. gradient-mesh)
+  // pass channel-collision detection and then have its gradient silently overwritten by this rule —
+  // see css-invariants.test.ts's "CSS static rules" describe block, which now catches this class of
+  // omission directly.
+  cssPrimitive(
+    'feedback-dot-pulse',
+    [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'shadow', 'discrete'],
+    {
+      parameters: dotPulse,
+      defaultActivation: 'load',
+      reducedMotion: 'disable',
+      perfClass: 'continuous',
+    },
+  ),
   // Same shape as feedback-dot-pulse above: `[data-kui-fx~='progress-indeterminate']` sets
   // `background: currentColor` unconditionally for the bar itself, outside the keyframe. It also
   // pins `transform-origin: 0% 50%` there, undeclared until channel-properties.ts gained an entry

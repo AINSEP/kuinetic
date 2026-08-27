@@ -28,6 +28,7 @@ const EFFECT_FILES = [
   'feedback.css',
   'ambient.css',
   'interaction.css',
+  'discrete.css',
   'layout.css',
   'numbers.css',
   'forms.css',

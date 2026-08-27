@@ -236,6 +236,29 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * property any of the three writes.
    */
   content: [],
+  /**
+   * `display`/`overlay` — the two properties `transition-behavior: allow-discrete` exists to
+   * animate. `catalog/discrete.ts`'s six `@starting-style` presets are the only writers of
+   * `overlay`, and the only ones that write `display: none` for show/hide — that pairing is a
+   * distinct question from "did this element's opacity/scale/translate/rotate change", which is
+   * why it is not folded into any of those channels the way `transform-origin` was deliberately
+   * kept out of `skew` above — conflating "I fade out" with "I leave the DOM entirely" would make
+   * the compiler reject compositions that are actually fine (an element that both fades its
+   * interior and is itself discretely shown/hidden).
+   *
+   * `display` alone (never `overlay`) also has eight *unrelated* writers — `feedback-spin`,
+   * `feedback-dot-pulse`, `split-flap`, `text-marquee`, `redaction-reveal`, `text-3d-extrude`,
+   * `word-cycler`, `card-toggle` — each pinning a static `inline-block`/`flex`/`grid` on its own
+   * unconditional rule purely to size or lay out its own box, nothing to do with entering or
+   * leaving the DOM. `display` is tracked here as one physical property regardless of which value
+   * a primitive writes into it, the same "one property, one channel, whatever put it there"
+   * reasoning `text-shadow` documents above — so all eight had to widen their own `channels` to
+   * add `discrete` the day this channel was added, or this file's static-rule check would have
+   * started flagging box-model declarations that were never a real collision risk with anything
+   * written before this channel existed. Confirmed against every existing writer of `display`
+   * before adding this entry, the same discipline the `background`/`layout` entries above record.
+   */
+  discrete: ['display', 'overlay'],
 }
 
 /**

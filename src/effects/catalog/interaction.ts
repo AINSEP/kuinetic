@@ -160,7 +160,11 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   // (see `channel-properties.ts`); `scroll-skew`, `flip-face` and `flip-3d` are the other members.
   // While this said `rotate`, `split-flap, scroll-skew` and `split-flap, card-flip-y` looked
   // disjoint to the conflict detector and composed into a silent clobber of `transform`.
-  hoverPrimitive('split-flap', ['skew']),
+  // `'discrete'` alongside `skew`: the unconditional rule also pins `display: inline-block` for
+  // sizing, the same reason `feedback-spin` declares it — unrelated to `catalog/discrete.ts`'s
+  // show/hide use of the same physical property, but `display` is tracked as one channel
+  // regardless of the value a primitive writes into it.
+  hoverPrimitive('split-flap', ['skew', 'discrete']),
   hoverPrimitive('border-draw', ['border']),
   hoverPrimitive('border-glow', ['shadow']),
   hoverPrimitive('beam-border', ['border'], beamParams, LINEAR_HOVER),

@@ -1,0 +1,147 @@
+/*
+ * `@starting-style` discrete-open family — catalog section J, `effects/catalog/discrete.ts`.
+ *
+ * Every name below has the same three-rule shape:
+ *
+ *   1. The open/rest state (an unconditional `[data-kui-fx~='name']` rule). Sets
+ *      `transition-behavior: allow-discrete` and the per-preset `--kui-tx-delay-<name>` slot
+ *      `compile.ts`'s `pushTransitions` reads (see `Preset.transitions`), plus the values the
+ *      element eases *into*. The actual `transition-property`/`-duration`/`-timing-function`/
+ *      `-delay` list is NOT written here — it comes from the compiled `--kui-transition` custom
+ *      property `base.css`'s `:where([data-kui-fx])` rule builds from `Preset.transitions`, the
+ *      same compile-time merge `lift`/`pop`/`border-glow` use. `transition-behavior` has to be a
+ *      separate longhand declaration for exactly the reason that rule's own comment names: a
+ *      `transition:` shorthand resets every longhand it covers, so `allow-discrete` could not ride
+ *      inside `--kui-transition` (`TransitionSegment` has no `behavior` field) — it has to be a
+ *      plain declaration on a rule specific enough to survive the `:where()` rule's zero
+ *      specificity, which every rule below is.
+ *   2. `@starting-style` — the state the browser paints for exactly one frame when this element's
+ *      style is first resolved (freshly inserted, or newly promoted out of `display: none`/the
+ *      top layer). This is the *only* way to give a discretely-shown element a "from" state: an
+ *      element with `display: none` has no box for a JS-installed inline style to animate from.
+ *   3. The closed state — `:not(:popover-open):not([open]):not([data-open])`, covering all three
+ *      ways an author drives one of these: a native `popover` (`:popover-open` tracks its own
+ *      top-layer state), a native `<dialog>` (`[open]` reflects both `.show()` and `.showModal()`,
+ *      unlike `:modal`, which only matches the latter), and a plain element toggled by the author's
+ *      own `[data-open]` attribute. **Deliberately not behind `@supports`.** If this rule were
+ *      guarded and the open-state rule were not, a browser that cannot parse `@starting-style`
+ *      would show every one of these permanently open — the exact failure this file's design
+ *      avoids by declaring nothing conditionally at all. A non-supporting browser instead drops
+ *      only the `@starting-style` block (no entrance) and ignores the lone `transition-behavior`
+ *      declaration it cannot parse (`display` flips instantly, the pre-2023 default) — nothing is
+ *      stranded, nothing is invisible, nothing sits in the wrong place.
+ *
+ * None of the six need `kui.cloak`: the from-state is declared in CSS, not installed by the
+ * runtime, so there is nothing for the pre-JS cloak layer to hide a flash of.
+ */
+@layer kui.effects {
+  [data-kui-fx~='fade-open'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-fade-open: var(--kui-fade-open-delay, 0ms);
+    opacity: 1;
+  }
+  @starting-style {
+    [data-kui-fx~='fade-open'] {
+      opacity: 0;
+    }
+  }
+  [data-kui-fx~='fade-open']:not(:popover-open):not([open]):not([data-open]) {
+    opacity: 0;
+    display: none;
+  }
+
+  [data-kui-fx~='pop-open'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-pop-open: var(--kui-pop-open-delay, 0ms);
+    opacity: 1;
+    scale: 1;
+  }
+  @starting-style {
+    [data-kui-fx~='pop-open'] {
+      opacity: 0;
+      scale: var(--kui-pop-open-scale, 0.92);
+    }
+  }
+  [data-kui-fx~='pop-open']:not(:popover-open):not([open]):not([data-open]) {
+    opacity: 0;
+    scale: var(--kui-pop-open-scale, 0.92);
+    display: none;
+  }
+
+  [data-kui-fx~='scale-open'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-scale-open: var(--kui-scale-open-delay, 0ms);
+    scale: 1;
+  }
+  @starting-style {
+    [data-kui-fx~='scale-open'] {
+      scale: var(--kui-scale-open-scale, 0.92);
+    }
+  }
+  [data-kui-fx~='scale-open']:not(:popover-open):not([open]):not([data-open]) {
+    scale: var(--kui-scale-open-scale, 0.92);
+    display: none;
+  }
+
+  /* `drop-open`: settles down into place from just above rest — the conventional dropdown-menu
+     entrance. `calc(distance * -1)`, not a negative default, so `distance:` stays an ordinary
+     positive magnitude an author can override the same way every other length param in this
+     catalog works. */
+  [data-kui-fx~='drop-open'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-drop-open: var(--kui-drop-open-delay, 0ms);
+    opacity: 1;
+    translate: 0 0;
+  }
+  @starting-style {
+    [data-kui-fx~='drop-open'] {
+      opacity: 0;
+      translate: 0 calc(var(--kui-drop-open-distance, 8px) * -1);
+    }
+  }
+  [data-kui-fx~='drop-open']:not(:popover-open):not([open]):not([data-open]) {
+    opacity: 0;
+    translate: 0 calc(var(--kui-drop-open-distance, 8px) * -1);
+    display: none;
+  }
+
+  /* `slide-open-up`/`slide-open-down` name the direction of travel, the same convention
+     `fade-up`/`fade-down` use in `entrance.css`: `-up` starts below rest and arrives travelling
+     upward, `-down` the mirror. Distance defaults larger than `drop-open`'s — a deliberate slide
+     reads as a bigger gesture than a menu's small settle. */
+  [data-kui-fx~='slide-open-up'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-slide-open-up: var(--kui-slide-open-up-delay, 0ms);
+    opacity: 1;
+    translate: 0 0;
+  }
+  @starting-style {
+    [data-kui-fx~='slide-open-up'] {
+      opacity: 0;
+      translate: 0 var(--kui-slide-open-up-distance, 16px);
+    }
+  }
+  [data-kui-fx~='slide-open-up']:not(:popover-open):not([open]):not([data-open]) {
+    opacity: 0;
+    translate: 0 var(--kui-slide-open-up-distance, 16px);
+    display: none;
+  }
+
+  [data-kui-fx~='slide-open-down'] {
+    transition-behavior: allow-discrete;
+    --kui-tx-delay-slide-open-down: var(--kui-slide-open-down-delay, 0ms);
+    opacity: 1;
+    translate: 0 0;
+  }
+  @starting-style {
+    [data-kui-fx~='slide-open-down'] {
+      opacity: 0;
+      translate: 0 calc(var(--kui-slide-open-down-distance, 16px) * -1);
+    }
+  }
+  [data-kui-fx~='slide-open-down']:not(:popover-open):not([open]):not([data-open]) {
+    opacity: 0;
+    translate: 0 calc(var(--kui-slide-open-down-distance, 16px) * -1);
+    display: none;
+  }
+}

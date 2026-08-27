@@ -1,10 +1,10 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into sixteen sections (A–P).
+This catalog lists every named effect the library ships, grouped into seventeen sections (A–Q).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
-**Counts:** **261** named effects, over **33 primitive families**. Note that 48 names come from a
+**Counts:** **267** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -223,6 +223,14 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > height instead of an authored `distance:`, and takes `offset-top:` for a sticky header, same
 > spelling as the pinning family though not the same shared token — the per-section form above is
 > unchanged and still wants `distance:` and one attribute per section.
+>
+> These four are `target:`'s original home, but the parameter is not limited to them: **any effect
+> in the catalog** may be retargeted — `fade-up target:h1` animates the `h1`, not the element the
+> attribute is written on — with `scope:page` to search the whole document instead of just this
+> element's descendants. See [Animating a different element](getting-started.md#animating-a-different-element--target-and-scope)
+> for the general grammar, the effects that refuse retargeting because their CSS reaches past
+> themselves, and the one limitation shared by every use of `target:` here and below: it is resolved
+> once, when the host is first processed, not kept live against later DOM insertions.
 
 > **`sequence-scrub target:` — prefer authored frames over a `src:` pattern.**
 >
@@ -723,6 +731,45 @@ Primitive 32. All `css`.
 
 ---
 
+## Q. Discrete open/close — 6 names
+
+Six primitives, `js` renderer, CSS-driven — the same shape as section I's hover family: a
+near-no-op primitive that mirrors authored timing, the actual motion is a stylesheet transition
+rather than a compiled `animation-*` track.
+
+`fade-open` · `pop-open` · `scale-open` · `drop-open` · `slide-open-up` · `slide-open-down`
+
+> **What this closes.** Every other entrance in this catalog needs the element already laid out and
+> hidden-but-present for `on:enter`'s IntersectionObserver to ever measure it. An element that is
+> actually `display: none`, a closed `<dialog>`, or a non-open `popover` never intersects, so it can
+> never enter that way. `@starting-style` plus `transition-behavior: allow-discrete` animates the
+> transition from the moment the browser first resolves the element's style — no observer involved —
+> which is the only way to animate something genuinely entering or leaving the DOM.
+>
+> ```html
+> <button popovertarget="menu">Menu</button>
+> <div id="menu" popover data-kui="pop-open 240ms">…</div>
+>
+> <div class="panel" data-kui="drop-open" data-open>…</div>
+> ```
+>
+> Works with a native `popover`, a native `<dialog>` (shown via `.showModal()`), or a plain element
+> toggled by the author's own `[data-open]` attribute — the library reacts to whichever one the
+> author is already using and owns none of them, the same "supplies the motion, not the component"
+> boundary the navigation and layout modules state for themselves.
+>
+> **`on:` cannot defer these.** There is no `transition-play-state` to hold a `@starting-style`
+> transition paused behind an activation, so every name here is `supportedActivations: ['manual']`.
+> Writing `on:enter`/`on:click` warns by name instead of silently doing nothing; the transition
+> still fires on its own the moment the element's open/closed state changes.
+>
+> **Unsupported browsers see the rest state, not a broken one.** No `@supports` guard exists or is
+> needed: a browser that cannot parse `@starting-style` shows the element already open, with no
+> entrance animation; one that cannot parse `transition-behavior` flips `display` instantly instead
+> of easing it. Nothing is stranded, nothing is invisible, nothing sits in the wrong place.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -743,11 +790,12 @@ Primitive 32. All `css`.
 | N 3D & perspective | 6 (+2 planned) |
 | O Forms & inputs | 12 |
 | P Motion paths | 5 |
+| Q Discrete open/close | 6 |
 | Generic tween | 2 |
-| **Total shipped** | **261** |
+| **Total shipped** | **267** |
 | Documented but not yet shipped | 4 |
 
-Renderer split: **~175 `css`** · ~12 `prep` · ~58 `js`.
+Renderer split: **~175 `css`** · ~12 `prep` · ~64 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

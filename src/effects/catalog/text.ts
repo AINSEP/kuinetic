@@ -106,12 +106,18 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
    * `marquee-scroll-linked` is unaffected: its position comes from `animation-timeline: scroll()`,
    * not from an activation.
    */
-  cssPrimitive('text-marquee', [CHANNEL.translate], {
+  // `'discrete'` alongside `translate`: the unconditional rule shared by `marquee`/
+  // `marquee-scroll-linked` also pins `display: flex` so the two duplicated text spans it draws sit
+  // side by side. Unrelated to `catalog/discrete.ts`'s show/hide use of the same channel — see that
+  // channel's own doc comment in `test/support/channel-properties.ts`.
+  cssPrimitive('text-marquee', [CHANNEL.translate, 'discrete'], {
     timelines: ['time', 'scroll'],
     defaultActivation: 'load',
     reducedMotion: 'disable',
   }),
-  cssPrimitive('redaction-reveal', [CHANNEL.clip]),
+  // `'discrete'` alongside `clip`: the unconditional rule also pins `display: inline-block` for
+  // sizing, same reasoning as `text-marquee` above.
+  cssPrimitive('redaction-reveal', [CHANNEL.clip, 'discrete']),
   // `'text-shadow'` beside the two transform channels: the keyframe tweens `rotate`/`translate`,
   // but the unconditional `[data-kui-fx~='text-3d-extrude']` rule in `text.css` also paints a
   // six-layer `text-shadow` stack — the extrusion itself, and the loudest thing this effect does.
@@ -119,7 +125,8 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   // channel in `test/support/channel-properties.ts`, so the static-rule invariant never looked at
   // the property. Nothing else in the catalog writes `text-shadow` yet, which is the only reason
   // this never surfaced as a real collision; the channel is what stops the second one from doing so.
-  cssPrimitive('text-3d-extrude', [CHANNEL.rotate, CHANNEL.translate, 'text-shadow'], {
+  // `'discrete'` for the same rule's `display: inline-block` sizing declaration.
+  cssPrimitive('text-3d-extrude', [CHANNEL.rotate, CHANNEL.translate, 'text-shadow', 'discrete'], {
     parameters: extrudeParams,
   }),
 ]
@@ -534,8 +541,9 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
   // `opacity`, which `content` alone does not cover — see this preset's own `transitions` below
   // and text.css's `[data-kui-fx~='word-cycler']` rule. Undeclared before, this primitive's fade
   // was invisible to `findConflicts`: composing it with any other opacity-channel effect looked
-  // disjoint to the compiler while both silently fought over the same fade.
-  jsTextPrimitive('word-cycler', ['content', CHANNEL.opacity], {
+  // disjoint to the compiler while both silently fought over the same fade. `'discrete'` for the
+  // same rule's `display: inline-block` sizing declaration — same reasoning as `text-marquee`.
+  jsTextPrimitive('word-cycler', ['content', CHANNEL.opacity, 'discrete'], {
     parameters: wordCyclerParams,
     prepare: deferPrepare(prepareWordCycler),
     perfClass: 'continuous',

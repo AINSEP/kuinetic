@@ -1,5 +1,6 @@
 import type { Registry } from '../../core/registry.js'
 import { registerAmbient } from './ambient.js'
+import { registerDiscrete } from './discrete.js'
 import { registerFeedback } from './feedback.js'
 import { registerInteraction } from './interaction.js'
 import { registerMedia } from './media.js'
@@ -26,5 +27,6 @@ export function registerCatalog(registry: Registry): Registry {
   registerFeedback(registry)
   registerNumbers(registry)
   registerInteraction(registry)
+  registerDiscrete(registry)
   return registry
 }
