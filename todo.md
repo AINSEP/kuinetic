@@ -198,18 +198,29 @@ library should own it. Never call something "not the library's job" without grep
       contours collapsed to their partner's centroid. `npm run test:browser` is **59/59**; 11 unit
       tests added; coverage still 100/100/100/100. Write-up: `docs/live-testing-backlog.md` D7.
 
-- [ ] **Fix the `gestures` browser flake — it blocks the gate below.** `test/browser/gestures.test.mjs`
-      failed 1 run in ~6 and passed the other 5, always the same 2 checks
-      (`elastic-pull spring-return moves smoothly and meaningfully back to the origin`). Wiring a
-      flaky suite into the gate teaches everyone to ignore the gate, which is the exact disease the
-      gate is meant to cure, so this comes first.
+- [x] **The `gestures` browser flake was already fixed — this entry was four days stale.** Logged
+      2026-08-21 as "1 in ~6, always the `elastic-pull spring-return` check". Root-caused and fixed
+      the *next day* by `c572ae7` (2026-08-22, verified an ancestor of HEAD): `burstSample` advanced
+      its notion of elapsed time by the wait it *asked for* rather than the real clock, so the
+      `read()`/`snap()` round-trip cost pushed every sample later than its label claimed — worse
+      under load, which is exactly the 1-in-6 shape. It now anchors to `performance.now()`/`startedAt`
+      and reports `maxDriftMs`, and the check compares against `released.tx` (the deterministic
+      resisted-drag position) instead of a drifted first sample. Re-measured 2026-08-26: **0 failures
+      in 63 runs** — 42 isolated, 15 under deliberate CPU saturation (6 of 8 cores pegged), 5 run
+      immediately after `gesture-sweep` to reproduce the tier's alphabetical adjacency — plus a full
+      18-suite tier run at 235/235. `gesture-sweep` never shared it: it does not burst-sample, it
+      reads final rest position after a fixed settle.
+      **Lesson, again: an open todo entry is a claim, not a fact. Check `git log` before dispatching.**
 
-- [ ] **Put the browser suite in the gate.** `npm test` is 901 tests at 100% coverage and green;
-      `npm run test:browser` is 59/59. Measured: the browser suite takes **23 seconds**, not the
-      minute this entry used to assume, so per-commit is realistic. A gate that could not go red on
-      D7 for weeks is not a gate. There is no CI and no husky here — "the gate" is a habit — so
-      this means adding a `gate` script, a pre-push hook, or a workflow (remote is
-      `github.com/AINSEP/kuinetic`). Do the flake above first.
+- [ ] **Put the browser suite in the gate — nothing blocks this any more.** The flake above is
+      dead and re-measured. Current real numbers (2026-08-26): `npm test` is **1908 tests / 79 files**
+      green, and the browser tier is **235/235 across 18 suites** (this entry's "901 tests" and
+      "59/59" are both badly stale). The tier takes ~23 seconds, so per-commit is realistic. A gate
+      that could not go red on D7 for weeks is not a gate. There is no CI and no husky here — "the
+      gate" is a habit — so this means adding a `gate` script, a pre-push hook, or a workflow
+      (remote is `github.com/AINSEP/kuinetic`). **Caution:** the `test:browser` npm script is
+      `npm run build && …`, and `build` rewrites tracked `demo/tailwind.css`, dropping ~2465 daisyUI
+      lines. Any gate must invoke `node scripts/run-browser-tests.mjs` directly, or fix `build` first.
 
 - [ ] **Answer the `horizontal-scroll` nesting question.** The owner asked whether
       `<div class="track-stage"><div class="track-viewport"><div class="track" data-kui="…">` can
