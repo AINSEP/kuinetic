@@ -379,7 +379,12 @@
     --s-bg: var(--bg);
     position: relative;
     overflow: clip;
-    padding-top: clamp(5.5rem, 5vw + 3.5rem, 7.5rem);
+    /* Owner's ask: double the visible gap between the sticky nav pill and the headline —
+       measured at 10px on a 1109px window before this change. Shifted all three clamp stops up
+       by the same 0.75rem so the width-vs-cap breakpoints (640px, 1280px) fall in the exact same
+       place as before; only the resulting gap gets bigger, not where the fluid range starts or
+       ends. */
+    padding-top: clamp(6.25rem, 5vw + 4.25rem, 8.25rem);
     padding-bottom: clamp(3.5rem, 5vw, 5.5rem);
     /* Pulled up under the floating header so the stage starts at the very top of the document
        rather than below a white strip the header is sitting on. */
@@ -416,6 +421,14 @@
   @media (max-width: 640px) {
     .hero-title-row { grid-template-columns: 1fr; }
     .hero-title-spacer { display: none; }
+    /* Below 640px `.hero-stage`'s padding-top clamp is pinned at its 5.5rem floor regardless of
+       how much narrower the viewport gets, while the sticky header's own height does not shrink —
+       so the fixed floor and the header's fixed height, tuned against each other only at the
+       clamp's upper end, stop agreeing once the floor takes over. Measured on a 398px viewport:
+       the header's underside sat at 72px, the headline's top at 59px, a 13px overlap. Owner asked
+       for double the clearance rather than a bare minimum, hence 8.5rem, not the ~7rem that just
+       clears it. */
+    .hero-stage { padding-top: 8.5rem; }
   }
 
   .hero h1 {
