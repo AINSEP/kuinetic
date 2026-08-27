@@ -10,6 +10,50 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [ ] **Three browser checks owed on the 2026-08-27 audit fixes.** All ten fixes are unit-green
+      (2510 tests) but three change what a reader actually sees, and no browser rendered a frame
+      for any of them. (a) `threshold:50%` should now start an element halfway in rather than at
+      its first visible pixel, and an `on:enter/leave` pair should reverse when it drops back below
+      half. (b) A `timeline:pin` element with a sequenced second effect should reach its final frame
+      at the bottom of the pin range — worth eyeballing on `scroll.html`, since the same fix also
+      repairs a plain `delay:` under pin that used to stop at 50%. (c) `cursor-lag`/`magnetic`
+      should track the pointer instead of crawling. Drive it through Claude in Chrome against the
+      dev server on 8934 — never a hand-rolled Playwright script.
+
+- [ ] **`threshold:` cannot fire on an element taller than the viewport fraction it asks for.**
+      Found 2026-08-27 while fixing the threshold bug. `threshold:50%` on a 3-viewport-tall element
+      never triggers: its intersection ratio tops out around 0.33. This is **not fixable from the
+      binder** — the browser only delivers entries at crossings of the threshold it was handed, so
+      the peak ratio is never reported. Documented in `meetsThreshold` in `src/core/activation.ts`.
+      The decision to make is whether the library should warn when an element's measured height
+      makes its authored threshold unreachable, rather than silently never firing.
+
+- [ ] **`distance:50%` has the same spacer/tracker disagreement `calc()` just had.** Found
+      2026-08-27 while fixing the `calc()` case, not fixed. `resolveDistance` resolves the
+      percentage against the *element's* height, while the spacer's CSS `height: 50%` resolves
+      against its own containing block — so the reserved scroll distance and the tracked progress
+      range are two different numbers. Same class as the `calc()` bug fixed in `c99df4c`, which is
+      worth reading first: it fixed it by reading the distance back off the spacer, so the two
+      agree by construction.
+
+- [ ] **`preparePin` never passes its own spacer as `contentAnchor`.** Follow-up from the same fix.
+      It tracks the parent instead, so `pin-section distance:calc(...)` takes the *warn* path rather
+      than the measure path — only managed `horizontal-scroll` and `sequence-scrub`/managed
+      `media-scrub` get the spacer measurement. Pin could reasonably pass its own spacer; that is a
+      real improvement but wider than the defect that surfaced it, so it was deliberately left.
+
+- [ ] **A childList removal from a stagger group does not re-rank the surviving siblings.** Found
+      2026-08-27 adjacent to the stagger-ledger fix, not fixed — `releaseTree` doesn't restage the
+      parent, so remove one item from a staggered group and every later sibling keeps its old
+      `--kui-i`. Same class as the stale-after-edit half that *was* fixed in `3d57ff7`.
+
+- [ ] **`test/animator-observe.test.ts` leaks an animator on failure.** Each test destroys its
+      animator at the end of the test *body* rather than in `afterEach`, so a failing assertion
+      leaves one observing `document.body` that then scans the **next** test's markup. Caught
+      2026-08-27 when a new test passed in a group run and failed in isolation. The block added
+      that day tears down in `afterEach`; the older tests in the file still carry the hazard, and
+      until they are moved over, a failure in this file can cascade into unrelated red.
+
 - [ ] **`demo/docs.html`'s new `scroll-spy` TOC is not browser-verified.** Landed in `33b12e2` with
       lint/typecheck/`demo-markup` green, but the browser slot was held so nothing rendered a frame.
       100% unit coverage proves registration, not that an effect animates. Still to assert: the
