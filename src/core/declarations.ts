@@ -30,7 +30,21 @@ export interface AnimationTracks {
   /** The ident inside it, for `CompiledPlan.keyframeNames`. Same length, same order. */
   keyframes: string[]
   durations: string[]
+  /**
+   * Where each track *starts*, as an unwrapped `calc()` sum. Left unwrapped because
+   * {@link declarationsFor} is what finalizes it: on a pin timeline it folds the scrub head into
+   * the same expression, and `calc(calc(a + b) - c)` buries the arithmetic an author has to read
+   * in a devtools panel.
+   */
   delays: string[]
+  /**
+   * Where each track *ends* — its start plus its whole playback — as an unwrapped sum.
+   *
+   * Read only to size the pin scrub head, which has to span the element's longest track rather
+   * than each track's own playback. Accumulated for every timeline because it costs one string
+   * concatenation and knowing the timeline here would buy nothing else.
+   */
+  ends: string[]
   easings: string[]
   iterationCounts: string[]
   /**
@@ -52,6 +66,7 @@ export function emptyTracks(): AnimationTracks {
     keyframes: [],
     durations: [],
     delays: [],
+    ends: [],
     easings: [],
     iterationCounts: [],
     directions: [],
@@ -101,18 +116,15 @@ function iterationCountProperty(presetName: string): string {
  * @complexity O(k) time in the entry's keyframe count; O(k) space in the tracks.
  * @overallScore 100
  */
-export function pushTrack(
-  tracks: AnimationTracks,
-  entry: Entry,
-  timeline: Timeline,
-  step: SequenceStep,
-): void {
+export function pushTrack(tracks: AnimationTracks, entry: Entry, step: SequenceStep): void {
   const { spec, resolved } = entry
   const id = resolved.primitive.id
   // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
   // tracks meant a composed effect inherited its neighbour's timing.
   const duration = durationExpression(spec.duration, id)
-  const delay = staggerDelay(step.delayExpr, timeline, duration, spec.repeat)
+  const delay = staggerDelay(step.delayExpr)
+  // The segment's *whole* playback, so a `repeat:3` track is not read as ending after one play.
+  const end = `${step.delayExpr} + ${playbackExpression(duration, spec.repeat)}`
   const easing = easingValue(spec.easing, id)
   // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
   // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
@@ -137,6 +149,7 @@ export function pushTrack(
     tracks.keyframes.push(name)
     tracks.durations.push(duration)
     tracks.delays.push(delay)
+    tracks.ends.push(end)
     tracks.easings.push(easing)
     tracks.iterationCounts.push(iterations)
     tracks.directions.push(direction)
@@ -206,15 +219,22 @@ export function pushTransitions(
  * track, the full length — a shorter list would be repeated by the browser to match
  * `animation-name` and would silently alternate a neighbour that never asked to.
  *
+ * The delays arrive unwrapped and are finalized here, because the pin scrub head is the one term
+ * in them that cannot be computed per track — see {@link pinnedDelays}.
+ *
  * @complexity O(t) time and space in the track count.
  * @overallScore 100
  */
-export function declarationsFor(tracks: AnimationTracks): Record<string, string> {
+export function declarationsFor(
+  tracks: AnimationTracks,
+  timeline: Timeline,
+): Record<string, string> {
   if (tracks.names.length === 0) return {}
+  const delays = timeline === 'pin' ? pinnedDelays(tracks) : tracks.delays.map(wrapped)
   const declarations: Record<string, string> = {
     'animation-name': tracks.names.join(', '),
     'animation-duration': tracks.durations.join(', '),
-    'animation-delay': tracks.delays.join(', '),
+    'animation-delay': delays.join(', '),
     'animation-timing-function': tracks.easings.join(', '),
     'animation-iteration-count': tracks.iterationCounts.join(', '),
     'animation-fill-mode': tracks.names.map(() => 'both').join(', '),
@@ -229,57 +249,76 @@ export function declarationsFor(tracks: AnimationTracks): Record<string, string>
  * Fold stagger into the delay so the browser does the arithmetic; the scanner only writes each
  * child's index once.
  *
- * On `timeline: 'pin'` the delay does double duty as the *scrub head*. The animation is held
- * paused (see `style-plan.ts`'s `scrubbed` gate) and a negative delay of `progress x duration`
- * seeks it to the matching frame — progress 0 leaves it at its from-state, progress 1 at its
- * to-state, and every value between renders proportionally. This is why the delay needs the
- * track's own duration expression: the seek has to be in that track's time base, or a composed
- * effect whose neighbour has a different duration scrubs at the wrong rate.
- *
- * The stagger term survives untouched and keeps working, because a positive delay pushes an
- * item *back* along the same head: at progress 0.5 with `--kui-stagger: 200ms` over a 1000ms
- * track, index 0/1/2 render at 50%/30%/10%. That is the staggered scroll-scrub that pages
- * previously had to hand-write as `calc((var(--kui-progress) - var(--step)) * 5)` per child.
- *
  * A sequenced `at:` position arrives here already folded into `base`, and the two compose without
  * double-counting because they answer different questions: `at:` positions a segment against its
  * *neighbouring segments on this element*, while stagger shifts *this whole element* against its
  * siblings. Every track on the element takes the same stagger term, so the relative spacing `at:`
  * established inside the list survives the shift intact.
  *
- * An authored `repeat:` widens the head to the *whole* playback rather than one iteration, which is
- * the only reading under which `repeat:3 timeline:pin` means anything: with a one-iteration head,
- * progress 1 lands on the end of the first play and iterations 2 and 3 are unreachable no matter
- * how far the page is scrolled — a knob that exists and does nothing, which is worse than a missing
- * one. Widened, the pin scrubs all three, and with `yoyo:true` it scrubs forward and back. This is
- * the same arithmetic the `at:` sequencer does for "after the previous one ends", through the same
- * `playbackExpression`, so the two cannot disagree about how long a repeated effect takes.
+ * @param base - The segment's start, from `core/sequence.ts`. An unwrapped sum, so it nests here
+ *   without a second `calc()`.
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function staggerDelay(base: string): string {
+  return `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
+}
+
+/** Close an unwrapped sum into the `calc()` a declaration can actually carry. */
+function wrapped(sum: string): string {
+  return `calc(${sum})`
+}
+
+/**
+ * Seek every track by scroll progress, which is what `timeline: 'pin'` makes the delay mean.
+ *
+ * The animation is held paused (see `style-plan.ts`'s `scrubbed` gate) and a negative delay of
+ * `progress x head` seeks it to the matching frame — progress 0 leaves it at its from-state,
+ * progress 1 at its to-state, and every value between renders proportionally.
+ *
+ * The head is one number for the whole element: how long its compiled timeline runs, start to
+ * finish. It used to be each track's *own* playback, which is right only for the single-track,
+ * zero-delay element and silently wrong for everything else, because a track's start is subtracted
+ * from a head that never included it. `fade-up 1s timeline:pin, zoom-in 1s at:after` computed
+ * `1s - 1 x 1s = 0s` for the second track at progress 1 and left it sitting on its first frame,
+ * unreachable at any scroll position; `fade-up delay:300ms timeline:pin` stopped half way through
+ * for the same reason. Spanning the element instead — the furthest any of its tracks ends — puts
+ * progress 1 on the last frame of the last track and leaves every earlier one held at its own end
+ * by `animation-fill-mode: both`.
+ *
+ * `max()` rather than the last track's end because `at:with` and a negative `at:` offset both let
+ * an earlier segment finish last, and an unsequenced list has no order to its ends at all.
+ *
+ * The stagger term survives untouched and keeps working, because a positive delay pushes an item
+ * *back* along the same head: at progress 0.5 with `--kui-stagger: 200ms` over a 1000ms track,
+ * index 0/1/2 render at 50%/30%/10%. That is the staggered scroll-scrub that pages previously had
+ * to hand-write as `calc((var(--kui-progress) - var(--step)) * 5)` per child. The head is widened
+ * by the group's whole stagger span so the last-staggered child still lands exactly on its final
+ * frame at progress 1 (see `stagger.ts`); unstaggered, the `var()` fallbacks collapse that term to
+ * zero.
+ *
+ * An authored `repeat:` is already inside each end, through `playbackExpression`, which is the only
+ * reading under which `repeat:3 timeline:pin` means anything: with a one-iteration head, progress 1
+ * lands on the end of the first play and iterations 2 and 3 are unreachable no matter how far the
+ * page is scrolled — a knob that exists and does nothing, which is worse than a missing one.
+ * Widened, the pin scrubs all three, and with `yoyo:true` it scrubs forward and back. It is the
+ * same expression the `at:` sequencer builds for "after the previous one ends", so the two cannot
+ * disagree about how long a repeated effect takes.
  *
  * `repeat:infinite` never reaches here — `compile.ts`'s `refusePlayback` drops it under `pin` and
  * says why — because there is no finite head that spans it and `calc(600ms * infinite)` is not an
  * expression.
  *
- * @param base - The segment's start, from `core/sequence.ts`. An unwrapped sum, so it nests here
- *   without a second `calc()`.
- * @param repeat - The sanitized `repeat:`, or `undefined`, in which case every character of the
- *   output is what it was before this parameter existed.
- * @complexity O(1) time, O(1) space.
+ * @complexity O(t) time and space in the track count.
  * @overallScore 100
  */
-function staggerDelay(
-  base: string,
-  timeline: Timeline,
-  duration: string,
-  repeat: string | undefined,
-): string {
-  const staggered = `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
-  if (timeline !== 'pin') return `calc(${staggered})`
-  // The head spans the whole playback *plus* the group's whole stagger span, so the last-staggered
-  // child lands exactly on its final frame at progress 1 (see `stagger.ts`). Unstaggered, the
-  // `var()` fallbacks collapse the extra term to zero and this is `progress x playback`.
-  const played = playbackExpression(duration, repeat)
-  const span = `${played} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
-  return `calc(${staggered} - var(--kui-progress, 0) * (${span}))`
+function pinnedDelays(tracks: AnimationTracks): string[] {
+  // Deduplicated because a variant compiling several keyframe blocks pushes the same end once per
+  // block, and `max(a, a)` is noise in a value an author reads in devtools.
+  const ends = [...new Set(tracks.ends)]
+  const span = ends.length === 1 ? ends[0]! : `max(${ends.join(', ')})`
+  const head = `${span} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
+  return tracks.delays.map((delay) => wrapped(`${delay} - var(--kui-progress, 0) * (${head})`))
 }
 
 /**

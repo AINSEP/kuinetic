@@ -728,12 +728,12 @@ function buildPlan(
       resolveParams(authoredParams(entry), schemaFor(entry), (m) => warnings.push(m)),
     )
 
-    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline, step)
+    if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, step)
     else plan.jsEffects.push(positioned(entry, step))
     pushTransitions(transitionSegments, transitionOwners, entry, warnings)
   }
 
-  Object.assign(plan.declarations, declarationsFor(tracks))
+  Object.assign(plan.declarations, declarationsFor(tracks, timeline))
   plan.keyframeNames = tracks.keyframes
   if (transitionSegments.length > 0) plan.transition = transitionSegments.join(', ')
   // `activations`/`timelines` start `undefined` only until the loop's first iteration; `compile`
