@@ -185,6 +185,72 @@ export function cssEasingValue(easing: string): string {
 }
 
 /**
+ * The curve a bare keyword falls back to when nothing defines it.
+ *
+ * Deliberately the same word as {@link cssEasingValue}'s `var()` fallback, so an unknown token
+ * runs identically whether it reached the browser through a stylesheet or through this function.
+ */
+const WAAPI_FALLBACK = 'ease-out'
+
+/**
+ * Resolve one authored easing token to a value `Element.animate` will actually accept.
+ *
+ * The Web Animations sibling of {@link cssEasingValue}, and it exists because the two APIs screen
+ * easings at different moments. A stylesheet resolves `var(--kui-ease-back-out, ease-out)` through
+ * the cascade at computed-value time; `KeyframeEffect`'s `easing` option is parsed as a bare
+ * `<easing-function>` the instant it is handed over, with no cascade to consult — so `var(...)` is
+ * as invalid there as `back-out` itself. Neither one degrades: Chrome throws
+ * `TypeError: 'back-out' is not a valid value for easing` out of `animate()`, which took the whole
+ * FLIP with it and left the layout change to happen instantly and silently.
+ *
+ * So the custom property is read here instead of deferred to the browser. Reading it — rather than
+ * mirroring `base.css`'s ten definitions into a table here — is what keeps the open half of the
+ * vocabulary working: `params.ts`'s `EASING_KEYWORD` accepts any `[a-z]+-(in|out|in-out)`, so an
+ * author may define `--kui-ease-swift-out` and write `ease:swift-out`, and a table could only ever
+ * know the names this repo happens to ship. It also cannot drift from `base.css`, because it *is*
+ * `base.css`. The cost is that it only answers correctly once the library's stylesheet has been
+ * applied, which is why the three callers resolve at prepare time rather than at module load.
+ *
+ * @param easing - A native keyword, a kUInetic keyword, a CSS easing function, or `spring(...)`.
+ * @param el - Element the token is resolved against, so a `--kui-ease-*` scoped to a subtree wins
+ *   exactly as it would in the cascade.
+ * @param warn - Called once when a named token resolves to nothing.
+ * @returns A literal easing value, or `undefined` when the author named none — which leaves each
+ *   caller's own default standing rather than substituting a house one for it.
+ * @complexity O(1) amortised; a bare keyword costs one `getComputedStyle` read.
+ * @overallScore 100
+ */
+export function waapiEasingValue(
+  easing: string,
+  el: Element,
+  warn: (message: string) => void,
+): string | undefined {
+  if (!easing) return undefined
+  if (NATIVE_EASINGS.has(easing)) return easing
+  if (isSpringToken(easing)) return springLinearCurve(springDampingRatio(easing))
+  if (easing.includes('(')) return easing
+
+  const defined = customEasing(easing, el)
+  if (defined) return defined
+  warn(`easing "${easing}" has no --kui-ease-${easing} definition — using ${WAAPI_FALLBACK}`)
+  return WAAPI_FALLBACK
+}
+
+/**
+ * Read `--kui-ease-<name>` as the cascade would see it on this element.
+ *
+ * @returns The literal value, or `''` when nothing defines the property — which is also what an
+ *   element in a document with no view returns, and both mean the same thing to the caller.
+ * @complexity O(1) time and space, but forces a style recalculation.
+ * @overallScore 100
+ */
+function customEasing(name: string, el: Element): string {
+  const view = el.ownerDocument.defaultView
+  if (!view) return ''
+  return view.getComputedStyle(el).getPropertyValue(`--kui-ease-${name}`).trim()
+}
+
+/**
  * Everything wrong with a `spring(...)` token, named one problem at a time.
  *
  * Separate from {@link cssEasingValue} because the two answer different questions and have

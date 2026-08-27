@@ -2,6 +2,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
+import { waapiEasingValue } from '../../core/easing.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { effectDelayMs, effectEasing, TRIGGER_DELAY_PARAM } from '../shared.js'
 
@@ -62,7 +63,7 @@ function layoutPrimitive(
  * @complexity O(n) per mutation batch in the number of children; O(n) space for the snapshot.
  * @overallScore 100
  */
-function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
+function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const engine = createFlipEngine()
   return observeLayout(
     el,
@@ -70,7 +71,7 @@ function prepareFlipContainer(el: Element, params: EffectParams): Cleanup {
     {
       durationMs: effectDurationMs(params, 400),
       delayMs: effectDelayMs(params),
-      easing: effectEasing(params),
+      easing: waapiEasingValue(effectEasing(params), el, ctx.warn),
       scale: params.is('scale'),
     },
     mutationWatcher(el),
@@ -97,6 +98,9 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
 
   const duration = effectDurationMs(params, 400)
   const delay = effectDelayMs(params)
+  // Resolved once, here, rather than per toggle: `waapiEasingValue` reads a custom property off
+  // the element, and the answer cannot change between toggles without the stylesheet changing.
+  const easing = waapiEasingValue(effectEasing(params), el, ctx.warn)
   let animation: Animation | null = null
 
   // The height the last toggle settled on, seeded from whatever is actually rendered right now —
@@ -111,7 +115,7 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
     animation?.cancel()
     const endpoints = heightEndpoints(node, previous)
     previous = endpoints.to
-    animation = animateHeight(node, endpoints, { duration, delay, easing: effectEasing(params) })
+    animation = animateHeight(node, endpoints, { duration, delay, easing })
   })
 
   ctx.invalidate()
@@ -164,7 +168,7 @@ function heightEndpoints(node: HTMLElement, previous: number): { from: number; t
 function animateHeight(
   node: HTMLElement,
   endpoints: { from: number; to: number },
-  timing: { duration: number; delay: number; easing: string },
+  timing: { duration: number; delay: number; easing: string | undefined },
 ): Animation | null {
   const animate = (node as HTMLElement & { animate?: Element['animate'] }).animate
   if (typeof animate !== 'function') return null
@@ -191,6 +195,7 @@ function animateHeight(
 function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
   const engine = createFlipEngine()
+  const easing = waapiEasingValue(effectEasing(params), el, ctx.warn)
   const selector = params.text('follow')
   let currentShift = 0
 
@@ -211,7 +216,7 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
     engine.play(before, [node], {
       durationMs: effectDurationMs(params, 400),
       delayMs: effectDelayMs(params),
-      easing: effectEasing(params),
+      easing,
       scale: true,
     })
   }
