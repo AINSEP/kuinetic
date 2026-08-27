@@ -179,4 +179,29 @@
       animation-range: var(--kui-range, entry 0% cover 60%);
     }
   }
+
+  /*
+   * --- horizontal-scroll, before the runtime has touched anything ---
+   *
+   * `horizontal-track` ships no CSS at all: the sticky window, the clip, the grid and the spacer
+   * are written by `prepareManagedTrack` when the runtime starts. `position: sticky` is part of
+   * that, and it is what makes the stage a containing block — so between first paint and that
+   * moment the stage is `static`, and any absolutely-positioned child inside it resolves against
+   * the initial containing block instead. On `demo/index.html` that threw the reel's own title and
+   * contract line to `top: calc(4.625rem + 43px); left: 0` of the *page*, painting them over the
+   * hero until the bundle loaded — a section from far down the document flashing at the very top.
+   *
+   * Same defect and same fix as `flip-card` in `three-d.css`: key off `data-kui`, the attribute
+   * the author wrote, which is in the markup from the first byte and needs no JavaScript to exist.
+   * `~=` matches whitespace-separated tokens, so this holds for `horizontal-scroll distance:300vh
+   * target:.track` and for a composed `fade-up, horizontal-scroll`.
+   *
+   * Structure only, and only the containing block. The clip and the grid are deliberately left to
+   * the runtime: it applies them just for the managed (`target:`) shape, and a blanket rule here
+   * would also clip a page that positions its own stage. `relative` carries no offsets, creates no
+   * stacking context, and is overwritten by the runtime's inline `sticky` the moment it starts.
+   */
+  [data-kui~='horizontal-scroll'] {
+    position: relative;
+  }
 }
