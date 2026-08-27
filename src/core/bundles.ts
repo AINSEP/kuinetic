@@ -58,7 +58,10 @@ import type { EffectSpec, ParsedValue } from './types.js'
  * against a table that is finished by then.
  */
 
-/** Element-scoped keys a bundle carries to its usage site. `cascade`/`order` are excluded — see `readBundle`. */
+/**
+ * Element-scoped keys a bundle carries to its usage site. The stagger-group keys are excluded — see
+ * `readBundle`.
+ */
 type BundleHoists = Pick<ParsedValue, 'activation' | 'timeline' | 'threshold' | 'rm' | 'func'>
 
 const HOIST_KEYS = ['activation', 'timeline', 'threshold', 'rm', 'func'] as const
@@ -263,12 +266,12 @@ function readBundle(name: string, source: string, el: Element, reporter: Reporte
   if (parsed.specs.length === 0) {
     reporter.warn(`bundle "${name}" names no effect — elements that use it animate nothing`, el)
   }
-  // `cascade:`/`order:` are the two hoists a bundle cannot carry, and the reason is a second code
-  // path rather than a judgement: `stagger.ts` reads them straight off the group element's own
+  // The group keys are the hoists a bundle cannot carry, and the reason is a second
+  // code path rather than a judgement: `stagger.ts` reads them straight off the group element's own
   // attribute text, in a pass that never sees an expansion. Carried here they would work when the
   // animator asked and not when the stagger pass did — the failure that ships working on one page
   // and silently wrong on the next.
-  const group = (['cascade', 'order'] as const)
+  const group = (['cascade', 'spread', 'order', 'cols', 'along'] as const)
     .filter((key) => parsed[key] !== undefined)
     .map((key) => `"${key}:"`)
     .join(' and ')

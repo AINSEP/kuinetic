@@ -160,6 +160,46 @@ reveal, and the pair keeps the observer live so the element fades back out when 
 in again when it returns. Existing markup is unaffected — `on:enter` on its own still fires exactly
 once.
 
+### The four crossings — `actions:`
+
+`enter/leave` is two moments out of four. Scrolling *down* an element enters the viewport and later
+leaves out of the top; scrolling back *up* it re-enters from the top and leaves again out of the
+bottom. `actions:` names what happens at each, in that order:
+
+```html
+<div data-kui="fade-up on:enter actions:play/pause/resume/none">
+```
+
+That one is the reason the feature exists: the reveal plays on the way in, **freezes where it is**
+when you scroll past, and **carries on from there** when you come back — which `enter/leave` cannot
+express, because its only two verbs are "play" and "play backwards".
+
+| Verb | What it does |
+|---|---|
+| `play` | start it, or turn a reversing element back around |
+| `pause` | freeze the playhead where it is |
+| `resume` | carry on from there (starts it, if it never started) |
+| `reverse` | play back out to the from-state — what `enter/leave`'s exit half does |
+| `reset` | rewind to the from-state and stop there |
+| `restart` | rewind and keep playing |
+| `complete` | jump to the end state |
+| `none` | nothing |
+
+Slash-separated so it needs no quoting, and in the same order GSAP's `toggleActions` uses. Slots
+you leave off are `none`, so `actions:play` is "play on the way in and nothing else" — today's
+default for a plain `on:enter`.
+
+Three things worth knowing:
+
+- **It refines `on:`, so it needs one of the observed activations** (`enter`, `leave`, or a pair
+  containing one). On `on:hover` there are no crossings and the library says so rather than binding
+  verbs nothing will reach.
+- **Writing it keeps the observer live.** A plain `on:enter` is spent by its first firing; an
+  element that named the other three crossings is asking to be told about them.
+- **The five verbs that move a playhead need one.** JavaScript-rendered effects (`split-flap`,
+  `count-up`, `draggable`) expose none, and a scroll-driven element's playhead belongs to the
+  scroller — both are named in a warning rather than doing nothing quietly.
+
 Reversing needs a real playhead, which only CSS-rendered effects have. Pair an exit with a
 JavaScript-rendered effect (`split-flap`, `draggable`, `count-up`) and the library warns rather than
 doing nothing quietly. And because the list is open, a misspelled event can no longer be rejected as
@@ -201,11 +241,15 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
 | `below:` | run this effect only below a breakpoint | `fade-up below:md` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
+| `actions:` | what to do at each of a scroll trigger's four crossings | `actions:play/pause/resume/none` |
 | `timeline:` | what drives progress: `time` `view` `scroll` `pin` | `parallax-rotate timeline:view` |
 | `timeline:pin` | seek from a pinning primitive's own progress, for effects that must animate *while* pinned (a `view` timeline stalls when an element sticks) | `pin-section distance:200vh, parallax-rotate timeline:pin` |
 | `threshold:` | how much of the element must be visible before `on:enter` fires | `fade-up threshold:30%` |
 | `cascade:` | delay increment applied to this element's animated children | `cascade:60ms` |
+| `spread:` | total time the whole cascade may take, however many children there are | `spread:600ms` |
 | `order:` | where the cascade starts | `cascade:60ms order:center` |
+| `cols:` | the group's column count, so the ordering is 2D — or `auto` to measure it | `cols:6 order:center` |
+| `along:` | restrict a grid cascade to one axis | `cols:6 along:x` |
 | `rm:` | reduced-motion policy for this element; may only be made *stricter* | `spin rm:disable` |
 | `func:` | name a global function to call when this element finishes — see [below](#calling-a-function-when-it-finishes) | `fade-up func:onReveal` |
 
@@ -468,6 +512,31 @@ with no animation of its own:
 <div class="grid" data-kui-stagger="90ms">
 ```
 
+### Budgeting the whole group — `spread:`
+
+`cascade:` is a gap *per child*, so the group's total length grows with the child count: a
+200-item list at `cascade:50ms` takes ten seconds to finish entering, and nobody ever intended
+that. `spread:` states the total instead and lets the gap fall out of it:
+
+```html
+<div class="grid" data-kui="fade-up spread:600ms">
+<div class="grid" data-kui-stagger="spread:600ms">
+```
+
+Three children or three hundred, the last one starts at 600ms. Adding children tightens the gaps
+rather than lengthening the sequence.
+
+- **They are alternatives, not a pair.** `spread:` is the budget; the step is what the budget
+  divides out. An element that writes both gets the budget and a warning naming the step it
+  ignored.
+- **It composes with `order:`.** `order:center` puts the two middle children on the same beat, so
+  a six-child group has three beats rather than six — `spread:600ms` still finishes at 600ms, with
+  wider gaps.
+- **A group with one animated child gets no gaps at all**, which is a step of `0ms` rather than a
+  division by zero.
+- The value is passed through to CSS, so `spread:var(--reveal-window)` works exactly as
+  `cascade:var(--step)` does.
+
 ### Choosing where the stagger starts — `order:`
 
 By default the group runs first child to last. Add `order:` to change where the wave begins:
@@ -497,6 +566,43 @@ leaves the step to CSS, and `data-kui-stagger="90ms"` is the plain stagger every
 The two attributes are merged **per key**, so a parent may carry the step on one and the ordering on
 the other; where they disagree about the same key, `data-kui` wins and the displaced value is named
 in a warning.
+
+### Staggering across a grid — `cols:`
+
+Everything above ranks children by **DOM index**, which is the right answer for a list and the
+wrong one for a grid: on four rows of six, `order:center` fans out from child 11 — somewhere in the
+middle of row two — rather than from the middle cell. Tell the group how wide it is and the same
+orderings become real 2D proximity:
+
+```html
+<div class="grid" data-kui="fade-up cascade:60ms cols:6 order:center">
+<div class="grid" data-kui-stagger="60ms order:center cols:auto">
+```
+
+`cols:auto` measures the laid-out children instead, which is the case a fixed number cannot serve —
+a grid that is four columns wide on a desktop and two on a phone.
+
+Once a group has a grid:
+
+- **`center` and `edges` become concentric**: `center` blooms outward from the middle cell,
+  `edges` closes inward from the border of the block. `end` is the bottom-right corner.
+- **`order:` also takes a point**, as `x/y` fractions of the grid: `order:1/0` is the top-right
+  corner, `order:0.5/0.5` the middle, `order:0/1` the bottom-left. A slash rather than a comma so
+  it needs no quoting in either attribute. Fractions rather than cell coordinates so the same
+  attribute keeps meaning the same thing when the grid reflows to a different width.
+- **`along:x` or `along:y` restricts the wave to one axis** — `x` staggers strictly by column
+  whatever row a child is in, so the grid wipes left to right in hard columns; `y` does the same by
+  row. `data-kui-stagger` also accepts GSAP's word for it, `axis:`. Inside `data-kui` it has to be
+  `along:`, because `axis` is already an effect parameter (`parallax-y axis:x`).
+- **The step becomes a gap per unit of cell distance, not per item.** A child two columns and one
+  row away starts `√5 × step` after the origin. `spread:` composes with this correctly — the budget
+  is divided by the largest distance, so the group still finishes on time.
+- **`cols:auto` is measured when the group is scanned, and a later resize does not re-measure it.**
+  It re-measures on any `scan()`, which covers DOM changes but not a bare window resize. If the
+  exact wave at every width matters more than convenience, write the number.
+- **A group with no layout yet cannot be measured** — `display: none`, or a detached subtree — and
+  says so rather than guessing; the ordering falls back to DOM index.
+- `random` ignores the grid, because a scatter is a scatter in any shape.
 
 Five things worth knowing:
 

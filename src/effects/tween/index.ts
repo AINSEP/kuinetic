@@ -1,5 +1,12 @@
 import type { Registry } from '../../core/registry.js'
-import type { EffectSpec, EffectVariant, Preset, Primitive, Timeline } from '../../core/types.js'
+import type {
+  EffectSpec,
+  EffectVariant,
+  ParameterSchema,
+  Preset,
+  Primitive,
+  Timeline,
+} from '../../core/types.js'
 import { cssPrimitive } from '../shared.js'
 import {
   TWEEN_GROUP_CHANNELS,
@@ -9,6 +16,13 @@ import {
   withImpliedUnit,
 } from './properties.js'
 import type { TweenGroup } from './properties.js'
+import {
+  collectWaypoints,
+  expandWaypoints,
+  readWaypoints,
+  waypointKeyframes,
+} from './waypoints.js'
+import type { GroupWaypoints } from './waypoints.js'
 
 /**
  * The generic tween — the one effect that is not in the catalog.
@@ -72,13 +86,33 @@ const TWEEN_TIMELINES: Timeline[] = ['time', 'view', 'scroll', 'pin']
  * @complexity O(1) time and space — three fixed keys.
  * @overallScore 100
  */
-function warnZeroScale(name: string, params: Record<string, string>, warn: (m: string) => void): void {
-  const zero = ['scale', 'scale-x', 'scale-y'].filter((key) => Number.parseFloat(params[key] ?? '1') === 0)
+function warnZeroScale(name: string, starts: Record<string, string>, warn: (m: string) => void): void {
+  const zero = ['scale', 'scale-x', 'scale-y'].filter((key) => Number.parseFloat(starts[key] ?? '1') === 0)
   if (zero.length === 0) return
   warn(
     `"${name} ${zero[0]}:0" starts with no box at all, so an on:enter activation can never see it ` +
       `and the element stays invisible forever — use a small non-zero scale, or on:load`,
   )
+}
+
+/**
+ * The state each key starts the animation *at*, which is the only thing the zero-area trap cares
+ * about.
+ *
+ * For a plain `tween-from` that is the authored value. For a waypoint list it is the first value,
+ * whichever direction the name says — a list writes its own 0% step, so `tween x:'0,…' scale:'0,1'`
+ * walks into the same deadlock `tween-from scale:0` does, and a check that only ran for `from`
+ * would have missed exactly the new spelling.
+ *
+ * @complexity O(p) time and space in the authored property count.
+ * @overallScore 100
+ */
+function startStates(direction: TweenDirection, values: [string, string[]][]): Record<string, string> {
+  const starts: Record<string, string> = {}
+  for (const [key, list] of values) {
+    if (list.length > 1 || direction === 'from') starts[key] = list[0]!
+  }
+  return starts
 }
 
 /**
@@ -98,6 +132,7 @@ function buildVariant(
 ): EffectVariant {
   const groups = new Set<TweenGroup>()
   const params: Record<string, string> = {}
+  const values: [string, string[]][] = []
 
   for (const [key, raw] of Object.entries(spec.params)) {
     // `Object.hasOwn`, not a truthiness test on the lookup: a plain object resolves `constructor`
@@ -112,7 +147,12 @@ function buildVariant(
       continue
     }
     groups.add(property.group)
-    params[key] = withImpliedUnit(raw, property.spec.type)
+    const list = readWaypoints(raw)
+    values.push([key, list])
+    // The plain custom property is written whatever the shape. For a single value it is the whole
+    // animation; for a list it is the broadcast fallback every step falls back to, which is what
+    // lets one key in a group write a list and its neighbour write a value that simply holds.
+    params[key] = withImpliedUnit(list[0]!.trim(), property.spec.type)
   }
 
   const touched = TWEEN_GROUP_ORDER.filter((group) => groups.has(group))
@@ -121,15 +161,36 @@ function buildVariant(
       `"${spec.name}" names no properties to animate — add at least one, e.g. ` +
         `"${spec.name} x:100" (known: ${Object.keys(TWEEN_PROPERTIES).join(', ')})`,
     )
-  } else if (direction === 'from') {
-    warnZeroScale(spec.name, params, warn)
+    return { channels: [], keyframes: [], params }
   }
+  warnZeroScale(spec.name, startStates(direction, values), warn)
 
-  return {
+  const waypoints = collectWaypoints(values, warn)
+  const schema: ParameterSchema = {}
+  for (const group of waypoints.values()) expandWaypoints(group, params, schema)
+
+  const variant: EffectVariant = {
     channels: touched.map((group) => TWEEN_GROUP_CHANNELS[group]),
-    keyframes: touched.map((group) => `kui-tween-${direction}-${group}`),
+    keyframes: touched.map((group) => keyframesFor(group, direction, waypoints.get(group))),
     params,
   }
+  if (Object.keys(schema).length > 0) variant.schema = schema
+  return variant
+}
+
+/**
+ * Which block renders one group: the half-keyframe pair the two-point tween has always used, or the
+ * fully explicit N-step block a waypoint list selects.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function keyframesFor(
+  group: TweenGroup,
+  direction: TweenDirection,
+  waypoints: GroupWaypoints | undefined,
+): string {
+  return waypoints ? waypointKeyframes(group, waypoints.count) : `kui-tween-${direction}-${group}`
 }
 
 /**

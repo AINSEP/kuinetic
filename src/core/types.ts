@@ -405,6 +405,21 @@ export interface EffectVariant {
    * `resolveParams` exactly as `spec.params` would have.
    */
   params?: Record<string, string>
+  /**
+   * Extra parameter specs for keys this variant synthesised, merged *over* the primitive's own.
+   *
+   * One attribute can legitimately produce parameters the primitive could not have declared
+   * statically. `tween x:'0,100,40'` is three values for one key, and each of them needs its own
+   * custom property (`--kui-tween-x-1`, `-2`, `-3`) because a keyframe step can only read one — so
+   * `variantFor` expands the list into `params` and declares the specs for the expansion here.
+   *
+   * **This is not a way around validation, and must never become one.** The merged schema is what
+   * `resolveParams` validates `params` against, so every synthesised value is type-checked and
+   * escape-screened exactly as an authored one is; what this field changes is only *which* specs
+   * exist, never whether they are enforced. Merged over rather than replacing, so a variant cannot
+   * quietly drop the primitive's own declarations and admit a value the schema forbids.
+   */
+  schema?: ParameterSchema
 }
 
 /**
@@ -650,13 +665,22 @@ export interface EffectSpec {
 export interface ParsedValue {
   specs: EffectSpec[]
   /**
-   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `order:` / `rm:` /
-   * `func:` keys. Element-scoped: one element has one activation, one timeline, one stagger group,
-   * one reduced-motion policy and one completion — so none of these can sensibly differ between the
-   * comma-separated segments of a single attribute, and all seven are lifted out of the per-effect
-   * `params`.
+   * Hoisted from the reserved `on:` / `actions:` / `timeline:` / `threshold:` / `cascade:` /
+   * `spread:` / `order:` / `cols:` / `along:` / `rm:` / `func:` keys. Element-scoped: one element
+   * has one activation, one timeline, one stagger group, one reduced-motion policy and one
+   * completion — so none of these can sensibly differ between the comma-separated segments of a
+   * single attribute, and all of them are lifted out of the per-effect `params`.
    */
   activation?: Activation
+  /**
+   * What to do at each of the scroll trigger's four crossings, verbatim —
+   * `play/pause/resume/reset`, in the order enter, leave, enter-back, leave-back.
+   *
+   * A refinement of `activation` rather than a peer of it: without one of the observed activations
+   * there are no crossings to act on, and `toggle-actions.ts` says so rather than binding verbs
+   * nothing will ever reach.
+   */
+  actions?: string
   timeline?: string
   threshold?: string
   /**
@@ -666,8 +690,31 @@ export interface ParsedValue {
    * `var(--speed)` and `calc(90ms * 2)` keep working.
    */
   cascade?: string
+  /**
+   * Total stagger budget for this element's animated children — GSAP's `stagger.amount` to
+   * `cascade`'s `stagger.each`. The whole group finishes within this time however many children it
+   * has, so `stagger.ts` divides it by the group's largest rank to get the per-item step.
+   *
+   * Raw text and unvalidated for the same reason `cascade` is: it ends up inside a `calc()` written
+   * to `--kui-stagger`, and `var(--speed)` divides exactly as well as `600ms` does.
+   */
+  spread?: string
   /** Where the stagger wave starts — `data-kui-stagger`'s `from:`, under a name `data-kui` can hold. */
   order?: string
+  /**
+   * The stagger group's column count, or `auto` to measure it — what turns `order:` from a rank
+   * over DOM index into a rank over distance through a real 2D layout.
+   *
+   * Raw text, validated in `stagger.ts` beside the `order:` it modifies: the two are one
+   * diagnostic, and splitting them across two modules would mean an author reading half a message.
+   */
+  cols?: string
+  /**
+   * Restrict a grid stagger to one axis — `x` or `y`. Spelled `along:` rather than GSAP's `axis:`
+   * because `axis` is already a parameter on four primitives and a hoisted key never reaches
+   * `spec.params`; `data-kui-stagger` accepts both words.
+   */
+  along?: string
   /**
    * Author-chosen reduced-motion policy, folded into the primitives' own by `compile.ts`.
    *

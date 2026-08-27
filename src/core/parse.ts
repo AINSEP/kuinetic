@@ -3,6 +3,7 @@ import { axisOf, BREAKPOINT_NAMES, breakpointRank, isBreakpoint } from './breakp
 import type { EffectGate, GateDirection } from './breakpoints.js'
 import { springTokenProblems } from './easing.js'
 import { applyPlayback, isPlaybackKey } from './repeat.js'
+import { validateToggleActions } from './toggle-actions.js'
 import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
@@ -15,7 +16,8 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * rather than failing silently.
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
- * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm`/`func` are hoisted element-wide (see `HOISTS`);
+ * `on`/`actions`/`timeline`/`threshold`/`cascade`/`spread`/`order`/`cols`/`along`/`rm`/`func` are
+ * hoisted element-wide (see `HOISTS`);
  * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns;
  * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
  * pair, container for the second — which `core/breakpoints.ts` owns; and `repeat:`/`yoyo:` are
@@ -265,9 +267,10 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
  * identical delay. 69 groups across 16 demo pages were inert this way, each one warning to the
  * silent default reporter.
  *
- * Only `cascade`/`order` qualify. The other hoists (`on:`, `timeline:`, `threshold:`, `rm:`) do
- * nothing on an element with no effect to apply them to, so accepting a bare `on:enter` here
- * would turn a real typo — a dropped effect name — into silence.
+ * Only the group keys qualify — `cascade`, `spread`, `order`, `cols`, `along`. The other hoists
+ * (`on:`, `timeline:`, `threshold:`, `rm:`) do nothing on an element with no effect to apply them
+ * to, so accepting a bare `on:enter` here would turn a real typo — a dropped effect name — into
+ * silence.
  *
  * @param first - The segment's first token, already known to split as `key:value`.
  * @param rest - The remaining tokens, untouched.
@@ -291,7 +294,13 @@ function applyGroupOnlySegment(first: string, rest: string[], result: ParsedValu
 }
 
 /** The hoists that can stand alone as a whole attribute. See `applyGroupOnlySegment`. */
-const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set(['cascade', 'order'])
+const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set([
+  'cascade',
+  'spread',
+  'order',
+  'cols',
+  'along',
+])
 
 /**
  * Assign a positional time value. The first is the duration, the second the delay — the same
@@ -574,6 +583,25 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
   timeline(result, value) {
     assignOnce(result, 'timeline', value, 'timelines')
   },
+  /**
+   * What to do at each of a scroll trigger's four crossings —
+   * `actions:play/pause/resume/reset`, in the order enter, leave, enter-back, leave-back.
+   *
+   * Element-scoped for `on:`'s reason and then some: it *refines* `on:`, and an element has one
+   * activation to refine. Validated here against the closed verb set, exactly as `rm:` is and for
+   * the same reason — there is nothing a later stage could know about the word `pasue` that this
+   * one does not. The checks that need the element's compiled plan (is this activation even
+   * observed? can these effects be paused at all?) live in `toggle-actions.ts` and run from
+   * `animator.ts`.
+   */
+  actions(result, value) {
+    const problems = validateToggleActions(value)
+    if (problems.length > 0) {
+      result.warnings.push(...problems)
+      return
+    }
+    assignOnce(result, 'actions', value, 'crossing actions')
+  },
   threshold(result, value) {
     assignOnce(result, 'threshold', value, 'thresholds')
   },
@@ -584,7 +612,21 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
    * narrowing. `stagger.ts` owns the one screen both spellings get.
    */
   cascade(result, value) {
+    warnStepMode(result, 'spread', 'cascade', value)
     assignOnce(result, 'cascade', value, 'stagger steps')
+  },
+  /**
+   * The total-time spelling of the same setting — GSAP's `stagger.amount` beside `cascade`'s
+   * `stagger.each`. `cascade:50ms` on a 200-item list takes ten seconds; `spread:600ms` takes six
+   * hundred milliseconds however many items there are, because `stagger.ts` divides the budget by
+   * the group's largest rank.
+   *
+   * Unvalidated here for exactly `cascade`'s reason: the value is divided inside a `calc()` and
+   * written to `--kui-stagger`, so `var(--speed)` and `calc(1s - 200ms)` have to survive.
+   */
+  spread(result, value) {
+    warnStepMode(result, 'cascade', 'spread', value)
+    assignOnce(result, 'spread', value, 'stagger budgets')
   },
   /**
    * Also unvalidated here, for a different reason: the legal set depends on the *group size*
@@ -594,6 +636,26 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
    */
   order(result, value) {
     assignOnce(result, 'order', value, 'stagger orders')
+  },
+  /**
+   * The group's column count, which is what makes `order:center` mean the middle *cell* rather than
+   * the middle *index*. Unvalidated here for `order`'s reason: `cols:auto` is only resolvable
+   * against a laid-out group, and the count that is legal depends on the group size, so the whole
+   * diagnostic lives in `stagger.ts` where both are known.
+   */
+  cols(result, value) {
+    assignOnce(result, 'cols', value, 'stagger column counts')
+  },
+  /**
+   * The axis a grid stagger is restricted to.
+   *
+   * Spelled `along:` rather than GSAP's `axis:` for the same reason `order:` is not `from:`: `axis`
+   * is a parameter on four primitives (`parallax`, `slat-assemble`, and both draggables) and a
+   * hoisted key never reaches `spec.params`, so lifting the word element-wide would make
+   * `data-kui="parallax-y axis:x"` unwritable. `data-kui-stagger` accepts both spellings.
+   */
+  along(result, value) {
+    assignOnce(result, 'along', value, 'stagger axes')
   },
   /**
    * The one hoist that is not a move.
@@ -636,6 +698,34 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
 }
 
 /**
+ * Name the *other* spelling of the stagger step when both are written on one element.
+ *
+ * `cascade:` and `spread:` are two answers to one question — how far apart do the children start —
+ * and an element that states both has stated a contradiction the group cannot honour twice.
+ * `assignOnce` cannot catch it because they are different keys, and it is worth catching: the
+ * resolution (`spread` wins, see `stagger.ts`) is silent otherwise, so an author who added a budget
+ * and forgot to delete the step would see neither the value they wrote nor a reason.
+ *
+ * @param other - The key that would already have been written if this is a conflict.
+ * @param key - The key being written now, for the warning's own text.
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function warnStepMode(
+  result: ParsedValue,
+  other: 'cascade' | 'spread',
+  key: 'cascade' | 'spread',
+  value: string,
+): void {
+  const written = result[other]
+  if (written === undefined) return
+  result.warnings.push(
+    `"${other}:${written}" and "${key}:${value}" are two ways to set one stagger step — ` +
+      `the total budget ("spread:") wins`,
+  )
+}
+
+/**
  * Write a hoisted value once. A second, differing value across segments is an authoring mistake;
  * first one wins so behaviour stays deterministic.
  *
@@ -643,7 +733,18 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
  * @overallScore 100
  */
 function assignOnce<
-  K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'order' | 'rm' | 'func',
+  K extends
+    | 'activation'
+    | 'timeline'
+    | 'threshold'
+    | 'actions'
+    | 'cascade'
+    | 'spread'
+    | 'order'
+    | 'cols'
+    | 'along'
+    | 'rm'
+    | 'func',
 >(
   result: ParsedValue,
   key: K,

@@ -1,70 +1,29 @@
 import { ATTR } from './attrs.js'
 import type { LedgerSet } from './owned-styles.js'
-import { isSafeCssValue } from './params.js'
-import { parse, splitTopLevel } from './parse.js'
 import type { Reporter } from './reporter.js'
+import { resolveStaggerConfig } from './stagger-config.js'
+import type { GridOrigin, StaggerConfig, StaggerFrom, StaggerLayout } from './stagger-config.js'
+
+export { parseStaggerAttribute, resolveStaggerConfig } from './stagger-config.js'
+export type {
+  GridOrigin,
+  StaggerAxis,
+  StaggerColumns,
+  StaggerConfig,
+  StaggerFrom,
+  StaggerLayout,
+} from './stagger-config.js'
 
 /**
- * Where a group's stagger starts from, as a rank over DOM order.
+ * Ranking a stagger group, and writing the result onto its children.
  *
- * A number is a child index — `from:2` blooms outward from the third child.
- *
- * Every keyword except `random` is the same rule under a different origin: *rank = distance from
- * a reference point*. `start` is distance from child 0, `end` from the last child, `center` from
- * the middle, a number from that index, and `edges` from whichever of the two ends is nearer.
- * That is deliberately the whole set. GSAP's is `center | edges | random | <index>`; `start` is
- * added because the default behaviour needs a name an author can write down, and `end` because it
- * is the one ordering that is otherwise impossible to express — `from:<count-1>` requires knowing
- * a count the author cannot see from the markup.
- *
- * `slat-assemble`'s `alternate` (a zig-zag, see `slatOrder` in `effects/catalog/media-shared.ts`)
- * is deliberately *not* here. It is the one ordering whose look cannot be predicted from the name,
- * and it does not fit the distance-from-a-point model above, so it would be a second rule in a set
- * that otherwise has one. It earns its place on slats because there the children are library-made
- * strips of a single image and the zig-zag reads as a wipe; across authored DOM children it reads
- * as noise.
+ * The grammar half — what the two attributes mean — lives in `stagger-config.ts`; this file starts
+ * from a resolved {@link StaggerConfig} and answers the two questions that need a group: what rank
+ * does each child take, and what step does the group publish.
  */
-export type StaggerFrom = 'start' | 'end' | 'center' | 'edges' | 'random' | number
 
-/** Parsed form of the `data-kui-stagger` value. */
-export interface StaggerConfig {
-  /**
-   * The raw step, written to `--kui-stagger` verbatim. Never validated here: the attribute has
-   * always been passed straight through, so `data-kui-stagger="var(--speed)"` and
-   * `calc(90ms * 2)` work today, and narrowing this to a `<time>` literal would break them.
-   */
-  step?: string
-  from: StaggerFrom
-}
-
-const FROM_KEYWORDS: ReadonlySet<string> = new Set(['start', 'end', 'center', 'edges', 'random'])
-
-/**
- * The two spellings of the ordering key inside `data-kui-stagger`.
- *
- * `from:` is the original and stays supported forever — it is the word GSAP uses and the one this
- * branch shipped with. `order:` is the same key under the name the `data-kui` hoist had to use,
- * because `from` is a parameter on eighteen primitives and could not be lifted element-wide (see
- * `HOISTS` in `parse.ts`). Accepting both here is what stops an author having to remember that
- * the word changes depending on which attribute they happen to be writing in.
- */
-const ORDER_KEYS: ReadonlySet<string> = new Set(['from', 'order'])
-
-/**
- * A `key:value` token in this attribute's grammar. The key is a bare identifier, which is what
- * keeps this from misreading a step: no CSS time is written with a leading identifier and a colon,
- * and `calc(90ms * 2)` / `var(--speed)` contain no colon at all.
- */
-const PAIR_RE = /^([a-zA-Z-]+):(.*)$/
-
-/**
- * Digit-bounded on purpose. `Number('9'.repeat(400))` is `Infinity`, and an infinite origin makes
- * every rank `Infinity`, which `String()` writes into `--kui-i` as the keyword `Infinity` —
- * invalid in the `calc()` downstream, so the whole delay declaration drops and the group loses its
- * stagger silently. Nine digits clamp long before that, and any index this large is clamped to the
- * group's last child anyway.
- */
-const INDEX_RE = /^-?\d{1,9}$/
+/** Ranks are spent inside a `calc()`, so three decimals is already more than a delay can show. */
+const RANK_PRECISION = 1000
 
 /**
  * Mixing constants for `randomRanks`. `0x9e3779b1` is 2^32/φ, the usual choice; the other three
@@ -77,314 +36,40 @@ const MIX_A = 0x21f0aaad
 const MIX_B = 0x735a2d97
 
 /**
- * Parse `data-kui-stagger`.
+ * The value to write into `--kui-stagger` for a group whose largest rank is `maxRank`.
  *
- * The grammar is the smallest thing that could carry an ordering without a new attribute:
+ * A fixed step is passed through exactly as it always was. A total budget is divided by the largest
+ * rank, because that rank is what the delay formula multiplies the step by
+ * (`declarations.ts`'s `staggerDelay`) — so `budget / maxRank` is the step under which the
+ * last-starting child starts at exactly `budget`, and the group's whole stagger span is the number
+ * the author wrote, whatever the child count. Adding children tightens the gaps instead of
+ * lengthening the sequence, which is the entire point of the mode: a 200-item list at
+ * `cascade:50ms` takes ten seconds to finish entering, and the same list at `spread:600ms` takes
+ * six hundred milliseconds.
  *
- *   value := [step] key:value*
+ * The divisor is the largest *rank*, not `count - 1`, so this composes with `order:` for free:
+ * `center` on six children tops out at rank 2, and dividing by 2 is what keeps the *span* equal to
+ * the budget rather than stretching it to two and a half times the budget.
  *
- * — the step positional and first, exactly as `duration` is positional and first in `data-kui`.
- * So `data-kui-stagger="90ms"` (every use in the repo today) parses unchanged, and
- * `data-kui-stagger="90ms from:center"` adds the ordering.
+ * **`maxRank === 0` is a division by zero and must never be written.** A one-child group, or any
+ * group whose ordering puts every child on beat 0, has no gaps to distribute — and
+ * `calc(600ms / 0)` is not an invalid-but-harmless value, it is an invalid declaration, so the
+ * browser drops it and the group silently inherits whatever `--kui-stagger` an ancestor happened to
+ * publish. `0ms` says the true thing: no gaps.
  *
- * This attribute is no longer the only home for a group declaration — `data-kui` now carries the
- * same two settings as `cascade:` and `order:` (see `HOISTS` in `parse.ts`, and
- * `resolveStaggerConfig` below for how the two spellings merge). What has not changed is *why the
- * words differ between the two attributes*, and the reasoning is worth keeping because it is what
- * fixes the names:
- *
- *  1. The group parent usually has no `data-kui` at all — it is a bare `<div class="grid">` in
- *     every one of the demo pages. So this attribute cannot be retired: a hoist-only design would
- *     force an author to invent an effect for a wrapper that is not animating.
- *  2. `data-kui`'s grammar is per-*effect*: `data-kui="fade-up, zoom-in"` is two specs. Ordering
- *     is a property of the group, not of an effect, which is why the `data-kui` spelling had to be
- *     an element-wide hoist rather than an ordinary parameter.
- *  3. `from:` is already taken inside `data-kui`, by eighteen primitives. `count-up from:0`,
- *     `scale-in from:1`, `gradient-shift from:#f00`, `path-morph from:...` — it is one of the most
- *     common parameter names in the catalog. A group ordering spelled `from:` there would be
- *     ambiguous with all of them and unresolvable, because `resolveParams` cannot know whether the
- *     author meant the effect's parameter or the group's order. That is an argument about the
- *     *word*, not the attribute, so the hoisted spelling is `order:` and this attribute keeps
- *     `from:` — and now accepts `order:` too, so one word works in both places.
- *
- * Warnings rather than silence, because the failure is invisible otherwise: an unparsed token
- * lands in `--kui-stagger` as garbage, CSS drops the declaration, and the group animates as one
- * block with nothing in the console to say why.
- *
- * @param value - Raw attribute text. `''` for a bare `data-kui-stagger` with no value.
- * @param warnings - Sink for diagnostics. Optional so a pure parse can ignore them.
- * @returns The step (absent when the author wrote only an ordering) and the ordering.
- * @complexity O(n) time in the attribute length; O(n) space for the tokens.
- * @overallScore 100
- */
-export function parseStaggerAttribute(value: string, warnings: string[] = []): StaggerConfig {
-  return parseStaggerTokens(value, warnings).config
-}
-
-/**
- * The parse above, plus whether the author actually wrote an ordering.
- *
- * `StaggerConfig.from` cannot answer that: it is `'start'` both when the author wrote
- * `from:start` and when they wrote nothing at all, and `resolveStaggerConfig` needs the
- * difference — otherwise `data-kui-stagger="90ms"` beside `data-kui="order:center"` reports a
- * conflict with a value nobody wrote. Kept off `StaggerConfig` rather than added to it because
- * that type is the module's public shape and an always-present flag would be a field every
- * consumer has to ignore.
- *
- * @complexity O(n) time in the attribute length; O(n) space for the tokens.
- * @overallScore 100
- */
-function parseStaggerTokens(
-  value: string,
-  warnings: string[],
-): { config: StaggerConfig; sawFrom: boolean } {
-  const config: StaggerConfig = { from: 'start' }
-  let sawFrom = false
-
-  // Paren- and quote-aware, so `calc(90ms * 2)` survives as one token rather than three. That is
-  // the same tokenizer `data-kui` uses; a plain `.split(' ')` here would shred exactly the values
-  // this attribute has always accepted.
-  for (const token of splitTopLevel(value, ' ', warnings)) {
-    const pair = PAIR_RE.exec(token)
-    if (!pair) {
-      config.step = keepFirstStep(config.step, token, warnings)
-      continue
-    }
-
-    const [, key = '', raw = ''] = pair
-    if (!ORDER_KEYS.has(key)) {
-      warnings.push(
-        `unrecognised key "${key}" in data-kui-stagger — expected a time step, "from:" or "order:"`,
-      )
-      continue
-    }
-    // First one wins, matching `assignOnce` in `parse.ts`: a second, differing value across the
-    // same attribute is a mistake, and letting the last one win makes which mistake you get depend
-    // on token order. One flag rather than one per spelling, because `from:` and `order:` are the
-    // same key — writing both is the same mistake as writing `from:` twice, not a second chance.
-    if (sawFrom) {
-      warnings.push(`duplicate "${key}:" in data-kui-stagger — "${raw}" ignored`)
-      continue
-    }
-    sawFrom = true
-    config.from = parseFrom(raw, warnings)
-  }
-  return { config, sawFrom }
-}
-
-/**
- * Merge the two spellings of a group declaration into one config.
- *
- * `data-kui-stagger="90ms from:center"` and `data-kui="cascade:90ms order:center"` are the same
- * request written two ways, and both have to keep working — the longhand appears on 77 group
- * elements in the demo pages alone and predates the hoist.
- *
- * **Merged per key, not per attribute.** `data-kui-stagger="90ms"` on a grid whose `data-kui` says
- * `order:center` is a perfectly coherent thing to have written while migrating, and blanking the
- * step because the *other* attribute happened to mention ordering would be a silent regression of
- * exactly the kind this module keeps warning about. So each key is resolved on its own and only a
- * genuine disagreement about the same key is a conflict.
- *
- * **Where they disagree, `data-kui` wins and the longhand is named.** Not a coin toss:
- * `element-config.ts` already resolves `on:`/`timeline:`/`threshold:` this way — "values written
- * inline are a convenience that takes precedence over the longhand attribute" — and a fourth and
- * fifth key that resolved the *other* way would make the precedence rule something an author has
- * to memorise per key instead of learn once. Naming the loser by value is what turns "why is my
- * stagger 90ms when I wrote 200ms" into a one-line answer.
- *
- * @param attribute - Raw `data-kui-stagger` text, or `null` when the element has none.
- * @param source - Raw `data-kui` text; only its hoisted `cascade:`/`order:` keys are read.
- * @param warnings - Sink for conflict and grammar diagnostics.
- * @returns The resolved group config, or `undefined` when neither attribute declares a group at
- *   all — which is how `applyStagger` tells a group element from any other animated element.
- * @complexity O(n) time in the two attributes' combined length; O(n) space for their tokens.
- * @overallScore 100
- */
-export function resolveStaggerConfig(
-  attribute: string | null,
-  source: string,
-  warnings: string[] = [],
-): StaggerConfig | undefined {
-  // `parse()` is re-run here rather than threaded down from `animator.process()`, and its warnings
-  // are deliberately dropped: `process()` has already reported every one of them against this same
-  // element, so forwarding them would double every grammar diagnostic on the page. Only the two
-  // hoisted values are taken. The cost is one extra parse per *group*, not per animated element —
-  // `hasGroupKey` screens the rest out for a substring scan.
-  const inline = inlineGroupKeys(source)
-  if (attribute === null && inline === undefined) return undefined
-
-  const { config: longhand, sawFrom } = parseStaggerTokens(attribute ?? '', warnings)
-  return screenStep(mergeInline(longhand, sawFrom, inline ?? {}, warnings), warnings)
-}
-
-/**
- * The hoisted group keys in a `data-kui` value, or `undefined` when it declares no group.
- *
- * Two stages, and the first is what keeps this cheap. `hasGroupKey` is a substring scan run
- * against every animated element in the subtree; `parse()` only runs for the few that survive it,
- * and only its verdict — did a hoist actually land? — reaches the caller. `border:` ends in
- * `order:` and gets through the scan, which is exactly why the parse has the final say.
- *
- * @complexity O(n) time in the attribute length; O(1) space in the common case, O(n) when parsed.
- * @overallScore 100
- */
-function inlineGroupKeys(source: string): { cascade?: string; order?: string } | undefined {
-  if (!hasGroupKey(source)) return undefined
-  // `parse()`'s warnings are deliberately dropped: `animator.process()` has already reported every
-  // one of them against this same element, so forwarding them would double every grammar
-  // diagnostic on the page. Only the two hoisted values are taken.
-  const { cascade, order } = parse(source)
-  if (cascade === undefined && order === undefined) return undefined
-  return { cascade, order }
-}
-
-/**
- * Drop a step that could escape the declaration it is about to be written into.
- *
- * The step is written to a custom property verbatim, and `data-kui` is not always authored by the
- * site owner — a CMS field or a comment can reach it, which is the threat model `params.ts` is
- * built around. Every *other* value in that attribute goes through `validate()` before it reaches
- * `style.setProperty`; this one never has, because narrowing it to a `<time>` literal would break
- * the `var(--speed)` and `calc(90ms * 2)` steps `data-kui-stagger` has always accepted. The escape
- * screen is the half of that validation those forms pay nothing for, so both spellings get it.
- *
- * Dropped rather than defaulted, and warned by name: there is no safe step to substitute, and a
- * group with no step is a group that does not stagger, which is visible.
- *
- * @complexity O(n) time in the step length; O(1) space.
- * @overallScore 100
- */
-function screenStep(config: StaggerConfig, warnings: string[]): StaggerConfig {
-  if (config.step === undefined || isSafeCssValue(config.step)) return config
-  warnings.push(`stagger step "${config.step}" contains disallowed CSS syntax — ignored`)
-  // A fresh object rather than `delete config.step`: the caller's `config` is built from a spread
-  // of the longhand parse, and mutating a property off it would make the "no step at all" case
-  // (`{ from }`) and the "step refused" case structurally identical for the caller either way —
-  // but only this form leaves `StaggerConfig`'s optional `step` genuinely absent under
-  // `exactOptionalPropertyTypes` rather than present-and-undefined.
-  return { from: config.from }
-}
-
-/**
- * Overlay the hoisted `cascade:`/`order:` values on the longhand parse, one key at a time.
- *
- * Split out of `resolveStaggerConfig` only to keep that function under the complexity budget; the
- * precedence rule it implements is documented there.
- *
- * @param longhand - The `data-kui-stagger` parse.
- * @param sawFrom - Whether the longhand actually wrote an ordering, as opposed to defaulting.
- * @param inline - The two hoisted values, either or both absent.
- * @complexity O(1) time and space beyond the ordering parse.
- * @overallScore 100
- */
-function mergeInline(
-  longhand: StaggerConfig,
-  sawFrom: boolean,
-  inline: { cascade?: string; order?: string },
-  warnings: string[],
-): StaggerConfig {
-  const config: StaggerConfig = { ...longhand }
-  if (inline.cascade !== undefined) {
-    warnOverride('stagger step', longhand.step, inline.cascade, warnings)
-    config.step = inline.cascade
-  }
-  if (inline.order !== undefined) {
-    const order = parseFrom(inline.order, warnings, 'order')
-    // `sawFrom`, not `longhand.from`: an unwritten ordering reads as `'start'`, so comparing the
-    // values alone would report a conflict against markup nobody wrote.
-    //
-    // Compared on the *parsed* orderings, so the same ordering written in both attributes is
-    // silent. The comparison stops there and deliberately does not normalise: `from:0` and
-    // `order:start` are the same ordering (see `originOf`) but are reported as a conflict, because
-    // the other boundary identity — `from:<last>` is `end` — needs a group size this function does
-    // not have, and special-casing only the half that happens to be knowable would be a rule an
-    // author could not predict. Both spellings still resolve to the same wave; the warning names
-    // which one won, which is true and useful, rather than silently claiming they differ.
-    warnOverride('stagger order', sawFrom ? longhand.from : undefined, order, warnings)
-    config.from = order
-  }
-  return config
-}
-
-/**
- * Whether a `data-kui` value could contain a hoisted group key.
- *
- * A substring test, not the grammar: `border:` ends in `order:` and `tween cascade:...` is not a
- * thing, so this over-matches by design and `parse()` makes the real decision. Over-matching costs
- * one wasted parse; under-matching would silently drop a group, so a cleverer regex with a
- * word-boundary guard is the wrong trade here — it would have to agree with `splitTopLevel`'s
- * quote- and paren-aware tokenizer in every case, and where it did not the failure would be an
- * animation that just does not stagger, with nothing in the console.
- *
- * @complexity O(n) time in the attribute length; O(1) space.
- * @overallScore 100
- */
-function hasGroupKey(source: string): boolean {
-  return source.includes('cascade:') || source.includes('order:')
-}
-
-/**
- * Name the value an inline key is about to displace.
- *
- * Silent when the longhand said nothing, or said the same thing: the common case during a
- * migration is one attribute carrying the step and the other carrying the order, which is not a
- * mistake and must not read like one.
- *
+ * @param config - The resolved group config; `spread` wins over `step` before this is reached.
+ * @param maxRank - Largest rank written across the group.
+ * @returns The step to write, or `undefined` when the author declared none.
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function warnOverride(
-  label: string,
-  previous: string | StaggerFrom | undefined,
-  next: string | StaggerFrom,
-  warnings: string[],
-): void {
-  if (previous === undefined || previous === next) return
-  warnings.push(
-    `conflicting ${label}: data-kui-stagger says "${String(previous)}", ` +
-      `data-kui says "${String(next)}" — data-kui wins`,
-  )
-}
-
-/**
- * The first bare token is the step. A second is an authoring mistake worth naming: both used to be
- * concatenated into `--kui-stagger`, which made the declaration invalid and dropped the group's
- * stagger entirely rather than just ignoring the stray token.
- *
- * @returns The step to keep — the one already found, or this token if there was none.
- * @complexity O(1) time and space.
- * @overallScore 100
- */
-function keepFirstStep(current: string | undefined, token: string, warnings: string[]): string {
-  if (current === undefined) return token
-  warnings.push(`extra token "${token}" in data-kui-stagger (expected one time step)`)
-  return current
-}
-
-/**
- * Resolve one `from:` value to an ordering, falling back to the default rather than failing.
- *
- * The string-or-number return is the domain, not sloppiness: GSAP's `from` is a keyword *or* an
- * index, and flattening it to a string here would only move the `Number()` — and the "is this
- * "2" the keyword or the index?" question — into every consumer.
- *
- * @complexity O(1) time and space.
- * @overallScore 100
- */
-// eslint-disable-next-line sonarjs/function-return-type -- `StaggerFrom` is a keyword OR an index by design; see above.
-function parseFrom(raw: string, warnings: string[], key: 'from' | 'order' = 'from'): StaggerFrom {
-  const value = raw.trim()
-  if (FROM_KEYWORDS.has(value)) return value as StaggerFrom
-  if (INDEX_RE.test(value)) return Number(value)
-  // The key is echoed back rather than hard-coded, and the attribute name is no longer named at
-  // all: the same ordering arrives as `from:` or `order:` on `data-kui-stagger` and as `order:`
-  // inside `data-kui`, so a fixed "in data-kui-stagger" would send two thirds of the authors who
-  // read this warning looking at an attribute they never wrote.
-  warnings.push(
-    `unrecognised "${key}:${raw}" — expected ` +
-      `start, end, center, edges, random, or a child index`,
-  )
-  return 'start'
+function resolveStep(config: StaggerConfig, maxRank: number): string | undefined {
+  if (config.spread === undefined) return config.step
+  if (maxRank <= 0) return '0ms'
+  // Parenthesised because the budget is authored text: `spread:calc(1s - 200ms)` is legal and
+  // `calc(calc(1s - 200ms) / 2)` is what it has to become, not `calc(calc(...) / 2)`'s unbracketed
+  // cousin. Nesting `calc()` is valid CSS and costs nothing.
+  return `calc((${config.spread}) / ${String(maxRank)})`
 }
 
 /**
@@ -414,9 +99,16 @@ function parseFrom(raw: string, warnings: string[], key: 'from' | 'order' = 'fro
  * this cannot see is `flex-direction: row-reverse`, where the author has divorced visual order
  * from DOM order themselves; `from:end` is the fix there.
  *
+ * **A group that declared `cols:` ranks by distance through the grid instead**, which is the one
+ * thing DOM order genuinely cannot express: on a real multi-row grid the middle *index* is not the
+ * middle *cell*, so `center` fans out from a point that is nowhere near the visual centre. See
+ * {@link gridRanks}. The rank stops being an integer there, and that is fine — it is spent inside a
+ * `calc()`, and `2.236 * 90ms` is as valid a delay as `2 * 90ms`.
+ *
  * @param count - Number of animated children in the group.
  * @param from - The ordering.
  * @param warnings - Sink for the out-of-range diagnostic. Optional; the function is otherwise pure.
+ * @param layout - The group's grid, when it declared one. Absent means rank over DOM index.
  * @returns One rank per child, indexed by DOM position.
  * @complexity O(n) time and space, except `random` which is O(n log n) time.
  * @overallScore 100
@@ -425,9 +117,20 @@ export function staggerRanks(
   count: number,
   from: StaggerFrom,
   warnings: string[] = [],
+  layout?: StaggerLayout,
 ): number[] {
   if (count <= 0) return []
+  // `random` is a permutation of the group and has no geometry in it, so a grid changes nothing —
+  // scattering is scattering whether the tiles are in a row or a block.
   if (from === 'random') return randomRanks(count)
+  if (layout) return gridRanks(count, from, layout, warnings)
+  if (typeof from === 'object') {
+    warnings.push(
+      `stagger order "${String(from.x)}/${String(from.y)}" is a point in a grid, but this group ` +
+        `has no "cols:" — add one, or name an edge with start/end/center/edges`,
+    )
+    return staggerRanks(count, 'start', warnings)
+  }
 
   const last = count - 1
   // Both ends rank 0 and the middle ranks highest, so a row closes inward. The mirror image of
@@ -450,24 +153,133 @@ export function staggerRanks(
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function originOf(from: Exclude<StaggerFrom, 'random' | 'edges'>, last: number, warnings: string[]): number {
+function originOf(
+  from: Exclude<StaggerFrom, 'random' | 'edges' | GridOrigin>,
+  last: number,
+  warnings: string[],
+): number {
   if (from === 'start') return 0
   if (from === 'end') return last
   if (from === 'center') return last / 2
+  return clampIndex(from, last, warnings)
+}
 
-  // An out-of-range `from:` is clamped to the nearest end, not honoured. Unclamped, `from:99` on a
-  // five-item group ranks them 99, 98, 97, 96, 95 — at a 90ms step that is 8.5 seconds of nothing
-  // before the first child moves, which is the `--kui-i` leak's failure mode wearing a different
-  // hat: an effect that looks broken because it is waiting out an offset nobody meant to write.
-  // Clamping rather than refusing, because at each boundary the clamp *is* the identity: `from:0`
-  // is `from:start` and `from:<last>` is `from:end`, so an out-of-range index degrades to the
-  // keyword the author could have written instead of to a linear ramp behind a delay nobody asked
-  // for. A negative index clamps to 0 rather than counting back from the end, because `end`
-  // already has a name and a second, invisible indexing convention would be worse than a warning.
-  if (from < 0 || from > last) {
-    warnings.push(`stagger order "${from}" is outside the group (0 to ${last}) — clamped`)
+/**
+ * Hold a `from:<index>` inside the group.
+ *
+ * An out-of-range index is clamped to the nearest end, not honoured. Unclamped, `from:99` on a
+ * five-item group ranks them 99, 98, 97, 96, 95 — at a 90ms step that is 8.5 seconds of nothing
+ * before the first child moves, which is the `--kui-i` leak's failure mode wearing a different hat:
+ * an effect that looks broken because it is waiting out an offset nobody meant to write.
+ *
+ * Clamping rather than refusing, because at each boundary the clamp *is* the identity: `from:0` is
+ * `from:start` and `from:<last>` is `from:end`, so an out-of-range index degrades to the keyword the
+ * author could have written instead of to a linear ramp behind a delay nobody asked for. A negative
+ * index clamps to 0 rather than counting back from the end, because `end` already has a name and a
+ * second, invisible indexing convention would be worse than a warning.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function clampIndex(index: number, last: number, warnings: string[]): number {
+  if (index < 0 || index > last) {
+    warnings.push(`stagger order "${String(index)}" is outside the group (0 to ${String(last)}) — clamped`)
   }
-  return Math.min(Math.max(from, 0), last)
+  return Math.min(Math.max(index, 0), last)
+}
+
+/**
+ * Rank every child by its distance through a declared grid, rather than along DOM order.
+ *
+ * This is the whole of the 2D feature and it is deliberately the same rule the 1D orderings already
+ * follow — *rank = distance from a reference point* — with the point and the distance both promoted
+ * to two dimensions. `center` on a 4x6 grid now fans out concentrically from the middle cell rather
+ * than from child 11, which on anything but a single row is a different and much better-looking
+ * animation.
+ *
+ * **Ranks are distances, so they are fractional and they are not indices.** The step becomes a gap
+ * per unit of *cell distance*: a child two columns and one row away starts `sqrt(5) x step` after
+ * the origin, not `n x step` for some ordinal n. That is what proximity means, and it is why a
+ * budgeted `spread:` composes with it correctly — the budget is divided by the largest distance, so
+ * the group still finishes on time.
+ *
+ * `edges` is `center` turned inside out, exactly as it is in one dimension: the outermost cells go
+ * first and the group closes on its middle.
+ *
+ * @param layout - The declared column count, and the axis to restrict the distance to.
+ * @complexity O(n) time and space.
+ * @overallScore 100
+ */
+function gridRanks(
+  count: number,
+  from: Exclude<StaggerFrom, 'random'>,
+  layout: StaggerLayout,
+  warnings: string[],
+): number[] {
+  // More columns than children is a grid with one short row, so the column count is the child
+  // count; `Math.max(1, ...)` is belt-and-braces against a zero that `parseCols` already refuses.
+  const cols = Math.min(Math.max(1, layout.cols), count)
+  const rows = Math.ceil(count / cols)
+  if (from === 'edges') {
+    const inward = gridRanks(count, 'center', layout, warnings)
+    let furthest = 0
+    for (const rank of inward) furthest = Math.max(furthest, rank)
+    return inward.map((rank) => round(furthest - rank))
+  }
+
+  const origin = gridOrigin(from, { cols, rows, last: count - 1 }, warnings)
+  return Array.from({ length: count }, (_, index) => {
+    const dx = (index % cols) - origin.x
+    const dy = Math.floor(index / cols) - origin.y
+    if (layout.along === 'x') return round(Math.abs(dx))
+    if (layout.along === 'y') return round(Math.abs(dy))
+    return round(Math.hypot(dx, dy))
+  })
+}
+
+/** The grid a {@link gridOrigin} is being placed in. */
+interface GridShape {
+  cols: number
+  rows: number
+  last: number
+}
+
+/**
+ * The cell — possibly a half-cell — a grid ordering measures from.
+ *
+ * `end` is the bottom-right *corner*, not the last child: on a grid whose final row is short those
+ * differ, and the corner is the one an author means by "from the end" when they are looking at a
+ * block rather than at a list.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function gridOrigin(
+  from: Exclude<StaggerFrom, 'random' | 'edges'>,
+  grid: GridShape,
+  warnings: string[],
+): GridOrigin {
+  const { cols, rows, last } = grid
+  if (typeof from === 'object') return { x: from.x * (cols - 1), y: from.y * (rows - 1) }
+  if (from === 'start') return { x: 0, y: 0 }
+  if (from === 'end') return { x: cols - 1, y: rows - 1 }
+  if (from === 'center') return { x: (cols - 1) / 2, y: (rows - 1) / 2 }
+  const index = clampIndex(from, last, warnings)
+  return { x: index % cols, y: Math.floor(index / cols) }
+}
+
+/**
+ * Round a distance to three decimals.
+ *
+ * Not cosmetic. The rank is written into an inline custom property and re-read on every re-index,
+ * and `Math.hypot(1, 2)` unrounded is seventeen significant figures of a number whose fourth one
+ * cannot change a delay by a visible amount.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function round(value: number): number {
+  return Math.round(value * RANK_PRECISION) / RANK_PRECISION
 }
 
 /**
@@ -544,7 +356,8 @@ function scatterKey(index: number, count: number): number {
  * `--kui-order` or `--kui-from` would have needed its own reset and would have been one more thing
  * to remember.
  *
- * @param group - Element carrying `data-kui-stagger`, or a `data-kui` with `cascade:`/`order:`.
+ * @param group - Element carrying `data-kui-stagger`, or a `data-kui` with `cascade:`/`spread:`/
+ *   `order:`.
  * @param reporter - Diagnostic sink for a malformed attribute. Optional, so the two-argument
  *   contract every existing caller uses keeps working.
  * @complexity O(n) time in the number of children; O(n) space for the ranks.
@@ -552,24 +365,30 @@ function scatterKey(index: number, count: number): number {
  */
 export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   const warnings: string[] = []
+  const host = group as HTMLElement
   // Both spellings, merged. Falls back to the empty longhand parse when neither attribute declares
   // a group, so a direct call on any element still publishes the same defaults it always did —
   // `applyStagger` is what decides which elements are groups, and it never routes a non-group here.
-  const { step, from } = resolveStaggerConfig(
+  const config = resolveStaggerConfig(
     group.getAttribute(ATTR.stagger),
     group.getAttribute(ATTR.source) ?? '',
     warnings,
   ) ?? { from: 'start' }
-  if (step) (group as HTMLElement).style.setProperty('--kui-stagger', step)
 
   const children = animatedChildren(group)
-  const ranks = staggerRanks(children.length, from, warnings)
+  const ranks = staggerRanks(children.length, config.from, warnings, resolveLayout(config, children, warnings))
   let maxRank = 0
   for (const [index, child] of children.entries()) {
     const rank = ranks[index] ?? 0
     child.style.setProperty('--kui-i', String(rank))
     if (rank > maxRank) maxRank = rank
   }
+
+  // After the ranks, not before them, which is the one ordering change a total budget forces: the
+  // step a `spread:` resolves to is the budget divided by the largest rank, and the largest rank is
+  // not known until every child has one. A fixed `cascade:` step does not care either way.
+  const step = resolveStep(config, maxRank)
+  if (step) host.style.setProperty('--kui-stagger', step)
 
   // The group's stagger span, published for `timeline: pin`. A time-driven stagger does not need
   // it — the clock keeps running past the last item's delay, so everything finishes eventually. A
@@ -598,7 +417,10 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   // group publishes 1 without a special case. That matters: 0 would make the scrub head one
   // stagger step *shorter* than a single duration, seeking past the final frame before progress
   // reached 1.
-  ;(group as HTMLElement).style.setProperty('--kui-stagger-count', String(maxRank + 1))
+  // Rounded, not `maxRank + 1` raw: a 2D rank is a distance, and `1.118 + 1` in binary floating
+  // point is `2.1180000000000003`. Both are valid CSS, but only one of them is stable across a
+  // re-index and readable in devtools.
+  host.style.setProperty('--kui-stagger-count', String(round(maxRank + 1)))
 
   for (const warning of warnings) reporter?.warn(warning, group)
 }
@@ -646,17 +468,21 @@ export function indexTargetGroup(
   reporter?: Reporter,
 ): void {
   const warnings: string[] = []
-  const { step, from } = resolveStaggerConfig(
+  const config = resolveStaggerConfig(
     host.getAttribute(ATTR.stagger),
     host.getAttribute(ATTR.source) ?? '',
     warnings,
   ) ?? { from: 'start' }
-  if (step) ledgers.style(host).set('--kui-stagger', step)
 
-  const maxRank = rankBuckets(bucketByParent(matches), from, ledgers, warnings)
+  const maxRank = rankBuckets(bucketByParent(matches), config, ledgers, warnings)
+  // Written after the ranks for the same reason `indexStaggerGroup` writes it there — see
+  // `resolveStep`. The budget is divided across the *largest bucket*'s span, since that is the one
+  // the last-starting match belongs to.
+  const step = resolveStep(config, maxRank)
+  if (step) ledgers.style(host).set('--kui-stagger', step)
   // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
   // largest offset in the group, not the member count, and the two only coincide for `start`.
-  ledgers.style(host).set('--kui-stagger-count', String(maxRank + 1))
+  ledgers.style(host).set('--kui-stagger-count', String(round(maxRank + 1)))
 
   for (const warning of warnings) reporter?.warn(warning, host)
 }
@@ -691,13 +517,16 @@ function bucketByParent(matches: Element[]): Map<Element | null, Element[]> {
  */
 function rankBuckets(
   byParent: Map<Element | null, Element[]>,
-  from: StaggerFrom,
+  config: StaggerConfig,
   ledgers: LedgerSet,
   warnings: string[],
 ): number {
   let maxRank = 0
   for (const siblings of byParent.values()) {
-    const ranks = staggerRanks(siblings.length, from, warnings)
+    // Per bucket, because a bucket is a grid: two parallel matched sets can have different column
+    // counts under `cols:auto`, and measuring the union of them would place both wrongly.
+    const layout = resolveLayout(config, siblings, warnings)
+    const ranks = staggerRanks(siblings.length, config.from, warnings, layout)
     for (const [index, match] of siblings.entries()) {
       const rank = ranks[index] ?? 0
       ledgers.style(match).set('--kui-i', String(rank))
@@ -705,6 +534,94 @@ function rankBuckets(
     }
   }
   return maxRank
+}
+
+/**
+ * Turn a group's declared `cols:`/`along:` into the layout {@link staggerRanks} ranks against, or
+ * `undefined` when it declared none and the ordering stays one-dimensional.
+ *
+ * The one place this module reads layout, and only for a group that asked for `cols:auto` — see
+ * {@link measureColumns}. Everything else here is still pure arithmetic over DOM order.
+ *
+ * An `along:` with no `cols:` is warned about rather than ignored: on its own it names an axis of a
+ * grid that was never declared, so it can only be a no-op, and a knob that exists and does nothing
+ * is worse than one that does not exist.
+ *
+ * @param members - The group's animated children, in DOM order; measured only under `cols:auto`.
+ * @complexity O(1) time when `cols:` is a count; O(c) rect reads in the column count when it is
+ *   `auto`, paid once per group per scan.
+ * @overallScore 100
+ */
+function resolveLayout(
+  config: StaggerConfig,
+  members: readonly Element[],
+  warnings: string[],
+): StaggerLayout | undefined {
+  if (config.cols === undefined) {
+    if (config.along !== undefined) {
+      warnings.push(
+        `"along:${config.along}" names an axis of a grid this group has not declared — ` +
+          `add "cols:" (a column count, or "auto")`,
+      )
+    }
+    return undefined
+  }
+  const cols = config.cols === 'auto' ? measureColumns(members, warnings) : config.cols
+  if (cols === undefined) return undefined
+  return config.along === undefined ? { cols } : { cols, along: config.along }
+}
+
+/**
+ * Count a laid-out group's columns by finding where its first row wraps.
+ *
+ * This is the one measurement in the module, and it exists because the responsive case is the one
+ * `cols:<n>` cannot serve: a grid that is four columns wide on a desktop and two on a phone has no
+ * single number an author can write. The cost is one forced layout per opted-in group per scan, and
+ * only `cols:auto` pays it.
+ *
+ * **The wrap is found by sign, not by "left increases".** Reading `left` and requiring it to grow
+ * would report one column for every RTL grid on the web, because there a row runs right to left.
+ * Taking the direction from the *first* step and then finding where it reverses is correct in both
+ * writing modes, and works for a wrapped flex row and inline-blocks as well as for a real CSS grid.
+ * `top` would have been the obvious alternative and is worse: under `align-items: center` two items
+ * of different heights in the same row have different tops, so the first row would appear to end
+ * at the first tall card.
+ *
+ * **A group with no layout at all falls back to DOM order and says so.** Every rect being zero
+ * means `display: none`, a detached subtree, or a document that has never laid out — and guessing
+ * a column count from that would silently reorder the whole group. See the reflow note in
+ * `docs/getting-started.md`: this is measured at scan time and a later resize does not re-index.
+ *
+ * @returns The column count, or `undefined` when the group cannot be measured.
+ * @complexity O(c) rect reads in the column count; O(n) space for the rects.
+ * @overallScore 100
+ */
+function measureColumns(members: readonly Element[], warnings: string[]): number | undefined {
+  if (members.length < 2) return 1
+  const lefts: number[] = []
+  let laidOut = false
+  for (const member of members) {
+    const box = member.getBoundingClientRect()
+    if (box.width !== 0 || box.height !== 0) laidOut = true
+    lefts.push(box.left)
+  }
+  if (!laidOut) {
+    warnings.push(
+      `"cols:auto" could not measure this group — none of its children have been laid out yet ` +
+        `(display:none, or detached), so the stagger falls back to DOM order`,
+    )
+    return undefined
+  }
+
+  // Every child at the same x is a single column, which is a legitimate grid and not a failure.
+  const direction = Math.sign(lefts[1]! - lefts[0]!)
+  if (direction === 0) return 1
+  let cols = 1
+  for (let index = 1; index < lefts.length; index++) {
+    if (Math.sign(lefts[index]! - lefts[index - 1]!) !== direction) break
+    cols = index + 1
+  }
+  return cols
 }
 
 /**

@@ -850,6 +850,29 @@ Two names over one primitive family, sitting outside the lettered A–P sections
 > already carrying `translate: 0 50px`, `tween x:100` returns y to 0 as well. Same for `scale` and
 > for the four `filter` functions. Name every axis you need to keep.
 >
+> **Several states, not just two: give a property a list.**
+>
+>     <div data-kui="tween x:'0,100,40' y:'0,-60,0' 1200ms">
+>
+> Two to five comma-separated values, quoted because a bare comma separates effects. The values are
+> spread evenly across the duration and the property is smoothed through all of them — the shape
+> every other library spells as a keyframe array (`animate(el, { x: [0, 100, 40] })`), and the one
+> thing the catalog had no primitive for at all.
+>
+> It is still one static `@keyframes` block and one compositor-run CSS animation; the list picks
+> which block. Even spacing is not a simplification but the mechanism: a keyframe's percentage is
+> the one part of a block that cannot be a `var()`. Repeat a value to hold it for a step.
+>
+> A list writes its own first state, so `tween` and `tween-from` do the same thing with one — and
+> the element paints its rest state until the library installs, so add `data-kui-cloak` if that
+> first frame is a long way from where the element sits.
+>
+> **Within a group, one list sets the rhythm and plain values ride along.** `tween x:'0,100,40'
+> y:20` holds `y` at 20px across all three steps. Two lists of different lengths in the same group
+> is a warning, and the shorter one holds at its last value.
+>
 > **`tween-from scale:0` is a trap and warns.** An element scaled to nothing has no box, an
 > `IntersectionObserver` measures geometry, and the default `on:enter` therefore never fires — so
-> it would stay invisible forever. Use a small non-zero scale, or `on:load`.
+> it would stay invisible forever. Use a small non-zero scale, or `on:load`. A list starting at
+> zero scale (`tween scale:'0,1'`) is the same trap and warns the same way, whichever name it is
+> written under — the list makes the first state explicit.

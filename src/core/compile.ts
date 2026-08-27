@@ -96,6 +96,22 @@ export function authoredParams(entry: Entry): Record<string, string> {
   return entry.variant?.params ?? entry.spec.params
 }
 
+/**
+ * The parameter specs one entry's values are validated against — the primitive's declaration,
+ * extended by any its variant synthesised for keys the primitive could not declare statically.
+ *
+ * Merged rather than replaced: see `EffectVariant.schema`. The primitive's own specs stay in force,
+ * so a variant can add parameters but never relax one.
+ *
+ * @complexity O(p) time and space in the schema size, and only when a variant declares one.
+ * @overallScore 100
+ */
+export function schemaFor(entry: Entry): ParameterSchema {
+  const extra = entry.variant?.schema
+  if (!extra) return entry.resolved.primitive.parameters
+  return { ...entry.resolved.primitive.parameters, ...extra }
+}
+
 export interface CompiledPlan {
   /** Effect names to stamp into `data-kui-fx` for CSS hooks and debugging. */
   fxNames: string[]
@@ -709,7 +725,7 @@ function buildPlan(
     // any consumer stylesheet, which contradicts the library's whole cascade promise.
     Object.assign(
       plan.vars,
-      resolveParams(authoredParams(entry), primitive.parameters, (m) => warnings.push(m)),
+      resolveParams(authoredParams(entry), schemaFor(entry), (m) => warnings.push(m)),
     )
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, timeline, step)

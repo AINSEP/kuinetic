@@ -69,7 +69,15 @@ import { applyStagger, indexTargetGroup } from './stagger.js'
 import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
 import { queryScoped, selectorBreadth } from './target.js'
-import type { Activation, EffectInstance, InstanceState, ParsedValue } from './types.js'
+import { applyToggleVerb, warnAboutToggleActions } from './toggle-actions.js'
+import type { Crossing, ToggleActions } from './toggle-actions.js'
+import type {
+  Activation,
+  EffectInstance,
+  InstanceControl,
+  InstanceState,
+  ParsedValue,
+} from './types.js'
 
 /** Longest a stalled initialisation may keep an opt-in cloak in place. */
 const CLOAK_WATCHDOG_MS = 3000
@@ -741,16 +749,30 @@ export class Animator {
       return
     }
 
+    // Before the gate check, not after it, and that is the whole point of putting it here: an
+    // element whose gate is not `deferred` never reaches the binder at all, so a scroll-driven or
+    // `on:load` element carrying `actions:` would otherwise get no binding *and* no diagnostic —
+    // the silent no-op this warning exists to prevent. `stylePlan.activation` is null on exactly
+    // those paths, so the authored value is what gets quoted back.
+    const actions = config.actions
+    if (actions) {
+      this.warnAboutCrossings(el, state, stylePlan.activation ?? config.activation, actions)
+    }
+
     if (stylePlan.gate !== 'deferred') {
       this.activate(el)
       return
     }
     // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
     // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
-    const releaseBinding = this.binder.bind(el, stylePlan.activation!, {
+    const activation = stylePlan.activation!
+    const releaseBinding = this.binder.bind(el, activation, {
       threshold: config.threshold,
       activate: () => this.activate(el),
       deactivate: () => this.deactivate(el),
+      // Only when the author asked for the four-way reading. Absent, the binder keeps its two-way
+      // delivery and its one-shot release, which is what every piece of existing markup depends on.
+      ...(actions ? { cross: (crossing: Crossing) => this.applyCrossing(el, crossing, actions) } : {}),
     })
     let released = false
     const releaseOnce = (): void => {
@@ -770,9 +792,65 @@ export class Animator {
     // `click` binding on first use is exactly what would stop a card flip flipping back — and
     // neither must a *paired* observed activation, because `enter/leave` has to keep observing to
     // ever deliver its exit. `isOneShot` is that distinction; see `activation.ts`.
-    if (isOneShot(resolveActivationSpec(stylePlan.activation!))) {
+    // Never for a four-way binding: `activation.ts` does not release one either, because an element
+    // that named the other three crossings is asking to be told about them.
+    if (!actions && isOneShot(resolveActivationSpec(activation))) {
       state.releaseActivation = releaseOnce
     }
+  }
+
+  /**
+   * Report every way an authored `actions:` cannot do what it says, once, at bind time.
+   *
+   * At bind time rather than per crossing, and that is the whole reason this is a separate method:
+   * a crossing fires on every scroll pass, and a diagnostic repeated on each one is a diagnostic
+   * nobody reads. It is the same discipline `control.ts` applies — warn once at construction, even
+   * for a caller who only meant to read.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  private warnAboutCrossings(
+    el: Element,
+    state: InstanceState,
+    activation: Activation,
+    actions: ToggleActions,
+  ): void {
+    const spec = resolveActivationSpec(activation)
+    const problems = warnAboutToggleActions({
+      actions,
+      observed: spec.start.kind === 'observed' || spec.end?.kind === 'observed',
+      activation: String(activation),
+      jsEffectNames: state.jsEffectNames,
+      progressDriven: state.progressDriven,
+    })
+    for (const problem of problems) this.reporter.warn(problem, el)
+  }
+
+  /**
+   * Do whatever this element's `actions:` names for the crossing that just happened.
+   *
+   * A pure dispatch, and deliberately nothing more. `toggle-actions.ts` owns what each verb means,
+   * `activation.ts` owns which crossing it was, and this method's only contribution is the two
+   * things neither of them can reach: the element's own directional transitions, and its instances'
+   * playheads. If anything resembling animation logic ever appears here, it is in the wrong file.
+   *
+   * @complexity O(n) time in the element's instances; O(n) space.
+   * @overallScore 100
+   */
+  private applyCrossing(el: Element, crossing: Crossing, actions: ToggleActions): void {
+    const state = this.states.get(el)
+    if (!state) return
+    applyToggleVerb(actions[crossing], {
+      // `ready` is the only status that has not started; `finished` and `failed` both have, and a
+      // `resume` on either of those is a resume rather than a fresh activation.
+      started: state.status !== 'ready',
+      controls: state.instances
+        .map((instance) => instance.control)
+        .filter((control): control is InstanceControl => control !== undefined),
+      activate: () => this.activate(el),
+      reverse: () => this.reverseFrom(el),
+    })
   }
 
   /**

@@ -1,4 +1,5 @@
 import type { Reporter } from './reporter.js'
+import type { Crossing } from './toggle-actions.js'
 import type { Activation, Cleanup, NamedActivation } from './types.js'
 
 /**
@@ -365,6 +366,14 @@ export interface ActivationRequest {
    * leave it off and the exit half simply goes unbound.
    */
   deactivate?(): void
+  /**
+   * Deliver the four crossings individually instead of the two `activate`/`deactivate` sides.
+   *
+   * Present only when the element authored `actions:`. The binder's job stops at naming which
+   * crossing happened — what a crossing *does* is the animator's, because every verb is either a
+   * transition of the element's state machine or a call on a playhead, and the binder owns neither.
+   */
+  cross?(crossing: Crossing): void
 }
 
 export interface ActivationBinder {
@@ -384,6 +393,17 @@ export interface ActivationBinderOptions {
 interface ObservedBinding {
   onEnter?: () => void
   onLeave?: () => void
+  /**
+   * Four-way delivery, when the element asked for it. Present means it *replaces* `onEnter` and
+   * `onLeave` — an element cannot both be told "you entered" and "you entered travelling up",
+   * because the second is a refinement of the first and running both would fire two verbs.
+   */
+  onCross?: (crossing: Crossing) => void
+  /**
+   * Which side of the root the element was last seen on, so a re-entry can be told from a first
+   * entry. `undefined` until it has been outside at all, and again while it is inside.
+   */
+  outside?: RootSide
   release: Cleanup
   /** Released by its first firing — plain `enter`, the library default. */
   oneShot: boolean
@@ -399,18 +419,85 @@ interface ObservedBinding {
 }
 
 /**
+ * Which side of the observer's root an element sits on, in the reader's direction of travel:
+ * `before` is the side already scrolled past, `after` the side not reached yet.
+ *
+ * Named by travel rather than by geometry so one word covers both axes — `before` is above a
+ * vertically scrolled root and to the left of a horizontally scrolled one.
+ */
+type RootSide = 'before' | 'after'
+
+/**
  * Deliver one observer entry to the element's binding.
  *
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function deliverEntry(binding: ObservedBinding, isIntersecting: boolean): void {
-  if (!isIntersecting && !binding.entered) return
-  binding.entered = isIntersecting
-  const side = isIntersecting ? binding.onEnter : binding.onLeave
+function deliverEntry(binding: ObservedBinding, entry: IntersectionObserverEntry): void {
+  if (binding.onCross) return deliverCrossing(binding, entry)
+  if (!entry.isIntersecting && !binding.entered) return
+  binding.entered = entry.isIntersecting
+  const side = entry.isIntersecting ? binding.onEnter : binding.onLeave
   if (!side) return
   side()
   if (binding.oneShot) binding.release()
+}
+
+/**
+ * Deliver one observer entry as one of the *four* crossings.
+ *
+ * An `IntersectionObserver` reports a boolean, and the boolean is genuinely ambiguous: "not
+ * intersecting" is both "you have scrolled past this" and "you have scrolled back up above it", and
+ * the whole point of four crossings is that an author wants to do different things at those two
+ * moments. The entry already carries what tells them apart — where the element's box sits relative
+ * to the root's — so this needs no second observer, no scroll listener, and no extra measurement.
+ *
+ * The side is recorded even on the delivery this function then ignores. An observer's first report
+ * for a freshly observed element describes its *current* state, which for anything below the fold
+ * is "not intersecting" — that must not fire a leave (see {@link ObservedBinding.entered}), but it
+ * is exactly how the binding learns that the element is still ahead, so that the first real entry
+ * is an `enter` rather than an `enter-back`.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function deliverCrossing(binding: ObservedBinding, entry: IntersectionObserverEntry): void {
+  const side = sideOf(entry)
+  if (!entry.isIntersecting) {
+    if (side) binding.outside = side
+    if (!binding.entered) return
+    binding.entered = false
+    // Leaving towards the side already scrolled past is the forward `leave`; leaving towards the
+    // side not reached yet means the reader is travelling back up.
+    binding.onCross?.(side === 'after' ? 'leave-back' : 'leave')
+    return
+  }
+  const crossing: Crossing = binding.outside === 'before' ? 'enter-back' : 'enter'
+  binding.entered = true
+  binding.outside = undefined
+  binding.onCross?.(crossing)
+  if (binding.oneShot) binding.release()
+}
+
+/**
+ * Which side of the root a non-intersecting element is on.
+ *
+ * Both axes, because a horizontally scrolled container is a real case in this library (see the
+ * `horizontal-scroll` primitive) and the observer reports it identically. `undefined` when the
+ * question cannot be answered — `rootBounds` is null for a cross-origin iframe root — and the
+ * caller then degrades to the two-way reading, which is what the library did before four crossings
+ * existed.
+ *
+ * @complexity O(1) time, O(1) space.
+ * @overallScore 100
+ */
+function sideOf(entry: IntersectionObserverEntry): RootSide | undefined {
+  const root = entry.rootBounds
+  const box = entry.boundingClientRect
+  if (!root || !box) return undefined
+  if (box.bottom <= root.top || box.right <= root.left) return 'before'
+  if (box.top >= root.bottom || box.left >= root.right) return 'after'
+  return undefined
 }
 
 /**
@@ -445,7 +532,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       (entries) => {
         for (const entry of entries) {
           const binding = callbacks.get(entry.target)
-          if (binding) deliverEntry(binding, entry.isIntersecting)
+          if (binding) deliverEntry(binding, entry)
         }
       },
       { threshold: ratio },
@@ -488,6 +575,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
     callbacks.set(el, {
       onEnter: spec.onEnter,
       onLeave: spec.onLeave,
+      ...(spec.onCross ? { onCross: spec.onCross } : {}),
       oneShot: spec.oneShot,
       release,
       entered: false,
@@ -506,7 +594,25 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       const observed = observedSides(sides)
       if (observed) {
         const failOpen = spec.start.kind === 'observed'
-        cleanups.push(bindObserved(el, { ...observed, oneShot: isOneShot(spec), failOpen }, request))
+        // A four-way binding is never one-shot. `enter` alone is spent by its first firing, which is
+        // the library's default and what a great deal of markup depends on — but an element that
+        // named the *other three* crossings is asking to be told about them, and releasing the
+        // observer after the first would mean it never was. `actions:play` with the rest left off
+        // keeps observing too and simply does nothing at those crossings, which costs one observer
+        // entry and changes no behaviour.
+        const crossing = request.cross
+        cleanups.push(
+          bindObserved(
+            el,
+            {
+              ...observed,
+              ...(crossing ? { onCross: crossing } : {}),
+              oneShot: crossing ? false : isOneShot(spec),
+              failOpen,
+            },
+            request,
+          ),
+        )
       }
       for (const side of sides) {
         const { trigger } = side
@@ -538,6 +644,7 @@ interface Side {
 type ObservedSides = Pick<ObservedBinding, 'onEnter' | 'onLeave'>
 
 interface ObservedRequest extends ObservedSides {
+  onCross?: (crossing: Crossing) => void
   oneShot: boolean
   /** Whether losing the observer entirely should start the effects anyway. */
   failOpen: boolean
