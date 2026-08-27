@@ -516,6 +516,39 @@ often an author would actually hit them.
       **Not verified in a browser:** the exact native behaviour of `animation-iteration-count:
       infinite` under `view()`/`scroll()` is reasoned from the spec, not measured.
 
+- [x] **Author-tunable `spring(bounce:0.5)` — SHIPPED 2026-08-27** (`70f7567`, merged `d4b3449`).
+      `src/core/spring.ts`'s physics solver is now reachable from the declarative `ease:` grammar;
+      before this, CSS effects got one hardcoded curve while JS effects had real physics. One
+      resolver now serves both spellings. Deliberately **no** tunable `bounce()` — reasoning
+      recorded in `ec74b7c`.
+
+- [x] **Four GSAP capability gaps — SHIPPED 2026-08-27** (merged `85b8884`). Sourced from
+      `docs/motion-research-gsap-motiondev.md`'s capability map, which is a map of *mechanisms*, not
+      a style guide — the owner does not want motion.dev/GSAP animations visually copied.
+      (a) `spread:600ms` (`c42bda4`) budgets a stagger by total duration instead of per-item gap, so
+      the group takes the same time however many children it has.
+      (b) `cols:`/`along:`/`order:0.5/0.5` (`a347b3c`) rank a group by distance through its grid —
+      2D stagger, not just document order.
+      (c) `actions:play/pause/resume/none` (`ffc02cb`, warning fix `1dfd984`) exposes all four
+      scroll crossings, not just two.
+      (d) Multi-waypoint `tween x:'0,100,40'` (`1371bc8`) keyframes a property through N states in
+      pure CSS, no JS.
+
+- [x] **Two real library bugs found and fixed after that merge, both browser-verified.**
+      `e8fff2a` — three JS-driven layout primitives handed a kUInetic easing *name* straight to
+      native `Element.animate()`, which has no cascade to resolve `var(--kui-ease-back-out, …)`.
+      Every named curve was a hard `TypeError`, so the effect silently did not run. `waapiEasingValue()`
+      now reads `--kui-ease-*` off the element at animate time (open vocabulary — a lookup table
+      would go stale).
+      `c9bc1e0` + `18e2f58` + `265b378` — `actions:`'s crossing detection used one scalar
+      IntersectionObserver threshold plus a "which side was I last on" flag. A single-frame scroll
+      jump (anchor click, `scrollTo({behavior:'instant'})`, scroll restoration) can deliver **zero**
+      observer callbacks, and the next real crossing was then classified from stale memory — a
+      reader scrolling backward got `enter` where `enter-back` was authored. New shared direction
+      tracker `src/core/travel.ts` (one listener for the whole binder) classifies by actual
+      direction of travel. Two other approaches were measured and rejected first; log in
+      `ADS-memory/.local-artifacts/fix-crossing-misclassification-notes.md`.
+
 - [ ] **Arbitrary scroll ranges — HALF BUILT, and this entry overstated the gap.** A free-form
       range does ship, on the longhand: `data-kui-timeline="view entry 0% cover 35%"` works today
       and is used on `demo/scroll.html`, parsed at `src/core/element-config.ts:67` and written to
