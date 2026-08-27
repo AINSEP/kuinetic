@@ -341,6 +341,12 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
 
   return createJsInstance({
     activate() {
+      // A replay starts from a clean slate. A run that ended on its own — a `count-up` reaching its
+      // target, a `split-text` finishing its stagger — left `running` holding a teardown nobody
+      // called, and overwriting it below would orphan that teardown: the count's accessible layers
+      // would be installed a second time on top of the first, and the split's original children
+      // would never come back. Cancelling already clears this, so the ordinary path is a no-op.
+      if (running !== undefined) teardown()
       running = setup()
       if (typeof running === 'function' || 'continuous' in running) return
       // Installed here rather than at construction because whether this effect finishes at all is
@@ -414,6 +420,12 @@ export interface JsInstanceHooks {
  */
 export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
   let active = false
+  /**
+   * Which run the `active` flag currently describes, so a promise settling late cannot clear a
+   * flag that now belongs to a newer run — a cancel resolves the old `finished` a microtask after
+   * the re-activation that replaced it.
+   */
+  let run = 0
   return {
     activate() {
       if (active) return
@@ -424,6 +436,23 @@ export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
       // future `activate()` call became a silent no-op via the guard above, with no way back in.
       hooks.activate()
       active = true
+      const id = ++run
+      // A continuous effect has no end, so its guard is meant to be permanent: nothing will ever
+      // resolve, and re-running a pin's or a drag handler's setup on top of itself is exactly what
+      // the guard is for.
+      if (hooks.continuous?.()) return
+      // A timed effect's run is over when its own promise resolves, and nothing else was telling
+      // this wrapper so. `cancel()` and `destroy()` cleared `active`; natural completion did not,
+      // which left every finite JS effect — `count-up`, `split-text`, `scramble` — startable
+      // exactly once. A second `on:click` reached the guard above and returned silently while the
+      // animator, reading only the already-resolved `finished`, reported a fresh start and an
+      // immediate finish.
+      //
+      // Read after `hooks.activate()` returns, never before: a deferred setup only learns which
+      // promise is its own once it has run. See `JsInstanceHooks.finished`.
+      void (hooks.finished?.() ?? Promise.resolve()).then(() => {
+        if (id === run) active = false
+      })
     },
     cancel() {
       hooks.cancel?.()

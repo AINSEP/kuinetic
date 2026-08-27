@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCssInstance, createJsInstance, deferredInstance } from '../src/core/instances.js'
+import {
+  continuousSetup,
+  createCssInstance,
+  createJsInstance,
+  deferredInstance,
+} from '../src/core/instances.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 
 interface FakeAnimation extends Animation {
@@ -384,6 +389,137 @@ describe('createJsInstance activation failures', () => {
     expect(() => instance.activate()).toThrow('boom')
     shouldThrow = false
     expect(() => instance.activate()).not.toThrow()
+  })
+})
+
+/**
+ * Replaying a finite JS effect — `count-up`, `split-text`, `scramble` — after it has finished.
+ *
+ * `cancel()` and `destroy()` cleared the re-entrancy guard; finishing on its own did not, so the
+ * second `on:click` returned silently while the animator, reading an already-resolved `finished`,
+ * reported a fresh start and an immediate finish.
+ */
+describe('createJsInstance replay after a natural finish', () => {
+  /** Let the wrapper's own `finished` subscription and any chained resolution run. */
+  const settle = async (): Promise<void> => {
+    for (let tick = 0; tick < 4; tick++) await Promise.resolve()
+  }
+
+  it('starts again once its own promise has resolved, and not before', async () => {
+    let complete: (() => void) | undefined
+    const done = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    const activate = vi.fn()
+    const instance = createJsInstance({ activate, destroy: () => {}, finished: () => done })
+
+    instance.activate()
+    instance.activate()
+    expect(activate).toHaveBeenCalledOnce()
+
+    complete!()
+    await settle()
+    instance.activate()
+    expect(activate).toHaveBeenCalledTimes(2)
+  })
+
+  // Not two: the flag has to be cleared by *each* completion, not unlatched once. Pinning this at a
+  // single replay would pass for a fix that only ever reset the guard the first time.
+  it('replays for as many rounds as it is activated', async () => {
+    let complete: (() => void) | undefined
+    const setup = vi.fn(() => ({
+      cleanup: () => {},
+      finished: new Promise<void>((resolve) => {
+        complete = resolve
+      }),
+    }))
+    const instance = deferredInstance(setup)
+
+    for (let round = 1; round <= 4; round++) {
+      instance.activate()
+      expect(setup).toHaveBeenCalledTimes(round)
+      complete!()
+      await settle()
+    }
+  })
+
+  it('tears the finished run down before replaying it, rather than stacking two runs', async () => {
+    // `count-up` installs two accessible layers and `split-text` replaces the element's children;
+    // running setup a second time over a teardown nobody called installs them twice and loses the
+    // original content for good.
+    const cleanups: Array<ReturnType<typeof vi.fn>> = []
+    let complete: (() => void) | undefined
+    const setup = vi.fn(() => {
+      const cleanup = vi.fn()
+      cleanups.push(cleanup)
+      return {
+        cleanup,
+        finished: new Promise<void>((resolve) => {
+          complete = resolve
+        }),
+      }
+    })
+    const instance = deferredInstance(setup)
+
+    instance.activate()
+    complete!()
+    await settle()
+    expect(cleanups[0]).not.toHaveBeenCalled()
+
+    instance.activate()
+    expect(setup).toHaveBeenCalledTimes(2)
+    expect(cleanups[0]).toHaveBeenCalledOnce()
+    expect(cleanups[1]).not.toHaveBeenCalled()
+  })
+
+  it('counts a jump to the end state as the end of the run', async () => {
+    const setup = vi.fn(() => ({
+      cleanup: () => {},
+      finished: new Promise<void>(() => {}),
+      finish: () => {},
+    }))
+    const instance = deferredInstance(setup)
+
+    instance.activate()
+    instance.finish()
+    await settle()
+
+    instance.activate()
+    expect(setup).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a continuous effect guarded, since nothing will ever end its run', async () => {
+    // A pin, a drag handler, an ambient loop. Re-running its setup on top of itself is exactly
+    // what the guard exists for, and its promise never resolving is the contract, not a stall.
+    const setup = vi.fn(() => continuousSetup(() => {}))
+    const instance = deferredInstance(setup)
+
+    instance.activate()
+    await settle()
+    instance.activate()
+    expect(setup).toHaveBeenCalledOnce()
+  })
+
+  it("does not let a cancelled run's late completion unlock the run that replaced it", async () => {
+    let complete: (() => void) | undefined
+    const first = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    let current = first
+    const activate = vi.fn()
+    const instance = createJsInstance({ activate, destroy: () => {}, finished: () => current })
+
+    instance.activate()
+    instance.cancel()
+    current = new Promise<void>(() => {})
+    instance.activate()
+    expect(activate).toHaveBeenCalledTimes(2)
+
+    // The cancelled run's promise resolves a microtask after the run that replaced it started.
+    complete!()
+    await settle()
+    instance.activate()
+    expect(activate).toHaveBeenCalledTimes(2)
   })
 })
 
