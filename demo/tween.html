@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Tween</title>
+<meta name="description" content="The generic tween: name the properties instead of the effect. tween and tween-from compile to real CSS keyframes, with the browser supplying the half of the animation you did not write." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* =====================================================================================
+     demo/tween.html — page-local styles only. Tokens, buttons, header, footer, show-code
+     chip and the section rhythm all come from system.css and are never restated here.
+
+     ONE RULE THIS PAGE CANNOT BREAK, and the reason it is written at the top: the six
+     `@starting-style` presets in `src/css/discrete.css` live inside `@layer kui.effects`,
+     and everything below is unlayered — so an unlayered declaration beats the library's
+     no matter how weak its selector looks. Never set `display`, `opacity`, `scale`,
+     `translate` or `transition` on a `.tw-open-panel` from this file: each one is a
+     property one of those presets animates, and setting it here would win and freeze the
+     effect. Layout for those panels goes on a child, never on the panel itself.
+     ===================================================================================== */
+
+  /* ---------- hero ---------- */
+  /* The pull-up margin and full-viewport min-height are system.css's, shared by every
+     showcase hero. Local is the two-column row; `align-items: center` handles the vertical
+     centring for free once the row is taller than its own content. */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.05fr 0.95fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.1rem, 1.5rem + 2.5vw, 3.5rem); line-height: 1.03; letter-spacing: -0.03em; max-width: 18ch; }
+  .demo-hero .hero-lede { margin-top: 1.15rem; color: var(--muted); max-width: 48ch; line-height: 1.6; font-size: 1.02rem; }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+
+  /* The hero is itself a tween demo, so the media column is a stage rather than a plain
+     image: the card inside it arrives with `tween-from`, and `overflow: clip` guarantees
+     that arrival can never widen the document (see the mobile note further down). */
+  .hero-stage {
+    overflow: clip; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--surface); padding: clamp(1rem, 2vw, 1.75rem);
+    display: grid; gap: 0.9rem;
+  }
+  .hero-stage figure { margin: 0; overflow: clip; border-radius: 10px; border: 1px solid var(--border); }
+  .hero-stage img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+  .hero-stage .stage-attr {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    line-height: 1.5; color: var(--muted); overflow-wrap: anywhere;
+  }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.9rem); letter-spacing: -0.02em; max-width: 28ch; }
+  .section-head p { margin-top: 0.65rem; color: var(--muted); max-width: 58ch; line-height: 1.65; }
+  .section-head .kui-show-code-toggle { margin-top: 0.75rem; }
+
+  /* ---------- the shared code block ---------- */
+  /* Wide content scrolls inside its own box. The document itself must never scroll
+     sideways — that is a standing requirement for this site, not a preference. */
+  .tw-code {
+    margin: 0; padding: 0.9rem 1rem; overflow-x: auto; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem;
+    line-height: 1.65; white-space: pre; tab-size: 2;
+  }
+  .tw-code b { font-weight: 600; color: var(--fg); }
+  .tw-code i { font-style: normal; color: var(--muted); }
+
+  /* ---------- the mechanism: three panels, left to right ---------- */
+  .tw-pipeline { margin-top: 2.25rem; display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 1000px) { .tw-pipeline { grid-template-columns: repeat(3, 1fr); gap: 1.25rem; } }
+  .tw-panel {
+    display: flex; flex-direction: column; gap: 0.75rem; min-width: 0;
+    padding: 1.1rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .tw-panel-step {
+    display: flex; align-items: baseline; gap: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+  }
+  .tw-panel-step b { color: var(--fg); font-weight: 600; }
+  .tw-panel .tw-code { flex: 1 0 auto; }
+
+  /* The live readout in panel 2 is printed from the element's own inline `style`
+     attribute at runtime — see the script at the foot of this page. Nothing here is
+     hand-written, which is the entire point of showing it. It wraps rather than scrolling:
+     the interesting lines are short, and the one long one is the plumbing summary. */
+  .tw-readout { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tw-readout:empty::before { content: 'press the card above'; color: var(--muted); font-style: italic; }
+  .tw-readout .rest { color: var(--muted); }
+
+  /* ---------- the driven stage used by the mechanism section ---------- */
+  .tw-driver { margin: 2.25rem auto 0; max-width: 30rem; }
+
+  /* ---------- stages and chips (the demo primitive of this page) ---------- */
+  /* `overflow: clip` on every stage is load-bearing, not cosmetic. This page translates
+     things sideways for a living; without a clip, a `tween x:140` on a 360px-wide phone
+     pushes the document 140px wider and the whole site scrolls horizontally. Clip (not
+     hidden) contains the paint without creating a scroll container. */
+  .tw-stage {
+    position: relative; overflow: clip; display: grid; place-items: center;
+    aspect-ratio: 16 / 10; border-radius: 10px; border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--fg) 4%, var(--surface));
+  }
+  .tw-stage.is-3d { perspective: 700px; }
+  /* A dashed outline exactly where the chip comes to rest. Without it a still frame of a
+     motion demo is a box in an empty field and says nothing; with it, the same frame shows
+     whether the element is at its mark or away from it — which is precisely the difference
+     between `tween` and `tween-from`. Sized to `.tw-chip`, so the two must stay in step. */
+  .tw-stage.has-rest::after {
+    content: ''; position: absolute; inset: 0; margin: auto; width: 144px; height: 96px;
+    border: 1px dashed color-mix(in srgb, var(--fg) 26%, transparent); border-radius: 12px;
+    pointer-events: none;
+  }
+  /* Two cards animate a colour, and a colour is only legible against a surface that does
+     not move with the theme — so those two get a fixed ink stage, the same fixed-value
+     trick `.demo-card figcaption` uses in reveals.html. */
+  .tw-stage.is-ink { background: #101010; border-color: #2a2a2a; }
+  .tw-stage.is-photo { aspect-ratio: 3 / 4; }
+  .tw-stage.is-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* Keep in step with `.tw-stage.has-rest::after` above — the marker is this box's outline. */
+  .tw-chip {
+    position: relative; display: grid; place-items: center; width: 128px; height: 80px;
+    border-radius: 10px; background: var(--fg); color: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; font-weight: 600;
+  }
+  .tw-stage.is-ink .tw-chip { background: #2f2f2f; color: #ffffff; }
+  .tw-word {
+    font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; letter-spacing: -0.02em;
+    color: #ffffff;
+  }
+
+  /* ---------- card grids ---------- */
+  /* `min(300px, 100%)` rather than a bare `300px`: on a 320px viewport the bare form makes
+     every track 300px wide plus the wrap's own padding and overflows the document. */
+  .tw-grid { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 1.25rem; }
+  .tw-grid.is-wide { grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); }
+  .tw-group { margin-top: 2.25rem; }
+  .tw-group-label {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.55rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .tw-group-label b { color: var(--fg); font-weight: 600; }
+  .tw-group-label span { text-transform: none; letter-spacing: 0; }
+
+  .tw-card {
+    display: flex; flex-direction: column; margin: 0; overflow: clip;
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  /* The demo area absorbs whatever extra height CSS Grid's `align-items: stretch` adds to
+     match the tallest card in the row, and the caption stays sized to its own text.
+     reveals.html does the opposite deliberately — its cards hold a fixed-aspect `<img>`
+     that cannot grow, so the caption has to. These stages can grow, and giving a motion
+     demo the extra room rather than the label is the better use of it. */
+  .tw-card > .tw-stage, .tw-card > .tw-open-stage, .tw-card > .tw-form-stage { flex: 1 0 auto; }
+  .tw-card > .tw-stage { border: none; border-radius: 0; }
+  /* Same caption treatment as reveals.html's cards, for the same reason: black strip and
+     white text in light mode, the accent and black in dark. `--accent-ink` and `--accent`
+     are the same literal colour in both themes, so the pairing has to be spelled out per
+     theme rather than read off a token. */
+  .tw-card figcaption {
+    flex: 0 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.74rem; line-height: 1.45; color: #ffffff;
+    background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+    overflow-wrap: anywhere;
+  }
+  :root[data-theme='dark'] .tw-card figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+
+  /* ---------- the two directions, side by side ---------- */
+  .tw-press {
+    position: absolute; inset-inline-end: 0.5rem; inset-block-end: 0.5rem;
+    padding: 0.3rem 0.6rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem;
+    letter-spacing: 0.04em; pointer-events: none;
+  }
+
+  /* ---------- what we will not animate ---------- */
+  .tw-why { margin-top: 2.25rem; display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .tw-why { grid-template-columns: repeat(3, 1fr); } }
+  .tw-why article {
+    display: flex; flex-direction: column; gap: 0.85rem; padding: 1.25rem;
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .tw-tokens { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .tw-tokens code {
+    padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px dashed var(--border);
+    background: var(--bg); color: var(--muted); font-size: 0.74rem;
+    text-decoration: line-through; text-decoration-thickness: 1px;
+  }
+  .tw-why p { font-size: 0.88rem; line-height: 1.65; color: var(--muted); }
+  .tw-why .tw-instead {
+    margin-top: auto; padding-top: 0.85rem; border-top: 1px solid var(--border);
+    font-size: 0.82rem; color: var(--fg);
+  }
+  .tw-why .tw-instead code { font-size: 0.78rem; color: var(--muted); }
+
+  .tw-three { margin-top: 2.25rem; display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 820px) { .tw-three { grid-template-columns: repeat(3, 1fr); } }
+  .tw-three div {
+    padding: 1rem 1.15rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .tw-three h3 { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.86rem; }
+  .tw-three p { margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.6; color: var(--muted); }
+
+  /* ---------- @starting-style ---------- */
+  /* Read the rule at the very top of this stylesheet before adding anything here. */
+  .tw-open-stage {
+    display: grid; gap: 0.75rem; align-content: start; padding: 1.1rem;
+    min-height: 12.5rem; background: color-mix(in srgb, var(--fg) 4%, var(--surface));
+  }
+  .tw-open-btn {
+    justify-self: start; padding: 0.55rem 1rem; border-radius: 999px;
+    border: 1px solid var(--fg); background: transparent; color: var(--fg);
+    font-size: 0.82rem; font-weight: 500; min-height: 2.75rem;
+  }
+  .tw-open-btn:hover { background: var(--fg); color: var(--bg); }
+  .tw-open-btn[aria-expanded='true'] { background: var(--fg); color: var(--bg); }
+  /* The panel itself carries only paint — no display, no opacity, no scale, no translate,
+     no transition. Everything structural lives on `.tw-open-body` inside it. */
+  .tw-open-panel {
+    border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+    box-shadow: var(--shadow-float); max-width: 100%;
+  }
+  .tw-open-body { padding: 0.85rem 1rem; font-size: 0.84rem; line-height: 1.55; color: var(--muted); }
+  .tw-open-body b { display: block; color: var(--fg); font-weight: 600; margin-bottom: 0.2rem; }
+  .tw-open-body ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+  .tw-open-body li { margin-top: 0.2rem; }
+
+  /* A native popover and a modal dialog both render in the top layer, so they are laid out
+     against the viewport, not against their card. The UA already centres both with
+     `inset: 0; margin: auto` — do not restate that here. An earlier version wrote
+     `inset: auto` and pinned the popover to the top-left corner, half off screen. Width and
+     padding only, and still nothing from the animated set (see the note at the top). */
+  #open-popover { width: min(22rem, calc(100vw - 2rem)); padding: 0; }
+  #open-dialog { width: min(24rem, calc(100vw - 2rem)); padding: 0; }
+  #open-dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+  .tw-open-close {
+    margin: 0 1rem 1rem; padding: 0.45rem 0.9rem; border-radius: 999px;
+    border: 1px solid var(--border); background: transparent; color: var(--fg); font-size: 0.8rem;
+    min-height: 2.25rem;
+  }
+
+  /* ---------- form controls ---------- */
+  .tw-form-stage { display: grid; gap: 0.9rem; align-content: start; padding: 1.25rem; min-height: 12.5rem; background: color-mix(in srgb, var(--fg) 4%, var(--surface)); }
+  .tw-field { display: grid; gap: 0.4rem; }
+  .tw-field label { font-size: 0.78rem; color: var(--muted); }
+  .tw-input, .tw-select {
+    width: 100%; min-height: 2.75rem; padding: 0.55rem 0.75rem;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font: inherit; font-size: 0.9rem;
+  }
+  .tw-input:focus-visible, .tw-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tw-submit {
+    justify-self: start; padding: 0.6rem 1.15rem; min-height: 2.75rem; border-radius: 999px;
+    border: 1px solid var(--fg); background: var(--fg); color: var(--bg);
+    font-size: 0.85rem; font-weight: 500;
+  }
+  .tw-check { display: flex; align-items: center; gap: 0.6rem; font-size: 0.86rem; }
+  .tw-check input { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); flex: none; }
+  .tw-range { width: 100%; accent-color: var(--accent); min-height: 2.5rem; }
+  .tw-fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 0.9rem; }
+  .tw-fieldset legend { padding: 0; font-size: 0.78rem; color: var(--muted); }
+
+  /* ---------- one-line notes ---------- */
+  /* The single line each section is allowed to say in prose. If one of these ever needs a
+     second sentence, the sentence belongs in docs/catalog.md, not on a demo page. */
+  .tw-note {
+    margin-top: 1.5rem; font-size: 0.85rem; line-height: 1.7; color: var(--muted);
+  }
+  .tw-note code {
+    font-size: 0.78rem; padding: 0.1rem 0.35rem; border-radius: 5px;
+    background: color-mix(in srgb, var(--fg) 7%, transparent);
+  }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="basic">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,text.html,ambient-feedback.html"
+        >
+          Basic
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="advanced">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
+        >
+          Advanced
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">Advanced · Generic tween</p>
+          <h1 data-kui="fade-up 800ms">Name the properties, not the effect.</h1>
+          <p class="hero-lede" data-kui="fade-up 800ms 120ms">Fifteen properties, two directions. Compiled to real CSS keyframes.</p>
+          <div class="demo-hero-actions" data-kui="fade-up 800ms 200ms">
+            <a href="#mechanism" class="btn btn-primary">What it compiles to</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Catalog docs →</a>
+          </div>
+        </div>
+        <div class="hero-stage">
+          <figure data-kui="tween-from y:64px rotate:-7deg scale:0.88 opacity:0 1100ms expo-out on:load">
+            <img
+              src="./assets/modeling/teal-sculpted-hat.jpg"
+              alt="Monochrome teal portrait in a curved sculptural hat"
+            />
+          </figure>
+          <p class="stage-attr">data-kui="tween-from y:64px rotate:-7deg scale:0.88 opacity:0 1100ms expo-out on:load"</p>
+        </div>
+      </section>
+
+      <!-- THE MECHANISM -->
+      <section id="mechanism" data-od-id="mechanism">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Arbitrary values. Still not JavaScript.</h2>
+          <p data-kui="fade-up 700ms">A block with only a <code>to</code> step gets its <code>from</code> from the element itself.</p>
+        </div>
+
+        <div class="tw-driver">
+          <figure class="tw-card" data-show-code>
+            <div class="tw-stage has-rest">
+              <div id="mech-chip" class="tw-chip" data-kui="tween x:96px rotate:12deg scale:1.12 900ms on:click" tabindex="0" role="button" aria-label="Play the tween">press</div>
+              <span class="tw-press">click the block</span>
+            </div>
+            <figcaption>data-kui="tween x:96px rotate:12deg scale:1.12 900ms on:click"</figcaption>
+          </figure>
+        </div>
+
+        <div class="tw-pipeline">
+          <article class="tw-panel">
+            <p class="tw-panel-step"><b>1</b> you write</p>
+            <pre class="tw-code"><code>&lt;div <b>data-kui</b>=<i>"tween
+  x:96px
+  rotate:12deg
+  scale:1.12
+  900ms on:click"</i>&gt;</code></pre>
+          </article>
+          <article class="tw-panel">
+            <p class="tw-panel-step"><b>2</b> the compiler writes <i>— live</i></p>
+            <pre class="tw-code"><code class="tw-readout" id="mech-readout"></code></pre>
+          </article>
+          <article class="tw-panel">
+            <p class="tw-panel-step"><b>3</b> the browser interpolates</p>
+            <pre class="tw-code"><code>@keyframes <b>kui-tween-to-translate</b> {
+  <b>to</b> {
+    translate:
+      var(--kui-tween-x, 0)
+      var(--kui-tween-y, 0)
+      var(--kui-tween-z, 0);
+  }
+}
+<i>/* no `from` step */</i></code></pre>
+          </article>
+        </div>
+      </section>
+
+      <!-- THE VOCABULARY -->
+      <section id="vocabulary" data-od-id="vocabulary">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Fifteen properties, seven groups</h2>
+          <p data-kui="fade-up 700ms">One keyframe block per group, not per property.</p>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>translate</b> · x y z</p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from x:-160px 900ms expo-out">x</div>
+              </div>
+              <figcaption>data-kui="tween-from x:-160px 900ms expo-out"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from y:120 900ms expo-out">y</div>
+              </div>
+              <figcaption>data-kui="tween-from y:120 900ms expo-out" — bare number, implied px</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-3d has-rest">
+                <div class="tw-chip" data-kui="tween-from z:-560px 1100ms expo-out">z</div>
+              </div>
+              <figcaption>data-kui="tween-from z:-560px 1100ms expo-out"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>rotate</b> · rotate <span>— about z only</span></p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from rotate:-180deg 1000ms expo-out">rotate</div>
+              </div>
+              <figcaption>data-kui="tween-from rotate:-180deg 1000ms expo-out"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from rotate:45 1000ms bounce">rotate:45</div>
+              </div>
+              <figcaption>data-kui="tween-from rotate:45 1000ms bounce" — bare number, implied deg</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>scale</b> · scale scale-x scale-y</p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from scale:0.2 900ms bounce">scale</div>
+              </div>
+              <figcaption>data-kui="tween-from scale:0.2 900ms bounce"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from scale-x:0.1 900ms expo-out">scale-x</div>
+              </div>
+              <figcaption>data-kui="tween-from scale-x:0.1 900ms expo-out"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from scale:1.6 scale-y:0.1 900ms expo-out">scale-y</div>
+              </div>
+              <figcaption>data-kui="tween-from scale:1.6 scale-y:0.1 900ms expo-out"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>opacity</b> · opacity</p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage has-rest">
+                <div class="tw-chip" data-kui="tween-from opacity:0 1000ms">opacity</div>
+              </div>
+              <figcaption>data-kui="tween-from opacity:0 1000ms"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>filter</b> · blur brightness saturate grayscale</p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-photo" data-kui="tween-from blur:24px 1100ms">
+                <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
+              </div>
+              <figcaption>data-kui="tween-from blur:24px 1100ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-photo" data-kui="tween-from brightness:0.05 1100ms">
+                <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" />
+              </div>
+              <figcaption>data-kui="tween-from brightness:0.05 1100ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-photo" data-kui="tween-from saturate:6 1100ms">
+                <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" />
+              </div>
+              <figcaption>data-kui="tween-from saturate:6 1100ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-photo" data-kui="tween-from grayscale:1 1100ms">
+                <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" loading="lazy" />
+              </div>
+              <figcaption>data-kui="tween-from grayscale:1 1100ms"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>color</b> · color <span>—</span> <b>background</b> · background-color</p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-ink">
+                <span class="tw-word" data-kui="tween-from color:#e4f222 1200ms">colour</span>
+              </div>
+              <figcaption>data-kui="tween-from color:#e4f222 1200ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-stage is-ink">
+                <div class="tw-chip" data-kui="tween-from background-color:#e4f222 1200ms">bg</div>
+              </div>
+              <figcaption>data-kui="tween-from background-color:#e4f222 1200ms"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <p class="tw-note">A property is written whole — an axis you don't name returns to its initial value.</p>
+      </section>
+
+      <!-- TWO DIRECTIONS -->
+      <section id="directions" data-od-id="directions">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">To, and from</h2>
+          <p data-kui="fade-up 700ms">Same values, opposite ends — GSAP's <code>.to()</code>/<code>.from()</code> pair, in CSS.</p>
+        </div>
+        <div class="tw-grid is-wide" data-kui="cascade:90ms">
+          <figure class="tw-card" data-show-code>
+            <div class="tw-stage has-rest">
+              <div class="tw-chip" data-kui="tween x:120px opacity:0.15 rotate:24deg 700ms on:click" tabindex="0" role="button" aria-label="Play the to tween">to</div>
+              <span class="tw-press">click the block</span>
+            </div>
+            <figcaption>data-kui="tween x:120px opacity:0.15 rotate:24deg 700ms on:click" — ends where you wrote</figcaption>
+          </figure>
+          <figure class="tw-card" data-show-code>
+            <div class="tw-stage has-rest">
+              <div class="tw-chip" data-kui="tween-from x:120px opacity:0.15 rotate:24deg 700ms on:click" tabindex="0" role="button" aria-label="Play the from tween">from</div>
+              <span class="tw-press">click the block</span>
+            </div>
+            <figcaption>data-kui="tween-from x:120px opacity:0.15 rotate:24deg 700ms on:click" — starts where you wrote</figcaption>
+          </figure>
+          <figure class="tw-card" data-show-code>
+            <div class="tw-stage has-rest">
+              <div class="tw-chip" data-kui="tween-from scale:0.5 900ms, fade-in 900ms">compose</div>
+            </div>
+            <figcaption>data-kui="tween-from scale:0.5 900ms, fade-in 900ms" — disjoint channels compose</figcaption>
+          </figure>
+        </div>
+        <p class="tw-note">Channels come off your attribute. <code>tween-from scale:0.5</code> composes with <code>fade-in</code>; <code>tween-from y:120px</code> collides with it, because <code>fade-in</code> owns translate too.</p>
+      </section>
+
+      <!-- WHAT WE WILL NOT ANIMATE -->
+      <section id="excluded" data-od-id="excluded">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">What we won't animate, and why</h2>
+        </div>
+        <div class="tw-why">
+          <article>
+            <div class="tw-tokens"><code>width</code><code>height</code><code>top</code><code>left</code></div>
+            <p>All four animate <em>layout</em>. The tween declares <code>perfClass: 'paint'</code>.</p>
+            <p class="tw-instead">Instead: <code>flip-reorder</code>, <code>accordion-height</code>, <code>grid-to-list</code></p>
+          </article>
+          <article>
+            <div class="tw-tokens"><code>rotate-x</code><code>rotate-y</code></div>
+            <p>CSS's <code>rotate</code> takes one axis at a time, and perspective lives in the <code>transform</code> shorthand — a different channel.</p>
+            <p class="tw-instead">Instead: <code>flip-in-x</code>, <code>flip-in-y</code></p>
+          </article>
+          <article>
+            <div class="tw-tokens"><code>skew</code></div>
+            <p>Same shorthand problem — and there is no <code>skew</code> property to write.</p>
+            <p class="tw-instead">Instead: the named effects that own the shorthand</p>
+          </article>
+        </div>
+
+        <div class="tw-three">
+          <div>
+            <h3>tween</h3>
+            <p>Any named property, A to B.</p>
+          </div>
+          <div>
+            <h3>FLIP</h3>
+            <p>Moves it because the layout changed.</p>
+          </div>
+          <div>
+            <h3>motion-path</h3>
+            <p>Moves it along a curve you draw.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- @STARTING-STYLE -->
+      <section id="starting-style" data-od-id="starting-style">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Animating into and out of the DOM</h2>
+          <p data-kui="fade-up 700ms">Six names that animate a <code>display: none</code> element. Manual by construction — open one.</p>
+        </div>
+
+        <div class="tw-grid" data-kui="cascade:90ms">
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-fade" aria-expanded="false" aria-controls="open-fade">Open</button>
+              <div class="tw-open-panel" id="open-fade" data-kui="fade-open">
+                <div class="tw-open-body"><b>fade-open</b>Opacity only.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="fade-open" — 240ms ease-out</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-pop" aria-expanded="false" aria-controls="open-pop">Open</button>
+              <div class="tw-open-panel" id="open-pop" data-kui="pop-open">
+                <div class="tw-open-body"><b>pop-open</b>Opacity and scale.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="pop-open" — 240ms, scale 0.92</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-scale" aria-expanded="false" aria-controls="open-scale">Open</button>
+              <div class="tw-open-panel" id="open-scale" data-kui="scale-open">
+                <div class="tw-open-body"><b>scale-open</b>Scale, no fade.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="scale-open" — 240ms, scale 0.92</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-drop" aria-expanded="false" aria-controls="open-drop">Open</button>
+              <div class="tw-open-panel" id="open-drop" data-kui="drop-open">
+                <div class="tw-open-body"><b>drop-open</b>Settles down from above.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="drop-open" — 240ms, distance 8px</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-up" aria-expanded="false" aria-controls="open-up">Open</button>
+              <div class="tw-open-panel" id="open-up" data-kui="slide-open-up">
+                <div class="tw-open-body"><b>slide-open-up</b>Arrives travelling upward.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="slide-open-up" — 240ms, distance 16px</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-open-stage">
+              <button type="button" class="tw-open-btn" data-open-toggle="open-down" aria-expanded="false" aria-controls="open-down">Open</button>
+              <div class="tw-open-panel" id="open-down" data-kui="slide-open-down">
+                <div class="tw-open-body"><b>slide-open-down</b>The mirror.</div>
+              </div>
+            </div>
+            <figcaption>data-kui="slide-open-down" — 240ms, distance 16px</figcaption>
+          </figure>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>the same three, turned up</b></p>
+          <div class="tw-grid" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-open-stage">
+                <button type="button" class="tw-open-btn" data-open-toggle="open-drop-lo" aria-expanded="false" aria-controls="open-drop-lo">Open</button>
+                <div class="tw-open-panel" id="open-drop-lo" data-kui="drop-open distance:20px 320ms">
+                  <div class="tw-open-body"><b>distance:20px</b>Against the 8px default.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="drop-open distance:20px 320ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-open-stage">
+                <button type="button" class="tw-open-btn" data-open-toggle="open-scale-lo" aria-expanded="false" aria-controls="open-scale-lo">Open</button>
+                <div class="tw-open-panel" id="open-scale-lo" data-kui="scale-open scale:0.8 320ms">
+                  <div class="tw-open-body"><b>scale:0.8</b>Against the 0.92 default.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="scale-open scale:0.8 320ms"</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-open-stage">
+                <button type="button" class="tw-open-btn" data-open-toggle="open-pop-slow" aria-expanded="false" aria-controls="open-pop-slow">Open</button>
+                <div class="tw-open-panel" id="open-pop-slow" data-kui="pop-open scale:0.7 700ms bounce">
+                  <div class="tw-open-body"><b>700ms bounce</b>Positional timing.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="pop-open scale:0.7 700ms bounce"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="tw-group">
+          <p class="tw-group-label"><b>three ways to drive one</b> <span>— [data-open] above, plus these two</span></p>
+          <div class="tw-grid is-wide" data-kui="cascade:90ms">
+            <figure class="tw-card" data-show-code>
+              <div class="tw-open-stage">
+                <button type="button" class="tw-open-btn" popovertarget="open-popover">Open a popover</button>
+                <div class="tw-open-panel" id="open-popover" popover data-kui="pop-open 320ms">
+                  <div class="tw-open-body"><b>Native popover</b>No page JavaScript.</div>
+                </div>
+              </div>
+              <figcaption>data-kui="pop-open 320ms" on a [popover] — driven by :popover-open</figcaption>
+            </figure>
+            <figure class="tw-card" data-show-code>
+              <div class="tw-open-stage">
+                <button type="button" class="tw-open-btn" data-dialog-open="open-dialog">Open a dialog</button>
+                <dialog class="tw-open-panel" id="open-dialog" data-kui="slide-open-up 320ms">
+                  <div class="tw-open-body"><b>Native &lt;dialog&gt;</b>Driven by <code>[open]</code>.</div>
+                  <button type="button" class="tw-open-close" data-dialog-close>Close</button>
+                </dialog>
+              </div>
+              <figcaption>data-kui="slide-open-up 320ms" on a &lt;dialog&gt; — driven by [open]</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORM CONTROLS -->
+      <section id="controls" data-od-id="controls">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">A form control is just an element</h2>
+          <p data-kui="fade-up 700ms"><code>on:focus/blur</code> is a trigger pair — the second half reverses the first.</p>
+        </div>
+
+        <div class="tw-grid is-wide" data-kui="cascade:90ms">
+          <figure class="tw-card" data-show-code>
+            <div class="tw-form-stage">
+              <div class="tw-field">
+                <label for="tw-email">Email</label>
+                <input id="tw-email" class="tw-input" type="email" placeholder="you@example.com" data-kui="tween scale:1.03 brightness:1.08 220ms on:focus/blur" />
+              </div>
+              <div class="tw-field">
+                <label for="tw-city">City</label>
+                <input id="tw-city" class="tw-input" type="text" placeholder="Lisbon" />
+              </div>
+            </div>
+            <figcaption>data-kui="tween scale:1.03 brightness:1.08 220ms on:focus/blur" — tab into the first field</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-form-stage">
+              <div class="tw-field">
+                <label for="tw-plan">Plan</label>
+                <select id="tw-plan" class="tw-select" data-kui="tween rotate:1.5deg scale:1.02 180ms on:hover/unhover">
+                  <option>Starter</option>
+                  <option>Studio</option>
+                  <option>Agency</option>
+                </select>
+              </div>
+              <label class="tw-check"><input type="checkbox" data-kui="tween scale:1.5 rotate:12deg 260ms bounce on:click" /> Send me the changelog</label>
+              <div class="tw-field">
+                <label for="tw-vol">Volume</label>
+                <input id="tw-vol" class="tw-range" type="range" min="0" max="100" value="55" data-kui="tween saturate:2.2 200ms on:hover/unhover" />
+              </div>
+            </div>
+            <figcaption>tween on a &lt;select&gt;, a checkbox and a range — hover, click, hover</figcaption>
+          </figure>
+
+          <figure class="tw-card" data-show-code>
+            <div class="tw-form-stage">
+              <form onsubmit="return false">
+                <fieldset class="tw-fieldset" data-kui="cascade:70ms">
+                  <legend>Every field cascades in</legend>
+                  <input class="tw-input" type="text" placeholder="Full name" data-kui="tween-from y:24px opacity:0 600ms" />
+                  <input class="tw-input" type="text" placeholder="Company" data-kui="tween-from y:24px opacity:0 600ms" />
+                  <input class="tw-input" type="text" placeholder="Role" data-kui="tween-from y:24px opacity:0 600ms" />
+                  <button type="submit" class="tw-submit" data-kui="tween-from y:24px opacity:0 600ms">Request access</button>
+                </fieldset>
+              </form>
+            </div>
+            <figcaption>data-kui="cascade:70ms" on the fieldset, data-kui="tween-from y:24px opacity:0 600ms" on each control</figcaption>
+          </figure>
+        </div>
+
+        <p class="tw-note">Purpose-built form effects also ship — <code>label-float</code> <code>input-underline-grow</code> <code>focus-ring-grow</code> <code>checkbox-draw</code> <code>radio-fill</code> <code>range-fill</code> <code>toggle-morph</code> <code>strength-meter</code> <code>validate-check</code> <code>validate-shake</code> <code>step-progress</code> <code>submit-to-spinner-to-check</code></p>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script>
+    /**
+     * Page wiring. Three small jobs, none of which is animation — the library owns all of that.
+     *
+     *   1. The live readout in the mechanism section's middle panel. It prints the demo element's
+     *      own inline `style` attribute, split one declaration per line. Nothing is reconstructed
+     *      or prettified beyond the line breaks: the whole value of showing it is that a reader can
+     *      open devtools and find the same string.
+     *   2. `[data-open]` toggles for the six `@starting-style` cards. The presets are manual by
+     *      construction (there is no `transition-play-state` to defer one behind a trigger), so
+     *      flipping the attribute IS the activation. `discrete.css`'s closed-state rule matches
+     *      `:not([data-open])`, and `transition-behavior: allow-discrete` keeps the element
+     *      rendered on the way out.
+     *   3. `showModal()` / `close()` for the one native `<dialog>` card. `[open]` reflects both,
+     *      which is why the closed-state rule watches the attribute rather than `:modal`.
+     */
+    ;(function () {
+      // --- 1. the live readout -----------------------------------------------------------------
+      var chip = document.getElementById('mech-chip')
+      var readout = document.getElementById('mech-readout')
+      if (chip && readout) {
+        // The four declarations that carry the meaning — the author's values, and the track
+        // list they compiled into. The other six (`animation-delay`, `-timing-function`,
+        // `-iteration-count`, `-fill-mode`, `-play-state`) are the same plumbing every effect
+        // in the catalog gets, each repeated once per track; printed in full they run to
+        // roughly six hundred characters of nested `calc()` and bury the point. They are
+        // named rather than hidden, and devtools has the literal text.
+        var HEADLINE = /^(--kui-tween-|animation-name|animation-duration)/
+        var paintReadout = function () {
+          var parts = (chip.getAttribute('style') || '')
+            .split(';')
+            .map(function (part) { return part.trim() })
+            .filter(Boolean)
+          var headline = parts.filter(function (part) { return HEADLINE.test(part) })
+          var rest = parts
+            .filter(function (part) { return !HEADLINE.test(part) })
+            .map(function (part) { return part.split(':')[0] })
+          readout.textContent = ''
+          readout.appendChild(document.createTextNode(headline.join(';\n') + ';\n\n'))
+          var tail = document.createElement('span')
+          tail.className = 'rest'
+          tail.textContent = '/* plus ' + rest.join(', ') + ' — the same plumbing every\n   effect gets, one value per track */'
+          readout.appendChild(tail)
+        }
+        // The animator writes these during its own scan, which has already run by the time this
+        // script executes; repaint on click too, because the show-code modal's "try it" box can
+        // rewrite the attribute and recompile underneath us.
+        paintReadout()
+        chip.addEventListener('click', function () { window.setTimeout(paintReadout, 0) })
+        chip.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); chip.click() }
+        })
+      }
+
+      // --- 2. the [data-open] toggles ----------------------------------------------------------
+      document.querySelectorAll('[data-open-toggle]').forEach(function (button) {
+        var panel = document.getElementById(button.getAttribute('data-open-toggle'))
+        if (!panel) return
+        button.addEventListener('click', function () {
+          var open = panel.hasAttribute('data-open')
+          if (open) panel.removeAttribute('data-open')
+          else panel.setAttribute('data-open', '')
+          button.setAttribute('aria-expanded', String(!open))
+          button.textContent = open ? 'Open' : 'Close'
+        })
+      })
+
+      // --- 3. the native dialog ----------------------------------------------------------------
+      document.querySelectorAll('[data-dialog-open]').forEach(function (button) {
+        var dialog = document.getElementById(button.getAttribute('data-dialog-open'))
+        if (dialog && typeof dialog.showModal === 'function') {
+          button.addEventListener('click', function () { dialog.showModal() })
+        }
+      })
+      document.querySelectorAll('[data-dialog-close]').forEach(function (button) {
+        button.addEventListener('click', function () { button.closest('dialog').close() })
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>

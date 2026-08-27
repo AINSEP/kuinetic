@@ -74,6 +74,7 @@ const ADVANCED_PAGES = [
   ['scroll.html', 'Scroll'],
   ['interactive.html', 'Interactive'],
   ['data-hover.html', 'Data &amp; Hover'],
+  ['tween.html', 'Tween'],
 ]
 
 const ANIMATED_HAMBURGER = `    <button
@@ -122,6 +123,7 @@ const PAGES = [
   'scroll.html',
   'text.html',
   'three-d.html',
+  'tween.html',
 ].map((entry) => ({ ...DEFAULTS, ...(typeof entry === 'string' ? { file: entry } : entry) }))
 
 /**
