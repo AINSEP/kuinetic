@@ -378,6 +378,8 @@ function overlay(member: EffectSpec, ref: EffectSpec): EffectSpec {
     easing: ref.easing ?? member.easing,
     at: ref.at ?? member.at,
     gate: ref.gate ?? member.gate,
+    repeat: ref.repeat ?? member.repeat,
+    yoyo: ref.yoyo ?? member.yoyo,
     params: { ...member.params, ...ref.params },
   }
 }

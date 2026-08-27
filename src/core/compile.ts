@@ -5,6 +5,7 @@ import type { AnimationTracks } from './declarations.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest } from './registry.js'
+import { resolvePlayback } from './repeat.js'
 import { isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
 import type { TargetScope } from './target.js'
@@ -261,7 +262,12 @@ export function compileTargets(
     return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, []) }], warnings }
   }
 
-  const sanitized = entries.map((entry) => refuseContainerGate(entry, warnings))
+  // Both sanitizers run before the sequencer, and `refusePlayback` has to: `at:after` measures the
+  // previous segment's whole playback, so it must see the repeat that survived rather than the one
+  // that was authored.
+  const sanitized = entries.map((entry) =>
+    refusePlayback(refuseContainerGate(entry, warnings), timeline, warnings),
+  )
   // Sequenced once, over the full list, before the group split below — see this function's own
   // comment. `resolveSequence` always returns one step per member, in the same order, so zipping
   // by index is safe.
@@ -595,6 +601,36 @@ function refuseContainerGate(entry: Entry, warnings: string[]): Entry {
 }
 
 /**
+ * Strip a `repeat:`/`yoyo:` the compiled output cannot honour, warning by name.
+ *
+ * Deliberately the same shape as {@link refuseContainerGate} above it, and mapped in the same pass:
+ * both are "this modifier is unusable here, so run without it and say so". `core/repeat.ts` owns
+ * every rule and every sentence; this only rebuilds the spec around the answer.
+ *
+ * The rebuild is a copy, never a mutation — `compile` is pure and the same parsed value is compiled
+ * again on every rescan, so writing back onto `spec` would make the second compile of an element
+ * see a repeat the first one had already dropped.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function refusePlayback(entry: Entry, timeline: Timeline, warnings: string[]): Entry {
+  const { spec, resolved } = entry
+  if (spec.repeat === undefined && spec.yoyo === undefined) return entry
+
+  const { repeat, yoyo, warnings: raised } = resolvePlayback({
+    name: resolved.preset.name,
+    renderer: resolved.primitive.renderer,
+    cloak: resolved.preset.cloak,
+    timeline,
+    repeat: spec.repeat,
+    yoyo: spec.yoyo,
+  })
+  warnings.push(...raised)
+  return { ...entry, spec: { ...spec, repeat, yoyo } }
+}
+
+/**
  * Decide whether a comma list may compose.
  *
  * Order matters: a purpose-built combo preset beats channel analysis, because `fade-up, blur-in`
@@ -715,6 +751,7 @@ function memberFor(entry: Entry): SequenceMember {
     duration: spec.duration,
     cascadeDelay: cascadeValue(authored, preset, primitive.parameters, 'delay'),
     cascadeDuration: cascadeValue(authored, preset, primitive.parameters, 'duration'),
+    repeat: spec.repeat,
     // A `css-keyframes` segment is always positionable — it compiles to an `animation-delay` and
     // the browser honours it. A JavaScript-rendered one is positionable only if it declares the
     // parameter, which is the single compile-time signal that it reads a delay at all.

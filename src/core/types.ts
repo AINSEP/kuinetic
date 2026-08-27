@@ -621,6 +621,28 @@ export interface EffectSpec {
    * is built, because there is no JS mirror for it the way `above`/`below` have one.
    */
   gate?: EffectGate
+  /**
+   * Authored `repeat:` — how many times this segment plays, as the CSS
+   * `animation-iteration-count` value it compiles to: a non-negative number, or `infinite`.
+   *
+   * Beside `at` and `gate` rather than inside `params` for the reason both of those are: it is not
+   * a parameter. No `ParameterSchema` declares it, it means the same thing for every effect in the
+   * catalog, and `resolveParams` would reject it as unknown on all of them. And not hoisted to
+   * `ParsedValue` the way `on:`/`timeline:` are, because `declarations.ts` writes
+   * `animation-iteration-count` as a per-*track* list precisely so a composed one-shot effect does
+   * not inherit its neighbour's loop — an element-scoped repeat would undo that in the grammar.
+   *
+   * Already validated by the time it lands here (`core/repeat.ts` owns the value grammar), but not
+   * yet reconciled with the element's timeline or renderer: `compile.ts`'s `refusePlayback` strips
+   * a repeat the compiled output cannot honour, with a warning, before the plan is built.
+   */
+  repeat?: string
+  /**
+   * Authored `yoyo:` — whether this segment alternates direction between iterations, compiling to
+   * `animation-direction: alternate`. Spelled `yoyo` and not `direction` because `direction` is
+   * already a parameter on the split-text primitive; see `core/repeat.ts`'s module comment.
+   */
+  yoyo?: boolean
   params: Record<string, string>
 }
 
