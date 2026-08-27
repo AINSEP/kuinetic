@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
+import type { ActivationBinder, ActivationRequest } from '../src/core/activation.js'
+import { Animator } from '../src/core/animator.js'
+import { ATTR } from '../src/core/attrs.js'
 import { resolveConfig } from '../src/core/element-config.js'
 import { parse } from '../src/core/parse.js'
+import { collectingReporter } from '../src/core/reporter.js'
+import { CAPS } from './support/animator-harness.js'
+import { catalogRegistry } from './support/registry.js'
 import {
   applyToggleVerb,
   parseToggleActions,
@@ -310,5 +316,68 @@ describe('four-way crossing delivery', () => {
   it('keeps observing after the first entry, where a plain on:enter would have released', () => {
     // An element that named the other three crossings is asking to be told about them.
     expect(crossings([below, inside, above, inside])).toHaveLength(3)
+  })
+})
+
+describe('the animator wires the crossings up', () => {
+  /**
+   * Build one element under a binder that records the request, so the four-way callback can be
+   * driven directly — the shared `fakeBinder` only records `activate`, and what is being asserted
+   * here is precisely the extra field.
+   */
+  function build(markup: string): {
+    el: HTMLElement
+    requests: ActivationRequest[]
+    messages: string[]
+  } {
+    document.body.innerHTML = markup
+    const requests: ActivationRequest[] = []
+    const reporter = collectingReporter()
+    const binder: ActivationBinder = {
+      bind(_el, _activation, request) {
+        requests.push(request)
+        return () => {}
+      },
+      destroy() {},
+    }
+    new Animator({
+      root: document.body,
+      registry: catalogRegistry(),
+      capabilities: CAPS,
+      reporter,
+      binder,
+    }).start()
+    return {
+      el: document.body.querySelector('[data-kui]') as HTMLElement,
+      requests,
+      messages: reporter.messages,
+    }
+  }
+
+  it('passes no crossing callback when the author wrote no actions', () => {
+    // The default has to stay byte-for-byte the old two-way binding: `enter` is one-shot, and a
+    // great deal of existing markup depends on that.
+    expect(build('<div data-kui="fade-up"></div>').requests[0]?.cross).toBeUndefined()
+  })
+
+  it('passes one when the author did, and it drives the element', () => {
+    const { el, requests } = build('<div data-kui="fade-up on:enter actions:play/pause"></div>')
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+    requests[0]?.cross?.('enter')
+    expect(el.getAttribute(ATTR.state)).toBe('running')
+  })
+
+  it('does nothing for a crossing the author left as none', () => {
+    const { el, requests } = build('<div data-kui="fade-up on:enter actions:none/play"></div>')
+    requests[0]?.cross?.('enter')
+    expect(el.getAttribute(ATTR.state)).toBe('ready')
+  })
+
+  it('warns about an activation with no crossings, even though it never reaches the binder', () => {
+    // `on:load` resolves to an immediate gate, so `openGate` returns before it would ever bind —
+    // which is exactly why the diagnostic has to run before that return rather than after it.
+    const { requests, messages } = build('<div data-kui="fade-up on:load actions:play/pause"></div>')
+    expect(requests).toHaveLength(0)
+    expect(messages.join()).toContain('activates on "load"')
   })
 })

@@ -749,6 +749,16 @@ export class Animator {
       return
     }
 
+    // Before the gate check, not after it, and that is the whole point of putting it here: an
+    // element whose gate is not `deferred` never reaches the binder at all, so a scroll-driven or
+    // `on:load` element carrying `actions:` would otherwise get no binding *and* no diagnostic —
+    // the silent no-op this warning exists to prevent. `stylePlan.activation` is null on exactly
+    // those paths, so the authored value is what gets quoted back.
+    const actions = config.actions
+    if (actions) {
+      this.warnAboutCrossings(el, state, stylePlan.activation ?? config.activation, actions)
+    }
+
     if (stylePlan.gate !== 'deferred') {
       this.activate(el)
       return
@@ -756,8 +766,6 @@ export class Animator {
     // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
     // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
     const activation = stylePlan.activation!
-    const actions = config.actions
-    if (actions) this.warnAboutCrossings(el, state, activation, actions)
     const releaseBinding = this.binder.bind(el, activation, {
       threshold: config.threshold,
       activate: () => this.activate(el),
