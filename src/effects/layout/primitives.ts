@@ -1,7 +1,7 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
-import { createFlipEngine, mutationWatcher, observeLayout } from '../../core/flip.js'
+import { createFlipEngine, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { effectDelayMs, effectEasing, TRIGGER_DELAY_PARAM } from '../shared.js'
@@ -197,6 +197,7 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
   const engine = createFlipEngine()
   const easing = waapiEasingValue(effectEasing(params), el, ctx.warn)
   const selector = params.text('follow')
+  const runs = trackFlipRuns()
   let currentShift = 0
 
   const move = (): void => {
@@ -213,19 +214,29 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
     currentShift = shift
     ctx.style.set('width', `${box.width}px`)
     ctx.style.set('translate', `${shift}px 0`)
-    engine.play(before, [node], {
-      durationMs: effectDurationMs(params, 400),
-      delayMs: effectDelayMs(params),
-      easing,
-      scale: true,
-    })
+    // Held rather than dropped: the slide is a live Web Animation that outlives this call, and an
+    // indicator that keeps travelling after the effect is torn down is writing to an element the
+    // animator has already handed back. Tab switches also land faster than a 400ms slide finishes,
+    // so more than one can be in the air at once.
+    runs.track(
+      engine.play(before, [node], {
+        durationMs: effectDurationMs(params, 400),
+        delayMs: effectDelayMs(params),
+        easing,
+        scale: true,
+      }),
+    )
   }
 
   // `move()` is fallible — a malformed `follow` selector reaches `querySelector` directly — so it
   // runs before `watchAttribute` subscribes, not after. A throw here must never leave a live
   // MutationObserver that this function has already stopped being able to hand back as cleanup.
   move()
-  return watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
+  const unwatch = watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
+  return () => {
+    unwatch()
+    runs.cancelAll()
+  }
 }
 
 /**

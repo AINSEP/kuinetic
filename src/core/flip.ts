@@ -202,6 +202,41 @@ function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipO
 }
 
 /**
+ * Hold every FLIP run that is still playing, so teardown can stop all of them.
+ *
+ * A `FlipRun` outlives the call that started it: `engine.play` hands back live Web Animations and
+ * returns immediately. Dropping that handle means teardown has nothing to cancel, and the moves
+ * keep playing on elements the animator has already released — with `duration:10s` that is ten
+ * seconds of motion after `destroy()`.
+ *
+ * A single "latest run" slot is not enough. FLIP durations are author-controlled and mutations
+ * arrive whenever the page says so, so a second reorder can easily land while the first is still
+ * mid-flight; keeping only the newest would leave the older one running past teardown, which is
+ * the same bug one step removed. Each run drops itself on completion, so the set holds only what
+ * is genuinely in flight rather than growing with the page's history.
+ *
+ * @returns `track` to register a run, and `cancelAll` for teardown.
+ * @complexity O(1) per run tracked; O(k) space in runs currently playing.
+ * @overallScore 100
+ */
+export function trackFlipRuns(): { track(run: FlipRun): void; cancelAll(): void } {
+  const playing = new Set<FlipRun>()
+
+  return {
+    track(run) {
+      playing.add(run)
+      // `FlipRun.finished` already swallows the AbortError a cancel produces, so this never
+      // becomes an unhandled rejection — including when `cancelAll` is what resolves it.
+      void run.finished.then(() => playing.delete(run))
+    },
+    cancelAll() {
+      for (const run of playing) run.cancel()
+      playing.clear()
+    },
+  }
+}
+
+/**
  * Watch a container and FLIP its children whenever its child list changes.
  *
  * This is what turns one engine into the whole layout category: reorder, filter, sort, shuffle,
@@ -211,7 +246,7 @@ function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipO
  * @param engine - FLIP engine to use.
  * @param options - Timing and scaling.
  * @param observe - MutationObserver factory, injected for tests.
- * @returns Teardown that disconnects the observer.
+ * @returns Teardown that disconnects the observer and cancels any move still playing.
  * @complexity O(n) per mutation batch in the number of children.
  * @overallScore 100
  */
@@ -222,13 +257,19 @@ export function observeLayout(
   observe: (callback: () => void) => Cleanup,
 ): Cleanup {
   let before = engine.snapshot(container.children)
+  const runs = trackFlipRuns()
 
   const cleanup = observe(() => {
-    engine.play(before, container.children, options)
+    runs.track(engine.play(before, container.children, options))
     before = engine.snapshot(container.children)
   })
 
-  return cleanup
+  // Disconnecting the observer only stops *new* moves being started. Teardown has to reach the
+  // ones already in the air too, or the container keeps animating after the effect is gone.
+  return () => {
+    cleanup()
+    runs.cancelAll()
+  }
 }
 
 /**

@@ -280,3 +280,102 @@ describe('observeLayout', () => {
     expect(disconnect).toHaveBeenCalledOnce()
   })
 })
+
+/**
+ * A FLIP run outlives the call that started it — `engine.play` hands back live Web Animations and
+ * returns immediately. Teardown therefore has to reach them, or `duration:10s` keeps animating for
+ * ten seconds on elements the animator has already released.
+ */
+describe('observeLayout teardown', () => {
+  /**
+   * Animations that stay in flight until the test says otherwise. The shared `fakeDeps` above
+   * resolves `finished` immediately, which is the one state that cannot show whether a *playing*
+   * run gets cancelled.
+   */
+  function playingDeps(positions: Map<Element, Box[]>) {
+    const reads = new Map<Element, number>()
+    const animations: Array<{ cancel: ReturnType<typeof vi.fn>; complete: () => void }> = []
+
+    const deps: FlipDeps = {
+      measure(el) {
+        const index = reads.get(el) ?? 0
+        reads.set(el, index + 1)
+        const list = positions.get(el) ?? []
+        return list[Math.min(index, list.length - 1)] ?? { x: 0, y: 0, width: 0, height: 0 }
+      },
+      animate() {
+        let settle = (): void => {}
+        const finished = new Promise<void>((resolve) => {
+          settle = resolve
+        })
+        // A real `Animation.cancel()` settles `finished` (by rejecting, which `FlipRun` swallows),
+        // so the fake settles it too — otherwise the tracker would look leak-free for the wrong
+        // reason.
+        const cancel = vi.fn(() => settle())
+        animations.push({ cancel, complete: () => settle() })
+        return { finished, cancel } as unknown as Animation
+      },
+    }
+    return { deps, animations }
+  }
+
+  /** One child that moves 50px further down on each of `moves` mutations. */
+  function movingChild(moves: number) {
+    const container = document.createElement('ul')
+    const child = document.createElement('li')
+    container.append(child)
+    const steps: Box[] = []
+    for (let i = 0; i <= moves * 2; i++) steps.push(box(0, i * 50))
+    return { container, positions: new Map([[child, steps]]) }
+  }
+
+  // The count is varied on purpose: the defect is "the handle was dropped", and a single-run test
+  // would still pass against a fix that only remembered the newest run.
+  it.each([1, 2, 3])('cancels all %i moves still playing when teardown runs', (moves) => {
+    const { container, positions } = movingChild(moves)
+    const { deps, animations } = playingDeps(positions)
+
+    let fire = (): void => {}
+    const cleanup = observeLayout(
+      container,
+      createFlipEngine(deps),
+      { durationMs: 10_000 },
+      (callback) => {
+        fire = callback
+        return () => {}
+      },
+    )
+
+    for (let i = 0; i < moves; i++) fire()
+    expect(animations).toHaveLength(moves)
+    for (const animation of animations) expect(animation.cancel).not.toHaveBeenCalled()
+
+    cleanup()
+
+    for (const animation of animations) expect(animation.cancel).toHaveBeenCalledOnce()
+  })
+
+  it('lets a move that already completed go, instead of holding it until teardown', async () => {
+    const { container, positions } = movingChild(1)
+    const { deps, animations } = playingDeps(positions)
+
+    let fire = (): void => {}
+    const cleanup = observeLayout(container, createFlipEngine(deps), {}, (callback) => {
+      fire = callback
+      return () => {}
+    })
+
+    fire()
+    animations[0]!.complete()
+    // `FlipRun.finished` is a `Promise.all(...).then(...)` over each animation's own
+    // `.catch(...)`, so the tracker's `.then` is several microtask hops down. One macrotask drains
+    // all of them without having to count.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    cleanup()
+
+    // Cancelling an already-finished animation is harmless in a browser, but never pruning the set
+    // would make it grow with every mutation the page ever makes.
+    expect(animations[0]!.cancel).not.toHaveBeenCalled()
+  })
+})
