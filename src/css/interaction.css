@@ -279,7 +279,7 @@
     right: 0;
     bottom: -0.15em;
     height: 0.08em;
-    background: currentcolor;
+    background: var(--kui-underline-slide-color, currentcolor);
     scale: 0 1;
     transform-origin: left center;
     transition: scale var(--kui-underline-slide-duration, 260ms) var(--kui-underline-slide-ease, ease-out);
@@ -300,7 +300,7 @@
     right: 0;
     bottom: -0.15em;
     height: 0.08em;
-    background: currentcolor;
+    background: var(--kui-underline-center-color, currentcolor);
     scale: 0 1;
     transform-origin: center;
     transition: scale var(--kui-underline-center-duration, 260ms) var(--kui-underline-center-ease, ease-out);
@@ -459,7 +459,14 @@
     padding: 0.4em 0.8em;
     border-radius: 999px;
     background: var(--accent, #d2691e);
-    color: var(--kui-label-color, #fff);
+    /* Black, not white. The pill's own background is `--accent`, and the default text colour has
+       to be readable against that — white failed badly on a bright accent (the demo's `#e4f222`
+       gives white ~1.1:1, illegible) and is only marginal on the library's own `#d2691e` fallback
+       at ~3.7:1, under AA for small text. Black clears AA against both: ~17:1 on the yellow,
+       ~5.6:1 on the orange. A page whose accent is genuinely dark overrides `--kui-label-color`,
+       which is why the hook exists — but the default must be the one that is readable against the
+       default background. */
+    color: var(--kui-label-color, #000);
     font-size: 0.75rem;
     font-family: ui-monospace, Menlo, monospace;
     white-space: nowrap;

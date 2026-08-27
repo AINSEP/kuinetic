@@ -20,7 +20,7 @@ import {
   withTimingContract,
 } from '../shared.js'
 import type { TimingContract, TimingToken } from '../shared.js'
-import { HOVER_TRANSITIONS, parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
+import { COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
 
 /**
  * Hover and pointer effects (catalog section I).
@@ -165,11 +165,11 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   // show/hide use of the same physical property, but `display` is tracked as one channel
   // regardless of the value a primitive writes into it.
   hoverPrimitive('split-flap', ['skew', 'discrete']),
-  hoverPrimitive('border-draw', ['border']),
-  hoverPrimitive('border-glow', ['shadow']),
+  hoverPrimitive('border-draw', ['border'], COLOR_PARAMS.borderDraw),
+  hoverPrimitive('border-glow', ['shadow'], COLOR_PARAMS.borderGlow),
   hoverPrimitive('beam-border', ['border'], beamParams, LINEAR_HOVER),
-  hoverPrimitive('underline-slide', ['scale']),
-  hoverPrimitive('underline-center', ['scale']),
+  hoverPrimitive('underline-slide', ['scale'], COLOR_PARAMS.underlineSlide),
+  hoverPrimitive('underline-center', ['scale'], COLOR_PARAMS.underlineCenter),
   hoverPrimitive('icon-wiggle', ['rotate']),
   hoverPrimitive('icon-spin', ['rotate'], {}, LINEAR_HOVER),
   hoverPrimitive('icon-bounce', ['translate']),

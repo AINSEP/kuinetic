@@ -10,7 +10,7 @@
  * pointer-tracking arithmetic.
  */
 
-import type { TransitionSegment } from '../../core/types.js'
+import type { ParameterSchema, TransitionSegment } from '../../core/types.js'
 
 export interface TiltAngles {
   rotateX: number
@@ -108,4 +108,23 @@ export const HOVER_TRANSITIONS: Partial<Record<string, TransitionSegment[]>> = {
   'lift-shadow': [{ property: 'translate' }, { property: 'box-shadow' }],
   'border-draw': [{ property: '--kui-border-pct' }],
   'border-glow': [{ property: 'box-shadow' }],
+}
+
+/*
+ * `color:` for the border and underline families. Here rather than in `interaction.ts` for the
+ * same reason `HOVER_TRANSITIONS` is — that file sits exactly on its 400-line lint ceiling — not
+ * because a parameter table belongs beside pointer-tracking arithmetic. One record instead of four
+ * loose consts so `interaction.ts` gains a single imported name and no new lines.
+ *
+ * Every entry declares `default: ''`, and that is the whole contract. An unset `color:` must emit
+ * no declaration at all, so the CSS falls through its own `var(--kui-x-color, var(--accent, ...))`
+ * chain and the page's accent still wins. A real default here would silently seize the colour from
+ * every author who never asked for one. The properties are the ones `interaction.css` already
+ * reads — the hooks existed long before anything was wired to them.
+ */
+export const COLOR_PARAMS: Record<string, ParameterSchema> = {
+  borderDraw: { color: { type: 'color', default: '', cssProperty: '--kui-border-draw-color' } },
+  borderGlow: { color: { type: 'color', default: '', cssProperty: '--kui-border-glow-color' } },
+  underlineSlide: { color: { type: 'color', default: '', cssProperty: '--kui-underline-slide-color' } },
+  underlineCenter: { color: { type: 'color', default: '', cssProperty: '--kui-underline-center-color' } },
 }
