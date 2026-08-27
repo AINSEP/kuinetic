@@ -40,14 +40,48 @@ library should own it. Never call something "not the library's job" without grep
       stays hand-rolled and that is the correct call.
       Related: the `docs.html` TOC half of this pair is closed (`33b12e2`).
 
-- [ ] **The four modern CSS techniques are not wired up at all — zero usage in `src/`.** Verified
-      2026-08-26: `@starting-style`, `interpolate-size`, anchor positioning (`anchor-name` /
-      `position-anchor`) and `@container` appear nowhere in the library. The only hits in the repo
-      are inside `demo/tailwind.css`, which is Tailwind's own vendored output, not ours. So each is
-      greenfield, not "present but unused". Two look like they retire real JavaScript:
-      `@starting-style` animates first paint including from `display: none` (today's entrances need
-      a JS-stamped attribute), and `interpolate-size` animates to `height: auto`. `@container`
-      complements the `above:`/`below:` gates merged in `4f18816`.
+- [ ] **Ship `@starting-style` — blocked on the `transition` channel fix.** Scoped 2026-08-26, plan at
+      `ADS-memory/.local-artifacts/plan-2026-08-26-modern-css.md`. Adds a capability the library
+      does not have: animating elements entering/leaving the DOM or `display:none`. Makes
+      `dropdown-open`/`drawer-slide`/`mega-menu-drop` work the way real dropdowns are built, and
+      makes the 16 exit presets that ship-but-are-never-demoed finally usable. New preset family, no
+      new grammar or renderer — precedent is `lift`/`pop`, transition rules keyed on `data-kui-fx`
+      behind `stylesheetTimingPrepare`. Channels: opacity/scale/translate + `transition` + a new
+      `discrete` for display/overlay. 90.65% support (Safari 17.5, FF 129), graceful fallback, no
+      `@supports` guard needed, ~285 B brotli measured.
+      **Hard prerequisite:** `@starting-style` is a *transition* feature and adds ~6 transition-writing
+      presets, so it widens the untracked-`transition` bug. Do that repair first.
+      Two settled details: `on:enter` cannot be deferred (there is no `transition-play-state`), so
+      declare `supportedActivations:['manual']` and warn rather than accept-and-ignore.
+      It does **not** retire the JS-stamped attribute generally, and does **not** fix the zero-area
+      `on:enter` deadlock — IntersectionObserver still measures geometry, not paint.
+
+- [ ] **Ship `@container` as `wide:`/`narrow:` gates.** Same plan. Answers a *different* question from
+      the `above:`/`below:` viewport gates — neither subsumes the other, both stay. Reuses
+      `gatedAnimationName`/`applyGate` wholesale; `compile.ts` untouched. Writes **no channel at all**
+      — a gate switches `animation-name` to none. 94.05% support, the highest of the four; 101 B
+      brotli measured. Two hard details from the plan: the fallback defaults must be **inverted**
+      relative to the media-query version, or every gate is silently off in a non-supporting
+      browser; and container gates should be refused on JS-rendered primitives in v1, because there
+      is no `matchContainer()`. `container-type` changes layout, so it is exposed as a
+      `data-kui-container` attribute rather than requiring author CSS — structural CSS in the page
+      is what the library exists to own.
+
+- [ ] **`interpolate-size` — deferred until Safari ships it, owner's call 2026-08-26.** Not a risk
+      call, a payoff one: 70.47% support with **zero Safari and zero Firefox**, so the ~70 lines plus
+      MutationObserver in `src/effects/layout/primitives.ts` (`prepareAutoHeight`/`heightEndpoints`/
+      `animateHeight` — the accordion fake) **cannot actually be deleted**. Shipping today adds a
+      second mechanism for one preset and retires nothing. Estimated a two-hour change the day
+      Safari ships. 6 B brotli. Revisit on Safari support.
+
+- [x] **Anchor positioning — dropped, owner's call 2026-08-26.** Three reasons, and the first is the
+      decisive one: it is the only one of the four with a **harmful** fallback — an unsupported
+      `anchor()` puts the element in the *wrong* place rather than a neutral one, at 84.12% support.
+      Second, its only concrete win (retiring `flip-indicator`'s JS) rests on an unverified question
+      nobody has tested: does an anchored position *transition* when the anchor moves, or snap? If it
+      snaps it buys nothing. Third, it is positioning, not motion, and the library states that
+      boundary in its own words in two source files. Reopen only if the transition question is
+      answered yes AND support materially improves.
 
 - [ ] **A viewport gate can't veto a pin's hold while leaving its progress publish running.** Found
       2026-08-26 verifying whether `above:`/`below:` (merged in `4f18816`) closed the "only pin
