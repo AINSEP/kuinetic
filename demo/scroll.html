@@ -1640,7 +1640,19 @@
                   </div>
                 </div>
                 <div class="pin-copy">
-                  <ul class="mechanics-list" data-kui="cascade:90ms">
+                  <!-- `data-kui-stagger`, not the inline `data-kui="cascade:90ms"` a81d7f3 moved this
+                       to. The inline spelling is silently inert on a group element: `parse()` hoists
+                       `cascade:` only when the attribute also names an effect, and a group element
+                       names none — it is not animated, its children are. So `parse("cascade:90ms")`
+                       returns `specs: []` plus an "effect name expected" warning and drops the hoist,
+                       `resolveStaggerConfig` returns undefined, `declaresGroup` says no, and the group
+                       is never indexed: no `--kui-stagger`, no `--kui-i`, every child on the same
+                       delay. Measured here before this change — all six items at opacity 0.739966 at
+                       once, which is the "it is just a fade" this list is not supposed to be.
+                       The pin itself was never broken; `--kui-progress` publishes fine and the scrub
+                       head works. Only the cascade was missing. Restore the inline spelling once
+                       `parse()` hoists from an effect-less attribute. -->
+                  <ul class="mechanics-list" data-kui-stagger="90ms">
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Pinning (4)</strong> — <code>pin-section</code>, <code>pin-until</code>, <code>pin-spacer</code>, <code>stacking-cards</code></li>
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Scrollytelling (1)</strong> — a stepped narrative synced to one pinned scroll</li>
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Horizontal travel (1)</strong> — vertical scroll drives horizontal motion</li>
