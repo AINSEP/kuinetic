@@ -101,10 +101,12 @@ effect-spec  := <effect-name> [<duration>] [<delay>] [<easing>] <key:value>*
 Rules:
 - Positional args must appear in the order above. Unknown or out-of-order tokens produce a
   **dev-mode console warning naming the element and the token** — never a silent no-op.
-- Five `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
-  `timeline:` and `threshold:` are hoisted element-wide (below). `at:` is per-segment and positions
-  that segment relative to the one before it in the comma list — see §3.1. `above:`/`below:` are
-  per-segment too and gate it to a range of viewport widths — see §3.2.
+- Some `key:value` keys are reserved and never reach a primitive's parameter schema. `on:`,
+  `timeline:`, `threshold:`, `cascade:`, `order:`, `rm:` and `func:` are hoisted element-wide
+  (below), because one element has one activation, one timeline, one stagger group, one
+  reduced-motion policy and one completion. `at:` is per-segment and positions that segment relative
+  to the one before it in the comma list — see §3.1. `above:`/`below:` are per-segment too and gate
+  it to a range of viewport widths — see §3.2.
 - Parser must be paren-aware (`ease:cubic-bezier(.2,.8,.2,1)` contains commas). ~30 lines.
 - Attribute values may contain newlines; whitespace normalizes.
 - Element-scoped settings (`on`, `timeline`, `threshold`) also have longhand attribute forms

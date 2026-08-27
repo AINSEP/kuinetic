@@ -93,6 +93,18 @@ manually:
 <button data-kui="shine-sweep">Hover me</button>
 ```
 
+Every animated element dispatches `kui:start` / `kui:finish` / `kui:reverse-finish` / `kui:cancel`
+as ordinary bubbling DOM events, so `addEventListener('kui:finish', fn)` is all you need to chain
+work off an animation — and it is what any project with a build step should use. On a no-build page,
+`func:` names a global function to run at that same moment instead:
+
+```html
+<div data-kui="fade-up func:onReveal">…</div>
+```
+
+`func:` is a lookup by name on `window`, so never build its value from a CMS field or any other
+untrusted input — see Getting Started for the full note.
+
 ## Docs
 
 - **Getting Started** — install, first animation, timing, composition, common mistakes.

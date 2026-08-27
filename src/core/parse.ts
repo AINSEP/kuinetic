@@ -13,7 +13,7 @@ import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
  * rather than failing silently.
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
- * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm` are hoisted element-wide (see `HOISTS`);
+ * `on`/`timeline`/`threshold`/`cascade`/`order`/`rm`/`func` are hoisted element-wide (see `HOISTS`);
  * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns; and
  * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
  * pair, container for the second — which `core/breakpoints.ts` owns.
@@ -540,6 +540,22 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
     }
     assignOnce(result, 'rm', value as ReducedMotionPolicy, 'reduced-motion policies')
   },
+  /**
+   * The name of a global function to call when this element's effects finish.
+   *
+   * Element-scoped for the same reason `on:` is: one element has one lifecycle, so a second,
+   * different `func:` across the comma list would be describing a completion this element only
+   * reaches once. `assignOnce` names that conflict rather than letting token order pick a winner.
+   *
+   * Unvalidated here, and there is nothing useful to validate. `window['my-fn'] = …` is legal
+   * JavaScript, so an identifier-shaped regex would reject working names; and whether the name
+   * resolves at all depends on script order at *runtime*, which this module cannot see. `callback.ts`
+   * owns the lookup, the `typeof` check, and the one diagnostic — see the security note at the top
+   * of that file before putting `func:` anywhere a CMS field can reach.
+   */
+  func(result, value) {
+    assignOnce(result, 'func', value, 'callbacks')
+  },
 }
 
 /**
@@ -549,7 +565,9 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function assignOnce<K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'order' | 'rm'>(
+function assignOnce<
+  K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'order' | 'rm' | 'func',
+>(
   result: ParsedValue,
   key: K,
   value: ParsedValue[K],

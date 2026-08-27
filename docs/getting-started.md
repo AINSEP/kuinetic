@@ -167,6 +167,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `cascade:` | delay increment applied to this element's animated children | `cascade:60ms` |
 | `order:` | where the cascade starts | `cascade:60ms order:center` |
 | `rm:` | reduced-motion policy for this element; may only be made *stricter* | `spin rm:disable` |
+| `func:` | name a global function to call when this element finishes — see [below](#calling-a-function-when-it-finishes) | `fade-up func:onReveal` |
 
 Only the element-scoped settings have longhand attribute forms — `data-kui-on`,
 `data-kui-timeline`, `data-kui-threshold`, and `data-kui-stagger`. Where an inline key also exists
@@ -472,6 +473,46 @@ off `kui:finish` still runs for those visitors.
 There is deliberately **no per-frame event**. A `CustomEvent` for every animated element on every
 frame would drag every compiled animation back onto the main thread, which is the one thing this
 library is built to avoid. Read progress instead — see below.
+
+### Calling a function when it finishes
+
+`func:` names a global function to run when that element finishes. It is registered as an ordinary
+`kui:finish` listener, so it fires at exactly the moment the event does and receives exactly what
+the event gives a listener:
+
+```html
+<div data-kui="fade-up func:onReveal">…</div>
+<script>
+  function onReveal(event) {
+    // `this` is the element; `event.detail` is the same payload a listener gets
+    this.classList.add('is-revealed')
+  }
+</script>
+```
+
+**If your project has a build step, use `addEventListener('kui:finish', fn)` instead.** It works
+with bundlers and ES modules, lets several listeners share one element, and needs no global at all.
+`func:` exists as sugar for the no-build site — a page with a `<script>` block, an attribute, and no
+module graph to hang a listener off — which is a real and large part of who this library is for.
+
+Four things to know before you reach for it:
+
+- **It only fires on `kui:finish`.** Not on start, not on cancel, and not on the `kui:reverse-finish`
+  of an exit. Those have listeners; this key does not try to cover them.
+- **The name has to be on `window`.** A top-level `function onReveal() {}` in a classic `<script>`
+  puts it there, and so does `window.onReveal = …`. `const`, `let`, and anything inside a
+  `<script type="module">` deliberately do not — that is a JavaScript rule, not a library one.
+  A name that resolves to nothing warns (with `consoleReporter()`; the default reporter is silent)
+  and the animation is otherwise unaffected.
+- **It is looked up when the animation finishes, not when the page is scanned**, so a `<script>`
+  that runs after kUInetic started still works.
+- **Never build a `func:` value out of untrusted input.** The attribute names a function and the
+  library calls it, so whoever controls the attribute controls which global function runs. On a
+  hand-written page that is you. On a page where `data-kui` is assembled from a CMS field, a URL
+  parameter, or anything an end user can influence, it is them — and any function the page put on
+  `window` becomes reachable by name. There is no `eval` here and the value can never *be* code, but
+  it can *name* code. For templated markup, keep the callback in an `addEventListener` and leave
+  `func:` out.
 
 ---
 

@@ -176,6 +176,25 @@ describe('parse', () => {
       expect(bad.specs[0]?.params).toEqual({})
     })
 
+    it('hoists func: and leaves the name unjudged, since resolution is a runtime fact', () => {
+      // `window['my-fn'] = …` is legal, so an identifier regex here would reject working names;
+      // and whether any name resolves depends on script order the parser cannot see.
+      const result = parse('fade-up func:onReveal')
+      expect(result.func).toBe('onReveal')
+      expect(result.specs[0]?.params).toEqual({})
+      expect(result.warnings).toEqual([])
+      expect(parse('fade-up func:my-fn').func).toBe('my-fn')
+    })
+
+    it('refuses a bare func: with no effect to complete', () => {
+      // Not a group-only hoist the way `cascade:`/`order:` are. Those describe children that animate
+      // on their own; a callback describes *this* element finishing, and an element with no effect
+      // never does — so accepting it here would turn a dropped effect name into silence.
+      const result = parse('func:onReveal')
+      expect(result.func).toBeUndefined()
+      expect(result.warnings.join()).toContain('effect name expected')
+    })
+
     it('warns on conflicting hoists rather than letting token order decide', () => {
       expect(parse('fade-up cascade:90ms, blur-in cascade:200ms').warnings.join()).toContain(
         'conflicting stagger steps',
@@ -185,6 +204,9 @@ describe('parse', () => {
       )
       expect(parse('fade-up rm:shorten, blur-in rm:disable').warnings.join()).toContain(
         'conflicting reduced-motion policies',
+      )
+      expect(parse('fade-up func:one, blur-in func:two').warnings.join()).toContain(
+        'conflicting callbacks',
       )
     })
 

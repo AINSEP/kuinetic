@@ -628,10 +628,11 @@ export interface EffectSpec {
 export interface ParsedValue {
   specs: EffectSpec[]
   /**
-   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `order:` / `rm:` keys.
-   * Element-scoped: one element has one activation, one timeline, one stagger group, one
-   * reduced-motion policy — so none of these can sensibly differ between the comma-separated
-   * segments of a single attribute, and all six are lifted out of the per-effect `params`.
+   * Hoisted from reserved `on:` / `timeline:` / `threshold:` / `cascade:` / `order:` / `rm:` /
+   * `func:` keys. Element-scoped: one element has one activation, one timeline, one stagger group,
+   * one reduced-motion policy and one completion — so none of these can sensibly differ between the
+   * comma-separated segments of a single attribute, and all seven are lifted out of the per-effect
+   * `params`.
    */
   activation?: Activation
   timeline?: string
@@ -652,6 +653,15 @@ export interface ParsedValue {
    * no expression forms, so there is nothing a later stage could know that `parse.ts` does not.
    */
   rm?: ReducedMotionPolicy
+  /**
+   * Name of a global function to call when the element's effects finish — the no-build spelling of
+   * `addEventListener('kui:finish', fn)`, and registered as exactly that listener.
+   *
+   * Raw text, deliberately unvalidated at parse time: whether a name resolves depends on script
+   * order at runtime, which the parser cannot see. `core/callback.ts` owns the lookup and carries
+   * the note on why this key must not be built from untrusted input.
+   */
+  func?: string
   warnings: string[]
 }
 

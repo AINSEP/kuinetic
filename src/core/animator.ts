@@ -39,6 +39,7 @@ import type { ActivationBinder } from './activation.js'
 import { ATTR } from './attrs.js'
 import { breakpointsIn, createGateWatcher, gateMatches } from './breakpoints.js'
 import type { Breakpoint, EffectGate, GateWatcher } from './breakpoints.js'
+import { bindCallback } from './callback.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compileTargets } from './compile.js'
@@ -425,6 +426,7 @@ export class Animator {
     const ledger = ledgers.style(el)
     const attributes = ledgers.attributes(el)
     const controller = new AbortController()
+    this.bindAuthorCallback(el, parsed, controller.signal)
 
     // Whether *any* group has a CSS declaration — not just the host's own — because the gate is
     // one shared fact about the element (D1: one `InstanceState`, one activation binding), even
@@ -525,6 +527,29 @@ export class Animator {
     }
 
     this.openGate({ el, state, stylePlan: elementStylePlan, config, plan: groups[0]!.target.plan })
+  }
+
+  /**
+   * Wire an authored `func:` to this element's completion.
+   *
+   * Registered as an ordinary `kui:finish` listener rather than called from a dispatch site, so it
+   * can never fire at a moment the event does not — the key is sugar for that listener, and is
+   * implemented as literally that listener. It detaches with every other binding on
+   * `controller.abort()`.
+   *
+   * Called from `install` *before* `openGate`, and the order is load-bearing: the one `kui:finish`
+   * an element can receive during install is the synchronous `reduced-motion` one, and the visitor
+   * who asked for reduced motion is the last one whose chained step should silently be dropped.
+   *
+   * See `callback.ts` for the lookup rules, and for why this key must never be built from
+   * untrusted input.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  private bindAuthorCallback(el: Element, parsed: ParsedValue, signal: AbortSignal): void {
+    if (parsed.func === undefined) return
+    bindCallback({ el, name: parsed.func, reporter: this.reporter, signal })
   }
 
   /**
