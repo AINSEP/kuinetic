@@ -434,17 +434,17 @@ describe('media-scrub', () => {
     expect(reporter.messages.join()).toContain('must be a same-origin path')
   })
 
-  // demo/scroll.html's real sequence-scrub markup, verified live: must keep cycling frames.
-  it('keeps the showcase\'s ./assets/scenic_scrub_{i}.jpg pattern working', () => {
+  // A relative same-origin `{i}` pattern must keep cycling frames end to end.
+  it('keeps a relative ./assets/frame-{i}.jpg pattern working', () => {
     const animator = build(
-      '<img data-kui="sequence-scrub frames:5 src:./assets/scenic_scrub_{i}.jpg distance:220vh">',
+      '<img data-kui="sequence-scrub frames:5 src:./assets/frame-{i}.jpg distance:220vh">',
     )
     stubRect(el('img'), 0)
     animator.start()
     stubRectWithSpacer(el('img'), 0)
     scheduler.emit(0)
     // `./` is stripped by URL resolution, same as any browser normalizing a relative path.
-    expect((el('img') as HTMLImageElement).src).toContain('assets/scenic_scrub_0.jpg')
+    expect((el('img') as HTMLImageElement).src).toContain('assets/frame-0.jpg')
     expect(reporter.messages.join()).not.toContain('same-origin')
   })
 })
