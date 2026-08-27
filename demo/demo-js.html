@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Demo JS</title>
+<meta name="description" content="Drag, magnetic pointer effects, FLIP layout transitions, decoding text, and the six @starting-style discrete-open presets — kUInetic's JavaScript-rendered tier, half the catalog and none of it a compiled keyframe." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero ---------- */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 17ch; }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+  .demo-hero .hero-media {
+    position: relative; overflow: clip; border-radius: 12px; border: 1px solid var(--border);
+    aspect-ratio: 4 / 5; background: var(--surface);
+  }
+  .demo-hero .hero-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .hero-fx-label {
+    position: absolute; left: 1.25rem; bottom: 1.25rem; z-index: 1;
+    color: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700;
+    font-size: clamp(1rem, 0.5vw + 0.9rem, 1.25rem); letter-spacing: -0.01em;
+    text-shadow: 0 2px 16px rgb(0 0 0 / 0.65); pointer-events: none;
+  }
+  /* Stat strip — the "half the library" thesis, stated as two numbers rather than argued in
+     prose. Sits in the hero copy column, above the CTAs, so it reads before anything else. */
+  .hero-stat-row { margin-top: 1.5rem; display: flex; gap: clamp(1.5rem, 3vw, 2.5rem); }
+  .hero-stat-row b {
+    display: block; font-size: clamp(1.6rem, 1.4vw + 1.1rem, 2.1rem); font-weight: 800;
+    letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .hero-stat-row span { display: block; margin-top: 0.3rem; font-size: 0.78rem; color: var(--muted); }
+
+  /* ---------- section heads ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 26ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
+
+  /* ---------- matrix groups ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .matrix-group-note { margin-top: -0.4rem; margin-bottom: 1rem; color: var(--muted); font-size: 0.85rem; }
+  .matrix-group-controls { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; align-items: center; }
+  /* Excludes the show-code chip from this page's own pill styling — see the "Show-code chips"
+     section of CLAUDE.md. A show-code chip is the shared solid dark pill from system.css and
+     must never be restyled per page. */
+  .matrix-group-controls button:not(.kui-show-code-toggle) {
+    padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .matrix-group-controls button:not(.kui-show-code-toggle):hover { border-color: var(--fg); }
+  .matrix-group-controls button:not(.kui-show-code-toggle).is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .matrix-group-controls .kui-show-code-toggle { margin-left: auto; align-self: auto; }
+
+  /* ---------- demo grid / cards (shared shell across the page) ---------- */
+  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .demo-grid { margin-top: 0; }
+  .demo-card { display: flex; flex-direction: column; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .demo-card img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; flex: none; }
+  .demo-card figcaption,
+  .demo-card .demo-card-caption {
+    flex: 1 0 auto; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .demo-card figcaption,
+  :root[data-theme='dark'] .demo-card .demo-card-caption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+  .demo-card[tabindex] { cursor: pointer; }
+  .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .demo-grid .demo-card[hidden] { display: none; }
+
+  /* ---------- fx buttons (magnetic, discrete-open triggers) ---------- */
+  .fx-body { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; padding: 1.75rem 1.25rem; }
+  .fx-body p { color: var(--muted); font-size: 0.8rem; text-align: center; }
+  /* Longhand border/background — see data-hover.html's identical comment: the shorthand resets
+     -image sub-properties, which silently blanks a button-hosted effect painting via
+     background-image/border-image-source, and this page's unlayered CSS always wins that fight. */
+  .fx-btn {
+    width: 100%; font: inherit; font-weight: 560; font-size: 0.95rem; color: var(--fg);
+    background-color: var(--bg);
+    border-width: 1px; border-style: solid; border-color: var(--border);
+    border-radius: 8px; padding: 0.9rem 1rem; cursor: pointer; text-align: center;
+  }
+  .fx-btn:hover { border-color: var(--fg); }
+
+  /* ---------- cursor zones (Pointer · Cursor) ---------- */
+  .cursor-zone {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 150px; padding: 1rem;
+    border-radius: 14px; border: 1px dashed var(--border); background: var(--bg);
+    color: var(--muted); font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: center;
+  }
+
+  /* ---------- tilt cards (Pointer · Tilt) ---------- */
+  .tilt-media { position: relative; flex: none; }
+  .tilt-media img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  .tilt-media::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, transparent 45%, rgb(0 0 0 / 0.6) 100%);
+  }
+  .tilt-parallax-card [data-depth] {
+    position: absolute; left: 14px; pointer-events: none; color: #ffffff;
+    text-shadow: 0 2px 10px rgb(0 0 0 / 0.6);
+  }
+  .tilt-parallax-card [data-depth='24'] { top: 14px; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+  .tilt-parallax-card [data-depth='6'] { bottom: 12px; font-size: 0.72rem; opacity: 0.9; }
+
+  /* ---------- gesture arenas (Drag & gesture) ---------- */
+  .gesture-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.25rem; }
+  .matrix-group .gesture-grid { margin-top: 0; }
+  .gesture-arena { display: flex; flex-direction: column; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .gesture-stage {
+    position: relative; flex: 1 1 auto; min-height: 210px;
+    display: grid; place-items: center; border-radius: 12px 12px 0 0;
+    background-image: radial-gradient(color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1px);
+    background-size: 18px 18px; background-position: center;
+  }
+  .gesture-chip {
+    position: relative; width: 148px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg); box-shadow: var(--shadow-float);
+    touch-action: none; user-select: none; cursor: grab;
+  }
+  .gesture-chip-media { overflow: clip; border-radius: 9px; }
+  .gesture-chip img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; pointer-events: none; }
+  .gesture-chip[data-kui-dragging='true'] { cursor: grabbing; border-color: var(--accent); }
+  .gesture-chip[data-kui-pressed='true'] { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .gesture-chip[data-kui-swipe]::after {
+    position: absolute; top: 6px; right: 6px; padding: 0.15rem 0.5rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.66rem; font-weight: 700;
+    color: var(--accent-ink); background: var(--accent);
+  }
+  .gesture-chip[data-kui-swipe='left']::after { content: '\2190 left'; }
+  .gesture-chip[data-kui-swipe='right']::after { content: '\2192 right'; }
+  .gesture-chip[data-kui-swipe='up']::after { content: '\2191 up'; }
+  .gesture-chip[data-kui-swipe='down']::after { content: '\2193 down'; }
+  .gesture-arena figcaption {
+    flex: none; display: flex; align-items: center;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+    border-radius: 0 0 12px 12px;
+  }
+  :root[data-theme='dark'] .gesture-arena figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+
+  /* ---------- FLIP layout variants ---------- */
+  .demo-grid.is-list { grid-template-columns: 1fr; }
+  .demo-grid.is-list .demo-card { flex-direction: row; width: fit-content; max-width: 100%; }
+  #list-grid.is-list .demo-card img { width: 110px; aspect-ratio: 1; flex: none; }
+  .demo-grid.is-list .demo-card figcaption { flex: 0 1 auto; border-top: none; border-left: 1px solid var(--border); }
+
+  .masonry-grid { margin-top: 2.5rem; column-count: 1; column-gap: 1.25rem; }
+  .matrix-group .masonry-grid { margin-top: 0; }
+  @media (min-width: 620px) { .masonry-grid { column-count: 2; } }
+  @media (min-width: 980px) { .masonry-grid { column-count: 3; } }
+  .masonry-grid .demo-card { break-inside: avoid; margin-top: 0; margin-bottom: 1.25rem; }
+  .masonry-grid .demo-card.is-tall img { aspect-ratio: 3 / 4; }
+  .masonry-grid .demo-card.is-wide img { aspect-ratio: 16 / 9; }
+  .masonry-grid .demo-card[hidden] { display: none; }
+
+  .modal-grid { grid-template-columns: repeat(2, 1fr); grid-auto-flow: dense; }
+  @media (min-width: 620px) { .modal-grid { grid-template-columns: repeat(3, 1fr); } }
+  .modal-grid .demo-card { cursor: pointer; }
+  .modal-grid .demo-card.is-expanded { grid-column: span 2; grid-row: span 2; }
+  #modal-grid .demo-card.is-expanded img {
+    aspect-ratio: auto; object-fit: contain; max-height: 60vh; background: var(--bg);
+  }
+
+  .accordion { margin-top: 2.5rem; border: 1px solid var(--border); border-radius: 12px; overflow: clip; background: var(--surface); }
+  .matrix-group .accordion { margin-top: 0; }
+  .accordion-item + .accordion-item { border-top: 1px solid var(--border); }
+  .accordion-header {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1.1rem 1.25rem; background: none; border: none; font: inherit; font-size: 0.95rem;
+    font-weight: 590; color: var(--fg); text-align: left;
+  }
+  .accordion-header .plus { flex: none; color: var(--muted); transition: transform 200ms ease; }
+  .accordion-header[aria-expanded='true'] .plus { transform: rotate(45deg); color: var(--fg); }
+  .accordion-panel { height: 0; overflow: hidden; }
+  .accordion-panel[data-open] { height: auto; }
+  .accordion-panel-inner { padding: 0 1.25rem 1.25rem; color: var(--muted); line-height: 1.65; font-size: 0.9rem; max-width: 60ch; }
+  .accordion-panel-inner code { font-size: 0.85em; padding: 0.1em 0.4em; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); }
+
+  /* ---------- Text & numbers ---------- */
+  .demo-card-text figcaption { flex: none; }
+  .demo-card-text .stage-wrap { flex: 1 1 auto; display: flex; align-items: center; padding: 1.85rem 1.5rem; min-height: 7rem; }
+  .demo-card-text .stage { font-size: clamp(1.05rem, 0.55vw + 0.92rem, 1.3rem); font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; max-width: 30ch; }
+  .demo-card-text.is-mono .stage { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; font-size: 0.92rem; letter-spacing: 0; max-width: none; }
+  .stat-body { flex: 1 0 auto; display: flex; align-items: center; padding: 1.6rem 1.5rem 1.3rem; }
+  .stat-body b { font-size: 2rem; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+  /* ---------- discrete-open (@starting-style) ---------- */
+  /* Popovers and <dialog> land in the top layer with a UA-default box (margin/border/padding/
+     background) that would otherwise show through under this page's own surfaces. */
+  [popover], dialog {
+    margin: 0; border: none; padding: 0; color: var(--fg); background: var(--bg);
+    border-radius: 14px; box-shadow: var(--shadow-float);
+  }
+  dialog::backdrop { background: rgb(0 0 0 / 0.55); backdrop-filter: blur(2px); }
+  .discrete-panel-body { padding: 1.5rem 1.75rem; max-width: 22rem; }
+  .discrete-panel-body h3 { font-size: 1.1rem; letter-spacing: -0.01em; }
+  .discrete-panel-body p { margin-top: 0.5rem; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+  .discrete-panel-actions { margin-top: 1.25rem; display: flex; gap: 0.6rem; justify-content: flex-end; }
+  .discrete-panel-actions button { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 590; cursor: pointer; }
+  .discrete-panel-actions [data-dialog-close] { background: none; border: 1px solid var(--border); color: var(--fg); }
+  .discrete-quickview-media { width: 100%; aspect-ratio: 16 / 10; overflow: clip; border-radius: 10px; margin-bottom: 1rem; background: var(--surface); }
+  .discrete-quickview-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .discrete-quickview-price { margin-top: 0.15rem; font-size: 0.85rem; color: var(--muted); }
+
+  /* fade-open — a toast, fixed bottom-right */
+  #fade-toast {
+    position: fixed; inset: auto 1.5rem 1.5rem auto; width: min(21rem, calc(100vw - 3rem));
+    padding: 1rem 0.75rem 1rem 1.15rem; display: flex; align-items: center; gap: 0.75rem;
+    background: var(--accent-ink); color: var(--accent); z-index: 70;
+  }
+  #fade-toast span { flex: 1 1 auto; font-size: 0.9rem; }
+  .discrete-toast-close { flex: none; width: 1.75rem; height: 1.75rem; border-radius: 50%; border: none; background: none; color: inherit; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+
+  /* drop-open — a popover menu, positioned under its trigger by JS */
+  #drop-menu { position: fixed; inset: auto; min-width: 11rem; padding: 0.5rem; z-index: 70; }
+  #drop-menu a { display: block; padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.9rem; color: var(--fg); }
+  #drop-menu a:hover { background: var(--surface); }
+
+  /* slide-open-up — a bottom sheet, toggled via [data-open] */
+  #filter-sheet {
+    position: fixed; inset: auto 0 0 0; margin: 0 auto; max-width: 26rem; width: 100%;
+    border-radius: 16px 16px 0 0; padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    z-index: 70;
+  }
+  #filter-sheet h3 { font-size: 1.05rem; }
+  .discrete-sheet-chips { margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .discrete-sheet-chips span {
+    padding: 0.4rem 0.8rem; border-radius: 999px; border: 1px solid var(--border);
+    font-size: 0.78rem; color: var(--muted);
+  }
+  #filter-sheet .discrete-panel-actions { justify-content: space-between; align-items: center; }
+
+  /* slide-open-down — a top announcement bar, toggled via [data-open] */
+  #promo-banner {
+    position: fixed; inset: 0 0 auto 0; border-radius: 0; z-index: 70;
+    padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: center; gap: 1rem;
+    background: var(--accent); color: var(--accent-ink); box-shadow: none;
+  }
+  #promo-banner p { font-size: 0.85rem; font-weight: 560; }
+  #promo-banner a { color: inherit; text-decoration: underline; }
+  #promo-banner .discrete-toast-close { color: var(--accent-ink); }
+
+  /* ---------- backdrop (background-media) ---------- */
+  .backdrop-feature {
+    position: relative; overflow: clip; border-radius: 14px; margin-top: 2.5rem;
+    padding: clamp(3rem, 7vw, 5.5rem) 2rem; display: flex; flex-direction: column; align-items: center;
+    text-align: center; gap: 1rem; color: #ffffff;
+  }
+  .backdrop-feature h3 { font-size: clamp(1.4rem, 1.4vw + 1rem, 2rem); letter-spacing: -0.01em; max-width: 20ch; }
+  .backdrop-feature p { max-width: 42ch; opacity: 0.85; line-height: 1.6; }
+  .backdrop-feature code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: rgb(255 255 255 / 0.14); padding: 0.1em 0.4em; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
+      <div class="kui-nav-dropdown" data-nav-group="docs">
+        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./docs.html?doc=getting-started">Getting Started</a>
+          <a href="./docs.html?doc=catalog">Catalog</a>
+          <a href="./docs.html?doc=design">Architecture</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="basic">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="reveals.html,text.html,ambient-feedback.html"
+        >
+          Basic
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
+          <a href="./text.html" data-nav-link="text.html">Text</a>
+          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="advanced">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="demo-js.html,scroll.html,interactive.html,data-hover.html"
+        >
+          Advanced
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./demo-js.html" data-nav-link="demo-js.html">Demo JS</a>
+          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
+          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
+          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
+        </div>
+      </div>
+      <div class="kui-nav-dropdown" data-nav-group="designs">
+        <button
+          type="button"
+          class="kui-nav-dropdown-trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-nav-pages="index.html"
+        >
+          Designs
+        </button>
+        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+          <a href="./index.html" data-nav-link="index.html">Premium</a>
+          <span class="kui-nav-coming-soon">Coming soon</span>
+        </div>
+      </div>
+    </nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
+      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+    </button>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">JavaScript · Demo JS</p>
+          <h1 data-kui="fade-up 700ms">Half of this isn't CSS.</h1>
+          <div class="hero-stat-row" data-kui="fade-up 700ms 120ms">
+            <div><b data-kui="count-up 1400ms to:103 on:load">0</b><span>JS-rendered presets</span></div>
+            <div><b data-kui="count-up 1400ms 120ms to:104 on:load">0</b><span>CSS-rendered presets</span></div>
+          </div>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 220ms">
+            <a href="#opens" class="btn btn-primary">See the opens</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 280ms"><span class="dot"></span> Move your pointer, drag a chip, open a panel — nothing below is a compiled keyframe.</p>
+        </div>
+        <div class="hero-media" data-kui="tilt-3d">
+          <img
+            src="./assets/product/tech-helmet.jpg"
+            alt="Profile portrait in a glossy black futuristic visor helmet with an integrated red LED ear-piece and trailing red cable"
+            draggable="false"
+          />
+          <span class="hero-fx-label" data-kui="typewriter on:load">tilt-3d — move your pointer</span>
+        </div>
+      </section>
+
+      <!-- OPENS & CLOSES (@starting-style, catalog section J) -->
+      <section id="opens" data-od-id="opens">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Opens &amp; closes</h2>
+          <p data-kui="blur-in 700ms">
+            Six names, shipped today, and nothing else on the site shows them. Every one declares
+            <code>defaultActivation: 'manual'</code> — there's no <code>transition-play-state</code> to hold a
+            <code>@starting-style</code> transition behind <code>on:enter</code>, so each is driven by a real
+            open/close state instead: a native <code>popover</code>, a <code>&lt;dialog&gt;</code>, or a plain
+            element toggling <code>[data-open]</code>.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Popover — 2</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" id="toast-trigger" popovertarget="fade-toast">Save changes</button>
+                <p>opens a top-layer <code>popover</code></p>
+              </div>
+              <div id="fade-toast" popover data-kui="fade-open" aria-label="Notification">
+                <span>Saved — your changes are live.</span>
+                <button type="button" popovertarget="fade-toast" popovertargetaction="hide" aria-label="Dismiss" class="discrete-toast-close">×</button>
+              </div>
+              <p class="demo-card-caption">data-kui="fade-open" — native &lt;button popovertarget&gt;</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" id="drop-trigger" popovertarget="drop-menu">Account ▾</button>
+                <p>menu anchored under the trigger</p>
+              </div>
+              <div id="drop-menu" popover data-kui="drop-open" aria-label="Account menu">
+                <a href="#" popovertarget="drop-menu" popovertargetaction="hide">Profile</a>
+                <a href="#" popovertarget="drop-menu" popovertargetaction="hide">Settings</a>
+                <a href="#" popovertarget="drop-menu" popovertargetaction="hide">Sign out</a>
+              </div>
+              <p class="demo-card-caption">data-kui="drop-open" — popover, positioned by JS on toggle</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">&lt;dialog&gt; — 2</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" id="pop-dialog-open">Delete preset</button>
+                <p>modal, focus-trapped, Esc closes it</p>
+              </div>
+              <dialog id="pop-dialog" data-kui="pop-open" aria-label="Delete preset">
+                <div class="discrete-panel-body">
+                  <h3>Delete this preset?</h3>
+                  <p>This can't be undone — the config and every reference to it are removed.</p>
+                  <div class="discrete-panel-actions">
+                    <button type="button" data-dialog-close>Cancel</button>
+                    <button type="button" class="btn-accent" data-dialog-close>Delete</button>
+                  </div>
+                </div>
+              </dialog>
+              <p class="demo-card-caption">data-kui="pop-open" — &lt;dialog&gt;.showModal()</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" id="scale-dialog-open">Quick view</button>
+                <p>non-modal, rest of the page stays live</p>
+              </div>
+              <dialog id="scale-dialog" data-kui="scale-open" aria-label="Quick view">
+                <div class="discrete-panel-body">
+                  <div class="discrete-quickview-media">
+                    <img src="./assets/product/kuinetic_spray.jpg" alt="A kUInetic Spray pump bottle balanced on a bare tree branch against a grey studio backdrop" />
+                  </div>
+                  <h3>kUInetic Spray</h3>
+                  <p class="discrete-quickview-price">300ml · $28</p>
+                  <div class="discrete-panel-actions">
+                    <button type="button" data-dialog-close>Close</button>
+                    <button type="button" class="btn-accent">Add to bag</button>
+                  </div>
+                </div>
+              </dialog>
+              <p class="demo-card-caption">data-kui="scale-open" — &lt;dialog&gt;.show(), no backdrop</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">[data-open] — 2</p>
+          <p class="matrix-group-note">A plain &lt;div&gt;, toggled by this page's own JS — the primitive never touches structure, only the transition.</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" data-open-toggle="filter-sheet" aria-expanded="false" aria-controls="filter-sheet">Open filters</button>
+                <p>bottom sheet, settles up into place</p>
+              </div>
+              <div id="filter-sheet" data-kui="slide-open-up" aria-label="Filters">
+                <div class="discrete-panel-body" style="max-width:none; padding:0;">
+                  <h3>Filters</h3>
+                  <div class="discrete-sheet-chips">
+                    <span>Size</span><span>Color</span><span>Price</span><span>Availability</span>
+                  </div>
+                  <div class="discrete-panel-actions">
+                    <button type="button" data-open-toggle="filter-sheet">Close</button>
+                    <button type="button" class="btn-accent" data-open-toggle="filter-sheet">Apply</button>
+                  </div>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="slide-open-up" — toggles [data-open]</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fx-body">
+                <button type="button" class="fx-btn" data-open-toggle="promo-banner" aria-expanded="false" aria-controls="promo-banner">Show banner</button>
+                <p>top bar, arrives travelling down</p>
+              </div>
+              <div id="promo-banner" data-kui="slide-open-down" aria-label="Announcement">
+                <p>New: six @starting-style presets just shipped. <a href="#opens">See them ↑</a></p>
+                <button type="button" data-open-toggle="promo-banner" aria-label="Dismiss" class="discrete-toast-close">×</button>
+              </div>
+              <p class="demo-card-caption">data-kui="slide-open-down" — toggles [data-open]</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- POINTER -->
+      <section id="pointer" data-od-id="pointer">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Pointer</h2>
+          <p data-kui="blur-in 700ms">Nine names that read the raw pointer position every frame — nothing here has ever been expressible as a CSS transition.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Cursor — 5</p>
+          <p class="matrix-group-note">Each zone spawns its own follower — move the pointer across, or Tab in.</p>
+          <div class="demo-grid">
+            <div class="cursor-zone" data-kui="cursor-follow" tabindex="0" data-show-code>cursor-follow</div>
+            <div class="cursor-zone" data-kui="cursor-lag" tabindex="0" data-show-code>cursor-lag</div>
+            <div class="cursor-zone" data-kui="cursor-label" tabindex="0" data-show-code>cursor-label</div>
+            <div class="cursor-zone" data-kui="cursor-spotlight" tabindex="0" data-show-code>cursor-spotlight</div>
+            <div class="cursor-zone" data-kui="cursor-invert" tabindex="0" data-show-code>cursor-invert</div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Magnetic — 2</p>
+          <div class="demo-grid">
+            <div class="demo-card" data-show-code>
+              <div class="fx-body"><button class="fx-btn" data-kui="magnetic">Magnetic</button></div>
+              <p class="demo-card-caption">data-kui="magnetic" — move close</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="fx-body"><button class="fx-btn" data-kui="magnetic-snap">Magnetic snap</button></div>
+              <p class="demo-card-caption">data-kui="magnetic-snap" — stronger pull</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Tilt — 2</p>
+          <p class="matrix-group-note">Move the pointer over each card, or Tab to it.</p>
+          <div class="demo-grid" data-kui="cascade:120ms">
+            <figure class="demo-card" data-kui="tilt-3d" tabindex="0" data-show-code>
+              <img src="./assets/futurism/gold-helmet.jpg" alt="Beauty portrait behind a mirrored gold full-face visor helmet with a metallic fringe collar over a glossy bronze jacket" loading="lazy" />
+              <figcaption>data-kui="tilt-3d"</figcaption>
+            </figure>
+            <figure class="demo-card tilt-parallax-card" data-kui="tilt-parallax" tabindex="0" data-show-code>
+              <div class="tilt-media">
+                <img src="./assets/scenic/scenic_aurora_borealis.jpg" alt="Aurora borealis glowing green above snow-capped mountains and a still fjord at night" loading="lazy" />
+                <b data-depth="24">tilt-parallax</b>
+                <small data-depth="6">layers move at different depths</small>
+              </div>
+              <figcaption>data-kui="tilt-parallax"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- DRAG & GESTURE -->
+      <section id="drag" data-od-id="drag">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Drag &amp; gesture</h2>
+          <div data-kui="rubber-band">
+            <p data-kui="split-lines 650ms">
+              Eleven names over four primitives — <code>draggable</code>, <code>swipeable</code>,
+              <code>pressable</code>, <code>magnetic</code> — differing only in what happens on release:
+              nothing (<code>drag</code>), back to origin at varying spring stiffness
+              (<code>elastic-pull</code>, <code>rubber-band</code>, <code>snap-back</code>), or onward
+              with momentum (<code>drag-inertia</code>, <code>throwable</code>).
+            </p>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Momentum — 2</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-inertia">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/chrome/chrome_14.jpg" alt="Two liquid-metal portrait busts, one rendered in gold and one in silver, facing each other in profile" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-inertia" — flick and release</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="throwable">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/chrome/chrome_15.jpg" alt="Front-facing portrait rendered in swirling liquid gold and black, symmetrical linework across the face" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="throwable" — flick it away</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Return springs — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="elastic-pull">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/product/gucci_nail_polish.jpg" alt="Two Gucci nail polish bottles, nude and terracotta polish pouring from the open ones beside a capped bottle" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="elastic-pull" — soft snap back</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="rubber-band">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/product/aesop_shampoo.jpg" alt="Aesop shampoo and conditioner bottles standing in a round terracotta tray, warm raking sunlight" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="rubber-band" — wider give</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="snap-back">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/chrome/chrome_16.jpg" alt="Matte black portrait bust with a single vertical stripe of dripping gold paint down the center of the face" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="snap-back" — stiff spring</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Axis — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/product/red-headphones.jpg" alt="Red over-ear headphones lit dramatically against a dark red-to-blue gradient background" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag" — drag it anywhere</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-x">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/product/designer_audio.jpg" alt="Dark brown-and-gunmetal over-ear headphones with leather ear cups, studio grey background" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-x" — horizontal only</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="drag-y">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/product/nike_shoe.jpg" alt="Red Nike running shoe floating against a near-black background" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="drag-y" — vertical only</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Swipe &amp; press — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="swipe">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/scenic/scenic_glacier_ice.jpg" alt="Blue icebergs floating on dark water beneath a cloudy sky" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="swipe" — swipe any direction</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="swipe-x">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/scenic/scenic_slot_canyon.jpg" alt="Glowing red sandstone slot canyon walls curving overhead" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="swipe-x" — left or right only</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <div class="gesture-chip" data-kui="long-press">
+                  <div class="gesture-chip-media">
+                    <img src="./assets/scenic/scenic_volcano_eruption.jpg" alt="A volcano erupting at night under a star-filled sky, streaks of lava arcing from the summit" />
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="long-press" — press and hold</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- LAYOUT & FLIP -->
+      <section id="layout" data-od-id="layout">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Layout &amp; FLIP</h2>
+          <p data-kui="blur-in">
+            Nine names, one technique: the library measures each child's box before a DOM change,
+            measures again after, and animates only the delta. A layout change isn't expressible as
+            keyframes — these animate elements <em>you</em> control, driven by a
+            <code>MutationObserver</code> watching <code>childList</code>, <code>subtree</code>, and
+            the <code>hidden</code> attribute.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-filter — 1</p>
+          <div class="matrix-group-controls" id="filter-controls">
+            <button type="button" data-filter="all" class="is-active">All</button>
+            <button type="button" data-filter="portrait">Portraits</button>
+            <button type="button" data-filter="object">Objects</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="filter-gallery">Show code</button>
+          </div>
+          <div class="demo-grid" id="filter-gallery" data-kui="flip-filter">
+            <figure class="demo-card" data-kind="portrait"><img src="./assets/chrome/chrome_02.jpg" alt="Beauty portrait rendered as liquid silver chrome, side-lit profile with glossy reflective skin" loading="lazy" /><figcaption>portrait</figcaption></figure>
+            <figure class="demo-card" data-kind="object"><img src="./assets/concept-art/render-lakeside-monolith.jpg" alt="Minimalist glowing concrete monolith beside a still lake at dusk, a small tree and rock in the foreground" loading="lazy" /><figcaption>object</figcaption></figure>
+            <figure class="demo-card" data-kind="portrait"><img src="./assets/chrome/chrome_07.jpg" alt="Beauty portrait dripping in dark gunmetal liquid paint, eyes closed, streaks running down the face" loading="lazy" /><figcaption>portrait</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-reorder — 1</p>
+          <p class="matrix-group-note">Click any card — it jumps to the front and the rest reflow around it.</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="reorder-grid">Show code</button>
+          </div>
+          <div class="demo-grid" id="reorder-grid" data-kui="flip-reorder">
+            <figure class="demo-card" tabindex="0"><img src="./assets/chrome/chrome_09.jpg" alt="Beauty portrait with black liquid paint dripping from the chin, front-facing, pale skin against white" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/product/perfume_bottle.jpg" alt="Amber perfume bottle with a black cap on a pink pedestal beside a white arch and purple statice flowers" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/product/luxury_watch.jpg" alt="Gunmetal mesh-strap watch resting on a dark slate slab, dramatic lens flare off the crystal" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-sort — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="sort-asc">Sort ascending</button>
+            <button type="button" id="sort-desc">Sort descending</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="sort-grid">Show code</button>
+          </div>
+          <div class="demo-grid" id="sort-grid" data-kui="flip-sort">
+            <figure class="demo-card" data-size="60"><img src="./assets/product/gold-white-earpods.jpg" alt="White marble-and-gold earbuds case, open, showing white-and-gold earbuds inside" loading="lazy" /><figcaption>marble case</figcaption></figure>
+            <figure class="demo-card" data-size="220"><img src="./assets/chrome/chrome_03.jpg" alt="Beauty portrait rendered in liquid silver chrome, close profile with lips and eyes visible" loading="lazy" /><figcaption>silver profile</figcaption></figure>
+            <figure class="demo-card" data-size="140"><img src="./assets/concept-art/skyway-tower-clouds.jpg" alt="A cantilevered tower of stacked glowing glass floors rising above the clouds at sunset" loading="lazy" /><figcaption>cloud tower</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-shuffle — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="shuffle-btn">Shuffle order</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="shuffle-grid">Show code</button>
+          </div>
+          <div class="demo-grid" id="shuffle-grid" data-kui="flip-shuffle">
+            <figure class="demo-card"><img src="./assets/chrome/chrome_12.jpg" alt="Rose-gold metallic portrait bust beside a large sculptural metallic flower, eyes closed" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/product/jewelry_black.jpg" alt="A pair of diamond rings, one with an oval solitaire, resting on black woven fabric" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/concept-art/skyway-gateway-clouds.jpg" alt="A monumental concrete gateway tower above the clouds at sunset, a lit walkway leading toward the glow" loading="lazy" /><figcaption>data-kui="flip-shuffle"</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">grid-to-list — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="list-toggle">Switch to list</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="list-grid">Show code</button>
+          </div>
+          <div class="demo-grid" id="list-grid" data-kui="grid-to-list">
+            <figure class="demo-card"><img src="./assets/product/future-glasses.jpg" alt="White futuristic AR sunglasses with camera lenses and a heads-up display readout" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/chrome/chrome_04.jpg" alt="Pale blue-white liquid mercury face with droplets suspended around it, eyes closed" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/chrome/chrome_08.jpg" alt="Black glossy liquid dripping down a pale profile face, eyes closed" loading="lazy" /><figcaption>data-kui="grid-to-list"</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">masonry-reflow — 1</p>
+          <div class="matrix-group-controls" id="masonry-controls">
+            <button type="button" data-filter="all" class="is-active">All</button>
+            <button type="button" data-filter="portrait">Portraits</button>
+            <button type="button" data-filter="object">Objects</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="masonry-grid">Show code</button>
+          </div>
+          <div class="masonry-grid" id="masonry-grid" data-kui="masonry-reflow">
+            <figure class="demo-card is-wide" data-kind="object"><img src="./assets/concept-art/cloudpath-hand-sky.jpg" alt="A giant hand reaching down from golden clouds toward a tiny figure walking a glowing cloud-ridge path" loading="lazy" /><figcaption>object</figcaption></figure>
+            <figure class="demo-card is-tall" data-kind="portrait"><img src="./assets/chrome/chrome_06.jpg" alt="White liquid-metal face dripping like melting wax, eyes closed" loading="lazy" /><figcaption>portrait</figcaption></figure>
+            <figure class="demo-card is-wide" data-kind="object"><img src="./assets/concept-art/render-cloud-cantilever.jpg" alt="A cantilevered glass building floating above thick clouds, a lone figure on a lit walkway" loading="lazy" /><figcaption>object</figcaption></figure>
+            <figure class="demo-card is-tall" data-kind="portrait"><img src="./assets/chrome/chrome_13.jpg" alt="Liquid mercury face rising from rippling water, eyes closed, white water lilies floating nearby" loading="lazy" /><figcaption>portrait</figcaption></figure>
+            <figure class="demo-card is-tall" data-kind="portrait"><img src="./assets/chrome/chrome_10.jpg" alt="Ethereal portrait wrapped in sheer white veiling, greyscale, an intense direct gaze" loading="lazy" /><figcaption>portrait</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">expand-to-modal — 1</p>
+          <p class="matrix-group-note">Click a card to expand it in place; the rest of the grid reflows around it.</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="modal-grid">Show code</button>
+          </div>
+          <div class="demo-grid modal-grid" id="modal-grid" data-kui="expand-to-modal">
+            <figure class="demo-card" tabindex="0"><img src="./assets/chrome/chrome_01.jpg" alt="Beauty portrait rendered in liquid gold chrome, side-lit profile against a dark background" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/product/perfume_bottle.jpg" alt="Amber perfume bottle with a black cap on a pink pedestal beside purple statice flowers" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/concept-art/render-lakeside-monolith.jpg" alt="Minimalist glowing concrete monolith beside a still lake at dusk" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">accordion-height &amp; slat-assemble — 2</p>
+          <div class="accordion">
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="true" aria-controls="faq-1">
+                Why does a bare class swap on the container do nothing?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-1" data-kui="accordion-height" data-open>
+                <div class="accordion-panel-inner">
+                  Every FLIP primitive here watches a <code>MutationObserver</code> on
+                  <code>childList</code>/<code>subtree</code>/<code>hidden</code>. A class toggle on the
+                  container fires none of those — <code>grid-to-list</code>'s own list toggle re-appends
+                  its children afterward for exactly this reason, to give the observer something to see.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="false" aria-controls="faq-2">
+                What's the difference between elastic-pull and snap-back?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-2" data-kui="accordion-height">
+                <div class="accordion-panel-inner">
+                  Same primitive (<code>draggable</code> with <code>return:true</code>), different spring
+                  stiffness. <code>elastic-pull</code> ships a soft return, <code>rubber-band</code> widens
+                  the resistance before it lets go, and <code>snap-back</code> uses a stiff spring that
+                  whips home fast.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <button type="button" class="accordion-header" aria-expanded="false" aria-controls="faq-3">
+                Does accordion-height own the click handler?
+                <span class="plus" aria-hidden="true">+</span>
+              </button>
+              <div class="accordion-panel" id="faq-3" data-kui="accordion-height">
+                <div class="accordion-panel-inner">
+                  No — it only animates the height between whatever two values CSS resolves to
+                  (<code>0</code> and <code>auto</code>, here). It doesn't own
+                  <code>aria-expanded</code> or the keyboard handling; this page's own script sets
+                  <code>[data-open]</code> and the accordion just replays.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="demo-grid" data-kui="cascade:120ms" style="margin-top:1.5rem;">
+            <figure class="demo-card" data-kui="slat-assemble 900ms axis:horizontal fold:true" data-show-code>
+              <img src="./assets/chrome/chrome_11.jpg" alt="A man's face split down the center, one half painted matte orange, one half matte black, both dripping paint, wearing a matching split fedora" loading="lazy" />
+              <figcaption>data-kui="slat-assemble" axis:horizontal fold:true</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="slat-assemble 1100ms angle:35deg slats:10 from:start" data-show-code>
+              <img src="./assets/chrome/chrome_05.jpg" alt="A cluster of liquid-mercury hands reaching upward, chrome droplets suspended in the air around them" loading="lazy" />
+              <figcaption>data-kui="slat-assemble" angle:35deg slats:10 from:start</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- TEXT & NUMBERS -->
+      <section id="text" data-od-id="text">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Text &amp; numbers</h2>
+          <p data-kui="blur-in 700ms">Nine names that own the text node itself — splitting, decoding, cycling, or counting characters no <code>@keyframes</code> rule can address.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Resolve — 3</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="scramble 700ms">This sentence resolves itself, one flickering letter at a time.</p></div>
+              <figcaption>data-kui="scramble 700ms"</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text is-mono" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="decode 700ms">01001010 01010011 00100000 01110100 01101001 01100101 01110010</p></div>
+              <figcaption>data-kui="decode 700ms"</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="glitch 700ms">ENGINE ONLINE</p></div>
+              <figcaption>data-kui="glitch 700ms"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Typing — 1</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="typewriter">A caret, a cursor, a sentence assembling itself.</p></div>
+              <figcaption>data-kui="typewriter"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Cycling — 1</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap">
+                <p class="stage" data-kui="word-cycler words:drags|drops|resorts|decodes interval:1600ms on:load">drags</p>
+              </div>
+              <figcaption>data-kui="word-cycler words:drags|drops|…"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Numbers — 4</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card" data-show-code>
+              <div class="fx-body"><button class="fx-btn" data-kui="split-flap">Split flap</button></div>
+              <p class="demo-card-caption">data-kui="split-flap"</p>
+            </figure>
+            <div class="demo-card" data-show-code>
+              <div class="stat-body"><b data-kui="odometer-roll 2000ms to:4820">0</b></div>
+              <p class="demo-card-caption">data-kui="odometer-roll 2000ms to:4820"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="stat-body"><b data-kui="count-up 1800ms to:157">0</b></div>
+              <p class="demo-card-caption">data-kui="count-up 1800ms to:157" — the CSS-tier count</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="stat-body"><b data-kui="count-currency 1800ms to:4820 decimals:0">0</b></div>
+              <p class="demo-card-caption">data-kui="count-currency 1800ms to:4820 decimals:0"</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BACKDROP -->
+      <section id="backdrop" data-od-id="backdrop">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Backdrop</h2>
+          <p data-kui="blur-in 700ms">One attribute, one full-bleed layer. <code>background</code> installs its own <code>&lt;video&gt;</code> or <code>&lt;img&gt;</code> — sized, clipped, and play-while-visible — behind whatever you already wrote.</p>
+        </div>
+        <figure
+          class="backdrop-feature"
+          data-kui="bg src:./assets/webdesign/noomo-labs-3d-interaction.mp4 overlay:#000000 overlay-opacity:55% fit:cover focus:center"
+          data-show-code
+        >
+          <h3>data-kui="bg src:… overlay:#000000 overlay-opacity:55%"</h3>
+          <p>No wrapper, no &lt;video muted loop playsinline&gt;, no z-index rule — one attribute owns the clip, the scrim, and pausing it when it scrolls off screen.</p>
+        </figure>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer">
+    <div class="wrap foot-row">
+      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
+      <a href="#top" class="back-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script>
+    // ---- Demo JS page behavior ----
+    ;(function () {
+      function onActivate(el, handler) {
+        el.addEventListener('click', handler)
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handler(e)
+          }
+        })
+      }
+
+      // ---- opens & closes ----
+
+      // drop-open — position the popover under its trigger; `beforetoggle` fires just before the
+      // browser paints the new state, which is early enough that the box hasn't shown yet.
+      var dropTrigger = document.getElementById('drop-trigger')
+      var dropMenu = document.getElementById('drop-menu')
+      if (dropTrigger && dropMenu && 'onbeforetoggle' in dropMenu) {
+        dropMenu.addEventListener('beforetoggle', function (e) {
+          if (e.newState !== 'open') return
+          var r = dropTrigger.getBoundingClientRect()
+          dropMenu.style.top = Math.round(r.bottom + 8) + 'px'
+          dropMenu.style.left = Math.round(r.left) + 'px'
+        })
+      }
+
+      // pop-open — a real modal dialog; Esc and the backdrop already close it natively
+      var popDialog = document.getElementById('pop-dialog')
+      var popOpenBtn = document.getElementById('pop-dialog-open')
+      if (popDialog && popOpenBtn) {
+        popOpenBtn.addEventListener('click', function () { popDialog.showModal() })
+      }
+
+      // scale-open — a non-modal dialog: no backdrop, no focus trap, closes on an explicit click
+      // or on a click outside its own box (there's no native light-dismiss for `.show()`).
+      var scaleDialog = document.getElementById('scale-dialog')
+      var scaleOpenBtn = document.getElementById('scale-dialog-open')
+      if (scaleDialog && scaleOpenBtn) {
+        scaleOpenBtn.addEventListener('click', function () {
+          if (!scaleDialog.open) scaleDialog.show()
+        })
+        document.addEventListener('click', function (e) {
+          if (!scaleDialog.open) return
+          if (scaleDialog.contains(e.target) || e.target === scaleOpenBtn) return
+          scaleDialog.close()
+        })
+      }
+
+      // Shared close for every [data-dialog-close] button, inside either <dialog>
+      document.querySelectorAll('[data-dialog-close]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var dialog = btn.closest('dialog')
+          if (dialog) dialog.close()
+        })
+      })
+
+      // slide-open-up / slide-open-down — a plain [data-open] toggle, driven by this page, not
+      // by the primitive. Buttons carrying `data-open-toggle="<id>"` flip that target's attribute
+      // and mirror `aria-expanded` on every button that controls it.
+      function setOpen(id, open) {
+        var el = document.getElementById(id)
+        if (!el) return
+        if (open) el.setAttribute('data-open', '')
+        else el.removeAttribute('data-open')
+        document.querySelectorAll('[data-open-toggle="' + id + '"]').forEach(function (btn) {
+          btn.setAttribute('aria-expanded', String(open))
+        })
+      }
+      document.querySelectorAll('[data-open-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-open-toggle')
+          var el = document.getElementById(id)
+          setOpen(id, !(el && el.hasAttribute('data-open')))
+        })
+      })
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return
+        setOpen('filter-sheet', false)
+        setOpen('promo-banner', false)
+      })
+
+      // ---- layout & FLIP ----
+
+      function touchMutation(container) {
+        Array.prototype.slice.call(container.children).forEach(function (child) {
+          container.appendChild(child)
+        })
+      }
+
+      function wireKindFilter(controlsSelector, gridId) {
+        var grid = document.getElementById(gridId)
+        var buttons = document.querySelectorAll(controlsSelector + ' [data-filter]')
+        buttons.forEach(function (button) {
+          button.addEventListener('click', function () {
+            var wanted = button.dataset.filter
+            buttons.forEach(function (b) { b.classList.toggle('is-active', b === button) })
+            Array.prototype.slice.call(grid.children).forEach(function (item) {
+              item.hidden = wanted !== 'all' && item.dataset.kind !== wanted
+            })
+          })
+        })
+      }
+      wireKindFilter('#filter-controls', 'filter-gallery')
+      wireKindFilter('#masonry-controls', 'masonry-grid')
+
+      var reorderGrid = document.querySelector('#reorder-grid')
+      reorderGrid.querySelectorAll('.demo-card').forEach(function (card) {
+        onActivate(card, function () { reorderGrid.prepend(card) })
+      })
+
+      var sortGrid = document.querySelector('#sort-grid')
+      function sortBy(direction) {
+        var cards = Array.prototype.slice.call(sortGrid.children)
+        cards.sort(function (a, b) { return direction * (Number(a.dataset.size) - Number(b.dataset.size)) })
+        cards.forEach(function (card) { sortGrid.appendChild(card) })
+      }
+      document.querySelector('#sort-asc').addEventListener('click', function () { sortBy(1) })
+      document.querySelector('#sort-desc').addEventListener('click', function () { sortBy(-1) })
+
+      var shuffleGrid = document.querySelector('#shuffle-grid')
+      document.querySelector('#shuffle-btn').addEventListener('click', function () {
+        var cards = Array.prototype.slice.call(shuffleGrid.children)
+        for (var i = cards.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1))
+          var tmp = cards[i]; cards[i] = cards[j]; cards[j] = tmp
+        }
+        cards.forEach(function (card) { shuffleGrid.appendChild(card) })
+      })
+
+      var listGrid = document.querySelector('#list-grid')
+      var listToggle = document.querySelector('#list-toggle')
+      listToggle.addEventListener('click', function () {
+        var isList = listGrid.classList.toggle('is-list')
+        listToggle.textContent = isList ? 'Switch to grid' : 'Switch to list'
+        touchMutation(listGrid)
+      })
+
+      var modalGrid = document.querySelector('#modal-grid')
+      modalGrid.querySelectorAll('.demo-card').forEach(function (card) {
+        onActivate(card, function () {
+          modalGrid.querySelectorAll('.demo-card.is-expanded').forEach(function (other) {
+            if (other !== card) other.classList.remove('is-expanded')
+          })
+          card.classList.toggle('is-expanded')
+          touchMutation(modalGrid)
+        })
+      })
+
+      var accordionHeaders = document.querySelectorAll('.accordion-header')
+      accordionHeaders.forEach(function (header) {
+        header.addEventListener('click', function () {
+          var isOpen = header.getAttribute('aria-expanded') === 'true'
+          accordionHeaders.forEach(function (other) {
+            if (other !== header) {
+              other.setAttribute('aria-expanded', 'false')
+              document.getElementById(other.getAttribute('aria-controls')).removeAttribute('data-open')
+            }
+          })
+          header.setAttribute('aria-expanded', String(!isOpen))
+          var panel = document.getElementById(header.getAttribute('aria-controls'))
+          if (isOpen) panel.removeAttribute('data-open')
+          else panel.setAttribute('data-open', '')
+        })
+      })
+    })()
+  </script>
+  <script>
+    // Theme toggle
+    ;(function () {
+      var KEY = 'kuinetic-showcase-theme'
+      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+      var btn = document.getElementById('theme-toggle')
+      var icon = document.getElementById('theme-icon')
+      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
+      function paint(theme) {
+        icon.innerHTML = theme === 'dark' ? SUN : MOON
+        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+        btn.setAttribute('aria-pressed', String(theme === 'dark'))
+      }
+      paint(current())
+      btn.addEventListener('click', function () {
+        var next = current() === 'dark' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = next
+        paint(next)
+        try { localStorage.setItem(KEY, next) } catch (e) {}
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>

@@ -21,17 +21,15 @@
  *     `#top`/`#install` (they ARE index.html) rather than `./index.html`/`./index.html#install`.
  *   - `dataOdId` / `navCta`: `docs.html` carries neither the `data-od-id="header"` marker nor the
  *     "Get started" CTA. Pre-existing, left alone.
- *   - `extraGroups` / `hamburgerVariant`: `index-old.html` is a kept-on-purpose legacy snapshot with
- *     an extra "JS Animations" placeholder dropdown and a plain (non-`hamburger-to-x`) icon button.
+ *   - `hamburgerVariant`: `index-old.html` is a kept-on-purpose legacy snapshot with a plain
+ *     (non-`hamburger-to-x`) icon button. It used to carry an extra "JS Animations — Coming soon"
+ *     placeholder dropdown via `extraGroups`; that placeholder is gone, because the real `JS`
+ *     dropdown now renders for every page. `extraGroups` itself stays as a supported hook.
  *
- * `landing-minimal.html` and `landing-studio.html` are a **second, genuinely different template**
- * (`<header class="site">` — no logo mark, no theme toggle, no hamburger backdrop, a differently
- * indented and differently formatted nav block), not a variant of the first: forcing them into the
- * showcase shape would be a design change nobody asked for. Only the CSS Animations page list is
- * actually shared between the two templates, so `cssAnimationsGroup()` takes the caller's indent
- * and is the only piece of markup literally reused between them. The two landing pages are
- * otherwise byte-identical to each other (checked with `diff`), so unlike `PAGES` above they need
- * no per-page config.
+ * There used to be a second template here for `landing-minimal.html`/`landing-studio.html`. Both
+ * pages were deleted in `6af7e45`, but this script kept rendering headers for them and threw
+ * `ENOENT` on every run after writing the real pages — so it appeared to work and always ended in
+ * an error nobody read. Template and page list are both gone now.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -39,15 +37,15 @@ import { fileURLToPath } from 'node:url'
 const demoDir = fileURLToPath(new URL('../demo/', import.meta.url))
 
 /**
- * The canonical CSS Animations dropdown, in the order new pages have always been appended.
- * Adding a page here is the entire fix for "wire a new demo page into the nav" going forward.
+ * The Basic dropdown: effects that simply play. A reveal, a text treatment, an ambient loop —
+ * declare it and it runs.
+ *
+ * Adding a page to one of these two lists is the entire fix for "wire a new demo page into the
+ * nav" going forward.
  */
-const CSS_ANIMATIONS_PAGES = [
+const BASIC_PAGES = [
   ['reveals.html', 'Reveals'],
-  ['scroll.html', 'Scroll'],
-  ['interactive.html', 'Interactive'],
   ['text.html', 'Text'],
-  ['data-hover.html', 'Data &amp; Hover'],
   ['ambient-feedback.html', 'Ambient &amp; Feedback'],
   // Hidden from the dropdown at the owner's direction — not deleted. All three pages still exist,
   // still build, still appear in PAGES below so they keep getting a current nav header; they are
@@ -57,13 +55,27 @@ const CSS_ANIMATIONS_PAGES = [
   // ['three-d.html', '3D &amp; Perspective'],                 // hidden 2026-08-23
 ]
 
-const JS_ANIMATIONS_GROUP = `      <div class="kui-nav-dropdown" data-nav-group="js-animations">
-        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">JS Animations</button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <span class="kui-nav-coming-soon">Coming soon</span>
-        </div>
-      </div>
-`
+/**
+ * The Advanced dropdown: effects that respond — to the pointer, to a drag, to scroll position, to
+ * a layout change.
+ *
+ * The split is by what an effect *does*, not by how it is rendered. A renderer split was the first
+ * cut and was wrong twice over: it leaks an implementation detail into the nav, and the pages do
+ * not divide cleanly along it anyway. `interactive.html` is 87% JS and `data-hover.html` 74%, so
+ * both clearly moved; but `text.html` is 52% and `scroll.html` 45%, and a coin-flip is not a
+ * category. Under Basic/Advanced they land where a reader would look for them — `text.html` with
+ * the things that play, `scroll.html` with the things that respond.
+ *
+ * Worth recording, since the old heading hid it: the nav read "CSS Animations" while the library
+ * was half JavaScript — 103 JS-rendered presets against 104 CSS, with 93 of the 103 already
+ * demonstrated on pages filed under a heading that said CSS.
+ */
+const ADVANCED_PAGES = [
+  ['demo-js.html', 'Demo JS'],
+  ['scroll.html', 'Scroll'],
+  ['interactive.html', 'Interactive'],
+  ['data-hover.html', 'Data &amp; Hover'],
+]
 
 const ANIMATED_HAMBURGER = `    <button
       type="button"
@@ -100,10 +112,11 @@ const DEFAULTS = { dataOdId: true, navCta: true, selfIndex: false, extraGroups: 
 const PAGES = [
   'ambient-feedback.html',
   'data-hover.html',
+  'demo-js.html',
   { file: 'docs.html', dataOdId: false, navCta: false },
   'icons-transitions.html',
   { file: 'index-basic.html', selfIndex: true },
-  { file: 'index-old.html', selfIndex: true, extraGroups: JS_ANIMATIONS_GROUP, hamburgerVariant: 'legacy' },
+  { file: 'index-old.html', selfIndex: true, hamburgerVariant: 'legacy' },
   { file: 'index.html', selfIndex: true },
   'interactive.html',
   'nav-forms.html',
@@ -115,15 +128,16 @@ const PAGES = [
 
 /**
  * `indent` is the leading whitespace of the group's own `<div>` — 6 spaces in the showcase header,
- * 8 in the landing header, whose whole nav block sits one level deeper. Every other line is that
- * plus a fixed number of two-space steps, so one string produces both templates' markup exactly.
+ * 6 spaces in the showcase header. Every other line is that plus a fixed number of two-space
+ * steps. The parameter is kept rather than hard-coded: it is what let one string serve two
+ * templates before the landing one was deleted, and it costs nothing to leave that seam open.
  */
-function cssAnimationsGroup(indent) {
-  const pageList = CSS_ANIMATIONS_PAGES.map(([file]) => file).join(',')
-  const links = CSS_ANIMATIONS_PAGES.map(
+function basicGroup(indent) {
+  const pageList = BASIC_PAGES.map(([file]) => file).join(',')
+  const links = BASIC_PAGES.map(
     ([file, label]) => `${indent}    <a href="./${file}" data-nav-link="${file}">${label}</a>`,
   ).join('\n')
-  return `${indent}<div class="kui-nav-dropdown" data-nav-group="css-animations">
+  return `${indent}<div class="kui-nav-dropdown" data-nav-group="basic">
 ${indent}  <button
 ${indent}    type="button"
 ${indent}    class="kui-nav-dropdown-trigger"
@@ -131,7 +145,30 @@ ${indent}    aria-haspopup="true"
 ${indent}    aria-expanded="false"
 ${indent}    data-nav-pages="${pageList}"
 ${indent}  >
-${indent}    CSS Animations
+${indent}    Basic
+${indent}  </button>
+${indent}  <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
+${links}
+${indent}  </div>
+${indent}</div>
+`
+}
+
+/** Same shape as `cssAnimationsGroup`, so the two dropdowns can never drift apart in markup. */
+function advancedGroup(indent) {
+  const pageList = ADVANCED_PAGES.map(([file]) => file).join(',')
+  const links = ADVANCED_PAGES.map(
+    ([file, label]) => `${indent}    <a href="./${file}" data-nav-link="${file}">${label}</a>`,
+  ).join('\n')
+  return `${indent}<div class="kui-nav-dropdown" data-nav-group="advanced">
+${indent}  <button
+${indent}    type="button"
+${indent}    class="kui-nav-dropdown-trigger"
+${indent}    aria-haspopup="true"
+${indent}    aria-expanded="false"
+${indent}    data-nav-pages="${pageList}"
+${indent}  >
+${indent}    Advanced
 ${indent}  </button>
 ${indent}  <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
 ${links}
@@ -161,7 +198,7 @@ function renderHeader({ dataOdId, navCta, selfIndex, extraGroups, hamburgerVaria
           <a href="./docs.html?doc=design">Architecture</a>
         </div>
       </div>
-${cssAnimationsGroup('      ')}${extraGroups}      <div class="kui-nav-dropdown" data-nav-group="designs">
+${basicGroup('      ')}${advancedGroup('      ')}${extraGroups}      <div class="kui-nav-dropdown" data-nav-group="designs">
         <button
           type="button"
           class="kui-nav-dropdown-trigger"
@@ -185,64 +222,12 @@ ${hamburger}
 }
 
 /**
- * The landing pages' own template. Its "Designs" link reads "Hero SaaS" rather than "Premium" —
- * pre-existing, and left alone, same as every other page-specific label already in `renderHeader`.
- */
-function renderLandingHeader() {
-  return `    <header class="site" data-nav-root>
-      <strong>kUInetic</strong>
-      <nav data-nav-panel data-kui="menu-stagger-open on:manual" hidden>
-        <div class="kui-nav-dropdown" data-nav-group="docs">
-          <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">
-            Docs
-          </button>
-          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-            <a href="./docs.html?doc=catalog">Catalog</a>
-            <a href="./docs.html?doc=design">Architecture</a>
-          </div>
-        </div>
-
-${cssAnimationsGroup('        ')}
-        <div class="kui-nav-dropdown" data-nav-group="designs">
-          <button
-            type="button"
-            class="kui-nav-dropdown-trigger"
-            aria-haspopup="true"
-            aria-expanded="false"
-            data-nav-pages="index.html"
-          >
-            Designs
-          </button>
-          <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-            <a href="./index.html" data-nav-link="index.html">Hero SaaS</a>
-            <span class="kui-nav-coming-soon">Coming soon</span>
-          </div>
-        </div>
-      </nav>
-      <button
-        type="button"
-        class="kui-nav-toggle"
-        data-kui="hamburger-to-x"
-        aria-haspopup="true"
-        aria-label="Toggle navigation menu"
-        aria-expanded="false"
-        data-nav-hamburger
-      >
-        <span class="kui-bar"></span>
-        <span class="kui-bar"></span>
-        <span class="kui-bar"></span>
-      </button>
-    </header>`
-}
-
-const LANDING_PAGES = ['landing-minimal.html', 'landing-studio.html']
-
-/**
  * Replace the first `<header>...</header>` block in `file` with `next`, if it differs.
  *
- * Plain string search rather than a `[\s\S]*?`-spanning regex — the showcase and landing templates
- * indent `<header` differently (2 spaces vs 4), and a leading `\s*` paired with a second wildcard
- * later in the same pattern is exactly the shape ESLint's `sonarjs/slow-regex` rejects. Walking back
+ * Plain string search rather than a `[\s\S]*?`-spanning regex — templates have indented `<header`
+ * differently (2 spaces vs 4 in the since-deleted landing one), and a leading `\s*` paired with a
+ * second wildcard later in the same pattern is exactly the shape ESLint's `sonarjs/slow-regex`
+ * rejects. Walking back
  * to the start of the line finds whatever indent is actually there without needing to know it up
  * front, and reads the same either way.
  */
@@ -270,10 +255,7 @@ function main() {
   for (const page of PAGES) {
     if (rewriteHeader(page.file, renderHeader(page))) rewritten++
   }
-  for (const file of LANDING_PAGES) {
-    if (rewriteHeader(file, renderLandingHeader())) rewritten++
-  }
-  const total = PAGES.length + LANDING_PAGES.length
+  const total = PAGES.length
   console.log(`checked ${total} pages, rewrote ${rewritten} header block(s)`)
 }
 
