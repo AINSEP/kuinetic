@@ -173,7 +173,16 @@ export function compile(
   // targeted segment there is exactly one group, and `mergeHostFacts` folding a single plan's own
   // facts into itself is the identity, so the returned plan is byte-identical to before this
   // feature existed.
-  return compileTargets(parsed, registry, timeline).targets[0]!.plan
+  //
+  // The one field that has to be rebuilt is `warnings`. A group's plan carries only the warnings
+  // raised *inside that group*; the ones raised before partitioning live on the document (see
+  // `CompiledDocument.warnings`). A single-plan caller has no document to read, so the two halves
+  // are concatenated back into the flat list this function has always returned — and concatenated
+  // here, once, rather than by aliasing one array into both places, which is what made
+  // `animator.ts` report every warning twice.
+  const { targets, warnings } = compileTargets(parsed, registry, timeline)
+  const host = targets[0]!.plan
+  return { ...host, warnings: [...warnings, ...host.warnings] }
 }
 
 /**
@@ -194,10 +203,15 @@ export interface CompiledTarget {
 /**
  * The full compilation of one authored `data-kui` value, before it is narrowed to a single plan.
  *
- * `warnings` here are the ones raised *before* partitioning — unknown effect names and the `at:`
- * sequencer's own diagnostics, both of which are about the authored comma list as a whole rather
- * than about any one target group. A group's own composition/parameter warnings live on
- * `CompiledTarget.plan.warnings` instead, exactly where they always have.
+ * `warnings` here are the ones about the authored comma list as a whole rather than about any one
+ * target group: unknown effect names, the `at:` sequencer's own diagnostics, a refused container
+ * gate, a retarget the preset would not survive, and the hoisted `rm:`'s one-way-ratchet refusal.
+ * A group's own composition/parameter warnings live on `CompiledTarget.plan.warnings` instead,
+ * exactly where they always have.
+ *
+ * The two lists are disjoint, and that is load-bearing rather than tidy: `animator.ts` reports this
+ * one and then every group's, so a warning reachable through both would be printed twice — which is
+ * exactly what a shared array reference used to do to all of them.
  */
 export interface CompiledDocument {
   targets: CompiledTarget[]
@@ -241,7 +255,10 @@ export function compileTargets(
   const { entries, unknown } = resolveEntries(parsed.specs, registry, warnings)
 
   if (entries.length === 0) {
-    return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, warnings) }], warnings }
+    // `[]`, not `warnings`: everything raised so far is document-scoped, and handing the same array
+    // to the plan would make `plan.warnings` and `document.warnings` the same object — see this
+    // function's own `warnings` comment above.
+    return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, []) }], warnings }
   }
 
   const sanitized = entries.map((entry) => refuseContainerGate(entry, warnings))
@@ -252,13 +269,21 @@ export function compileTargets(
   const sequenced = sanitized.map((entry, index) => ({ ...entry, step: steps[index]! }))
 
   const targets = partitionByTarget(sequenced).map(({ selector, scope, entries: group }) => {
-    const composed = resolveComposition(group, registry, warnings)
-    return { selector, scope, plan: buildPlan(composed, timeline, unknown, warnings) }
+    // A sink of its own per group, never the document's. `buildPlan` stores the array it is handed
+    // *by reference* as `plan.warnings`, so passing `warnings` here would make every plan and the
+    // document share one object: `animator.ts` walks the document's list and then each group's,
+    // and printed every warning 1 + (group count) times off a single authored attribute.
+    const groupWarnings: string[] = []
+    const composed = resolveComposition(group, registry, groupWarnings)
+    return { selector, scope, plan: buildPlan(composed, timeline, unknown, groupWarnings) }
   })
   mergeHostFacts(targets)
-  for (const target of targets) {
-    target.plan.reducedMotion = resolvedPolicy(target.plan.reducedMotion, parsed.rm, warnings)
-  }
+  // `rm:` is hoisted off the whole attribute and `mergeHostFacts` has already folded one policy
+  // across every group, so this resolves once, against the document, and is written back to all of
+  // them. Resolving it per group instead re-raised the identical "may only strengthen" warning once
+  // per group for a decision that was only ever made once.
+  const reducedMotion = resolvedPolicy(targets[0]!.plan.reducedMotion, parsed.rm, warnings)
+  for (const target of targets) target.plan.reducedMotion = reducedMotion
   return { targets, warnings }
 }
 
