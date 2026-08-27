@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
-import { build, el, fakeRoot, fakeScheduler, reporter, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
+import {
+  build,
+  el,
+  fakeRoot,
+  fakeScheduler,
+  reporter,
+  scheduler,
+  stubRect,
+  stubRectWithSpacer,
+} from './support/scroll-mechanics-harness.js'
 import { catalogRegistry } from './support/registry.js'
 
 /*
@@ -36,10 +45,13 @@ describe('horizontal-scroll, managed by target:', () => {
     const animator = build(`<div class="outer">${markup}</div>`)
     const host = el()
     const rail = host.querySelector('.rail') as HTMLElement
-    // The host is sticky, so the tracker escapes to the box that actually moves — its parent, the
-    // one spanning host plus spacer. Stubbing the host's own rect would measure a frozen element.
-    stubRect(host.parentElement!, -200)
     animator.start()
+    // The host is sticky, so its own rect stops describing where it lives the moment it pins. The
+    // anchor is the spacer the library just inserted: it sits immediately after the host and is
+    // never sticky, so `spacer.top - host.height` is the host's real flow position. Stubbing the
+    // *parent* instead — which this test used to do — measures a box that starts wherever the
+    // section does, and reads progress the host has not reached yet.
+    stubRectWithSpacer(host, -200)
     scheduler.emit(200)
     expect(rail.style.display).toBe('flex')
     expect(rail.style.width).toBe('max-content')
@@ -52,8 +64,8 @@ describe('horizontal-scroll, managed by target:', () => {
     const animator = build(`<div class="outer">${markup}</div>`)
     const host = el()
     const rail = host.querySelector('.rail') as HTMLElement
-    stubRect(host.parentElement!, -200)
     animator.start()
+    stubRectWithSpacer(host, -200)
     scheduler.emit(200)
     animator.destroy()
     // Every property the library wrote, on both elements, and the node it inserted.
@@ -77,14 +89,15 @@ describe('horizontal-scroll, managed by target:', () => {
     expect(reporter.messages.join(' ')).toContain('matched nothing')
   })
 
-  it('tracks the host itself when it has no parent to track instead', () => {
+  it('still prepares cleanly on an element with no parent at all', () => {
     const registry = catalogRegistry()
     const resolved = registry.resolve('horizontal-scroll')!
     const detached = document.createElement('div')
     detached.innerHTML = '<div class="rail"><i></i></div>'
-    // Never appended to the document, so parentElement is null — prepareManagedTrack must fall
-    // back to tracking the host itself rather than throwing on a null tracked target, the same
-    // dodge `preparePin` makes for its own pinned element.
+    // Never appended to the document, so parentElement is null. This used to be the case that
+    // needed a `?? host` fallback, because the tracker was pointed at the parent; it now always
+    // measures the host against its own spacer, so there is no parent to be missing. Kept as a
+    // guard that the no-parent path still prepares and tears down without throwing.
     expect(detached.parentElement).toBeNull()
     const sched = fakeScheduler()
     const ctx = {

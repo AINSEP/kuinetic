@@ -346,7 +346,7 @@ function prepareManagedTrack(
   ctx.style.set('overflow', 'hidden')
   ctx.style.set('display', 'grid')
   ctx.style.set('align-content', 'center')
-  const { remove: removeSpacer } = insertSpacer(host, params.text('distance'), ctx)
+  const { spacer, remove: removeSpacer } = insertSpacer(host, params.text('distance'), ctx)
 
   const rail = createStyleLedger(track)
   rail.set('display', 'flex')
@@ -355,21 +355,31 @@ function prepareManagedTrack(
   const authored = params.text('travel', 'auto')
   const travel = createMeasureCache(() => trackTravel(track, authored, track.ownerDocument))
   /*
-   * Track the containing block, not the host — the same dodge `preparePin` makes, for the same
-   * reason and it is not optional. Sticky exists precisely to stop an element moving relative to
-   * the viewport, so once the host pins its own rect reports the same offset forever and progress
-   * sits still for the whole range. Measured before this line was right: the row never moved at
-   * all and the instance settled straight to `finished`, with `--kui-progress` never written once.
+   * Read progress from the spacer, not from the containing block.
    *
-   * `tracker.ts`'s sticky escape does not cover this. That hatch is for an element nested inside
-   * *someone else's* sticky subtree; the element we make sticky ourselves is the caller's job, and
-   * `preparePin` has always passed the parent by hand.
+   * The host cannot be measured directly: sticky exists precisely to stop an element moving
+   * relative to the viewport, so once it pins its own rect reports the same offset forever and
+   * progress sits still for the whole range. `tracker.ts`'s sticky escape does not help — that
+   * hatch is for an element nested inside *someone else's* sticky subtree, and this one is sticky
+   * because we made it so.
+   *
+   * The old dodge was to track `host.parentElement`. That is only correct when the host is the
+   * first thing in its parent, and silently wrong by exactly the height of whatever precedes it:
+   * progress starts when the *section* reaches the pin offset, while the pin engages when the
+   * *host* does. On `demo/index.html`'s reel the heading and the contract line sit above the
+   * stage, so the track began travelling with the row still ~150px below the fold and the first
+   * slice of the animation played off screen.
+   *
+   * This is the same defect `contentAnchor` already closed for `pin` and `media-scrub` in 69253cf
+   * — measured there at 51% of a sequence played before the element had stuck — and this call site
+   * is the one that never got the fix. The spacer is the right anchor for the same three reasons:
+   * the library inserts it, it sits immediately after the host so `spacer.top - host.height` is
+   * the host's own flow position, and it is never sticky, so it moves with the content.
+   *
+   * `stickyEl: host` because `host` is what carries the resolved `top`, and `offsetTop` above can
+   * be a `var()` or a `vh` this call site has no way to statically resolve.
    */
-  const tracked = host.parentElement ?? host
-  // `stickyEl: host` for the same reason `preparePin` passes the pinned element, not the parent it
-  // tracks: `host` is what carries the resolved `top`, and `offsetTop` above can be a `var()` or a
-  // `vh` this call site has no way to statically resolve. See `TrackOptions.stickyEl`.
-  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance'), stickyEl: host }, (progress, frame) => {
+  const untrack = trackProgress(host, ctx, { distance: params.text('distance'), contentAnchor: spacer, stickyEl: host }, (progress, frame) => {
     rail.set('translate', `${-progress * travel.read(frame.epoch)}px 0`)
     writeProgress(ctx, progress)
   })

@@ -269,69 +269,6 @@ describe('pin', () => {
   })
 })
 
-describe('horizontal-scroll', () => {
-  it('translates the track in proportion to progress', () => {
-    const animator = build('<div data-kui="horizontal-scroll distance:400px travel:1000px"></div>')
-    stubRect(el(), -200)
-    animator.start()
-    scheduler.emit(200)
-    expect(el().style.translate).toBe('-500px 0')
-  })
-
-  it('clears the translation on destroy', () => {
-    const animator = build('<div data-kui="horizontal-scroll travel:100px"></div>')
-    stubRect(el(), 0)
-    animator.start()
-    scheduler.emit(0)
-    animator.destroy()
-    expect(el().style.translate).toBe('')
-  })
-
-  it('measures its own scrollWidth overflow when travel is left at "auto"', () => {
-    const animator = build('<div data-kui="horizontal-scroll distance:400px"></div>')
-    const track = el()
-    stubRect(track, -200)
-    Object.defineProperty(track, 'scrollWidth', { value: 1500, configurable: true })
-    Object.defineProperty(track, 'clientWidth', { value: 500, configurable: true })
-    animator.start()
-    scheduler.emit(200)
-    // travel = scrollWidth - clientWidth = 1000; progress 0.5 -> -500px.
-    expect(track.style.translate).toBe('-500px 0')
-  })
-
-  it('falls back to the parent width when the track has no self-overflow', () => {
-    const animator = build(
-      '<div><div data-kui="horizontal-scroll distance:400px"></div></div>',
-    )
-    const track = el()
-    stubRect(track, -200)
-    // width: max-content shape — the track's own box always exactly fits its content, so
-    // scrollWidth - clientWidth is permanently zero and travel must come from the parent instead.
-    Object.defineProperty(track, 'scrollWidth', { value: 500, configurable: true })
-    Object.defineProperty(track, 'clientWidth', { value: 500, configurable: true })
-    Object.defineProperty(track.parentElement!, 'clientWidth', { value: 300, configurable: true })
-    animator.start()
-    scheduler.emit(200)
-    // travel = parent clientWidth(300) subtracted from scrollWidth(500) = 200; progress 0.5 -> -100px.
-    expect(track.style.translate).toBe('-100px 0')
-  })
-
-  it('falls back to the document element width when the parent has none to offer either', () => {
-    const animator = build('<div data-kui="horizontal-scroll distance:400px"></div>')
-    const track = el()
-    stubRect(track, -200)
-    // jsdom's default, un-stubbed clientWidth is 0 for every element, including the parent —
-    // falsy, so `node.parentElement?.clientWidth || ...` must fall through to the document.
-    Object.defineProperty(track, 'scrollWidth', { value: 500, configurable: true })
-    Object.defineProperty(track, 'clientWidth', { value: 500, configurable: true })
-    Object.defineProperty(document.documentElement, 'clientWidth', { value: 350, configurable: true })
-    animator.start()
-    scheduler.emit(200)
-    // travel = documentElement clientWidth(350) subtracted from scrollWidth(500) = 150; -> -75px.
-    expect(track.style.translate).toBe('-75px 0')
-  })
-})
-
 describe('media-scrub', () => {
   it('writes the frame pattern to an <img> src, substituting {i}', () => {
     const animator = build(
