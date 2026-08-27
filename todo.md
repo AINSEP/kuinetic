@@ -461,45 +461,63 @@ must pass after edits — index-based scripted HTML edits eat closing tags in th
 
 ## GSAP parity — what's left after the overnight run
 
+> **Re-verified against the source 2026-08-27.** Three entries were stale — breakpoint variants
+> (which this list called "the biggest remaining gap"), stagger ordering, and the lifecycle events
+> the `func:` decision was waiting on had all shipped. A fourth, arbitrary scroll ranges, was
+> half-built and overstated. Corrected in place rather than deleted, so the ranking below can be
+> trusted again. If you are reading this list cold: check each claim against the code before
+> acting on it, the way this pass did.
+
 Written 2026-08-26, after measuring kUInetic against GSAP 3.15 plugin by plugin. Six tasks (A–F)
 were queued as overnight cloud agents and are specified in
 `docs/implementation-outline-gsap-parity.md`; these are what remains once those land, ranked by how
 often an author would actually hit them.
 
-- [ ] **Responsive / breakpoint variants — the biggest remaining gap.** There is no way to say
-      "fade-up on desktop, nothing on mobile." `matchMedia` appears exactly once in the whole
-      source (`src/core/capabilities.ts:44`) and only for `prefers-reduced-motion`. GSAP's
-      equivalent is `gsap.matchMedia()`, which also handles teardown when a breakpoint changes.
-      Settle the design question first: an attribute (`data-kui-md=`, i.e. more attributes, which
-      the owner has asked to avoid) or a parameter inside the existing `data-kui` — probably the
-      latter, given the `target:`/`at:` precedent. Best done after E and C land so it can borrow
-      whatever syntax they settled on.
+- [x] **Responsive / breakpoint variants — SHIPPED, and this entry called it "the biggest
+      remaining gap" for a day after it landed.** Went the parameter route, as predicted.
+      `above:`/`below:` merged in `4f18816`; `wide:`/`narrow:` (container queries) landed
+      2026-08-27. All four are one table now — `GATE_DIRECTIONS` in `src/core/parse.ts:358` —
+      with `gatesOverlap` requiring agreement on both axes. Verified in source 2026-08-27.
 
-- [ ] **Cross-element triggering.** "When the form submits, animate the badge." The element that
-      fires the event is not the element that animates, so an attribute on the animating element
-      cannot express it on its own. Explicitly ruled out of scope for task E (§7.5 of the
-      outline), which was asked to leave a clean seam for it. Needs a selector-valued parameter —
-      follow the `target:` convention. Read E's PR for where it left the seam.
+- [ ] **Cross-element triggering — STILL OPEN, confirmed.** "When the form submits, animate the
+      badge." The element that fires the event is not the element that animates, so an attribute
+      on the animating element cannot express it on its own. There is no `trigger:` key in
+      `src/core/parse.ts` (checked 2026-08-27). Explicitly ruled out of scope for task E (§7.5 of
+      the outline), which was asked to leave a clean seam for it. Needs a selector-valued
+      parameter — follow the `target:` convention, and note `target:` is **per-primitive** (only 6
+      of 128 declare it) while an activation concern like this probably wants to be hoisted
+      element-wide like `on:`. Decide that deliberately. Read E's PR for where it left the seam.
+      Owner ranked this #2, 2026-08-27.
 
-- [ ] **Stagger ordering.** `src/core/stagger.ts` assigns a linear index and nothing else. GSAP's
-      stagger takes `from: "center" | "edges" | "random" | <index>`. Cheap: the arithmetic already
-      lives in CSS `calc()` off `--kui-i` and `--kui-stagger-count`, so this is mostly a matter of
-      computing a different index. Read the `--kui-i` leak comment in that file before starting.
+- [x] **Stagger ordering — SHIPPED.** `StaggerFrom` is `'start' | 'end' | 'center' | 'edges' |
+      'random' | number` (`src/core/stagger.ts:27`), spelled `order:` on the attribute and
+      `from:` on the `data-kui-stagger` longhand. As predicted, it computes a different index and
+      the CSS `calc()` was left alone. Verified in source 2026-08-27.
 
-- [ ] **Universal `repeat:` / yoyo.** `loop` and `direction` exist as parameters on *some*
-      primitives; there is no universal repeat. `compile.ts:294` already writes
-      `animation-iteration-count` per track off `--kui-fx-<preset>-iterations`, so the plumbing
-      exists — what's missing is an author-facing knob plus a decision on whether it belongs on
-      every primitive or only where looping is meaningful. That overlaps task F's one-shot vs
-      continuous classification; read F's PR table first.
+- [ ] **Universal `repeat:` / yoyo — STILL OPEN, and now the cheapest real win on this list.**
+      `loop` and `direction` exist as parameters on *some* primitives; there is no universal
+      repeat, and `src/core/parse.ts` has no `repeat` key at all (checked 2026-08-27).
+      `compile.ts:294` already writes `animation-iteration-count` per track off
+      `--kui-fx-<preset>-iterations`, so the plumbing exists — what's missing is an author-facing
+      knob plus a decision on whether it belongs on every primitive or only where looping is
+      meaningful. That overlaps task F's one-shot vs continuous classification; read F's PR table
+      first. On yoyo: reuse the existing `direction` vocabulary rather than inventing a second
+      word for `animation-direction: alternate`, unless there's a concrete reason it can't carry
+      the meaning. Owner ranked this #1 of what's left, 2026-08-27.
 
-- [ ] **Arbitrary scroll ranges.** ScrollTrigger takes `start: "top 80%"`, `end: "bottom 20%"`.
-      kUInetic ships named scroll effects instead, with no free-form range. Needs a spelling for a
-      range pair and a mapping onto `animation-range`. Check what task C concluded about `at:`
-      under a scroll timeline (§9.4) before designing.
+- [ ] **Arbitrary scroll ranges — HALF BUILT, and this entry overstated the gap.** A free-form
+      range does ship, on the longhand: `data-kui-timeline="view entry 0% cover 35%"` works today
+      and is used on `demo/scroll.html`, parsed at `src/core/element-config.ts:67` and written to
+      `animation-range` by `style-plan.ts:159`. What's missing is an **inline** spelling — there
+      is no `range:` key in `src/core/parse.ts`, so expressing a range needs the second attribute,
+      which cuts against the owner's standing preference for fewer attributes. The design work
+      left is a `range:` parameter, not the mapping. Check what task C concluded about `at:` under
+      a scroll timeline (§9.4) first. Re-scoped 2026-08-27.
 
-- [ ] **`data-kui="func:nameOfFunc"` — decide after task A lands, not before.** Owner asked for it
-      2026-08-26. Task A ships lifecycle `CustomEvent`s, which cover the same need better:
+- [ ] **`data-kui="func:nameOfFunc"` — task A has landed, so this is now decidable.** Owner asked
+      for it 2026-08-26. Lifecycle `CustomEvent`s shipped — `KUI_EVENT` and `emitLifecycle` in
+      `src/core/control.ts`, emitted from `animator.ts:588/674/861` (verified 2026-08-27). They
+      cover the same need better:
       `addEventListener('kui:complete', fn)` works with bundlers and ES modules, allows several
       listeners, and needs no global. `func:` requires a `window[name]` lookup — the `onclick=""`
       pattern the platform spent fifteen years walking away from — and becomes "call any function
