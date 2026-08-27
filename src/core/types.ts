@@ -405,6 +405,21 @@ export interface EffectVariant {
    * `resolveParams` exactly as `spec.params` would have.
    */
   params?: Record<string, string>
+  /**
+   * Extra parameter specs for keys this variant synthesised, merged *over* the primitive's own.
+   *
+   * One attribute can legitimately produce parameters the primitive could not have declared
+   * statically. `tween x:'0,100,40'` is three values for one key, and each of them needs its own
+   * custom property (`--kui-tween-x-1`, `-2`, `-3`) because a keyframe step can only read one — so
+   * `variantFor` expands the list into `params` and declares the specs for the expansion here.
+   *
+   * **This is not a way around validation, and must never become one.** The merged schema is what
+   * `resolveParams` validates `params` against, so every synthesised value is type-checked and
+   * escape-screened exactly as an authored one is; what this field changes is only *which* specs
+   * exist, never whether they are enforced. Merged over rather than replacing, so a variant cannot
+   * quietly drop the primitive's own declarations and admit a value the schema forbids.
+   */
+  schema?: ParameterSchema
 }
 
 /**

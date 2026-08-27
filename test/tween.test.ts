@@ -11,6 +11,7 @@ import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import type { Registry } from '../src/core/registry.js'
 import { TWEEN_GROUP_CHANNELS, TWEEN_GROUP_ORDER } from '../src/effects/tween/properties.js'
+import { MAX_WAYPOINTS } from '../src/effects/tween/waypoints.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
 import { catalogRegistry } from './support/registry.js'
 
@@ -259,10 +260,21 @@ for (const match of TWEEN_CSS.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)) {
   blocks.set(match[1]!, properties)
 }
 
-/** Every block name `buildVariant` can put on a track. */
-const expectedBlocks = ['to', 'from'].flatMap((direction) =>
+/** The half-keyframe pair a plain two-point tween compiles to. */
+const halfBlocks = ['to', 'from'].flatMap((direction) =>
   TWEEN_GROUP_ORDER.map((group) => `kui-tween-${direction}-${group}`),
 )
+
+/**
+ * The fully explicit blocks a waypoint list selects — one per group per count, from an explicit
+ * two-point tween up to the ceiling `waypoints.ts` sets.
+ */
+const waypointBlocks = TWEEN_GROUP_ORDER.flatMap((group) =>
+  Array.from({ length: MAX_WAYPOINTS - 1 }, (_, index) => `kui-tween-keys${index + 2}-${group}`),
+)
+
+/** Every block name `buildVariant` can put on a track. */
+const expectedBlocks = [...halfBlocks, ...waypointBlocks]
 
 describe('tween.css', () => {
   it('has blocks to guard, so this suite cannot pass vacuously', () => {
@@ -283,7 +295,7 @@ describe('tween.css', () => {
     expect([...blocks.get(name)!].filter((property) => !allowed.includes(property))).toEqual([])
   })
 
-  it.each(expectedBlocks)('%s declares exactly one endpoint, so the other stays implicit', (name) => {
+  it.each(halfBlocks)('%s declares exactly one endpoint, so the other stays implicit', (name) => {
     // The half-keyframe is the feature: the browser builds the missing step from the element's own
     // computed style, which is what "from the element's current state" means with no JS at all.
     // Adding the other half would pin it to a fixed value and silently break that.
@@ -292,6 +304,39 @@ describe('tween.css', () => {
     const unwanted = wanted === 'to' ? 'from' : 'to'
     expect(new RegExp(`\\b${wanted}\\s*\\{`).test(body), `${name} declares ${wanted}`).toBe(true)
     expect(new RegExp(`\\b${unwanted}\\s*\\{|\\b(?:0|100)%\\s*\\{`).test(body)).toBe(false)
+  })
+
+  it.each(waypointBlocks)('%s declares exactly its own count of evenly spaced steps', (name) => {
+    // The mirror of the half-keyframe rule above, and the reason a waypoint block is a different
+    // block rather than the same one with more steps: a list writes every state including the
+    // first, so there is nothing left implicit and the block must run 0% to 100%.
+    const count = Number(/keys(\d+)-/.exec(name)![1])
+    const body = readBalancedBlock(TWEEN_CSS, TWEEN_CSS.indexOf('{', TWEEN_CSS.indexOf(name)) + 1)
+    // Read line by line rather than with a regex: every step selector in a generated block is its
+    // own line, and a percentage pattern scanned across a whole stylesheet is exactly the
+    // backtracking shape `sonarjs/slow-regex` exists to refuse.
+    const steps = body
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.endsWith('% {'))
+      .map((line) => Number.parseFloat(line))
+    expect(steps).toHaveLength(count)
+    expect(steps[0]).toBe(0)
+    expect(steps.at(-1)).toBe(100)
+    // Evenly spaced to three decimals, which is what the generator rounds to.
+    for (const [index, step] of steps.entries()) {
+      expect(Math.abs(step - (index * 100) / (count - 1))).toBeLessThan(0.001)
+    }
+    expect(/\b(?:to|from)\s*\{/.test(body)).toBe(false)
+  })
+
+  it.each(waypointBlocks)('%s falls back through the plain property at every step', (name) => {
+    // The broadcast rule. Without the inner `var(--kui-tween-<key>, …)` a key that wrote one value
+    // beside a neighbour that wrote a list would snap to its identity on every step but the first.
+    const body = readBalancedBlock(TWEEN_CSS, TWEEN_CSS.indexOf('{', TWEEN_CSS.indexOf(name)) + 1)
+    for (const [, numbered] of body.matchAll(/var\(--kui-tween-([a-z-]+)-\d+,/g)) {
+      expect(body).toContain(`var(--kui-tween-${numbered!},`)
+    }
   })
 
   it('keeps every rule inside the effects layer', () => {

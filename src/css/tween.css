@@ -137,4 +137,406 @@
       background-color: var(--kui-tween-background-color, transparent);
     }
   }
+
+  /*
+   * --- WAYPOINT BLOCKS: `tween x:'0,100,40'` ---
+   *
+   * One block per property group per waypoint count, and unlike everything above they are fully
+   * explicit from 0% to 100% — so the `to`/`from` pair collapses to one set that both `tween` and
+   * `tween-from` use. That follows from what a list is: an author who wrote every state wrote the
+   * first one too, so there is no implicit half left for the browser to fill from computed style.
+   *
+   * The steps are evenly spaced, and they have to be: a keyframe selector is the one part of a
+   * block that cannot be a `var()`, so a per-step position would need its own block per rhythm
+   * rather than per count. Repeat a value to hold it for a step.
+   *
+   * EVERY STEP FALLS BACK TO THE PLAIN PROPERTY. `var(--kui-tween-y-2, var(--kui-tween-y, 0))` is
+   * the broadcast rule: a key that wrote one value (`tween x:'0,100,40' y:20`) sets only
+   * `--kui-tween-y`, so every step reads it and `y` holds — no per-step duplication of a value the
+   * author wrote once, and no JavaScript deciding what "holds" means. The innermost fallback is
+   * still the property's identity, so an axis nobody named animates as if it were not there.
+   *
+   * `src/effects/tween/waypoints.ts` picks the block and expands the list into the numbered
+   * properties. The count ceiling lives there as `MAX_WAYPOINTS`, and it is a budget on this file:
+   * every count costs one more block per group.
+   *
+   * Same channel invariant as every block above — a block may only write its own group's property.
+   */
+  @keyframes kui-tween-keys2-translate {
+    0% {
+      translate: var(--kui-tween-x-1, var(--kui-tween-x, 0)) var(--kui-tween-y-1, var(--kui-tween-y, 0)) var(--kui-tween-z-1, var(--kui-tween-z, 0));
+    }
+    100% {
+      translate: var(--kui-tween-x-2, var(--kui-tween-x, 0)) var(--kui-tween-y-2, var(--kui-tween-y, 0)) var(--kui-tween-z-2, var(--kui-tween-z, 0));
+    }
+  }
+
+  @keyframes kui-tween-keys3-translate {
+    0% {
+      translate: var(--kui-tween-x-1, var(--kui-tween-x, 0)) var(--kui-tween-y-1, var(--kui-tween-y, 0)) var(--kui-tween-z-1, var(--kui-tween-z, 0));
+    }
+    50% {
+      translate: var(--kui-tween-x-2, var(--kui-tween-x, 0)) var(--kui-tween-y-2, var(--kui-tween-y, 0)) var(--kui-tween-z-2, var(--kui-tween-z, 0));
+    }
+    100% {
+      translate: var(--kui-tween-x-3, var(--kui-tween-x, 0)) var(--kui-tween-y-3, var(--kui-tween-y, 0)) var(--kui-tween-z-3, var(--kui-tween-z, 0));
+    }
+  }
+
+  @keyframes kui-tween-keys4-translate {
+    0% {
+      translate: var(--kui-tween-x-1, var(--kui-tween-x, 0)) var(--kui-tween-y-1, var(--kui-tween-y, 0)) var(--kui-tween-z-1, var(--kui-tween-z, 0));
+    }
+    33.333% {
+      translate: var(--kui-tween-x-2, var(--kui-tween-x, 0)) var(--kui-tween-y-2, var(--kui-tween-y, 0)) var(--kui-tween-z-2, var(--kui-tween-z, 0));
+    }
+    66.667% {
+      translate: var(--kui-tween-x-3, var(--kui-tween-x, 0)) var(--kui-tween-y-3, var(--kui-tween-y, 0)) var(--kui-tween-z-3, var(--kui-tween-z, 0));
+    }
+    100% {
+      translate: var(--kui-tween-x-4, var(--kui-tween-x, 0)) var(--kui-tween-y-4, var(--kui-tween-y, 0)) var(--kui-tween-z-4, var(--kui-tween-z, 0));
+    }
+  }
+
+  @keyframes kui-tween-keys5-translate {
+    0% {
+      translate: var(--kui-tween-x-1, var(--kui-tween-x, 0)) var(--kui-tween-y-1, var(--kui-tween-y, 0)) var(--kui-tween-z-1, var(--kui-tween-z, 0));
+    }
+    25% {
+      translate: var(--kui-tween-x-2, var(--kui-tween-x, 0)) var(--kui-tween-y-2, var(--kui-tween-y, 0)) var(--kui-tween-z-2, var(--kui-tween-z, 0));
+    }
+    50% {
+      translate: var(--kui-tween-x-3, var(--kui-tween-x, 0)) var(--kui-tween-y-3, var(--kui-tween-y, 0)) var(--kui-tween-z-3, var(--kui-tween-z, 0));
+    }
+    75% {
+      translate: var(--kui-tween-x-4, var(--kui-tween-x, 0)) var(--kui-tween-y-4, var(--kui-tween-y, 0)) var(--kui-tween-z-4, var(--kui-tween-z, 0));
+    }
+    100% {
+      translate: var(--kui-tween-x-5, var(--kui-tween-x, 0)) var(--kui-tween-y-5, var(--kui-tween-y, 0)) var(--kui-tween-z-5, var(--kui-tween-z, 0));
+    }
+  }
+
+  @keyframes kui-tween-keys2-rotate {
+    0% {
+      rotate: var(--kui-tween-rotate-1, var(--kui-tween-rotate, 0deg));
+    }
+    100% {
+      rotate: var(--kui-tween-rotate-2, var(--kui-tween-rotate, 0deg));
+    }
+  }
+
+  @keyframes kui-tween-keys3-rotate {
+    0% {
+      rotate: var(--kui-tween-rotate-1, var(--kui-tween-rotate, 0deg));
+    }
+    50% {
+      rotate: var(--kui-tween-rotate-2, var(--kui-tween-rotate, 0deg));
+    }
+    100% {
+      rotate: var(--kui-tween-rotate-3, var(--kui-tween-rotate, 0deg));
+    }
+  }
+
+  @keyframes kui-tween-keys4-rotate {
+    0% {
+      rotate: var(--kui-tween-rotate-1, var(--kui-tween-rotate, 0deg));
+    }
+    33.333% {
+      rotate: var(--kui-tween-rotate-2, var(--kui-tween-rotate, 0deg));
+    }
+    66.667% {
+      rotate: var(--kui-tween-rotate-3, var(--kui-tween-rotate, 0deg));
+    }
+    100% {
+      rotate: var(--kui-tween-rotate-4, var(--kui-tween-rotate, 0deg));
+    }
+  }
+
+  @keyframes kui-tween-keys5-rotate {
+    0% {
+      rotate: var(--kui-tween-rotate-1, var(--kui-tween-rotate, 0deg));
+    }
+    25% {
+      rotate: var(--kui-tween-rotate-2, var(--kui-tween-rotate, 0deg));
+    }
+    50% {
+      rotate: var(--kui-tween-rotate-3, var(--kui-tween-rotate, 0deg));
+    }
+    75% {
+      rotate: var(--kui-tween-rotate-4, var(--kui-tween-rotate, 0deg));
+    }
+    100% {
+      rotate: var(--kui-tween-rotate-5, var(--kui-tween-rotate, 0deg));
+    }
+  }
+
+  @keyframes kui-tween-keys2-scale {
+    0% {
+      scale: var(--kui-tween-scale-x-1, var(--kui-tween-scale-1, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-1, var(--kui-tween-scale-1, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    100% {
+      scale: var(--kui-tween-scale-x-2, var(--kui-tween-scale-2, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-2, var(--kui-tween-scale-2, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+  }
+
+  @keyframes kui-tween-keys3-scale {
+    0% {
+      scale: var(--kui-tween-scale-x-1, var(--kui-tween-scale-1, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-1, var(--kui-tween-scale-1, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    50% {
+      scale: var(--kui-tween-scale-x-2, var(--kui-tween-scale-2, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-2, var(--kui-tween-scale-2, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    100% {
+      scale: var(--kui-tween-scale-x-3, var(--kui-tween-scale-3, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-3, var(--kui-tween-scale-3, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+  }
+
+  @keyframes kui-tween-keys4-scale {
+    0% {
+      scale: var(--kui-tween-scale-x-1, var(--kui-tween-scale-1, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-1, var(--kui-tween-scale-1, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    33.333% {
+      scale: var(--kui-tween-scale-x-2, var(--kui-tween-scale-2, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-2, var(--kui-tween-scale-2, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    66.667% {
+      scale: var(--kui-tween-scale-x-3, var(--kui-tween-scale-3, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-3, var(--kui-tween-scale-3, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    100% {
+      scale: var(--kui-tween-scale-x-4, var(--kui-tween-scale-4, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-4, var(--kui-tween-scale-4, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+  }
+
+  @keyframes kui-tween-keys5-scale {
+    0% {
+      scale: var(--kui-tween-scale-x-1, var(--kui-tween-scale-1, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-1, var(--kui-tween-scale-1, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    25% {
+      scale: var(--kui-tween-scale-x-2, var(--kui-tween-scale-2, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-2, var(--kui-tween-scale-2, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    50% {
+      scale: var(--kui-tween-scale-x-3, var(--kui-tween-scale-3, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-3, var(--kui-tween-scale-3, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    75% {
+      scale: var(--kui-tween-scale-x-4, var(--kui-tween-scale-4, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-4, var(--kui-tween-scale-4, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+    100% {
+      scale: var(--kui-tween-scale-x-5, var(--kui-tween-scale-5, var(--kui-tween-scale-x, var(--kui-tween-scale, 1)))) var(--kui-tween-scale-y-5, var(--kui-tween-scale-5, var(--kui-tween-scale-y, var(--kui-tween-scale, 1))));
+    }
+  }
+
+  @keyframes kui-tween-keys2-opacity {
+    0% {
+      opacity: var(--kui-tween-opacity-1, var(--kui-tween-opacity, 1));
+    }
+    100% {
+      opacity: var(--kui-tween-opacity-2, var(--kui-tween-opacity, 1));
+    }
+  }
+
+  @keyframes kui-tween-keys3-opacity {
+    0% {
+      opacity: var(--kui-tween-opacity-1, var(--kui-tween-opacity, 1));
+    }
+    50% {
+      opacity: var(--kui-tween-opacity-2, var(--kui-tween-opacity, 1));
+    }
+    100% {
+      opacity: var(--kui-tween-opacity-3, var(--kui-tween-opacity, 1));
+    }
+  }
+
+  @keyframes kui-tween-keys4-opacity {
+    0% {
+      opacity: var(--kui-tween-opacity-1, var(--kui-tween-opacity, 1));
+    }
+    33.333% {
+      opacity: var(--kui-tween-opacity-2, var(--kui-tween-opacity, 1));
+    }
+    66.667% {
+      opacity: var(--kui-tween-opacity-3, var(--kui-tween-opacity, 1));
+    }
+    100% {
+      opacity: var(--kui-tween-opacity-4, var(--kui-tween-opacity, 1));
+    }
+  }
+
+  @keyframes kui-tween-keys5-opacity {
+    0% {
+      opacity: var(--kui-tween-opacity-1, var(--kui-tween-opacity, 1));
+    }
+    25% {
+      opacity: var(--kui-tween-opacity-2, var(--kui-tween-opacity, 1));
+    }
+    50% {
+      opacity: var(--kui-tween-opacity-3, var(--kui-tween-opacity, 1));
+    }
+    75% {
+      opacity: var(--kui-tween-opacity-4, var(--kui-tween-opacity, 1));
+    }
+    100% {
+      opacity: var(--kui-tween-opacity-5, var(--kui-tween-opacity, 1));
+    }
+  }
+
+  @keyframes kui-tween-keys2-filter {
+    0% {
+      filter: blur(var(--kui-tween-blur-1, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-1, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-1, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-1, var(--kui-tween-grayscale, 0)));
+    }
+    100% {
+      filter: blur(var(--kui-tween-blur-2, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-2, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-2, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-2, var(--kui-tween-grayscale, 0)));
+    }
+  }
+
+  @keyframes kui-tween-keys3-filter {
+    0% {
+      filter: blur(var(--kui-tween-blur-1, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-1, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-1, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-1, var(--kui-tween-grayscale, 0)));
+    }
+    50% {
+      filter: blur(var(--kui-tween-blur-2, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-2, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-2, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-2, var(--kui-tween-grayscale, 0)));
+    }
+    100% {
+      filter: blur(var(--kui-tween-blur-3, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-3, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-3, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-3, var(--kui-tween-grayscale, 0)));
+    }
+  }
+
+  @keyframes kui-tween-keys4-filter {
+    0% {
+      filter: blur(var(--kui-tween-blur-1, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-1, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-1, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-1, var(--kui-tween-grayscale, 0)));
+    }
+    33.333% {
+      filter: blur(var(--kui-tween-blur-2, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-2, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-2, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-2, var(--kui-tween-grayscale, 0)));
+    }
+    66.667% {
+      filter: blur(var(--kui-tween-blur-3, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-3, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-3, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-3, var(--kui-tween-grayscale, 0)));
+    }
+    100% {
+      filter: blur(var(--kui-tween-blur-4, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-4, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-4, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-4, var(--kui-tween-grayscale, 0)));
+    }
+  }
+
+  @keyframes kui-tween-keys5-filter {
+    0% {
+      filter: blur(var(--kui-tween-blur-1, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-1, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-1, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-1, var(--kui-tween-grayscale, 0)));
+    }
+    25% {
+      filter: blur(var(--kui-tween-blur-2, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-2, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-2, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-2, var(--kui-tween-grayscale, 0)));
+    }
+    50% {
+      filter: blur(var(--kui-tween-blur-3, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-3, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-3, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-3, var(--kui-tween-grayscale, 0)));
+    }
+    75% {
+      filter: blur(var(--kui-tween-blur-4, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-4, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-4, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-4, var(--kui-tween-grayscale, 0)));
+    }
+    100% {
+      filter: blur(var(--kui-tween-blur-5, var(--kui-tween-blur, 0px))) brightness(var(--kui-tween-brightness-5, var(--kui-tween-brightness, 1))) saturate(var(--kui-tween-saturate-5, var(--kui-tween-saturate, 1))) grayscale(var(--kui-tween-grayscale-5, var(--kui-tween-grayscale, 0)));
+    }
+  }
+
+  @keyframes kui-tween-keys2-color {
+    0% {
+      color: var(--kui-tween-color-1, var(--kui-tween-color, currentcolor));
+    }
+    100% {
+      color: var(--kui-tween-color-2, var(--kui-tween-color, currentcolor));
+    }
+  }
+
+  @keyframes kui-tween-keys3-color {
+    0% {
+      color: var(--kui-tween-color-1, var(--kui-tween-color, currentcolor));
+    }
+    50% {
+      color: var(--kui-tween-color-2, var(--kui-tween-color, currentcolor));
+    }
+    100% {
+      color: var(--kui-tween-color-3, var(--kui-tween-color, currentcolor));
+    }
+  }
+
+  @keyframes kui-tween-keys4-color {
+    0% {
+      color: var(--kui-tween-color-1, var(--kui-tween-color, currentcolor));
+    }
+    33.333% {
+      color: var(--kui-tween-color-2, var(--kui-tween-color, currentcolor));
+    }
+    66.667% {
+      color: var(--kui-tween-color-3, var(--kui-tween-color, currentcolor));
+    }
+    100% {
+      color: var(--kui-tween-color-4, var(--kui-tween-color, currentcolor));
+    }
+  }
+
+  @keyframes kui-tween-keys5-color {
+    0% {
+      color: var(--kui-tween-color-1, var(--kui-tween-color, currentcolor));
+    }
+    25% {
+      color: var(--kui-tween-color-2, var(--kui-tween-color, currentcolor));
+    }
+    50% {
+      color: var(--kui-tween-color-3, var(--kui-tween-color, currentcolor));
+    }
+    75% {
+      color: var(--kui-tween-color-4, var(--kui-tween-color, currentcolor));
+    }
+    100% {
+      color: var(--kui-tween-color-5, var(--kui-tween-color, currentcolor));
+    }
+  }
+
+  @keyframes kui-tween-keys2-background {
+    0% {
+      background-color: var(--kui-tween-background-color-1, var(--kui-tween-background-color, transparent));
+    }
+    100% {
+      background-color: var(--kui-tween-background-color-2, var(--kui-tween-background-color, transparent));
+    }
+  }
+
+  @keyframes kui-tween-keys3-background {
+    0% {
+      background-color: var(--kui-tween-background-color-1, var(--kui-tween-background-color, transparent));
+    }
+    50% {
+      background-color: var(--kui-tween-background-color-2, var(--kui-tween-background-color, transparent));
+    }
+    100% {
+      background-color: var(--kui-tween-background-color-3, var(--kui-tween-background-color, transparent));
+    }
+  }
+
+  @keyframes kui-tween-keys4-background {
+    0% {
+      background-color: var(--kui-tween-background-color-1, var(--kui-tween-background-color, transparent));
+    }
+    33.333% {
+      background-color: var(--kui-tween-background-color-2, var(--kui-tween-background-color, transparent));
+    }
+    66.667% {
+      background-color: var(--kui-tween-background-color-3, var(--kui-tween-background-color, transparent));
+    }
+    100% {
+      background-color: var(--kui-tween-background-color-4, var(--kui-tween-background-color, transparent));
+    }
+  }
+
+  @keyframes kui-tween-keys5-background {
+    0% {
+      background-color: var(--kui-tween-background-color-1, var(--kui-tween-background-color, transparent));
+    }
+    25% {
+      background-color: var(--kui-tween-background-color-2, var(--kui-tween-background-color, transparent));
+    }
+    50% {
+      background-color: var(--kui-tween-background-color-3, var(--kui-tween-background-color, transparent));
+    }
+    75% {
+      background-color: var(--kui-tween-background-color-4, var(--kui-tween-background-color, transparent));
+    }
+    100% {
+      background-color: var(--kui-tween-background-color-5, var(--kui-tween-background-color, transparent));
+    }
+  }
 }
