@@ -500,7 +500,12 @@
      headline rather than a credit on the video. The stats caption is dropped outright on mobile
      rather than stacked a third time — it's desktop-only context, not essential here. */
   @media (max-width: 640px) {
-    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto; margin-top: 0; }
+    /* Owner's ask: the video should sit right under the headline here too, the way it already
+       does on desktop (-5.75rem there closes the gap to ~0). Desktop's exact value doesn't carry
+       over — it was tuned against the two-column split this breakpoint drops — but leaving it at
+       0 left the video sitting on the far side of `.hero`'s own flex gap, a real 38px on a 396px
+       viewport, measured directly. -2rem closes it to a few px without touching. */
+    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto; margin-top: -2rem; }
     .hero-flip { grid-column: 1; grid-row: 1; }
     .hero-media-credit {
       grid-column: 1; grid-row: 2;
