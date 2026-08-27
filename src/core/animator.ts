@@ -115,6 +115,37 @@ interface InstallRequest {
   document: CompiledDocument
 }
 
+/** One `CompiledTarget` and the live elements its selector actually resolved to. */
+interface ResolvedGroup {
+  target: CompiledTarget
+  matches: Element[]
+}
+
+/**
+ * The element-scoped half of an install, shared unchanged by every `target:` group.
+ *
+ * Every field here is a fact about the *host*, not about any one group: one ledger set, one
+ * `InstanceState`, one abort signal, one `elementHasCssAnimation` answer (see D1 in
+ * `docs/plan-scope-page.md`). Passed as one object rather than six parameters because the project's
+ * `max-params` ceiling is four and, more to the point, "these six travel together, always" is the
+ * thing worth saying.
+ */
+interface GroupInstall {
+  el: Element
+  state: InstanceState
+  ledgers: LedgerSet
+  config: ElementConfig
+  signal: AbortSignal
+  elementHasCssAnimation: boolean
+}
+
+/** The per-group decisions {@link Animator.installMatch} applies to each of that group's matches. */
+interface GroupWrites {
+  target: CompiledTarget
+  stylePlan: StylePlan
+  hasCssAnimation: boolean
+}
+
 export interface AnimatorOptions {
   root?: ParentNode
   /** Effect catalog. Injected so a consumer can ship only the effects they use. */
@@ -473,60 +504,101 @@ export class Animator {
     // where `target:` sends the rest (D6: stays on the host).
     attributes.set(ATTR.state, 'ready')
 
-    for (const { target, matches } of groups) {
-      const stylePlan = planStyles({
-        plan: target.plan,
-        config,
-        capabilities: this.capabilities,
-        respectReducedMotion: this.respectReducedMotion,
-        elementHasCssAnimation,
-      })
-      const hasCssAnimation = Object.keys(stylePlan.properties).some((property) =>
-        property.startsWith('animation-'),
-      )
-
-      for (const match of matches) {
-        const matchLedger = ledgers.style(match)
-        const matchAttributes = ledgers.attributes(match)
-        for (const [property, value] of Object.entries(stylePlan.properties)) {
-          matchLedger.set(property, value)
-        }
-        // `data-kui-state` is deliberately not written here — it is the host's own lifecycle
-        // marker (D6: stays on the host regardless of where `target:` sends the writes) and was
-        // already set, once, above. `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches on
-        // the same compound, so both land on every element this group's effects actually reach —
-        // the host itself for the host's own group, the matches for every other one.
-        matchAttributes.set(ATTR.normalized, stylePlan.attributes[ATTR.normalized]!)
-        matchAttributes.set(ATTR.rm, stylePlan.attributes[ATTR.rm]!)
-        matchLedger.claim('animation-play-state')
-
-        if (hasCssAnimation) {
-          // `target.plan.keyframeNames`, not a re-split of the compiled `animation-name`: a
-          // viewport-gated track compiles to `var(--kui-above-md, kui-in-up)` and splitting that on
-          // commas yields two fragments, neither of which is a keyframe name. See
-          // `CompiledPlan.keyframeNames`.
-          state.instances.push(
-            createCssInstance(match, matchLedger, target.plan.keyframeNames, stylePlan.gate === 'scrubbed'),
-          )
-        }
-        state.instances.push(
-          ...this.jsEffectPreparer.prepare({
-            el: match,
-            plan: target.plan,
-            signal: controller.signal,
-            ledger: matchLedger,
-          }),
-        )
-      }
-
-      // Only for a real `target:` group — the host's own single "match" (itself) has nothing to
-      // order relative to. `applyStagger`'s existing DOM-children pass, run once per `scan()` after
-      // every element has been processed, still owns an ordinary group's stagger numbering; this is
-      // the same job for a set `target:`/`scope:` resolved instead.
-      if (target.selector !== '') indexTargetGroup(el, matches, ledgers, this.reporter)
+    const context: GroupInstall = {
+      el,
+      state,
+      ledgers,
+      config,
+      signal: controller.signal,
+      elementHasCssAnimation,
     }
+    for (const group of groups) this.installGroup(group, context)
 
     this.openGate({ el, state, stylePlan: elementStylePlan, config, plan: groups[0]!.target.plan })
+  }
+
+  /**
+   * Apply one `target:` group's compiled plan to every element its selector resolved to.
+   *
+   * Its own `planStyles` call, not the element-wide one `install` already made: `declarations` are
+   * per group, so `fade-up target:h2, pin` writes different properties to the `h2` than to the host
+   * even though both share one gate, one activation and one reduced-motion policy (which is exactly
+   * what `elementHasCssAnimation` carries in from the caller).
+   *
+   * @complexity O(m * p) time in the group's matches and the plan's properties; O(p) space.
+   * @overallScore 100
+   */
+  private installGroup(group: ResolvedGroup, context: GroupInstall): void {
+    const { target, matches } = group
+    const stylePlan = planStyles({
+      plan: target.plan,
+      config: context.config,
+      capabilities: this.capabilities,
+      respectReducedMotion: this.respectReducedMotion,
+      elementHasCssAnimation: context.elementHasCssAnimation,
+    })
+    const hasCssAnimation = Object.keys(stylePlan.properties).some((property) =>
+      property.startsWith('animation-'),
+    )
+
+    const writes: GroupWrites = { target, stylePlan, hasCssAnimation }
+    for (const match of matches) this.installMatch(match, writes, context)
+
+    // Only for a real `target:` group — the host's own single "match" (itself) has nothing to
+    // order relative to. `applyStagger`'s existing DOM-children pass, run once per `scan()` after
+    // every element has been processed, still owns an ordinary group's stagger numbering; this is
+    // the same job for a set `target:`/`scope:` resolved instead.
+    if (target.selector !== '') {
+      indexTargetGroup(context.el, matches, context.ledgers, this.reporter)
+    }
+  }
+
+  /**
+   * Write one group's plan onto one of its matched elements, and register the instances that plan
+   * produced there.
+   *
+   * Every write goes through `context.ledgers`, never `match.style`/`match.setAttribute` directly:
+   * under `scope:page` a match need not be a descendant of the host at all, so the ledger set is
+   * the only thing that knows to unwind it on `release()`.
+   *
+   * @complexity O(p) time in the plan's property count; O(1) space beyond the instances pushed.
+   * @overallScore 100
+   */
+  private installMatch(match: Element, writes: GroupWrites, context: GroupInstall): void {
+    const { target, stylePlan, hasCssAnimation } = writes
+    const { state, ledgers } = context
+    const matchLedger = ledgers.style(match)
+    const matchAttributes = ledgers.attributes(match)
+    for (const [property, value] of Object.entries(stylePlan.properties)) {
+      matchLedger.set(property, value)
+    }
+    // `data-kui-state` is deliberately not written here — it is the host's own lifecycle
+    // marker (D6: stays on the host regardless of where `target:` sends the writes) and was
+    // already set, once, by `install`. `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches
+    // on the same compound, so both land on every element this group's effects actually reach —
+    // the host itself for the host's own group, the matches for every other one.
+    matchAttributes.set(ATTR.normalized, stylePlan.attributes[ATTR.normalized]!)
+    matchAttributes.set(ATTR.rm, stylePlan.attributes[ATTR.rm]!)
+    matchLedger.claim('animation-play-state')
+
+    if (hasCssAnimation) {
+      // `target.plan.keyframeNames`, not a re-split of the compiled `animation-name`: a
+      // viewport-gated track compiles to `var(--kui-above-md, kui-in-up)` and splitting that on
+      // commas yields two fragments, neither of which is a keyframe name. See
+      // `CompiledPlan.keyframeNames`.
+      const scrubbed = stylePlan.gate === 'scrubbed'
+      state.instances.push(
+        createCssInstance(match, matchLedger, target.plan.keyframeNames, scrubbed),
+      )
+    }
+    state.instances.push(
+      ...this.jsEffectPreparer.prepare({
+        el: match,
+        plan: target.plan,
+        signal: context.signal,
+        ledger: matchLedger,
+      }),
+    )
   }
 
   /**

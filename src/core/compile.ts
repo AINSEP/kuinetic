@@ -1,10 +1,11 @@
-import { gatedAnimationName } from './breakpoints.js'
 import type { EffectGate } from './breakpoints.js'
 import { describeConflicts, findConflicts } from './channels.js'
+import { declarationsFor, emptyTracks, pushTrack, pushTransitions } from './declarations.js'
+import type { AnimationTracks } from './declarations.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
-import { suggest, timingProperty } from './registry.js'
-import { durationExpression, isReadableTime, resolveSequence } from './sequence.js'
+import { suggest } from './registry.js'
+import { isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
 import type { TargetScope } from './target.js'
 import type {
@@ -19,17 +20,6 @@ import type {
   ReducedMotionPolicy,
   Timeline,
 } from './types.js'
-
-/** CSS-native timing keywords; anything else resolves to a `--kui-ease-*` custom property. */
-const NATIVE_EASINGS = new Set([
-  'linear',
-  'ease',
-  'ease-in',
-  'ease-out',
-  'ease-in-out',
-  'step-start',
-  'step-end',
-])
 
 /** `disable` is the strongest claim: if any effect must not run, none of the list should. */
 const RM_RANK: Record<ReducedMotionPolicy, number> = { shorten: 0, crossfade: 1, disable: 2 }
@@ -103,23 +93,6 @@ export function channelsFor(entry: Entry): Channel[] {
  */
 export function authoredParams(entry: Entry): Record<string, string> {
   return entry.variant?.params ?? entry.spec.params
-}
-
-/**
- * Keyframe blocks one entry compiles, one animation track each.
- *
- * A preset names exactly one block, so this is a single-element list for the whole catalog. A
- * variant may name several — the generic tween compiles one block per CSS property group it
- * touches, because `translate` and `opacity` cannot be written from the same `@keyframes` without
- * that block also writing the properties the author never asked for. It may also name *none*,
- * which is how `data-kui="tween 400ms"` — a tween with nothing to tween — emits no animation.
- *
- * @complexity O(k) time and space in the number of blocks.
- * @overallScore 100
- */
-function keyframesFor(entry: Entry): string[] {
-  const { preset } = entry.resolved
-  return entry.variant?.keyframes ?? [preset.keyframes ?? `kui-${preset.name}`]
 }
 
 export interface CompiledPlan {
@@ -453,31 +426,52 @@ function resolveEntries(
 
   for (const spec of specs) {
     const resolved = registry.resolve(spec.name)
-    if (resolved) {
-      const lifted = liftTarget(spec, resolved, warnings)
-      // Variant is computed from the *lifted* spec, not the original: the generic tween's
-      // `buildVariant` passes any parameter key it doesn't recognise straight through
-      // (`effects/tween`'s `params[key] = raw`), so a `target`/`scope` still sitting in
-      // `spec.params` here would ride along into `variant.params` and get validated as an
-      // "unknown parameter" a second time, on top of the warning `liftTarget` already gave it.
-      const variant = resolved.primitive.variantFor?.(lifted.spec, (m) => warnings.push(m))
-      const entry: Entry = variant
-        ? { spec: lifted.spec, resolved, variant }
-        : { spec: lifted.spec, resolved }
-      if (lifted.target !== undefined) {
-        entry.target = lifted.target
-        entry.scope = lifted.scope
-      }
-      entries.push(entry)
+    if (!resolved) {
+      unknown.push(spec.name)
+      warnUnknownEffect(spec.name, registry, warnings)
       continue
     }
-    unknown.push(spec.name)
-    const hint = suggest(spec.name, registry.names())
-    const suffix = hint ? ` — did you mean "${hint}"?` : ''
-    warnings.push(`unknown effect "${spec.name}"${suffix}`)
+    entries.push(entryFor(spec, resolved, warnings))
   }
 
   return { entries, unknown }
+}
+
+/**
+ * Build one resolved entry: lift its `target:`/`scope:`, then refine it through the primitive's
+ * own `variantFor`.
+ *
+ * @complexity O(p) time and space in the spec's parameter count.
+ * @overallScore 100
+ */
+function entryFor(spec: EffectSpec, resolved: ResolvedEffect, warnings: string[]): Entry {
+  const lifted = liftTarget(spec, resolved, warnings)
+  // Variant is computed from the *lifted* spec, not the original: the generic tween's
+  // `buildVariant` passes any parameter key it doesn't recognise straight through
+  // (`effects/tween`'s `params[key] = raw`), so a `target`/`scope` still sitting in
+  // `spec.params` here would ride along into `variant.params` and get validated as an
+  // "unknown parameter" a second time, on top of the warning `liftTarget` already gave it.
+  const variant = resolved.primitive.variantFor?.(lifted.spec, (m) => warnings.push(m))
+  const entry: Entry = variant
+    ? { spec: lifted.spec, resolved, variant }
+    : { spec: lifted.spec, resolved }
+  if (lifted.target !== undefined) {
+    entry.target = lifted.target
+    entry.scope = lifted.scope
+  }
+  return entry
+}
+
+/**
+ * Name an unregistered effect, with a "did you mean" when one of the registered names is close.
+ *
+ * @complexity O(n) time in the registry's name count — the error path only.
+ * @overallScore 100
+ */
+function warnUnknownEffect(name: string, registry: Registry, warnings: string[]): void {
+  const hint = suggest(name, registry.names())
+  const suffix = hint ? ` — did you mean "${hint}"?` : ''
+  warnings.push(`unknown effect "${name}"${suffix}`)
 }
 
 /**
@@ -521,7 +515,14 @@ function liftTarget(
   const target = spec.params.target
   if (!target) return { spec }
 
-  const { target: _target, scope: authoredScope, ...rest } = spec.params
+  // Copy-and-delete rather than a rest destructure (`const { target: _target, ...rest }`): that
+  // form needs a named binding for every key it drops, and a binding whose only purpose is to be
+  // thrown away is exactly what the unused-variable rules exist to catch. This spells the same
+  // strip with nothing left over.
+  const rest = { ...spec.params }
+  const authoredScope = rest.scope
+  delete rest.target
+  delete rest.scope
   const stripped: EffectSpec = { ...spec, params: rest }
 
   if (resolved.preset.requiresOwnSubtree) {
@@ -613,14 +614,7 @@ function buildPlan(
   warnings: string[],
 ): CompiledPlan {
   const plan = emptyPlan(unknown, warnings)
-  const tracks: AnimationTracks = {
-    names: [],
-    keyframes: [],
-    durations: [],
-    delays: [],
-    easings: [],
-    iterationCounts: [],
-  }
+  const tracks: AnimationTracks = emptyTracks()
   const channels = new Set<Channel>()
   // One comma-separated `transition:` segment per declared `TransitionSegment`, in authoring
   // order — the same parallel-list shape `tracks` builds for `animation`, and for the same reason:
@@ -766,139 +760,6 @@ function intersect<T>(accumulated: T[] | undefined, supported: T[]): T[] {
   return accumulated.filter((value) => supported.includes(value))
 }
 
-interface AnimationTracks {
-  /** What is written to `animation-name` — an ident, or a `var()` around one when gated. */
-  names: string[]
-  /** The ident inside it, for `CompiledPlan.keyframeNames`. Same length, same order. */
-  keyframes: string[]
-  durations: string[]
-  delays: string[]
-  easings: string[]
-  iterationCounts: string[]
-}
-
-/**
- * Custom property a looping preset's static CSS sets to `infinite` (see `ambient.css`,
- * `feedback.css`). Namespaced per *preset*, not primitive: iteration count is a fact about the
- * preset's own keyframes, not something an author configures, and presets sharing one primitive
- * are not guaranteed to agree on it.
- */
-function iterationCountProperty(presetName: string): string {
-  return `--kui-fx-${presetName}-iterations`
-}
-
-/**
- * Append one effect to the parallel animation lists, as one track per keyframe block it compiles.
- *
- * Separate rules cannot both contribute an `animation` declaration — the cascade discards one —
- * so composition is expressed as parallel longhand value lists on a single declaration.
- *
- * Usually one block, so usually one track. A variant naming several (`keyframesFor`) gets the same
- * timing repeated across all of them, which is the point: `tween x:100 opacity:0 800ms` is *one*
- * effect the author gave one duration, rendered as two tracks only because CSS has no way to write
- * two unrelated properties from one keyframe without also writing everything in between.
- *
- * @param step - Where the sequencer placed this segment. For a segment with no `at:` this is the
- *   segment's own delay, so the compiled output is unchanged from before sequencing existed.
- * @complexity O(k) time in the entry's keyframe count; O(k) space in the tracks.
- * @overallScore 100
- */
-function pushTrack(
-  tracks: AnimationTracks,
-  entry: Entry,
-  timeline: Timeline,
-  step: SequenceStep,
-): void {
-  const { spec, resolved } = entry
-  const id = resolved.primitive.id
-  // Each track reads its *own* primitive's timing property. Sharing one `--kui-duration` across
-  // tracks meant a composed effect inherited its neighbour's timing.
-  const duration = durationExpression(spec.duration, id)
-  const delay = staggerDelay(step.delayExpr, timeline, duration)
-  const easing = easingValue(spec.easing, id)
-  // Defaults to 1 (one-shot). A looping preset's own CSS sets its property to `infinite` — see
-  // `iterationCountProperty`. Reading it per track, rather than a bare `animation-iteration-count:
-  // infinite` in that CSS, is what stops a composed one-shot effect from inheriting the loop: CSS
-  // repeats a shorter value list to match the longest one across every longhand in the group.
-  const iterations = `var(${iterationCountProperty(resolved.preset.name)}, 1)`
-
-  for (const name of keyframesFor(entry)) {
-    // Every track this segment compiles carries the same gate, including the several a `tween`
-    // variant produces: the author wrote one effect with one condition, and splitting it across
-    // properties is an implementation detail of CSS keyframes that the gate must not leak through.
-    tracks.names.push(gatedAnimationName(name, spec.gate))
-    tracks.keyframes.push(name)
-    tracks.durations.push(duration)
-    tracks.delays.push(delay)
-    tracks.easings.push(easing)
-    tracks.iterationCounts.push(iterations)
-  }
-}
-
-/**
- * Append one entry's declared {@link TransitionSegment}s to the element's merged transition list.
- *
- * Reuses `durationExpression`/`easingValue` — the same two functions `pushTrack` resolves an
- * `animation-duration`/`-timing-function` through — so `data-kui="lift 400ms"` reaches a
- * transitioned property and a keyframed one through one code path that cannot disagree with
- * itself. The delay is a per-*preset* custom-property slot (`--kui-tx-delay-<name>`) rather than a
- * shared `animation-delay`-style list: the CSS state rule (`:hover`, `[aria-expanded]`) that
- * actually triggers the transition writes that slot directly (see `interaction.css`), and distinct
- * property names per preset are what let two composed presets carry independent delays without a
- * second clobber one level down.
- *
- * Mutates `segments`/`owners` rather than returning a value, the same accumulator shape `pushTrack`
- * already uses for `tracks` — a per-entry return would need concatenating at every call site for no
- * benefit, since every caller already owns one shared list for the whole composed entry set.
- *
- * @param segments - Accumulator of `"property duration easing delay"` strings, mutated in place.
- * @param owners - property → the preset name that most recently claimed it, mutated in place, kept
- *   only to name both presets in the duplicate-property warning below.
- * @param entry - The composed entry to read `preset.transitions` from.
- * @param warnings - Diagnostic sink. Two presets transitioning the same property compose — the
- *   channel model does not forbid it, and CSS resolves the shorthand's last occurrence
- *   deterministically — but the author is owed a name for which one wins.
- * @complexity O(t) time and space in the preset's declared transition segment count.
- * @overallScore 100
- */
-function pushTransitions(
-  segments: string[],
-  owners: Map<string, string>,
-  entry: Entry,
-  warnings: string[],
-): void {
-  const { spec, resolved } = entry
-  const { preset, primitive } = resolved
-
-  for (const segment of preset.transitions ?? []) {
-    const previousOwner = owners.get(segment.property)
-    if (previousOwner !== undefined && previousOwner !== preset.name) {
-      warnings.push(
-        `"${previousOwner}" and "${preset.name}" both transition ${segment.property} — ` +
-          `"${preset.name}" wins (last in the list)`,
-      )
-    }
-    owners.set(segment.property, preset.name)
-
-    const duration = segment.duration ?? durationExpression(spec.duration, primitive.id)
-    const easing = segment.easing ?? easingValue(spec.easing, primitive.id)
-    const delay = `var(--kui-tx-delay-${preset.name}, 0ms)`
-    segments.push(`${segment.property} ${duration} ${easing} ${delay}`)
-  }
-}
-
-function declarationsFor(tracks: AnimationTracks): Record<string, string> {
-  if (tracks.names.length === 0) return {}
-  return {
-    'animation-name': tracks.names.join(', '),
-    'animation-duration': tracks.durations.join(', '),
-    'animation-delay': tracks.delays.join(', '),
-    'animation-timing-function': tracks.easings.join(', '),
-    'animation-iteration-count': tracks.iterationCounts.join(', '),
-    'animation-fill-mode': tracks.names.map(() => 'both').join(', '),
-  }
-}
-
 function strictestPolicy(a: ReducedMotionPolicy, b: ReducedMotionPolicy): ReducedMotionPolicy {
   return RM_RANK[b] > RM_RANK[a] ? b : a
 }
@@ -915,46 +776,3 @@ function warnUnsupportedTimeline(
   )
 }
 
-/**
- * Fold stagger into the delay so the browser does the arithmetic; the scanner only writes each
- * child's index once.
- *
- * On `timeline: 'pin'` the delay does double duty as the *scrub head*. The animation is held
- * paused (see `style-plan.ts`'s `scrubbed` gate) and a negative delay of `progress x duration`
- * seeks it to the matching frame — progress 0 leaves it at its from-state, progress 1 at its
- * to-state, and every value between renders proportionally. This is why the delay needs the
- * track's own duration expression: the seek has to be in that track's time base, or a composed
- * effect whose neighbour has a different duration scrubs at the wrong rate.
- *
- * The stagger term survives untouched and keeps working, because a positive delay pushes an
- * item *back* along the same head: at progress 0.5 with `--kui-stagger: 200ms` over a 1000ms
- * track, index 0/1/2 render at 50%/30%/10%. That is the staggered scroll-scrub that pages
- * previously had to hand-write as `calc((var(--kui-progress) - var(--step)) * 5)` per child.
- *
- * A sequenced `at:` position arrives here already folded into `base`, and the two compose without
- * double-counting because they answer different questions: `at:` positions a segment against its
- * *neighbouring segments on this element*, while stagger shifts *this whole element* against its
- * siblings. Every track on the element takes the same stagger term, so the relative spacing `at:`
- * established inside the list survives the shift intact.
- *
- * @param base - The segment's start, from `core/sequence.ts`. An unwrapped sum, so it nests here
- *   without a second `calc()`.
- * @complexity O(1) time, O(1) space.
- * @overallScore 100
- */
-function staggerDelay(base: string, timeline: Timeline, duration: string): string {
-  const staggered = `${base} + var(--kui-i, 0) * var(--kui-stagger, 0ms)`
-  if (timeline !== 'pin') return `calc(${staggered})`
-  // The head spans one duration *plus* the group's whole stagger span, so the last-staggered
-  // child lands exactly on its final frame at progress 1 (see `stagger.ts`). Unstaggered, the
-  // `var()` fallbacks collapse the extra term to zero and this is `progress x duration`.
-  const span = `${duration} + (var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)`
-  return `calc(${staggered} - var(--kui-progress, 0) * (${span}))`
-}
-
-function easingValue(easing: string | undefined, primitiveId: string): string {
-  if (!easing) return `var(${timingProperty(primitiveId, 'ease')}, ease-out)`
-  if (NATIVE_EASINGS.has(easing)) return easing
-  if (easing.includes('(')) return easing
-  return `var(--kui-ease-${easing}, ease-out)`
-}

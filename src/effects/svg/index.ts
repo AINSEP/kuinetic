@@ -149,7 +149,7 @@ const LOGO_BUILD_PRIMITIVE: Primitive = cssPrimitive('logo-assemble', [
  * parameters resolved onto it, which the parts then inherit.
  *
  * "Almost" because the positional spelling of those timing parameters has no route to CSS of its
- * own: `compile.pushTrack` turns `spec.duration`/`.delay`/`.easing` into declarations for
+ * own: `declarations.ts`'s `pushTrack` turns `spec.duration`/`.delay`/`.easing` into declarations for
  * `css-keyframes` primitives only, so `hamburger-to-x 400ms` reached nothing while
  * `hamburger-to-x duration:400ms` worked. `stylesheetTimingPrepare` mirrors the one onto the
  * other's properties; see `effects/shared.ts`.

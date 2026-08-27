@@ -5,7 +5,7 @@
  *
  *   1. The open/rest state (an unconditional `[data-kui-fx~='name']` rule). Sets
  *      `transition-behavior: allow-discrete` and the per-preset `--kui-tx-delay-<name>` slot
- *      `compile.ts`'s `pushTransitions` reads (see `Preset.transitions`), plus the values the
+ *      `declarations.ts`'s `pushTransitions` reads (see `Preset.transitions`), plus the values the
  *      element eases *into*. The actual `transition-property`/`-duration`/`-timing-function`/
  *      `-delay` list is NOT written here — it comes from the compiled `--kui-transition` custom
  *      property `base.css`'s `:where([data-kui-fx])` rule builds from `Preset.transitions`, the

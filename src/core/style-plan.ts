@@ -3,7 +3,6 @@ import { ATTR } from './attrs.js'
 import type { Capabilities } from './capabilities.js'
 import type { CompiledPlan } from './compile.js'
 import type { ElementConfig } from './element-config.js'
-import type { AttributeLedger, StyleLedger } from './owned-styles.js'
 import type { Activation, Channel, Timeline } from './types.js'
 
 /**
@@ -57,7 +56,13 @@ export interface StylePlanInput {
  * writes rather than performing them.
  *
  * This is the decision half of the decision/effect split: it can be asserted with plain objects
- * and no DOM, which is what keeps `applyStylePlan` trivial enough to need no branching tests.
+ * and no DOM, which is what keeps the applying half — `animator.ts`'s `installMatch` — a flat
+ * walk over `properties`/`attributes` with no branching of its own to test.
+ *
+ * There was once an `applyStylePlan` here that did that walk. `target:` retired it: it wrote
+ * *every* attribute in the plan onto the animated element, and `data-kui-state` must now stay on
+ * the host no matter where a group's writes land (D6 in `docs/plan-scope-page.md`). The two-line
+ * walk moved to its one caller rather than growing a parameter to say which attributes to skip.
  *
  * @param input - Compiled effects, element configuration, and the environment's capabilities.
  * @returns The properties, attributes, gate, and activation to apply.
@@ -67,14 +72,7 @@ export interface StylePlanInput {
 export function planStyles(input: StylePlanInput): StylePlan {
   const { plan, config, capabilities, respectReducedMotion } = input
   const reduce = respectReducedMotion && capabilities.reducedMotion
-  // No capability check: the scrub is a paused animation plus a negative `animation-delay`, both
-  // of which predate scroll-driven animations by a decade. `timeline: pin` therefore works in
-  // every browser that can run a CSS animation at all — strictly wider support than `view()`.
-  const scrubbed = config.timeline === 'pin' && plan.supportedTimelines.includes('pin')
-  const useNativeTimeline =
-    !scrubbed &&
-    supportsTimeline(config.timeline, capabilities) &&
-    plan.supportedTimelines.includes(config.timeline)
+  const { scrubbed, useNativeTimeline } = timelineMode(plan, config, capabilities)
 
   const properties: Record<string, string> = { ...plan.vars, ...plan.declarations }
   Object.assign(properties, transitionProperty(plan))
@@ -113,6 +111,40 @@ export function planStyles(input: StylePlanInput): StylePlan {
     gate,
     activation: gate === 'deferred' ? effectiveActivation(config) : null,
   }
+}
+
+/**
+ * Which of the two scroll-driven modes — if either — is in force for this element.
+ *
+ * The two are mutually exclusive and decided together, which is why they are read out of one
+ * function rather than two: `timeline: pin` wins over a native `scroll()`/`view()` whenever the
+ * composed primitives declare support for it, because a scrub and a native progress timeline both
+ * claim the same `animation-delay`/`animation-timeline` slot and only one of them can drive.
+ *
+ * `scrubbed` gets no capability check: the scrub is a paused animation plus a negative
+ * `animation-delay`, both of which predate scroll-driven animations by a decade. `timeline: pin`
+ * therefore works in every browser that can run a CSS animation at all — strictly wider support
+ * than `view()`.
+ *
+ * A separate pure function rather than two inline `const`s in `planStyles`, for the same reason
+ * {@link transitionProperty} below is one: it keeps that function's cyclomatic complexity under
+ * the project's lint ceiling, and this decision is separately readable in a way an inline
+ * three-clause `&&` chain is not.
+ *
+ * @complexity O(t) time in the plan's supported-timeline count — at most three; O(1) space.
+ * @overallScore 100
+ */
+function timelineMode(
+  plan: CompiledPlan,
+  config: ElementConfig,
+  capabilities: Capabilities,
+): { scrubbed: boolean; useNativeTimeline: boolean } {
+  const scrubbed = config.timeline === 'pin' && plan.supportedTimelines.includes('pin')
+  const useNativeTimeline =
+    !scrubbed &&
+    supportsTimeline(config.timeline, capabilities) &&
+    plan.supportedTimelines.includes(config.timeline)
+  return { scrubbed, useNativeTimeline }
 }
 
 /**
@@ -243,24 +275,3 @@ function effectiveActivation(config: ElementConfig): Activation {
   return config.activation
 }
 
-/**
- * Write a style plan to an element. The effect half of the split — deliberately branch-free.
- *
- * @param el - Target element.
- * @param plan - Description produced by `planStyles`.
- * @complexity O(n) time in the number of properties and attributes; O(1) extra space.
- * @overallScore 100
- */
-export function applyStylePlan(request: {
-  el: Element
-  plan: StylePlan
-  ledger: StyleLedger
-  attributes: AttributeLedger
-}): void {
-  const { plan, ledger, attributes } = request
-  for (const [property, value] of Object.entries(plan.properties)) ledger.set(property, value)
-  for (const [attribute, value] of Object.entries(plan.attributes)) attributes.set(attribute, value)
-  // Claimed but not written: the CSS instance sets it on activation, and teardown must remove it
-  // whether or not the effect ever ran.
-  ledger.claim('animation-play-state')
-}

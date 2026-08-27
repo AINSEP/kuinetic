@@ -39,7 +39,7 @@ afterEach(() => {
  * `:hover`/`[aria-expanded]` transition in `interaction.css`/`svg.css`/`three-d.css`, keyed off
  * `--kui-<primitive>-duration`/`-delay`/`-ease`. That made exactly one of the two spellings work.
  * `resolveParams` writes every `key:value` override inline, so `lift duration:400ms` reached the
- * rule; `compile.pushTrack`, which is what turns the positional `spec.duration`/`.delay`/`.easing`
+ * rule; `declarations.ts`'s `pushTrack`, which is what turns the positional `spec.duration`/`.delay`/`.easing`
  * into anything at all, runs for `css-keyframes` primitives only — so `lift 400ms` parsed, resolved,
  * installed, and changed nothing.
  *

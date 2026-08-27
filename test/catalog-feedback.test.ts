@@ -55,7 +55,7 @@ describe('feedback catalog', () => {
   it('marks every continuous loop as infinite via its own iteration-count var', () => {
     // Not a bare `animation-iteration-count: infinite;` — that would apply to every track sharing
     // an element's `animation-name` list, making a composed one-shot effect loop forever too. See
-    // `iterationCountProperty` in src/core/compile.ts and the header comment in feedback.css.
+    // `iterationCountProperty` in src/core/declarations.ts and the header comment in feedback.css.
     const occurrences = css.match(/--kui-fx-[\w-]+-iterations: infinite;/g) ?? []
     expect(occurrences.length).toBeGreaterThanOrEqual(5)
   })

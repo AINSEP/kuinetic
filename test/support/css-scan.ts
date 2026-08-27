@@ -256,7 +256,7 @@ function transitionedProperties(body: string): Set<string> {
  *
  * Now backs one direction of the "transition channel" invariant in
  * `css-composition-invariants.test.ts`: after the compile-time merge (`Preset.transitions`,
- * `src/core/compile.ts`'s `pushTransitions`), no preset has any legitimate reason left to carry a
+ * `src/core/declarations.ts`'s `pushTransitions`), no preset has any legitimate reason left to carry a
  * bare host-rule `transition:` of its own, so this scanner finding one at all is the violation —
  * asserted as an empty result, not a named clobber-pair list the way it used to be.
  *

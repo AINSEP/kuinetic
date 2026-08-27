@@ -1,4 +1,4 @@
-// The compile-time transition merge — `Preset.transitions`, `compile.ts`'s `pushTransitions`, and
+// The compile-time transition merge — `Preset.transitions`, `declarations.ts`'s `pushTransitions`, and
 // the one `--kui-transition` custom property `base.css`'s `:where([data-kui-fx])` rule consumes.
 //
 // Before this merge, two presets that both own a bare host-rule `transition:` in the stylesheet

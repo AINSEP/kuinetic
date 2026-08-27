@@ -34,7 +34,7 @@ const FLIP_CONTROL_SELECTOR = ':scope > .kui-flip-control'
 function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   // Before any trigger branch, and before either bail-out below: three-d.css reads
   // `--kui-card-toggle-duration`/`-delay`/`-ease`, and only the `key:value` spelling of those
-  // reaches it on its own (`compile.pushTrack` writes the positional tokens for `css-keyframes`
+  // reaches it on its own (`declarations.ts`'s `pushTrack` writes the positional tokens for `css-keyframes`
   // primitives and no others). So `flip-card 900ms` used to turn at the 700ms default while
   // `flip-card duration:900ms` worked. A `trigger:click` card has no listeners to wire and still
   // needs this, which is why it is not inside the hover branch.

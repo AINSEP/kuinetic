@@ -14,11 +14,11 @@ import type { Preset } from '../src/core/types.js'
 import { catalogRegistry } from './support/registry.js'
 
 /**
- * Regression coverage for the bug fixed alongside this file: `compile.ts`'s `pushTrack` composes
+ * Regression coverage for the bug fixed alongside this file: `declarations.ts`'s `pushTrack` composes
  * every effect's `animation-iteration-count` as a parallel value list, one entry per track,
  * defaulting each to `1` (one-shot). A preset that is supposed to loop forever has to opt back in
  * itself by declaring its own `--kui-fx-<name>-iterations: infinite` custom property (see
- * `iterationCountProperty` in `compile.ts`, and `ambient.css`/`feedback.css`'s file headers for
+ * `iterationCountProperty` in `declarations.ts`, and `ambient.css`/`feedback.css`'s file headers for
  * the mechanism). `marquee` and `gradient-shimmer` in `text.css` never declared theirs, so
  * composing either with any other effect silently made it run once and stop.
  *

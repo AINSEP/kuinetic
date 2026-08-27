@@ -35,7 +35,7 @@ export class Registry {
         `kuinetic: effect "${preset.name}" references unknown primitive "${preset.primitive}"`,
       )
     }
-    // `all`/`none` would swallow every other segment `compile.ts`'s `pushTransitions` merges into
+    // `all`/`none` would swallow every other segment `declarations.ts`'s `pushTransitions` merges into
     // the shared `--kui-transition` list — the same failure a shared `transition: all` shorthand
     // has today, reintroduced one property name at a time. Refused at registration rather than
     // left for the merge to silently mishandle, because every other preset's transitions ride in

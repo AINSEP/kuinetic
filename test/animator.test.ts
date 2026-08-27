@@ -1,57 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivationBinder } from '../src/core/activation.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Animator, createAnimator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
-import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
-import type { DomWatcher } from '../src/core/dom-watcher.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
-import type { Activation } from '../src/core/types.js'
+import { CAPS, fakeBinder } from './support/animator-harness.js'
+import type { FakeBinder } from './support/animator-harness.js'
 import { catalogRegistry } from './support/registry.js'
-
-const CAPS = defaultCapabilities({
-  viewTimeline: true,
-  scrollTimeline: true,
-  animationRange: true,
-  individualTransforms: true,
-  scrollTimelineName: true,
-  viewTransitions: true,
-  intersectionObserver: true,
-  motionPath: true,
-})
-
-interface FakeBinder extends ActivationBinder {
-  bindings: Array<{ el: Element; activation: Activation; threshold: string }>
-  fire(el: Element): void
-  unbound: number
-}
-
-/**
- * Stand-in for the real binder. Injecting it is what lets visibility-driven behaviour be tested
- * without layout, an IntersectionObserver polyfill, or timers.
- */
-function fakeBinder(): FakeBinder {
-  const bindings: FakeBinder['bindings'] = []
-  const callbacks = new Map<Element, () => void>()
-  const binder: FakeBinder = {
-    bindings,
-    unbound: 0,
-    bind(el, activation, request) {
-      bindings.push({ el, activation, threshold: request.threshold })
-      callbacks.set(el, () => request.activate())
-      return () => {
-        binder.unbound++
-        callbacks.delete(el)
-      }
-    },
-    fire(el) {
-      callbacks.get(el)?.()
-    },
-    destroy() {},
-  }
-  return binder
-}
 
 let reporter: CollectingReporter
 let binder: FakeBinder
@@ -347,149 +302,6 @@ describe('Animator — stagger group indexed at the scan root itself', () => {
   })
 })
 
-describe('Animator — observe: true real DOM-watcher wiring', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  /** requestAnimationFrame stubbed to run synchronously, so the watcher's rAF-scheduled flush
-   *  fires inside the same microtask tick a real MutationObserver callback lands in. */
-  function stubSyncFrame(): void {
-    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      cb(0)
-      return 0
-    })
-  }
-
-  async function flushMutations(): Promise<void> {
-    await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  }
-
-  it('scans an element inserted into the observed subtree', async () => {
-    stubSyncFrame()
-    document.body.innerHTML = ''
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-    })
-    animator.start()
-
-    const added = document.createElement('div')
-    added.setAttribute('data-kui', 'fade-up')
-    document.body.append(added)
-    await flushMutations()
-
-    expect(added.getAttribute(ATTR.normalized)).toBe('fade-up')
-    animator.destroy()
-  })
-
-  it('releases a live element when an ancestor of it is removed, not only the element itself', async () => {
-    stubSyncFrame()
-    document.body.innerHTML = '<section><div data-kui="fade-up"></div></section>'
-    const wrapper = document.body.firstElementChild as HTMLElement
-    const target = wrapper.firstElementChild as HTMLElement
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-    })
-    animator.start()
-    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
-
-    wrapper.remove()
-    await flushMutations()
-
-    expect(target.hasAttribute(ATTR.normalized)).toBe(false)
-    animator.destroy()
-  })
-
-  it('releases an element removed from the observed subtree', async () => {
-    stubSyncFrame()
-    document.body.innerHTML = '<div data-kui="fade-up"></div>'
-    const target = document.body.firstElementChild as HTMLElement
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-    })
-    animator.start()
-    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
-
-    target.remove()
-    await flushMutations()
-
-    expect(target.hasAttribute(ATTR.normalized)).toBe(false)
-    animator.destroy()
-  })
-
-  it('reprocesses an element whose watched attribute changed', async () => {
-    stubSyncFrame()
-    document.body.innerHTML = '<div data-kui="fade-up"></div>'
-    const target = document.body.firstElementChild as HTMLElement
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-    })
-    animator.start()
-    expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
-
-    target.setAttribute(ATTR.source, 'zoom-in')
-    await flushMutations()
-
-    expect(target.getAttribute(ATTR.normalized)).toBe('zoom-in')
-    animator.destroy()
-  })
-
-  it('disconnects the real dom watcher on destroy, so later mutations are ignored', async () => {
-    stubSyncFrame()
-    document.body.innerHTML = ''
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-    })
-    animator.start()
-    animator.destroy()
-
-    const added = document.createElement('div')
-    added.setAttribute('data-kui', 'fade-up')
-    document.body.append(added)
-    await flushMutations()
-
-    expect(added.hasAttribute(ATTR.normalized)).toBe(false)
-  })
-
-  it('calls destroy() on an injected domWatcher', () => {
-    const fakeWatcher: DomWatcher = { watch: vi.fn(), destroy: vi.fn() }
-    document.body.innerHTML = ''
-    const animator = new Animator({
-      root: document.body,
-      registry: catalogRegistry(),
-      capabilities: CAPS,
-      binder: fakeBinder(),
-      observe: true,
-      domWatcher: fakeWatcher,
-    })
-    animator.start()
-    expect(fakeWatcher.watch).toHaveBeenCalledOnce()
-
-    animator.destroy()
-    expect(fakeWatcher.destroy).toHaveBeenCalledOnce()
-  })
-})
-
 /**
  * `target:` — docs/plan-scope-page.md steps 6/8/10. Unit-level coverage over jsdom, which can
  * assert every attribute/inline-style write and every teardown, but cannot prove an effect
@@ -545,10 +357,9 @@ describe('Animator — target: retargeting', () => {
   })
 
   it('warns and marks the host failed when the selector matches the whole document', () => {
-    const animator = build('<div data-kui="fade-up target:body"></div>')
+    build('<div data-kui="fade-up target:body"></div>')
     expect(el().getAttribute(ATTR.state)).toBe('failed')
     expect(reporter.messages.join()).toContain('matches the whole document')
-    void animator
   })
 
   it('warns and marks the host failed when the selector matches nothing', () => {

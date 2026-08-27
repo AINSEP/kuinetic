@@ -450,7 +450,7 @@ describe('applyStagger over both spellings', () => {
    * The reason `applyStagger` re-narrows its widened selector, and it is a correctness
    * requirement rather than an optimisation. `--kui-stagger-count` is deliberately *not* reset in
    * `kui.tokens`, because a group publishes it to be inherited. Writing `1` onto an ordinary
-   * animated child would shadow its own group's real count, and `compile.ts`'s `staggerDelay`
+   * animated child would shadow its own group's real count, and `declarations.ts`'s `staggerDelay`
    * reads it off that very child to size a `timeline: pin` scrub head — so every pinned staggered
    * group would collapse its head back to one duration and strand its later children short of
    * their final frame.

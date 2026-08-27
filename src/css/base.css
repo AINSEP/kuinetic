@@ -295,7 +295,7 @@
 @layer kui.effects {
   /*
    * The compile-time transition merge's one consuming rule — see `Preset.transitions` and
-   * `compile.ts`'s `pushTransitions` for how `--kui-transition` gets built.
+   * `declarations.ts`'s `pushTransitions` for how `--kui-transition` gets built.
    *
    * A bare `transition:` on two separate per-preset rules cannot both apply to one element — the
    * shorthand resets every longhand it covers, so whichever rule is later in source order wins the

@@ -200,7 +200,7 @@
    * `gradient-shimmer`'s `text-shimmer` primitive declares `reducedMotion: 'disable'` — the same
    * signal `ambient.css`/`feedback.css` use to mark a preset that loops forever, since there is no
    * meaningful "shortened" version of an infinite loop. Without this custom property the compiler
-   * (`iterationCountProperty` in `compile.ts`) defaults every track to a one-shot
+   * (`iterationCountProperty` in `declarations.ts`) defaults every track to a one-shot
    * `animation-iteration-count: 1`, so the shine ran once and stopped instead of sweeping
    * continuously.
    */

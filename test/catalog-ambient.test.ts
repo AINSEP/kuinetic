@@ -46,7 +46,7 @@ describe('ambient catalog', () => {
   it('marks every loop as infinite via its own iteration-count var', () => {
     // Not a bare `animation-iteration-count: infinite;` — that would apply to every track sharing
     // an element's `animation-name` list, making a composed one-shot effect loop forever too. See
-    // `iterationCountProperty` in src/core/compile.ts and the header comment in ambient.css.
+    // `iterationCountProperty` in src/core/declarations.ts and the header comment in ambient.css.
     const occurrences = css.match(/--kui-fx-[\w-]+-iterations: infinite;/g) ?? []
     expect(occurrences.length).toBeGreaterThanOrEqual(14)
   })

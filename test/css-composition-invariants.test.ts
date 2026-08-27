@@ -150,7 +150,7 @@ describe('transition channel (compile-time merge)', () => {
 
   // Self-consistency: what keeps the duplicate-transition-property case (two composed presets
   // easing the same physical property, allowed and warned rather than refused — see
-  // `compile.ts`'s `pushTransitions`) visible to `findConflicts` at all. A preset that transitions
+  // `declarations.ts`'s `pushTransitions`) visible to `findConflicts` at all. A preset that transitions
   // a property outside its own declared channels is invisible to conflict detection for exactly
   // that property, which is the bug `word-cycler`/`header-shrink`/`border-draw` had before their
   // channels were widened to cover what they actually transition.

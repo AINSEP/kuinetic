@@ -581,7 +581,7 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   // `var()` fallback, where the extra term is zero and the head is plain `progress x duration`.
   //
   // This is `maxRank + 1`, not the child count, and the difference only appeared once ordering
-  // existed. Downstream (`compile.ts`'s `staggerDelay`) spends it as `(count - 1) * stagger`, i.e.
+  // existed. Downstream (`declarations.ts`'s `staggerDelay`) spends it as `(count - 1) * stagger`, i.e.
   // it wants *the largest offset in the group*, and the two coincided only while the sole ordering
   // was linear and the largest offset was always the last child's. `center` and `edges` on six
   // children top out at rank 2, not 5: publishing 6 there would stretch the scrub head over a span
@@ -653,16 +653,48 @@ export function indexTargetGroup(
   ) ?? { from: 'start' }
   if (step) ledgers.style(host).set('--kui-stagger', step)
 
-  // Bucketed by parent, in the document order `matches` already carries, so each bucket's own
-  // order is preserved for `staggerRanks` to rank — see this function's own comment for why a
-  // single streaming pass (the shape `createStepMarker` uses) cannot do this job.
+  const maxRank = rankBuckets(bucketByParent(matches), from, ledgers, warnings)
+  // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
+  // largest offset in the group, not the member count, and the two only coincide for `start`.
+  ledgers.style(host).set('--kui-stagger-count', String(maxRank + 1))
+
+  for (const warning of warnings) reporter?.warn(warning, host)
+}
+
+/**
+ * Bucket a matched set by parent element, in the document order `matches` already carries, so each
+ * bucket's own order is preserved for {@link staggerRanks} to rank.
+ *
+ * See {@link indexTargetGroup}'s own comment for why a single streaming pass — the shape
+ * `createStepMarker` uses — cannot do this job.
+ *
+ * @complexity O(n) time and space in the match count.
+ * @overallScore 100
+ */
+function bucketByParent(matches: Element[]): Map<Element | null, Element[]> {
   const byParent = new Map<Element | null, Element[]>()
   for (const match of matches) {
     const siblings = byParent.get(match.parentElement)
     if (siblings) siblings.push(match)
     else byParent.set(match.parentElement, [match])
   }
+  return byParent
+}
 
+/**
+ * Write `--kui-i` for every match, ranked within its own parent bucket.
+ *
+ * @returns The largest rank written across every bucket — what `--kui-stagger-count` is derived
+ *   from, and deliberately not the match count: `center`/`edges` reuse offsets, so the two differ.
+ * @complexity O(n) time in the match count; O(b) space in the largest bucket.
+ * @overallScore 100
+ */
+function rankBuckets(
+  byParent: Map<Element | null, Element[]>,
+  from: StaggerFrom,
+  ledgers: LedgerSet,
+  warnings: string[],
+): number {
   let maxRank = 0
   for (const siblings of byParent.values()) {
     const ranks = staggerRanks(siblings.length, from, warnings)
@@ -672,11 +704,7 @@ export function indexTargetGroup(
       if (rank > maxRank) maxRank = rank
     }
   }
-  // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
-  // largest offset in the group, not the member count, and the two only coincide for `start`.
-  ledgers.style(host).set('--kui-stagger-count', String(maxRank + 1))
-
-  for (const warning of warnings) reporter?.warn(warning, host)
+  return maxRank
 }
 
 /**
@@ -706,7 +734,7 @@ function animatedChildren(group: Element): HTMLElement[] {
  * requirement, not an optimisation. Indexing an element that declares no group would publish
  * `--kui-stagger-count: 1` onto it, and that property is deliberately not reset in `kui.tokens`
  * because groups publish it *to be inherited*. Writing 1 onto a staggered child would shadow its
- * own group's real count, and `compile.ts`'s `staggerDelay` reads it off that very child to size a
+ * own group's real count, and `declarations.ts`'s `staggerDelay` reads it off that very child to size a
  * `timeline: pin` scrub head — so every pinned staggered group would collapse its head back to one
  * duration and strand the later children short of their final frame.
  *

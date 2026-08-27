@@ -112,7 +112,7 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
         // these values, so handing it unscreened author input was both a type lie and the exact
         // hole `params.ts` exists to close.
         //
-        // Timing rides alongside rather than inside the parameter record: `compile.pushTrack` reads
+        // Timing rides alongside rather than inside the parameter record: `declarations.ts`'s `pushTrack` reads
         // it off the spec for CSS-rendered effects, and a JS-rendered one has no other route to it
         // — merging it into the record instead would warn "unknown parameter" on every primitive
         // whose schema does not happen to declare a look-alike `duration`/`delay`/`ease`.

@@ -1,33 +1,23 @@
 // @vitest-environment node
 //
 // Static analysis of the shipped stylesheets — no DOM required. The node environment is not
-// optional here: under jsdom, `import.meta.url` is an http: URL and `fileURLToPath` throws.
+// optional here: `./support/css-sources.js` reads them at module scope, and under jsdom
+// `import.meta.url` is an http: URL that `fileURLToPath` throws on.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { BREAKPOINTS } from '../src/core/breakpoints.js'
-import { PRESETS } from '../src/effects/catalog/core.js'
-import { AMBIENT_PRESETS } from '../src/effects/catalog/ambient.js'
-import { DISCRETE_PRESETS } from '../src/effects/catalog/discrete.js'
-import { FEEDBACK_PRESETS } from '../src/effects/catalog/feedback.js'
-import { INTERACTION_PRESETS } from '../src/effects/catalog/interaction.js'
-import { MEDIA_PRESETS } from '../src/effects/catalog/media.js'
-import { NUMBERS_PRESETS } from '../src/effects/catalog/numbers.js'
-import { TEXT_PRESETS } from '../src/effects/catalog/text.js'
-import { FORMS_PRESETS } from '../src/effects/forms/index.js'
-import { NAVIGATION_PRESETS } from '../src/effects/navigation/index.js'
 import { SCROLL_PRESETS } from '../src/effects/scroll-mechanics/presets.js'
-import { MOTION_PATH_PRESETS } from '../src/effects/motion-path/index.js'
-import { SVG_PRESETS } from '../src/effects/svg/index.js'
-import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import { extractHostAnimationBindings, readBalancedBlock } from './support/css-scan.js'
 import {
-  extractBaseRuleProperties,
-  extractHostAnimationBindings,
-  extractKeyframes,
-  readBalancedBlock,
-  stripComments,
-} from './support/css-scan.js'
+  ALL_PRESETS,
+  baseRules,
+  EFFECT_FILES,
+  keyframes,
+  scannedCss,
+  SOURCES,
+} from './support/css-sources.js'
 import { catalogRegistry } from './support/registry.js'
 
 /**
@@ -44,90 +34,18 @@ import { catalogRegistry } from './support/registry.js'
  * it and the collision detector waved the pair through. `feedback-dot-pulse` under-declared
  * `background`/`shadow` because nothing checked its static rule against its channels — see
  * `catalog-feedback.test.ts` for the regression coverage.
- */
-
-/**
- * Stylesheets scanned for both the keyframe-channel and static-rule-channel invariants below.
  *
- * `media.css` and `text.css` were once excluded because the properties their `mask`/`font`
- * channels write (`mask-image`/`mask-position`/`mask-size`, `font-weight`/`font-stretch`/
- * `font-style`) had no entry in `CHANNEL_PROPERTIES`. Both channels are mapped now — see
- * `./support/channel-properties.js` — so every catalog stylesheet is audited here.
- *
- * `tween.css` is the one stylesheet deliberately outside this list, and not because it is exempt.
- * Every check below joins a keyframe block to a primitive through `Preset.keyframes`, and the
- * generic tween has no such field: its blocks are chosen per attribute by `variantFor`, and its
- * channels are read off that attribute too, so there is no preset here to compare a block against.
- * The same two invariants are asserted against it in `tween.test.ts`, using this same
- * `CHANNEL_PROPERTIES` map.
+ * The stylesheets themselves, and the joined/comment-stripped scan of them, live in
+ * `./support/css-sources.js` — shared with `css-requires-own-subtree.test.ts`, which scans the
+ * same catalog for the opposite kind of fact.
  */
-const EFFECT_FILES = [
-  'entrance.css',
-  'scroll.css',
-  'feedback.css',
-  'ambient.css',
-  'interaction.css',
-  'discrete.css',
-  'layout.css',
-  'numbers.css',
-  'forms.css',
-  'navigation.css',
-  'three-d.css',
-  'media.css',
-  'text.css',
-  'svg.css',
-  'motion-path.css',
-]
-
-/**
- * All stylesheets are read once at module scope. Reading them lazily inside a test fails under
- * the jsdom environment, where `import.meta.url` is no longer a `file:` URL.
- */
-const SOURCES = new Map<string, string>(
-  ['base.css', ...EFFECT_FILES].map((file) => [
-    file,
-    readFileSync(fileURLToPath(new URL(`../src/css/${file}`, import.meta.url)), 'utf8'),
-  ]),
-)
-
-/**
- * Every preset across the catalogs scanned by `EFFECT_FILES`, so the widened checks below
- * validate real presets instead of silently skipping everything outside the original
- * entrance/scroll matrix. Skip guards (`if (!resolved) continue`) make it safe to include a
- * preset here whose stylesheet isn't in `EFFECT_FILES` — it just never matches a rule.
- */
-const ALL_PRESETS = [
-  ...PRESETS,
-  ...AMBIENT_PRESETS,
-  ...FEEDBACK_PRESETS,
-  ...INTERACTION_PRESETS,
-  ...DISCRETE_PRESETS,
-  ...MEDIA_PRESETS,
-  ...NUMBERS_PRESETS,
-  ...TEXT_PRESETS,
-  ...FORMS_PRESETS,
-  ...NAVIGATION_PRESETS,
-  ...SVG_PRESETS,
-  ...MOTION_PATH_PRESETS,
-  ...THREE_D_PRESETS,
-]
 
 /** The union of every property any channel tracks — used to keep the static-rule scan below from
- * flagging box-model/layout declarations (`display`, `width`, `border`) or custom properties
- * (`--kui-fx-*-iterations`) that the channel model was never meant to police. */
+ *  flagging box-model/layout declarations (`display`, `width`, `border`) or custom properties
+ *  (`--kui-fx-*-iterations`) that the channel model was never meant to police. */
 const TRACKED_PROPERTIES = new Set(Object.values(CHANNEL_PROPERTIES).flat())
 
-// Comment-stripped before any scan runs — see `stripComments`'s own doc comment. Without this, a
-// retired preset's CSS kept commented-out for reference (`ambient.css`'s `noise-overlay` cut is
-// the live example) reads to every regex below as if it were still shipping: its `@keyframes`
-// block looked like a real, orphaned one to `extractKeyframes`, and its `animation:`/`[data-kui-fx~=]`
-// text would have been equally readable by `extractBaseRuleProperties`/`extractHostAnimationBindings`
-// and the `inlineAnimationRefs` scan just below, had either happened to collide with something live.
-const scannedCss = stripComments(EFFECT_FILES.map((file) => SOURCES.get(file)).join('\n'))
-const keyframes = extractKeyframes(scannedCss)
-const baseRules = extractBaseRuleProperties(scannedCss)
 const registry = catalogRegistry()
-
 /** `channels` a resolved preset's primitive is allowed to write, as concrete CSS property names. */
 function allowedProperties(primitiveChannels: readonly string[]): Set<string> {
   return new Set(primitiveChannels.flatMap((channel) => CHANNEL_PROPERTIES[channel] ?? []))
@@ -698,118 +616,5 @@ describe('motion path', () => {
     expect(body).toEqual(new Set(['offset-distance']))
     expect(css).toContain('var(--kui-motion-from, 0%)')
     expect(css).toContain('var(--kui-motion-to, 100%)')
-  })
-})
-
-/**
- * `Preset.requiresOwnSubtree` un-driftable — docs/plan-scope-page.md §0.3/§7.
- *
- * `target:` relocates `data-kui-fx` onto whatever a selector matches. A preset whose CSS reaches
- * past the fx-stamped element — to a child, a sibling, or a descendant it assumes exists — cannot
- * survive that: the relocated rule looks for the same relative shape under a different element and,
- * finding none, compiles to silence. `compile.ts`'s `liftTarget` refuses to relocate any preset that
- * declares this, but the declaration itself is hand-maintained data, and hand-maintained data drifts
- * the moment someone adds a reaching selector for a name that never opted in.
- *
- * So the true set is *re-derived* here, from the shipped stylesheets, independently of the flags —
- * scanning for every `[data-kui-fx~='NAME']` followed, in the same selector (before the next `,` or
- * `{`), by a combinator (whitespace, `>`, `~`, `+`) and then more selector text. That is a name whose
- * CSS assumes something exists beyond the fx element itself, and every such name must carry
- * `requiresOwnSubtree: true`. A future CSS edit that reaches past a name without also flagging it
- * fails this test instead of silently compiling `target:` on that name to nothing.
- *
- * Known, deliberate blind spot: a combinator written *inside* a `:has()`/`:not()` argument —
- * `:has(> :nth-child(2))` — is not counted, because it is indistinguishable here from an ordinary
- * same-compound pseudo-class. Every name in today's stylesheets that uses that form (`card-flip-x`,
- * `card-flip-y`, `flip-card`, in three-d.css) also reaches past itself through a *plain* trailing
- * combinator elsewhere in the same file, so this scan still finds all of them — verified by the
- * "matches the hand-maintained list" assertion below, which would fail the day that stops being true.
- */
-describe('requiresOwnSubtree — the reaching-selector set is re-derived, not trusted', () => {
-  /**
-   * Every preset name reached by a `[data-kui-fx~='NAME']` compound that a combinator carries past
-   * itself, anywhere in the shipped effect stylesheets.
-   *
-   * @complexity O(n) time in total stylesheet length; O(k) space in matches found.
-   * @overallScore 100
-   */
-  function reachingPastSelf(css: string): Set<string> {
-    const names = new Set<string>()
-    const re = /\[data-kui-fx~='([\w-]+)'\]/g
-    for (const match of css.matchAll(re)) {
-      const name = match[1]!
-      let depth = 0
-      let sawCombinator = false
-      let sawRealContent = false
-      for (let i = match.index + match[0].length; i < css.length; i++) {
-        const ch = css[i]!
-        if (depth === 0) {
-          if (ch === ',' || ch === '{') break
-          if (/\s/.test(ch) || ch === '>' || ch === '~' || ch === '+') sawCombinator = true
-          else if (sawCombinator) sawRealContent = true
-        }
-        if (ch === '(' || ch === '[') depth++
-        else if (ch === ')' || ch === ']') depth--
-      }
-      if (sawCombinator && sawRealContent) names.add(name)
-    }
-    return names
-  }
-
-  // The full shipped catalog, not `scannedCss` — that constant deliberately excludes `base.css`
-  // (it is scanned separately by the channel-invariant checks above), but `base.css` is exactly
-  // where 12 of these 87 reaching selectors live (`checkbox-draw`/`radio-fill`/`toggle-morph`'s
-  // native-form-state family). Comments stripped for the same reason `scannedCss` is: a retired
-  // selector kept for reference must not read as a live one.
-  const allCatalogCss = stripComments([...SOURCES.values()].join('\n'))
-  const reaching = [...reachingPastSelf(allCatalogCss)].sort((a, b) => a.localeCompare(b))
-
-  it('finds names to guard, so this suite cannot pass vacuously', () => {
-    expect(reaching.length).toBeGreaterThan(0)
-  })
-
-  it('matches the hand-maintained list exactly — 16 names, unchanged since the plan measured them', () => {
-    // Not a tautology: this is `scannedCss`, read straight from `src/css/*.css`, compared against a
-    // literal list transcribed from `docs/plan-scope-page.md` §0.3 by a human, not derived from the
-    // scan itself. A drift in either direction — a 17th reaching name, or one of these 16 stopping
-    // to reach past itself — fails here first.
-    expect(reaching).toEqual(
-      [
-        'card-flip-x',
-        'card-flip-y',
-        'checkbox-draw',
-        'flip-card',
-        'hamburger-to-x',
-        'input-underline-grow',
-        'label-float',
-        'play-to-pause',
-        'plus-to-minus',
-        'radio-fill',
-        'sequence-scrub',
-        'step-progress',
-        'strength-meter',
-        'submit-to-spinner-to-check',
-        'toggle-morph',
-        'video-scrub',
-      ].sort((a, b) => a.localeCompare(b)),
-    )
-  })
-
-  it.each(reaching)('%s declares requiresOwnSubtree, so target: refuses to relocate it', (name) => {
-    const resolved = registry.resolve(name)
-    expect(resolved, `"${name}" is not a registered preset`).toBeDefined()
-    expect(resolved!.preset.requiresOwnSubtree, `"${name}" reaches past itself in CSS`).toBe(true)
-  })
-
-  it('never flags a name whose CSS never reaches past itself', () => {
-    // The other direction of the same drift: a name that no longer needs the refusal but still
-    // carries it is not a correctness bug — `liftTarget` just declines a `target:` that would have
-    // worked — but it is exactly the kind of stale declaration this file exists to catch before it
-    // becomes a mystery bug report ("target: silently does nothing on X").
-    const overFlagged = registry
-      .names()
-      .filter((name) => registry.resolve(name)?.preset.requiresOwnSubtree === true)
-      .filter((name) => !reaching.includes(name))
-    expect(overFlagged).toEqual([])
   })
 })

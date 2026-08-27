@@ -36,7 +36,7 @@ import { HOVER_TRANSITIONS, parallaxOffset, supportsFineHover, tiltAngles } from
  *
  * "Near"-no-op because of one thing only: the positional spelling of timing. `lift duration:400ms`
  * reaches the stylesheet on its own (`resolveParams` writes every `key:value` override inline),
- * but `lift 400ms` does not — `compile.pushTrack`, which is what turns the positional tokens into
+ * but `lift 400ms` does not — `declarations.ts`'s `pushTrack`, which is what turns the positional tokens into
  * declarations, runs for `css-keyframes` primitives and no others. So `stylesheetTimingPrepare`
  * mirrors the positional tokens onto the same namespaced properties the rules already read, and
  * warns for the ones a given rule pins. See `effects/shared.ts`.

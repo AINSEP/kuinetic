@@ -322,7 +322,7 @@ export function inertInstance(destroy: Cleanup = () => {}): EffectInstance {
  *
  * Separate from `EffectParams` because it is not a parameter: it is not declared in any
  * `ParameterSchema`, it means the same thing for every effect, and the CSS renderer already reads
- * it straight off the `EffectSpec` in `compile.pushTrack`. A JS-rendered primitive gets the same
+ * it straight off the `EffectSpec` in `declarations.ts`'s `pushTrack`. A JS-rendered primitive gets the same
  * three values here rather than having to declare look-alike parameters of its own.
  *
  * Every field is optional and `undefined` means *the author named none* — a primitive must be able
@@ -503,7 +503,7 @@ export interface Primitive {
 
 /**
  * One property a preset transitions on its own host box — the `data-kui-fx` element itself, never
- * a pseudo-element, sibling, or descendant. `compile.ts`'s `pushTransitions` reads these to build
+ * a pseudo-element, sibling, or descendant. `declarations.ts`'s `pushTransitions` reads these to build
  * the merged `--kui-transition` custom property `base.css`'s one `:where([data-kui-fx])` rule
  * consumes; see that rule's comment for why the merge has to happen here rather than in CSS.
  */
