@@ -255,9 +255,10 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
  * identical delay. 69 groups across 16 demo pages were inert this way, each one warning to the
  * silent default reporter.
  *
- * Only `cascade`/`spread`/`order` qualify. The other hoists (`on:`, `timeline:`, `threshold:`,
- * `rm:`) do nothing on an element with no effect to apply them to, so accepting a bare `on:enter`
- * here would turn a real typo — a dropped effect name — into silence.
+ * Only the group keys qualify — `cascade`, `spread`, `order`, `cols`, `along`. The other hoists
+ * (`on:`, `timeline:`, `threshold:`, `rm:`) do nothing on an element with no effect to apply them
+ * to, so accepting a bare `on:enter` here would turn a real typo — a dropped effect name — into
+ * silence.
  *
  * @param first - The segment's first token, already known to split as `key:value`.
  * @param rest - The remaining tokens, untouched.
@@ -281,7 +282,13 @@ function applyGroupOnlySegment(first: string, rest: string[], result: ParsedValu
 }
 
 /** The hoists that can stand alone as a whole attribute. See `applyGroupOnlySegment`. */
-const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set(['cascade', 'spread', 'order'])
+const GROUP_ONLY_HOISTS: ReadonlySet<string> = new Set([
+  'cascade',
+  'spread',
+  'order',
+  'cols',
+  'along',
+])
 
 /**
  * Assign a positional time value. The first is the duration, the second the delay — the same
@@ -533,6 +540,26 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
     assignOnce(result, 'order', value, 'stagger orders')
   },
   /**
+   * The group's column count, which is what makes `order:center` mean the middle *cell* rather than
+   * the middle *index*. Unvalidated here for `order`'s reason: `cols:auto` is only resolvable
+   * against a laid-out group, and the count that is legal depends on the group size, so the whole
+   * diagnostic lives in `stagger.ts` where both are known.
+   */
+  cols(result, value) {
+    assignOnce(result, 'cols', value, 'stagger column counts')
+  },
+  /**
+   * The axis a grid stagger is restricted to.
+   *
+   * Spelled `along:` rather than GSAP's `axis:` for the same reason `order:` is not `from:`: `axis`
+   * is a parameter on four primitives (`parallax`, `slat-assemble`, and both draggables) and a
+   * hoisted key never reaches `spec.params`, so lifting the word element-wide would make
+   * `data-kui="parallax-y axis:x"` unwritable. `data-kui-stagger` accepts both spellings.
+   */
+  along(result, value) {
+    assignOnce(result, 'along', value, 'stagger axes')
+  },
+  /**
    * The one hoist that is not a move.
    *
    * `data-kui-rm` is *output*, not input: `style-plan.ts` stamps it from `plan.reducedMotion`,
@@ -608,7 +635,17 @@ function warnStepMode(
  * @overallScore 100
  */
 function assignOnce<
-  K extends 'activation' | 'timeline' | 'threshold' | 'cascade' | 'spread' | 'order' | 'rm' | 'func',
+  K extends
+    | 'activation'
+    | 'timeline'
+    | 'threshold'
+    | 'cascade'
+    | 'spread'
+    | 'order'
+    | 'cols'
+    | 'along'
+    | 'rm'
+    | 'func',
 >(
   result: ParsedValue,
   key: K,

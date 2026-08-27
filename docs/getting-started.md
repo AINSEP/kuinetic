@@ -167,6 +167,8 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `cascade:` | delay increment applied to this element's animated children | `cascade:60ms` |
 | `spread:` | total time the whole cascade may take, however many children there are | `spread:600ms` |
 | `order:` | where the cascade starts | `cascade:60ms order:center` |
+| `cols:` | the group's column count, so the ordering is 2D — or `auto` to measure it | `cols:6 order:center` |
+| `along:` | restrict a grid cascade to one axis | `cols:6 along:x` |
 | `rm:` | reduced-motion policy for this element; may only be made *stricter* | `spin rm:disable` |
 | `func:` | name a global function to call when this element finishes — see [below](#calling-a-function-when-it-finishes) | `fade-up func:onReveal` |
 
@@ -432,6 +434,43 @@ leaves the step to CSS, and `data-kui-stagger="90ms"` is the plain stagger every
 The two attributes are merged **per key**, so a parent may carry the step on one and the ordering on
 the other; where they disagree about the same key, `data-kui` wins and the displaced value is named
 in a warning.
+
+### Staggering across a grid — `cols:`
+
+Everything above ranks children by **DOM index**, which is the right answer for a list and the
+wrong one for a grid: on four rows of six, `order:center` fans out from child 11 — somewhere in the
+middle of row two — rather than from the middle cell. Tell the group how wide it is and the same
+orderings become real 2D proximity:
+
+```html
+<div class="grid" data-kui="fade-up cascade:60ms cols:6 order:center">
+<div class="grid" data-kui-stagger="60ms order:center cols:auto">
+```
+
+`cols:auto` measures the laid-out children instead, which is the case a fixed number cannot serve —
+a grid that is four columns wide on a desktop and two on a phone.
+
+Once a group has a grid:
+
+- **`center` and `edges` become concentric**: `center` blooms outward from the middle cell,
+  `edges` closes inward from the border of the block. `end` is the bottom-right corner.
+- **`order:` also takes a point**, as `x/y` fractions of the grid: `order:1/0` is the top-right
+  corner, `order:0.5/0.5` the middle, `order:0/1` the bottom-left. A slash rather than a comma so
+  it needs no quoting in either attribute. Fractions rather than cell coordinates so the same
+  attribute keeps meaning the same thing when the grid reflows to a different width.
+- **`along:x` or `along:y` restricts the wave to one axis** — `x` staggers strictly by column
+  whatever row a child is in, so the grid wipes left to right in hard columns; `y` does the same by
+  row. `data-kui-stagger` also accepts GSAP's word for it, `axis:`. Inside `data-kui` it has to be
+  `along:`, because `axis` is already an effect parameter (`parallax-y axis:x`).
+- **The step becomes a gap per unit of cell distance, not per item.** A child two columns and one
+  row away starts `√5 × step` after the origin. `spread:` composes with this correctly — the budget
+  is divided by the largest distance, so the group still finishes on time.
+- **`cols:auto` is measured when the group is scanned, and a later resize does not re-measure it.**
+  It re-measures on any `scan()`, which covers DOM changes but not a bare window resize. If the
+  exact wave at every width matters more than convenience, write the number.
+- **A group with no layout yet cannot be measured** — `display: none`, or a detached subtree — and
+  says so rather than guessing; the ordering falls back to DOM index.
+- `random` ignores the grid, because a scatter is a scatter in any shape.
 
 Five things worth knowing:
 

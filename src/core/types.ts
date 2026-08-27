@@ -656,6 +656,20 @@ export interface ParsedValue {
   /** Where the stagger wave starts — `data-kui-stagger`'s `from:`, under a name `data-kui` can hold. */
   order?: string
   /**
+   * The stagger group's column count, or `auto` to measure it — what turns `order:` from a rank
+   * over DOM index into a rank over distance through a real 2D layout.
+   *
+   * Raw text, validated in `stagger.ts` beside the `order:` it modifies: the two are one
+   * diagnostic, and splitting them across two modules would mean an author reading half a message.
+   */
+  cols?: string
+  /**
+   * Restrict a grid stagger to one axis — `x` or `y`. Spelled `along:` rather than GSAP's `axis:`
+   * because `axis` is already a parameter on four primitives and a hoisted key never reaches
+   * `spec.params`; `data-kui-stagger` accepts both words.
+   */
+  along?: string
+  /**
    * Author-chosen reduced-motion policy, folded into the primitives' own by `compile.ts`.
    *
    * Validated at parse time (unlike `cascade`/`order`) because it is a closed three-value set with
