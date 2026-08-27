@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — skipped-crossing fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      .spacer { height: 3300px; background: #f4f4f4; }
+      .tail { height: 3200px; background: #e8e8ee; }
+      .target { height: 60px; background: #333; color: #fff; }
+    </style>
+    <script>
+      // Wrapped before kuinetic.js loads, so a failure can be read as either "the browser never
+      // delivered an entry" or "the library mishandled the entry it got". The suite asserts both
+      // halves: the skip is a fact about the observer, the classification is the library's.
+      window.__ioLog = []
+      var Native = window.IntersectionObserver
+      window.IntersectionObserver = function (cb, opts) {
+        return new Native(function (entries, obs) {
+          for (var i = 0; i < entries.length; i++) {
+            var e = entries[i]
+            if (!/^t[0-9]$/.test(e.target.id)) continue
+            window.__ioLog.push({
+              id: e.target.id,
+              hit: e.isIntersecting,
+              boxTop: Math.round(e.boundingClientRect.top),
+              boxBottom: Math.round(e.boundingClientRect.bottom),
+              rootBottom: e.rootBounds ? Math.round(e.rootBounds.bottom) : null,
+              y: Math.round(window.scrollY),
+            })
+          }
+          return cb(entries, obs)
+        }, opts)
+      }
+      window.IntersectionObserver.prototype = Native.prototype
+    </script>
+  </head>
+  <body>
+    <div class="spacer"></div>
+    <!--
+      `none` for `enter` against `play` for `enter-back` is the only pair that discriminates here.
+      The obvious `play/.../complete` pair does not: `complete` on an element that never started is
+      defined to be exactly `activate()` (`toggle-actions.ts`'s `applyPlayheadVerb`), so it is
+      indistinguishable from `play` — and an element whose `enter` was skipped is, by definition,
+      one that never started.
+    -->
+    <div id="t1" class="target" data-kui="fade-up 3000ms on:enter actions:none/reset/play/none">t1</div>
+    <div class="tail"></div>
+    <div style="height: 1200px"></div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+      window.__read = function () {
+        var el = document.getElementById('t1')
+        var a = el.getAnimations()[0]
+        var box = el.getBoundingClientRect()
+        return {
+          y: Math.round(window.scrollY),
+          docTop: Math.round(box.top + window.scrollY),
+          vh: window.innerHeight,
+          playState: a ? a.playState : 'none',
+          deliveries: window.__ioLog.length,
+          last: window.__ioLog[window.__ioLog.length - 1] || null,
+        }
+      }
+      window.__jump = function (y) {
+        window.scrollTo({ top: y, behavior: 'instant' })
+      }
+    </script>
+  </body>
+</html>
