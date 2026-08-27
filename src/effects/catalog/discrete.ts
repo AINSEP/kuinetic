@@ -60,9 +60,15 @@ const discreteTiming: ParameterSchema = {
 /** Every primitive here honours all three timing tokens, so this reason is never actually shown. */
 const PINNED_REASON = 'discrete.css pins that value on this effect'
 
-/** `scale`, namespaced per primitive so `pop-open scale:0.5` never leaks into `scale-open`. */
-function scaleParam(cssProperty: string): ParameterSchema {
-  return { scale: { type: 'number', default: '0.92', cssProperty, finite: true, minimum: 0 } }
+/**
+ * `scale`, namespaced per primitive so `pop-open scale:0.5` never leaks into `scale-open`.
+ *
+ * The default is per-primitive rather than shared because scale reads differently depending on
+ * what travels with it: `pop-open` fades at the same time, so 0.92 is plenty of movement, while
+ * `scale-open` is scale alone and 0.92 is imperceptible — it needs to go further to register.
+ */
+function scaleParam(cssProperty: string, defaultValue: string): ParameterSchema {
+  return { scale: { type: 'number', default: defaultValue, cssProperty, finite: true, minimum: 0 } }
 }
 
 /** `distance`, namespaced the same way, for the translate-carrying members. */
@@ -95,14 +101,16 @@ export const DISCRETE_PRIMITIVES: Primitive[] = [
   // Opacity + scale together, matching the real-world "popover/toast" pop-in — the plan's own
   // worked example. `scale-open` below is the scale-only sibling for an element that should grow
   // into place without also fading, the same split `core.ts` draws between `fade-in` and `zoom-in`.
-  discretePrimitive('pop-open', ['opacity', 'scale', 'discrete'], scaleParam('--kui-pop-open-scale')),
-  discretePrimitive('scale-open', ['scale', 'discrete'], scaleParam('--kui-scale-open-scale')),
-  // A small upward-then-settle drop, the conventional dropdown-menu entrance (Radix/Headless UI
-  // both default to roughly this distance). Deliberately smaller than the slide pair below.
+  discretePrimitive('pop-open', ['opacity', 'scale', 'discrete'], scaleParam('--kui-pop-open-scale', '0.92')),
+  discretePrimitive('scale-open', ['scale', 'discrete'], scaleParam('--kui-scale-open-scale', '0.85')),
+  // A small upward-then-settle drop, the conventional dropdown-menu entrance. Radix/Headless UI
+  // default to roughly half this, but they animate a menu against a page that is holding still;
+  // at 8px here the travel was swamped by the fade and the effect was indistinguishable from
+  // `fade-open`. Still deliberately smaller than the slide pair below.
   discretePrimitive(
     'drop-open',
     ['opacity', 'translate', 'discrete'],
-    distanceParam('--kui-drop-open-distance', '8px'),
+    distanceParam('--kui-drop-open-distance', '12px'),
   ),
   // "-up"/"-down" name the direction of travel, the same convention `core.ts`'s `fade-up`/
   // `fade-down` use: `slide-open-up` starts below rest and arrives travelling upward.
