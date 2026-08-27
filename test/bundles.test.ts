@@ -212,6 +212,25 @@ describe('data-kui-define — precedence', () => {
     `)
     expect(el().style.getPropertyValue('animation-duration')).toBe('900ms')
   })
+
+  it('carries a repeat: written inside the definition', () => {
+    // `repeat:`/`yoyo:` are lifted onto the spec like `at:` and the gate, so `overlay` has to name
+    // them field by field — a spread would not reach them and the bundle's own count would vanish.
+    build(`
+      <template data-kui-define="pulse-thrice" data-kui="fade-up repeat:3 yoyo:true"></template>
+      <div id="use" data-kui="pulse-thrice"></div>
+    `)
+    expect(el().style.getPropertyValue('animation-iteration-count')).toBe('3')
+    expect(el().style.getPropertyValue('animation-direction')).toBe('alternate')
+  })
+
+  it('lets the usage site override the bundle repeat', () => {
+    build(`
+      <template data-kui-define="thrice" data-kui="fade-up repeat:3"></template>
+      <div id="use" data-kui="thrice repeat:5"></div>
+    `)
+    expect(el().style.getPropertyValue('animation-iteration-count')).toBe('5')
+  })
 })
 
 describe('data-kui-define — hoisted keys', () => {
