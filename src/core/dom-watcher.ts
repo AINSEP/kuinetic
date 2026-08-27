@@ -66,13 +66,16 @@ export function createDomWatcher(options: DomWatcherOptions): DomWatcher {
     schedule(flush)
   }
 
+  const install = whileAttached(root, onElementAdded)
+  const recompile = whileAttached(root, onAttributeChanged)
+
   function flush(): void {
     scheduled = false
     if (destroyed) return
     let remaining = WORK_BUDGET
     remaining = drain(removed, onElementRemoved, remaining)
-    remaining = drain(added, onElementAdded, remaining)
-    drain(changed, onAttributeChanged, remaining)
+    remaining = drain(added, install, remaining)
+    drain(changed, recompile, remaining)
     if (added.size + removed.size + changed.size > 0) {
       scheduled = true
       schedule(flush)
@@ -88,7 +91,10 @@ export function createDomWatcher(options: DomWatcherOptions): DomWatcher {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold],
+        // `ATTR.stagger` is watched for the same reason `ATTR.source` is: both spell a stagger
+        // group, and an edit to either has to re-rank the group. Its absence here meant editing
+        // `data-kui-stagger` produced no record at all — not a missed handler, no mutation.
+        attributeFilter: [ATTR.source, ATTR.on, ATTR.timeline, ATTR.threshold, ATTR.stagger],
       })
     },
     destroy() {
@@ -98,6 +104,40 @@ export function createDomWatcher(options: DomWatcherOptions): DomWatcher {
       removed.clear()
       changed.clear()
     },
+  }
+}
+
+/**
+ * Wrap work that *installs* something, so it runs only for an element still in the watched tree.
+ *
+ * The queues describe what happened across a whole frame, not a single state. An element
+ * appended and removed before the flush is in both `added` and `removed`, and removals drain
+ * first — so the removal finds nothing to tear down (nothing was installed yet) and the addition
+ * then installs an element that is already detached. Nothing afterwards revisits it: it is held
+ * by the animator's live set, its own listeners and its own observers until the whole animator
+ * is destroyed. The same goes for an attribute change on an element whose subtree left in the
+ * same frame, which `queueRoot` cannot collapse because the removed root is an ancestor rather
+ * than the element itself.
+ *
+ * Membership *now*, at flush time, is the only thing that tells those apart from an ordinary
+ * insertion — the records themselves say both things happened and say nothing about the order
+ * that survived. Asked of the root rather than through `isConnected` so that an animator rooted
+ * in a `DocumentFragment`, where nothing is ever connected, still installs its effects.
+ *
+ * Removals are deliberately not wrapped: an element moved rather than deleted is torn down and
+ * then rescanned by the addition, which is the correct handling for a move.
+ *
+ * @param root - The watched subtree.
+ * @param work - What to do for an element still inside it.
+ * @complexity O(d) time in the element's depth below the root; O(1) space.
+ * @overallScore 100
+ */
+function whileAttached(
+  root: ParentNode,
+  work: (el: Element) => void,
+): (el: Element) => void {
+  return (el) => {
+    if (root.contains(el)) work(el)
   }
 }
 

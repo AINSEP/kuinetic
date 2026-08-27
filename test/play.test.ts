@@ -3,6 +3,7 @@ import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
 import { defaultCapabilities } from '../src/core/capabilities.js'
+import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { play, resolveTargets, toAttributeValue } from '../src/core/play.js'
 import type { PlayOptions } from '../src/core/play.js'
@@ -156,8 +157,16 @@ describe('toAttributeValue — timing and shape', () => {
     expect(toAttributeValue('fade', { duration: '0.3s' })).toBe('fade 0.3s')
   })
 
-  it('emits a synthetic 0ms duration so a delay with no duration is not misread as the duration', () => {
-    expect(toAttributeValue('fade', { delay: 100 })).toBe('fade 0ms 100ms')
+  it('names a delay with no duration rather than claiming a duration the caller never gave', () => {
+    // Positional times are ordered duration-then-delay, so `fade 100ms` would be read as a 100ms
+    // *duration*. Holding the slot with a synthetic `0ms` answered that by saying something else
+    // untrue: the effect waited and then completed instantly, with the preset's own duration
+    // replaced by zero. The named spelling leaves the duration where the preset put it.
+    expect(toAttributeValue('fade', { delay: 100 })).toBe('fade delay:100ms')
+  })
+
+  it('keeps the positional spelling when a duration was actually given', () => {
+    expect(toAttributeValue('fade', { duration: 300, delay: 100 })).toBe('fade 300ms 100ms')
   })
 
   it('orders duration, delay, easing, then parameters', () => {
@@ -177,8 +186,33 @@ describe('toAttributeValue — timing and shape', () => {
   })
 
   it('skips an explicitly-undefined option instead of emitting a bogus token', () => {
-    expect(toAttributeValue('fade', { distance: undefined, delay: 50 })).toBe('fade 0ms 50ms')
+    expect(toAttributeValue('fade', { distance: undefined, delay: 50 })).toBe('fade delay:50ms')
   })
+
+  it('leaves the preset\u2019s own duration in place, which is what the synthetic zero replaced', () => {
+    // The defect end to end: `play(el, 'fade-up', { delay: 500 })` compiled to a zero-length
+    // animation that waited half a second and then completed instantly.
+    const plan = compile(parse(toAttributeValue('fade-up', { delay: 500 })), catalogRegistry(), 'time')
+    expect(plan.declarations['animation-duration']).toBe('var(--kui-reveal-duration, 600ms)')
+    expect(plan.warnings).toEqual([])
+  })
+
+  // Three delays, because the bug was in the *duration* slot and a single value would pass for a
+  // fix that hardcoded one. What must hold for all of them: the delay arrives as a delay, and the
+  // duration slot stays empty so the preset's own duration survives.
+  for (const delay of [50, 500, 2000]) {
+    it(`parses a ${delay}ms delay-only play back as a delay, leaving the duration unset`, () => {
+      const parsed = parse(toAttributeValue('fade-up', { delay }))
+      const spec = parsed.specs[0]!
+      expect(parsed.warnings).toEqual([])
+      expect(parsed.specs).toHaveLength(1)
+      expect(spec.name).toBe('fade-up')
+      // Unset, not zero: `undefined` is what makes the compiler emit
+      // `var(--kui-<id>-duration, 600ms)` and keep the preset's own timing.
+      expect(spec.duration).toBeUndefined()
+      expect(spec.params.delay).toBe(`${delay}ms`)
+    })
+  }
 
   it('serializes a numeric parameter as a bare number', () => {
     expect(toAttributeValue('fade', { count: 3 })).toBe('fade count:3')

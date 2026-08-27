@@ -460,6 +460,134 @@ describe('at: — composition with stagger', () => {
   })
 })
 
+/**
+ * Where the pin scrub actually leaves each track's playhead.
+ *
+ * Asserted as arithmetic rather than as a string, deliberately. The compiled delay is symbolic on
+ * purpose — `var(--kui-reveal-duration, 600ms)` rather than `600ms`, so a consumer stylesheet can
+ * still restyle it — and pinning its spelling says nothing about the thing that was wrong, which is
+ * *which frame progress 1 lands on*. Substituting each `var()`'s own fallback and doing the sum is
+ * what a browser does with the same declaration on an element nobody has restyled.
+ */
+describe('timeline:pin — where the scrub head leaves the playhead', () => {
+  /** A time token's milliseconds, or the token unchanged when it was never a number. */
+  function numberOr(token: string, amount: string, scale: number): string {
+    const value = amount === '' ? Number.NaN : Number(amount)
+    return Number.isNaN(value) ? token : String(value * scale)
+  }
+
+  /** One token of a compiled `calc()`, rewritten as something JavaScript can evaluate. */
+  function asNumber(token: string): string {
+    if (token === 'calc') return ''
+    if (token === 'max') return 'Math.max'
+    if (token.endsWith('ms')) return numberOr(token, token.slice(0, -2), 1)
+    if (token.endsWith('s')) return numberOr(token, token.slice(0, -1), 1000)
+    return token
+  }
+
+  /** Milliseconds one compiled delay expression resolves to, given the custom properties in play. */
+  function resolveMs(expression: string, vars: Record<string, string>): number {
+    let value = expression
+    // None of the compiled fallbacks contains a nested `var()`, so one pass clears them all; the
+    // bound is a guard against an expression shape that changes, not an expected iteration count.
+    for (let pass = 0; pass < 4 && value.includes('var('); pass++) {
+      value = value.replace(
+        /var\((--[\w-]+), ([^(),]*)\)/g,
+        (_match, name: string, fallback: string) => vars[name] ?? fallback.trim(),
+      )
+    }
+    // Split into tokens and convert them one at a time rather than scanning for a number-plus-unit
+    // pattern across the whole expression, which is exactly the backtracking shape
+    // `sonarjs/slow-regex` refuses. Every term in a compiled `calc()` is already delimited by
+    // whitespace, a bracket, a comma or a `*`.
+    const numeric = value
+      .split(/([\s(),*])/)
+      .map(asNumber)
+      .join('')
+    // Arithmetic only, over a string this very compiler produced two lines above: every `var()`
+    // has been replaced by its own fallback and every identifier is gone. There is no untrusted
+    // input anywhere in the chain, and the alternative is a hand-rolled expression parser living
+    // in a test file.
+    // eslint-disable-next-line sonarjs/code-eval -- compiler output, not input; see above
+    return Number(new Function(`return ${numeric}`)() as number)
+  }
+
+  /**
+   * How far through its own playback a track sits, 0 at its first frame and 1 at its last.
+   *
+   * `animation-fill-mode: both` is on every compiled track, so a delay past either end holds that
+   * end rather than snapping away — which is why this clamps instead of reporting an overshoot as
+   * a failure.
+   */
+  function frameOf(delay: string, durationMs: number, progress: number, vars = {}): number {
+    const ms = resolveMs(delay, { '--kui-progress': String(progress), ...vars })
+    return Math.min(1, Math.max(0, -ms / durationMs))
+  }
+
+  function delaysOf(source: string): string[] {
+    return splitTopLevel(run(source, 'pin').declarations['animation-delay']!, ',')
+  }
+
+  // Four shapes of sequence, not one: the reported trigger, unequal durations, an overlap, and
+  // `at:with`, where an *earlier* segment is the one that finishes last. Pinning a single
+  // `1s + 1s` case would pass for a head that just took the final segment's end.
+  const sequences = [
+    { source: 'fade-up 1s, zoom-in 1s at:after', durations: [1000, 1000] },
+    { source: 'fade-up 600ms, blur-in 400ms at:after', durations: [600, 400] },
+    { source: 'fade-up 600ms, blur-in 400ms at:-200ms', durations: [600, 400] },
+    { source: 'fade-up 600ms, blur-in 400ms at:with', durations: [600, 400] },
+    { source: 'fade-up 400ms, blur-in 400ms at:after, zoom-in 400ms at:after', durations: [400, 400, 400] },
+  ]
+
+  for (const { source, durations } of sequences) {
+    it(`puts every track of "${source}" on its final frame at progress 1`, () => {
+      const delays = delaysOf(source)
+      expect(delays).toHaveLength(durations.length)
+      for (const [index, duration] of durations.entries()) {
+        expect(frameOf(delays[index]!, duration, 1)).toBe(1)
+      }
+    })
+
+    it(`leaves every track of "${source}" on its first frame at progress 0`, () => {
+      const delays = delaysOf(source)
+      for (const [index, duration] of durations.entries()) {
+        expect(frameOf(delays[index]!, duration, 0)).toBe(0)
+      }
+    })
+  }
+
+  it('hands the head to the segment that finishes last, not to the last one written', () => {
+    // `at:with` starts the shorter second segment alongside the first, so the *first* is what the
+    // element's timeline has to span. A head built from the final segment's end would stop the
+    // first at 400/600 of its playback.
+    const [first] = delaysOf('fade-up 600ms, blur-in 400ms at:with')
+    expect(frameOf(first!, 600, 1)).toBe(1)
+  })
+
+  it('scrubs the middle of a two-segment sequence to one track ending as the next begins', () => {
+    const [first, second] = delaysOf('fade-up 1s, zoom-in 1s at:after')
+    expect(frameOf(first!, 1000, 0.5)).toBe(1)
+    expect(frameOf(second!, 1000, 0.5)).toBe(0)
+  })
+
+  // The same defect without any sequencing at all: a delay the head never spanned is subtracted
+  // from the track anyway, so progress 1 lands short by exactly that delay.
+  for (const delay of [300, 600, 1200]) {
+    it(`spans a positional ${delay}ms delay, so progress 1 is still the final frame`, () => {
+      const [only] = delaysOf(`fade-up 600ms ${delay}ms`)
+      expect(frameOf(only!, 600, 1)).toBe(1)
+      expect(frameOf(only!, 600, 0)).toBe(0)
+    })
+
+    it(`spans a cascaded ${delay}ms delay too, since the head reads the same var()`, () => {
+      const [only] = delaysOf('fade-up 600ms')
+      const restyled = { '--kui-reveal-delay': `${delay}ms` }
+      expect(frameOf(only!, 600, 1, restyled)).toBe(1)
+      expect(frameOf(only!, 600, 0, restyled)).toBe(0)
+    })
+  }
+})
+
 describe('at: — JavaScript-rendered effects', () => {
   it('resolves to a concrete delay a JS primitive can act on', () => {
     const plan = run('fade-up 600ms, count-up 400ms at:-200ms')

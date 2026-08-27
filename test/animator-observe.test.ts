@@ -134,6 +134,72 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     expect(added.hasAttribute(ATTR.normalized)).toBe(false)
   })
 
+  /**
+   * The stagger half of an attribute edit. `data-kui-stagger` was not in the watcher's
+   * `attributeFilter`, so retargeting a group produced no mutation record at all — and the
+   * `data-kui` half only ever recompiled the one element, which never touches a rank.
+   */
+  describe('a retargeted stagger group', () => {
+    // Torn down here rather than at the end of each body: an animator left observing `document.body`
+    // by a failing assertion goes on scanning the *next* test's markup, which turned a genuine
+    // failure into a pass depending on which tests ran before it.
+    const running: Animator[] = []
+    afterEach(() => {
+      for (const animator of running.splice(0)) animator.destroy()
+    })
+
+    function list(attribute: string): { animator: Animator; ul: HTMLElement } {
+      stubSyncFrame()
+      document.body.innerHTML =
+        `<ul ${attribute}>${'<li data-kui="fade-up"></li>'.repeat(5)}</ul>`
+      const animator = new Animator({
+        root: document.body,
+        registry: catalogRegistry(),
+        capabilities: CAPS,
+        binder: fakeBinder(),
+        observe: true,
+      })
+      animator.start()
+      running.push(animator)
+      return { animator, ul: document.body.firstElementChild as HTMLElement }
+    }
+
+    const ranks = (ul: HTMLElement): string[] =>
+      [...ul.children].map((li) => (li as HTMLElement).style.getPropertyValue('--kui-i'))
+
+    it('re-ranks when the longhand attribute is edited', async () => {
+      const { ul } = list('data-kui-stagger="100ms from:start"')
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4'])
+
+      ul.setAttribute(ATTR.stagger, 'spread:600ms from:center')
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['2', '1', '0', '1', '2'])
+      expect(ul.style.getPropertyValue('--kui-stagger')).toBe('calc((600ms) / 2)')
+    })
+
+    it('re-ranks when the group is declared inside data-kui instead', async () => {
+      const { ul } = list('data-kui="fade-up cascade:100ms"')
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4'])
+
+      ul.setAttribute(ATTR.source, 'fade-up cascade:100ms order:end')
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['4', '3', '2', '1', '0'])
+    })
+
+    it('leaves nothing behind on destroy', async () => {
+      const { animator, ul } = list('data-kui-stagger="100ms from:start"')
+      expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('5')
+
+      animator.destroy()
+      await flushMutations()
+
+      expect(ul.getAttribute('style')).toBeNull()
+      for (const li of ul.children) expect(li.getAttribute('style')).toBeNull()
+    })
+  })
+
   it('calls destroy() on an injected domWatcher', () => {
     const fakeWatcher: DomWatcher = { watch: vi.fn(), destroy: vi.fn() }
     document.body.innerHTML = ''

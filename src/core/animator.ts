@@ -65,7 +65,7 @@ import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createLedgerSet } from './owned-styles.js'
 import type { LedgerSet } from './owned-styles.js'
-import { applyStagger, indexTargetGroup } from './stagger.js'
+import { applyStagger, indexTargetGroup, releaseStagger, restageAround } from './stagger.js'
 import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
 import { queryScoped, selectorBreadth } from './target.js'
@@ -1273,6 +1273,11 @@ export class Animator {
 
   destroy(): void {
     this.domWatcher?.destroy()
+    // Before the element ledgers, not after. The two sets overlap on exactly one property:
+    // `--kui-stagger` is both a group's published step and an effect's own `stagger:` parameter.
+    // The group ledger snapshotted whatever the effect ledger had already written, so unwinding
+    // it second would put a library value back on top of the author's own.
+    releaseStagger(this.root)
     for (const el of [...this.liveElements]) this.release(el)
     this.gateWatcher?.destroy()
     this.binder.destroy()
@@ -1295,7 +1300,13 @@ export class Animator {
       root: this.root,
       onElementAdded: (el) => this.scan(el),
       onElementRemoved: (el) => this.releaseTree(el),
-      onAttributeChanged: (el) => this.process(el),
+      onAttributeChanged: (el) => {
+        this.process(el)
+        // The stagger half of the same edit. `process` recompiles one element and never looks at
+        // ranks, so without this a group retargeted from `100ms from:start` to
+        // `spread:600ms from:center` kept every index the old config had written.
+        restageAround(el, this.reporter)
+      },
     })
     this.domWatcher.watch()
   }

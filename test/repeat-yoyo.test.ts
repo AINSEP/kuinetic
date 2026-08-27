@@ -227,9 +227,15 @@ describe('repeat: — refusals the timeline forces', () => {
 })
 
 describe('repeat: — the pin scrub head', () => {
+  // The head spans the element's whole compiled timeline — where its one track *ends*, which is
+  // that track's own start plus its playback. The leading `var(--kui-reveal-delay, 0ms)` inside
+  // the head is that start; it is zero for `fade-up`, and the reason it has to be written is that
+  // a delay the head did not include is subtracted from the track without ever being spanned by
+  // it, which is what stopped `delay:300ms timeline:pin` half way through.
   const oneIteration =
     'calc(var(--kui-reveal-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 0ms) - ' +
-    'var(--kui-progress, 0) * (var(--kui-reveal-duration, 600ms) + ' +
+    'var(--kui-progress, 0) * (var(--kui-reveal-delay, 0ms) + ' +
+    'var(--kui-reveal-duration, 600ms) + ' +
     '(var(--kui-stagger-count, 1) - 1) * var(--kui-stagger, 0ms)))'
 
   it('is unchanged when nothing repeats', () => {

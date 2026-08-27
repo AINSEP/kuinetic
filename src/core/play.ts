@@ -123,16 +123,27 @@ export function toAttributeValue(effect: string, options: PlayOptions = {}): str
 
   const parts = [effect]
   const resolvedDelay = time(delay)
-  // Positional times are ordered duration-then-delay, so a delay with no duration must still
-  // emit a duration token — otherwise the parser reads the delay AS the duration.
-  const resolvedDuration = time(duration) ?? (resolvedDelay ? '0ms' : undefined)
+  const resolvedDuration = time(duration)
   if (resolvedDuration) {
     assertBareToken('duration', resolvedDuration)
     parts.push(resolvedDuration)
   }
   if (resolvedDelay) {
     assertBareToken('delay', resolvedDelay)
-    parts.push(resolvedDelay)
+    // Positional times are ordered duration-then-delay, so a delay with no duration cannot be
+    // written positionally at all — the parser would read it AS the duration. Emitting a
+    // synthetic `0ms` duration to hold the slot said something the caller never asked for:
+    // `play(el, 'fade-up', { delay: 500 })` waited half a second and then completed instantly,
+    // replacing fade-up's own 600ms with zero.
+    //
+    // The named spelling is how this grammar says "delay this, and leave the duration alone".
+    // `delay:` writes the primitive's own `--kui-<id>-delay`, which is the same custom property
+    // the positional delay compiles into, while `animation-duration` stays on the preset's
+    // `var(--kui-<id>-duration, …)`. Every `cssPrimitive` declares `delay` (it is in `COMMON`),
+    // and a JS primitive that honours a delay declares it too (`TRIGGER_DELAY_PARAM`) — one whose
+    // start moment cannot be shifted warns about the unknown parameter, which is the loud failure
+    // `effects/shared.ts` argues for over the silent one a positional delay gives it.
+    parts.push(resolvedDuration ? resolvedDelay : `delay:${resolvedDelay}`)
   }
   if (ease) {
     assertBareToken('easing', ease)

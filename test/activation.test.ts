@@ -493,6 +493,153 @@ describe('activation observer ownership', () => {
   })
 })
 
+/**
+ * What a positive `threshold:` actually gates.
+ *
+ * An `IntersectionObserver` queues an entry when *either* `isIntersecting` or its threshold index
+ * changes, and the boolean flips at the first intersecting pixel no matter how high the threshold
+ * is. So every one of these deliveries is one a browser really sends; the question is which of them
+ * the binder is allowed to act on.
+ */
+describe('a positive visibility threshold', () => {
+  interface Delivery {
+    intersecting: boolean
+    ratio: number
+  }
+
+  function harness(
+    threshold: string,
+    activation: string,
+    fourWay = false,
+  ): {
+    send: (delivery: Delivery) => void
+    activate: ReturnType<typeof vi.fn>
+    deactivate: ReturnType<typeof vi.fn>
+    crossings: string[]
+  } {
+    let deliver: IntersectionObserverCallback = () => {}
+    const binder = createActivationBinder({
+      createObserver: (callback) => {
+        deliver = callback
+        return {
+          observe: vi.fn(),
+          unobserve: vi.fn(),
+          disconnect: vi.fn(),
+        } as unknown as IntersectionObserver
+      },
+    })
+    const el = document.createElement('div')
+    const activate = vi.fn()
+    const deactivate = vi.fn()
+    const crossings: string[] = []
+    binder.bind(el, activation, {
+      threshold,
+      activate,
+      deactivate,
+      ...(fourWay ? { cross: (crossing: string) => crossings.push(crossing) } : {}),
+    })
+    return {
+      activate,
+      deactivate,
+      crossings,
+      send: ({ intersecting, ratio }) =>
+        deliver(
+          [
+            {
+              target: el,
+              isIntersecting: intersecting,
+              intersectionRatio: ratio,
+              // Fully inside while intersecting, well past the far edge once not — the geometry a
+              // browser reports for an element the reader is scrolling down through.
+              boundingClientRect: intersecting
+                ? { top: 100, bottom: 200, left: 0, right: 100 }
+                : { top: -200, bottom: -100, left: 0, right: 100 },
+              rootBounds: { top: 0, bottom: 800, left: 0, right: 1000 },
+            },
+          ] as unknown as IntersectionObserverEntry[],
+          {} as IntersectionObserver,
+        ),
+    }
+  }
+
+  // Three different knobs, in both spellings the parser accepts. A regression test pinned to the
+  // one ratio the bug was reported with is a blind spot for every other ratio.
+  const cases = [
+    { threshold: '25%', ratio: 0.25 },
+    { threshold: '50%', ratio: 0.5 },
+    { threshold: '0.75', ratio: 0.75 },
+  ]
+
+  for (const { threshold, ratio } of cases) {
+    it(`ignores the intersecting entry below ${threshold} and starts at it`, () => {
+      const { send, activate } = harness(threshold, 'enter')
+
+      // The delivery the boolean flip causes. Real, and not what the author asked for.
+      send({ intersecting: true, ratio: 0.01 })
+      send({ intersecting: true, ratio: ratio / 2 })
+      expect(activate).not.toHaveBeenCalled()
+
+      send({ intersecting: true, ratio })
+      expect(activate).toHaveBeenCalledOnce()
+    })
+
+    it(`plays the exit for ${threshold} when the element falls back below it, still intersecting`, () => {
+      const { send, activate, deactivate } = harness(threshold, 'enter/leave')
+
+      send({ intersecting: true, ratio })
+      expect(activate).toHaveBeenCalledOnce()
+
+      // Still on screen, no longer as far in as the author asked for.
+      send({ intersecting: true, ratio: ratio / 2 })
+      expect(deactivate).toHaveBeenCalledOnce()
+      expect(activate).toHaveBeenCalledOnce()
+
+      send({ intersecting: false, ratio: 0 })
+      expect(deactivate).toHaveBeenCalledOnce()
+    })
+
+    it(`fires one enter at ${threshold}, not one per delivery above it`, () => {
+      const { send, activate } = harness(threshold, 'enter/leave')
+
+      send({ intersecting: true, ratio })
+      send({ intersecting: true, ratio: 1 })
+      expect(activate).toHaveBeenCalledOnce()
+    })
+
+    it(`crosses once at ${threshold} for a four-way binding too`, () => {
+      const { send, crossings } = harness(threshold, 'enter/leave', true)
+
+      send({ intersecting: true, ratio: 0.01 })
+      expect(crossings).toEqual([])
+
+      send({ intersecting: true, ratio })
+      send({ intersecting: true, ratio: 1 })
+      expect(crossings).toEqual(['enter'])
+
+      send({ intersecting: false, ratio: 0 })
+      expect(crossings).toEqual(['enter', 'leave'])
+    })
+  }
+
+  it('accepts the crossing entry a browser reports a hair under the authored ratio', () => {
+    // Chrome computes the ratio from subpixel float rects, so the very entry it queued *because*
+    // 0.5 was crossed can report 0.49999999. Discarding it waits for a crossing never re-reported.
+    const { send, activate } = harness('50%', 'enter')
+
+    send({ intersecting: true, ratio: 0.5 - 1e-9 })
+    expect(activate).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a zero threshold meaning any intersection at all', () => {
+    // A zero-area box intersects with a ratio of 0. `0 >= 0` would happen to work; the short-circuit
+    // is what makes it true by construction rather than by arithmetic accident.
+    const { send, activate } = harness('0%', 'enter')
+
+    send({ intersecting: true, ratio: 0 })
+    expect(activate).toHaveBeenCalledOnce()
+  })
+})
+
 /** The threshold parser moved here with the binder that is its only caller. */
 describe('toThresholdRatio', () => {
   it('returns 0 for an unparseable value instead of NaN', () => {

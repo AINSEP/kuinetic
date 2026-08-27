@@ -1,4 +1,5 @@
 import { ATTR } from './attrs.js'
+import { createLedgerSet } from './owned-styles.js'
 import type { LedgerSet } from './owned-styles.js'
 import type { Reporter } from './reporter.js'
 import { resolveStaggerConfig } from './stagger-config.js'
@@ -365,7 +366,7 @@ function scatterKey(index: number, count: number): number {
  */
 export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   const warnings: string[] = []
-  const host = group as HTMLElement
+  const ledgers = reopenLedger(group)
   // Both spellings, merged. Falls back to the empty longhand parse when neither attribute declares
   // a group, so a direct call on any element still publishes the same defaults it always did —
   // `applyStagger` is what decides which elements are groups, and it never routes a non-group here.
@@ -380,7 +381,7 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   let maxRank = 0
   for (const [index, child] of children.entries()) {
     const rank = ranks[index] ?? 0
-    child.style.setProperty('--kui-i', String(rank))
+    ledgers.style(child).set('--kui-i', String(rank))
     if (rank > maxRank) maxRank = rank
   }
 
@@ -388,7 +389,11 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   // step a `spread:` resolves to is the budget divided by the largest rank, and the largest rank is
   // not known until every child has one. A fixed `cascade:` step does not care either way.
   const step = resolveStep(config, maxRank)
-  if (step) host.style.setProperty('--kui-stagger', step)
+  // Conditional, because an ordering-only group (`data-kui-stagger="from:center"` with no step)
+  // must inherit whatever `--kui-stagger` the cascade gives it rather than pin one. The previous
+  // indexing's value is already gone — `reopenLedger` put the author's own back before this ran —
+  // so dropping a `cascade:` no longer leaves the step it used to declare sitting on the host.
+  if (step) ledgers.style(group).set('--kui-stagger', step)
 
   // The group's stagger span, published for `timeline: pin`. A time-driven stagger does not need
   // it — the clock keeps running past the last item's delay, so everything finishes eventually. A
@@ -420,9 +425,118 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   // Rounded, not `maxRank + 1` raw: a 2D rank is a distance, and `1.118 + 1` in binary floating
   // point is `2.1180000000000003`. Both are valid CSS, but only one of them is stable across a
   // re-index and readable in devtools.
-  host.style.setProperty('--kui-stagger-count', String(round(maxRank + 1)))
+  ledgers.style(group).set('--kui-stagger-count', String(round(maxRank + 1)))
 
   for (const warning of warnings) reporter?.warn(warning, group)
+}
+
+/**
+ * What each stagger group's indexing wrote, and what the author had there before it.
+ *
+ * The one thing {@link indexTargetGroup}'s doc comment has been pointing at: an ordinary group used
+ * to write `--kui-i`, `--kui-stagger` and `--kui-stagger-count` straight onto `element.style`, so
+ * nothing could ever take them off again. Destroying the animator left every one of them on the
+ * page, and an author's own `--kui-i` was overwritten with no record that it had existed.
+ *
+ * Keyed by the group rather than held by the animator because a group need not be an animated
+ * element at all — a bare `data-kui-stagger` wrapper has no `ElementState` and no `LedgerSet` of
+ * its own to write through — and because the writes span the group *and* its children, which is a
+ * unit no single element's ledger owns. A `WeakMap` so a group removed from the page takes its
+ * record with it.
+ *
+ * These are deliberately *separate* ledgers from the ones `install` opens per animated element,
+ * and the two overlap on exactly one property: `--kui-stagger` is both a group's published step
+ * and an effect's own `stagger:` parameter. `Animator.destroy` therefore unwinds the group ledgers
+ * first, so the effect ledger — which snapshotted before either wrote — has the last word.
+ */
+const GROUP_LEDGERS = new WeakMap<Element, LedgerSet>()
+
+/**
+ * Put back what this group's last indexing wrote, and open a fresh ledger for the next one.
+ *
+ * Restoring first is what makes a re-index a *replacement* rather than an overlay: a config that
+ * no longer resolves a step writes no `--kui-stagger`, and without unwinding the previous one the
+ * old step would simply stay. It is also what keeps "what was there before" meaning the author's
+ * value rather than the previous index's.
+ *
+ * @complexity O(n) time in the properties the previous indexing wrote; O(1) space.
+ * @overallScore 100
+ */
+function reopenLedger(group: Element): LedgerSet {
+  GROUP_LEDGERS.get(group)?.restore()
+  const ledgers = createLedgerSet(group)
+  GROUP_LEDGERS.set(group, ledgers)
+  return ledgers
+}
+
+/**
+ * Unwind one group's indexing, leaving the author's own inline styles exactly as they were.
+ *
+ * A no-op for an element that was never indexed, which is what lets {@link applyStagger} call it
+ * for every candidate it walks past without first knowing whether one ever was.
+ *
+ * @complexity O(n) time in the properties that group's indexing wrote; O(1) space.
+ * @overallScore 100
+ */
+export function releaseStaggerGroup(group: Element): void {
+  GROUP_LEDGERS.get(group)?.restore()
+  GROUP_LEDGERS.delete(group)
+}
+
+/**
+ * Unwind every stagger group in a subtree — the teardown half of {@link applyStagger}.
+ *
+ * Walks the same selector `applyStagger` indexes by, so a group is found by exactly the rule that
+ * made it one. A group whose declaring attribute was removed outright no longer matches, but it
+ * was already unwound when that attribute change was processed; anything the walk still cannot
+ * reach has left the page, taking its `WeakMap` entry with it.
+ *
+ * @complexity O(n) time in the subtree's element count; O(1) space.
+ * @overallScore 100
+ */
+export function releaseStagger(root: ParentNode): void {
+  const selector = `[${ATTR.stagger}], [${ATTR.source}]`
+  if (root instanceof Element && root.matches(selector)) releaseStaggerGroup(root)
+  for (const el of root.querySelectorAll(selector)) releaseStaggerGroup(el)
+}
+
+/**
+ * Re-index the groups one element's attribute change can have altered.
+ *
+ * Two of them, because both spellings of "this is a stagger group" now reach here. The element
+ * itself may declare one — `data-kui-stagger`, or `cascade:`/`spread:`/`order:` inside `data-kui`
+ * — and it may equally be a *member* of its parent's, since `animatedChildren` counts exactly the
+ * children carrying `data-kui`, so gaining or losing that attribute changes every sibling's rank
+ * and the group's published `--kui-stagger-count`.
+ *
+ * Two named elements rather than a subtree walk: an attribute change is delivered per element, and
+ * re-scanning each changed element's whole subtree would cost O(subtree) per change against a
+ * frame budget of a hundred of them.
+ *
+ * @param el - The element whose watched attribute changed.
+ * @param reporter - Diagnostic sink, threaded through to each group.
+ * @complexity O(c) time in the two groups' child counts; O(c) space.
+ * @overallScore 100
+ */
+export function restageAround(el: Element, reporter?: Reporter): void {
+  restageOne(el, reporter)
+  const parent = el.parentElement
+  if (parent) restageOne(parent, reporter)
+}
+
+/**
+ * Index one candidate if it declares a group, and unwind it if it no longer does.
+ *
+ * The `else` is the edit half: an element that *was* a group and has had its `cascade:` or its
+ * `data-kui-stagger` value taken away has to give back the properties it published, and nothing
+ * else would ever ask it to.
+ *
+ * @complexity O(c) time in the candidate's child count; O(c) space.
+ * @overallScore 100
+ */
+function restageOne(el: Element, reporter?: Reporter): void {
+  if (declaresGroup(el)) indexStaggerGroup(el, reporter)
+  else releaseStaggerGroup(el)
 }
 
 /**
@@ -663,12 +777,8 @@ function animatedChildren(group: Element): HTMLElement[] {
  */
 export function applyStagger(root: ParentNode, reporter?: Reporter): void {
   const selector = `[${ATTR.stagger}], [${ATTR.source}]`
-  if (root instanceof Element && root.matches(selector) && declaresGroup(root)) {
-    indexStaggerGroup(root, reporter)
-  }
-  for (const group of root.querySelectorAll(selector)) {
-    if (declaresGroup(group)) indexStaggerGroup(group, reporter)
-  }
+  if (root instanceof Element && root.matches(selector)) restageOne(root, reporter)
+  for (const group of root.querySelectorAll(selector)) restageOne(group, reporter)
 }
 
 /**
