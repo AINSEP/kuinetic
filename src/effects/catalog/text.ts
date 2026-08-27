@@ -491,17 +491,41 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
   // The `words.length === 0` guard just above means `words` is non-empty here.
   el.textContent = words[0]!
 
+  /*
+   * Each tick fades the word out and swaps it `swapMs` later, and that second half has to be
+   * cancellable. `run.stop()` only reaches the interval; the swap is a separate timeout that
+   * writes `el.textContent`, so one left queued past `cleanup()` fired *after* `restoreChildren()`
+   * had handed the author's own children back and replaced them with a cycling word — for up to
+   * 150ms the element looked torn down, and then it silently wasn't.
+   *
+   * A set rather than one handle, because `interval:` is author-controlled and nothing stops it
+   * being shorter than the swap window: at `interval:100ms` a second tick fires while the first
+   * swap is still queued, so two are genuinely pending at once and remembering only the latest
+   * would still leak the earlier one. Clearing the previous handle on each tick instead would be
+   * worse than the defect — every swap would be cancelled before it could run and the words would
+   * never change at all. Each swap drops itself once it fires, so the set holds only what is
+   * actually queued.
+   */
+  const pendingSwaps = new Set<number>()
+
+  function cancelPendingSwaps(): void {
+    for (const handle of pendingSwaps) ctx.win.clearTimeout(handle)
+    pendingSwaps.clear()
+  }
+
   const run = createStepRunner(ctx.win, {
     delayMs: params.timing.delayMs ?? params.ms('delay', 0),
     stepMs: params.ms('interval', 2200),
     tick: () => {
       el.classList.add('kui-word-cycler-swap')
-      ctx.win.setTimeout(() => {
+      const handle = ctx.win.setTimeout(() => {
+        pendingSwaps.delete(handle)
         index = (index + 1) % words.length
         // Modulo by `words.length` (always >= 1, per the guard above) keeps `index` in bounds.
         el.textContent = words[index]!
         el.classList.remove('kui-word-cycler-swap')
       }, swapMs)
+      pendingSwaps.add(handle)
       return false
     },
   })
@@ -509,11 +533,19 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
   return {
     cleanup: () => {
       run.stop()
+      cancelPendingSwaps()
       el.classList.remove('kui-word-cycler-swap')
       restoreChildren()
     },
     finished: run.finished,
-    finish: () => run.stop(),
+    finish: () => {
+      run.stop()
+      // Same reason as `cleanup`, one step milder: a queued swap would change the word *after* the
+      // effect reported itself finished. Dropping the class too is what the cancelled swap would
+      // have done, so finishing mid-fade settles on a readable word instead of a faded-out one.
+      cancelPendingSwaps()
+      el.classList.remove('kui-word-cycler-swap')
+    },
   }
 }
 
