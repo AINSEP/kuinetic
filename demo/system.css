@@ -228,9 +228,14 @@ button, a.btn { font-family: inherit; cursor: pointer; }
   .kui-nav-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
   .kui-nav-backdrop {
     position: fixed; inset: 0; z-index: 1;
+    /* No backdrop-filter here: this is the full-screen scrim behind the mobile nav panel, and a
+       blur on a fixed inset:0 layer showed its own hard-edged corners on the owner's phone —
+       `blur()` clips at the element's box rather than feathering into it. The 70%-opaque
+       color-mix background already dims the page enough on its own; dropping the filter removes
+       the artifact without losing legibility. Don't confuse this with `.site-header`'s
+       `blur(14px)` above — that's the nav pill's own always-on glass treatment, not this scrim,
+       and stays untouched. */
     background: color-mix(in srgb, var(--bg) 70%, transparent);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
   }
   .nav-links {
     position: absolute; top: calc(100% + 0.6rem); left: 0; right: 0; z-index: 2;
