@@ -1,5 +1,7 @@
 import type { Reporter } from './reporter.js'
 import type { Crossing } from './toggle-actions.js'
+import { createTravelTracker } from './travel.js'
+import type { RootSide } from './travel.js'
 import type { Activation, Cleanup, NamedActivation } from './types.js'
 
 /**
@@ -419,22 +421,17 @@ interface ObservedBinding {
 }
 
 /**
- * Which side of the observer's root an element sits on, in the reader's direction of travel:
- * `before` is the side already scrolled past, `after` the side not reached yet.
- *
- * Named by travel rather than by geometry so one word covers both axes — `before` is above a
- * vertically scrolled root and to the left of a horizontally scrolled one.
- */
-type RootSide = 'before' | 'after'
-
-/**
  * Deliver one observer entry to the element's binding.
  *
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function deliverEntry(binding: ObservedBinding, entry: IntersectionObserverEntry): void {
-  if (binding.onCross) return deliverCrossing(binding, entry)
+function deliverEntry(
+  binding: ObservedBinding,
+  entry: IntersectionObserverEntry,
+  arrivedFrom?: RootSide,
+): void {
+  if (binding.onCross) return deliverCrossing(binding, entry, arrivedFrom)
   if (!entry.isIntersecting && !binding.entered) return
   binding.entered = entry.isIntersecting
   const side = entry.isIntersecting ? binding.onEnter : binding.onLeave
@@ -449,8 +446,9 @@ function deliverEntry(binding: ObservedBinding, entry: IntersectionObserverEntry
  * An `IntersectionObserver` reports a boolean, and the boolean is genuinely ambiguous: "not
  * intersecting" is both "you have scrolled past this" and "you have scrolled back up above it", and
  * the whole point of four crossings is that an author wants to do different things at those two
- * moments. The entry already carries what tells them apart — where the element's box sits relative
- * to the root's — so this needs no second observer, no scroll listener, and no extra measurement.
+ * moments. For a *leaving* delivery the entry already carries what tells them apart — where the
+ * element's box sits relative to the root's — so that half needs no second observer and no extra
+ * measurement.
  *
  * The side is recorded even on the delivery this function then ignores. An observer's first report
  * for a freshly observed element describes its *current* state, which for anything below the fold
@@ -458,10 +456,19 @@ function deliverEntry(binding: ObservedBinding, entry: IntersectionObserverEntry
  * is exactly how the binding learns that the element is still ahead, so that the first real entry
  * is an `enter` rather than an `enter-back`.
  *
+ * An *entering* delivery has no such geometry to read: the element is inside the root, so it is on
+ * no side, and it relies entirely on what a previous leaving delivery recorded. That is why it
+ * consults the reader's direction of travel first and only then falls back to the remembered side —
+ * see `travel.ts` for the gesture that skips the leaving delivery and leaves the memory wrong.
+ *
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function deliverCrossing(binding: ObservedBinding, entry: IntersectionObserverEntry): void {
+function deliverCrossing(
+  binding: ObservedBinding,
+  entry: IntersectionObserverEntry,
+  arrivedFrom?: RootSide,
+): void {
   const side = sideOf(entry)
   if (!entry.isIntersecting) {
     if (side) binding.outside = side
@@ -472,7 +479,7 @@ function deliverCrossing(binding: ObservedBinding, entry: IntersectionObserverEn
     binding.onCross?.(side === 'after' ? 'leave-back' : 'leave')
     return
   }
-  const crossing: Crossing = binding.outside === 'before' ? 'enter-back' : 'enter'
+  const crossing: Crossing = (arrivedFrom ?? binding.outside) === 'before' ? 'enter-back' : 'enter'
   binding.entered = true
   binding.outside = undefined
   binding.onCross?.(crossing)
@@ -518,6 +525,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
   const observers = new Map<string, { observer: IntersectionObserver; count: number }>()
   const callbacks = new WeakMap<Element, ObservedBinding>()
   const createObserver = options.createObserver ?? defaultObserverFactory()
+  const travel = createTravelTracker()
 
   function observerFor(
     threshold: string,
@@ -532,7 +540,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       (entries) => {
         for (const entry of entries) {
           const binding = callbacks.get(entry.target)
-          if (binding) deliverEntry(binding, entry)
+          if (binding) deliverEntry(binding, entry, travel.arrivedFrom(entry.time))
         }
       },
       { threshold: ratio },
@@ -561,10 +569,15 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       return NOOP
     }
     const { key, shared } = binding
+    // Only a four-way binding needs to know which way the reader is going; a plain `enter/leave`
+    // page never installs the listener.
+    const tracksTravel = Boolean(spec.onCross)
+    if (tracksTravel) travel.retain()
     let active = true
     const release = (): void => {
       if (!active) return
       active = false
+      if (tracksTravel) travel.release()
       callbacks.delete(el)
       shared.observer.unobserve(el)
       shared.count--
@@ -631,6 +644,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
     destroy() {
       for (const { observer } of observers.values()) observer.disconnect()
       observers.clear()
+      travel.reset()
     },
   }
 }
