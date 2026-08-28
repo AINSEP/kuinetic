@@ -4,7 +4,7 @@ import type { EffectGate, GateDirection } from './breakpoints.js'
 import { springTokenProblems } from './easing.js'
 import { applyPlayback, isPlaybackKey } from './repeat.js'
 import { validateToggleActions } from './toggle-actions.js'
-import type { EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
+import type { Activation, EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
 
 /**
  * Grammar — ours, deliberately NOT "the CSS animation shorthand" (see docs/design.md §3):
@@ -186,6 +186,50 @@ function unquote(value: string): string {
     return value.slice(1, -1).replaceAll(`\\${first}`, first)
   }
   return value
+}
+
+/** The parsed longhand activation and its optional foreign event source. */
+export interface ParsedActivationAttribute {
+  activation?: Activation
+  from?: string
+  warnings: string[]
+}
+
+/**
+ * Parse the `data-kui-on` grammar: an activation followed by optional `key:value` refinements.
+ *
+ * `from:` deliberately lives only in this longhand grammar. It cannot be a general `data-kui`
+ * hoist because `from:` remains a per-effect parameter on existing primitives such as `count-up`.
+ * Quoting keeps a selector containing whitespace in one token, e.g.
+ * `submit from:"#signup form"`.
+ *
+ * @param input - Raw `data-kui-on` attribute value.
+ * @returns The activation/source pair, or no pair when any token is malformed.
+ * @complexity O(n) time in input length; O(n) space for tokenisation.
+ */
+export function parseActivationAttribute(input: string | null): ParsedActivationAttribute {
+  const warnings: string[] = []
+  const tokens = splitTopLevel(input ?? '', ' ', warnings)
+  const [activation, ...options] = tokens
+  if (!activation) return { warnings }
+
+  warnings.push(...validateActivation(activation))
+  let from: string | undefined
+  for (const option of options) {
+    const pair = splitPair(option)
+    if (!pair || pair[0] !== 'from') {
+      warnings.push(`unrecognised activation option "${option}"`)
+      continue
+    }
+    if (from !== undefined) {
+      warnings.push(`duplicate activation option "from" in "${input}"`)
+      continue
+    }
+    from = pair[1]
+  }
+
+  if (warnings.length > 0) return { warnings }
+  return { activation, ...(from === undefined ? {} : { from }), warnings }
 }
 
 /**

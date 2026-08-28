@@ -280,6 +280,63 @@ describe('activation observer ownership', () => {
     expect(onActivate).toHaveBeenCalledOnce()
   })
 
+  it('shares one foreign-source listener and releases it with the animated elements', () => {
+    const binder = createActivationBinder()
+    const source = document.createElement('form')
+    source.id = 'signup'
+    const first = document.createElement('div')
+    const second = document.createElement('div')
+    const root = document.createElement('div')
+    root.append(source, first, second)
+    document.body.append(root)
+    const addEventListener = vi.spyOn(source, 'addEventListener')
+    const removeEventListener = vi.spyOn(source, 'removeEventListener')
+    const firstActivate = vi.fn()
+    const secondActivate = vi.fn()
+
+    const releaseFirst = binder.bind(first, 'submit', {
+      threshold: '0%',
+      from: '#signup',
+      activate: firstActivate,
+    })
+    const releaseSecond = binder.bind(second, 'submit', {
+      threshold: '0%',
+      from: '#signup',
+      activate: secondActivate,
+    })
+
+    expect(addEventListener).toHaveBeenCalledOnce()
+    source.dispatchEvent(new Event('submit'))
+    expect(firstActivate).toHaveBeenCalledOnce()
+    expect(secondActivate).toHaveBeenCalledOnce()
+
+    releaseFirst()
+    source.dispatchEvent(new Event('submit'))
+    expect(firstActivate).toHaveBeenCalledOnce()
+    expect(secondActivate).toHaveBeenCalledTimes(2)
+    expect(removeEventListener).not.toHaveBeenCalled()
+
+    releaseSecond()
+    expect(removeEventListener).toHaveBeenCalledOnce()
+    root.remove()
+  })
+
+  it('warns and does not bind when a foreign source is missing', () => {
+    const reporter = collectingReporter()
+    const binder = createActivationBinder({ reporter })
+    const activate = vi.fn()
+
+    binder.bind(document.createElement('div'), 'submit', {
+      threshold: '0%',
+      from: '#signup',
+      activate,
+    })
+
+    document.dispatchEvent(new Event('submit'))
+    expect(activate).not.toHaveBeenCalled()
+    expect(reporter.messages.join()).toContain('activation source "#signup" matched nothing')
+  })
+
   it('binds a raw DOM event name nothing in the library specially recognises', () => {
     // The whole point of the task: three hardcoded events became any event.
     const binder = createActivationBinder()
@@ -937,6 +994,30 @@ function harness(reversible: boolean): {
 }
 
 describe('paired activations at the animator', () => {
+  it('binds a longhand from: selector and releases its foreign listener on destroy', () => {
+    const recorder: Recorder = { activated: 0, played: 0, reversed: 0, settles: [] }
+    const root = document.createElement('div')
+    root.innerHTML =
+      '<form id="signup"></form>' +
+      '<div data-kui="recorder-effect" data-kui-on="submit from:#signup"></div>'
+    document.body.append(root)
+    const source = root.querySelector('form')!
+    const animator = new Animator({
+      root,
+      registry: recordingRegistry(recorder, true),
+      capabilities: CAPS,
+    })
+    animator.start()
+
+    source.dispatchEvent(new Event('submit'))
+    expect(recorder.activated).toBe(1)
+
+    animator.destroy()
+    source.dispatchEvent(new Event('submit'))
+    expect(recorder.activated).toBe(1)
+    root.remove()
+  })
+
   it('starts on the first event and plays out on the second', async () => {
     const { el, recorder } = harness(true)
     expect(el.getAttribute(ATTR.state)).toBe('ready')

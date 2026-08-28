@@ -1,4 +1,5 @@
 import type { Reporter } from './reporter.js'
+import { createEventSourceBindings, resolveEventSources } from './event-sources.js'
 import { checkThresholdReachability } from './threshold-reachability.js'
 import type { Crossing } from './toggle-actions.js'
 import { createTravelTracker } from './travel.js'
@@ -360,6 +361,8 @@ const NOOP: Cleanup = () => {}
 export interface ActivationRequest {
   /** `IntersectionObserver` threshold, used only by observed activations. */
   threshold: string
+  /** Selector for the foreign elements whose events drive this animation. */
+  from?: string
   /** Start the effects. */
   activate(): void
   /**
@@ -629,6 +632,7 @@ function sideOf(entry: IntersectionObserverEntry): RootSide | undefined {
 export function createActivationBinder(options: ActivationBinderOptions = {}): ActivationBinder {
   const observers = new Map<string, { observer: IntersectionObserver; count: number }>()
   const callbacks = new WeakMap<Element, ObservedBinding>()
+  const eventBindings = createEventSourceBindings()
   const createObserver = options.createObserver ?? defaultObserverFactory()
   const travel = createTravelTracker()
   const reporter = options.reporter
@@ -712,6 +716,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       const spec = resolveActivationSpec(activation)
       const sides = sidesOf(spec, request)
       const cleanups: Cleanup[] = []
+      let eventSources: Element[] | undefined
 
       const observed = observedSides(sides)
       if (observed) {
@@ -738,7 +743,10 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       }
       for (const side of sides) {
         const { trigger } = side
-        if (trigger.kind === 'events') cleanups.push(bindEvents(el, trigger.types, side.run))
+        if (trigger.kind === 'events') {
+          eventSources ??= resolveEventSources({ el, from: request.from, reporter })
+          cleanups.push(eventBindings.bind({ sources: eventSources, types: trigger.types, run: side.run }))
+        }
         // `load` starts now and returns nothing to release; `manual` and `observed` have no
         // listener of their own to add here.
         else if (trigger.kind === 'immediate') side.run()
@@ -753,6 +761,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
     destroy() {
       for (const { observer } of observers.values()) observer.disconnect()
       observers.clear()
+      eventBindings.destroy()
       travel.reset()
     },
   }
@@ -803,27 +812,6 @@ function observedSides(sides: Side[]): ObservedSides | undefined {
     else observed.onLeave = side.run
   }
   return found ? observed : undefined
-}
-
-/**
- * Listen for one half's event types.
- *
- * Every listener stays `{ passive: true }`, including the ones an open list newly makes reachable
- * (`wheel`, `touchstart`, `submit`). Passive only forbids `preventDefault()`, and this handler
- * never calls it — it starts an animation and returns — so the promise is one the library can
- * genuinely keep, and keeping it is what stops a `data-kui-on="wheel"` from making a page's scroll
- * janky. An activation that needed to cancel its event would need a different contract entirely,
- * and would have to say so.
- *
- * @complexity O(t) time in the number of event types; O(t) space.
- * @overallScore 100
- */
-function bindEvents(el: Element, types: readonly string[], run: () => void): Cleanup {
-  const handler = (): void => run()
-  for (const type of types) el.addEventListener(type, handler, { passive: true })
-  return () => {
-    for (const type of types) el.removeEventListener(type, handler)
-  }
 }
 
 /**

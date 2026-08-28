@@ -1,5 +1,6 @@
-import { validateActivation } from './activation.js'
 import { ATTR } from './attrs.js'
+import { parseActivationAttribute } from './parse.js'
+import type { ParsedActivationAttribute } from './parse.js'
 import { parseToggleActions } from './toggle-actions.js'
 import type { ToggleActions } from './toggle-actions.js'
 import type { Activation, ParsedValue, Timeline } from './types.js'
@@ -16,6 +17,8 @@ export interface ElementConfig {
   activation: Activation
   /** Whether the author named an activation, so a primitive default may fill in when not. */
   activationAuthored: boolean
+  /** Optional selector for the event source named by `data-kui-on`'s `from:` refinement. */
+  activationSource?: string
   /**
    * What to do at each of the observer's four crossings, when the author wrote `actions:`.
    *
@@ -69,10 +72,12 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
   const rawTimeline = parsed.timeline ?? attributes.timeline ?? 'time'
   const [head = 'time', ...rest] = rawTimeline.trim().split(/\s+/)
 
-  const authored = parsed.activation ?? readActivation(attributes.on)
+  const longhand = parseActivationAttribute(attributes.on)
+  const authored = parsed.activation ?? longhand.activation
   return {
     activation: authored ?? 'enter',
     activationAuthored: authored !== undefined,
+    ...sourceFromLonghand({ parsed, longhand }),
     // Re-parsed rather than threaded down, and its warnings dropped: `parse.ts` has already
     // reported every one of them against this same element through `validateToggleActions`, so
     // forwarding them would double each diagnostic. There is no longhand attribute to merge with —
@@ -85,14 +90,21 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
 }
 
 /**
- * The longhand attribute, when it holds something bindable.
+ * Keep a source selector only when its longhand activation won the precedence decision.
  *
- * "Bindable" rather than "one of six known names": the activation list is open, so `data-kui-on`
- * accepts any event type and any `start/end` pair. Only text that cannot be an event type at all
- * is dropped — falling back to the default rather than binding something meaningless. This module
- * has no reporter, so the diagnostic for a dropped value comes from `parse.ts` (for the inline
- * `on:` spelling) or `animator.ts` (for an event name no document recognises).
+ * Applying `from:` after an inline `on:` wins would pair two independently authored activations.
+ *
+ * @param input - Parsed inline and longhand activation settings.
+ * @returns The optional source field for the resolved element configuration.
+ * @complexity O(1) time and space.
  */
-function readActivation(attribute: string | null): Activation | undefined {
-  return attribute && validateActivation(attribute).length === 0 ? attribute : undefined
+function sourceFromLonghand({
+  parsed,
+  longhand,
+}: {
+  parsed: ParsedValue
+  longhand: ParsedActivationAttribute
+}): Pick<ElementConfig, 'activationSource'> {
+  if (parsed.activation !== undefined || longhand.from === undefined) return {}
+  return { activationSource: longhand.from }
 }
