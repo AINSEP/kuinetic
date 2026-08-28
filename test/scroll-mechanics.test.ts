@@ -267,6 +267,59 @@ describe('pin', () => {
     expect(el().hasAttribute('data-kui-pinned')).toBe(false)
     expect(scheduler.subscriberCount()).toBe(0)
   })
+
+  it('reads a calc() distance back off its own spacer instead of taking the warn path', () => {
+    // `preparePin` used to track the parent and never pass its own spacer as `contentAnchor`, so a
+    // `calc()` distance reached `trackProgress` with no anchor to measure — the warn path `c99df4c`
+    // added for "no spacer exists", even though `spacer:true` had already reserved the room. Wiring
+    // the spacer through as `contentAnchor` closes that: progress must read the resolved distance
+    // off the spacer, and nothing should be logged.
+    const animator = build('<div data-kui="pin-section distance:calc(50vh + 10px)"></div>')
+    animator.start()
+    const spacer = document.querySelector('[data-kui-spacer]') as HTMLElement
+    // Standing in for the browser resolving `calc(50vh + 10px)` against the fake scheduler's 800px
+    // viewport (400 + 10 = 410) — jsdom cannot evaluate `calc()` itself, so the rect is stubbed
+    // directly, same as `stubRectWithSpacer`'s own doc comment describes.
+    const elementHeight = 300
+    const spacerHeight = 410
+    const place = (scrollTop: number): void => {
+      stubRect(el(), -scrollTop, elementHeight)
+      stubRect(spacer, elementHeight - scrollTop, spacerHeight)
+    }
+
+    place(0)
+    scheduler.emit(0)
+    expect(el().style.getPropertyValue('--kui-progress')).toBe('0.0000')
+    expect(reporter.messages).toEqual([])
+
+    place(spacerHeight / 2)
+    scheduler.emit(spacerHeight / 2, 1)
+    expect(Number(el().style.getPropertyValue('--kui-progress'))).toBeCloseTo(0.5)
+  })
+
+  it('anchors progress to the pinned element, not a sibling that precedes it in the parent', () => {
+    // Tracking the parent directly (the pre-fix behaviour, still used with no spacer) only lines
+    // progress 0 up with the moment sticky engages when `node` is the first thing in its parent —
+    // otherwise it is off by exactly the height of whatever precedes it. Routing through the spacer
+    // as `contentAnchor` reads `node`'s own flow position instead, so a leading sibling cannot bias
+    // it — the same fix `contentAnchor` already is for `horizontal-track`'s managed row.
+    const animator = build('<div class="lede"></div><div data-kui="pin-section distance:400px"></div>')
+    animator.start()
+    const spacer = document.querySelector('[data-kui-spacer]') as HTMLElement
+    // Flow layout: a 100px lede, then the 300px pinned node, then the spacer.
+    const place = (scrollTop: number): void => {
+      stubRect(el(), 100 - scrollTop, 300)
+      stubRect(spacer, 400 - scrollTop, 400)
+    }
+
+    place(0)
+    scheduler.emit(0)
+    expect(el().style.getPropertyValue('--kui-progress')).toBe('0.0000')
+
+    place(300)
+    scheduler.emit(300, 1)
+    expect(Number(el().style.getPropertyValue('--kui-progress'))).toBeCloseTo(0.5)
+  })
 })
 
 describe('media-scrub', () => {

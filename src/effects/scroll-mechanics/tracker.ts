@@ -118,9 +118,11 @@ export interface TrackOptions {
  * which makes progress negative, `clamp01` floors it to 0, and — because the measurement is cached
  * for the whole epoch — it stays 0 for the rest of the effect's life.
  *
- * `preparePin` already dodges this for the element it makes sticky itself, by tracking the parent.
- * This is the same move generalised to anything nested *inside* someone else's sticky subtree,
- * which is exactly what `horizontal-scroll`'s track and `sequence-scrub`'s image are.
+ * `preparePin` already dodges this for the element it makes sticky itself, by tracking the parent
+ * when it has no spacer to measure instead (`contentAnchor` covers the spacer case; see
+ * `TrackOptions.contentAnchor`). This function is the same move generalised to anything nested
+ * *inside* someone else's sticky subtree, which is exactly what `horizontal-scroll`'s track and
+ * `sequence-scrub`'s image are.
  *
  * The outermost sticky ancestor is the one to escape from: its parent is the box that actually
  * scrolls. For the demo's `.track`, that walk lands on `.track-stage`, which is never stuck.
