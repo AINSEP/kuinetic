@@ -1638,7 +1638,7 @@
                    time because a keyframe lands on the resting state, unlike parallax's ±travel that
                    never settles. Reversal comes from data-kui-timeline, not the effect. -->
               <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">13 names in catalog section B, 12 of them shipped. Seven are demonstrated below.</li>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>One is not shipped yet</strong> — <code>reveal-direction-aware</code> has to know which way the page is travelling, and no CSS timeline exposes that.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong>One is not shipped yet</strong> — <code>reveal-direction-aware</code> has to know which way the page is travelling, and no CSS timeline exposes that.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong><code>reveal-repeat</code> was dropped</strong> — byte-identical to <code>reveal-once</code> once the binder stopped re-observing after first entry. It is gone from the catalog, not pending.</li>
               <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>Scroll effects are progress-linked</strong>, not event-fired — so they run backwards when you scroll back up.</li>
               <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Everything below reverses</strong> if you scroll back up through it — that is the timeline, not a replay.</li>
@@ -1671,9 +1671,9 @@
               <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
               <figcaption>data-kui="fade-up timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 1188 / 668" data-kui="fade-right timeline:view" data-show-code>
+            <figure class="demo-card" style="--ar: 1188 / 668" data-kui="fade-left timeline:view" data-show-code>
               <img src="./assets/webdesign/black-panther-landing.jpg" alt="A Black Panther movie landing page — the masked character lit half gold and half violet, with a Buy Ticket button and a trailer thumbnail" loading="lazy" />
-              <figcaption>data-kui="fade-right timeline:view"</figcaption>
+              <figcaption>data-kui="fade-left timeline:view"</figcaption>
             </figure>
             <figure class="demo-card" style="--ar: 692 / 400" data-kui="zoom-in timeline:view" data-show-code>
               <img src="./assets/webdesign/hbo-got-hero.jpg" alt="The HBO Game of Thrones show page — Daenerys in close-up with a dragon on her shoulder beside the series title and a watch-trailer link" loading="lazy" />
@@ -1727,7 +1727,7 @@
                  as you reach it — which is also the plainest possible demo of a staggered reveal. -->
             <div class="parallax-notes">
               <ul>
-                <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Nothing is cropped.</strong> Every card takes its own screenshot's aspect ratio.</li>
+                <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong>Nothing is cropped.</strong> Every card takes its own screenshot's aspect ratio.</li>
                 <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong>Whole pages, readable in place.</strong> No need to open anything.</li>
                 <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>The transform rides the card</strong> — not an oversized image behind a window, which could only ever show a slice.</li>
                 <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Click any shot</strong> to open it larger.</li>
@@ -1795,7 +1795,7 @@
 
                     <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-section</code></strong> holds an element still while the page keeps moving under it.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-section</code></strong> holds an element still while the page keeps moving under it.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It inserts a spacer automatically, so a pin longer than its own container still reserves the scroll room it needs.</li>
             </ul>
           </div>
@@ -1894,7 +1894,7 @@
 
                     <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-spacer</code></strong> is the same primitive as <code>pin-section</code>, named for what it does.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-spacer</code></strong> is the same primitive as <code>pin-section</code>, named for what it does.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The dashed box below is the real <code>&lt;div data-kui-spacer&gt;</code> — an actual node in the DOM, not a drawing of one.</li>
             </ul>
           </div>
@@ -1967,7 +1967,7 @@
           <p class="matrix-group-label">Scrollytelling</p>
                     <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scrollytelling-step</code></strong> writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>scrollytelling-step</code></strong> writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">Three separate things below read that one attribute with plain CSS selectors — the live line, the accent rule beside it, and the screen the frame is showing. No JavaScript of your own.</li>
             </ul>
           </div>
@@ -2079,7 +2079,7 @@
                to try the attribute, not to document the parser. -->
           <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong>Four real screens, not a filter.</strong> <code>target:</code> points at four <code>&lt;img&gt;</code> tags that are already on the page, and the scrub reveals one per quarter of the range — so every frame is loaded before you reach it.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong>Four real screens, not a filter.</strong> <code>target:</code> points at four <code>&lt;img&gt;</code> tags that are already on the page, and the scrub reveals one per quarter of the range — so every frame is loaded before you reach it.</li>
               <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Scroll position is the only input. Nothing here is on a timer, so scrubbing backwards runs it backwards.</li>
             </ul>
           </div>
@@ -2109,7 +2109,7 @@
           <p class="matrix-group-label">Navigation</p>
                     <div class="rev-notes">
             <ul>
-              <li data-kui="fade-right" data-kui-timeline="view entry 0% cover 35%"><strong><code>scroll-spy</code></strong> marks the section you are currently looking at.</li>
+              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>scroll-spy</code></strong> marks the section you are currently looking at.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It mirrors that state onto whatever <code>target</code> you point it at as <code>data-kui-active="true"</code> — here, the matching nav link, styled with a plain <code>a[data-kui-active='true']</code> rule.</li>
             </ul>
           </div>

@@ -6,7 +6,7 @@
 // RTL had zero coverage anywhere in this repo (`grep -ri "rtl\|dir=" test/` turned up nothing
 // meaningful) when `kui-in-inline-start`/`kui-in-inline-end` shipped with their `--kui-dir`
 // multiplier's sign swapped: in LTR, `slide-inline-start` resolved to the exact same `translate`
-// as `slide-right`, and `slide-inline-end` matched `slide-left` — both logical directions entering
+// as `slide-left`, and `slide-inline-end` matched `slide-right` — both logical directions entering
 // from the side their name promised they would not. Confirmed in a real browser (computed
 // `translate` read off paused, from-state animations under `dir="ltr"` and `dir="rtl"`) before
 // fixing `src/css/entrance.css`; this test is the regression guard so it never needs re-deriving.

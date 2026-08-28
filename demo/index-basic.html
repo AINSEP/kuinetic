@@ -1148,7 +1148,7 @@
                state is `aria-pressed` on the control, read with `:has()`, so the button's
                accessibility state and the card's visual state are the same fact rather than two
                that can drift. -->
-          <div class="hero-media" data-kui="fade-left 800ms 200ms">
+          <div class="hero-media" data-kui="fade-right 800ms 200ms">
             <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
                  observer fires immediately anyway, and if the hero is ever pushed below the fold
                  the line types when it is read rather than into an empty screen. -->
@@ -1218,8 +1218,8 @@
          needs; it is `aria-hidden` so a screen reader reads the list once. -->
     <section class="ticker stage" aria-label="Entrance and exit names — the vocabulary the playground below draws from" data-od-id="ticker">
       <div class="ticker-row" data-kui="marquee 42s on:load">
-        <span>fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
-        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span>fade-up&nbsp;·&nbsp;slide-right&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-left&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-right&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-left&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
       </div>
     </section>
 
@@ -1266,7 +1266,7 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="pop-in 1500ms">pop-in</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-x 1500ms">flip-in-x</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
 
@@ -1606,7 +1606,7 @@
               two files in and start authoring <code>data-kui</code> attributes.</p>
           </div>
           <div>
-            <div class="install-snip" data-kui="slide-left 700ms on:enter">
+            <div class="install-snip" data-kui="slide-right 700ms on:enter">
               <div class="install-snip-row">
                 <code id="npm-cmd">npm install kuinetic</code>
                 <button type="button" class="copy-btn" data-copy-target="npm-cmd">Copy</button>

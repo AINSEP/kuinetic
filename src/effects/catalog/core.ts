@@ -233,13 +233,17 @@ const pIn = (
 
 // --- A. Entrance & exit matrix — 48 names -------------------------------------------------
 
+// Directional entrance names below (fade-left/right, slide-left/right, slide-inline-start/end)
+// describe where the element enters FROM (its origin), not the direction it travels — so
+// `fade-left` starts off to the left and moves right. Do not "fix" this back to travel-direction.
+
 const FADE: Preset[] = [
   pIn('fade-in', 'reveal', 'kui-in'),
   p('fade-out', 'reveal', 'kui-out'),
   pIn('fade-up', 'reveal', 'kui-in-up'),
   pIn('fade-down', 'reveal', 'kui-in-down'),
-  pIn('fade-left', 'reveal', 'kui-in-left'),
-  pIn('fade-right', 'reveal', 'kui-in-right'),
+  pIn('fade-left', 'reveal', 'kui-in-right'),
+  pIn('fade-right', 'reveal', 'kui-in-left'),
   p('fade-out-up', 'reveal', 'kui-out-up'),
   p('fade-out-down', 'reveal', 'kui-out-down'),
   p('fade-out-left', 'reveal', 'kui-out-left'),
@@ -252,8 +256,8 @@ const SLIDE_PARAMS = { distance: '100px', opacity: '1' }
 const SLIDE: Preset[] = [
   pIn('slide-up', 'reveal', 'kui-in-up', SLIDE_PARAMS),
   pIn('slide-down', 'reveal', 'kui-in-down', SLIDE_PARAMS),
-  pIn('slide-left', 'reveal', 'kui-in-left', SLIDE_PARAMS),
-  pIn('slide-right', 'reveal', 'kui-in-right', SLIDE_PARAMS),
+  pIn('slide-left', 'reveal', 'kui-in-right', SLIDE_PARAMS),
+  pIn('slide-right', 'reveal', 'kui-in-left', SLIDE_PARAMS),
   p('slide-out-up', 'reveal', 'kui-out-up', SLIDE_PARAMS),
   p('slide-out-down', 'reveal', 'kui-out-down', SLIDE_PARAMS),
   p('slide-out-left', 'reveal', 'kui-out-left', SLIDE_PARAMS),
@@ -265,8 +269,8 @@ const SLIDE: Preset[] = [
  * Silently reversing "left" in RTL would surprise authors, so both vocabularies exist.
  */
 const LOGICAL: Preset[] = [
-  pIn('slide-inline-start', 'reveal', 'kui-in-inline-start', SLIDE_PARAMS),
-  pIn('slide-inline-end', 'reveal', 'kui-in-inline-end', SLIDE_PARAMS),
+  pIn('slide-inline-start', 'reveal', 'kui-in-inline-end', SLIDE_PARAMS),
+  pIn('slide-inline-end', 'reveal', 'kui-in-inline-start', SLIDE_PARAMS),
   pIn('slide-block-start', 'reveal', 'kui-in-up', SLIDE_PARAMS),
   pIn('slide-block-end', 'reveal', 'kui-in-down', SLIDE_PARAMS),
 ]
