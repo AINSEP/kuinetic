@@ -200,6 +200,66 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     })
   })
 
+  /**
+   * The stagger half of a removal, through the real `releaseTree` path this bug lived in.
+   *
+   * `stagger-teardown.test.ts` covers `restageAfterRemoval` itself at the unit level; this exercises
+   * the wiring that actually calls it — a real `MutationObserver` reporting a `childList` removal,
+   * flushed through `Animator.releaseTree` exactly as a page author's own removal would be.
+   */
+  describe('a stagger group that loses a member', () => {
+    const running: Animator[] = []
+    afterEach(() => {
+      for (const animator of running.splice(0)) animator.destroy()
+    })
+
+    function list(attribute: string, children = 5): { animator: Animator; ul: HTMLElement } {
+      stubSyncFrame()
+      document.body.innerHTML =
+        `<ul ${attribute}>${'<li data-kui="fade-up"></li>'.repeat(children)}</ul>`
+      const animator = new Animator({
+        root: document.body,
+        registry: catalogRegistry(),
+        capabilities: CAPS,
+        binder: fakeBinder(),
+        observe: true,
+      })
+      animator.start()
+      running.push(animator)
+      return { animator, ul: document.body.firstElementChild as HTMLElement }
+    }
+
+    const ranks = (ul: HTMLElement): string[] =>
+      [...ul.children].map((li) => (li as HTMLElement).style.getPropertyValue('--kui-i'))
+
+    it('re-ranks the surviving siblings, not just tears the removed one down', async () => {
+      const { ul } = list('data-kui-stagger="100ms from:start"')
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4'])
+
+      ul.children[2]!.remove()
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3'])
+      expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('4')
+    })
+
+    it('re-ranks correctly when several siblings leave in the same tick', async () => {
+      // Real `MutationObserver` records batch every synchronous removal before the deferred flush
+      // runs, so all three of these have already happened by the time `releaseTree` sees any of
+      // them — the same batch shape `restageAfterRemoval`'s dedup exists for.
+      const { ul } = list('data-kui-stagger="100ms from:start"', 6)
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4', '5'])
+
+      ul.children[1]!.remove()
+      ul.children[1]!.remove()
+      ul.children[1]!.remove()
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['0', '1', '2'])
+      expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('3')
+    })
+  })
+
   it('calls destroy() on an injected domWatcher', () => {
     const fakeWatcher: DomWatcher = { watch: vi.fn(), destroy: vi.fn() }
     document.body.innerHTML = ''

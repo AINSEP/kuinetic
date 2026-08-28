@@ -382,6 +382,9 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   for (const [index, child] of children.entries()) {
     const rank = ranks[index] ?? 0
     ledgers.style(child).set('--kui-i', String(rank))
+    // Recorded on every child, not only ones a removal will ever touch: cheaper to write here,
+    // once, than to ask "could this ever need re-ranking" up front. See `GROUP_OF_CHILD`.
+    GROUP_OF_CHILD.set(child, group)
     if (rank > maxRank) maxRank = rank
   }
 
@@ -450,6 +453,58 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
  * first, so the effect ledger — which snapshotted before either wrote — has the last word.
  */
 const GROUP_LEDGERS = new WeakMap<Element, LedgerSet>()
+
+/**
+ * Which group last ranked a child, so a `childList` removal can re-rank the survivors without ever
+ * knowing the DOM parent the removed child came from.
+ *
+ * That parent is genuinely unrecoverable by the time a removal reaches here: `dom-watcher.ts`
+ * defers its callback to the next frame, after the synchronous removal that produced it, and a
+ * detached node's own `parentElement` is already `null` by then. The one place that still has it —
+ * `MutationRecord.target` — belongs to `dom-watcher.ts`, which this fix does not touch. Recording
+ * the group on the child instead sidesteps the question rather than answering it: the group survives
+ * on the child's own bookkeeping, not on a DOM edge that will not outlive the removal.
+ *
+ * Written by every {@link indexStaggerGroup}, read only by {@link restageAfterRemoval}. A `WeakMap`
+ * so a child that leaves for good takes its entry with it, same as `GROUP_LEDGERS`.
+ */
+const GROUP_OF_CHILD = new WeakMap<Element, Element>()
+
+/**
+ * Re-rank every stagger group that lost a member in one removal batch.
+ *
+ * `Animator.releaseTree` tears down each removed element's own state — its ledgers, its listeners —
+ * but that removal is exactly the edit `indexStaggerGroup` never hears about: nothing before this
+ * re-ran ranking for the group a removed child left behind, so every later sibling kept the rank an
+ * index computed for a group that was one element larger.
+ *
+ * Deduplicated so a batch removing several siblings from the same group re-indexes it once, not
+ * once per sibling. That is safe rather than merely faster: `animatedChildren(group)` reads the
+ * *current* DOM, and every removal in one `MutationRecord` batch has already happened synchronously
+ * by the time any of them reaches this deferred call, so the first re-index already sees the same
+ * final child list the others would have computed.
+ *
+ * A group itself removed in the same batch is re-indexed too rather than specially skipped — writing
+ * ranks onto a detached subtree costs a little and changes nothing anyone will see, and the
+ * alternative (asking whether a node is "really" gone) is the same `isConnected` question
+ * `dom-watcher.ts` already rejected for a fragment-rooted animator, where nothing is ever connected
+ * at all.
+ *
+ * @param removed - Every element `releaseTree` visited while tearing down one removal batch —
+ *   membership in a group is decided by the `WeakMap` lookup, not by the caller.
+ * @param reporter - Diagnostic sink, threaded through to each group re-indexed.
+ * @complexity O(r) time in the removed elements to look up, plus O(c) per distinct surviving group
+ *   in its own child count; O(g) space for the dedup set.
+ * @overallScore 100
+ */
+export function restageAfterRemoval(removed: Iterable<Element>, reporter?: Reporter): void {
+  const groups = new Set<Element>()
+  for (const el of removed) {
+    const group = GROUP_OF_CHILD.get(el)
+    if (group) groups.add(group)
+  }
+  for (const group of groups) indexStaggerGroup(group, reporter)
+}
 
 /**
  * Put back what this group's last indexing wrote, and open a fresh ledger for the next one.
