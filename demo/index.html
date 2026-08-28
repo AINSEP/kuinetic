@@ -1254,12 +1254,14 @@
     font-size: 0.66rem; font-weight: 500; letter-spacing: 0.11em; text-transform: uppercase;
   }
   #install a.dc-link { text-decoration: none; }
-  /* Every jsDelivr URL is longer than the card is wide. Left as default `white-space:
-     pre`, `.dc4-panel pre code` turns it into a horizontal scroller instead of the
-     thing it actually wants to be, which is a wrapped line. */
+  /* Every jsDelivr URL is longer than the card is wide. Wrapping it made each panel's
+     height a function of column width — the same snippet ran a different number of
+     lines depending on how narrow its column was, so the CDN panel and the npm/
+     Download panel drifted out of sync with each other (and with themselves across
+     breakpoints). Scrolling instead of wrapping makes each panel's height purely a
+     function of its own line count, which is fixed. */
   #install pre, #install pre code {
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
+    white-space: pre;
     min-width: 0;
   }
   #install .dc4-card {
@@ -1269,7 +1271,7 @@
   }
   #install .dc4-card h2 { color: var(--accent-ink); text-align: center; }
   .dc4-chiprow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 1.9rem 0 1.15rem; justify-content: center; }
-  .dc4-tablist { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .dc4-tablist, .dc4-tablist-cdn { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .dc4-chip, .dc4-gh {
     display: inline-flex; align-items: center; gap: 0.45rem;
     padding: 0.44rem 0.95rem; border-radius: 999px; cursor: pointer;
@@ -1283,28 +1285,53 @@
   .dc4-chip[aria-selected='true'] {
     background: var(--accent-ink); color: var(--accent); border-color: var(--accent-ink);
   }
-  /* The GitHub chip is an outbound link, not a fourth state. A rule and a wider gap
-     put it outside the picker, and it keeps a solid edge so it never reads selected. */
-  .dc4-sep { width: 1px; align-self: stretch; margin: 0.2rem 0.4rem; background: rgb(0 0 0 / 0.22); }
-  @media (max-width: 640px) {
-    .dc4-sep { width: 100%; height: 1px; align-self: auto; margin: 0.35rem 0; }
-  }
+  /* CDN is a real choice now too (jsDelivr vs unpkg): a plain-text label plus a
+     small chip tablist, same interaction shape (chip + aria-selected) as the
+     npm/Download tabs beside it, sized down since it's nested inside one column
+     instead of sitting beside it. */
+  .dc4-cdn-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .dc4-cdn-label { color: var(--accent-ink); opacity: 0.6; }
+  /* Deliberately keeps the base chip's padding-block and font-size (they set this
+     row's height, which the CDN and npm/Download columns must keep matched — see
+     the `.dc4-cols` note above); only padding-inline narrows, for a visually
+     tighter/secondary pill without shifting the panels' shared baseline. */
+  .dc4-chip-sm { padding-inline: 0.7rem; }
   .dc4-gh { border-color: var(--accent-ink); border-style: solid; }
   .dc4-gh:hover { background: var(--accent-ink); color: var(--accent); }
   .dc4-gh svg { flex: none; }
-  /* All three panels share one grid cell, so the card is as tall as the tallest
-     panel and switching chips never shifts the layout under the pointer. */
-  .dc4-stack { display: grid; }
+  /* Left column: CDN, always shown. Right column: npm/Download, switchable.
+     60/40 — the CDN snippet is the longer, denser block and earns the extra width;
+     npm/Download are a few short lines each and don't need it.
+     Single column below 760px, left (CDN) on top. `align-items` is left at its
+     default (stretch): at the 760px+ row, that makes both `.dc4-col` boxes match
+     the row's height, and `.dc4-panel-solo` / `.dc4-stack` below each carry `flex: 1`
+     to consume that extra height — so the CDN panel and whichever npm/Download panel
+     is active always end at the same baseline, regardless of which tab is picked. */
+  .dc4-cols { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+  @media (min-width: 760px) {
+    .dc4-cols { grid-template-columns: 3fr 2fr; gap: 2rem; }
+  }
+  .dc4-col { min-width: 0; display: flex; flex-direction: column; gap: 0.85rem; }
+  /* The stack still exists, just scoped to the right column now — its two panels
+     share one grid cell so switching npm/Download never shifts the layout. `flex: 1`
+     lets it (and the panels stretched inside it, by grid's own default alignment)
+     grow to match the left column's height — see the `.dc4-cols` note above. */
+  .dc4-stack { display: grid; flex: 1; align-content: stretch; align-items: stretch; }
   .dc4-panel {
     grid-area: 1 / 1;
+    min-width: 0;
     background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
     padding: 1.15rem 1.3rem;
     opacity: 0; visibility: hidden; transform: translateY(6px);
     transition: opacity 190ms ease, transform 190ms ease, visibility 0s linear 190ms;
   }
   .dc4-panel.is-active { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+  /* CDN's panel isn't part of a switcher — it has no sibling to overlay, so it
+     just always renders instead of toggling a class on interaction. `flex: 1` matches
+     it to the right column's height — see the `.dc4-cols` note above. */
+  .dc4-panel.dc4-panel-solo { opacity: 1; visibility: visible; transform: none; flex: 1; }
   .dc4-panel pre { margin: 0; overflow-x: auto; }
-  .dc4-panel code { font-size: 0.8rem; line-height: 1.85; color: var(--fg); overflow-wrap: break-word; }
+  .dc4-panel code { font-size: 0.8rem; line-height: 1.85; color: var(--fg); }
   .dc4-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
   .dc4-panel-head .dc-eyebrow { color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
@@ -1493,8 +1520,8 @@
          needs; it is `aria-hidden` so a screen reader reads the list once. -->
     <section class="ticker stage" aria-label="Entrance and exit names — the vocabulary the playground below draws from" data-od-id="ticker">
       <div class="ticker-row" data-kui="marquee 42s">
-        <span>fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
-        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-left&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-right&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span>fade-up&nbsp;·&nbsp;slide-right&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-left&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">fade-up&nbsp;·&nbsp;slide-right&nbsp;·&nbsp;zoom-in&nbsp;·&nbsp;<b>flip-in-x</b>&nbsp;·&nbsp;bounce-in-up&nbsp;·&nbsp;blur-in&nbsp;·&nbsp;roll-in&nbsp;·&nbsp;<b>back-in-down</b>&nbsp;·&nbsp;pop-in&nbsp;·&nbsp;swing-in&nbsp;·&nbsp;rotate-in&nbsp;·&nbsp;<b>fade-blur-up</b>&nbsp;·&nbsp;zoom-in-up&nbsp;·&nbsp;fade-left&nbsp;·&nbsp;slide-up&nbsp;·&nbsp;<b>zoom-out</b>&nbsp;·&nbsp;flip-in-y&nbsp;·&nbsp;bounce-in&nbsp;·&nbsp;back-in-up&nbsp;·&nbsp;</span>
       </div>
     </section>
 
@@ -1551,7 +1578,7 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="pop-in 1500ms">pop-in</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-x 1500ms">flip-in-x</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
               <!-- Ten more, picked for spread rather than count: card-flip-y is the one 3D pick
@@ -1571,15 +1598,15 @@
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="page-slide 1500ms">page-slide</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-up 1500ms">zoom-in-up</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-down 1500ms">back-in-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-left 1500ms">fade-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-right 1500ms">fade-right</button>
               <!-- Eight more: the symmetric pairs the row above was missing (fade/slide/rotate/
                    bounce only ever showed one direction each) plus the one combo preset variant
                    not yet in the row. -->
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-down 1500ms">fade-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-right 1500ms">fade-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-left 1500ms">fade-left</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-down 1500ms">slide-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-right 1500ms">slide-right</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-left 1500ms">slide-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-right 1500ms">rotate-in-right</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in-down 1500ms">bounce-in-down</button>
               <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-blur-in 1500ms">fade-blur-in</button>
@@ -1701,7 +1728,7 @@
               <h2 data-kui="fade-down on:enter">Scroll pulls the reel.</h2>
             </div>
 
-            <p class="kui-contract reel-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="reel-track">Show code</button></p>
+            <p class="kui-contract reel-contract" data-kui="fade-left on:enter"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="reel-track">Show code</button></p>
           </div>
 
           <div class="track">
@@ -2043,55 +2070,73 @@
       <!-- INSTALL -->
       <section id="install" data-od-id="install">
         <div class="dc4-card">
-          <h2 data-kui="fade-up on:enter">Download today.</h2>
+          <h2 data-kui="fade-up on:enter">Download today</h2>
 
-          <div class="dc4-chiprow" data-kui="fade-up 620ms 120ms on:enter">
-            <div class="dc4-tablist" role="tablist" aria-label="Choose how to load kUInetic">
-              <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t1" aria-selected="true" aria-controls="dc4-p1" tabindex="0">CDN</button>
-              <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t2" aria-selected="false" aria-controls="dc4-p2" tabindex="-1">npm</button>
-              <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t3" aria-selected="false" aria-controls="dc4-p3" tabindex="-1">Download</button>
-            </div>
-            <span class="dc4-sep" aria-hidden="true"></span>
+          <div class="dc4-chiprow" data-kui="fade-up 500ms 100ms on:enter">
             <a class="dc-link dc-ring dc4-gh" href="https://github.com/AINSEP/kuinetic" target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5Z"/></svg>
               GitHub <span aria-hidden="true">&#8599;</span><span class="dc-sr"> (opens in a new tab)</span>
             </a>
           </div>
 
-          <div class="dc4-stack" data-kui="fade-up 620ms 180ms on:enter">
-            <div class="dc4-panel is-active" id="dc4-p1" role="tabpanel" aria-labelledby="dc4-t1">
-              <div class="dc4-panel-head">
-                <span class="dc-eyebrow">One tag, from jsDelivr</span>
-                <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-cdn">Copy</button>
+          <div class="dc4-cols" data-kui="fade-up 620ms 180ms on:enter">
+            <div class="dc4-col dc4-col-cdn">
+              <div class="dc4-cdn-head">
+                <span class="dc-eyebrow dc4-cdn-label">CDN</span>
+                <div class="dc4-tablist-cdn" role="tablist" aria-label="CDN provider">
+                  <button type="button" class="dc4-chip dc4-chip-sm dc-ring" role="tab" id="dc4-cdn-t1" aria-selected="true" aria-controls="dc4-p1" tabindex="0">jsDelivr</button>
+                  <button type="button" class="dc4-chip dc4-chip-sm dc-ring" role="tab" id="dc4-cdn-t2" aria-selected="false" aria-controls="dc4-p1" tabindex="-1">unpkg</button>
+                </div>
               </div>
-              <pre><code id="dc4-cdn">&lt;script src="https:<wbr>//cdn.jsdelivr.net<wbr>/npm<wbr>/kuinetic<wbr>/dist<wbr>/kuinetic.all.js"&gt;&lt;/script&gt;
+              <div class="dc4-panel dc4-panel-solo" id="dc4-p1" role="tabpanel" aria-labelledby="dc4-cdn-t1">
+                <div class="dc4-panel-head">
+                  <span class="dc-eyebrow">One tag, from <span id="dc4-cdn-provider-name">jsDelivr</span></span>
+                  <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-cdn">Copy</button>
+                </div>
+                <pre><code id="dc4-cdn">&lt;script src="https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js"&gt;&lt;/script&gt;
 
 &lt;!-- or css + js separately --&gt;
-&lt;link rel="stylesheet" href="https:<wbr>//cdn.jsdelivr.net<wbr>/npm<wbr>/kuinetic<wbr>/dist<wbr>/kuinetic.css"&gt;
-&lt;script src="https:<wbr>//cdn.jsdelivr.net<wbr>/npm<wbr>/kuinetic<wbr>/dist<wbr>/kuinetic.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css"&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   kuinetic.kuinetic({ observe: true }).start()
 &lt;/script&gt;</code></pre>
-            </div>
-            <div class="dc4-panel" id="dc4-p2" role="tabpanel" aria-labelledby="dc4-t2">
-              <div class="dc4-panel-head">
-                <span class="dc-eyebrow">Bundler install</span>
-                <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-npm">Copy</button>
               </div>
-              <pre><code id="dc4-npm">npm install kuinetic
+              <template id="dc4-cdn-unpkg">&lt;script src="https://unpkg.com/kuinetic/dist/kuinetic.all.js"&gt;&lt;/script&gt;
+
+&lt;!-- or css + js separately --&gt;
+&lt;link rel="stylesheet" href="https://unpkg.com/kuinetic/dist/kuinetic.css"&gt;
+&lt;script src="https://unpkg.com/kuinetic/dist/kuinetic.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  kuinetic.kuinetic({ observe: true }).start()
+&lt;/script&gt;</template>
+            </div>
+
+            <div class="dc4-col dc4-col-switch">
+              <div class="dc4-tablist" role="tablist" aria-label="Other ways to get kUInetic">
+                <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t2" aria-selected="true" aria-controls="dc4-p2" tabindex="0">npm</button>
+                <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t3" aria-selected="false" aria-controls="dc4-p3" tabindex="-1">Download</button>
+              </div>
+              <div class="dc4-stack">
+                <div class="dc4-panel is-active" id="dc4-p2" role="tabpanel" aria-labelledby="dc4-t2">
+                  <div class="dc4-panel-head">
+                    <span class="dc-eyebrow">Bundler install</span>
+                    <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-npm">Copy</button>
+                  </div>
+                  <pre><code id="dc4-npm">npm install kuinetic
 
 // then, in your entry file
 import { kuinetic } from 'kuinetic'
 import 'kuinetic/css'
 
 kuinetic({ observe: true }).start()</code></pre>
-            </div>
-            <div class="dc4-panel" id="dc4-p3" role="tabpanel" aria-labelledby="dc4-t3">
-              <div class="dc4-panel-head">
-                <span class="dc-eyebrow">Files you serve yourself</span>
-                <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-local">Copy</button>
-              </div>
-              <pre><code id="dc4-local">&lt;script src="./kuinetic.all.js"&gt;&lt;/script&gt;
+                </div>
+                <div class="dc4-panel" id="dc4-p3" role="tabpanel" aria-labelledby="dc4-t3">
+                  <div class="dc4-panel-head">
+                    <span class="dc-eyebrow">Files you serve yourself</span>
+                    <button type="button" class="copy-btn dc-ring" data-copy-target="dc4-local">Copy</button>
+                  </div>
+                  <pre><code id="dc4-local">&lt;script src="./kuinetic.all.js"&gt;&lt;/script&gt;
 
 &lt;!-- or css + js separately --&gt;
 &lt;link rel="stylesheet" href="./kuinetic.css"&gt;
@@ -2099,6 +2144,8 @@ kuinetic({ observe: true }).start()</code></pre>
 &lt;script&gt;
   kuinetic.kuinetic({ observe: true }).start()
 &lt;/script&gt;</code></pre>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2163,6 +2210,30 @@ kuinetic({ observe: true }).start()</code></pre>
             if (panel) panel.classList.toggle('is-active', n === index)
           })
         })
+      }
+
+      // CDN provider chips (jsDelivr / unpkg): unlike the npm/Download tabs above,
+      // both options share a single panel — clicking swaps that panel's text
+      // instead of toggling which of two panels is visible. The unpkg variant is
+      // authored once, in a template element, so both URL sets live in markup
+      // rather than a JS string (avoids ever needing to escape a literal closing
+      // script tag inside a JS string).
+      var cdnTablist = document.querySelector('#install .dc4-tablist-cdn')
+      if (cdnTablist) {
+        var cdnTabs = [].slice.call(cdnTablist.querySelectorAll('[role="tab"]'))
+        var cdnCode = document.getElementById('dc4-cdn')
+        var cdnPanel = document.getElementById('dc4-p1')
+        var cdnProviderName = document.getElementById('dc4-cdn-provider-name')
+        var cdnUnpkgTemplate = document.getElementById('dc4-cdn-unpkg')
+        if (cdnCode && cdnPanel && cdnUnpkgTemplate) {
+          var cdnVariants = [cdnCode.textContent, cdnUnpkgTemplate.content.textContent]
+          var cdnLabels = ['jsDelivr', 'unpkg']
+          wireComposite(cdnTabs, 'aria-selected', function (index) {
+            cdnCode.textContent = cdnVariants[index]
+            if (cdnProviderName) cdnProviderName.textContent = cdnLabels[index]
+            cdnPanel.setAttribute('aria-labelledby', cdnTabs[index].id)
+          })
+        }
       }
     })()
   </script>

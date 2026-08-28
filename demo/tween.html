@@ -121,7 +121,6 @@
     aspect-ratio: 16 / 10; border-radius: 10px; border: 1px solid var(--border);
     background: color-mix(in srgb, var(--fg) 4%, var(--surface));
   }
-  .tw-stage.is-3d { perspective: 700px; }
   /* A dashed outline exactly where the chip comes to rest. Without it a still frame of a
      motion demo is a box in an empty field and says nothing; with it, the same frame shows
      whether the element is at its mark or away from it — which is precisely the difference
@@ -131,12 +130,6 @@
     border: 1px dashed color-mix(in srgb, var(--fg) 26%, transparent); border-radius: 12px;
     pointer-events: none;
   }
-  /* Two cards animate a colour, and a colour is only legible against a surface that does
-     not move with the theme — so those two get a fixed ink stage, the same fixed-value
-     trick `.demo-card figcaption` uses in reveals.html. */
-  .tw-stage.is-ink { background: #101010; border-color: #2a2a2a; }
-  .tw-stage.is-photo { aspect-ratio: 3 / 4; }
-  .tw-stage.is-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
   /* Keep in step with `.tw-stage.has-rest::after` above — the marker is this box's outline. */
   .tw-chip {
@@ -144,10 +137,69 @@
     border-radius: 10px; background: var(--fg); color: var(--bg);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; font-weight: 600;
   }
-  .tw-stage.is-ink .tw-chip { background: #2f2f2f; color: #ffffff; }
-  .tw-word {
-    font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; letter-spacing: -0.02em;
-    color: #ffffff;
+
+  /* ---------- vocabulary: one shared target, fifteen chips ----------
+     Fifteen static boxes duplicated the same demo fifteen times, and `.tw-stage`'s flat 4%-tint
+     gray (above) never matched the site's real palette. One target does both jobs: a single
+     photo card carries whichever property was last clicked, painted in the site's own three
+     colours (paper card, ink bar, accent value) instead of a demo-only tint. Mechanism copied
+     from `#lab` on the homepage — `data-fx` on the chip, `reset()`+`process()`+`activate()` on
+     click, same reason: `on:enter` never refires for an element that never left the viewport. */
+  .tw-vocab { display: grid; gap: 2rem; grid-template-columns: 1fr; align-items: start; margin-top: 1.75rem; }
+  @media (min-width: 900px) {
+    .tw-vocab { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); gap: 3rem; }
+  }
+  .tw-vocab-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .tw-vocab-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem;
+    padding: 0.4rem 0.8rem; border-radius: 999px;
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .tw-vocab-chip:hover { border-color: var(--fg); color: var(--fg); }
+  .tw-vocab-chip[aria-pressed='true'] {
+    background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
+  }
+
+  /* Perspective lives on the card, not the frame it drives — an element's own `perspective`
+     applies to its descendants' transforms, never to its own, so the `z` chip needs it up here
+     regardless of which chip is currently active. Same fix `#lab`'s `.lab-card` comment
+     documents, for the same reason. */
+  .tw-vocab-card {
+    perspective: 1400px;
+    max-width: 26rem; margin-inline: auto;
+    border-radius: 12px; overflow: clip; background: #000;
+    box-shadow: 0 20px 48px rgb(8 9 10 / 0.18);
+  }
+  :root[data-theme='dark'] .tw-vocab-card { box-shadow: 0 20px 48px rgb(0 0 0 / 0.5); }
+  .tw-vocab-frame { position: relative; aspect-ratio: 3 / 4; overflow: clip; background: #000; }
+  .tw-vocab-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* The two colour chips retarget here instead of tweening the photo. Fixed values, not theme
+     tokens, and the same reasoning the old `.tw-stage.is-ink` gave: a colour demo needs a
+     surface that doesn't move with the theme. Black background so the accent-yellow start value
+     reads clearly; white resting text so both the accent-yellow-on-black start frame and the
+     accent-yellow background mid-tween stay legible. */
+  .tw-vocab-tag {
+    position: absolute; inset-block-end: 0.85rem; inset-inline-start: 0.85rem;
+    padding: 0.3rem 0.65rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; font-weight: 600;
+    background: #000000; color: #ffffff;
+  }
+  /* Centred and stacked, same call `#lab`'s `.lab-bar` makes and for the same reason — at this
+     card's width the attribute line and the show-code chip wrap anyway. */
+  .tw-vocab-bar {
+    display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+    padding: 0.75rem 0.9rem 0.85rem; background: #08090a; text-align: center;
+  }
+  .tw-vocab-bar .tw-attr-line { color: #8a8f98; }
+  /* Same mono-plus-accent-band treatment `index.html`'s `.attr-line`/`.v` use for both
+     playgrounds — wherever this site shows a live attribute, it looks like this. */
+  .tw-attr-line {
+    margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(0.78rem, 0.4vw + 0.72rem, 0.92rem); line-height: 1.6; overflow-wrap: break-word;
+  }
+  .tw-attr-line .v {
+    padding: 0.12em 0.4em; border-radius: 3px; background: var(--accent); color: var(--accent-ink); font-weight: 600;
   }
 
   /* ---------- card grids ---------- */
@@ -456,133 +508,47 @@
       <!-- THE VOCABULARY -->
       <section id="vocabulary" data-od-id="vocabulary">
         <div class="section-head">
-          <h2 data-kui="fade-up on:enter">Fifteen properties, seven groups</h2>
-          <p data-kui="fade-up 700ms">One keyframe block per group, not per property.</p>
+          <h2 data-kui="fade-up on:enter">Fifteen properties, one block.</h2>
+          <p data-kui="fade-up 700ms">One shared target — click a chip and the compiled keyframes swap under it.</p>
         </div>
 
-        <div class="tw-group">
-          <p class="tw-group-label"><b>translate</b> · x y z</p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from x:-160px 900ms expo-out">x</div>
-              </div>
-              <figcaption>data-kui="tween-from x:-160px 900ms expo-out"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from y:120 900ms expo-out">y</div>
-              </div>
-              <figcaption>data-kui="tween-from y:120 900ms expo-out" — bare number, implied px</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-3d has-rest">
-                <div class="tw-chip" data-kui="tween-from z:-560px 1100ms expo-out">z</div>
-              </div>
-              <figcaption>data-kui="tween-from z:-560px 1100ms expo-out"</figcaption>
-            </figure>
+        <div class="tw-vocab">
+          <div class="tw-vocab-chips" role="group" aria-label="Choose a property" data-kui="cascade:45ms">
+            <button type="button" class="tw-vocab-chip" aria-pressed="true" data-kui="fade-up 400ms on:enter" data-fx="tween-from x:-160px 900ms expo-out">x</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from y:120 900ms expo-out">y</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from z:-560px 1100ms expo-out">z</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from rotate:-180deg 1000ms expo-out">rotate</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from rotate:45 1000ms bounce">rotate:45</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale:0.2 900ms bounce">scale</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale-x:0.1 900ms expo-out">scale-x</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale:1.6 scale-y:0.1 900ms expo-out">scale-y</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from opacity:0 1000ms">opacity</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from blur:24px 1100ms">blur</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from brightness:0.05 1100ms">brightness</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from saturate:6 1100ms">saturate</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from grayscale:1 1100ms">grayscale</button>
+            <!-- These two retarget onto `.tw-vocab-tag` instead of tweening the photo — a
+                 photograph doesn't demonstrate a colour change, a label sitting on top of one
+                 does. `target:` is generic (any primitive that doesn't declare its own `target`
+                 parameter gets it lifted for free — see `liftTarget` in `core/compile.ts`), and
+                 `tween`/`tween-from` don't declare one, so this needed no library change. -->
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from color:#e4f222 1200ms target:.tw-vocab-tag">color</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from background-color:#e4f222 1200ms target:.tw-vocab-tag">background-color</button>
           </div>
-        </div>
 
-        <div class="tw-group">
-          <p class="tw-group-label"><b>rotate</b> · rotate <span>— about z only</span></p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from rotate:-180deg 1000ms expo-out">rotate</div>
-              </div>
-              <figcaption>data-kui="tween-from rotate:-180deg 1000ms expo-out"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from rotate:45 1000ms bounce">rotate:45</div>
-              </div>
-              <figcaption>data-kui="tween-from rotate:45 1000ms bounce" — bare number, implied deg</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="tw-group">
-          <p class="tw-group-label"><b>scale</b> · scale scale-x scale-y</p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from scale:0.2 900ms bounce">scale</div>
-              </div>
-              <figcaption>data-kui="tween-from scale:0.2 900ms bounce"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from scale-x:0.1 900ms expo-out">scale-x</div>
-              </div>
-              <figcaption>data-kui="tween-from scale-x:0.1 900ms expo-out"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from scale:1.6 scale-y:0.1 900ms expo-out">scale-y</div>
-              </div>
-              <figcaption>data-kui="tween-from scale:1.6 scale-y:0.1 900ms expo-out"</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="tw-group">
-          <p class="tw-group-label"><b>opacity</b> · opacity</p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage has-rest">
-                <div class="tw-chip" data-kui="tween-from opacity:0 1000ms">opacity</div>
-              </div>
-              <figcaption>data-kui="tween-from opacity:0 1000ms"</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="tw-group">
-          <p class="tw-group-label"><b>filter</b> · blur brightness saturate grayscale</p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-photo" data-kui="tween-from blur:24px 1100ms">
-                <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
-              </div>
-              <figcaption>data-kui="tween-from blur:24px 1100ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-photo" data-kui="tween-from brightness:0.05 1100ms">
-                <img src="./assets/modeling/modeling_08.jpg" alt="Close profile portrait lit entirely in orange, round tinted glasses and a glossy jacket" loading="lazy" />
-              </div>
-              <figcaption>data-kui="tween-from brightness:0.05 1100ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-photo" data-kui="tween-from saturate:6 1100ms">
-                <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" />
-              </div>
-              <figcaption>data-kui="tween-from saturate:6 1100ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-photo" data-kui="tween-from grayscale:1 1100ms">
-                <img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" loading="lazy" />
-              </div>
-              <figcaption>data-kui="tween-from grayscale:1 1100ms"</figcaption>
-            </figure>
-          </div>
-        </div>
-
-        <div class="tw-group">
-          <p class="tw-group-label"><b>color</b> · color <span>—</span> <b>background</b> · background-color</p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-ink">
-                <span class="tw-word" data-kui="tween-from color:#e4f222 1200ms">colour</span>
-              </div>
-              <figcaption>data-kui="tween-from color:#e4f222 1200ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-stage is-ink">
-                <div class="tw-chip" data-kui="tween-from background-color:#e4f222 1200ms">bg</div>
-              </div>
-              <figcaption>data-kui="tween-from background-color:#e4f222 1200ms"</figcaption>
-            </figure>
+          <div class="tw-vocab-card">
+            <!-- The attribute sits on the frame, not the `<img>` — `z` needs the frame's parent
+                 (`.tw-vocab-card`) to own `perspective`, and every other chip works on the frame
+                 too, so one target keeps every chip on the same footing. Same shape as `#lab`'s
+                 `.lab-frame` on the homepage. -->
+            <div class="tw-vocab-frame" id="vocab-target" data-kui="tween-from x:-160px 900ms expo-out">
+              <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, cobalt lips and blue fur gloves framing the face" loading="lazy" />
+              <span class="tw-vocab-tag">tween</span>
+            </div>
+            <div class="tw-vocab-bar">
+              <p class="tw-attr-line">data-kui="<span class="v" id="vocab-attr">tween-from x:-160px 900ms expo-out</span>"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="vocab-target">Show code</button>
+            </div>
           </div>
         </div>
 
@@ -960,6 +926,39 @@
       })
       document.querySelectorAll('[data-dialog-close]').forEach(function (button) {
         button.addEventListener('click', function () { button.closest('dialog').close() })
+      })
+    })()
+  </script>
+  <script>
+    // --- Vocabulary: one shared target, fifteen chips ---------------------------------------
+    //
+    // Same mechanism as `#lab` on the homepage. `reset()` + `process()` is the same pair
+    // `replay.js` uses everywhere else — `process()` short-circuits when an element's
+    // configuration hasn't changed, so `reset()`, which releases the installed state, is what
+    // makes re-running a *different* attribute on the same element actually recompile rather
+    // than no-op.
+    ;(function () {
+      var target = document.getElementById('vocab-target')
+      var label = document.getElementById('vocab-attr')
+      var chips = document.querySelectorAll('.tw-vocab-chip')
+      if (!target || !label || !chips.length) return
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var fx = chip.getAttribute('data-fx')
+          chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+          label.textContent = fx
+          target.setAttribute('data-kui', fx)
+          var kui = window.__kui
+          if (!kui || typeof kui.reset !== 'function') return
+          // `reset()` releases the installed state and `process()` re-plans — but `process()`
+          // leaves the effect GATED on its activation trigger, which with no `on:` token is
+          // `on:enter`. The element never left the viewport, so the observer never re-fires —
+          // a click IS the activation; say so. Same reasoning `#lab`'s script gives.
+          kui.reset(target)
+          kui.process(target)
+          kui.activate(target)
+        })
       })
     })()
   </script>

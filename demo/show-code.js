@@ -341,6 +341,13 @@
       targetEl = liveEl.hasAttribute('data-kui') ? liveEl : (liveEl.querySelector('[data-kui]') || liveEl)
       const targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
 
+      // A chip-picker page rewrites `data-kui` itself on click (#lab, #vocab-target) — that is a
+      // real, intentional value, unlike the data-kui-fx/data-kui-state noise the pristine-fetch
+      // trick above exists to strip. The runtime never touches `data-kui`'s own value, so for every
+      // other (static) demo this is a no-op; for a chip-picker it keeps the modal in sync with
+      // whichever chip is actually selected instead of always showing the page's first default.
+      targetSourceEl.setAttribute('data-kui', targetEl.getAttribute('data-kui') ?? '')
+
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
       const tokens = keyTokensFor(sourceEl)
       // The legend sentence that used to sit here is gone at the owner's request. It restated the
