@@ -1029,68 +1029,9 @@
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
-    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
-      <div class="kui-nav-dropdown" data-nav-group="docs">
-        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./docs.html?doc=getting-started">Getting Started</a>
-          <a href="./docs.html?doc=catalog">Catalog</a>
-          <a href="./docs.html?doc=design">Architecture</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="basic">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="reveals.html,text.html,ambient-feedback.html"
-        >
-          Basic
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
-          <a href="./text.html" data-nav-link="text.html">Text</a>
-          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="advanced">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
-        >
-          Advanced
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
-          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
-          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
-          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="designs">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="index.html"
-        >
-          Designs
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./index.html" data-nav-link="index.html">Premium</a>
-          <span class="kui-nav-coming-soon">Coming soon</span>
-        </div>
-      </div>
-    </nav>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden></nav>
     <a href="#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
-    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
-      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
-    </button>
+    <span data-theme-toggle-mount></span>
     <button
       type="button"
       class="kui-nav-toggle"
@@ -1632,39 +1573,11 @@
 
   </main>
 
-  <footer data-od-id="footer">
-    <div class="wrap foot-row">
-      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
-      <a href="#top" class="back-top">Back to top ↑</a>
-    </div>
-  </footer>
+  <footer data-od-id="footer" data-footer-mount></footer>
 
   <script src="./kuinetic.js"></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
-  </script>
-  <script>
-    // Theme toggle
-    ;(function () {
-      var KEY = 'kuinetic-showcase-theme'
-      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
-      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
-      var btn = document.getElementById('theme-toggle')
-      var icon = document.getElementById('theme-icon')
-      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
-      function paint(theme) {
-        icon.innerHTML = theme === 'dark' ? SUN : MOON
-        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
-        btn.setAttribute('aria-pressed', String(theme === 'dark'))
-      }
-      paint(current())
-      btn.addEventListener('click', function () {
-        var next = current() === 'dark' ? 'light' : 'dark'
-        document.documentElement.dataset.theme = next
-        paint(next)
-        try { localStorage.setItem(KEY, next) } catch (e) {}
-      })
-    })()
   </script>
   <script>
     // Copy-to-clipboard

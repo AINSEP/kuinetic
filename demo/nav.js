@@ -1,7 +1,24 @@
 /**
- * Vanilla-JS replacement for the former Alpine `siteNav` component. Shared by every showcase page
- * plus the standalone Docs-only bar on demo/index.html — pages without a mobile panel/hamburger
- * (e.g. index.html) simply don't have those elements, and every DOM lookup here is null-checked.
+ * Vanilla-JS replacement for the former Alpine `siteNav` component. Shared by every showcase page.
+ * Every DOM lookup here is null-checked, which used to matter for a reduced Docs-only variant of
+ * demo/index.html — that variant is gone (index.html's header is the same 4-group structure as
+ * every other page now, just with self-referential logo/CTA hrefs), but the null-checks stay
+ * because they're cheap insurance and this file is still the one place a future stripped-down
+ * header would need to keep working without extra wiring.
+ *
+ * As of the nav-consolidation pass, this file owns the dropdown-group MARKUP as well as its
+ * behavior. It used to only wire up behavior against 14 hand-duplicated copies of the same
+ * ~60-line `<nav data-nav-panel>…</nav>` block (docs/basic/advanced/designs groups) — one edit to
+ * the link list meant editing all 14 files, and it was only a matter of time before one drifted.
+ * `NAV_GROUPS` below is now the single source of truth for that block's content, and
+ * `buildNavGroups()` renders it into any page's empty `<nav data-nav-panel></nav>` mount point
+ * before the behavior wiring below ever runs. A page that still carries the old hand-authored
+ * groups (mid-migration) is left alone — generation only fires when the mount point has no
+ * `[data-nav-group]` children yet, so the two forms coexist safely while pages migrate one at a
+ * time. `kuinetic()`'s `observe: true` watcher (see src/core/animator.ts) is what makes markup
+ * inserted here after `.start()` still pick up its own `data-kui="dropdown-open on:manual"` effect
+ * — the same MutationObserver-backed path every other dynamically-inserted `data-kui` element on
+ * these pages already relies on.
  *
  * One shared `open` slot (`null` | a `data-nav-group` id) makes "only one dropdown open at a time"
  * true by construction. `pinned` distinguishes a real click (stays open past mouseleave) from
@@ -21,11 +38,111 @@
  * previous behavior (no exit transition existed under Alpine either).
  */
 ;(function () {
+  /**
+   * The four dropdown groups, verbatim content for every page. `pages` becomes each trigger's
+   * `data-nav-pages` (comma list `initNav`'s active-highlighting already reads — see below); a
+   * group with no `pages` (Docs) never gets `is-active` styling, matching the original hand-authored
+   * markup, which never gave the Docs trigger that attribute either. Each link's `page`, when
+   * present, becomes its `data-nav-link`, the other half of that same active-highlighting pass.
+   */
+  var NAV_GROUPS = [
+    {
+      id: 'docs',
+      label: 'Docs',
+      links: [
+        { href: './docs.html?doc=getting-started', label: 'Getting Started' },
+        { href: './docs.html?doc=catalog', label: 'Catalog' },
+        { href: './docs.html?doc=design', label: 'Architecture' },
+      ],
+    },
+    {
+      id: 'basic',
+      label: 'Basic',
+      pages: ['reveals.html', 'text.html', 'ambient-feedback.html', 'tween.html'],
+      links: [
+        { href: './reveals.html', label: 'Reveals', page: 'reveals.html' },
+        { href: './text.html', label: 'Text', page: 'text.html' },
+        { href: './ambient-feedback.html', label: 'Ambient & Feedback', page: 'ambient-feedback.html' },
+        { href: './tween.html', label: 'Tween', page: 'tween.html' },
+      ],
+    },
+    {
+      id: 'advanced',
+      label: 'Advanced',
+      pages: ['scroll.html', 'interactive.html', 'data-hover.html', 'tween-advanced.html'],
+      links: [
+        { href: './scroll.html', label: 'Scroll', page: 'scroll.html' },
+        { href: './interactive.html', label: 'Interactive', page: 'interactive.html' },
+        { href: './data-hover.html', label: 'Data & Hover', page: 'data-hover.html' },
+        { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
+      ],
+    },
+    {
+      id: 'designs',
+      label: 'Designs',
+      pages: ['index.html'],
+      links: [{ href: './index.html', label: 'Premium', page: 'index.html' }],
+      comingSoon: true,
+    },
+  ]
+
+  /**
+   * Render `NAV_GROUPS` into an empty `<nav data-nav-panel>` mount point.
+   *
+   * Built with `createElement`/`textContent`, never `innerHTML` — same reasoning as
+   * `show-code.js`'s `renderSource`: nothing here is untrusted input, but a plain-DOM builder can't
+   * accidentally reinterpret a label as markup either, so there's no reason to reach for the riskier
+   * tool. Caller is responsible for only invoking this on a panel that doesn't already have groups.
+   *
+   * @complexity O(g·l) time in groups × links; one-time cost per page load.
+   */
+  function buildNavGroups(navPanel) {
+    NAV_GROUPS.forEach(function (group) {
+      var wrap = document.createElement('div')
+      wrap.className = 'kui-nav-dropdown'
+      wrap.setAttribute('data-nav-group', group.id)
+
+      var trigger = document.createElement('button')
+      trigger.type = 'button'
+      trigger.className = 'kui-nav-dropdown-trigger'
+      trigger.setAttribute('aria-haspopup', 'true')
+      trigger.setAttribute('aria-expanded', 'false')
+      if (group.pages) trigger.setAttribute('data-nav-pages', group.pages.join(','))
+      trigger.textContent = group.label
+
+      var menu = document.createElement('div')
+      menu.className = 'kui-nav-dropdown-menu'
+      menu.setAttribute('data-kui', 'dropdown-open on:manual')
+      menu.hidden = true
+
+      group.links.forEach(function (link) {
+        var a = document.createElement('a')
+        a.setAttribute('href', link.href)
+        if (link.page) a.setAttribute('data-nav-link', link.page)
+        a.textContent = link.label
+        menu.appendChild(a)
+      })
+
+      if (group.comingSoon) {
+        var soon = document.createElement('span')
+        soon.className = 'kui-nav-coming-soon'
+        soon.textContent = 'Coming soon'
+        menu.appendChild(soon)
+      }
+
+      wrap.appendChild(trigger)
+      wrap.appendChild(menu)
+      navPanel.appendChild(wrap)
+    })
+  }
+
   function initNav(root) {
+    var navPanel = root.querySelector('[data-nav-panel]')
+    if (navPanel && !navPanel.querySelector('[data-nav-group]')) buildNavGroups(navPanel)
+
     var groupEls = root.querySelectorAll('[data-nav-group]')
     if (!groupEls.length) return
 
-    var navPanel = root.querySelector('[data-nav-panel]')
     var hamburger = root.querySelector('[data-nav-hamburger]')
     var backdrop = root.querySelector('[data-nav-backdrop]')
     var currentFile = location.pathname.split('/').pop()
@@ -228,6 +345,133 @@
     })
   }
 
+  /**
+   * Theme toggle — the button lives inside the same `[data-nav-root]` header as the nav groups
+   * above, and until this pass its full behavior script (paint the icon, flip
+   * `document.documentElement.dataset.theme`, persist to storage) was duplicated verbatim as an
+   * inline `<script>` at the bottom of every page. Consolidated here for the same reason as
+   * `NAV_GROUPS`: one place to fix instead of 13.
+   *
+   * `THEME_STORAGE_KEY` deliberately matches the key name the FOUC-prevention bootstrap script
+   * still inline in each page's `<head>` uses (see reveals.html) — that script resolves the
+   * *initial* `dataset.theme` from storage/OS preference before first paint, synchronously, which
+   * cannot move here without reintroducing the flash this file's `defer` timing exists to avoid.
+   * This code only has to read the value that bootstrap already set, and persist the next one.
+   */
+  var THEME_STORAGE_KEY = 'kuinetic-showcase-theme'
+  var THEME_SUN_ICON =
+    '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line>' +
+    '<line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>' +
+    '<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line>' +
+    '<line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>' +
+    '<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
+  var THEME_MOON_ICON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
+
+  /**
+   * Build the toggle button, matching the markup every page hand-authored before this pass byte
+   * for byte: `class="theme-toggle" id="theme-toggle"` is what `system.css`'s circular-button rule
+   * selects, and the child `<svg id="theme-icon">` is what `wireThemeToggle` repaints on click.
+   * The svg needs `createElementNS` — a plain `createElement('svg')` yields an unstyled
+   * `HTMLUnknownElement`, not something the browser renders as a vector icon.
+   */
+  function buildThemeToggle() {
+    var btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'theme-toggle'
+    btn.id = 'theme-toggle'
+    btn.setAttribute('aria-label', 'Switch to dark mode')
+    btn.setAttribute('aria-pressed', 'false')
+
+    var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    icon.setAttribute('id', 'theme-icon')
+    icon.setAttribute('viewBox', '0 0 24 24')
+    icon.setAttribute('width', '16')
+    icon.setAttribute('height', '16')
+    icon.setAttribute('fill', 'none')
+    icon.setAttribute('stroke', 'currentColor')
+    icon.setAttribute('stroke-width', '2')
+    icon.setAttribute('stroke-linecap', 'round')
+    icon.setAttribute('stroke-linejoin', 'round')
+    icon.setAttribute('aria-hidden', 'true')
+
+    btn.appendChild(icon)
+    return btn
+  }
+
+  /** Paint/click/persistence behavior — the part of every page's old inline script that wasn't markup. */
+  function wireThemeToggle(btn) {
+    var icon = btn.querySelector('#theme-icon')
+    if (!icon) return
+
+    function current() {
+      return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+    }
+    function paint(theme) {
+      icon.innerHTML = theme === 'dark' ? THEME_SUN_ICON : THEME_MOON_ICON
+      btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
+      btn.setAttribute('aria-pressed', String(theme === 'dark'))
+    }
+
+    paint(current())
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark'
+      document.documentElement.dataset.theme = next
+      paint(next)
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next)
+      } catch (e) {}
+    })
+  }
+
+  /**
+   * Only acts on a migrated page's empty `<span data-theme-toggle-mount>`. A page still carrying
+   * its own hand-authored `#theme-toggle` button and inline script (mid-migration) is left
+   * completely alone — wiring a second click handler on top of its still-present original would
+   * double-fire the toggle and flip the theme twice per click.
+   */
+  function initThemeToggle(root) {
+    var mount = root.querySelector('[data-theme-toggle-mount]')
+    if (!mount) return
+    var btn = buildThemeToggle()
+    mount.replaceWith(btn)
+    wireThemeToggle(btn)
+  }
+
+  /**
+   * Footer — pure static content, no behavior, but the same byte-identical duplication problem as
+   * the nav groups: 12 of the 13 in-scope pages hand-authored the same five lines (`docs.html` has
+   * no footer at all and carries no mount, so it's untouched). Same conditional-fill pattern as
+   * `buildNavGroups`: only acts on an empty `<footer data-footer-mount>`.
+   */
+  function buildFooterContent() {
+    var wrap = document.createElement('div')
+    wrap.className = 'wrap foot-row'
+
+    var note = document.createElement('p')
+    note.className = 'foot-note'
+    note.textContent = 'kUInetic — MIT licensed. Declarative web animation from HTML attributes.'
+
+    var back = document.createElement('a')
+    back.setAttribute('href', '#top')
+    back.className = 'back-top'
+    back.textContent = 'Back to top ↑'
+
+    wrap.appendChild(note)
+    wrap.appendChild(back)
+    return wrap
+  }
+
+  function initFooter(footer) {
+    if (footer.querySelector('.foot-row')) return
+    footer.appendChild(buildFooterContent())
+  }
+
   var roots = document.querySelectorAll('[data-nav-root]')
-  Array.prototype.forEach.call(roots, initNav)
+  Array.prototype.forEach.call(roots, function (root) {
+    initNav(root)
+    initThemeToggle(root)
+  })
+
+  var footerMounts = document.querySelectorAll('[data-footer-mount]')
+  Array.prototype.forEach.call(footerMounts, initFooter)
 })()
