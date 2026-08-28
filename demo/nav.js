@@ -63,7 +63,7 @@
         { href: './reveals.html', label: 'Reveals', page: 'reveals.html' },
         { href: './text.html', label: 'Text', page: 'text.html' },
         { href: './ambient-feedback.html', label: 'Ambient & Feedback', page: 'ambient-feedback.html' },
-        { href: './tween.html', label: 'Tween', page: 'tween.html' },
+        // { href: './tween.html', label: 'Tween', page: 'tween.html' },
       ],
     },
     {
@@ -74,7 +74,7 @@
         { href: './scroll.html', label: 'Scroll', page: 'scroll.html' },
         { href: './interactive.html', label: 'Interactive', page: 'interactive.html' },
         { href: './data-hover.html', label: 'Data & Hover', page: 'data-hover.html' },
-        { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
+        // { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
       ],
     },
     {
