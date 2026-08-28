@@ -10,6 +10,49 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
+- [x] **Install section rebuilt with a CDN option and a GitHub link — SHIPPED 2026-08-28**
+      (`8ee89d2`). The homepage's install card only ever showed local relative paths
+      (`./kuinetic.all.js`), with no CDN option and no link to the repo, despite the package
+      being on npm and both jsDelivr/unpkg serving it correctly. Reviewed 5 structurally
+      different candidates (segmented toggle, always-visible split columns, accordion, chip
+      picker, inline-code toggle) as throwaway sections appended to the page, then picked the
+      chip picker and deleted the other four along with their CSS/JS — nothing review-only is
+      left. Final shape: three chips (CDN default / npm / Download) feed one shared panel that
+      never changes height on switch, plus a GitHub link. CDN uses jsDelivr, unversioned
+      (`@latest` resolves correctly, confirmed live). Title is "Pick your way in.", centered; the
+      old "Ship it in two lines." heading was dropped because it was only true for one of the
+      three tabs, and the descriptive subtitle went with it as redundant. Browser-verified: all
+      three chips switch by click and keyboard, both themes, no console errors.
+
+- [x] **Two `.kui-contract` code-chip bars now stay visible for the whole pin, not just the
+      approach — SHIPPED 2026-08-28** (`43567e3`). `#pin-flip-demo` (pin-section demo) and
+      `#horizontal-track-demo` (Horizontal Travel) both had their contract bar sitting outside the
+      pinned element, so it scrolled away the instant the pin engaged and a reader watching the
+      effect never saw the attribute that caused it. Moved both inside their pinned container.
+      **Two broken iterations before this landed, worth remembering:** a fixed-offset
+      `position: absolute` drifted from the video by an amount that depended on how much slack
+      `align-content: center` left at a given window height; a `max-height` fallback back to
+      `position: static` re-entered CSS Grid flow and inherited `justify-self: stretch` — measured
+      stretching to 682px on one and **4548px** (the full eleven-card scroll width) on the other.
+      Final shape: `position: absolute`, pinned ~22px under the header, an explicit `max-width`
+      cap (the cap is what stops the stretch, not the positioning), no fallback at all. Verified
+      across 8+ real viewport sizes (373–1300px tall, 900–2560px wide) with computed-style
+      measurements. **Known accepted tradeoff:** below ~550px window height, the horizontal-scroll
+      chip can sit close to or slightly touch the row beneath it — cosmetic, extreme window
+      heights only, disclosed rather than hidden.
+
+- [x] **Cross-element triggering — SHIPPED 2026-08-28, deployed to production the same day**
+      (`8d2fec3`, merged `4c4393a`). See the dedicated entry further down (GSAP parity section)
+      for the technical writeup. Pushed to `origin/main` and live on both `kuinetic.com` (Vercel)
+      and `kuinetic.pages.dev` (Cloudflare Pages).
+
+- [x] **3D image carousel / coverflow — NOT DOING THIS, owner's call 2026-08-28.** Came up as an
+      idea (images in a row, one up front in 3D, others receding — like the old iTunes coverflow).
+      Two directions were scoped (a quick CSS-only fan reveal reusing the stagger `--kui-i`
+      machinery vs. a real interactive coverflow needing a new JS primitive to track "which image
+      is active") but the owner decided not to pursue either. Recorded so it does not get
+      re-litigated, same as the Canvas/WebGL entry below.
+
 - [x] **Three browser checks owed on the 2026-08-27 audit fixes — ALL THREE PASS, verified 2026-08-27.** All ten fixes are unit-green
       (2510 tests) but three change what a reader actually sees, and no browser rendered a frame
       for any of them. (a) `threshold:50%` should now start an element halfway in rather than at
@@ -565,15 +608,18 @@ often an author would actually hit them.
       2026-08-27. All four are one table now — `GATE_DIRECTIONS` in `src/core/parse.ts:358` —
       with `gatesOverlap` requiring agreement on both axes. Verified in source 2026-08-27.
 
-- [ ] **Cross-element triggering — STILL OPEN, confirmed.** "When the form submits, animate the
-      badge." The element that fires the event is not the element that animates, so an attribute
-      on the animating element cannot express it on its own. There is no `trigger:` key in
-      `src/core/parse.ts` (checked 2026-08-27). Explicitly ruled out of scope for task E (§7.5 of
-      the outline), which was asked to leave a clean seam for it. Needs a selector-valued
-      parameter — follow the `target:` convention, and note `target:` is **per-primitive** (only 6
-      of 128 declare it) while an activation concern like this probably wants to be hoisted
-      element-wide like `on:`. Decide that deliberately. Read E's PR for where it left the seam.
-      Owner ranked this #2, 2026-08-27.
+- [x] **Cross-element triggering — SHIPPED 2026-08-28** (`8d2fec3`, merged `4c4393a`). "When the
+      form submits, animate the badge." `data-kui-on` gets an optional `from:` refinement that
+      binds the listener to a foreign element instead of the animating one:
+      `data-kui-on="submit from:#signup"`. Lives only in the longhand grammar (not hoisted via
+      `HOISTS`, since `from:` already means something different as a per-effect stagger param —
+      same collision `parse.ts` documents for `order:`). One native listener is shared per
+      `(source element, event type)` regardless of how many animated elements watch it. A missing
+      source warns once at install time rather than silently binding nothing or waiting forever
+      for a late-arriving node. New `src/core/event-sources.ts`; changes to `parse.ts`,
+      `element-config.ts`, `activation.ts`, `animator.ts`. Browser-verified live (happy path and
+      the missing-source warning both confirmed with real before/after state and opacity reads).
+      Built by Codex (xhigh reasoning) acting as the AI-Dev-Shop Programmer persona.
 
 - [x] **Stagger ordering — SHIPPED.** `StaggerFrom` is `'start' | 'end' | 'center' | 'edges' |
       'random' | number` (`src/core/stagger.ts:27`), spelled `order:` on the attribute and
