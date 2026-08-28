@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parse, splitTopLevel } from '../src/core/parse.js'
+import { parse, parseActivationAttribute, splitTopLevel } from '../src/core/parse.js'
 import { resolveStaggerConfig } from '../src/core/stagger.js'
 
 describe('splitTopLevel', () => {
@@ -449,5 +449,21 @@ describe('parse', () => {
       expect(result.specs).toEqual([{ name: 'fade-up', params: {} }])
       expect(result.cascade).toBe('90ms')
     })
+  })
+})
+
+describe('parseActivationAttribute', () => {
+  it('keeps a quoted foreign-source selector as one activation option', () => {
+    expect(parseActivationAttribute('submit from:"#signup form"')).toEqual({
+      activation: 'submit',
+      from: '#signup form',
+      warnings: [],
+    })
+  })
+
+  it('rejects malformed options instead of accidentally binding the event on itself', () => {
+    const result = parseActivationAttribute('submit from:#signup form')
+    expect(result.activation).toBeUndefined()
+    expect(result.warnings.join()).toContain('activation option')
   })
 })

@@ -774,6 +774,7 @@ export class Animator {
     const activation = stylePlan.activation!
     const releaseBinding = this.binder.bind(el, activation, {
       threshold: config.threshold,
+      from: config.activationSource,
       activate: () => this.activate(el),
       deactivate: () => this.deactivate(el),
       // Only when the author asked for the four-way reading. Absent, the binder keeps its two-way

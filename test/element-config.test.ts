@@ -25,6 +25,13 @@ describe('resolveConfig', () => {
     }
   })
 
+  it('carries a longhand from: selector beside its activation', () => {
+    const config = resolveConfig({ ...attrs, on: 'submit from:"#signup form"' }, parse(''))
+    expect(config.activation).toBe('submit')
+    expect(config.activationAuthored).toBe(true)
+    expect(config.activationSource).toBe('#signup form')
+  })
+
   it('falls back to the default when the longhand holds something unbindable', () => {
     // No reporter here, so a dropped value is silent at this layer by design — `parse.ts` warns
     // for the inline `on:` spelling and `animator.ts` for an event no document recognises.
