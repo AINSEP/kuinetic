@@ -10,7 +10,7 @@ library should own it. Never call something "not the library's job" without grep
 
 ## Open
 
-- [ ] **Three browser checks owed on the 2026-08-27 audit fixes.** All ten fixes are unit-green
+- [x] **Three browser checks owed on the 2026-08-27 audit fixes — ALL THREE PASS, verified 2026-08-27.** All ten fixes are unit-green
       (2510 tests) but three change what a reader actually sees, and no browser rendered a frame
       for any of them. (a) `threshold:50%` should now start an element halfway in rather than at
       its first visible pixel, and an `on:enter/leave` pair should reverse when it drops back below
@@ -19,6 +19,23 @@ library should own it. Never call something "not the library's job" without grep
       repairs a plain `delay:` under pin that used to stop at 50%. (c) `cursor-lag`/`magnetic`
       should track the pointer instead of crawling. Drive it through Claude in Chrome against the
       dev server on 8934 — never a hand-rolled Playwright script.
+      **Result — measured live against the dev server, not reasoned about:**
+      (a) `threshold:50%` on a 200px element holds `data-kui-state=ready` at 15%, 35% and **48.1%**
+      visible, and flips to `finished` with opacity 1 at **65.1%**. Sharp, correct boundary; before
+      the fix it fired at the first visible pixel.
+      (b) A `pin-section distance:200vh` host with an inner `fade-up 1s timeline:pin, zoom-in 1s
+      at:after`: at `--kui-progress: 1` the compiled delays are `-2s, -1s`, so the *second* track
+      sits at exactly its end (`scale: 1`), scrubbing `0.9238 -> 0.9772 -> 1.0` on the way. The bug
+      parked it at its beginning.
+      (c) `magnetic` settles at **-17.29px** for a pointer 49px from centre at `strength:0.35`
+      (expected `49 x 0.35 = 17.15`), over 28 smooth frames. `cursor-lag` ramps over 95 distinct
+      values at a steady 16-18ms cadence, holds its target exactly, and — the actual regression
+      case — **retargets cleanly mid-flight** with no near-zero-delta crawl and no dropped frame.
+      The unreachable-`threshold:` warning added in `b441d83` was **not** observable on a demo page,
+      and that is correct rather than a miss: the library's default reporter is `silentReporter()`
+      by design and the demo bundle exposes no module exports to build a `consoleReporter()` from.
+      The behaviour is verified (a 3-viewport-tall element with `threshold:50%` stays `ready`
+      forever instead of firing); the warning string itself is covered by unit tests.
 
 - [x] **`threshold:` now warns when it cannot fire — SHIPPED 2026-08-27 (`b441d83`).**
       Found 2026-08-27 while fixing the threshold bug. `threshold:50%` on a 3-viewport-tall element
