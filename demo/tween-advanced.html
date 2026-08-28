@@ -1,0 +1,1021 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Choreography</title>
+<meta name="description" content="Nine multi-element choreographies written in data-kui — a pinned convergence, scroll-graded type, ambient loops that hold still, a centre-blooming spring grid, a budgeted stagger, cross-element triggering and a cascading dismiss. Real CSS, no animation-loop JS." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ==========================================================================
+     Choreography — the showcase page for multi-element composition.
+
+     Every other CSS-animations page answers "what does this effect look like".
+     This one answers "how do several elements move in relation to each other",
+     so the page's own layout has one job: give each choreography a stage big
+     enough that the *relationship* between the moving parts is the thing you
+     see, not the individual move. That is why the sections here are far taller
+     and far emptier than on `reveals.html` — a convergence needs somewhere to
+     converge from, and a hold needs silence around it to read as a hold.
+     ========================================================================== */
+
+  /* ---------- section heads ---------- */
+  /* `.beat` is this page's own chapter marker. The showcase's `.kicker` is
+     already spoken for by the hero (one per page, by convention across all
+     seven demo pages), and a nine-section page needs a running index that is
+     quieter than a kicker and louder than nothing. Mono + uppercase so it reads
+     as an index rather than as copy; the numeral takes `--fg` so the eye can
+     count sections without reading their names. */
+  .beat {
+    display: flex; align-items: baseline; gap: 0.6rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.9rem;
+  }
+  .beat b { font-weight: 700; color: var(--fg); font-size: 0.8rem; letter-spacing: 0.04em; }
+  .beat i { font-style: normal; width: 1.5rem; height: 1px; background: var(--border); align-self: center; }
+
+  .section-head h2 { font-size: clamp(1.65rem, 1.1vw + 1.3rem, 2.3rem); letter-spacing: -0.025em; max-width: 20ch; line-height: 1.06; }
+  .head-body > p { color: var(--muted); max-width: 52ch; line-height: 1.65; }
+  .section-head .kui-show-code-toggle { margin-top: 1.1rem; }
+  /* Two columns from 900px: the claim on the left, the explanation and the code
+     chip on the right. A single left-aligned column at this page's 1200px measure
+     leaves half the width empty on every one of the nine section heads, and the
+     prose has to stop at ~55ch regardless — so the second column is where the
+     `.mech` note earns its place rather than pushing the demo further down. */
+  @media (min-width: 900px) {
+    .section-head { display: grid; grid-template-columns: 1.05fr 1fr; column-gap: clamp(2rem, 5vw, 4.5rem); align-items: start; }
+    .section-head > .beat { grid-column: 1 / -1; }
+    .section-head > h2 { grid-column: 1; }
+    .section-head > .head-body { grid-column: 2; }
+  }
+  @media (max-width: 899px) { .head-body { margin-top: 0.85rem; } }
+
+  /* A second, smaller paragraph that names the mechanism in the library's own
+     vocabulary. Deliberately mono and deliberately after the prose: the prose
+     says what you are about to see, this says what it is made of. */
+  .mech {
+    margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; line-height: 1.75; color: var(--muted); max-width: 62ch;
+  }
+  .mech b { color: var(--fg); font-weight: 600; }
+
+  /* ==========================================================================
+     HERO — a held frame that fills in late.
+
+     Copy lands first and the media arrives on a separate, later beat rather
+     than with it. Everything on the page after this does the same thing at a
+     larger scale, so the hero is the thesis: an entrance is a sequence, not a
+     moment.
+     ========================================================================== */
+  .demo-hero {
+    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 3rem; align-items: center;
+  }
+  @media (min-width: 980px) { .demo-hero { grid-template-columns: 1.02fr 0.98fr; gap: 3.5rem; } }
+  .demo-hero .hero-copy { max-width: 44rem; }
+  .demo-hero h1 { font-size: clamp(2.4rem, 1.4rem + 3.4vw, 4.25rem); line-height: 0.98; letter-spacing: -0.035em; max-width: 15ch; }
+  .demo-hero-lede { margin-top: 1.4rem; color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 42ch; }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .demo-hero-note { margin-top: 1.6rem; font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+  .demo-hero-note .dot { width: 6px; height: 6px; border-radius: 50%; background: #27a644; flex: none; }
+
+  /* Three overlapping cards at rest rotations, absolutely stacked. The stack is
+     `aspect-ratio`-sized rather than height-sized so the three cards keep their
+     relationship at every width without a media query per card. */
+  .hero-stack { position: relative; aspect-ratio: 1 / 1; max-width: 34rem; margin-inline: auto; width: 100%; }
+  .stack-card {
+    position: absolute; overflow: clip; border-radius: 14px;
+    border: 1px solid var(--border); background: var(--surface);
+    box-shadow: var(--shadow-float);
+  }
+  .stack-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .stack-card-1 { inset: 6% 36% 14% 0%; rotate: -7deg; z-index: 1; }
+  .stack-card-2 { inset: 20% 4% 2% 30%; rotate: 4.5deg; z-index: 2; }
+  .stack-card-3 { inset: 0% 10% 58% 42%; rotate: -3deg; z-index: 3; }
+  /* The one continuously-moving thing in the hero. It is small and slow on
+     purpose — an ambient tier under a one-shot tier reads as depth; two loud
+     tiers read as noise. */
+  .hero-orbit {
+    position: absolute; left: 1%; bottom: 1%; z-index: 4;
+    width: 74px; height: 74px; border-radius: 50%;
+    border: 1px solid var(--border); display: grid; place-items: center;
+    background: color-mix(in srgb, var(--bg) 76%, transparent);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.58rem; letter-spacing: 0.08em; color: var(--muted); text-align: center;
+  }
+  .hero-orbit span { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin: 0 auto 0.3rem; }
+
+  /* ==========================================================================
+     01 — SCROLL-GRADED SENTENCE
+     ========================================================================== */
+  /* A dark slab in both themes. The words grade from grey to `--accent`, and
+     `--accent` measures ~1.2:1 on white — there is no light-mode value of this
+     idea that is also legible, so the surface is the answer rather than a
+     second accent colour (see system.css's `--accent-text` comment for why a
+     second yellow is not on the table). Breaks the wrap's own padding at ≥768px
+     the same way `scroll.html`'s pin stages do, rather than going full-bleed:
+     one breakout convention per showcase. */
+  .grade-stage {
+    margin-top: 2.75rem; padding: clamp(3rem, 7vw, 6rem) clamp(1.5rem, 4vw, 4rem);
+    background: #000000; border-radius: 18px; overflow: clip; position: relative;
+  }
+  @media (min-width: 768px) { .grade-stage { margin-inline: -2.5rem; border-radius: 0; } }
+  .grade-sentence {
+    font-size: clamp(1.9rem, 1rem + 4.4vw, 4.4rem); line-height: 1.06;
+    letter-spacing: -0.03em; font-weight: 510; color: #6a6a64; max-width: 21ch;
+  }
+  /* Each word is its own element with its own scroll window. The colour lives
+     here and `desaturate` drains it — the effect animates `filter: grayscale()`,
+     so the resting state has to be the *bright* one and the scroll range decides
+     how much of it survives at any moment. */
+  .grade-word { color: var(--accent); display: inline-block; }
+  .grade-tail { color: #6a6a64; }
+  .grade-foot {
+    margin-top: clamp(2rem, 4vw, 3.25rem); display: flex; align-items: center; gap: 1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: #7a7a72;
+  }
+  /* The quiet accent that draws in on the same scroll pass as the last word.
+     One small, slow mark next to a large loud one is what stops a display line
+     reading as "text appeared". */
+  .grade-rule { height: 2px; background: var(--accent); flex: 1; max-width: 260px; transform-origin: left center; }
+
+  /* ==========================================================================
+     02 — PINNED CONVERGENCE
+     ========================================================================== */
+  /* Sized against `--kui-pin-room`, not `100dvh`: `pin-section` holds the card
+     at `--kui-pin-offset` (88px, set once in system.css), so the room a pin
+     actually gets is the viewport minus that offset. See system.css's
+     `--kui-pin-room` comment for the measurement this came from. */
+  .pin-section-stage {
+    position: relative; margin-top: 2.75rem;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  @media (min-width: 768px) { .pin-section-stage { margin-inline: -2.5rem; } }
+  .pin-section-card {
+    position: relative; overflow: clip; background: var(--surface);
+    min-height: var(--kui-pin-room); box-sizing: border-box;
+    display: grid; place-items: center;
+    padding: 3.5rem clamp(1.25rem, 3vw, 2.5rem);
+  }
+  @media (max-width: 700px) { .pin-section-card { padding-block: 2.5rem; } }
+
+  /* The thing everything converges on. A photograph rather than a wordmark:
+     the badges are already type, and a second block of type in the middle of
+     them gives the eye nothing to land on. */
+  .pin-portrait {
+    position: relative; z-index: 2;
+    width: min(72vw, calc((var(--kui-pin-room) - 12rem) * 0.72));
+    max-width: 340px; aspect-ratio: 3 / 4;
+    border-radius: 14px; overflow: clip; border: 1px solid var(--border);
+    box-shadow: var(--shadow-float); background: var(--bg);
+  }
+  .pin-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* Ambient tier one: a ring that pulses continuously behind the portrait for
+     the whole hold, independent of scroll position. */
+  .pin-ring {
+    position: absolute; z-index: 1; top: 50%; left: 50%; translate: -50% -50%;
+    width: min(78vw, 460px); aspect-ratio: 1; border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  /* Ambient tier two: a long hairline that swings through a wide arc across the
+     hold. Decorative marks can take a rotation an order of magnitude bigger
+     than any content element without reading as chaos, because nothing is
+     trying to read them. */
+  .pin-flair {
+    position: absolute; z-index: 0; top: 50%; left: 50%; translate: -50% -50%;
+    width: min(120vw, 900px); height: 1px; background: var(--border);
+  }
+
+  .badge-cluster { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .badge-chip {
+    position: absolute; pointer-events: auto;
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.55rem 1.05rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; font-weight: 600; white-space: nowrap;
+    background: var(--accent-ink); color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--accent-ink));
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.22);
+  }
+  /* One chip is the accent inverse so the cluster has a focal point rather than
+     six equal voices. */
+  .badge-chip.is-lead { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  /* Rest rotations, not entrance rotations: each chip sits at a slight,
+     hand-placed tilt so the settled cluster reads as pinned-up cards rather
+     than as a grid. The tilt is CSS; only the arrival is `data-kui`. */
+  .badge-chip-a { top: 13%; left: 4%;  rotate: -6deg; }
+  .badge-chip-b { top: 22%; right: 5%; rotate: 5deg; }
+  .badge-chip-c { top: 45%; left: 1%;  rotate: 3deg; }
+  .badge-chip-d { bottom: 26%; right: 3%; rotate: -4deg; }
+  .badge-chip-e { bottom: 11%; left: 12%; rotate: 4deg; }
+  .badge-chip-f { bottom: 6%; right: 16%; rotate: -3deg; }
+  @media (max-width: 900px) {
+    .badge-chip { font-size: 0.66rem; padding: 0.42rem 0.75rem; }
+    .badge-chip-a { top: 7%; left: 1%; }
+    .badge-chip-b { top: 14%; right: 1%; }
+    .badge-chip-c { top: 39%; left: 0; }
+    .badge-chip-d { bottom: 30%; right: 0; }
+    .badge-chip-e { bottom: 12%; left: 2%; }
+    .badge-chip-f { bottom: 4%; right: 4%; }
+  }
+
+  /* ==========================================================================
+     03 — AMBIENT LOOPS
+     ========================================================================== */
+  .loop-grid { margin-top: 2.75rem; display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 760px) { .loop-grid { grid-template-columns: repeat(3, 1fr); } }
+  .loop-tile {
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    display: flex; flex-direction: column; overflow: clip;
+  }
+  .loop-stage { position: relative; height: 200px; overflow: clip; display: grid; place-items: center; padding: 1.25rem; }
+  .loop-foot { border-top: 1px solid var(--border); padding: 0.95rem 1.1rem 1.1rem; }
+  .loop-foot h3 { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; }
+  .loop-foot p { margin-top: 0.35rem; font-size: 0.82rem; color: var(--muted); line-height: 1.55; }
+  .loop-foot code { display: block; margin-top: 0.65rem; font-size: 0.7rem; color: var(--muted); overflow-wrap: anywhere; }
+  .loop-foot code b { color: var(--fg); font-weight: 600; }
+
+  .loop-token { width: 46px; height: 46px; border-radius: 10px; background: var(--accent); border: 1px solid var(--accent-ink); }
+  .loop-rows { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; max-width: 190px; }
+  .loop-row {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.5rem 0.65rem; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); font-size: 0.72rem; color: var(--muted);
+  }
+  .loop-row::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  /* The bars are DIRECT children of the cascade group on purpose. `cascade:` ranks
+     `group.children` that carry a `data-kui` — a bar wrapped in its own track
+     element is a grandchild, gets no `--kui-i`, and the whole group silently
+     animates in lockstep. That was the first version of this tile and it looked
+     like a bug in the library rather than a bug in the markup. The grey track went
+     with the wrapper; the left rule below marks the origin the bars grow from. */
+  .loop-bars {
+    display: flex; flex-direction: column; gap: 0.75rem; width: 100%; max-width: 190px;
+    padding-left: 0.7rem; border-left: 1px solid var(--border);
+  }
+  .loop-bar { display: block; height: 8px; border-radius: 999px; background: var(--accent); transform-origin: left center; }
+
+  /* ==========================================================================
+     04 — CENTRE-BLOOM SPRING GRID
+     ========================================================================== */
+  /* `align-items: start` is load-bearing. A grid item defaults to `stretch`, which
+     gives the card a definite height from the row — and a definite height plus
+     `aspect-ratio` resolves the *width* from it, so every card shrank to about
+     three-quarters of its own column and the grid grew 90px gutters it never
+     declared. Starting the items lets the width win and the ratio derive the
+     height, which is the direction this card was designed in. */
+  .bloom-grid { margin-top: 2.75rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.9rem; align-items: start; }
+  @media (min-width: 700px) { .bloom-grid { grid-template-columns: repeat(4, 1fr); gap: 1.1rem; } }
+  .bloom-card {
+    position: relative; overflow: clip; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); aspect-ratio: 3 / 4;
+  }
+  .bloom-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .bloom-card figcaption {
+    position: absolute; left: 0.55rem; bottom: 0.55rem;
+    padding: 0.28rem 0.55rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.62rem;
+    background: var(--accent-ink); color: var(--accent);
+  }
+
+  /* ==========================================================================
+     05 — BUDGETED STAT WAVE
+     ========================================================================== */
+  .stat-grid { margin-top: 2.75rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: clip; }
+  @media (min-width: 640px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 1000px) { .stat-grid { grid-template-columns: repeat(6, 1fr); } }
+  .stat-tile { background: var(--surface); padding: 1.35rem 1.1rem 1.5rem; min-width: 0; }
+  .stat-tile .stat-num { font-size: clamp(1.5rem, 1vw + 1.2rem, 2rem); font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .stat-tile .stat-num i { font-style: normal; color: var(--muted); font-weight: 500; }
+  .stat-tile .stat-label { margin-top: 0.35rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+  /* ==========================================================================
+     06 — SPRING LAB + MAGNETIC CTA
+     ========================================================================== */
+  .spring-lab { margin-top: 2.75rem; display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 860px) { .spring-lab { grid-template-columns: 1.15fr 0.85fr; } }
+  .magnet-stage {
+    border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+    padding: clamp(2.5rem, 6vw, 4.5rem) 2rem; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.1rem; text-align: center; min-height: 320px;
+  }
+  .magnetic-btn {
+    display: inline-flex; align-items: center; gap: 0.75rem;
+    padding: 1.05rem 1.35rem 1.05rem 2.1rem; border-radius: 999px; border: none; cursor: pointer;
+    background: var(--fg); color: var(--bg); font-size: 1rem; font-weight: 700;
+  }
+  .magnetic-btn .pop-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2rem; height: 2rem; padding: 0 0.65rem; border-radius: 999px;
+    background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; font-weight: 800;
+  }
+  .lab-hint { font-size: 0.82rem; color: var(--muted); }
+  .curve-stack { display: flex; flex-direction: column; gap: 1.25rem; }
+  .curve-row {
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    padding: 1.1rem 1.2rem 1.3rem;
+  }
+  .curve-row h3 { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+  .curve-row h3 b { color: var(--fg); font-weight: 600; }
+  .curve-row p { margin-top: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+  .curve-track { margin-top: 0.9rem; height: 40px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); position: relative; overflow: clip; }
+  .curve-knob { position: absolute; top: 50%; left: 6px; translate: 0 -50%; width: 28px; height: 28px; border-radius: 7px; background: var(--accent); border: 1px solid var(--accent-ink); }
+
+  /* ==========================================================================
+     07 — PATH ARRIVAL CHAIN
+     ========================================================================== */
+  .route {
+    margin-top: 2.75rem; position: relative;
+    border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .route { grid-template-columns: auto 1fr auto; gap: 2rem; } }
+  .route-node {
+    border: 1px dashed var(--border); border-radius: 12px; padding: 1rem 1.15rem;
+    min-width: 150px; background: var(--bg);
+  }
+  .route-node .node-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .route-node .node-name { margin-top: 0.3rem; font-size: 0.95rem; font-weight: 600; }
+  /* `padding-top` clears the arc's own peak. `path-arc`'s curve rises above the
+     element's resting line before landing back on it, so without headroom the
+     top of the travel clips against the track's box. */
+  /* Capped and centred because the journey is a fixed 350px of SVG path data —
+     `offset-path` coordinates are px from the element's own top-left and there is
+     no fluid form of them. A track wider than the trip leaves the token stranded
+     mid-rail; 420px keeps the landing near the end of the line at every width the
+     three-column form applies at. */
+  .route-track { position: relative; height: 132px; padding-top: 84px; min-width: 0; width: 100%; max-width: 420px; margin-inline: auto; }
+  /* `display: block` is not decoration. This is a `<span>`, and an inline box
+     ignores `width`/`height` outright — the token rendered as a 0px-wide sliver,
+     which IntersectionObserver reports as never intersecting, so its `on:enter`
+     never opened and the whole arrival chain downstream of it sat idle. A
+     zero-area start state is the standard way to deadlock an on:enter reveal;
+     this is the same trap arriving through `display` rather than through a
+     transform. */
+  .travel-token {
+    display: block;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+    border: 1px solid var(--accent-ink);
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .route-track .route-line { position: absolute; left: 0; right: 0; bottom: 22px; height: 1px; background: var(--border); }
+  .arrival-card {
+    border: 1px solid var(--accent-ink); border-radius: 12px; padding: 1rem 1.15rem;
+    min-width: 150px; background: var(--accent-ink); color: var(--accent);
+  }
+  .arrival-card .node-label { color: color-mix(in srgb, var(--accent) 70%, transparent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .arrival-card .node-name { margin-top: 0.3rem; font-size: 0.95rem; font-weight: 700; }
+
+  /* ==========================================================================
+     08 — CASCADING DISMISS
+     ========================================================================== */
+  .inbox-wrap { margin-top: 2.75rem; display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 880px) { .inbox-wrap { grid-template-columns: 0.8fr 1.2fr; align-items: start; } }
+  .inbox-controls { display: flex; flex-direction: column; gap: 0.9rem; align-items: flex-start; }
+  .inbox-controls p { font-size: 0.85rem; color: var(--muted); line-height: 1.6; max-width: 34ch; }
+  .inbox {
+    list-style: none; margin: 0; padding: 0.5rem;
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .inbox-row {
+    display: flex; align-items: center; gap: 0.85rem;
+    padding: 0.7rem 0.85rem; border-radius: 9px; background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  .inbox-row .avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex: none; overflow: clip;
+    border: 1px solid var(--border); background: var(--surface);
+  }
+  .inbox-row .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .inbox-row .who { font-size: 0.85rem; font-weight: 600; }
+  .inbox-row .what { font-size: 0.78rem; color: var(--muted); }
+  .inbox-row .when { margin-left: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; color: var(--muted); flex: none; }
+  .inbox-row .stack { min-width: 0; }
+  .inbox-row .stack > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ==========================================================================
+     09 — MICRO MOVES
+     ========================================================================== */
+  .micro-grid { margin-top: 2.75rem; display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 760px) { .micro-grid { grid-template-columns: repeat(3, 1fr); } }
+  .micro-tile {
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    overflow: clip; display: flex; flex-direction: column; cursor: default;
+  }
+  .micro-stage { height: 150px; position: relative; overflow: clip; display: grid; place-items: center; }
+  .micro-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink); font-size: 1.15rem; font-weight: 700;
+  }
+  .micro-plate {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.7rem 1.1rem; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem;
+  }
+  .micro-dot { width: 34px; height: 34px; border-radius: 50%; background: var(--fg); }
+
+  /* ---------- closing band ---------- */
+  .outro { display: grid; gap: 1.5rem; justify-items: start; }
+  .outro h2 { font-size: clamp(1.7rem, 1.3vw + 1.3rem, 2.5rem); letter-spacing: -0.03em; max-width: 20ch; }
+  .outro p { color: var(--muted); max-width: 52ch; line-height: 1.65; }
+  .outro-actions { display: flex; flex-wrap: wrap; gap: 1rem; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden></nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <span data-theme-toggle-mount></span>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- ================= HERO ================= -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker">CSS Animations · Choreography</p>
+          <h1 data-kui="tween-from 1100ms y:26 opacity:0 ease:spring(bounce:0.18)">Nothing here moves alone.</h1>
+          <p class="demo-hero-lede" data-kui="fade-up 800ms 260ms">
+            Nine choreographies where the interesting part is the relationship — what waits for what,
+            what arrives from which edge, what keeps moving underneath. Every one of them is written
+            in <code>data-kui</code> attributes and compiles to real CSS.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 420ms">
+            <a href="#pin" class="btn btn-primary">See the pin</a>
+            <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
+          </div>
+          <p class="demo-hero-note" data-kui="fade-up 700ms 520ms"><span class="dot"></span> Nine sections · zero animation-loop JavaScript</p>
+        </div>
+
+        <!-- The media arrives on its own beat, well after the copy has settled.
+             `cascade:150ms` phases the three cards; the 900ms group delay is what
+             makes the first frame read as held rather than as loading. -->
+        <div class="hero-stack" data-kui="cascade:150ms">
+          <figure class="stack-card stack-card-1" data-kui="tween-from 1000ms 900ms x:-90 y:30 rotate:-18deg opacity:0 ease:spring(bounce:0.3)">
+            <img src="./assets/modeling/motion_blur_model.jpg" alt="Long-exposure portrait — trailing streaks of light and fabric blur a figure against a near-black backdrop" />
+          </figure>
+          <figure class="stack-card stack-card-2" data-kui="tween-from 1000ms 900ms x:110 y:44 rotate:16deg opacity:0 ease:spring(bounce:0.3)">
+            <img src="./assets/futurism/asian-red-visor.jpg" alt="Futurist portrait — a model wearing a wraparound red visor, lit hard against a dark backdrop" />
+          </figure>
+          <figure class="stack-card stack-card-3" data-kui="tween-from 1000ms 900ms y:-96 rotate:-11deg opacity:0 ease:spring(bounce:0.3)">
+            <img src="./assets/modeling/chartreuse-gold-portrait.jpg" alt="Colour-blocked beauty portrait — chartreuse and gold makeup on a saturated background" />
+          </figure>
+          <div class="hero-orbit" aria-hidden="true" data-kui="float 5s repeat:infinite">
+            <span></span>loop
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 01 · SCROLL-GRADED SENTENCE ================= -->
+      <section id="grade" data-od-id="grade">
+        <div class="section-head">
+          <p class="beat"><b>01</b><i></i>Scroll as a colour dial</p>
+          <h2 data-kui="fade-up on:enter">The sentence colours itself, one word at a time.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            No word moves. Each one owns a different slice of the scroll range and drains its own
+            grey out as that slice passes, so the sentence resolves left-to-right at exactly the
+            speed you scroll it — and un-resolves if you scroll back up. The second line trails the
+            first without being asked to: a word further down the page enters the viewport later, so
+            its window opens later too.
+          </p>
+          <p class="mech">
+            <b>scroll-desaturate</b> is the one preset here that accepts a scroll timeline, so the
+            colour change is a <b>filter</b> and not an opacity fade. One span per word, each with
+            its own <b>data-kui-timeline="view cover N% cover N+18%"</b> — six identical effects
+            become a sequence purely by sliding that window along.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="grade-stage">Show code</button>
+          </div>
+        </div>
+
+        <div class="grade-stage" id="grade-stage">
+          <p class="grade-sentence">
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 38% cover 54%">Motion</span>
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 41% cover 57%">is</span>
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 44% cover 60%">a</span>
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 47% cover 63%">relationship</span>
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 50% cover 66%">between</span>
+            <span class="grade-word" data-kui="scroll-desaturate" data-kui-timeline="view cover 53% cover 69%">things,</span>
+            <span class="grade-tail">not a property of one.</span>
+          </p>
+          <div class="grade-foot">
+            <span>timeline: view</span>
+            <span class="grade-rule" data-kui="tween scale-x:0.02 timeline:view" data-kui-timeline="view cover 56% cover 74%"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 02 · PINNED CONVERGENCE ================= -->
+      <section id="pin" data-od-id="pin">
+        <div class="section-head">
+          <p class="beat"><b>02</b><i></i>Two motion tiers, one hold</p>
+          <h2 data-kui="fade-up on:enter">Six badges converge while the frame is held.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            The card pins for two viewport heights. During the hold, six chips fly in from alternating
+            edges at staggered points on the scrub while the portrait behind them breathes and a
+            hairline swings a full quarter-turn — a continuous tier underneath a one-shot tier, both
+            reading off the same pin.
+          </p>
+          <p class="mech">
+            <b>pin-section distance:200vh</b> on the stage. Every chip is <b>timeline:pin</b>, so
+            <b>cascade:110ms</b> becomes a distance along the scrub instead of a delay on a clock.
+            The ring is <b>glow-pulse repeat:infinite</b> — it never touches the scroll position at all.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="pin-card">Show code</button>
+          </div>
+        </div>
+
+        <div class="pin-section-stage">
+          <div class="pin-section-card" id="pin-card" data-kui="pin-section distance:200vh">
+            <div class="pin-flair" aria-hidden="true" data-kui="parallax-rotate from:-42deg angle:42deg timeline:pin"></div>
+            <div class="pin-ring" aria-hidden="true" data-kui="glow-pulse 3.2s repeat:infinite"></div>
+
+            <figure class="pin-portrait" data-kui="parallax-scale from:1 scale:1.08 timeline:pin">
+              <img src="./assets/modeling/black-and-yellow.jpg" alt="Editorial fashion portrait — a model in black and acid-yellow, shot flat against a matching backdrop" />
+            </figure>
+
+            <div class="badge-cluster" data-kui="cascade:110ms">
+              <span class="badge-chip badge-chip-a" data-kui="tween-from x:-140 opacity:0 rotate:-16deg timeline:pin">no runtime loop</span>
+              <span class="badge-chip badge-chip-b" data-kui="tween-from x:150 opacity:0 rotate:14deg timeline:pin">zero build step</span>
+              <span class="badge-chip badge-chip-c" data-kui="tween-from x:-170 opacity:0 rotate:12deg timeline:pin">267 effects</span>
+              <span class="badge-chip badge-chip-d is-lead" data-kui="tween-from x:180 opacity:0 rotate:-15deg timeline:pin">one attribute</span>
+              <span class="badge-chip badge-chip-e" data-kui="tween-from x:-160 opacity:0 rotate:10deg timeline:pin">real springs</span>
+              <span class="badge-chip badge-chip-f" data-kui="tween-from x:165 opacity:0 rotate:-12deg timeline:pin">composites off-thread</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 03 · AMBIENT LOOPS ================= -->
+      <section id="loops" data-od-id="loops">
+        <div class="section-head">
+          <p class="beat"><b>03</b><i></i>The hold is the choreography</p>
+          <h2 data-kui="fade-up on:enter">A good loop spends most of its time holding still.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            An ambient loop that drifts continuously reads as noise. One that moves, stops, waits,
+            moves again reads as intent — and the waiting is where most of the cycle goes. Each tile
+            below is a single element with a list of waypoints, running forever, with the pauses
+            written into the list.
+          </p>
+          <p class="mech">
+            <b>tween</b> takes a comma list per property — <b>x:'-70,-70,70,70,-70'</b> is five
+            evenly-spaced waypoints, so repeating a value <em>is</em> a hold. <b>repeat:infinite</b>
+            keeps it running; <b>cascade:</b> on the parent turns a shared loop into a phase offset
+            rather than a queue, because a delay on something infinite never expires.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="loop-grid">Show code</button>
+          </div>
+        </div>
+
+        <div class="loop-grid" id="loop-grid">
+          <div class="loop-tile">
+            <div class="loop-stage">
+              <span class="loop-token" data-kui="tween 3600ms repeat:infinite x:'-70,-70,70,70,-70' rotate:'0,0,15,15,0' scale:'1,1,1,1.55,1' ease:cubic-bezier(.6,0,.2,1)"></span>
+            </div>
+            <div class="loop-foot">
+              <h3>Travel, hold, pop, return</h3>
+              <p>Three properties on one waypoint list. The scale pop lands during the hold, not during the move — so it reads as an event, not as easing.</p>
+              <code><b>x</b>:'-70,-70,70,70,-70' <b>scale</b>:'1,1,1,1.55,1'</code>
+            </div>
+          </div>
+
+          <div class="loop-tile">
+            <div class="loop-stage">
+              <div class="loop-rows" data-kui="cascade:450ms">
+                <span class="loop-row" data-kui="tween 3000ms repeat:infinite x:'0,0,-12%,-12%,0' opacity:'1,1,0,0,1' ease:cubic-bezier(.4,0,.2,1)">queued</span>
+                <span class="loop-row" data-kui="tween 3000ms repeat:infinite x:'0,0,-12%,-12%,0' opacity:'1,1,0,0,1' ease:cubic-bezier(.4,0,.2,1)">running</span>
+                <span class="loop-row" data-kui="tween 3000ms repeat:infinite x:'0,0,-12%,-12%,0' opacity:'1,1,0,0,1' ease:cubic-bezier(.4,0,.2,1)">settled</span>
+              </div>
+            </div>
+            <div class="loop-foot">
+              <h3>Three rows, one loop, three phases</h3>
+              <p>Identical attributes on all three. A 450ms cascade against a 3000ms cycle is a permanent 15% phase offset, so they never line up.</p>
+              <code><b>cascade:450ms</b> · tween 3000ms repeat:infinite</code>
+            </div>
+          </div>
+
+          <div class="loop-tile">
+            <div class="loop-stage">
+              <div class="loop-bars" data-kui="cascade:120ms">
+                <b class="loop-bar" data-kui="tween 2400ms repeat:infinite scale-x:'0.02,1,1,0.02,0.02' ease:cubic-bezier(.4,0,.4,1)"></b>
+                <b class="loop-bar" data-kui="tween 2400ms repeat:infinite scale-x:'0.02,1,1,0.02,0.02' ease:cubic-bezier(.4,0,.4,1)"></b>
+                <b class="loop-bar" data-kui="tween 2400ms repeat:infinite scale-x:'0.02,1,1,0.02,0.02' ease:cubic-bezier(.4,0,.4,1)"></b>
+                <b class="loop-bar" data-kui="tween 2400ms repeat:infinite scale-x:'0.02,1,1,0.02,0.02' ease:cubic-bezier(.4,0,.4,1)"></b>
+              </div>
+            </div>
+            <div class="loop-foot">
+              <h3>A tight cascade on a slow cycle</h3>
+              <p>120ms between four bars on a 2.4s loop — close enough that the group reads as one wave rather than four independent things.</p>
+              <code><b>cascade:120ms</b> · <b>scale-x</b>:'0.02,1,1,0.02,0.02'</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 04 · CENTRE-BLOOM SPRING GRID ================= -->
+      <section id="bloom" data-od-id="bloom">
+        <div class="section-head">
+          <p class="beat"><b>04</b><i></i>Stagger as a distance, not a queue</p>
+          <h2 data-kui="fade-up on:enter">The grid blooms outward from its middle cell.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            Ordering a stagger by DOM position gives you a typewriter: first to last, row by row.
+            Ordering it by distance through a declared grid gives you a bloom — the cards nearest
+            the centre arrive first and the corners land last, which is what the eye expects when
+            something expands.
+          </p>
+          <p class="mech">
+            <b>cascade:170ms cols:4 order:0.5/0.5</b> — <b>cols:</b> is what makes the stagger two
+            dimensional, and <b>order:</b> takes a fractional point in that grid rather than an index,
+            so <b>0.5/0.5</b> is the middle cell and <b>1/0</b> would be the top-right corner. Each
+            card is one <b>tween-from</b> carrying <em>both</em> its lift and its rotation on a single
+            spring, so the two settle together instead of racing.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="bloom-grid">Show code</button>
+          </div>
+        </div>
+
+        <div class="bloom-grid" id="bloom-grid" data-kui="cascade:170ms cols:4 order:0.5/0.5">
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:-8deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/futurism/gold-helmet.jpg" alt="Futurist portrait — a model in a mirrored gold helmet" />
+            <figcaption>01</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:6deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/modeling/cobalt-profile.jpg" alt="Studio profile portrait lit in deep cobalt blue" />
+            <figcaption>02</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:-5deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Editorial portrait — a model wearing a sculpted pink ruffled headpiece" />
+            <figcaption>03</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:7deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/futurism/sunny-visor.jpg" alt="Futurist portrait — a model in a bright wraparound visor against a warm backdrop" />
+            <figcaption>04</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:5deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Editorial portrait — a model in a sculpted teal hat against a matching background" />
+            <figcaption>05</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:-7deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/futurism/albino-rings.jpg" alt="Futurist beauty portrait — a pale-toned model wearing large sculptural rings" />
+            <figcaption>06</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:6deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/modeling/yellow-paint-blue-bob.jpg" alt="Beauty portrait — yellow painted makeup paired with a sharp blue bob" />
+            <figcaption>07</figcaption>
+          </figure>
+          <figure class="bloom-card" data-kui="tween-from 900ms y:64 rotate:-6deg opacity:0 ease:spring(bounce:0.45)">
+            <img src="./assets/futurism/black-futurism.jpg" alt="Futurist portrait — a figure in matte black technical wear against a dark backdrop" />
+            <figcaption>08</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ================= 05 · BUDGETED STAT WAVE ================= -->
+      <section id="budget" data-od-id="budget">
+        <div class="section-head">
+          <p class="beat"><b>05</b><i></i>A stagger with a deadline</p>
+          <h2 data-kui="fade-up on:enter">Six tiles or sixteen, the wave still lands in 700ms.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            A fixed gap per item is the wrong knob for a list whose length you do not control: at
+            50ms an item, two hundred rows take ten seconds to finish arriving. A budget is the right
+            knob — name the total, and the gaps divide themselves.
+          </p>
+          <p class="mech">
+            <b>spread:700ms</b> instead of a per-item step. It composes with the grid ordering from
+            the section above: the budget is divided by the largest <em>distance</em> in the group,
+            so a centre-out order still finishes on time. <b>cols:auto</b> reads the real column
+            count off the laid-out row, so this re-ranks itself at every breakpoint with no second
+            attribute.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="stat-grid">Show code</button>
+          </div>
+        </div>
+
+        <div class="stat-grid" id="stat-grid" data-kui-stagger="spread:700ms cols:auto order:0.5/0.5">
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:267">0</span></p>
+            <p class="stat-label">named effects</p>
+          </div>
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:33">0</span></p>
+            <p class="stat-label">primitives</p>
+          </div>
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:175">0</span></p>
+            <p class="stat-label">pure-CSS effects</p>
+          </div>
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:63">0</span><i>%</i></p>
+            <p class="stat-label">off main thread</p>
+          </div>
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:5">0</span></p>
+            <p class="stat-label">waypoints max</p>
+          </div>
+          <div class="stat-tile" data-kui="fade-up 600ms">
+            <p class="stat-num"><span data-kui="count-up 1400ms to:1">0</span></p>
+            <p class="stat-label">attribute</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 06 · SPRING LAB + MAGNETIC CTA ================= -->
+      <section id="springs" data-od-id="springs">
+        <div class="section-head">
+          <p class="beat"><b>06</b><i></i>Physics, not a canned curve</p>
+          <h2 data-kui="fade-up on:enter">A spring is not automatically the soft option.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            "Spring" gets used as a synonym for bouncy, but the constants decide that. Same distance,
+            same duration, two springs: one sails past the mark and wobbles home, the other arrives
+            and stops dead. Play them together — the difference is the whole argument for exposing
+            the physics instead of shipping one fixed curve.
+          </p>
+          <p class="mech">
+            Both rows are the same solver, sampled into a CSS <b>linear()</b> curve at compile time.
+            The catch worth knowing: a normalised curve has to fit whatever duration you declared, so
+            <b>stiffness:</b> on its own changes nothing — <b>spring(stiffness:400 damping:20)</b> and
+            <b>spring(stiffness:100 damping:10)</b> are the <em>same</em> curve. What survives
+            normalisation is the damping <em>ratio</em>, and <b>bounce:</b> is that ratio wearing a
+            friendlier name. The button beside them is <b>magnetic-snap</b> — a gesture, so it is one
+            of the few things on this page with a JavaScript listener — and the badge inside it pops
+            on its own spring when the click lands.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="spring-lab">Show code</button>
+          </div>
+        </div>
+
+        <div class="spring-lab" id="spring-lab">
+          <div class="magnet-stage">
+            <button type="button" class="magnetic-btn" data-kui="magnetic-snap strength:0.4 radius:140">
+              Add to the timeline
+              <span class="pop-badge" data-kui="badge-pop ease:spring(bounce:0.6)" data-kui-on="click">+1</span>
+            </button>
+            <p class="lab-hint">Bring the cursor close — the button leans toward it inside a 140px radius. Click, and the badge overshoots.</p>
+          </div>
+
+          <div class="curve-stack">
+            <div class="curve-row">
+              <h3><b>spring(bounce:0.8)</b> — underdamped</h3>
+              <p>Sails past the mark and settles back through it.</p>
+              <div class="curve-track">
+                <span class="curve-knob" data-kui="tween 900ms x:'0,180' repeat:2 yoyo:true ease:spring(bounce:0.8)" data-kui-on="click from:#spring-play"></span>
+              </div>
+            </div>
+            <div class="curve-row">
+              <h3><b>spring(stiffness:700 damping:60)</b> — overdamped</h3>
+              <p>Same solver, same 900ms. Arrives and stops dead.</p>
+              <div class="curve-track">
+                <span class="curve-knob" data-kui="tween 900ms x:'0,180' repeat:2 yoyo:true ease:spring(stiffness:700 damping:60)" data-kui-on="click from:#spring-play"></span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="spring-play" style="align-self:flex-start;">Play both</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 07 · PATH ARRIVAL CHAIN ================= -->
+      <section id="arrival" data-od-id="arrival">
+        <div class="section-head">
+          <p class="beat"><b>07</b><i></i>One animation triggers another</p>
+          <h2 data-kui="fade-up on:enter">The token arrives, and something else across the page reacts.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            A journey needs somewhere worth arriving at. The token travels a hand-written curve once,
+            on its way into view — and the moment that finishes, a card it shares no parent with,
+            sits nowhere near, and knows nothing about, pops.
+          </p>
+          <p class="mech">
+            <b>path-arc path:'…'</b> is CSS <b>offset-path</b> underneath — a real curve, no runtime
+            JavaScript stepping it. The wire is <b>data-kui-on="kui:finish from:#travel-token"</b>:
+            <b>kui:finish</b> is a plain bubbling event the library dispatches, and <b>from:</b> points
+            the listener at whichever element it should be listening to.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="route">Show code</button>
+          </div>
+        </div>
+
+        <div class="route" id="route">
+          <div class="route-node">
+            <p class="node-label">Departs</p>
+            <p class="node-name">#travel-token</p>
+          </div>
+          <div class="route-track">
+            <span class="route-line" aria-hidden="true"></span>
+            <span id="travel-token" class="travel-token" data-kui="path-arc 1900ms path:'M 0 0 C 90 -150 260 -150 350 0'"></span>
+          </div>
+          <div class="arrival-card" data-kui="badge-pop ease:spring(bounce:0.55)" data-kui-on="kui:finish from:#travel-token">
+            <p class="node-label">On kui:finish</p>
+            <p class="node-name">Arrived ✦</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 08 · CASCADING DISMISS ================= -->
+      <section id="dismiss" data-od-id="dismiss">
+        <div class="section-head">
+          <p class="beat"><b>08</b><i></i>One control, eight exits</p>
+          <h2 data-kui="fade-up on:enter">Clearing a list is a sequence too.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            Emptying a list in a single frame tells you nothing about what was removed. Cascading the
+            exits at 70ms keeps the direction of the change legible — you can see it drain rather
+            than blink. The circular replay control in the bottom-right corner puts them back.
+          </p>
+          <p class="mech">
+            Every row carries <b>data-kui-on="click from:#clear-all"</b>. Without <b>from:</b> a
+            <b>data-kui-on</b> only ever listens to its own element, so dismissing a list from a
+            button outside it needed a script — the selector is the whole wire now. The gap is
+            <b>data-kui-stagger="70ms"</b> on the <b>&lt;ul&gt;</b>, so the list owns its rhythm and
+            the button owns nothing but the moment.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="inbox">Show code</button>
+          </div>
+        </div>
+
+        <div class="inbox-wrap">
+          <div class="inbox-controls">
+            <button type="button" class="btn btn-primary" id="clear-all">Clear all</button>
+            <p>The button has no <code>data-kui</code> of its own. It is only an id that eight rows are listening for.</p>
+          </div>
+          <ul class="inbox" id="inbox" data-kui-stagger="70ms">
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/modeling/lilac-turban.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Ines M.</b><span class="what">approved the motion spec</span></span>
+              <span class="when">2m</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/futurism/gold-white-face.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Render farm</b><span class="what">finished 1,204 frames</span></span>
+              <span class="when">9m</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/modeling/blue-lip-gloves.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Ade O.</b><span class="what">left a note on the pin timing</span></span>
+              <span class="when">21m</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/product/luxury_watch.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Build</b><span class="what">bundle down 2.1kb</span></span>
+              <span class="when">40m</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/modeling/green-monochrome.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Nour K.</b><span class="what">asked about reduced motion</span></span>
+              <span class="when">1h</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/futurism/strange-hat.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Kit</b><span class="what">shipped the cascade order fix</span></span>
+              <span class="when">3h</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/product/perfume_bottle.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Campaign</b><span class="what">assets exported</span></span>
+              <span class="when">5h</span>
+            </li>
+            <li class="inbox-row" data-kui="slide-out-down 420ms" data-kui-on="click from:#clear-all">
+              <span class="avatar"><img src="./assets/modeling/stripe-suit.jpg" alt="" /></span>
+              <span class="stack"><b class="who">Rafa D.</b><span class="what">requested the spring numbers</span></span>
+              <span class="when">1d</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ================= 09 · MICRO MOVES ================= -->
+      <section id="micro" data-od-id="micro">
+        <div class="section-head">
+          <p class="beat"><b>09</b><i></i>Small enough to put anywhere</p>
+          <h2 data-kui="fade-up on:enter">Three flourishes, no wrapper divs.</h2>
+          <div class="head-body">
+            <p data-kui="fade-up 700ms">
+            Not every choreography needs a stage. These are one element each, on hover, and they are
+            the ones you would actually reach for in a nav arrow or a card corner. Hover a tile.
+          </p>
+          <p class="mech">
+            Left: a waypoint list overshooting its own resting point and easing back. Middle: three
+            effects in one attribute, sequenced with <b>at:</b> — relative to the effect before it,
+            so changing one duration re-times the rest. Right: the <b>hover/unhover</b> pair, which
+            plays the same effect backwards on the way out instead of snapping.
+          </p>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="micro-grid">Show code</button>
+          </div>
+        </div>
+
+        <div class="micro-grid" id="micro-grid">
+          <div class="micro-tile">
+            <div class="micro-stage">
+              <span class="micro-arrow" data-kui="tween 650ms x:'0,130,100' rotate:'0,10,0' ease:spring(bounce:0.4)" data-kui-on="hover">&rarr;</span>
+            </div>
+            <div class="loop-foot">
+              <h3>Overshoot and settle</h3>
+              <p>Past the mark, then back to it. Three waypoints, one element.</p>
+              <code><b>x</b>:'0,130,100' <b>rotate</b>:'0,10,0'</code>
+            </div>
+          </div>
+
+          <div class="micro-tile">
+            <div class="micro-stage">
+              <span class="micro-plate" data-kui="tween 620ms y:-16, tween 420ms rotate:5deg at:-260ms, tween 320ms scale:1.07 at:+40ms" data-kui-on="hover/unhover">at: sequencing</span>
+            </div>
+            <div class="loop-foot">
+              <h3>Three effects, one timeline</h3>
+              <p>The tilt starts 260ms before the lift ends; the scale waits 40ms after the tilt.</p>
+              <code>tween y:-16, tween rotate:5deg <b>at:-260ms</b>, tween scale:1.07 <b>at:+40ms</b></code>
+            </div>
+          </div>
+
+          <div class="micro-tile">
+            <div class="micro-stage">
+              <span class="micro-dot" data-kui="tween 520ms scale:1.55 rotate:135deg ease:spring(bounce:0.5)" data-kui-on="hover/unhover"></span>
+            </div>
+            <div class="loop-foot">
+              <h3>It animates back out</h3>
+              <p>One effect, two activations. The exit is the entrance in reverse, not a second rule.</p>
+              <code>data-kui-on="<b>hover/unhover</b>"</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= OUTRO ================= -->
+      <section class="outro" data-od-id="outro">
+        <p class="beat"><b>&#8212;</b><i></i>Every string on this page is copyable</p>
+        <h2 data-kui="fade-up on:enter">None of this needed a build step.</h2>
+        <p data-kui="fade-up 700ms">
+          Nine choreographies, one attribute grammar, and a stylesheet the browser compiles once.
+          Open "Show code" on any section above, change a number in the panel, and watch the real
+          element behind it react.
+        </p>
+        <div class="outro-actions" data-kui="fade-up 700ms 120ms">
+          <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs &rarr;</a>
+          <a href="./docs.html?doc=getting-started" class="btn btn-ghost">Getting started</a>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer" data-footer-mount></footer>
+
+  <script src="./kuinetic.js"></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>

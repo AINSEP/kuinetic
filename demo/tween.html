@@ -172,18 +172,30 @@
     box-shadow: 0 20px 48px rgb(8 9 10 / 0.18);
   }
   :root[data-theme='dark'] .tw-vocab-card { box-shadow: 0 20px 48px rgb(0 0 0 / 0.5); }
-  .tw-vocab-frame { position: relative; aspect-ratio: 3 / 4; overflow: clip; background: #000; }
+  .tw-vocab-frame {
+    position: relative; aspect-ratio: 3 / 4; overflow: clip; background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
   .tw-vocab-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
   /* The two colour chips retarget here instead of tweening the photo. Fixed values, not theme
      tokens, and the same reasoning the old `.tw-stage.is-ink` gave: a colour demo needs a
      surface that doesn't move with the theme. Black background so the accent-yellow start value
      reads clearly; white resting text so both the accent-yellow-on-black start frame and the
-     accent-yellow background mid-tween stay legible. */
+     accent-yellow background mid-tween stay legible.
+
+     The border and shadow are new and deliberately outside both tweened channels (`color` and
+     `background-color`) — a hairline edge that holds regardless of the tag's own fill. Without
+     it, `background-color`'s rest value (this element's own black) reads as the tag vanishing
+     into the photo's darker regions rather than landing on a visible resting state; the ring is
+     what keeps the pill's shape legible at every frame, not just the ones where its fill
+     happens to contrast with whatever the photo shows underneath. */
   .tw-vocab-tag {
     position: absolute; inset-block-end: 0.85rem; inset-inline-start: 0.85rem;
-    padding: 0.3rem 0.65rem; border-radius: 999px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; font-weight: 600;
+    padding: 0.35rem 0.75rem; border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; font-weight: 600;
     background: #000000; color: #ffffff;
+    border: 1px solid rgb(255 255 255 / 0.22);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 0.45);
   }
   /* Centred and stacked, same call `#lab`'s `.lab-bar` makes and for the same reason — at this
      card's width the attribute line and the show-code chip wrap anyway. */
@@ -201,6 +213,37 @@
   .tw-attr-line .v {
     padding: 0.12em 0.4em; border-radius: 3px; background: var(--accent); color: var(--accent-ink); font-weight: 600;
   }
+
+  /* This picker (`.tw-vocab-chips` / `.tw-vocab-card` / `.tw-vocab-frame` / `.tw-vocab-bar`) is
+     one reusable piece, used four times on this page now — vocabulary, directions,
+     starting-style, controls. Each consumer overrides only what its content genuinely needs on
+     `.tw-vocab-frame` (a locked-aspect photo crop is the wrong shape for a floating chip or a
+     form), the same "override the one property that differs" rule `system.css`'s show-code chip
+     already documents — not a fourth stage class restating the whole card.
+
+     `directions` still needs a fixed box (nothing here grows), so it borrows this page's existing
+     motion-demo proportions and tint (`.tw-stage`'s own numbers, not a new pair) instead of the
+     photo frame's black 3:4 crop. */
+  #directions .tw-vocab-frame {
+    aspect-ratio: 16 / 10; background: color-mix(in srgb, var(--fg) 4%, var(--surface));
+  }
+
+  /* `starting-style` and `controls` hold interactive DOM content — an opening panel, a tabbed
+     form — that has to grow to fit what's inside it rather than sit inside a locked-aspect crop,
+     and reads top-aligned rather than centred. Same shape `.tw-open-stage`/`.tw-form-stage` use
+     elsewhere on this page, carried onto the shared frame rather than restating either stage. */
+  #starting-style .tw-vocab-frame, #controls .tw-vocab-frame {
+    aspect-ratio: auto; min-height: 14rem; background: color-mix(in srgb, var(--fg) 4%, var(--surface));
+    flex-direction: column; align-items: stretch; justify-content: flex-start;
+    padding: 1.1rem; gap: 0.85rem;
+  }
+
+  /* `controls`' one frame holds five demos (email/select/checkbox/range/cascade) and shows only
+     the chip-selected one — same idea as `vocab-target` swapping its `data-kui`, except here the
+     thing that swaps is which real form control is mounted, because a focus/hover/click trigger
+     has to fire on the actual control, not a replayed tween on a stand-in. */
+  .tw-ctrl-panel { display: none; width: 100%; }
+  .tw-ctrl-panel.is-active { display: grid; gap: 0.9rem; }
 
   /* ---------- card grids ---------- */
   /* `min(300px, 100%)` rather than a bare `300px`: on a 320px viewport the bare form makes
@@ -358,68 +401,9 @@
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
       <strong class="wordmark">k<b>UI</b>netic</strong>
     </a>
-    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden>
-      <div class="kui-nav-dropdown" data-nav-group="docs">
-        <button type="button" class="kui-nav-dropdown-trigger" aria-haspopup="true" aria-expanded="false">Docs</button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./docs.html?doc=getting-started">Getting Started</a>
-          <a href="./docs.html?doc=catalog">Catalog</a>
-          <a href="./docs.html?doc=design">Architecture</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="basic">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="reveals.html,text.html,ambient-feedback.html"
-        >
-          Basic
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./reveals.html" data-nav-link="reveals.html">Reveals</a>
-          <a href="./text.html" data-nav-link="text.html">Text</a>
-          <a href="./ambient-feedback.html" data-nav-link="ambient-feedback.html">Ambient &amp; Feedback</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="advanced">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="scroll.html,interactive.html,data-hover.html,tween.html"
-        >
-          Advanced
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./scroll.html" data-nav-link="scroll.html">Scroll</a>
-          <a href="./interactive.html" data-nav-link="interactive.html">Interactive</a>
-          <a href="./data-hover.html" data-nav-link="data-hover.html">Data &amp; Hover</a>
-          <a href="./tween.html" data-nav-link="tween.html">Tween</a>
-        </div>
-      </div>
-      <div class="kui-nav-dropdown" data-nav-group="designs">
-        <button
-          type="button"
-          class="kui-nav-dropdown-trigger"
-          aria-haspopup="true"
-          aria-expanded="false"
-          data-nav-pages="index.html"
-        >
-          Designs
-        </button>
-        <div class="kui-nav-dropdown-menu" data-kui="dropdown-open on:manual" hidden>
-          <a href="./index.html" data-nav-link="index.html">Premium</a>
-          <span class="kui-nav-coming-soon">Coming soon</span>
-        </div>
-      </div>
-    </nav>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden></nav>
     <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
-    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">
-      <svg id="theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
-    </button>
+    <span data-theme-toggle-mount></span>
     <button
       type="button"
       class="kui-nav-toggle"
@@ -517,14 +501,14 @@
             <button type="button" class="tw-vocab-chip" aria-pressed="true" data-kui="fade-up 400ms on:enter" data-fx="tween-from x:-160px 900ms expo-out">x</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from y:120 900ms expo-out">y</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from z:-560px 1100ms expo-out">z</button>
-            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from rotate:-180deg 1000ms expo-out">rotate</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from rotate:-720deg 3000ms expo-out">rotate</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from rotate:45 1000ms bounce">rotate:45</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale:0.2 900ms bounce">scale</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale-x:0.1 900ms expo-out">scale-x</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale:1.6 scale-y:0.1 900ms expo-out">scale-y</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from opacity:0 1000ms">opacity</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from blur:24px 1100ms">blur</button>
-            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from brightness:0.05 1100ms">brightness</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from brightness:0.2 1100ms">brightness</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from saturate:6 1100ms">saturate</button>
             <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from grayscale:1 1100ms">grayscale</button>
             <!-- These two retarget onto `.tw-vocab-tag` instead of tweening the photo — a
@@ -561,28 +545,25 @@
           <h2 data-kui="fade-up on:enter">To, and from</h2>
           <p data-kui="fade-up 700ms">Same values, opposite ends — GSAP's <code>.to()</code>/<code>.from()</code> pair, in CSS.</p>
         </div>
-        <div class="tw-grid is-wide" data-kui="cascade:90ms">
-          <figure class="tw-card" data-show-code>
-            <div class="tw-stage has-rest">
-              <div class="tw-chip" data-kui="tween x:120px opacity:0.15 rotate:24deg 700ms on:click" tabindex="0" role="button" aria-label="Play the to tween">to</div>
-              <span class="tw-press">click the block</span>
+
+        <div class="tw-vocab">
+          <div class="tw-vocab-chips" role="group" aria-label="Choose a direction" data-kui="cascade:45ms">
+            <button type="button" class="tw-vocab-chip" aria-pressed="true" data-kui="fade-up 400ms on:enter" data-fx="tween x:120px opacity:0.15 rotate:24deg 700ms" data-label="to">to</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from x:120px opacity:0.15 rotate:24deg 700ms" data-label="from">from</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="tween-from scale:0.5 900ms, fade-in 900ms" data-label="compose">compose</button>
+          </div>
+
+          <div class="tw-vocab-card">
+            <div class="tw-vocab-frame">
+              <div class="tw-chip" id="directions-target" data-kui="tween x:120px opacity:0.15 rotate:24deg 700ms">to</div>
             </div>
-            <figcaption>data-kui="tween x:120px opacity:0.15 rotate:24deg 700ms on:click" — ends where you wrote</figcaption>
-          </figure>
-          <figure class="tw-card" data-show-code>
-            <div class="tw-stage has-rest">
-              <div class="tw-chip" data-kui="tween-from x:120px opacity:0.15 rotate:24deg 700ms on:click" tabindex="0" role="button" aria-label="Play the from tween">from</div>
-              <span class="tw-press">click the block</span>
+            <div class="tw-vocab-bar">
+              <p class="tw-attr-line">data-kui="<span class="v" id="directions-attr">tween x:120px opacity:0.15 rotate:24deg 700ms</span>"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="directions-target">Show code</button>
             </div>
-            <figcaption>data-kui="tween-from x:120px opacity:0.15 rotate:24deg 700ms on:click" — starts where you wrote</figcaption>
-          </figure>
-          <figure class="tw-card" data-show-code>
-            <div class="tw-stage has-rest">
-              <div class="tw-chip" data-kui="tween-from scale:0.5 900ms, fade-in 900ms">compose</div>
-            </div>
-            <figcaption>data-kui="tween-from scale:0.5 900ms, fade-in 900ms" — disjoint channels compose</figcaption>
-          </figure>
+          </div>
         </div>
+
         <p class="tw-note">Channels come off your attribute. <code>tween-from scale:0.5</code> composes with <code>fade-in</code>; <code>tween-from y:120px</code> collides with it, because <code>fade-in</code> owns translate too.</p>
       </section>
 
@@ -629,103 +610,40 @@
       <section id="starting-style" data-od-id="starting-style">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Animating into and out of the DOM</h2>
-          <p data-kui="fade-up 700ms">Six names that animate a <code>display: none</code> element. Manual by construction — open one.</p>
+          <p data-kui="fade-up 700ms">Six names that animate a <code>display: none</code> element. Manual by construction — pick one, then open it.</p>
         </div>
 
-        <div class="tw-grid" data-kui="cascade:90ms">
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-fade" aria-expanded="false" aria-controls="open-fade">Open</button>
-              <div class="tw-open-panel" id="open-fade" data-kui="fade-open">
-                <div class="tw-open-body"><b>fade-open</b>Opacity only.</div>
+        <div class="tw-vocab">
+          <div class="tw-vocab-chips" role="group" aria-label="Choose an entrance" data-kui="cascade:45ms">
+            <button type="button" class="tw-vocab-chip" aria-pressed="true" data-kui="fade-up 400ms on:enter" data-fx="fade-open" data-desc="Opacity only.">fade-open</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="pop-open" data-desc="Opacity and scale.">pop-open</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="scale-open" data-desc="Scale, no fade.">scale-open</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="drop-open" data-desc="Settles down from above.">drop-open</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="slide-open-up" data-desc="Arrives travelling upward.">slide-up</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="slide-open-down" data-desc="The mirror.">slide-down</button>
+            <!-- Same three named effects above, with their own params turned up — a chip with a
+                 value-suffixed label reading as "the turned-up version", same convention
+                 `#vocabulary`'s `rotate:45` chip set next to plain `rotate`. -->
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="drop-open distance:20px 320ms" data-desc="Against the 8px default.">distance:20px</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="scale-open scale:0.8 320ms" data-desc="Against the 0.92 default.">scale:0.8</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-fx="pop-open scale:0.7 700ms bounce" data-desc="Positional timing.">700ms bounce</button>
+          </div>
+
+          <div class="tw-vocab-card">
+            <div class="tw-vocab-frame" id="starting-target-wrap">
+              <button type="button" class="tw-open-btn" data-open-toggle="starting-target" aria-expanded="false" aria-controls="starting-target">Open</button>
+              <div class="tw-open-panel" id="starting-target" data-kui="fade-open">
+                <div class="tw-open-body"><b id="starting-target-desc">Opacity only.</b>Manual by construction — click Open to preview.</div>
               </div>
             </div>
-            <figcaption>data-kui="fade-open" — 240ms ease-out</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-pop" aria-expanded="false" aria-controls="open-pop">Open</button>
-              <div class="tw-open-panel" id="open-pop" data-kui="pop-open">
-                <div class="tw-open-body"><b>pop-open</b>Opacity and scale.</div>
-              </div>
+            <div class="tw-vocab-bar">
+              <p class="tw-attr-line">data-kui="<span class="v" id="starting-attr">fade-open</span>"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="starting-target-wrap">Show code</button>
             </div>
-            <figcaption>data-kui="pop-open" — 240ms, scale 0.92</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-scale" aria-expanded="false" aria-controls="open-scale">Open</button>
-              <div class="tw-open-panel" id="open-scale" data-kui="scale-open">
-                <div class="tw-open-body"><b>scale-open</b>Scale, no fade.</div>
-              </div>
-            </div>
-            <figcaption>data-kui="scale-open" — 240ms, scale 0.92</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-drop" aria-expanded="false" aria-controls="open-drop">Open</button>
-              <div class="tw-open-panel" id="open-drop" data-kui="drop-open">
-                <div class="tw-open-body"><b>drop-open</b>Settles down from above.</div>
-              </div>
-            </div>
-            <figcaption>data-kui="drop-open" — 240ms, distance 8px</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-up" aria-expanded="false" aria-controls="open-up">Open</button>
-              <div class="tw-open-panel" id="open-up" data-kui="slide-open-up">
-                <div class="tw-open-body"><b>slide-open-up</b>Arrives travelling upward.</div>
-              </div>
-            </div>
-            <figcaption>data-kui="slide-open-up" — 240ms, distance 16px</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-open-stage">
-              <button type="button" class="tw-open-btn" data-open-toggle="open-down" aria-expanded="false" aria-controls="open-down">Open</button>
-              <div class="tw-open-panel" id="open-down" data-kui="slide-open-down">
-                <div class="tw-open-body"><b>slide-open-down</b>The mirror.</div>
-              </div>
-            </div>
-            <figcaption>data-kui="slide-open-down" — 240ms, distance 16px</figcaption>
-          </figure>
-        </div>
-
-        <div class="tw-group">
-          <p class="tw-group-label"><b>the same three, turned up</b></p>
-          <div class="tw-grid" data-kui="cascade:90ms">
-            <figure class="tw-card" data-show-code>
-              <div class="tw-open-stage">
-                <button type="button" class="tw-open-btn" data-open-toggle="open-drop-lo" aria-expanded="false" aria-controls="open-drop-lo">Open</button>
-                <div class="tw-open-panel" id="open-drop-lo" data-kui="drop-open distance:20px 320ms">
-                  <div class="tw-open-body"><b>distance:20px</b>Against the 8px default.</div>
-                </div>
-              </div>
-              <figcaption>data-kui="drop-open distance:20px 320ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-open-stage">
-                <button type="button" class="tw-open-btn" data-open-toggle="open-scale-lo" aria-expanded="false" aria-controls="open-scale-lo">Open</button>
-                <div class="tw-open-panel" id="open-scale-lo" data-kui="scale-open scale:0.8 320ms">
-                  <div class="tw-open-body"><b>scale:0.8</b>Against the 0.92 default.</div>
-                </div>
-              </div>
-              <figcaption>data-kui="scale-open scale:0.8 320ms"</figcaption>
-            </figure>
-            <figure class="tw-card" data-show-code>
-              <div class="tw-open-stage">
-                <button type="button" class="tw-open-btn" data-open-toggle="open-pop-slow" aria-expanded="false" aria-controls="open-pop-slow">Open</button>
-                <div class="tw-open-panel" id="open-pop-slow" data-kui="pop-open scale:0.7 700ms bounce">
-                  <div class="tw-open-body"><b>700ms bounce</b>Positional timing.</div>
-                </div>
-              </div>
-              <figcaption>data-kui="pop-open scale:0.7 700ms bounce"</figcaption>
-            </figure>
           </div>
         </div>
+
+        <p class="tw-note">A <code>[data-open]</code> attribute is the trigger — <code>discrete.css</code>'s closed-state rule matches <code>:not([data-open])</code>, and <code>transition-behavior: allow-discrete</code> keeps the element rendered on the way out.</p>
 
         <div class="tw-group">
           <p class="tw-group-label"><b>three ways to drive one</b> <span>— [data-open] above, plus these two</span></p>
@@ -760,54 +678,67 @@
           <p data-kui="fade-up 700ms"><code>on:focus/blur</code> is a trigger pair — the second half reverses the first.</p>
         </div>
 
-        <div class="tw-grid is-wide" data-kui="cascade:90ms">
-          <figure class="tw-card" data-show-code>
-            <div class="tw-form-stage">
-              <div class="tw-field">
-                <label for="tw-email">Email</label>
-                <input id="tw-email" class="tw-input" type="email" placeholder="you@example.com" data-kui="tween scale:1.03 brightness:1.08 220ms on:focus/blur" />
-              </div>
-              <div class="tw-field">
-                <label for="tw-city">City</label>
-                <input id="tw-city" class="tw-input" type="text" placeholder="Lisbon" />
-              </div>
-            </div>
-            <figcaption>data-kui="tween scale:1.03 brightness:1.08 220ms on:focus/blur" — tab into the first field</figcaption>
-          </figure>
+        <div class="tw-vocab">
+          <!-- Every other picker on this page swaps a `data-kui` value onto one shared target. A
+               focus/hover/click trigger can't do that — it has to fire on the real control, not a
+               replayed tween on a stand-in — so this chip row swaps which real control is
+               mounted in the frame instead. Five controls, five triggers, one frame. -->
+          <div class="tw-vocab-chips" role="group" aria-label="Choose a control" data-kui="cascade:45ms">
+            <button type="button" class="tw-vocab-chip" aria-pressed="true" data-kui="fade-up 400ms on:enter" data-panel="ctrl-email" data-fx="tween scale:1.03 brightness:1.08 220ms on:focus/blur">email</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-panel="ctrl-select" data-fx="tween rotate:1.5deg scale:1.02 180ms on:hover/unhover">select</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-panel="ctrl-checkbox" data-fx="tween scale:1.5 rotate:12deg 260ms bounce on:click">checkbox</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-panel="ctrl-range" data-fx="tween saturate:2.2 200ms on:hover/unhover">range</button>
+            <button type="button" class="tw-vocab-chip" aria-pressed="false" data-kui="fade-up 400ms on:enter" data-panel="ctrl-cascade" data-fx="cascade:70ms, tween-from y:24px opacity:0 600ms">cascade</button>
+          </div>
 
-          <figure class="tw-card" data-show-code>
-            <div class="tw-form-stage">
-              <div class="tw-field">
-                <label for="tw-plan">Plan</label>
-                <select id="tw-plan" class="tw-select" data-kui="tween rotate:1.5deg scale:1.02 180ms on:hover/unhover">
-                  <option>Starter</option>
-                  <option>Studio</option>
-                  <option>Agency</option>
-                </select>
+          <div class="tw-vocab-card">
+            <div class="tw-vocab-frame" id="controls-target">
+              <div class="tw-ctrl-panel is-active" id="ctrl-email">
+                <div class="tw-field">
+                  <label for="tw-email">Email</label>
+                  <input id="tw-email" class="tw-input" type="email" placeholder="you@example.com" data-kui="tween scale:1.03 brightness:1.08 220ms on:focus/blur" />
+                </div>
+                <div class="tw-field">
+                  <label for="tw-city">City</label>
+                  <input id="tw-city" class="tw-input" type="text" placeholder="Lisbon" />
+                </div>
               </div>
-              <label class="tw-check"><input type="checkbox" data-kui="tween scale:1.5 rotate:12deg 260ms bounce on:click" /> Send me the changelog</label>
-              <div class="tw-field">
-                <label for="tw-vol">Volume</label>
-                <input id="tw-vol" class="tw-range" type="range" min="0" max="100" value="55" data-kui="tween saturate:2.2 200ms on:hover/unhover" />
+              <div class="tw-ctrl-panel" id="ctrl-select">
+                <div class="tw-field">
+                  <label for="tw-plan">Plan</label>
+                  <select id="tw-plan" class="tw-select" data-kui="tween rotate:1.5deg scale:1.02 180ms on:hover/unhover">
+                    <option>Starter</option>
+                    <option>Studio</option>
+                    <option>Agency</option>
+                  </select>
+                </div>
+              </div>
+              <div class="tw-ctrl-panel" id="ctrl-checkbox">
+                <label class="tw-check"><input type="checkbox" data-kui="tween scale:1.5 rotate:12deg 260ms bounce on:click" /> Send me the changelog</label>
+              </div>
+              <div class="tw-ctrl-panel" id="ctrl-range">
+                <div class="tw-field">
+                  <label for="tw-vol">Volume</label>
+                  <input id="tw-vol" class="tw-range" type="range" min="0" max="100" value="55" data-kui="tween saturate:2.2 200ms on:hover/unhover" />
+                </div>
+              </div>
+              <div class="tw-ctrl-panel" id="ctrl-cascade">
+                <form onsubmit="return false">
+                  <fieldset class="tw-fieldset" data-kui="cascade:70ms">
+                    <legend>Every field cascades in</legend>
+                    <input class="tw-input" type="text" placeholder="Full name" data-kui="tween-from y:24px opacity:0 600ms" />
+                    <input class="tw-input" type="text" placeholder="Company" data-kui="tween-from y:24px opacity:0 600ms" />
+                    <input class="tw-input" type="text" placeholder="Role" data-kui="tween-from y:24px opacity:0 600ms" />
+                    <button type="submit" class="tw-submit" data-kui="tween-from y:24px opacity:0 600ms">Request access</button>
+                  </fieldset>
+                </form>
               </div>
             </div>
-            <figcaption>tween on a &lt;select&gt;, a checkbox and a range — hover, click, hover</figcaption>
-          </figure>
-
-          <figure class="tw-card" data-show-code>
-            <div class="tw-form-stage">
-              <form onsubmit="return false">
-                <fieldset class="tw-fieldset" data-kui="cascade:70ms">
-                  <legend>Every field cascades in</legend>
-                  <input class="tw-input" type="text" placeholder="Full name" data-kui="tween-from y:24px opacity:0 600ms" />
-                  <input class="tw-input" type="text" placeholder="Company" data-kui="tween-from y:24px opacity:0 600ms" />
-                  <input class="tw-input" type="text" placeholder="Role" data-kui="tween-from y:24px opacity:0 600ms" />
-                  <button type="submit" class="tw-submit" data-kui="tween-from y:24px opacity:0 600ms">Request access</button>
-                </fieldset>
-              </form>
+            <div class="tw-vocab-bar">
+              <p class="tw-attr-line">data-kui="<span class="v" id="controls-attr">tween scale:1.03 brightness:1.08 220ms on:focus/blur</span>"</p>
+              <button type="button" class="kui-show-code-toggle" data-show-code-target="controls-target">Show code</button>
             </div>
-            <figcaption>data-kui="cascade:70ms" on the fieldset, data-kui="tween-from y:24px opacity:0 600ms" on each control</figcaption>
-          </figure>
+          </div>
         </div>
 
         <p class="tw-note">Purpose-built form effects also ship — <code>label-float</code> <code>input-underline-grow</code> <code>focus-ring-grow</code> <code>checkbox-draw</code> <code>radio-fill</code> <code>range-fill</code> <code>toggle-morph</code> <code>strength-meter</code> <code>validate-check</code> <code>validate-shake</code> <code>step-progress</code> <code>submit-to-spinner-to-check</code></p>
@@ -816,39 +747,11 @@
     </div>
   </main>
 
-  <footer data-od-id="footer">
-    <div class="wrap foot-row">
-      <p class="foot-note">kUInetic — MIT licensed. Declarative web animation from HTML attributes.</p>
-      <a href="#top" class="back-top">Back to top ↑</a>
-    </div>
-  </footer>
+  <footer data-od-id="footer" data-footer-mount></footer>
 
   <script src="./kuinetic.js"></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
-  </script>
-  <script>
-    // Theme toggle
-    ;(function () {
-      var KEY = 'kuinetic-showcase-theme'
-      var SUN = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>'
-      var MOON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>'
-      var btn = document.getElementById('theme-toggle')
-      var icon = document.getElementById('theme-icon')
-      function current() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light' }
-      function paint(theme) {
-        icon.innerHTML = theme === 'dark' ? SUN : MOON
-        btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode')
-        btn.setAttribute('aria-pressed', String(theme === 'dark'))
-      }
-      paint(current())
-      btn.addEventListener('click', function () {
-        var next = current() === 'dark' ? 'light' : 'dark'
-        document.documentElement.dataset.theme = next
-        paint(next)
-        try { localStorage.setItem(KEY, next) } catch (e) {}
-      })
-    })()
   </script>
   <script>
     /**
@@ -940,7 +843,9 @@
     ;(function () {
       var target = document.getElementById('vocab-target')
       var label = document.getElementById('vocab-attr')
-      var chips = document.querySelectorAll('.tw-vocab-chip')
+      // Scoped to `#vocabulary` — three more sections reuse the `.tw-vocab-chip` class below,
+      // and an unscoped query here would also catch their clicks.
+      var chips = document.querySelectorAll('#vocabulary .tw-vocab-chip')
       if (!target || !label || !chips.length) return
 
       chips.forEach(function (chip) {
@@ -958,6 +863,121 @@
           kui.reset(target)
           kui.process(target)
           kui.activate(target)
+        })
+      })
+    })()
+  </script>
+  <script>
+    // --- Directions: one shared chip, three attributes ---------------------------------------
+    //
+    // Same mechanism as `#vocabulary` above, pointed at a `.tw-chip` inside `.tw-stage`'s
+    // proportions instead of the photo frame — the target moves, so it needs the fixed box, not
+    // the photo's crop. `data-label` swaps the chip's own text so "to"/"from"/"compose" still
+    // reads on the thing actually moving, not just on the picker.
+    ;(function () {
+      var target = document.getElementById('directions-target')
+      var label = document.getElementById('directions-attr')
+      var chips = document.querySelectorAll('#directions .tw-vocab-chip')
+      if (!target || !label || !chips.length) return
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var fx = chip.getAttribute('data-fx')
+          chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+          label.textContent = fx
+          target.textContent = chip.getAttribute('data-label') || chip.textContent
+          target.setAttribute('data-kui', fx)
+          var kui = window.__kui
+          if (!kui || typeof kui.reset !== 'function') return
+          kui.reset(target)
+          kui.process(target)
+          kui.activate(target)
+        })
+      })
+    })()
+  </script>
+  <script>
+    // --- Starting-style: one shared panel, nine entrances -------------------------------------
+    //
+    // These presets are manual by construction (see the comment on the `[data-open-toggle]`
+    // handler above): flipping `[data-open]` IS the activation, not an `animation-play-state`
+    // gate, so `activate()` here has nothing to release — it is still called, same as every
+    // picker on this page, because `reset()`+`process()` is the pair that guarantees a stale
+    // compile from a previous preset never lingers, and `activate()` is what that pair's own
+    // contract expects to follow it.
+    //
+    // Switching presets while the panel is open closes it first: an already-open panel sitting at
+    // rest has nothing to animate, so changing `data-kui` under it would silently do nothing until
+    // the next open/close — closing first means every chip click leads somewhere visible once you
+    // press Open.
+    ;(function () {
+      var wrap = document.getElementById('starting-target-wrap')
+      var panel = document.getElementById('starting-target')
+      var openBtn = wrap ? wrap.querySelector('[data-open-toggle]') : null
+      var label = document.getElementById('starting-attr')
+      var desc = document.getElementById('starting-target-desc')
+      var chips = document.querySelectorAll('#starting-style .tw-vocab-chip')
+      if (!panel || !label || !chips.length) return
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var fx = chip.getAttribute('data-fx')
+          chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+          label.textContent = fx
+          if (desc) desc.textContent = chip.getAttribute('data-desc') || ''
+          if (panel.hasAttribute('data-open')) {
+            panel.removeAttribute('data-open')
+            if (openBtn) {
+              openBtn.setAttribute('aria-expanded', 'false')
+              openBtn.textContent = 'Open'
+            }
+          }
+          panel.setAttribute('data-kui', fx)
+          var kui = window.__kui
+          if (kui && typeof kui.reset === 'function') {
+            kui.reset(panel)
+            kui.process(panel)
+            kui.activate(panel)
+          }
+        })
+      })
+    })()
+  </script>
+  <script>
+    // --- Controls: one shared frame, five real controls --------------------------------------
+    //
+    // A focus/hover/click trigger has to fire on the real element, so the chips here don't replay
+    // a tween on a stand-in — they swap which `.tw-ctrl-panel` is visible. Every control already
+    // has its live `data-kui` from page load; toggling `hidden`-style visibility via a class
+    // doesn't detach the listeners the library bound at process time, so email/select/checkbox/
+    // range need nothing further. The cascade panel is the one exception: its four children are
+    // each an `on:enter` `tween-from`, gated the same way `#vocabulary`'s target is — switching to
+    // a panel that was never in the viewport (it was `display: none`) doesn't refire an observer
+    // that never fired at all, so replaying it needs the same explicit reset()+process()+
+    // activate() every other picker on this page uses, applied to each cascading child.
+    ;(function () {
+      var frame = document.getElementById('controls-target')
+      var label = document.getElementById('controls-attr')
+      var chips = document.querySelectorAll('#controls .tw-vocab-chip')
+      var panels = frame ? frame.querySelectorAll('.tw-ctrl-panel') : []
+      if (!frame || !label || !chips.length || !panels.length) return
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          var panelId = chip.getAttribute('data-panel')
+          chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c === chip)) })
+          label.textContent = chip.getAttribute('data-fx') || ''
+          panels.forEach(function (p) { p.classList.toggle('is-active', p.id === panelId) })
+
+          if (panelId === 'ctrl-cascade') {
+            var kui = window.__kui
+            if (!kui || typeof kui.reset !== 'function') return
+            var cascadePanel = document.getElementById('ctrl-cascade')
+            var fields = cascadePanel.querySelectorAll('[data-kui]')
+            fields.forEach(function (el) { kui.reset(el) })
+            fields.forEach(function (el) { kui.process(el) })
+            fields.forEach(function (el) { kui.activate(el) })
+          }
         })
       })
     })()
