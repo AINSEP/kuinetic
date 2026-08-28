@@ -640,6 +640,165 @@ describe('a positive visibility threshold', () => {
   })
 })
 
+/**
+ * `threshold:` a target's own geometry can never satisfy.
+ *
+ * A target three times its scrolling root's height maxes out around a 0.33 intersection ratio
+ * whatever the reader's scroll position — `meetsThreshold`'s own doc comment names this exact
+ * shape. The binder cannot soften it, but it can stop being silent about it.
+ */
+describe('an unreachable visibility threshold', () => {
+  interface Rect {
+    width: number
+    height: number
+  }
+
+  // Three times the root's height, full width: no scroll position ever lets this box cover more
+  // than root-height / box-height ≈ 0.33 of itself.
+  const oversized: { box: Rect; root: Rect } = {
+    box: { width: 100, height: 900 },
+    root: { width: 1000, height: 300 },
+  }
+
+  function harness(
+    threshold: string,
+    geometry: { box: Rect; root: Rect } = oversized,
+  ): {
+    send: (intersecting: boolean, ratio: number) => void
+    activate: ReturnType<typeof vi.fn>
+    reporter: CollectingReporter
+  } {
+    let deliver: IntersectionObserverCallback = () => {}
+    const reporter = collectingReporter()
+    const binder = createActivationBinder({
+      createObserver: (callback) => {
+        deliver = callback
+        return {
+          observe: vi.fn(),
+          unobserve: vi.fn(),
+          disconnect: vi.fn(),
+        } as unknown as IntersectionObserver
+      },
+      reporter,
+    })
+    const el = document.createElement('div')
+    const activate = vi.fn()
+    binder.bind(el, 'enter', { threshold, activate })
+    return {
+      activate,
+      reporter,
+      send: (intersecting, ratio) =>
+        deliver(
+          [
+            {
+              target: el,
+              isIntersecting: intersecting,
+              intersectionRatio: ratio,
+              boundingClientRect: geometry.box,
+              rootBounds: geometry.root,
+            },
+          ] as unknown as IntersectionObserverEntry[],
+          {} as IntersectionObserver,
+        ),
+    }
+  }
+
+  it('warns once a full transit closes without ever meeting an unreachable threshold', () => {
+    const { send, activate, reporter } = harness('50%')
+
+    send(true, 0.01) // the boolean-flip entry every transit delivers
+    send(true, 0.33) // as far in as this box can ever get
+    send(false, 0) // leaves without ever reaching 50%
+
+    expect(activate).not.toHaveBeenCalled()
+    expect(reporter.messages).toHaveLength(1)
+    expect(reporter.messages[0]).toContain('threshold:50%')
+    expect(reporter.messages[0]).toContain('33.3%')
+  })
+
+  it('warns once across repeated transits, not once per delivery or per transit', () => {
+    const { send, reporter } = harness('50%')
+
+    for (let i = 0; i < 3; i++) {
+      send(true, 0.01)
+      send(false, 0)
+    }
+
+    expect(reporter.messages).toHaveLength(1)
+  })
+
+  // Varies the knob: the same geometry maxes out around 33%, so 25% is genuinely reachable even
+  // though this particular run never happens to cross it — a fast scroll must not be misread as
+  // geometric impossibility.
+  it('does not warn a threshold the same geometry could still satisfy', () => {
+    const { send, reporter } = harness('25%')
+
+    send(true, 0.01)
+    send(false, 0)
+
+    expect(reporter.messages).toEqual([])
+  })
+
+  it('does not warn an element that never entered the root at all', () => {
+    // An element's very first delivery also reports isIntersecting: false when it starts outside
+    // the root — "hasn't arrived yet," not "toured through and failed."
+    const { send, reporter } = harness('50%')
+
+    send(false, 0)
+
+    expect(reporter.messages).toEqual([])
+  })
+
+  it('does not warn once the element actually meets the threshold', () => {
+    const reachable = {
+      box: { width: 100, height: 100 },
+      root: { width: 1000, height: 800 },
+    }
+    const { send, activate, reporter } = harness('50%', reachable)
+
+    send(true, 0.01)
+    send(true, 0.5)
+    send(false, 0)
+
+    expect(activate).toHaveBeenCalledOnce()
+    expect(reporter.messages).toEqual([])
+  })
+
+  it('stays silent with no reporter to tell', () => {
+    let deliver: IntersectionObserverCallback = () => {}
+    const binder = createActivationBinder({
+      createObserver: (callback) => {
+        deliver = callback
+        return {
+          observe: vi.fn(),
+          unobserve: vi.fn(),
+          disconnect: vi.fn(),
+        } as unknown as IntersectionObserver
+      },
+    })
+    const el = document.createElement('div')
+    binder.bind(el, 'enter', { threshold: '50%', activate: vi.fn() })
+    const send = (intersecting: boolean, ratio: number): void =>
+      deliver(
+        [
+          {
+            target: el,
+            isIntersecting: intersecting,
+            intersectionRatio: ratio,
+            boundingClientRect: oversized.box,
+            rootBounds: oversized.root,
+          },
+        ] as unknown as IntersectionObserverEntry[],
+        {} as IntersectionObserver,
+      )
+
+    expect(() => {
+      send(true, 0.01)
+      send(false, 0)
+    }).not.toThrow()
+  })
+})
+
 /** The threshold parser moved here with the binder that is its only caller. */
 describe('toThresholdRatio', () => {
   it('returns 0 for an unparseable value instead of NaN', () => {

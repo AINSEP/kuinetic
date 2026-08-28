@@ -1337,7 +1337,7 @@ function resolveCollaborators(options: AnimatorOptions) {
     capabilities,
     root,
     reporter,
-    binder: options.binder ?? createActivationBinder(),
+    binder: options.binder ?? createActivationBinder({ reporter }),
     scheduler,
     rootResolver,
     jsEffectPreparer: resolveJsEffectPreparer(options.jsEffectPreparer, {
