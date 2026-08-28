@@ -1,4 +1,5 @@
 import type { Reporter } from './reporter.js'
+import { checkThresholdReachability } from './threshold-reachability.js'
 import type { Crossing } from './toggle-actions.js'
 import { createTravelTracker } from './travel.js'
 import type { RootSide } from './travel.js'
@@ -389,6 +390,16 @@ export interface ActivationBinderOptions {
     callback: IntersectionObserverCallback,
     options: IntersectionObserverInit,
   ) => IntersectionObserver
+  /**
+   * Where {@link checkThresholdReachability} reports an unreachable `threshold:`, if anywhere.
+   *
+   * Bound once for the whole binder rather than threaded through every `bind` call: every observed
+   * binding the binder ever makes shares the one diagnostic sink, the same way they already share
+   * observers per threshold. Optional because most of this file's own tests construct a binder with
+   * nothing to warn into, and the diagnostic is a courtesy the binder degrades out of silently, not
+   * a contract it enforces.
+   */
+  reporter?: Reporter
 }
 
 /** One element's stake in a shared observer. */
@@ -421,6 +432,17 @@ interface ObservedBinding {
    * under `threshold:50%` is intersecting and has not entered.
    */
   entered: boolean
+  /** Where {@link checkThresholdReachability} reports an unreachable threshold, if anywhere. */
+  reporter?: Reporter
+  /**
+   * Whether this element has ever been geometrically inside the root, independent of whether it
+   * ever met the authored threshold. Tells a genuine leave (toured through, never got there) apart
+   * from the first delivery of an element that starts outside the root (never arrived yet) — both
+   * report `isIntersecting: false`, and only one of them is evidence of anything.
+   */
+  sawIntersecting: boolean
+  /** Released by the first warning. See {@link checkThresholdReachability} for why once. */
+  thresholdWarned: boolean
 }
 
 /**
@@ -475,6 +497,7 @@ function deliverEntry(
   ratio: number,
   arrivedFrom?: RootSide,
 ): void {
+  checkThresholdReachability(binding, entry, ratio)
   if (binding.onCross) return deliverCrossing(binding, entry, ratio, arrivedFrom)
   const inside = meetsThreshold(entry, ratio)
   // Only a change of side is a crossing. A positive threshold delivers twice on the way in — once
@@ -608,6 +631,7 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
   const callbacks = new WeakMap<Element, ObservedBinding>()
   const createObserver = options.createObserver ?? defaultObserverFactory()
   const travel = createTravelTracker()
+  const reporter = options.reporter
 
   function observerFor(
     threshold: string,
@@ -674,6 +698,9 @@ export function createActivationBinder(options: ActivationBinderOptions = {}): A
       oneShot: spec.oneShot,
       release,
       entered: false,
+      reporter,
+      sawIntersecting: false,
+      thresholdWarned: false,
     })
     shared.count++
     shared.observer.observe(el)

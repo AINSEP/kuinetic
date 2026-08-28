@@ -65,7 +65,13 @@ import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createLedgerSet } from './owned-styles.js'
 import type { LedgerSet } from './owned-styles.js'
-import { applyStagger, indexTargetGroup, releaseStagger, restageAround } from './stagger.js'
+import {
+  applyStagger,
+  indexTargetGroup,
+  releaseStagger,
+  restageAfterRemoval,
+  restageAround,
+} from './stagger.js'
 import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
 import { queryScoped, selectorBreadth } from './target.js'
@@ -1260,15 +1266,23 @@ export class Animator {
    * method's only caller — is itself typed `(el: Element) => void`, so there is no runtime case
    * where `node` is a `Document`/`DocumentFragment` to guard against.
    *
+   * `restageAfterRemoval` runs over every candidate visited, not only the ones actually released:
+   * a removed stagger member is exactly the case this closes, and whether it was "live" by
+   * `liveElements`' definition is a question `GROUP_OF_CHILD` (in `stagger.ts`) answers on its own
+   * terms. Without it, removing one item from a staggered group left every later sibling holding
+   * the rank an index computed for a group one element larger — the stale-after-*edit* half of the
+   * same defect `3d57ff7` already closed for an attribute change, left open for a removal.
+   *
    * @complexity O(s) time in the removed subtree's element count; O(1) per candidate via the
-   * `liveElements` Set lookup.
+   * `liveElements` Set lookup, plus stagger re-ranking bounded by the surviving groups' own sizes.
    * @overallScore 100
    */
   private releaseTree(node: Element): void {
-    if (this.liveElements.has(node)) this.release(node)
-    for (const el of node.querySelectorAll('*')) {
+    const candidates = [node, ...node.querySelectorAll('*')]
+    for (const el of candidates) {
       if (this.liveElements.has(el)) this.release(el)
     }
+    restageAfterRemoval(candidates, this.reporter)
   }
 
   destroy(): void {
@@ -1337,7 +1351,7 @@ function resolveCollaborators(options: AnimatorOptions) {
     capabilities,
     root,
     reporter,
-    binder: options.binder ?? createActivationBinder(),
+    binder: options.binder ?? createActivationBinder({ reporter }),
     scheduler,
     rootResolver,
     jsEffectPreparer: resolveJsEffectPreparer(options.jsEffectPreparer, {

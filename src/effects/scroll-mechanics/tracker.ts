@@ -118,9 +118,11 @@ export interface TrackOptions {
  * which makes progress negative, `clamp01` floors it to 0, and — because the measurement is cached
  * for the whole epoch — it stays 0 for the rest of the effect's life.
  *
- * `preparePin` already dodges this for the element it makes sticky itself, by tracking the parent.
- * This is the same move generalised to anything nested *inside* someone else's sticky subtree,
- * which is exactly what `horizontal-scroll`'s track and `sequence-scrub`'s image are.
+ * `preparePin` already dodges this for the element it makes sticky itself, by tracking the parent
+ * when it has no spacer to measure instead (`contentAnchor` covers the spacer case; see
+ * `TrackOptions.contentAnchor`). This function is the same move generalised to anything nested
+ * *inside* someone else's sticky subtree, which is exactly what `horizontal-scroll`'s track and
+ * `sequence-scrub`'s image are.
  *
  * The outermost sticky ancestor is the one to escape from: its parent is the box that actually
  * scrolls. For the demo's `.track`, that walk lands on `.track-stage`, which is never stuck.
@@ -205,8 +207,8 @@ export function trackProgress(
     return {
       contentTop: top - stickyOffset - scrollportTop + scrollTop,
       height: box.height,
-      // Only read on the `opaqueDistance` path below, but measured here so it shares the one
-      // layout flush per epoch that everything else in this cache already pays for.
+      // Only read on the `spacerIsAuthoritative` path below, but measured here so it shares the
+      // one layout flush per epoch that everything else in this cache already pays for.
       anchorHeight: anchor?.height ?? 0,
     }
   })
@@ -224,6 +226,23 @@ export function trackProgress(
   const opaqueDistance = authoredDistance !== '' && !resolvesToPixels(authoredDistance)
   if (opaqueDistance && !options.contentAnchor) warnUnmeasurable(ctx, authoredDistance)
 
+  /*
+   * Broader than `opaqueDistance`, on purpose, and only consulted below when a spacer exists to
+   * measure. A `calc()` `toPixels` cannot evaluate is already caught by `resolvesToPixels`, but
+   * `50%` is not — `toPixels` converts it without complaint, against whichever element
+   * `trackProgress` happens to be measuring. `%` means "of my own containing block", a fact fixed by
+   * the CSS box the value is applied to, not by any basis this module passes in: the spacer's own
+   * `height: 50%` resolves against its own containing block, and nothing keeps that the same box as
+   * `resolveDistance`'s `percentBasis` here. A percentage is exactly as untrustworthy as a `calc()`
+   * the moment a spacer exists to disagree with — it just fails silently instead of falling back
+   * visibly, which is worse.
+   *
+   * This never widens the warning above: without a spacer there is nothing for a percentage to
+   * disagree with, and `resolveDistance` already answers it correctly against the one basis that
+   * exists — `box.height`, the same element the percentage was authored against.
+   */
+  const spacerIsAuthoritative = authoredDistance !== '' && usesPercentBasis(authoredDistance)
+
   return ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {
     scrollTop = frame.metrics.scrollTop
     scrollportTop = frame.metrics.viewportTop
@@ -236,7 +255,7 @@ export function trackProgress(
      * therefore agreeing with the reserved scroll room by construction rather than by coincidence.
      */
     const span =
-      opaqueDistance && options.contentAnchor
+      spacerIsAuthoritative && options.contentAnchor
         ? box.anchorHeight
         : resolveDistance(options.distance, { top: 0, height: box.height }, frame)
     onProgress(progressFrom(box.contentTop - scrollTop, span), frame)
@@ -258,6 +277,12 @@ const PROBE_BASIS: LengthBasis = {
 }
 
 /**
+ * `PROBE_BASIS` with a different `percentBasis`, so comparing `toPixels` against both answers
+ * "does this value's result depend on `percentBasis` at all" — see `usesPercentBasis`.
+ */
+const PROBE_BASIS_ALT_PERCENT: LengthBasis = { ...PROBE_BASIS, percentBasis: 2 }
+
+/**
  * Whether `toPixels` can convert this authored length to a number at all.
  *
  * Asked with `NaN` as the fallback, which is the only way to tell a real conversion apart from
@@ -271,6 +296,29 @@ const PROBE_BASIS: LengthBasis = {
  */
 function resolvesToPixels(value: string): boolean {
   return Number.isFinite(toPixels(value, PROBE_BASIS, Number.NaN))
+}
+
+/**
+ * Whether an authored distance's resolved pixel value depends on `percentBasis` — a plain `%`, or
+ * an expression `toPixels` cannot evaluate at all (which trivially "depends", since nothing rules
+ * it out).
+ *
+ * Answered by probing `toPixels` with two bases that differ only in `percentBasis` and comparing
+ * the results, rather than a second regex or exporting `toPixels`'s parsing internals: a value
+ * carrying no `%` produces the same number against both, and one that does produces two different
+ * numbers. `100vh`, `400px`, and `2rem` all resolve identically for the JS tracker and a CSS
+ * spacer — the viewport and the root font size are one global value, not per-element — so this is
+ * the one unit family that actually needs the check.
+ *
+ * @param value - An authored value already accepted as `type: 'length'`.
+ * @returns Whether a spacer, if one exists, is the only trustworthy source for this distance.
+ * @complexity O(n) time in value length; O(1) space.
+ * @overallScore 100
+ */
+function usesPercentBasis(value: string): boolean {
+  const primary = toPixels(value, PROBE_BASIS, Number.NaN)
+  if (!Number.isFinite(primary)) return true
+  return primary !== toPixels(value, PROBE_BASIS_ALT_PERCENT, Number.NaN)
 }
 
 /**
@@ -297,8 +345,9 @@ function warnUnmeasurable(ctx: PrepareContext, distance: string): void {
  * A zero or negative span is the degenerate case that matters — an element with no height, or one
  * measured before layout settles. `progressFrom` treats it as "not started" rather than dividing.
  *
- * Values `toPixels` cannot convert never reach here with a spacer in play: `trackProgress` measures
- * those off the spacer instead, and warns when there is no spacer to measure.
+ * Values `toPixels` cannot convert, and percentages, never reach here with a spacer in play:
+ * `trackProgress` measures those off the spacer instead — see `usesPercentBasis` — and warns when
+ * there is no spacer to measure an unconvertible value from.
  *
  * @complexity O(n) time in the authored value's length; O(1) space.
  * @overallScore 100

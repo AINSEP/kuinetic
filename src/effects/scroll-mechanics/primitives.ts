@@ -117,37 +117,49 @@ function writeProgress(ctx: PrepareContext, progress: number): void {
  */
 function preparePin(el: Element, params: EffectParams, ctx: PrepareContext): ContinuousSetup {
   const node = el as HTMLElement
-  const { dispose: unstick } = installSticky(node, params, ctx)
+  const { spacer, dispose: unstick } = installSticky(node, params, ctx)
 
   /*
-   * Track the containing block, not the pinned element.
+   * With a spacer, track the pinned element itself and let `contentAnchor` recover the flow
+   * position sticky is hiding — `insertSpacer` places `spacer` immediately after `node` and sizes it
+   * to exactly `distance`, the same relationship `media-scrub`'s and `horizontal-track`'s managed
+   * forms already rely on `contentAnchor` for. Tracking `node` this way also stops assuming `node`
+   * is the first thing in its parent: the old parent-tracking below only lines progress 0 up with
+   * the moment sticky engages when nothing precedes `node` there — the exact defect `contentAnchor`
+   * was introduced to close for `horizontal-track`'s managed row (see `TrackOptions.contentAnchor`).
    *
-   * Sticky positioning exists precisely to stop the element moving relative to the viewport, so
-   * once pinned its own rect reports the same offset forever and progress would sit at 0 for the
-   * entire pin. The parent keeps scrolling, and is what the progress actually describes.
+   * Without a spacer there is no sibling to recover `node`'s flow position from once it sticks, so
+   * the containing block is tracked instead: it keeps scrolling for as long as `node` is stuck, and
+   * is what progress actually describes.
    */
-  const tracked = node.parentElement ?? el
+  const tracked = spacer ? node : (node.parentElement ?? el)
 
   // `stickyEl: node` — the pinned element itself, not `tracked` — is what carries the resolved
   // `top` that makes progress 0 line up with the moment sticky actually engages. See
   // `TrackOptions.stickyEl`.
-  const untrack = trackProgress(tracked, ctx, { distance: params.text('distance'), stickyEl: node }, (progress) => {
-    writeProgress(ctx, progress)
-    /*
-     * `progress` alone is not proof the element is held: it's arithmetic on the *tracked ancestor's*
-     * scroll offset, computed identically whether or not CSS actually lets `node` stick. `installSticky`
-     * writes `position: sticky` inline, but an author's `!important` media query is the one thing that
-     * still beats it — `demo/scroll.html`'s `.showcase-media` does exactly this below 900px, so the
-     * hold is deliberately dropped on narrow viewports while progress keeps running 0->1 underneath
-     * for whatever else consumes it (its `parallax-scale timeline:pin` child, for one).
-     *
-     * Reading `node`'s own computed position is what makes this attribute an honest state contract
-     * instead of a promise CSS can silently break: pinned only when the scroll range says so *and*
-     * the browser is actually resolving `node` to `sticky`.
-     */
-    const holding = progress > 0 && progress < 1 && domPosition(node) === 'sticky'
-    el.setAttribute('data-kui-pinned', holding ? 'true' : 'false')
-  })
+  const untrack = trackProgress(
+    tracked,
+    ctx,
+    { distance: params.text('distance'), contentAnchor: spacer ?? undefined, stickyEl: node },
+    (progress) => {
+      writeProgress(ctx, progress)
+      /*
+       * `progress` alone is not proof the element is held: it's arithmetic on the *tracked
+       * ancestor's* scroll offset, computed identically whether or not CSS actually lets `node`
+       * stick. `installSticky` writes `position: sticky` inline, but an author's `!important`
+       * media query is the one thing that still beats it — `demo/scroll.html`'s `.showcase-media`
+       * does exactly this below 900px, so the hold is deliberately dropped on narrow viewports
+       * while progress keeps running 0->1 underneath for whatever else consumes it (its
+       * `parallax-scale timeline:pin` child, for one).
+       *
+       * Reading `node`'s own computed position is what makes this attribute an honest state
+       * contract instead of a promise CSS can silently break: pinned only when the scroll range
+       * says so *and* the browser is actually resolving `node` to `sticky`.
+       */
+      const holding = progress > 0 && progress < 1 && domPosition(node) === 'sticky'
+      el.setAttribute('data-kui-pinned', holding ? 'true' : 'false')
+    },
+  )
 
   // Inline styles are restored by the animator's ledger, so teardown only undoes what the
   // ledger cannot see: the inserted spacer and the state attribute.

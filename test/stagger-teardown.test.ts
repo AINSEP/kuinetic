@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ATTR } from '../src/core/attrs.js'
-import { applyStagger, releaseStagger, restageAround } from '../src/core/stagger.js'
+import {
+  applyStagger,
+  releaseStagger,
+  restageAfterRemoval,
+  restageAround,
+} from '../src/core/stagger.js'
 
 /**
  * Undoing a stagger index.
@@ -141,5 +146,71 @@ describe('indexStaggerGroup — what an index can be undone back to', () => {
     last.removeAttribute(ATTR.source)
     restageAround(last)
     expect(ul(root).style.getPropertyValue('--kui-stagger-count')).toBe('2')
+  })
+})
+
+/**
+ * Re-ranking a group after a `childList` removal, rather than after an edit.
+ *
+ * `restageAround` re-ranks on an attribute change by reading `el.parentElement` — which still
+ * exists, because an attribute change never detaches anything. A removed child has no such parent
+ * to ask: by the time `Animator.releaseTree` (the only real caller) hears about it, the element is
+ * already detached. `restageAfterRemoval` answers a different question — "which group did this
+ * child last belong to" — from `indexStaggerGroup`'s own bookkeeping rather than from the DOM edge
+ * the removal just erased.
+ */
+describe('restageAfterRemoval — re-ranking after a childList removal', () => {
+  it('re-ranks the survivors contiguously when a middle child is removed', () => {
+    const root = list('data-kui-stagger="100ms from:start"')
+    applyStagger(root)
+    expect(ranksOf(ul(root))).toEqual(['0', '1', '2', '3', '4'])
+
+    const removed = ul(root).children[2]!
+    removed.remove()
+    restageAfterRemoval([removed])
+
+    expect(ranksOf(ul(root))).toEqual(['0', '1', '2', '3'])
+    expect(ul(root).style.getPropertyValue('--kui-stagger-count')).toBe('4')
+  })
+
+  // Varies the knob: `from:center` re-derives every rank from the surviving count rather than
+  // simply shifting the ones above the gap down by one, so a fix that only decremented later
+  // siblings — the shape the bug report described — would still fail this one.
+  it('re-runs the whole layout, not just a decrement, for a from:center group', () => {
+    const root = list('data-kui-stagger="from:center"')
+    applyStagger(root)
+    expect(ranksOf(ul(root))).toEqual(['2', '1', '0', '1', '2'])
+
+    const removed = ul(root).children[0]!
+    removed.remove()
+    restageAfterRemoval([removed])
+
+    // Four survivors, re-centred from scratch — not "the last four of the five-child layout",
+    // which would keep a '2' at the tail end instead of the even-count center pairing below.
+    expect(ranksOf(ul(root))).toEqual(['1', '0', '0', '1'])
+  })
+
+  it('re-ranks once for a batch that removes several siblings from the same group', () => {
+    const root = list('data-kui-stagger="100ms from:start"', 6)
+    applyStagger(root)
+
+    const removedEls = [...ul(root).children].slice(1, 4)
+    for (const el of removedEls) el.remove()
+    // One call with every removed element, the shape `Animator.releaseTree` uses for one
+    // MutationRecord batch — not one call per element, which the dedup exists to make safe.
+    restageAfterRemoval(removedEls)
+
+    expect(ranksOf(ul(root))).toEqual(['0', '1', '2'])
+    expect(ul(root).style.getPropertyValue('--kui-stagger-count')).toBe('3')
+  })
+
+  it('is a no-op for an element that was never a ranked member of anything', () => {
+    const root = list('data-kui-stagger="100ms from:start"')
+    applyStagger(root)
+    const before = ranksOf(ul(root))
+
+    const stray = document.createElement('li')
+    expect(() => restageAfterRemoval([stray])).not.toThrow()
+    expect(ranksOf(ul(root))).toEqual(before)
   })
 })

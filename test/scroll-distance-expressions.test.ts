@@ -104,6 +104,52 @@ describe('distance: expressions with a spacer to measure', () => {
   })
 })
 
+describe('distance: percentages with a spacer to measure', () => {
+  // `50%` is not a `calc()` — `toPixels` converts it without complaint — so it never took the
+  // `opaqueDistance` warn-or-measure path `c99df4c` added. But the number it returns depends on
+  // `percentBasis`, which here is the *tracked element's* height, while the spacer's own
+  // `height: 50%` resolves against its own containing block. Nothing keeps those the same box, so a
+  // percentage is exactly as untrustworthy as a `calc()` the moment a spacer exists — it just never
+  // said so. Two different percentages, so a fix special-cased to one number can't look correct by
+  // accident.
+  it.each([
+    { distance: '50%', spacerHeight: 800 },
+    { distance: '33%', spacerHeight: 500 },
+  ])(
+    'reads $distance back off the spacer rather than computing it against the tracked element',
+    ({ distance, spacerHeight }) => {
+      const elementHeight = 300
+      const { target, spacer, place } = trackedWithSpacer(elementHeight, spacerHeight)
+      const scheduler = fakeScheduler()
+      const warnings: string[] = []
+      const seen: number[] = []
+
+      place(0)
+      trackProgress(
+        target,
+        trackerCtx(scheduler, warnings),
+        { distance, contentAnchor: spacer },
+        (progress) => seen.push(progress),
+      )
+      scheduler.emit(0)
+      expect(seen.at(-1)).toBeCloseTo(0)
+
+      // Halfway through the reserved scroll room must read as halfway. Computing the percentage
+      // against the 300px tracked element instead answers a span with no relationship to
+      // `spacerHeight` — 150px for the first row, 99px for the second — never the authored range.
+      const half = spacerHeight / 2
+      place(half)
+      scheduler.emit(half, 1)
+      expect(seen.at(-1)).toBeCloseTo(0.5)
+
+      // A percentage is not "unmeasurable" the way calc() is — resolveDistance can always compute
+      // *a* number for it — so there is nothing to warn about, only a silently wrong basis to
+      // prefer the spacer over. Fixed quietly, not reported.
+      expect(warnings).toEqual([])
+    },
+  )
+})
+
 describe('distance: expressions with no spacer to measure', () => {
   function trackBare(distance: string | undefined) {
     const target = document.createElement('div')
@@ -157,4 +203,17 @@ describe('distance: expressions with no spacer to measure', () => {
       expect(trackBare(distance).warnings).toEqual([])
     },
   )
+
+  it('still computes % directly against the tracked element when there is no spacer to disagree with', () => {
+    // Confirms `usesPercentBasis` only redirects the *span computation* to a spacer when one
+    // exists — a percentage with no spacer has nothing to disagree with, so it must keep resolving
+    // through the ordinary `resolveDistance` path, unchanged.
+    const { scheduler, seen, target } = trackBare('50%')
+
+    // `trackBare` stubs a 300px tracked height, so 50% is a 150px span; half of that is 75px.
+    scheduler.emit(0)
+    stubRect(target, -75, 300)
+    scheduler.emit(75, 1)
+    expect(seen.at(-1)).toBeCloseTo(0.5)
+  })
 })

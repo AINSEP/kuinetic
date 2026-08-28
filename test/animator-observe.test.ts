@@ -11,7 +11,17 @@ import type { DomWatcher } from '../src/core/dom-watcher.js'
 import { CAPS, fakeBinder } from './support/animator-harness.js'
 import { catalogRegistry } from './support/registry.js'
 describe('Animator — observe: true real DOM-watcher wiring', () => {
+  // Torn down here rather than at the end of each body: an animator left observing `document.body`
+  // by a failing assertion goes on scanning the *next* test's markup, which turns a genuine failure
+  // into a pass depending on which tests ran before it. Every test below pushes here immediately
+  // after `start()` instead of calling `destroy()` itself at the tail of its body, where a thrown
+  // assertion would skip right past it. A test that also calls `destroy()` itself mid-body — that
+  // call is part of what it's testing, not teardown — still pushes here too: the second `destroy()`
+  // this `afterEach` then makes is a harmless no-op, the same double-destroy the "leaves nothing
+  // behind on destroy" test below already relies on.
+  const running: Animator[] = []
   afterEach(() => {
+    for (const animator of running.splice(0)) animator.destroy()
     vi.unstubAllGlobals()
   })
 
@@ -39,6 +49,7 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       observe: true,
     })
     animator.start()
+    running.push(animator)
 
     const added = document.createElement('div')
     added.setAttribute('data-kui', 'fade-up')
@@ -46,7 +57,6 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     await flushMutations()
 
     expect(added.getAttribute(ATTR.normalized)).toBe('fade-up')
-    animator.destroy()
   })
 
   it('releases a live element when an ancestor of it is removed, not only the element itself', async () => {
@@ -62,13 +72,13 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       observe: true,
     })
     animator.start()
+    running.push(animator)
     expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
 
     wrapper.remove()
     await flushMutations()
 
     expect(target.hasAttribute(ATTR.normalized)).toBe(false)
-    animator.destroy()
   })
 
   it('releases an element removed from the observed subtree', async () => {
@@ -83,13 +93,13 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       observe: true,
     })
     animator.start()
+    running.push(animator)
     expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
 
     target.remove()
     await flushMutations()
 
     expect(target.hasAttribute(ATTR.normalized)).toBe(false)
-    animator.destroy()
   })
 
   it('reprocesses an element whose watched attribute changed', async () => {
@@ -104,13 +114,13 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       observe: true,
     })
     animator.start()
+    running.push(animator)
     expect(target.getAttribute(ATTR.normalized)).toBe('fade-up')
 
     target.setAttribute(ATTR.source, 'zoom-in')
     await flushMutations()
 
     expect(target.getAttribute(ATTR.normalized)).toBe('zoom-in')
-    animator.destroy()
   })
 
   it('disconnects the real dom watcher on destroy, so later mutations are ignored', async () => {
@@ -124,6 +134,9 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       observe: true,
     })
     animator.start()
+    running.push(animator)
+    // The destroy this test is actually about, not teardown — it has to run here, mid-body, for
+    // the assertion below to mean anything.
     animator.destroy()
 
     const added = document.createElement('div')
@@ -200,6 +213,66 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
     })
   })
 
+  /**
+   * The stagger half of a removal, through the real `releaseTree` path this bug lived in.
+   *
+   * `stagger-teardown.test.ts` covers `restageAfterRemoval` itself at the unit level; this exercises
+   * the wiring that actually calls it — a real `MutationObserver` reporting a `childList` removal,
+   * flushed through `Animator.releaseTree` exactly as a page author's own removal would be.
+   */
+  describe('a stagger group that loses a member', () => {
+    const running: Animator[] = []
+    afterEach(() => {
+      for (const animator of running.splice(0)) animator.destroy()
+    })
+
+    function list(attribute: string, children = 5): { animator: Animator; ul: HTMLElement } {
+      stubSyncFrame()
+      document.body.innerHTML =
+        `<ul ${attribute}>${'<li data-kui="fade-up"></li>'.repeat(children)}</ul>`
+      const animator = new Animator({
+        root: document.body,
+        registry: catalogRegistry(),
+        capabilities: CAPS,
+        binder: fakeBinder(),
+        observe: true,
+      })
+      animator.start()
+      running.push(animator)
+      return { animator, ul: document.body.firstElementChild as HTMLElement }
+    }
+
+    const ranks = (ul: HTMLElement): string[] =>
+      [...ul.children].map((li) => (li as HTMLElement).style.getPropertyValue('--kui-i'))
+
+    it('re-ranks the surviving siblings, not just tears the removed one down', async () => {
+      const { ul } = list('data-kui-stagger="100ms from:start"')
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4'])
+
+      ul.children[2]!.remove()
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3'])
+      expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('4')
+    })
+
+    it('re-ranks correctly when several siblings leave in the same tick', async () => {
+      // Real `MutationObserver` records batch every synchronous removal before the deferred flush
+      // runs, so all three of these have already happened by the time `releaseTree` sees any of
+      // them — the same batch shape `restageAfterRemoval`'s dedup exists for.
+      const { ul } = list('data-kui-stagger="100ms from:start"', 6)
+      expect(ranks(ul)).toEqual(['0', '1', '2', '3', '4', '5'])
+
+      ul.children[1]!.remove()
+      ul.children[1]!.remove()
+      ul.children[1]!.remove()
+      await flushMutations()
+
+      expect(ranks(ul)).toEqual(['0', '1', '2'])
+      expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('3')
+    })
+  })
+
   it('calls destroy() on an injected domWatcher', () => {
     const fakeWatcher: DomWatcher = { watch: vi.fn(), destroy: vi.fn() }
     document.body.innerHTML = ''
@@ -212,8 +285,10 @@ describe('Animator — observe: true real DOM-watcher wiring', () => {
       domWatcher: fakeWatcher,
     })
     animator.start()
+    running.push(animator)
     expect(fakeWatcher.watch).toHaveBeenCalledOnce()
 
+    // The destroy this test is actually about, not teardown — see the assertion right after it.
     animator.destroy()
     expect(fakeWatcher.destroy).toHaveBeenCalledOnce()
   })
