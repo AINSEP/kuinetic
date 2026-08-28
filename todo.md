@@ -20,39 +20,64 @@ library should own it. Never call something "not the library's job" without grep
       should track the pointer instead of crawling. Drive it through Claude in Chrome against the
       dev server on 8934 — never a hand-rolled Playwright script.
 
-- [ ] **`threshold:` cannot fire on an element taller than the viewport fraction it asks for.**
+- [x] **`threshold:` now warns when it cannot fire — SHIPPED 2026-08-27 (`b441d83`).**
       Found 2026-08-27 while fixing the threshold bug. `threshold:50%` on a 3-viewport-tall element
       never triggers: its intersection ratio tops out around 0.33. This is **not fixable from the
       binder** — the browser only delivers entries at crossings of the threshold it was handed, so
       the peak ratio is never reported. Documented in `meetsThreshold` in `src/core/activation.ts`.
       The decision to make is whether the library should warn when an element's measured height
       makes its authored threshold unreachable, rather than silently never firing.
+      **Fixed:** new `src/core/threshold-reachability.ts`, warning once per element. It measures
+      only on a genuine *leave* — after a real prior entry — never on first delivery, so a lazy
+      image, a collapsed accordion, or a pre-font-load layout cannot produce a false warning. The
+      underlying browser limit is unchanged and still documented in `meetsThreshold`; the library
+      now says so instead of failing silently.
 
-- [ ] **`distance:50%` has the same spacer/tracker disagreement `calc()` just had.** Found
+- [x] **`distance:50%` resolved against the wrong box — FIXED 2026-08-27 (`b0aea0a`).** Found
       2026-08-27 while fixing the `calc()` case, not fixed. `resolveDistance` resolves the
       percentage against the *element's* height, while the spacer's CSS `height: 50%` resolves
       against its own containing block — so the reserved scroll distance and the tracked progress
       range are two different numbers. Same class as the `calc()` bug fixed in `c99df4c`, which is
       worth reading first: it fixed it by reading the distance back off the spacer, so the two
       agree by construction.
+      **Fixed:** and `c99df4c` did *not* already cover it, which was the surprise —
+      `resolvesToPixels('50%')` returns `true`, so percentages never entered the warn/measure branch
+      at all. New `usesPercentBasis()` probes `toPixels` with two bases differing only in
+      `percentBasis` and compares. It gates only the span computation; the warn gate stays on the
+      narrower opaque-value check, so `50%` with no spacer still resolves silently and correctly.
 
-- [ ] **`preparePin` never passes its own spacer as `contentAnchor`.** Follow-up from the same fix.
+- [x] **`preparePin` now wires its own spacer as `contentAnchor` — FIXED 2026-08-27 (`d8fc14b`).** Follow-up from the same fix.
       It tracks the parent instead, so `pin-section distance:calc(...)` takes the *warn* path rather
       than the measure path — only managed `horizontal-scroll` and `sequence-scrub`/managed
       `media-scrub` get the spacer measurement. Pin could reasonably pass its own spacer; that is a
       real improvement but wider than the defect that surfaced it, so it was deliberately left.
+      **Fixed:** `installSticky` already returned `{ spacer, dispose }` and `preparePin` was
+      destructuring only `dispose`. The parent *is* load-bearing, but only in the no-spacer branch
+      (the default-distance fallback and `geometrySource`'s sticky-escape) — that branch is
+      untouched. With a spacer it now tracks the node itself and passes the spacer as
+      `contentAnchor`, so a leading sibling no longer biases progress.
 
-- [ ] **A childList removal from a stagger group does not re-rank the surviving siblings.** Found
+- [x] **A childList removal now re-ranks the survivors — FIXED 2026-08-27 (`389df49`).** Found
       2026-08-27 adjacent to the stagger-ledger fix, not fixed — `releaseTree` doesn't restage the
       parent, so remove one item from a staggered group and every later sibling keeps its old
       `--kui-i`. Same class as the stale-after-edit half that *was* fixed in `3d57ff7`.
+      **Fixed:** by the time the deferred MutationObserver flush runs, the removed node's
+      `parentElement` is already `null`, and the only thing that still knows is
+      `MutationRecord.target`. So the fix sidesteps the DOM parent entirely: a `GROUP_OF_CHILD`
+      WeakMap populated by `indexStaggerGroup` lets `restageAfterRemoval()` find and re-index each
+      surviving group from the child's own bookkeeping. Composes with `3d57ff7`'s `LedgerSet`.
 
-- [ ] **`test/animator-observe.test.ts` leaks an animator on failure.** Each test destroys its
+- [x] **`test/animator-observe.test.ts` teardown hoisted to `afterEach` — FIXED 2026-08-27 (`4f2b2e3`).** Each test destroys its
       animator at the end of the test *body* rather than in `afterEach`, so a failing assertion
       leaves one observing `document.body` that then scans the **next** test's markup. Caught
       2026-08-27 when a new test passed in a group run and failed in isolation. The block added
       that day tears down in `afterEach`; the older tests in the file still carry the hazard, and
       until they are moved over, a failure in this file can cascade into unrelated red.
+      **Fixed:** the six outer-scope tests now push their animator onto a shared `running[]` unwound
+      in `afterEach`, matching what the two inner describes already did. Two tests call `destroy()`
+      mid-body as the behaviour under test and keep that call. Zero assertions changed, and all 11
+      tests were verified to pass individually via `-t` filters as well as grouped — no test turned
+      out to be depending on the leak.
 
 - [ ] **`demo/docs.html`'s new `scroll-spy` TOC is not browser-verified.** Landed in `33b12e2` with
       lint/typecheck/`demo-markup` green, but the browser slot was held so nothing rendered a frame.
