@@ -768,6 +768,17 @@
       gap: clamp(1.75rem, 3vw, 3rem);
     }
   }
+  /* Went through two wrong versions before this one — both measured live, both still wrong at
+     sizes the measurement didn't cover. (1) `position: absolute` with a fixed `top` looked right
+     until a short-viewport `position: static` fallback (to dodge overlapping the video) turned it
+     into a grid item with the default `justify-self: stretch`, and it filled the column. (2)
+     Dropping the fallback and leaving it an ordinary in-flow grid child fixed that, but the owner's
+     explicit call is a fixed position under the header, not wherever `align-content: center` happens
+     to leave the video. Back to `position: absolute`, this time with `max-width` doing the job the
+     fallback used to: it is the thing that actually stops the stretch, not the positioning scheme,
+     and it holds regardless of window height, so there is no fallback left to regress. Same pattern,
+     same reasoning, as `.track-stage > .kui-contract` below. */
+  .pin-section-card > .pin-section-contract { position: absolute; top: 1.375rem; left: clamp(1.25rem, 3vw, 2.5rem); margin: 0; max-width: min(90%, 34rem); z-index: 1; }
   .pin-section-media { min-width: 0; }
   .pin-section-media .video-frame {
     /* cap by available height on short/wide viewports so the 16:9 frame can never
@@ -1143,6 +1154,25 @@
      derives all of it from `distance:` and `target:`, so what is left below is what a page should
      actually own: spacing, and the look of the cards. */
   .track-stage { margin-top: 2rem; }
+  /* Taken out of the stage's grid flow deliberately, same reasoning as index.html's `.reel-intro`:
+     in flow, the library's `align-content: center` centres this bar and the row as one group, so
+     the bar's own height pushed the row down and opened a gap above it. `position: absolute`
+     against the stage (sticky, so it is the containing block) lets the row keep the middle of the
+     viewport to itself. Unlike index.html, no viewport-relative nav math is needed here — this
+     page loads system.css, so the stage's own sticky `top` is already `--kui-pin-offset`, and an
+     absolute child at `top: 0` sits flush against that, i.e. right under the header. */
+  /* Pinned a fixed 22px under the header rather than tied to the row's own (variable) centred
+     position — the owner's explicit call after the row-relative version drifted badly across
+     window sizes. `max-width` is load-bearing, not decorative: this is a grid child of
+     `.track-stage` (`display: grid`, set by `prepareManagedTrack`), and the short-viewport
+     fallback this replaced reverted to `position: static` to dodge overlap — which put it back in
+     grid flow with the default `justify-self: stretch`. `.track-stage`'s implicit column sizes to
+     its widest content, and that content is `.track`, the full unrolled row of eleven cards: on a
+     short window this bar stretched to **4548px**, the row's own full scroll width, not the
+     viewport's. Measured live, not reasoned about — a static read of `position: static; margin: 0
+     0 1rem` looked harmless. No fallback now; `position: absolute` never participates in grid
+     sizing in the first place, so there is nothing left for a short viewport to fall back from. */
+  .track-stage > .kui-contract { position: absolute; top: 1.375rem; left: 0; margin: 0; max-width: min(90%, 38rem); z-index: 1; }
   .track { gap: 1.5rem; padding: 0 4rem; }
   .track figure { width: 380px; flex: none; border-radius: 12px; overflow: clip; border: 1px solid var(--border); background: var(--surface); }
   .track figure img { display: block; width: 100%; height: 280px; object-fit: cover; }
@@ -1770,17 +1800,19 @@
             </ul>
           </div>
           <figure class="pin-section-figure" data-show-code>
-            <!-- The caption goes FIRST, which `<figcaption>` explicitly allows, because last put it
-                 on the wrong side of a 1700px spacer. By the time you reached it the pinned card had
-                 been gone for two full screens, and a bar reading `data-kui="pin-section"` floating
-                 alone under a section rule is a label for nothing. Above the stage it is the last
-                 thing you read before the pin starts, which is when knowing what is about to happen
-                 is worth something. A control that names an effect has to be next to that effect —
-                 if a reader could plausibly be unsure which animation a bar belongs to, the bar is
-                 in the wrong place. -->
-            <figcaption class="kui-contract"><code>data-kui="pin-section distance:200vh"</code></figcaption>
+            <!-- Used to sit here, above the stage, on the reasoning that a control naming an effect
+                 has to be next to that effect. True, but incomplete: "next to" only got the reader
+                 the caption for the one screen before the pin engaged — the instant the 200vh hold
+                 started, this scrolled away with everything else above the stage and was gone for
+                 the whole pin. Moved inside `.pin-section-card` (below, as its first child) so it is
+                 part of the sticky unit itself and stays on screen for the entire hold, not just the
+                 approach. Same fix as `.track-stage > .kui-contract` on the horizontal-travel demo
+                 further down this page, and the same reason `.reel-intro` lives inside index.html's
+                 `.track-stage`: `position: absolute` decouples it from the card's own
+                 `align-content: center`, so it does not shift the video+list composition. -->
             <div class="pin-section-stage">
               <div class="pin-section-card" data-kui="pin-section distance:200vh">
+                <figcaption class="kui-contract pin-section-contract"><code>data-kui="pin-section distance:200vh"</code></figcaption>
                 <div class="pin-section-media">
                   <div id="pin-flip-demo" data-kui="flip-card">
                     <div class="kui-face-front">
@@ -1979,8 +2011,8 @@
                boxes, one class and no structural CSS at all: `target:` names the row that moves,
                and the library writes the pin, the clip, the row's layout and the scroll room
                itself. `data-show-code-key` marks the one class name that is left. -->
-          <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
           <div class="track-stage" id="horizontal-track-demo" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+            <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
             <div class="track">
               <figure>
                 <img src="./assets/webdesign/eosai-dark-hero.jpg" alt="The EOSAI agency homepage — a dark cinematic hero reading &quot;Imagining beyond reality&quot; over a monolithic arch and ringed planet" loading="lazy" />
