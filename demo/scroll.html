@@ -64,8 +64,15 @@
      behind the crop. Showing the whole frame at or under its native width fixes both. */
   .showcase { border-top: none; padding-top: 0; }
   .showcase-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+  /* The media column was `1.3fr` when the reference was a landscape frame that wanted every pixel
+     of it. A 9:16 card is capped at 22rem (see `.showcase-frame`), so 1.3fr left ~250px of dead
+     column between the card and the copy beside it. Sized to its contents instead: 27rem clears
+     the widest thing in the column, which is not the card but the trigger-chip row under it at
+     414px (the `.kui-contract` bar printing `trigger:hover-toggle` is 407px, just behind it), with
+     a little slack so neither has to wrap. Everything the column does not need now goes to the
+     copy. */
   @media (min-width: 900px) {
-    .showcase-grid { grid-template-columns: minmax(0, 1.3fr) minmax(16rem, 1fr); gap: clamp(2rem, 4vw, 3.5rem); }
+    .showcase-grid { grid-template-columns: minmax(0, 27rem) minmax(16rem, 1fr); gap: clamp(2rem, 4vw, 3.5rem); }
   }
   /* sticky needs a non-stretched grid item — the default `align-items: stretch` would make this
      column as tall as the copy beside it, leaving the pin nothing to travel within */
@@ -117,7 +124,14 @@
       min-width: 0;
     }
   }
+  /* Capped, and only since the card went vertical. The media column is ~1.3fr of the two-column
+     grid — around 600px at a desktop width — and 600px of 9:16 is 1067px tall, which is taller
+     than the viewport the card is supposed to be pinned inside. 22rem holds it at roughly a phone's
+     width, which is both the shape the Shorts were shot in and close enough to the `.kui-contract`
+     bar underneath that the two still read as one stack. Left-aligned rather than centred for the
+     same reason: the bar and the trigger chips below it start at the column's left edge. */
   .showcase-frame {
+    max-width: 22rem;
     border-radius: 14px; overflow: clip;
     border: 1px solid var(--border); box-shadow: var(--shadow-float);
   }
@@ -126,17 +140,21 @@
      section states out loud: nothing on this page is cropped to a box someone picked. */
   .showcase-media img,
   .showcase-media video { display: block; width: 100%; max-width: 1200px; height: auto; }
-  /* Both faces are YouTube facades now, so both posters are natively 16:9 and the card is simply
-     16:9 — the ratio the other flip-cards on this page already use. The 4/3 this used to carry
-     existed only to fit WoodNest's 1200x900 poster on the front without cropping it. WoodNest has
-     moved to the back of the IRIS_AI card further down, and it took with it both the reason for
-     the odd ratio and the reason for the `object-fit: contain` letterbox that kept the back face's
-     16:9 thumbnail from reading as squeezed inside it. At 16:9 neither face is cropped at all,
-     which is what this page asks for everywhere. */
+  /* Both faces are YouTube Shorts, so the card is 9:16 — the shape the source was actually shot in.
+     It has been 4/3 (to fit WoodNest's 1200x900 poster) and 16/9 (when both faces became ordinary
+     landscape videos); the ratio has always just followed the media, and this is the same rule
+     applied to vertical media.
+
+     The crop is doing real work here. YouTube serves a Short's `maxresdefault.jpg` as 1280x720 with
+     the actual 405x720 frame centred and a blurred, darkened copy of itself smeared across both
+     sides to fill the width. Dropped into a landscape card that smear is most of what you see. A
+     9:16 box with `object-fit: cover` (the `.video-frame img` default) scales the poster by height
+     and crops the overflow, and 405px is exactly what is left — the real frame, at full resolution,
+     with none of the filler. Nothing is lost to the crop because the sides were never content. */
   .showcase-flip { display: grid; }
   .showcase-flip > .kui-face-front,
-  .showcase-flip > .kui-face-back { aspect-ratio: 16 / 9; }
-  .showcase-flip .video-frame { width: 100%; height: 100%; aspect-ratio: 16 / 9; }
+  .showcase-flip > .kui-face-back { aspect-ratio: 9 / 16; }
+  .showcase-flip .video-frame { width: 100%; height: 100%; aspect-ratio: 9 / 16; }
   /* The `.kui-flip-control` in this card exists first of all to hold `aria-pressed` state — under
      a hover trigger nobody is meant to press it, so it is hidden here rather than being left to the
      `hidden` attribute, which loses outright to `.kui-flip-control`'s own `display: flex` (further
@@ -1488,7 +1506,7 @@
                    this file, reaching in and setting `aria-pressed` itself. It is a parameter now —
                    `trigger:` — so the page states what it wants instead of implementing it, and the
                    chips under the frame switch between all four values live. Both faces are now
-                   YouTube facades — the self-hosted WoodNest capture that used to sit on the front
+                   YouTube Shorts facades — the self-hosted WoodNest capture that used to sit on the front
                    has moved to the back of the IRIS_AI card in the matrix further down. -->
               <div class="showcase-flip" id="showcase-flip-demo" data-kui="flip-card trigger:hover-toggle">
                 <div class="kui-face-front">
@@ -1502,9 +1520,9 @@
                        same motion with the card's edges held still. It also means the scrubbing
                        stops the moment the reader presses play and the `<img>` is swapped for the
                        iframe — which is the right answer for a video that is actually running. -->
-                  <div class="video-frame" data-yt-id="QUI6Ug4cHnE">
-                    <img src="https://img.youtube.com/vi/QUI6Ug4cHnE/maxresdefault.jpg" alt="I Built The Ultimate Claude Website Design Skill (steal this) — Nate Herk" loading="lazy" data-kui="parallax-scale from:1 scale:1.06 timeline:pin" />
-                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: I Built The Ultimate Claude Website Design Skill (steal this)">
+                  <div class="video-frame" data-yt-id="4tGD1JWPqvA">
+                    <img src="https://img.youtube.com/vi/4tGD1JWPqvA/maxresdefault.jpg" alt="How to Build Smooth Scrolling Animations With Claude Code and Kling — Fitim Bozar" loading="lazy" data-kui="parallax-scale from:1 scale:1.06 timeline:pin" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to Build Smooth Scrolling Animations With Claude Code and Kling">
                       <svg viewBox="0 0 68 48" aria-hidden="true">
                         <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                         <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -1513,9 +1531,9 @@
                   </div>
                 </div>
                 <div class="kui-face-back">
-                  <div class="video-frame" data-yt-id="3eExfC63uSc">
-                    <img src="https://img.youtube.com/vi/3eExfC63uSc/maxresdefault.jpg" alt="Claude Design 3.0 (3D Scrolling Animations) — Louis Borrego" loading="lazy" />
-                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design 3.0 (3D Scrolling Animations)">
+                  <div class="video-frame" data-yt-id="jOjnRf88Eic">
+                    <img src="https://img.youtube.com/vi/jOjnRf88Eic/maxresdefault.jpg" alt="Vintage Camera Landing Page Scroll Animation in Figma — Zaid" loading="lazy" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Vintage Camera Landing Page Scroll Animation in Figma">
                       <svg viewBox="0 0 68 48" aria-hidden="true">
                         <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                         <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -1531,7 +1549,7 @@
                      deciding visibility, and it is the one that can tell the modes apart. -->
                 <button type="button" class="kui-flip-control" aria-pressed="false">
                   <span class="flip-label">Flip</span>
-                  <span class="flip-side">Nate Herk</span>
+                  <span class="flip-side">Fitim Bozar</span>
                 </button>
               </div>
             </div>
@@ -2275,7 +2293,7 @@
     })()
   </script>
   <script>
-    // Opening showcase card (Nate Herk / Louis Borrego): the `trigger:` switcher.
+    // Opening showcase card (Fitim Bozar / Zaid): the `trigger:` switcher.
     //
     // What used to be here was the hover behaviour itself — a `pointerenter` listener reaching into
     // the card and flipping `aria-pressed` by hand. That is `trigger:hover-toggle` now, authored on
