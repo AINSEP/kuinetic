@@ -2017,12 +2017,12 @@
            at slide 1 the last slide already reads -1 and is already sitting on the left. -->
       <section id="deck" data-od-id="deck">
         <div class="section-head">
-          <h2 data-kui="fade-up on:enter">One attribute, an endless deck.</h2>
+          <h2 data-kui="typewriter">One attribute, an endless deck.</h2>
         </div>
 
-        <p class="kui-contract deck-contract" data-kui="fade-up on:enter"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
+        <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
 
-        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78">
+        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms">
           <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
           </button>
@@ -2170,7 +2170,12 @@
           </nav>
         </div>
 
-        <div class="deck-more">
+        <!-- The entrance is on the wrapper, not on the link, and that split is forced rather than
+             stylistic: `lift-shadow` is a hover primitive that owns `translate`, and `fade-blur-up`
+             declares the same channel. Both on one element is two effects writing one property, and
+             the library refuses the second rather than let them fight. The wrapper travels, the link
+             keeps its hover lift, and neither has to know about the other. -->
+        <div class="deck-more" data-kui="fade-blur-up distance:280px 1800ms">
           <a href="./docs.html?doc=catalog" class="btn btn-primary" data-kui="lift-shadow">Read the carousel docs</a>
         </div>
       </section>
