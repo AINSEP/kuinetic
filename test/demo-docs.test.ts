@@ -43,7 +43,13 @@ const DOCS_HTML = `${ROOT}demo/docs.html`
 function docKeysFromPage(html: string): string[] {
   const map = /var DOCS = \{([\s\S]*?)\}/.exec(html)
   expect(map, 'could not find the `var DOCS = {...}` map in demo/docs.html').not.toBeNull()
-  const keys = [...map![1].matchAll(/(?:^|,)\s*'?([\w-]+)'?\s*:/g)].map((m) => m[1])
+  // `?? ''` rather than `!` on each capture: under `noUncheckedIndexedAccess` every group reads as
+  // `string | undefined`, and a regex that matched cannot have an unset group 1 here — the filter
+  // is what makes that provable to the compiler rather than asserted past it.
+  const body = map?.[1] ?? ''
+  const keys = [...body.matchAll(/(?:^|,)\s*'?([\w-]+)'?\s*:/g)]
+    .map((m) => m[1])
+    .filter((key): key is string => key !== undefined)
   expect(keys.length, 'the `DOCS` map in demo/docs.html parsed to zero tabs').toBeGreaterThan(0)
   return keys
 }
@@ -84,7 +90,9 @@ describe('demo docs are deployed alongside the page that fetches them', () => {
     // The nav is the other way in. A link to a tab `DOCS` doesn't list silently falls back to
     // Getting Started, so a typo here reads as "Architecture is broken" rather than as a 404.
     const nav = readFileSync(`${ROOT}demo/nav.js`, 'utf8')
-    const linked = [...nav.matchAll(/docs\.html\?doc=([\w-]+)/g)].map((m) => m[1])
+    const linked = [...nav.matchAll(/docs\.html\?doc=([\w-]+)/g)]
+      .map((m) => m[1])
+      .filter((doc): doc is string => doc !== undefined)
     expect(linked.length, 'found no ?doc= links in demo/nav.js').toBeGreaterThan(0)
     expect(linked.filter((doc) => !DOC_KEYS.includes(doc))).toEqual([])
   })

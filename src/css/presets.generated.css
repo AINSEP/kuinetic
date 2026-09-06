@@ -141,6 +141,13 @@
     --kui-flip-face-ease: ease-out;
   }
 
+  [data-kui-fx~='carousel'] {
+    --kui-scope: self;
+    --kui-step-progress-duration: 400ms;
+    --kui-step-progress-delay: 0ms;
+    --kui-step-progress-ease: ease-out;
+  }
+
   [data-kui-fx~='chart-area-fill'] {
     --kui-shape-fill-duration: 900ms;
     --kui-shape-fill-delay: 0ms;

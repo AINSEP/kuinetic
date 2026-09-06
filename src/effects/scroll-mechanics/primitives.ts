@@ -228,7 +228,10 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
   // are routinely outside it — the copy lines are in the sticky wrapper but the progress dots that
   // track them are just as often in a sibling rail.
   const scope = scopeParam(params, 'page')
-  const marker = createStepMarker(() => queryScoped(el, ctx, selector, scope))
+  const marker = createStepMarker(
+    () => queryScoped(el, ctx, selector, scope),
+    (message) => ctx.warn(`scroll-progress ${message}`),
+  )
   // The step attribute is authored on the demo element in real markup (`data-kui-step="0"`, to
   // avoid a flash of unstyled steps before hydration), so removing it on teardown destroyed the
   // consumer's own value. Same defect the scroll-spy ledgers were introduced to close.
@@ -520,7 +523,10 @@ function prepareTargetScrub(
   authored: { selector: string; scope: TargetScope; contentAnchor?: Element; stickyEl?: Element },
 ): Cleanup {
   const { selector, scope, contentAnchor, stickyEl } = authored
-  const marker = createStepMarker(() => queryScoped(el, ctx, selector, scope))
+  const marker = createStepMarker(
+    () => queryScoped(el, ctx, selector, scope),
+    (message) => ctx.warn(`media-scrub ${message}`),
+  )
   /*
    * Counted once at setup, and `frames:` is ignored in this form: the number of frames is the
    * number of elements you wrote, so making the author state it again is a second source of truth

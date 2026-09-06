@@ -418,7 +418,26 @@
     [data-kui-rm][data-kui-fx~='play-to-pause'] .kui-bar,
     [data-kui-rm][data-kui-fx~='plus-to-minus'] .kui-bar,
     [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-front,
-    [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-back {
+    [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-back,
+    /*
+     * `step-progress`'s own segments. This one is a *descendant*, not a sibling satellite, so
+     * `reduced-motion-coverage.test.ts` — which derives its allowlist from the `~` pattern the
+     * native-state family uses — does not see it in either direction; it is hand-maintained
+     * against forms.css's `[data-kui-fx~='step-progress'] > [data-kui-step-state]` rule and its
+     * 200ms opacity/background transition.
+     *
+     * It only became reachable when `step-progress` moved off `reducedMotion: 'disable'` (see the
+     * policy argument on `STEP_PROGRESS_PRIMITIVE`): under `disable` the primitive never ran, so
+     * nothing was ever marked and no segment had a state to transition between. Now that the index
+     * keeps working under reduced motion, the segments light up — and lighting up over 200ms is
+     * the motion this block exists to take away.
+     *
+     * Deliberately not extended to `.kui-step-track`, forms.css's other selector for the same
+     * look: that container is a page's own opt-in class and carries no `data-kui-rm` of its own,
+     * so there is no marked element to hang the reach off without an unscoped descendant selector
+     * of exactly the kind the comment above rejects.
+     */
+    [data-kui-rm][data-kui-fx~='step-progress'] > [data-kui-step-state] {
       transition-duration: 1ms !important;
       transition-delay: 0ms !important;
     }

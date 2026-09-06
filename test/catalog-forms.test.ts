@@ -39,9 +39,9 @@ function fakeCtx(el: Element): PrepareContext {
 const CSS_TIER_PRESETS = ['focus-ring-grow', 'validate-shake', 'validate-check']
 
 describe('forms catalog', () => {
-  it('registers all 12 section O names', () => {
+  it('registers all 13 section O names', () => {
     const registry = catalogRegistry()
-    expect(FORMS_PRESETS).toHaveLength(12)
+    expect(FORMS_PRESETS).toHaveLength(13)
     expect(FORMS_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
 

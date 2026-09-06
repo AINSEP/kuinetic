@@ -15,7 +15,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic CSS3 Animations</title>
-<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 267 named effects from 33 primitives. JavaScript only for the handful of effects that genuinely need it." />
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 268 named effects from 33 primitives. JavaScript only for the handful of effects that genuinely need it." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -730,6 +730,230 @@
      foreground instead: black on white, white on near-black. */
   .catalog-more .btn-ghost { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   .catalog-more .btn-ghost:hover { background: color-mix(in srgb, var(--fg) 82%, var(--bg)); border-color: transparent; }
+
+  /* ---------- the deck (carousel) ---------- */
+  /* The whole component is this block plus one `data-kui` attribute. No script on this page
+     touches it: the library owns the index, and every rule below keys off what it publishes —
+     `--kui-step` on the shell for the track's position, `data-kui-step-state` on each slide and
+     each dot for which one is live. */
+  .deck-shell {
+    /* Crowding is `peek:` and `rest:` in the attribute now, not tokens here — the library
+       publishes them as `--kui-peek` / `--kui-rest` and the rules below read them with these
+       numbers as the `var()` fallback, so the deck looks right with neither named and retunes
+       from the attribute the moment one is. Width stays a page concern; it is layout, not
+       carousel behaviour. */
+    --deck-slide: min(560px, 74vw);
+    position: relative;
+    margin-top: 2.5rem;
+  }
+  /* `overflow: hidden` and not `clip`: the arrows sit outside this box and must stay clickable,
+     so the clipping has to be on the viewport alone, never on the shell that contains them. */
+  .deck-viewport { overflow: hidden; }
+  /*
+   * Centring, then one transform.
+   *
+   * The start margin is a percentage, which resolves against the viewport's width, so slide 0
+   * lands in the middle of the frame instead of against its left edge — that is what makes the
+   * neighbours peek in from both sides the way the reference does. The transform then moves whole
+   * slides, and `--kui-step` is a real number, so this is one rule rather than the five
+   * `[data-kui-step='n']` rules an attribute-only contract would have forced.
+   */
+  /*
+   * Nothing here moves. Every slide is stacked in the same place and each one steps out to its own
+   * position, which is what makes the loop continuous: the track used to translate off the
+   * container's single `--kui-step`, so wrapping from the last slide to the first ran it back
+   * across all five and read as a rewind. On a ring there is no run to make — the last slide is
+   * simply sitting at -1 already.
+   */
+  .deck-track {
+    display: grid;
+    place-items: center;
+    min-height: calc(var(--deck-slide) * 9 / 16 + 3rem);
+  }
+  .deck-track > * { grid-area: 1 / 1; }
+  /* A slide is the video and its caption, nothing else. The frame reuses `.reel-frame` rather
+     than restating it: that class already carries the 16/9 box, the black fill, the radius, the
+     pointer, AND the play-button treatment, which is scoped to `.hero-flip, .reel-frame` and so
+     never reached a class of this section's own. A private `.deck-media` had the poster but an
+     unfilled SVG on top of it — the play button rendered as a black-on-black rectangle. */
+  /* A slide is the video and its caption, nothing else. The frame reuses `.reel-frame` rather
+     than restating it: that class already carries the 16/9 box, the black fill, the radius, the
+     pointer, AND the play-button treatment, which is scoped to `.hero-flip, .reel-frame` and so
+     never reached a class of this section's own. A private `.deck-media` had the poster but an
+     unfilled SVG on top of it — the play button rendered as a black-on-black rectangle.
+
+     Depth here is overlap, scale and shadow — not `rotateY`. The reference's neighbours are flat,
+     just tucked behind; and a real 3D rotation inside a track that is itself transformed drags the
+     children into the track's 3D space, which is the trap `fold-panel` and `wipe-circle` already
+     hit on this codebase. Same look, none of the risk. */
+  .deck-slide {
+    /* `width`, not `flex`: the track is a single-cell grid now, so a flex basis sizes nothing. */
+    width: var(--deck-slide);
+    margin: 0;
+    /* The resting state is the *inactive* one, so a slide the library has not marked yet reads as
+       a neighbour rather than flashing full-size on first paint. */
+    scale: var(--kui-rest, 0.78);
+    /*
+     * Hidden, not transparent — `visibility`, keyed on the library's `data-kui-step-offset`.
+     *
+     * `opacity: 0` only stops an element being *seen*. It stays hit-testable, focusable and in the
+     * accessibility tree, and this deck stacks all five slides in one cell, so the two it does not
+     * show were taking a tab stop each: a keyboard user tabbing the deck hit two dead stops in the
+     * middle with no focus ring to explain them, and could open a video they could not see. The
+     * same invisible rects also won hit-testing at points near the edges; that only failed to
+     * steal a real click because no visible play button happened to sit under one at `peek:56%`,
+     * which is an accident of two numbers rather than a property of the design.
+     *
+     * `visibility: hidden` settles all three at once, and it fixes a motion bug too: a slide
+     * crossing the deck on a non-adjacent jump (video 1 to video 3 sends video 5 from -1 to +2)
+     * used to fade *while travelling*, visibly sweeping across. Hidden means hidden — it simply is
+     * not there for the trip.
+     */
+    visibility: hidden;
+    transition: scale 620ms cubic-bezier(0.22, 1, 0.36, 1), translate 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* The live slide and its two immediate neighbours are the deck. Everything else on the ring is
+     genuinely absent. */
+  .deck-slide[data-kui-step-offset='0'],
+  .deck-slide[data-kui-step-offset='1'],
+  .deck-slide[data-kui-step-offset='-1'] { visibility: visible; }
+  /*
+   * Before the library has marked anything — a slow script, or JS that never arrives — no slide
+   * carries an offset yet, every one falls back to `translate: 0` and they stack dead centre with
+   * the LAST one painted on top. The deck's first frame was video 5, which then snapped to video 1
+   * the moment the attribute resolved. Showing only the first slide until the marking lands makes
+   * the un-enhanced state a correct still of the deck rather than a pile.
+   */
+  .deck-slide:not([data-kui-step-offset]) { visibility: hidden; }
+  .deck-slide:not([data-kui-step-offset]):first-child { visibility: visible; scale: 1; }
+  /*
+   * `--kui-offset` is the library's per-slide place on the ring: 0 is live, -1 is the one behind,
+   * +1 the one ahead, and it wraps — so at slide 1 the *last* slide reads -1 and sits on the left,
+   * with no strip to rewind. Every rule below is that one number, which is why five slides need
+   * five of nothing: the arithmetic does not care how many there are.
+   */
+  .deck-slide {
+    translate: calc(var(--kui-offset, 0) * var(--kui-peek, 56%)) 0;
+    /* Everything that is not live sits under it. Depth *between* the tucked slides would want
+       `abs()`, which is too new to lean on — and they overlap each other by so little at this peek
+       that the ordering is not visible anyway. */
+    z-index: 1;
+  }
+  .deck-slide[data-kui-step-state='active'] {
+    scale: 1;
+    z-index: 20;
+  }
+  /* Only the live slide is named. The tucked ones are edges, and a caption on an edge is litter. */
+  .deck-slide figcaption {
+    margin-top: 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: var(--muted); text-align: center;
+    opacity: 0; transition: opacity 400ms ease;
+  }
+  .deck-slide[data-kui-step-state='active'] figcaption { opacity: 1; }
+
+  /* The arrows sit over the peeking neighbours, which is where the reference puts them and where
+     the thumb already is. They are the affordance, so they carry the solid treatment. */
+  .deck-arrow {
+    position: absolute; top: calc(50% - 22px); z-index: 2;
+    width: 44px; height: 44px; border-radius: 999px;
+    display: grid; place-items: center; cursor: pointer;
+    background: var(--fg); color: var(--bg); border: none;
+    transition: scale 180ms ease, background 180ms ease;
+  }
+  .deck-arrow svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .deck-arrow:hover { scale: 1.09; }
+  .deck-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .deck-prev { left: clamp(0.25rem, 4vw, 3rem); }
+  .deck-next { right: clamp(0.25rem, 4vw, 3rem); }
+
+  /* 1rem, not 0.5rem: the gap sets how large each dot's hit box can be before it starts covering
+     its neighbour. See `.deck-dot::before`. */
+  .deck-dots { margin-top: 1.75rem; display: flex; justify-content: center; gap: 1rem; }
+  /* The dots are the second group `target:` names, so they take `data-kui-step-state` from the
+     same marker the slides do and cannot drift out of sync with them. The library's default
+     paints everything up to the live step; a position indicator wants only the live one, so
+     `before` is pushed back to the resting look — the override the catalog documents. */
+  .deck-dot {
+    position: relative;
+    width: 8px; height: 8px; padding: 0; border: none; border-radius: 999px; cursor: pointer;
+    background: color-mix(in srgb, var(--fg) 22%, transparent);
+    transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1), background 320ms ease;
+  }
+  /*
+   * The visible dot stays 8px (26px for the active pill) — this is only a bigger place to tap it.
+   * `::before` is generated content inside the button, so a click anywhere on it fires that
+   * button's own click, and being absolutely positioned it takes no space and cannot widen the row.
+   *
+   * The horizontal inset is capped by the gap, and that cap is the whole point. Hit boxes here
+   * overlap each other before they run out of room: the dots are 8px with a 1rem gap, so their
+   * centres are 24px apart and a box wider than 24px reaches into its neighbour. These siblings
+   * carry no `z-index`, so an overlap is resolved by DOM order — the LATER dot wins. Pushed to
+   * 44px wide (18px each side, the touch-target figure) each dot's box would start 2px left of the
+   * dot before it and cover it completely, so every dot would select the NEXT slide and the last
+   * would be the only one reachable. A generous target that activates the wrong control is worse
+   * than a small one that activates the right control.
+   *
+   * So: 8px horizontally, exactly half the gap, which makes the boxes meet without overlapping and
+   * leaves no dead pixel between them — 24px each, three times the visible dot. Vertically nothing
+   * is adjacent, so that side is free and takes the full 44px. A row of small dots cannot reach
+   * 44x44 on both axes without either overlapping or spreading so far apart it stops reading as a
+   * row; this is the largest honest target for the design.
+   */
+  .deck-dot::before {
+    content: '';
+    position: absolute;
+    inset: -18px -8px;
+  }
+  .deck-dot[data-kui-step-state='before'] { width: 8px; background: color-mix(in srgb, var(--fg) 22%, transparent); }
+  .deck-dot[data-kui-step-state='active'] { width: 26px; background: var(--accent); }
+  .deck-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .deck-contract { margin-top: 1rem; }
+  .deck-more { margin-top: 2.5rem; display: flex; justify-content: center; }
+
+  /* A wider slide and the arrows dropped below it: at this width they would otherwise sit on top
+     of the video itself rather than on the neighbours, which no longer peek far enough to hold
+     them. `.reel-frame` already carries the aspect ratio, so nothing here has to restate it. */
+  /*
+   * On a phone the arrows come out of the overlay and join the dots as one real row.
+   *
+   * They were absolutely positioned at `bottom: -4.5rem`, which is *outside* `.deck-shell` — so
+   * they left the shell's box entirely and landed on top of the "Read the carousel docs" button
+   * below it, covering the label. Absolute positioning against a box you then place things after
+   * cannot be fixed by nudging the offset; the arrows have to be in flow, so the button is laid
+   * out after them instead of underneath them.
+   *
+   * Grid areas rather than source order: the markup is prev, viewport, next, dots — the reading
+   * order a keyboard and a screen reader want — and this puts them on screen as viewport first,
+   * then `← dots →`, without moving a single element in the DOM.
+   */
+  @media (max-width: 720px) {
+    .deck-shell {
+      /* `.wrap` pads 1.5rem a side here (3rem total) — 86vw alone clears that fine down to ~400px
+         but overshoots it below that (320px: 86vw is 275.2px against a 272px content box), clipping
+         the slide. `calc(100vw - 3.5rem)` is that same 3rem plus an 8px safety margin, so `min()`
+         only swaps to it once 86vw would no longer fit; above ~400px it stays exactly 86vw. */
+      --deck-slide: min(86vw, calc(100vw - 3.5rem));
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas: 'view view view' 'prev dots next';
+      align-items: center;
+      row-gap: 1.25rem;
+    }
+    .deck-viewport { grid-area: view; }
+    /* `static` undoes the desktop rule's `position: absolute`; without it the grid area is
+       assigned and then ignored. */
+    .deck-prev { grid-area: prev; position: static; left: auto; }
+    .deck-next { grid-area: next; position: static; right: auto; }
+    .deck-dots { grid-area: dots; margin-top: 0; }
+  }
+
+  /* The track and the slides both animate on transform/scale, which is exactly what a reader who
+     asked for less motion does not want sliding under them. The index still changes and the
+     active slide is still the one on screen — it just arrives instead of travelling. */
+  @media (prefers-reduced-motion: reduce) {
+    .deck-track, .deck-slide, .deck-dot { transition: none; }
+  }
 
   /* ---------- install ---------- */
   .install-card {
@@ -1774,6 +1998,158 @@
       </section>
     </div>
 
+    <div class="wrap">
+      <!-- THE DECK — the manual half of the pair. The reel above is the same deck of videos
+           driven by the page's own scroll; this one is driven by two arrows and five dots, and
+           the only thing they share is that neither page writes a line of JavaScript for it.
+
+           Everything here is the library's: the index lives in `data-kui-step`, each slide's place
+           on the ring in `--kui-offset`, the marking in `data-kui-step-state`, and the arrows, the
+           dots and the wrap are all the one attribute below. The page contributes a stylesheet.
+
+           `target:` names TWO groups, slides and dots, and the step marker numbers each group
+           within its own parent — the same shape scroll.html's scrollytelling section uses for its
+           copy lines and their dots. One selector keeps the pair in sync, and the library counts
+           the slides itself, so adding a sixth video is a slide and a dot and nothing else.
+
+           Nothing translates as a strip. Every slide is stacked in one grid cell and steps out to
+           its own `--kui-offset`, which is what makes the loop continuous rather than a rewind —
+           at slide 1 the last slide already reads -1 and is already sitting on the left. -->
+      <section id="deck" data-od-id="deck">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">One attribute, an endless deck.</h2>
+        </div>
+
+        <p class="kui-contract deck-contract" data-kui="fade-up on:enter"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
+
+        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78">
+          <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
+          </button>
+
+          <div class="deck-viewport">
+            <div class="deck-track">
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="QhmhUgccaS0" data-kui-lightbox-title="GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
+                  <img src="https://img.youtube.com/vi/QhmhUgccaS0/maxresdefault.jpg" alt="GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Nate Herk — AI website slop</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="X2PARg8ErvY" data-kui-lightbox-title="Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
+                  <img src="https://img.youtube.com/vi/X2PARg8ErvY/maxresdefault.jpg" alt="Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Jack Roberts — Fable 5.1</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="1tLa0sYaD5w" data-kui-lightbox-title="Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
+                  <img src="https://img.youtube.com/vi/1tLa0sYaD5w/maxresdefault.jpg" alt="Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Eric Tech — product demo</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="Edj_zj4U_9s" data-kui-lightbox-title="How to make a SaaS product demo video — Tom Bruining">
+                  <img src="https://img.youtube.com/vi/Edj_zj4U_9s/maxresdefault.jpg" alt="How to make a SaaS product demo video — Tom Bruining" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to make a SaaS product demo video — Tom Bruining">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Tom Bruining — demo video</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="eOhomP4vees" data-kui-lightbox-title="Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
+                  <img src="https://img.youtube.com/vi/eOhomP4vees/maxresdefault.jpg" alt="Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Artificial Quotient — AI motion</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="OX80FZjHJ7o" data-kui-lightbox-title="Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
+                  <img src="https://img.youtube.com/vi/OX80FZjHJ7o/maxresdefault.jpg" alt="Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Andy Lo — Remotion animation</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="hNpC5clEbp4" data-kui-lightbox-title="Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
+                  <img src="https://img.youtube.com/vi/hNpC5clEbp4/maxresdefault.jpg" alt="Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Jack Roberts — motion design</figcaption>
+              </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="xOhh274Ayac" data-kui-lightbox-title="I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
+                  <img src="https://img.youtube.com/vi/xOhh274Ayac/maxresdefault.jpg" alt="I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>MoSidd — viral Remotion reel</figcaption>
+              </figure>
+            </div>
+          </div>
+
+          <button type="button" class="deck-arrow deck-next" aria-label="Next video">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19" /></svg>
+          </button>
+
+          <nav class="deck-dots" aria-label="Choose a video">
+            <button type="button" class="deck-dot" aria-label="Video 1"></button>
+            <button type="button" class="deck-dot" aria-label="Video 2"></button>
+            <button type="button" class="deck-dot" aria-label="Video 3"></button>
+            <button type="button" class="deck-dot" aria-label="Video 4"></button>
+            <button type="button" class="deck-dot" aria-label="Video 5"></button>
+            <button type="button" class="deck-dot" aria-label="Video 6"></button>
+            <button type="button" class="deck-dot" aria-label="Video 7"></button>
+            <button type="button" class="deck-dot" aria-label="Video 8"></button>
+          </nav>
+        </div>
+
+        <div class="deck-more">
+          <a href="./docs.html?doc=catalog" class="btn btn-primary" data-kui="lift-shadow">Read the carousel docs</a>
+        </div>
+      </section>
+    </div>
+
     <section class="ticker stage" aria-label="One name from each corner of the catalog" data-od-id="ticker-catalog">
       <div class="ticker-row" data-kui="marquee 46s">
         <span>text-reveal-mask&nbsp;·&nbsp;scramble&nbsp;·&nbsp;typewriter&nbsp;·&nbsp;<b>var-weight</b>&nbsp;·&nbsp;odometer-roll&nbsp;·&nbsp;count-up&nbsp;·&nbsp;draw-signature&nbsp;·&nbsp;<b>ken-burns</b>&nbsp;·&nbsp;slat-assemble&nbsp;·&nbsp;masonry-reflow&nbsp;·&nbsp;flip-shuffle&nbsp;·&nbsp;<b>confetti-burst</b>&nbsp;·&nbsp;heart-burst&nbsp;·&nbsp;wipe-diagonal&nbsp;·&nbsp;parallax-rotate&nbsp;·&nbsp;</span>
@@ -1859,13 +2235,13 @@
           <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
-                <span class="slice-num" data-kui="count-up 1600ms to:267, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
+                <span class="slice-num" data-kui="count-up 1600ms to:268, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
                 <span class="slice-num-note">named effects</span>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Numbers &amp; data <b>13</b></span>
-              <span class="slice-fx">count-up to:267, tween-from spring</span>
+              <span class="slice-fx">count-up to:268, tween-from spring</span>
             </span>
           </a>
 
@@ -1959,6 +2335,8 @@
         </div>
       </section>
     </div>
+
+
 
     <section class="ticker stage" aria-label="The scroll-driven names, every one of them a native timeline" data-od-id="ticker-timeline">
       <div class="ticker-row" data-kui="marquee 40s">

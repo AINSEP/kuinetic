@@ -921,10 +921,8 @@ function warnUnknownEvents({ el, spec, reporter }: ActivationDiagnosticsRequest)
   for (const name of spec.names) {
     if (isNamedActivation(name) || isKnownEventType(name) || `on${name}` in el) continue
     const suggestion = suggestActivation(name)
-    reporter.warn(
-      `no DOM event named "${name}" — data-kui-on binds it anyway, so nothing will start it` +
-        (suggestion ? `; did you mean "${suggestion}"?` : ''),
-      el,
-    )
+    const hint = suggestion ? `; did you mean "${suggestion}"?` : ''
+    const problem = `no DOM event named "${name}" — data-kui-on binds it anyway, so nothing will start it`
+    reporter.warn(`${problem}${hint}`, el)
   }
 }

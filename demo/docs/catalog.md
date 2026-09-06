@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **267** named effects, over **33 primitive families**. Note that 48 names come from a
+**Counts:** **268** named effects, over **33 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -655,13 +655,105 @@ Primitives 14, 22.
 
 ---
 
-## O. Forms & inputs — 12 names
+## O. Forms & inputs — 13 names
 
 Primitives 1, 10, 15.
 
 `label-float` · `input-underline-grow` · `focus-ring-grow` · `validate-shake` ·
 `validate-check` · `strength-meter` · `toggle-morph` · `checkbox-draw` · `radio-fill` ·
-`range-fill` · `submit-to-spinner-to-check` · `step-progress`
+`range-fill` · `submit-to-spinner-to-check` · `step-progress` · `carousel`
+
+> **`carousel`** is the same primitive as `step-progress` under the name you would actually type on
+> a deck of slides — an index that wraps reads as a progress bar when its steps are segments and as
+> a carousel when they are slides, and mostly only the stylesheet separates those.
+>
+> One thing does differ, because it has to: this name defaults to `scope:self`, so `target:` and
+> the three controls resolve *inside* the deck rather than page-wide. Two carousels on one page
+> would otherwise each bind both decks' arrows and mark both decks' slides, and clicking next in
+> one would advance both. A deck whose controls genuinely live outside it can still say
+> `scope:page`, which is what `step-progress` remains.
+>
+> Three optional controls turn it from a one-way stepper into something a reader can drive:
+>
+> ```html
+> <div data-kui="carousel target:'.slide, .dot' next:.arrow-next prev:.arrow-prev jump:.dot">
+>   <button class="arrow-prev" aria-label="Previous">←</button>
+>   <div class="track">
+>     <article class="slide">…</article>
+>     …
+>   </div>
+>   <button class="arrow-next" aria-label="Next">→</button>
+>   <nav><button class="dot"></button>…</nav>
+> </div>
+> ```
+>
+> - `next:` / `prev:` — elements whose click steps the index. Both **wrap**, so the deck is endless
+>   in both directions: forward from the last slide lands on the first, back from the first lands
+>   on the last.
+> - `jump:` — elements that select a slide outright. Not "jump to the first" or "jump to the last":
+>   it names a *set* of controls, and each one goes to **its own position** among them in document
+>   order. The third dot selects the third slide. So dots written in the same order as the slides
+>   need no numbering by hand, and adding a slide cannot desynchronise the pair.
+>
+> **`steps:` is optional here, and usually wrong to write.** The step count is not a choice; it is
+> a fact about how many slides exist, and stating it twice means a sixth slide that silently never
+> gets reached. Left off, the library counts the elements `target:` matched — per parent, taking
+> the largest group, so a five-slide deck with five dots counts five and not ten — and re-counts on
+> every step, so a slide added later is picked up without touching the attribute. Write `steps:`
+> only to override that.
+>
+> All three are selectors resolved exactly like `target:`, including the quoting rule for one
+> containing a space or comma. Naming any of them **replaces** the click-the-container behaviour
+> rather than adding to it — a deck whose whole frame advances on click makes its own text
+> unselectable, and the arrows are already the affordance.
+>
+> **`peek:` and `rest:` — how crowded the deck is, from the attribute.** `peek:` is how far each
+> place on the ring moves a slide (a percentage of the slide's own width, default `56%`), and
+> `rest:` is the scale of every slide that is not live (default `0.78`). They reach the stylesheet
+> as `--kui-peek` and `--kui-rest`:
+>
+> ```html
+> <div data-kui="carousel target:'.slide, .dot' next:.next prev:.prev jump:.dot peek:34% rest:0.9">
+> ```
+>
+> ```css
+> .slide { translate: calc(var(--kui-offset, 0) * var(--kui-peek, 56%)) 0; scale: var(--kui-rest, 0.78); }
+> ```
+>
+> Lower `peek:` to crowd the deck, raise it to let the neighbours breathe. Per §7 the defaults are
+> the `var()` fallbacks and are never written inline, so a deck naming neither carries no inline
+> style at all. Note what these are *not*: an `axis:` would only pick between two transforms the
+> page already writes, which is why there is none. These are values the library publishes and
+> `calc()` consumes — the same contract every other `cssProperty` parameter has.
+
+> **`--kui-offset` — the one that makes it loop instead of rewind.** Every step element also
+> carries its own signed place on the ring: `0` is live, `-1` is the slide behind it, `+1` the one
+> ahead, and it *wraps* — at slide 1 of five, the last slide reads `-1`. Each slide places itself
+> from that number, so there is no strip to run back across:
+>
+> ```css
+> .slide { translate: calc(var(--kui-offset, 0) * 56%) 0; }
+> ```
+>
+> Stepping off the end is then the same one-place move as any other step. Nothing is cloned and
+> nothing is reordered. Drive the track off the container's `--kui-step` instead (below) and the
+> wrap runs backwards across every slide in between, which reads as a jump to the beginning — the
+> right choice for a filmstrip, the wrong one for a loop.
+>
+> **`--kui-step`.** Alongside `data-kui-step`, the element carries the live index as a *number*, so
+> moving a strip is one rule instead of one per slide:
+>
+> ```css
+> .track { transform: translateX(calc(var(--kui-step, 0) * -100%)); transition: transform 500ms; }
+> ```
+>
+> Swap `translateX` for `translateY` and the same index drives a vertical deck. That is why there
+> is no `axis:` parameter: the primitive owns the index, the page owns the direction, and a knob
+> that only chose between two transforms would not be doing anything the stylesheet was not.
+>
+> **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
+> no autoplay, no swipe. Section H states the same line for `accordion-height`, and a second name
+> does not move it. Pair it with `swipe-x` from the gestures group for touch.
 
 > **`step-progress`** is the click-driven half of the step pair — it advances its own index on
 > click and wraps, where `scrollytelling-step` in section C takes its index from scroll position.
@@ -792,11 +884,11 @@ rather than a compiled `animation-*` track.
 | L Page transitions | 5 (+1 planned) |
 | M Navigation | 8 |
 | N 3D & perspective | 6 (+2 planned) |
-| O Forms & inputs | 12 |
+| O Forms & inputs | 13 |
 | P Motion paths | 5 |
 | Q Discrete open/close | 6 |
 | Generic tween | 2 |
-| **Total shipped** | **267** |
+| **Total shipped** | **268** |
 | Documented but not yet shipped | 4 |
 
 Renderer split: **~175 `css`** · ~12 `prep` · ~64 `js`.
