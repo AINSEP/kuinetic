@@ -126,19 +126,17 @@
      section states out loud: nothing on this page is cropped to a box someone picked. */
   .showcase-media img,
   .showcase-media video { display: block; width: 100%; max-width: 1200px; height: auto; }
-  /* WoodNest's own poster is 1200x900 (4:3) — matching both faces to that ratio, rather than the
-     16:9 the other flip-cards on this page use, means the front video still renders at its native
-     size (no crop) and the back face's YouTube thumbnail crops by the same modest amount either
-     face would need if the two didn't share a ratio. */
+  /* Both faces are YouTube facades now, so both posters are natively 16:9 and the card is simply
+     16:9 — the ratio the other flip-cards on this page already use. The 4/3 this used to carry
+     existed only to fit WoodNest's 1200x900 poster on the front without cropping it. WoodNest has
+     moved to the back of the IRIS_AI card further down, and it took with it both the reason for
+     the odd ratio and the reason for the `object-fit: contain` letterbox that kept the back face's
+     16:9 thumbnail from reading as squeezed inside it. At 16:9 neither face is cropped at all,
+     which is what this page asks for everywhere. */
   .showcase-flip { display: grid; }
   .showcase-flip > .kui-face-front,
-  .showcase-flip > .kui-face-back { aspect-ratio: 4 / 3; }
-  .showcase-flip .video-frame { width: 100%; height: 100%; aspect-ratio: 4 / 3; }
-  /* `cover` (the `.video-frame img` default) crops a 16:9 thumbnail down to this 4:3 box by
-     ~25% off each side — reads as squeezed. `contain` letterboxes on the frame's own black
-     background instead, matching this page's own "nothing here is cropped to a box someone
-     picked" rule stated above for the front face. */
-  .showcase-flip .video-frame img { object-fit: contain; }
+  .showcase-flip > .kui-face-back { aspect-ratio: 16 / 9; }
+  .showcase-flip .video-frame { width: 100%; height: 100%; aspect-ratio: 16 / 9; }
   /* The `.kui-flip-control` in this card exists first of all to hold `aria-pressed` state — under
      a hover trigger nobody is meant to press it, so it is hidden here rather than being left to the
      `hidden` attribute, which loses outright to `.kui-flip-control`'s own `display: flex` (further
@@ -306,6 +304,23 @@
      landing page is visible in place, without anyone having to open the viewer */
   .demo-card img,
   .demo-card video { display: block; width: 100%; aspect-ratio: var(--ar, 16 / 10); object-fit: cover; flex: none; }
+  /* The IRIS_AI card's two-sided wrapper. Almost nothing to say: the library already makes a
+     `flip-card` a one-cell grid and already puts both faces and the control in that cell, and
+     `.demo-card video` above already gives each face's video the card's own `--ar`. This exists
+     to stop the wrapper stretching as a flex child of the column, and because the back face's
+     WoodNest capture is 4:3 against the card's 632/418 — `object-fit: cover` above trims a little
+     off its top and bottom, which is the same treatment every other card in this grid gives its
+     media, rather than a second ratio for one face. */
+  .matrix-flip { align-self: stretch; }
+  /* Under a hover trigger the control only holds `aria-pressed`; nobody is meant to press it, and
+     a permanent pill would sit on top of the very media the card is showing off. It comes back for
+     the two readers the hover trigger deliberately never wires itself for — a coarse pointer,
+     where `pointerenter` fires from a tap, and reduced motion, where the animator declines to
+     activate the primitive at all. For both, the button is the only way in. */
+  .matrix-flip > .kui-flip-control { display: none; }
+  @media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+    .matrix-flip > .kui-flip-control { display: flex; }
+  }
   .demo-card figcaption,
   .parallax-card figcaption {
     flex: 1 0 auto; display: flex; align-items: center;
@@ -1472,26 +1487,30 @@
                    used to be fifteen lines of hand-rolled `pointerenter` script at the bottom of
                    this file, reaching in and setting `aria-pressed` itself. It is a parameter now —
                    `trigger:` — so the page states what it wants instead of implementing it, and the
-                   chips under the frame switch between all four values live. Front face is the same
-                   self-hosted, pin-scrubbed WoodNest video as before, untouched. -->
+                   chips under the frame switch between all four values live. Both faces are now
+                   YouTube facades — the self-hosted WoodNest capture that used to sit on the front
+                   has moved to the back of the IRIS_AI card in the matrix further down. -->
               <div class="showcase-flip" id="showcase-flip-demo" data-kui="flip-card trigger:hover-toggle">
-                <div class="kui-face-front" data-flip-label="WoodNest">
-                  <!-- A moving reference, not a still one. The point this section argues is that a
-                       hero gets one job — make you stop — and a lit cabin resolving out of the mist
-                       makes it in a way a screenshot cannot. `preload="none"` plus a poster because
-                       this sits directly under the fold: the poster is the first paint, and the 2MB
-                       of video is only fetched once the frame is actually on screen. `muted` is not
-                       optional for autoplay, and the source has no audio track at all. -->
-                  <video
-                    data-autoplay-in-view
-                    poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg"
-                    muted loop playsinline preload="none"
-                    data-kui="parallax-scale from:1 scale:1.06 timeline:pin"
-                    aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night"
-                  >
-                    <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
-                    <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
-                  </video>
+                <div class="kui-face-front">
+                  <!-- A facade, not an embed: the poster is an `<img>` and the iframe is only built
+                       on click, so painting the first screen costs nothing from youtube.com. This
+                       sits directly under the fold, which is the whole reason the pattern is here.
+
+                       The pin-scrubbed breathing stays, but it rides the poster rather than the
+                       frame. Scaling the frame would grow its black box and its corners along with
+                       the picture; scaling the image inside a frame that already clips gives the
+                       same motion with the card's edges held still. It also means the scrubbing
+                       stops the moment the reader presses play and the `<img>` is swapped for the
+                       iframe — which is the right answer for a video that is actually running. -->
+                  <div class="video-frame" data-yt-id="QUI6Ug4cHnE">
+                    <img src="https://img.youtube.com/vi/QUI6Ug4cHnE/maxresdefault.jpg" alt="I Built The Ultimate Claude Website Design Skill (steal this) — Nate Herk" loading="lazy" data-kui="parallax-scale from:1 scale:1.06 timeline:pin" />
+                    <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: I Built The Ultimate Claude Website Design Skill (steal this)">
+                      <svg viewBox="0 0 68 48" aria-hidden="true">
+                        <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                        <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="kui-face-back">
                   <div class="video-frame" data-yt-id="PKYNTm2m8eA">
@@ -1512,11 +1531,11 @@
                      deciding visibility, and it is the one that can tell the modes apart. -->
                 <button type="button" class="kui-flip-control" aria-pressed="false">
                   <span class="flip-label">Flip</span>
-                  <span class="flip-side">WoodNest</span>
+                  <span class="flip-side">Nate Herk</span>
                 </button>
               </div>
             </div>
-            <figcaption>WoodNest — cabin booking · held by data-kui="pin-until offset-top:6rem" wherever there are two columns, stacked below · breathing on data-kui="parallax-scale timeline:pin" at every width · the frame is a two-sided flip-card, and the second reference is on its back (Sam Crawford)</figcaption>
+            <figcaption>Nate Herk — the Claude website-design skill · held by data-kui="pin-until offset-top:6rem" wherever there are two columns, stacked below · the poster breathing on data-kui="parallax-scale timeline:pin" at every width · the frame is a two-sided flip-card, and the second reference is on its back (Sam Crawford)</figcaption>
 
             <!-- The live half of the flip-card contract. The bar prints the attribute; the chips
                  under it rewrite one token of it and re-plan the card in place through the
@@ -1594,13 +1613,45 @@
               <img src="./assets/webdesign/neovision-digital-universe-hero.jpg" alt="The NeoVision homepage — a woman in profile wearing a white VR headset beside the headline New Digital Universe, with a 47.2% Reality stat and a client avatar row" loading="lazy" />
               <figcaption>data-kui="fade-up, blur-in timeline:view"</figcaption>
             </figure>
-            <figure class="demo-card" style="--ar: 632 / 418" data-kui="parallax-scale from:0.2 scale:1 timeline:view" data-show-code>
-              <video data-autoplay-in-view poster="./assets/webdesign/iris-ai-motion-poster.jpg" muted loop playsinline preload="none"
-                     aria-label="The IRIS_AI homepage animating — strands of golden fibre scattering and resolving into a radial burst behind the headline Where AI merges with your vision">
-                <source src="./assets/webdesign/iris-ai-motion.webm" type="video/webm" />
-                <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
-              </video>
-              <figcaption>data-kui="parallax-scale from:0.2 scale:1 timeline:view"</figcaption>
+            <!-- The one two-sided card in this grid. The front is still the parallax-scale
+                 reference the group is making its point with; the back is the WoodNest capture
+                 that used to open the page, kept in play rather than dropped.
+
+                 `flip-card` sits on a wrapper and `parallax-scale` on the video inside it, which
+                 is the same arrangement the showcase card at the top of the page uses and not an
+                 accident of nesting: a 3D card inside an element that is itself being transformed
+                 gets flattened into that element's space. Wrapper turns, media scales, and the two
+                 never share a transform.
+
+                 `trigger:hover`, not the showcase's `hover-toggle` — these are short silent site
+                 captures, not something you sit and watch, so the back is a peek that returns the
+                 moment the pointer leaves rather than a state you have to undo. -->
+            <figure class="demo-card" style="--ar: 632 / 418" data-show-code>
+              <div class="matrix-flip" data-kui="flip-card trigger:hover">
+                <!-- `data-flip-label` on both faces because neither is a YouTube facade: the
+                     control's label is normally derived from a poster `<img>`'s alt text, and a
+                     self-hosted `data-autoplay-in-view` video has no img to read. -->
+                <div class="kui-face-front" data-flip-label="IRIS_AI">
+                  <video data-autoplay-in-view poster="./assets/webdesign/iris-ai-motion-poster.jpg" muted loop playsinline preload="none"
+                         data-kui="parallax-scale from:0.2 scale:1 timeline:view"
+                         aria-label="The IRIS_AI homepage animating — strands of golden fibre scattering and resolving into a radial burst behind the headline Where AI merges with your vision">
+                    <source src="./assets/webdesign/iris-ai-motion.webm" type="video/webm" />
+                    <source src="./assets/webdesign/iris-ai-motion.mp4" type="video/mp4" />
+                  </video>
+                </div>
+                <div class="kui-face-back" data-flip-label="WoodNest">
+                  <video data-autoplay-in-view poster="./assets/webdesign/woodnest-cabin-booking-poster.jpg" muted loop playsinline preload="none"
+                         aria-label="The WoodNest cabin-booking site — a glass panel over a lit timber lodge in misty pines, reading Nature's Perfect Hideaways, with an Evergreen Pine Family Lodge reservation card at $359 a night">
+                    <source src="./assets/webdesign/woodnest-cabin-booking.webm" type="video/webm" />
+                    <source src="./assets/webdesign/woodnest-cabin-booking.mp4" type="video/mp4" />
+                  </video>
+                </div>
+                <button type="button" class="kui-flip-control" aria-pressed="false">
+                  <span class="flip-label">Flip</span>
+                  <span class="flip-side">IRIS_AI</span>
+                </button>
+              </div>
+              <figcaption>data-kui="flip-card trigger:hover" · front face on data-kui="parallax-scale from:0.2 scale:1 timeline:view"</figcaption>
             </figure>
           </div>
         </div>
@@ -2225,7 +2276,7 @@
     })()
   </script>
   <script>
-    // WoodNest showcase card: the `trigger:` switcher.
+    // Opening showcase card (Nate Herk / Sam Crawford): the `trigger:` switcher.
     //
     // What used to be here was the hover behaviour itself — a `pointerenter` listener reaching into
     // the card and flipping `aria-pressed` by hand. That is `trigger:hover-toggle` now, authored on
