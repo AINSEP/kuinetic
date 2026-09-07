@@ -868,7 +868,11 @@
 
   /* 1rem, not 0.5rem: the gap sets how large each dot's hit box can be before it starts covering
      its neighbour. See `.deck-dot::before`. */
-  .deck-dots { margin-top: 1.75rem; display: flex; justify-content: center; gap: 1rem; }
+  /* The gap shrinks before the row does. A dot is 8px and the live one 26px, so N dots measure
+     `24 * (N - 1) + 26` at the 1rem gap — 242px at ten, but 482px at twenty, which overflows a
+     360px phone in a row that does not wrap. Clamping the gap to 2vw buys back 6px per dot at the
+     narrow end and leaves the comfortable desktop spacing untouched above ~800px. */
+  .deck-dots { margin-top: 1.75rem; display: flex; justify-content: center; gap: clamp(0.25rem, 2vw, 1rem); }
   /* The dots are the second group `target:` names, so they take `data-kui-step-state` from the
      same marker the slides do and cannot drift out of sync with them. The library's default
      paints everything up to the live step; a position indicator wants only the live one, so
@@ -1122,6 +1126,11 @@
      the assets of the page that owns it, so clicking through is a continuation rather than a jump
      to somewhere unrelated. Small on purpose: fourteen loud tiles is a fairground. */
   .view-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; margin-top: 3rem; }
+  /* The chip sits beside the card, not inside it. Each card is wrapped in an `<a>` to scroll.html,
+     and a `<button>` inside an anchor is both invalid markup and a double action: show-code.js does
+     not call `preventDefault`, so a chip in there would open the modal AND follow the link. The
+     cell is the one parent that lets the two sit together without nesting one in the other. */
+  .view-cell { display: grid; gap: 0.6rem; justify-items: start; }
   @media (min-width: 760px) { .view-grid { grid-template-columns: 1fr 1fr; gap: 2rem; } }
   /* `<a>` is inline by default, which would collapse it to its text width inside the grid cell —
      `display: block` is the fix, everything else here is just an anchor not looking like one. */
@@ -1897,101 +1906,117 @@
           </div>
 
           <div class="track">
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
-                <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
+                  <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Self-Made Web Designer — 6 design styles</figcaption>
               </div>
-              <figcaption>Self-Made Web Designer — 6 design styles</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="TGi6CHaj5HU" data-kui-lightbox-title="Why My AI Designs Always Look Next Level — Tae Online HD">
-                <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="TGi6CHaj5HU" data-kui-lightbox-title="Why My AI Designs Always Look Next Level — Tae Online HD">
+                  <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Tae Online HD — AI design</figcaption>
               </div>
-              <figcaption>Tae Online HD — AI design</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="NAumQObJEwM" data-kui-lightbox-title="Turn Claude into a Design Genius... Just Watch — Jack Roberts">
-                <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="NAumQObJEwM" data-kui-lightbox-title="Turn Claude into a Design Genius... Just Watch — Jack Roberts">
+                  <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Jack Roberts — Claude design</figcaption>
               </div>
-              <figcaption>Jack Roberts — Claude design</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="snErQUyqwCU" data-kui-lightbox-title="How to Build $10K Websites in Minutes (Claude AI) — Metics Media">
-                <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="snErQUyqwCU" data-kui-lightbox-title="How to Build $10K Websites in Minutes (Claude AI) — Metics Media">
+                  <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Metics Media — Claude AI sites</figcaption>
               </div>
-              <figcaption>Metics Media — Claude AI sites</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="oY87jJx4sAI" data-kui-lightbox-title="The Seismic Shifts Happening In Web Design — Self-Made Web Designer">
-                <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="oY87jJx4sAI" data-kui-lightbox-title="The Seismic Shifts Happening In Web Design — Self-Made Web Designer">
+                  <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Self-Made Web Designer — web design</figcaption>
               </div>
-              <figcaption>Self-Made Web Designer — web design</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="T1VOVArT9YI" data-kui-lightbox-title="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy">
-                <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="T1VOVArT9YI" data-kui-lightbox-title="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy">
+                  <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Viktor Oddy — AI-built sites</figcaption>
               </div>
-              <figcaption>Viktor Oddy — AI-built sites</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
-                <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
+                  <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Kyle Skelly — Claude for beginners</figcaption>
               </div>
-              <figcaption>Kyle Skelly — Claude for beginners</figcaption>
             </figure>
-            <figure class="reel-item">
-              <div class="reel-frame" data-kui-lightbox-video="PKYNTm2m8eA" data-kui-lightbox-title="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford">
-                <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
-                <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
-                  <svg viewBox="0 0 68 48" aria-hidden="true">
-                    <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                    <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                  </svg>
-                </button>
+            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui-lightbox-video="PKYNTm2m8eA" data-kui-lightbox-title="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford">
+                  <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Sam Crawford — web design concepts</figcaption>
               </div>
-              <figcaption>Sam Crawford — web design concepts</figcaption>
             </figure>
           </div>
         </div>
@@ -2022,7 +2047,7 @@
 
         <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
 
-        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms">
+        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms on:enter">
           <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
           </button>
@@ -2138,16 +2163,16 @@
                 <figcaption>MoSidd — viral Remotion reel</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="PKYNTm2m8eA" data-kui-lightbox-title="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford">
-                  <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                <div class="reel-frame" data-kui-lightbox-video="9XvKyoz6Nmo" data-kui-lightbox-title="Motion Graphics Without Plugins: The New Claude Method — Sanji Nai-Chien">
+                  <img src="https://img.youtube.com/vi/9XvKyoz6Nmo/maxresdefault.jpg" alt="Motion Graphics Without Plugins: The New Claude Method — Sanji Nai-Chien" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Motion Graphics Without Plugins: The New Claude Method">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
                   </button>
                 </div>
-                <figcaption>Sam Crawford — web design concepts</figcaption>
+                <figcaption>Sanji Nai-Chien — motion graphics, no plugins</figcaption>
               </figure>
             </div>
           </div>
@@ -2387,24 +2412,31 @@
           <h2 data-kui="fade-up on:enter">View Timeline Animation</h2>
         </div>
         <div class="view-grid">
+          <div class="view-cell">
           <a class="view-card-link" href="./scroll.html" aria-label="See more view-timeline entrances on the scroll page">
-            <figure class="view-card" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
+            <figure class="view-card" id="view-fade-demo" style="--ar: 576 / 310" data-kui="fade-up timeline:view">
               <img src="./assets/webdesign/alien-2077-game-landing.jpg" alt="The Alien 2077 game landing page — a biomechanical creature crouched on rock behind an oversized 2077, with a vertical ALIEN wordmark and a pre-order QR code" loading="lazy" />
               <figcaption>data-kui="fade-up timeline:view"</figcaption>
             </figure>
           </a>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="view-fade-demo">Show code</button>
+          </div>
           <!-- Three entrances composed on one element: disjoint channels (translate, rotate,
                filter), so they compile into a single animation instead of fighting. The compose
                playground further up is the same fact with the checkboxes attached. -->
+          <div class="view-cell">
           <a class="view-card-link" href="./scroll.html" aria-label="See more view-timeline entrances on the scroll page">
-            <figure class="view-card" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view">
+            <figure class="view-card" id="view-compose-demo" style="--ar: 646 / 404" data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view">
               <video data-autoplay-in-view poster="./assets/webdesign/deadpool3-cinedaily-hero-poster.jpg" muted loop playsinline preload="none"
                      aria-label="The Cine Daily film-news site running a Deadpool III feature — the character stands arms crossed over an oversized DEADPOOL title with the cast listed above">
                 <source src="./assets/webdesign/deadpool3-cinedaily-hero.webm" type="video/webm" />
                 <source src="./assets/webdesign/deadpool3-cinedaily-hero.mp4" type="video/mp4" />
               </video>
+              <figcaption>data-kui="bounce-in-up, rotate-in angle:180deg, blur-in timeline:view"</figcaption>
             </figure>
           </a>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="view-compose-demo">Show code</button>
+          </div>
         </div>
       </section>
     </div>
