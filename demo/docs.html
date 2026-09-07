@@ -279,26 +279,25 @@
      together into one wall. */
   .doc-body p { margin: 0 0 1rem; }
   /*
-   * Blockquotes are catalog.md's whole editorial voice — the "this effect does not do what its
-   * name suggests" note attached to an entry — so they are styled as an aside that is visibly
-   * *not* the body text around it, rather than as a quotation. A tinted panel with an accent edge
-   * does that at a glance while scanning a long list; an indent alone does not, and reads as an
-   * accident next to the code blocks these sit beside.
-   * `--accent` carries the edge but not the fill: the brand yellow at full strength behind body
-   * copy is unreadable, so the fill is a few percent of it over the page surface.
+   * Same panel as `.doc-body pre` below — surface fill, one border, 8px, same padding.
+   *
+   * These carry catalog.md's "this effect does not do what its name suggests" notes, and the first
+   * pass gave them an accent left edge over a tinted fill to make them stand out. That was the only
+   * `border-left` on the site and a treatment nothing else shares, so it read as a different kind
+   * of thing rather than as this page's aside. The page already has one way of saying "contained
+   * block" and the quotes are one, so they say it the same way; the prose inside is what separates
+   * them from the code blocks they sit beside, and no new visual language is needed to do it.
    */
   .doc-body blockquote {
-    margin: 1.25rem 0;
-    padding: 0.9rem 1.1rem;
-    border-left: 3px solid var(--accent);
-    border-radius: 0 8px 8px 0;
-    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    margin: 1rem 0;
+    padding: 1rem 1.25rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
   }
-  /* The last paragraph's bottom margin would otherwise print as dead space inside the panel. */
-  .doc-body blockquote > :last-child { margin-bottom: 0; }
+  /* The edge paragraphs' own margins would otherwise print as dead space inside the panel. */
   .doc-body blockquote > :first-child { margin-top: 0; }
-  /* Nested code keeps its own box but drops the outer border, which reads as a frame inside a
-     frame against the tinted fill. */
+  .doc-body blockquote > :last-child { margin-bottom: 0; }
+  /* A code block nested in one drops to the page ground: surface on surface is a frame inside an
+     identical frame, and the inner box needs to read as the deeper one. */
   .doc-body blockquote pre { background: var(--bg); }
   .doc-body strong { color: var(--fg); font-weight: 590; }
   .doc-body ul, .doc-body ol { padding-left: 1.4rem; margin: 0.75rem 0; }
