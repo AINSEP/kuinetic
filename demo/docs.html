@@ -273,6 +273,11 @@
     font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
     margin: 1.5rem 0 0.4rem;
   }
+  /* Paragraphs are paragraphs now, so they need the gap between them that they never had. The
+     renderer used to emit one `<p>` per source line and the page leaned on a zero margin to make
+     those read as continuous prose; with real paragraph blocks that same zero would run them all
+     together into one wall. */
+  .doc-body p { margin: 0 0 1rem; }
   .doc-body strong { color: var(--fg); font-weight: 590; }
   .doc-body ul, .doc-body ol { padding-left: 1.4rem; margin: 0.75rem 0; }
   .doc-body li { margin: 0.35rem 0; }
