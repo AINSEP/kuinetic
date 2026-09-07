@@ -397,16 +397,17 @@
     gap: clamp(1.75rem, 3.5vw, 2.75rem);
   }
 
-  /* Mirrors `.hero-media`'s own `auto 1fr` split so the title's video-column half lines up with
-     the video below it instead of the full (credit rail + video) box. */
+  /* Mirrors `.hero-media`'s own `auto 1fr auto` split — credit rail, video, eyebrow rail — so the
+     title's middle column lines up with the video underneath instead of the full (both rails +
+     video) box. */
   .hero-title-row {
-    display: grid; grid-template-columns: auto 1fr; column-gap: 0.65rem;
+    display: grid; grid-template-columns: auto 1fr auto; column-gap: 0.65rem;
     width: 100%; max-width: 740px;
-    /* Raised by exactly the height of `.hero-title-caption` below it (0.85rem margin + its own
-       ~1.08rem line box). The gold line is meant to sit between the headline and the video, and
-       the video must not move — `.hero-media`'s negative top margin already absorbs the caption's
-       height, so the only place the line can come from is the title moving up into the space it
-       vacates. Change this and `.hero-media`'s margin-top together or the video shifts. */
+    /* This used to be exactly the height of `.hero-title-caption`, which sat here before moving
+       beside the video as `.hero-media-eyebrow`. Kept at the same value so the headline holds the
+       position already tuned against the sticky header above; the space the caption vacated is
+       closed by `.hero-media`'s margin-top below rather than here, because moving this one moves
+       the headline off that tuning. Change the two together or one of them moves. */
     margin: -1.93rem auto 0;
   }
   .hero-title-spacer {
@@ -415,12 +416,24 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.8rem; letter-spacing: 0.02em;
   }
+  /* Mirrors `.hero-media-eyebrow` the same way the spacer above mirrors `.hero-media-credit` —
+     same text, font and dot so its width tracks the real eyebrow's, without inheriting its grid
+     placement or colour. */
+  .hero-title-spacer-end {
+    visibility: hidden;
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    writing-mode: vertical-rl; white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .hero-title-spacer-end::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
   /* Container for `.hero h1`'s cqw font-size below — this column, not the full row, is what
      the video underneath actually spans. */
   .hero-title-col { min-width: 0; container-type: inline-size; }
   @media (max-width: 640px) {
     .hero-title-row { grid-template-columns: 1fr; }
     .hero-title-spacer { display: none; }
+    .hero-title-spacer-end { display: none; }
     /* Below 640px `.hero-stage`'s padding-top clamp is pinned at its 5.5rem floor regardless of
        how much narrower the viewport gets, while the sticky header's own height does not shrink —
        so the fixed floor and the header's fixed height, tuned against each other only at the
@@ -442,13 +455,6 @@
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
-  /* The tagline's top half, dropped into the gap the headline and the video already leave
-     between them — `.hero-media`'s negative top margin below is tightened by this line's own
-     height (margin + line box) so the video does not move down to make room for it. Zeroes the
-     `<p>` UA bottom margin explicitly rather than trusting it to collapse away: this box has no
-     next sibling inside `.hero-title-col` for it to collapse against, so an unset one would
-     leak into `.hero`'s flex gap as silent extra space. */
-  .hero-title-caption { margin: 0.42rem 0 0.43rem; }
   /* Negative, for the same reason `.hero-media`'s top margin is: `.hero`'s row gap is one token
      shared by every child, so pulling just this row closer to the video means offsetting it here
      rather than shrinking a gap three other elements also read. */
@@ -467,14 +473,18 @@
      note below, and pulling all three closer together was not asked for — just the video, up
      under the now-single-line title. Grid, not stacked flow: the credit is now a side label, not
      a line above the card, so it needs its own narrow column next to `.hero-flip` rather than a
-     margin above it. The caption spans both columns on its own row underneath. */
+     margin above it. The caption spans every column on its own row underneath. */
   .hero-media {
     /* Negative top margin eats most of `.hero`'s own gap token, which also spaces the actions row
-       below — pulling the video up under the title without dragging those closer too. Mobile
-       resets it: the credit moves below the card there, so the gap is already doing a different
-       job and the video does not need pulling. */
-    min-width: 0; width: 100%; max-width: 740px; margin: -5.75rem auto 0;
-    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+       below — pulling the video up under the title without dragging those closer too. The value
+       was briefly loosened to -3.82rem to hold the video where it sat while `.hero-title-caption`
+       still occupied the row above; that caption is now the vertical rail beside the video, so
+       holding its height open left 128px of dead air between the headline and the card. The pull
+       is deliberately past the old -5.75rem for the same reason: that figure was tuned around a
+       line of text that is no longer there. Mobile resets it: the credit moves below the card
+       there, so the gap is already doing a different job and the video does not need pulling. */
+    min-width: 0; width: 100%; max-width: 740px; margin: -9.625rem auto 0;
+    display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto;
     column-gap: 0.65rem;
   }
   .hero-media-credit {
@@ -493,6 +503,18 @@
     font-size: 0.8rem; letter-spacing: 0.02em; color: var(--fg);
   }
   :root[data-theme='dark'] .hero-media-credit { color: var(--accent); }
+  /* Right-edge mirror of `.hero-media-credit`. Plain `vertical-rl` with no 180deg flip already
+     reads top-to-bottom — the mirror image of the credit's bottom-to-top — so the two rails lean
+     toward the video from opposite sides instead of both reading the same way. Reuses `.kicker`
+     for colour/dot rather than the credit's plain-text treatment, since this label carries that
+     identity everywhere else on the page and the brief was to keep it. */
+  .hero-media-eyebrow {
+    grid-column: 3; grid-row: 1;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0;
+    writing-mode: vertical-rl;
+    white-space: nowrap;
+  }
   .hero-flip { grid-column: 2; grid-row: 1; }
   .hero-media-caption { grid-column: 1 / -1; grid-row: 2; justify-content: center; }
   /* Below this, "beside the video" stops having room to breathe — back to a stacked line, but
@@ -501,16 +523,23 @@
      rather than stacked a third time — it's desktop-only context, not essential here. */
   @media (max-width: 640px) {
     /* Owner's ask: the video should sit right under the headline here too, the way it already
-       does on desktop (-5.75rem there closes the gap to ~0). Desktop's exact value doesn't carry
+       does on desktop (-3.82rem there closes the gap to ~0). Desktop's exact value doesn't carry
        over — it was tuned against the two-column split this breakpoint drops — but leaving it at
        0 left the video sitting on the far side of `.hero`'s own flex gap, a real 38px on a 396px
        viewport, measured directly. -2rem closes it to a few px without touching. */
-    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto; margin-top: -2rem; }
+    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto auto; margin-top: -2rem; }
     .hero-flip { grid-column: 1; grid-row: 1; }
     .hero-media-credit {
       grid-column: 1; grid-row: 2;
       writing-mode: horizontal-tb; transform: none;
       justify-content: flex-end; margin: 0.7rem 0 0; font-size: 0.95rem;
+    }
+    /* Same horizontal-tb fallback as the credit above, on its own row so the two don't land in the
+       same cell — left-aligned as its mirror, since the credit is right-aligned. */
+    .hero-media-eyebrow {
+      grid-column: 1; grid-row: 3;
+      writing-mode: horizontal-tb; transform: none;
+      justify-content: flex-start; margin: 0.35rem 0 0;
     }
     .hero-media-caption { display: none; }
   }
@@ -556,6 +585,12 @@
 
   /* ---------- reel (horizontal-scroll video track) ---------- */
   .reel-frame { position: relative; aspect-ratio: 16 / 9; overflow: clip; background: #000; border-radius: 12px; }
+  /* The black plate is a letterbox for a 16:9 thumbnail that does not quite fill its box. Under
+     `slat-assemble` it is the wrong backdrop: the effect flies the picture in as separate slats,
+     and the gaps between them in flight are meant to show the page, not a black card sitting
+     behind the whole thing. Keyed on the preset name because `data-kui-fx` carries preset names,
+     not primitives, so this matches only the frame actually carrying the effect. */
+  .reel-frame[data-kui-fx~='slat-assemble'] { background: transparent; }
   .reel-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
   /* `horizontal-scroll` writes the pin, the clip and the row's own layout itself (see
      scroll.html's own `.track-stage`/`.track` for the same five lines) — this is only the card
@@ -633,9 +668,9 @@
   }
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-  /* Reuses `.kicker`, same as `.hero-title-caption` above the video — the tagline is now two
-     lines split across the two spots this comment used to describe as alternatives: "CSS
-     Animation Library" sits under the headline, and this line closes with the second half. */
+  /* Reuses `.kicker`, same as `.hero-media-eyebrow` beside the video — the tagline is split
+     across both: "CSS Animation Library" runs down the video's right edge, and this line closes
+     with the second half underneath. */
   .hero-media-caption { margin-top: 1rem; }
 
   /* ---------- ticker ---------- */
@@ -1608,18 +1643,17 @@
     <section class="hero-stage stage" data-od-id="hero">
       <div class="wrap hero-inner">
         <div class="hero">
-          <!-- Matches `.hero-media`'s own two-column split (an auto-width credit rail, then the
-               video) with a real spacer instead of a guessed pixel offset — the spacer carries the
-               exact same text/font/rotation as `.hero-media-credit` below, so its intrinsic width
-               tracks the credit's automatically. Without it the title centers across the full
-               740px box while the video sits right of the credit rail, and the two visibly
-               misalign. -->
+          <!-- Matches `.hero-media`'s own three-column split (credit rail, video, eyebrow rail)
+               with real spacers instead of guessed pixel offsets — each spacer carries the exact
+               same text/font/writing-mode as its counterpart below, so its intrinsic width tracks
+               that counterpart's automatically. Without them the title centers across the full
+               740px box while the video sits between the two rails, and the two visibly misalign. -->
           <div class="hero-title-row">
             <span class="hero-title-spacer" aria-hidden="true">Made by Leon A.</span>
             <div class="hero-title-col">
-              <h1 data-kui="split-chars 2000ms on:load">HTML attributes → CSS3 Animations</h1>
-              <p class="kicker hero-title-caption" data-kui="fade-up 600ms 100ms">CSS Animation Library</p>
+              <h1 data-kui="split-chars 2000ms on:load">Premium Animations with HTML tags</h1>
             </div>
+            <span class="hero-title-spacer-end" aria-hidden="true">CSS Animation Library</span>
           </div>
 
           <!-- One live demo, one real website, one slot. Both faces now mirror scroll.html's own
@@ -1677,6 +1711,11 @@
                 <span class="flip-label">Flip</span>
               </button>
             </div>
+            <!-- Right-edge mirror of `.hero-media-credit` on the left — see `.hero-media-eyebrow`
+                 for the writing-mode mirroring. Used to sit under the headline as
+                 `.hero-title-caption`; kept the same entrance timing since it's still the first
+                 thing (besides the headline) meant to be read. -->
+            <p class="kicker hero-media-eyebrow" data-kui="fade-up 600ms 100ms">CSS Animation Library</p>
             <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">Easy For Beginners. Made for Designers</p>
           </div>
 
@@ -1684,7 +1723,7 @@
             <a href="#catalog" class="btn btn-primary" data-kui="lift-shadow">See what it can do</a>
             <a href="#install" class="btn btn-ghost" data-kui="shine-sweep, lift-shadow">Install in two lines →</a>
           </div>
-          <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Standalone · MIT · zero JS runtime dependency for CSS-rendered effects</p>
+          <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Free · Standalone · MIT</p>
         </div>
       </div>
     </section>
@@ -1906,9 +1945,9 @@
           </div>
 
           <div class="track">
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
+                <div class="reel-frame" data-kui="slat-assemble 1100ms angle:45deg on:enter" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
                   <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
                   <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
@@ -1920,7 +1959,7 @@
                 <figcaption>Self-Made Web Designer — 6 design styles</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="wipe-circle 1200ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="TGi6CHaj5HU" data-kui-lightbox-title="Why My AI Designs Always Look Next Level — Tae Online HD">
                   <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
@@ -1934,7 +1973,7 @@
                 <figcaption>Tae Online HD — AI design</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="zoom-in scale:0.12 900ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="NAumQObJEwM" data-kui-lightbox-title="Turn Claude into a Design Genius... Just Watch — Jack Roberts">
                   <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
@@ -1948,7 +1987,7 @@
                 <figcaption>Jack Roberts — Claude design</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="flip-in-x 900ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="snErQUyqwCU" data-kui-lightbox-title="How to Build $10K Websites in Minutes (Claude AI) — Metics Media">
                   <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
@@ -1962,7 +2001,7 @@
                 <figcaption>Metics Media — Claude AI sites</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="wipe-diagonal 1000ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="oY87jJx4sAI" data-kui-lightbox-title="The Seismic Shifts Happening In Web Design — Self-Made Web Designer">
                   <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
@@ -1976,7 +2015,7 @@
                 <figcaption>Self-Made Web Designer — web design</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="blur-in 900ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="T1VOVArT9YI" data-kui-lightbox-title="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy">
                   <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
@@ -1990,7 +2029,7 @@
                 <figcaption>Viktor Oddy — AI-built sites</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
+            <figure class="reel-item" data-kui="rotate-in 900ms on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
                   <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
@@ -2174,6 +2213,18 @@
                 </div>
                 <figcaption>Sanji Nai-Chien — motion graphics, no plugins</figcaption>
               </figure>
+              <figure class="deck-slide">
+                <div class="reel-frame" data-kui-lightbox-video="RDytbVDzMF4" data-kui-lightbox-title="Claude Design FINALLY Solved Motion Graphics — Jack Roberts">
+                  <img src="https://img.youtube.com/vi/RDytbVDzMF4/maxresdefault.jpg" alt="Claude Design FINALLY Solved Motion Graphics — Jack Roberts" loading="lazy" />
+                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design FINALLY Solved Motion Graphics">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </button>
+                </div>
+                <figcaption>Jack Roberts — Claude Design motion graphics</figcaption>
+              </figure>
             </div>
           </div>
 
@@ -2192,6 +2243,7 @@
             <button type="button" class="deck-dot" aria-label="Video 8"></button>
             <button type="button" class="deck-dot" aria-label="Video 9"></button>
             <button type="button" class="deck-dot" aria-label="Video 10"></button>
+            <button type="button" class="deck-dot" aria-label="Video 11"></button>
           </nav>
         </div>
 
