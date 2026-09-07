@@ -290,9 +290,22 @@ button, a.btn { font-family: inherit; cursor: pointer; }
    hero content taller than the viewport (a narrow phone stacking everything) still grows past it
    rather than clipping. `dvh`, not `vh`: `vh` counts the mobile address bar's height, which is
    exactly the sliver that used to read as the next section bleeding in. */
+/* The padding that pays back the pull-up lives here too, next to the pull itself.
+   It was a local `clamp(3.5rem, 5vw + 1.5rem, 6.5rem)` copied into all eleven showcase pages, and
+   it did not clear the header it was compensating for: the pull is a flat 70.4px, but the clamp is
+   viewport-scaled, so below ~1440px the preferred term falls under that and the 3.5rem floor takes
+   over at 56px. The header then sat on the hero's own eyebrow — measured on a 390px viewport, the
+   header's underside at 72px against an eyebrow top of 64px, an 8px overlap, and reported on
+   reveals.html, text.html and ambient-feedback.html alike because all eleven carried the same
+   number.
+   A fixed header wants a fixed clearance, so the floor is what matters and 6rem is what it should
+   have been: 96px, clearing the header by 32px — the same generous margin over "just clears it"
+   that `index.html`'s own mobile hero was tuned to. The preferred and max terms are kept so very
+   wide screens still open up a little. Change this and the margin above together. */
 .demo-hero {
   margin-top: calc(-1 * (1rem + 3.4rem));
   min-height: 100dvh;
+  padding-top: clamp(6rem, 5vw + 1.5rem, 6.5rem);
 }
 
 /* ---------- buttons ---------- */

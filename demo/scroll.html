@@ -40,13 +40,20 @@
      two-column grid, because its anchor is a full-width video, not a side image. */
   .demo-hero {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
-    padding-top: clamp(3.5rem, 5vw + 1.5rem, 6.5rem); padding-bottom: clamp(3rem, 5vw, 5rem);
+    padding-bottom: clamp(3rem, 5vw, 5rem);
     text-align: center;
   }
-  /* The negative margin-top in system.css pulls the hero up under the floating header for the
-     overlap trick, which left the kicker sitting almost flush against it — this pushes just
-     the kicker back down without touching the padding-top clamp every other child relies on. */
-  .demo-hero .kicker { margin-top: 1.5rem; }
+  /* The kicker used to carry `margin-top: 1.5rem` here to push itself clear of the floating
+     header. That was this page patching, on its own, the shared bug that all eleven showcase
+     heroes had — the `padding-top` clamp not covering the pull-up. system.css clears the header
+     for every one of them now, so the local push is double-counting and is gone. */
+  /* Centred is the desktop composition and stays. On a phone the hero's content is shorter than
+     the 100dvh floor, so centring splits ~250px of slack evenly and drops half of it *above* the
+     kicker — 127px of dead air under the header, against 32px on every sibling page. Top-aligned,
+     this page opens like the others and the slack falls below the content instead. */
+  @media (max-width: 640px) {
+    .demo-hero { justify-content: flex-start; }
+  }
   .demo-hero h1 {
     margin: 0 auto; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02;
     letter-spacing: -0.03em; max-width: 18ch;
