@@ -27,9 +27,29 @@ describe('slat angle', () => {
 
   it('accepts a bare number and the other CSS angle units', () => {
     expect(slatAngleDegrees('45', 'vertical')).toBe(45)
+    expect(slatAngleDegrees('45d', 'vertical')).toBe(45)
     expect(slatAngleDegrees('0.25turn', 'vertical')).toBe(90)
     expect(slatAngleDegrees('100grad', 'vertical')).toBe(90)
     expect(slatAngleDegrees('1.5707963rad', 'vertical')).toBeCloseTo(90, 4)
+  })
+
+  // `d` was added to the pattern's unit group without a matching UNIT_DEGREES key, so every
+  // spelling below has to resolve rather than multiply by `undefined` and produce NaN — which is
+  // what reached the clip-path as `polygon(NaNpx NaNpx, ...)`.
+  it.each(['45', '45d', '45deg', '50grad', '0.125turn', '0.7853981rad'])(
+    'resolves %s to a finite angle',
+    (authored) => {
+      const degrees = slatAngleDegrees(authored, 'vertical')
+      expect(Number.isFinite(degrees)).toBe(true)
+      expect(degrees).toBeGreaterThanOrEqual(0)
+      expect(degrees).toBeLessThan(180)
+    },
+  )
+
+  it('reads the d shorthand as degrees, not as a truncated rad or grad', () => {
+    expect(slatAngleDegrees('45d', 'vertical')).toBe(slatAngleDegrees('45deg', 'vertical'))
+    expect(slatAngleDegrees('45rad', 'vertical')).not.toBe(slatAngleDegrees('45d', 'vertical'))
+    expect(slatAngleDegrees('45grad', 'vertical')).not.toBe(slatAngleDegrees('45d', 'vertical'))
   })
 
   it('normalises to [0, 180): a band at 200deg is the same set of bands as one at 20deg', () => {

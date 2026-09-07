@@ -18,7 +18,14 @@ export type SlatAxis = 'vertical' | 'horizontal'
 const AXIS_DEGREES: Record<SlatAxis, number> = { vertical: 0, horizontal: 90 }
 
 /** Degrees in one of each CSS angle unit, so `angle:` accepts whichever one the author reaches for. */
-const UNIT_DEGREES = { deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 } as const
+/**
+ * One entry per alternative in the unit group of the pattern in {@link slatAngleDegrees}, which is
+ * what lets that function's `as keyof typeof UNIT_DEGREES` be a statement of fact rather than a
+ * cast that outruns the table. `d` is the shorthand spelling and shares `deg`'s factor; adding the
+ * alternative to the regex without adding it here is exactly how `angle:45d` once produced `NaN`
+ * for every slat, so the two lists move together or not at all.
+ */
+const UNIT_DEGREES = { deg: 1, d: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 } as const
 
 /** How far past the band's own boundary each slat's clip reaches, in px — the seam closer. */
 const BAND_OVERLAP_PX = 1
@@ -116,7 +123,8 @@ export function slatAngleDegrees(authored: string, axis: SlatAxis): number {
   const value = Number(match[1])
   if (!Number.isFinite(value)) return AXIS_DEGREES[axis]
 
-  // The unit group can only be one of the four the regex lists, or absent, so no fallback branch.
+  // The unit group can only be one of the five the regex lists, or absent, and UNIT_DEGREES has a
+  // key for each, so there is no fallback branch to write.
   const unit = (match[2] ?? 'deg') as keyof typeof UNIT_DEGREES
   const degrees = value * UNIT_DEGREES[unit]
   return ((degrees % 180) + 180) % 180
