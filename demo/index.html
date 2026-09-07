@@ -409,7 +409,24 @@
        closed by `.hero-media`'s margin-top below rather than here, because moving this one moves
        the headline off that tuning. Change the two together or one of them moves. */
     margin: -1.93rem auto 0;
+    /* The spacers are zero-height (below), so nothing here stretches — but `start` states it
+       rather than leaving the row's height to whichever child happens to be tallest. */
+    align-items: start;
   }
+  /*
+   * The spacers reserve *width* only. `height: 0` is what makes that true.
+   *
+   * `visibility: hidden` hides them but still lays them out, and in `vertical-rl` the height is the
+   * *inline* axis — the length of the rotated string. So these two reserved their column widths (19px
+   * and 17px, which is the job) and also 256px of vertical dead air the headline then sat at the top
+   * of. That column of nothing was the entire gap between the headline and the video: 107px of it
+   * survived even the -9.625rem the media was pulling up by to compensate.
+   *
+   * Zeroing the height leaves the widths untouched — in a vertical writing mode the width comes from
+   * the font's line-box thickness, not from how long the text is — and the row collapses to the
+   * headline's own 39px. The media's margin below is retuned to match; the two move together.
+   */
+  .hero-title-spacer, .hero-title-spacer-end { height: 0; overflow: hidden; }
   .hero-title-spacer {
     visibility: hidden;
     writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap;
@@ -455,6 +472,29 @@
     line-height: 0.98;
     letter-spacing: -0.04em;
   }
+  /*
+   * On a phone the headline wraps instead of shrinking.
+   *
+   * `5.8cqw` + `nowrap` buys a one-line headline by trading away size, and on a narrow column that
+   * trade goes bad: the container is 342px at a 390px viewport, so the h1 rendered at 19.8px —
+   * body-copy size, for the largest promise on the page. It read as a caption above the video.
+   *
+   * Below 640px the single line is not worth having, so this drops it: `normal` restores wrapping
+   * and the size goes back to the viewport (~37px at 390px, ~34px at 360px) with a floor and a
+   * ceiling. The split-chars spans the library stamps in here are `display: inline`, so they add no
+   * break opportunities of their own and the wrap still lands between words, never inside one.
+   *
+   * This must sit after the base rule, not inside the earlier `max-width: 640px` block — same
+   * specificity, so source order decides, and up there the base rule would simply win.
+   */
+  @media (max-width: 640px) {
+    .hero h1 {
+      white-space: normal;
+      font-size: clamp(1.9rem, 9.4vw, 2.6rem);
+      line-height: 1.05;
+      text-wrap: balance;
+    }
+  }
   /* Negative, for the same reason `.hero-media`'s top margin is: `.hero`'s row gap is one token
      shared by every child, so pulling just this row closer to the video means offsetting it here
      rather than shrinking a gap three other elements also read. */
@@ -476,14 +516,15 @@
      margin above it. The caption spans every column on its own row underneath. */
   .hero-media {
     /* Negative top margin eats most of `.hero`'s own gap token, which also spaces the actions row
-       below — pulling the video up under the title without dragging those closer too. The value
-       was briefly loosened to -3.82rem to hold the video where it sat while `.hero-title-caption`
-       still occupied the row above; that caption is now the vertical rail beside the video, so
-       holding its height open left 128px of dead air between the headline and the card. The pull
-       is deliberately past the old -5.75rem for the same reason: that figure was tuned around a
-       line of text that is no longer there. Mobile resets it: the credit moves below the card
-       there, so the gap is already doing a different job and the video does not need pulling. */
-    min-width: 0; width: 100%; max-width: 740px; margin: -9.625rem auto 0;
+       below — pulling the video up under the title without dragging those closer too.
+       -0.75rem, against `.hero`'s 44px gap, leaves a 32px gap under the headline.
+       This was -9.625rem while the title row still carried the spacers' 256px of dead height; that
+       pull existed only to claw back space nothing was using, and it still left 107px showing. With
+       the spacers zero-height the row is the headline and nothing else, so the honest small number
+       works and the two are tuned together — change the spacers' height and this moves.
+       Mobile keeps its own value below: the credit moves under the card there, so the gap is
+       already doing a different job. */
+    min-width: 0; width: 100%; max-width: 740px; margin: -0.75rem auto 0;
     display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto;
     column-gap: 0.65rem;
   }
@@ -522,24 +563,35 @@
      headline rather than a credit on the video. The stats caption is dropped outright on mobile
      rather than stacked a third time — it's desktop-only context, not essential here. */
   @media (max-width: 640px) {
-    /* Owner's ask: the video should sit right under the headline here too, the way it already
-       does on desktop (-3.82rem there closes the gap to ~0). Desktop's exact value doesn't carry
-       over — it was tuned against the two-column split this breakpoint drops — but leaving it at
-       0 left the video sitting on the far side of `.hero`'s own flex gap, a real 38px on a 396px
-       viewport, measured directly. -2rem closes it to a few px without touching. */
-    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto auto; margin-top: -2rem; }
+    /*
+     * The video sits close under the headline, but no longer on top of it.
+     *
+     * -2rem was tuned against a headline that was one 19.8px line here. It is two real lines now
+     * (~77px), and -2rem pulled the card up over the second one — "with HTML tags" was running
+     * behind the video's top edge. -1rem trims `.hero`'s own 38px flex gap to a ~22px breath, which
+     * is what a headline and the card under it want anyway; a tighter pull only reads as tight when
+     * there is a single line above it to be tight against.
+     */
+    .hero-media { grid-template-columns: 1fr; grid-template-rows: auto auto auto; margin-top: -1rem; }
     .hero-flip { grid-column: 1; grid-row: 1; }
+    /*
+     * Both rails centre here, rather than mirroring to opposite edges.
+     *
+     * The opposed alignment is the whole point of the desktop treatment — two vertical rails
+     * leaning in at the video from either side. Stacked into horizontal rows under the card it
+     * loses that reading entirely and just looks unaligned: one line jammed right, the next jammed
+     * left, under a centred video with centred buttons below. Centred, the mobile hero is one
+     * column all the way down.
+     */
     .hero-media-credit {
       grid-column: 1; grid-row: 2;
       writing-mode: horizontal-tb; transform: none;
-      justify-content: flex-end; margin: 0.7rem 0 0; font-size: 0.95rem;
+      justify-content: center; margin: 0.7rem 0 0; font-size: 0.95rem;
     }
-    /* Same horizontal-tb fallback as the credit above, on its own row so the two don't land in the
-       same cell — left-aligned as its mirror, since the credit is right-aligned. */
     .hero-media-eyebrow {
       grid-column: 1; grid-row: 3;
       writing-mode: horizontal-tb; transform: none;
-      justify-content: flex-start; margin: 0.35rem 0 0;
+      justify-content: center; margin: 0.35rem 0 0;
     }
     .hero-media-caption { display: none; }
   }
@@ -669,7 +721,7 @@
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   /* Reuses `.kicker`, same as `.hero-media-eyebrow` beside the video — the tagline is split
-     across both: "CSS Animation Library" runs down the video's right edge, and this line closes
+     across both: "Declarative Animation Library" runs down the video's right edge, and this line closes
      with the second half underneath. */
   .hero-media-caption { margin-top: 1rem; }
 
@@ -780,7 +832,31 @@
     --deck-slide: min(560px, 74vw);
     position: relative;
     margin-top: 2.5rem;
+    /*
+     * Three rows, not an overlay: video, then the arrows, then the dots.
+     *
+     * The arrows used to be absolutely positioned at the deck's vertical centre, on top of the
+     * peeking neighbours. That is the reference's placement, but here it hid them — a 44px circle
+     * sitting on a busy video thumbnail beside a play button of its own reads as part of the
+     * artwork, and first-time readers were not finding them at all. In flow, directly under the
+     * frame and directly above the dots, they are the only thing in their row and cannot be missed.
+     *
+     * The control row is `var(--deck-slide)` wide and centred, so the arrows land on the *active
+     * video's* own left and right edges rather than the shell's — the shell is 1120px against a
+     * 560px slide, and pinned to its edges the pair sits so far apart it stops reading as one
+     * control. Both arrows share the single `ctrl` area and split it with `justify-self`.
+     */
+    display: grid;
+    grid-template-columns: 1fr minmax(0, var(--deck-slide)) 1fr;
+    grid-template-areas:
+      'view view view'
+      '.    ctrl .'
+      'dots dots dots';
+    row-gap: 1.25rem;
   }
+  .deck-viewport { grid-area: view; }
+  .deck-prev { grid-area: ctrl; justify-self: start; }
+  .deck-next { grid-area: ctrl; justify-self: end; }
   /* `overflow: hidden` and not `clip`: the arrows sit outside this box and must stay clickable,
      so the clipping has to be on the viewport alone, never on the shell that contains them. */
   .deck-viewport { overflow: hidden; }
@@ -886,10 +962,9 @@
   }
   .deck-slide[data-kui-step-state='active'] figcaption { opacity: 1; }
 
-  /* The arrows sit over the peeking neighbours, which is where the reference puts them and where
-     the thumb already is. They are the affordance, so they carry the solid treatment. */
+  /* The arrows are their own row under the frame (see `.deck-shell`). They are the affordance, so
+     they carry the solid treatment. */
   .deck-arrow {
-    position: absolute; top: calc(50% - 22px); z-index: 2;
     width: 44px; height: 44px; border-radius: 999px;
     display: grid; place-items: center; cursor: pointer;
     background: var(--fg); color: var(--bg); border: none;
@@ -898,8 +973,6 @@
   .deck-arrow svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
   .deck-arrow:hover { scale: 1.09; }
   .deck-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .deck-prev { left: clamp(0.25rem, 4vw, 3rem); }
-  .deck-next { right: clamp(0.25rem, 4vw, 3rem); }
 
   /* 1rem, not 0.5rem: the gap sets how large each dot's hit box can be before it starts covering
      its neighbour. See `.deck-dot::before`. */
@@ -907,7 +980,9 @@
      `24 * (N - 1) + 26` at the 1rem gap — 242px at ten, but 482px at twenty, which overflows a
      360px phone in a row that does not wrap. Clamping the gap to 2vw buys back 6px per dot at the
      narrow end and leaves the comfortable desktop spacing untouched above ~800px. */
-  .deck-dots { margin-top: 1.75rem; display: flex; justify-content: center; gap: clamp(0.25rem, 2vw, 1rem); }
+  /* `grid-area` and no margin: the shell's `row-gap` owns the spacing now that the dots are the
+     third row of a grid rather than a block after an overlay. */
+  .deck-dots { grid-area: dots; display: flex; justify-content: center; align-items: center; gap: clamp(0.25rem, 2vw, 1rem); }
   /* The dots are the second group `target:` names, so they take `data-kui-step-state` from the
      same marker the slides do and cannot drift out of sync with them. The library's default
      paints everything up to the live step; a position indicator wants only the live one, so
@@ -950,22 +1025,10 @@
   .deck-contract { margin-top: 1rem; }
   .deck-more { margin-top: 2.5rem; display: flex; justify-content: center; }
 
-  /* A wider slide and the arrows dropped below it: at this width they would otherwise sit on top
-     of the video itself rather than on the neighbours, which no longer peek far enough to hold
-     them. `.reel-frame` already carries the aspect ratio, so nothing here has to restate it. */
-  /*
-   * On a phone the arrows come out of the overlay and join the dots as one real row.
-   *
-   * They were absolutely positioned at `bottom: -4.5rem`, which is *outside* `.deck-shell` — so
-   * they left the shell's box entirely and landed on top of the "Read the carousel docs" button
-   * below it, covering the label. Absolute positioning against a box you then place things after
-   * cannot be fixed by nudging the offset; the arrows have to be in flow, so the button is laid
-   * out after them instead of underneath them.
-   *
-   * Grid areas rather than source order: the markup is prev, viewport, next, dots — the reading
-   * order a keyboard and a screen reader want — and this puts them on screen as viewport first,
-   * then `← dots →`, without moving a single element in the DOM.
-   */
+  /* Only the slide width changes here now. The row structure — frame, arrows, dots — is the same
+     one the shell sets at every width, so a phone gets the identical control layout rather than a
+     second arrangement that has to be kept in sync with it. `.reel-frame` already carries the
+     aspect ratio, so nothing here has to restate it. */
   @media (max-width: 720px) {
     .deck-shell {
       /* `.wrap` pads 1.5rem a side here (3rem total) — 86vw alone clears that fine down to ~400px
@@ -973,18 +1036,7 @@
          the slide. `calc(100vw - 3.5rem)` is that same 3rem plus an 8px safety margin, so `min()`
          only swaps to it once 86vw would no longer fit; above ~400px it stays exactly 86vw. */
       --deck-slide: min(86vw, calc(100vw - 3.5rem));
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      grid-template-areas: 'view view view' 'prev dots next';
-      align-items: center;
-      row-gap: 1.25rem;
     }
-    .deck-viewport { grid-area: view; }
-    /* `static` undoes the desktop rule's `position: absolute`; without it the grid area is
-       assigned and then ignored. */
-    .deck-prev { grid-area: prev; position: static; left: auto; }
-    .deck-next { grid-area: next; position: static; right: auto; }
-    .deck-dots { grid-area: dots; margin-top: 0; }
   }
 
   /* The track and the slides both animate on transform/scale, which is exactly what a reader who
@@ -1653,7 +1705,7 @@
             <div class="hero-title-col">
               <h1 data-kui="split-chars 2000ms on:load">Premium Animations with HTML tags</h1>
             </div>
-            <span class="hero-title-spacer-end" aria-hidden="true">CSS Animation Library</span>
+            <span class="hero-title-spacer-end" aria-hidden="true">Declarative Animation Library</span>
           </div>
 
           <!-- One live demo, one real website, one slot. Both faces now mirror scroll.html's own
@@ -1715,7 +1767,7 @@
                  for the writing-mode mirroring. Used to sit under the headline as
                  `.hero-title-caption`; kept the same entrance timing since it's still the first
                  thing (besides the headline) meant to be read. -->
-            <p class="kicker hero-media-eyebrow" data-kui="fade-up 600ms 100ms">CSS Animation Library</p>
+            <p class="kicker hero-media-eyebrow" data-kui="fade-up 600ms 100ms">Declarative Animation Library</p>
             <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">Easy For Beginners. Made for Designers</p>
           </div>
 
@@ -2029,7 +2081,7 @@
                 <figcaption>Viktor Oddy — AI-built sites</figcaption>
               </div>
             </figure>
-            <figure class="reel-item" data-kui="rotate-in 900ms on:enter">
+            <figure class="reel-item" data-kui="rotate-in 900ms angle:90deg on:enter">
               <div class="reel-flip">
                 <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
                   <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
