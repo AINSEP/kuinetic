@@ -90,9 +90,10 @@ function zigzagRank(index: number, count: number): number {
  * Resolve the authored `angle:` to degrees, falling back to whatever `axis:` names.
  *
  * `angle:` is the general parameter and `axis:` the two-keyword shorthand that predates it, so an
- * authored angle wins and an absent one reads the axis. Both `45` and `45deg` are accepted, as are
+ * authored angle wins and an absent one reads the axis. `45`, `45d` and `45deg` are accepted, as are
  * `turn` and `rad`, because an author who writes an angle should not have to remember which of the
- * three this particular parameter takes.
+ * three this particular parameter takes. `core/params.ts` takes the same three spellings for every
+ * other `type: 'angle'` parameter.
  *
  * Normalised to `[0, 180)`: a band at 200° is the same set of bands as one at 20°, only numbered
  * from the other end, and collapsing that here means the geometry below never has to think about
@@ -107,7 +108,8 @@ export function slatAngleDegrees(authored: string, axis: SlatAxis): number {
 
   // The two number branches are mutually exclusive by their first character, so this cannot
   // backtrack — `\d*\.?\d+` can, and a hostile `angle:` value is author input like any other.
-  const match = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(deg|rad|grad|turn)?$/.exec(trimmed)
+  // `deg` precedes `d` in the unit group for the same reason: the common spelling matches first.
+  const match = /^(-?(?:\d+(?:\.\d+)?|\.\d+))(deg|d|rad|grad|turn)?$/.exec(trimmed)
   if (!match) return AXIS_DEGREES[axis]
 
   // Reachable: the pattern has no exponent, but four hundred digits still overflow to Infinity.

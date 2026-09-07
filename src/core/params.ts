@@ -72,6 +72,30 @@ const PATTERNS: Partial<Record<ParamSpec['type'], RegExp>> = {
   angle: new RegExp(`^${NUM}(?:deg|rad|turn|grad)$`, 'i'),
 }
 
+/**
+ * `angle` accepts a bare number and the `d` shorthand: `180`, `180d` and `180deg` are one value.
+ *
+ * Deliberately narrower than "coerce any unitless number", which {@link withImpliedUnit} still
+ * declines to do for `length`. An angle has one unit anybody reaches for — nobody writes a
+ * rotation in radians by accident — so `angle:180` has exactly one reading, and the unit is
+ * ceremony rather than information. A unitless `distance:24` is genuinely ambiguous between `px`
+ * and `%` and stays a rejection worth naming.
+ *
+ * `slatAngleDegrees` in `catalog/media-shared.ts` has accepted `45` beside `45deg` since it was
+ * written, for this reason; this brings the other fourteen `type: 'angle'` parameters in line
+ * with the one that already did it.
+ *
+ * The `d` group cannot swallow a real unit: `rad` and `grad` also end in `d`, but both are three
+ * characters and this is anchored, so only a lone `d` matches. `deg` is tried first so the common
+ * spelling never backtracks.
+ */
+const BARE_ANGLE = new RegExp(`^(${NUM})d?$`, 'i')
+
+function withAngleUnit(value: string): string {
+  const match = BARE_ANGLE.exec(value)
+  return match ? `${match[1]}deg` : value
+}
+
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i
 const COLOR_FUNCTIONS = /^(?:rgba?|hsla?|okl(?:ch|ab)|l(?:ch|ab)|color)\([^()]*\)$/i
 const COLOR_KEYWORD = /^[a-z]+$/i
@@ -115,7 +139,10 @@ export function validate(raw: string, spec: ParamSpec): ValidationResult {
   // escape screen above, and `resolveParams` drops it before anything reaches a stylesheet.
   if (spec.type === 'text') return { value, ok: true }
   if (spec.type === 'path') return checkPath(value, spec)
-  if (isAcceptable(value, spec.type)) return checkNumericConstraints(value, spec)
+  // Runs after `spec.values`, so `motion-path`'s `rotate:auto` is never mistaken for a number, and
+  // before the pattern, so what gets matched and stored is always the `deg` spelling CSS needs.
+  const typed = spec.type === 'angle' ? withAngleUnit(value) : value
+  if (isAcceptable(typed, spec.type)) return checkNumericConstraints(typed, spec)
   return reject(spec, `not a valid ${spec.type}`)
 }
 

@@ -11,6 +11,14 @@ const keyword: ParamSpec = {
   values: ['chars', 'words', 'lines'],
 }
 const text: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-src' }
+const angle: ParamSpec = { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' }
+/** `motion-path`'s `rotate:`, the one angle that also declares literals. */
+const angleWithLiterals: ParamSpec = {
+  type: 'angle',
+  values: ['auto', 'reverse'],
+  default: '0deg',
+  cssProperty: '--kui-motion-rotate',
+}
 const color: ParamSpec = { type: 'color', default: '#000', cssProperty: '--kui-color' }
 
 describe('validate', () => {
@@ -145,6 +153,49 @@ describe('validate', () => {
 
   it('rejects a var() reference whose name is not a legal custom property', () => {
     expect(validate('calc(var(notaproperty) * 2)', length).ok).toBe(false)
+  })
+
+  describe('angle values', () => {
+    it.each(['180deg', '-8deg', '0.5turn', '1.2rad', '100grad'])('accepts %s unchanged', (value) => {
+      expect(validate(value, angle)).toEqual({ value, ok: true })
+    })
+
+    it.each([
+      ['180', '180deg'],
+      ['180d', '180deg'],
+      ['-90', '-90deg'],
+      ['-90d', '-90deg'],
+      ['0', '0deg'],
+      ['.5', '.5deg'],
+      ['12.5d', '12.5deg'],
+    ])('normalises %s to %s', (raw, expected) => {
+      expect(validate(raw, angle)).toEqual({ value: expected, ok: true })
+    })
+
+    it('is case-insensitive about the shorthand', () => {
+      expect(validate('180D', angle)).toEqual({ value: '180deg', ok: true })
+    })
+
+    // `rad` and `grad` end in `d` too. Anchored and three characters, so the shorthand
+    // cannot eat them and turn a radian into a degree.
+    it.each([
+      ['1rad', '1rad'],
+      ['100grad', '100grad'],
+    ])('leaves %s alone rather than reading its trailing d', (value, expected) => {
+      expect(validate(value, angle)).toEqual({ value: expected, ok: true })
+    })
+
+    it.each(['deg', '180degrees', '180 deg', '180dd', 'red'])('still rejects %s', (value) => {
+      expect(validate(value, angle).ok).toBe(false)
+    })
+
+    it.each(['auto', 'reverse'])('leaves the declared literal %s untouched', (value) => {
+      expect(validate(value, angleWithLiterals)).toEqual({ value, ok: true })
+    })
+
+    it('still normalises a number on a parameter that declares literals', () => {
+      expect(validate('45', angleWithLiterals)).toEqual({ value: '45deg', ok: true })
+    })
   })
 
   describe('color values', () => {

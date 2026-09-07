@@ -152,9 +152,12 @@ const BARE_NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)$/
 /**
  * Give a bare number the unit its property implies — `x:100` is `100px`, `rotate:45` is `45deg`.
  *
- * `core/params.ts` requires a unit on every `length` and `angle`, and should keep doing so: a
- * unitless `distance:24` on `fade-up` is a mistake worth naming, because the parameter has one
- * meaning and the author simply left the unit off. A tween property is different. `x:100` is the
+ * `core/params.ts` requires a unit on every `length`, and should keep doing so: a unitless
+ * `distance:24` on `fade-up` is a mistake worth naming, because the parameter is ambiguous between
+ * `px` and `%` and the author simply left the unit off. `angle` is not in that position and
+ * `params.ts` now coerces it there too, which makes this function's angle branch a no-op for
+ * anything that reaches validation — it is kept because it runs first and keeps the tween's own
+ * `rotate:45` identical to its `x:100`. A tween property is different for `length`. `x:100` is the
  * syntax this feature was specified around, it is what every other animation library accepts, and
  * "100 what" has exactly one sensible answer per property. So the coercion lives here, scoped to
  * the tween's own keys, rather than loosening validation for the other 255 effects.
