@@ -278,6 +278,28 @@
      those read as continuous prose; with real paragraph blocks that same zero would run them all
      together into one wall. */
   .doc-body p { margin: 0 0 1rem; }
+  /*
+   * Blockquotes are catalog.md's whole editorial voice — the "this effect does not do what its
+   * name suggests" note attached to an entry — so they are styled as an aside that is visibly
+   * *not* the body text around it, rather than as a quotation. A tinted panel with an accent edge
+   * does that at a glance while scanning a long list; an indent alone does not, and reads as an
+   * accident next to the code blocks these sit beside.
+   * `--accent` carries the edge but not the fill: the brand yellow at full strength behind body
+   * copy is unreadable, so the fill is a few percent of it over the page surface.
+   */
+  .doc-body blockquote {
+    margin: 1.25rem 0;
+    padding: 0.9rem 1.1rem;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  }
+  /* The last paragraph's bottom margin would otherwise print as dead space inside the panel. */
+  .doc-body blockquote > :last-child { margin-bottom: 0; }
+  .doc-body blockquote > :first-child { margin-top: 0; }
+  /* Nested code keeps its own box but drops the outer border, which reads as a frame inside a
+     frame against the tinted fill. */
+  .doc-body blockquote pre { background: var(--bg); }
   .doc-body strong { color: var(--fg); font-weight: 590; }
   .doc-body ul, .doc-body ol { padding-left: 1.4rem; margin: 0.75rem 0; }
   .doc-body li { margin: 0.35rem 0; }
