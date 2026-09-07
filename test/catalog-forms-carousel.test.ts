@@ -327,6 +327,30 @@ describe('carousel controls', () => {
     instance.destroy()
   })
 
+  it('warns about a selector that matched nothing and still delegates it', () => {
+    document.body.innerHTML = '<div id="deck"><div class="track"><i class="slide"></i><i class="slide"></i></div></div>'
+    const el = document.getElementById('deck')!
+    const warnings: string[] = []
+    const ctx = { ...fakeCtx(el), warn: (m: string) => warnings.push(m) } as PrepareContext
+    const instance = STEP_PROGRESS_PRIMITIVE.prepare!(
+      el,
+      createParams({ target: '.slide', next: '.next' }),
+      ctx,
+    )
+    instance.activate()
+
+    // Both halves matter, and they used to be in tension: the warning is the only signal a mistyped
+    // selector gives, so silencing it to make late controls work would trade one defect for
+    // another. The count decides whether to warn; the group is registered either way.
+    expect(warnings.join(' ')).toContain('next ".next" matched nothing')
+    const next = document.createElement('button')
+    next.className = 'next'
+    el.append(next)
+    press(next)
+    expect(el.getAttribute('data-kui-step')).toBe('1')
+    instance.destroy()
+  })
+
   it('registers `carousel` as a second name for the same primitive', () => {
     // The alias is the whole point of the name — if it ever resolved to a different primitive the
     // controls above would silently not apply to it.
@@ -475,5 +499,58 @@ describe('carousel: the whole pipeline', () => {
 
     press(document.querySelectorAll('.slide')[1]!)
     expect(document.querySelector('.deck')!.getAttribute('data-kui-step')).toBe('0')
+  })
+
+  it('binds an arrow that did not exist at setup, not only a dot', () => {
+    // The dots test above passed while this failed, because `bindControl` warned and returned
+    // *without* registering the group whenever the selector matched nothing at setup. A deck whose
+    // arrows are rendered by the page after the attribute is parsed therefore had no delegation to
+    // fall into: the selector was never known to the one listener, so no later press could match.
+    running = startAnimator(`
+      <div class="deck" data-kui="carousel target:.slide next:.next">
+        <div class="track"><i class="slide"></i><i class="slide"></i><i class="slide"></i></div>
+      </div>`)
+    const deck = document.querySelector('.deck')!
+    const next = document.createElement('button')
+    next.className = 'next'
+    deck.append(next)
+
+    press(next)
+    expect(deck.getAttribute('data-kui-step')).toBe('1')
+  })
+
+  it('resolves a `:scope`-relative control against the host, the same root setup used', () => {
+    // `queryScoped` roots `:scope` at the deck; `closest` rooted it at the pressed node, so this
+    // selector asked for a child of the button and could never match. The control resolved fine at
+    // setup and was simply dead — the shape of failure a match set shared by both paths removes.
+    running = startAnimator(`
+      <div class="deck" data-kui='carousel target:.slide next:":scope > .next"'>
+        <div class="track"><i class="slide"></i><i class="slide"></i><i class="slide"></i></div>
+        <button class="next"></button>
+      </div>`)
+    const deck = document.querySelector('.deck')!
+
+    press(deck.querySelector('.next')!)
+    expect(deck.getAttribute('data-kui-step')).toBe('1')
+  })
+
+  it('ignores a matching control *outside* the deck under scope:self', () => {
+    // What the old `el.contains` guard was for, now carried by the query root itself: the walk up
+    // from the pressed node runs past the host, so a wrapper that happens to match `next:` would
+    // otherwise make every press inside the deck an arrow press. Under `'self'` that wrapper is
+    // not in the match set, so it cannot be walked into.
+    running = startAnimator(`
+      <div class="next">
+        <div class="deck" data-kui="carousel target:.slide next:.next">
+          <div class="track"><i class="slide"></i><i class="slide"></i></div>
+          <button class="next"></button>
+        </div>
+      </div>`)
+    const deck = document.querySelector('.deck')!
+
+    press(deck.querySelectorAll('.slide')[1]!)
+    expect(deck.getAttribute('data-kui-step')).toBe('0')
+    press(deck.querySelector('button.next')!)
+    expect(deck.getAttribute('data-kui-step')).toBe('1')
   })
 })

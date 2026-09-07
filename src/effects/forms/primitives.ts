@@ -325,7 +325,8 @@ interface ControlGroup {
  * section header above the deck — and a listener on the host would never see those clicks.
  *
  * @returns The teardown for the one listener.
- * @complexity O(g) per click in named control groups, each a `closest` walk; O(1) space.
+ * @complexity O(g × (m + d)) per click — one scoped query and one ancestor walk per named group,
+ *   in that group's matches `m` and the pressed node's depth `d`; O(m) space for the largest group.
  * @overallScore 100
  */
 function delegateControls(request: {
@@ -338,28 +339,42 @@ function delegateControls(request: {
   if (groups.length === 0) return () => {}
   const root: Element | Document = scope === 'page' ? ctx.doc : el
   const onClick = (event: Event): void => {
-    /*
-     * `closest` from the pressed node, not an equality test against the match set: a control is
-     * usually a `<button>` with a label or an icon inside it, and the press lands on that child.
-     * Per-node listeners got this for free by sitting on the button itself; a delegated one has to
-     * ask. It is also what keeps a click that merely *bubbles through* an unrelated descendant
-     * from counting — there is no match on the way up, so nothing runs.
-     */
     const from = event.target as Element | null
     // Not `instanceof Element`: the document a primitive is handed need not be this realm's, and a
-    // cross-realm `instanceof` is false for a perfectly good element.
+    // cross-realm `instanceof` is false for a perfectly good element. Every Element carries
+    // `closest`, so duck-typing it is the realm-agnostic way to ask whether this target is one.
     if (typeof from?.closest !== 'function') return
     for (const { selector, run } of groups) {
-      const node = from.closest(selector)
-      // `closest` walks *past* the host as well as inside it, so under `scope:self` a match on an
-      // ancestor of the deck has to be dropped: the listener stops at the host, the search does
-      // not.
-      if (!node || (scope === 'self' && !el.contains(node))) continue
       // Looked up on the press, never captured. Captured, it goes stale the moment the deck
       // changes: with three slides doubling as their own jump controls, select the third, remove
       // the second, and the third still believes it is index 2 — which now wraps to 0, so two
       // controls select the same slide and one is unreachable.
-      run(node, queryScoped(el, ctx, selector, scope).indexOf(node))
+      const matches = queryScoped(el, ctx, selector, scope)
+      /*
+       * Walked up from the pressed node against that set, rather than compared against it: a
+       * control is usually a `<button>` with a label or an icon inside it, and the press lands on
+       * that child. Per-node listeners got this for free by sitting on the button itself; a
+       * delegated one has to ask. The walk is equally what keeps a click that merely *bubbles
+       * through* an unrelated descendant from counting — nothing on the way up is in the set, so
+       * nothing runs.
+       *
+       * `from.closest(selector)` was the obvious way to do that walk and is the wrong root:
+       * `closest` evaluates `:scope` against the node it is called on, so `next:":scope > .next"`
+       * asked for a child of the pressed button and matched nothing, ever — while setup had
+       * already rooted the same `:scope` at the host. Matching against what `queryScoped` returns
+       * puts the press and the setup on one root, whatever the selector says.
+       *
+       * It is also what enforces the `scope:self` containment `closest` needed a separate guard
+       * for: `closest` searched *past* the host as well as inside it, so a deck wrapped in an
+       * element that happened to match `next:` advanced on any press inside it. Under `'self'`
+       * `queryScoped` only ever returns descendants of the host, so there is nothing above the
+       * host in the set to walk into.
+       */
+      const matched = new Set(matches)
+      let node: Element | null = from
+      while (node && !matched.has(node)) node = node.parentElement
+      if (!node) continue
+      run(node, matches.indexOf(node))
     }
   }
   root.addEventListener('click', onClick)
@@ -459,14 +474,16 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
    *
    * The match is still counted here even though `delegateControls` never uses it, because that
    * warning is the whole reason to look: a selector matching nothing at setup is worth saying so
-   * about once, while a group that fills in later is exactly what delegation exists to serve.
+   * about once, while a group that fills in later is exactly what delegation exists to serve. So
+   * the count decides only whether to *warn*; the group is registered either way. Returning early
+   * on an empty set was the bug — it left the selector undelegated, so an arrow or a dot rendered
+   * after setup was inert for the life of the page, which is the one case delegation was added for.
    */
   const bindControl = (param: string, run: ControlGroup['run']): boolean => {
     const selector = resolveTarget(params.text(param), ctx, `step-progress ${param}`)
     if (!selector) return false
     if (queryScoped(el, ctx, selector, scope).length === 0) {
       ctx.warn(`step-progress ${param} "${selector}" matched nothing`)
-      return true
     }
     groups.push({ selector, run })
     return true
@@ -479,9 +496,9 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
     bindControl('prev', () => goTo(prevStep(step, total()))),
     // A jump control's index is its own position among the controls, in document order — the dots
     // are written in the same order as the slides they select, so nothing has to be numbered by
-    // hand and adding a slide cannot desynchronise the pair. A position of -1 means the control
-    // has since left the document, and `clampStep` turns that into the last slide rather than
-    // something out of range.
+    // hand and adding a slide cannot desynchronise the pair. The `>= 0` is a floor on the contract
+    // rather than a live case: `delegateControls` numbers a control against the same match set it
+    // found it in, so a press cannot report a position that set does not have.
     bindControl('jump', (_node, position) => { if (position >= 0) goTo(position) }),
   ].some(Boolean)
 
