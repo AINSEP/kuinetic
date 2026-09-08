@@ -45,6 +45,18 @@ export interface GestureOptions {
   swipeVelocity?: number
   /** Hold duration in ms before `onLongPress`. Zero disables it. */
   longPressMs?: number
+  /**
+   * Whether to take pointer capture on `pointerdown`. Default `true`, which is right for every
+   * gesture that *moves* the element (see `onDown`), and wrong for every gesture that does not.
+   *
+   * Capture redirects the whole pointer sequence to this element, and the browser then targets the
+   * resulting `click` at the capturing element rather than the node actually under the cursor. On a
+   * container with interactive children that silently kills all of them: a `swipe-x` on a carousel
+   * shell swallowed every click on its own dots and buttons, because the click was delivered to the
+   * shell. `swipeable` recognises and publishes an attribute — it never moves anything — so it has
+   * nothing to stay under the cursor for and opts out.
+   */
+  capturePointer?: boolean
 }
 
 export interface GestureDeps {
@@ -127,6 +139,7 @@ export function recognise(
   const threshold = options.threshold ?? 4
   const axis = options.axis ?? 'both'
   const swipeVelocity = options.swipeVelocity ?? 300
+  const capturePointer = options.capturePointer ?? true
   const longPressMs = options.longPressMs ?? 0
 
   let samples: Sample[] = []
@@ -159,7 +172,12 @@ export function recognise(
     // Without this, resistance (elastic-pull) or inertia/axis-locking (throwable, drag-x) can
     // move the element out from under the real cursor; native hit-testing would then deliver the
     // eventual pointerup to whatever is now underneath instead of this element.
-    el.setPointerCapture?.(event.pointerId)
+    //
+    // Conditional, because the same capture that keeps a moving element under the cursor also
+    // retargets the `click` that follows: with capture held, the browser fires it at this element
+    // instead of the child actually pressed. A gesture that moves nothing gains nothing from it and
+    // pays for it with every button inside. See `capturePointer`.
+    if (capturePointer) el.setPointerCapture?.(event.pointerId)
     if (longPressMs > 0) {
       longPressTimer = deps.setTimer(() => {
         longPressFired = true
@@ -186,7 +204,21 @@ export function recognise(
 
   function onUp(event: PointerEvent): void {
     clearLongPress()
-    el.releasePointerCapture?.(event.pointerId)
+    // Guarded by the same flag as the `setPointerCapture` above, and the asymmetry was a real
+    // defect rather than an untidy pair. `releasePointerCapture` throws `NotFoundError` when the
+    // id is not an active pointer, and `?.` only guards the method's *existence*, not the throw —
+    // so an unconditional release put a throwing statement ahead of the swipe computation, where
+    // an exception aborts `onUp` before `onEnd`/`swipeDirection` ever run. A capture that was
+    // never taken has nothing to release, so under `capturePointer: false` this line was pure
+    // downside.
+    //
+    // How it surfaced, because the cost was not theoretical: a real finger never trips it (an
+    // in-flight pointer is always active, and releasing one this element never captured is a
+    // no-op per spec), but a *synthesised* pointer id is not an active pointer, so every scripted
+    // drag threw here and reported the swipe as dead. Three separate attempts to verify
+    // `swipe-x` concluded the recogniser was broken when it was this line. Cleanup must not be
+    // able to abort the payload.
+    if (capturePointer) el.releasePointerCapture?.(event.pointerId)
     if (!origin) return
     const sample = sampleOf(event)
     samples.push(sample)
