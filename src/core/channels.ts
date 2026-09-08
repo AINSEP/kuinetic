@@ -1,6 +1,6 @@
 import { gatesOverlap } from './breakpoints.js'
 import type { EffectGate } from './breakpoints.js'
-import type { Channel, EffectPhase } from './types.js'
+import type { Channel, DeliveryMechanism, EffectPhase } from './types.js'
 
 /**
  * Composition safety.
@@ -45,6 +45,18 @@ export interface ChannelClaim {
    * {@link CHANNEL_COMPOSITION}.
    */
   additive?: boolean
+  /**
+   * How this segment's motion reaches the element, when that is something composition has to act on
+   * — see `types.ts`'s {@link DeliveryMechanism}. Read only by {@link deliveryClobbers}, never by
+   * {@link findConflicts}: it describes a fight over a *property* rather than over a channel.
+   */
+  delivery?: DeliveryMechanism
+  /**
+   * Whether this segment writes `animation-name` to `element.style`. Asked of the caller for the
+   * same reason {@link additive} is — it is a fact about the renderer, which is `compile.ts`'s
+   * knowledge, not this module's.
+   */
+  inlineAnimation?: boolean
 }
 
 export interface Conflict {
@@ -67,24 +79,35 @@ export interface Conflict {
  * paragraph again and every load-bearing step is about *how* the state half reaches the element:
  * "the cascade beneath it", "the `:hover` rule `lift` ships". The exemption is sound when the state
  * half is a **transition or a normal declaration**, and unsound the moment it is a keyframe
- * animation, which sits beside the entrance rather than beneath it. Two shapes broke on this and
- * both shipped silently:
+ * animation, which sits beside the entrance rather than beneath it. Two shapes broke on this, both
+ * shipped silently, and the two are fixed in different places because they are different failures:
  *
- * - A `state` preset that compiles its own keyframe track. `blur-in, duotone-hover` emitted
+ * - **A `state` preset that compiles its own keyframe track.** `blur-in, duotone-hover` emitted
  *   `animation-name: kui-blur-in, kui-duotone-hover` with `fill-mode: both, both` and no warning;
  *   `kui-duotone-hover` is two-ended, so it is no underlying value for `kui-blur-in`'s open
  *   endpoint — it is later in the list, wins `filter`, and clamps it. The entrance was deleted.
- * - A `state` preset whose motion is a stylesheet `animation:` on the host. A composed entrance
+ *   That one is a *channel* collision that the exemption was wrongly waving through, so the fix is
+ *   to stop claiming the exemption: `catalog/media.ts`'s three `media-filter` hovers and
+ *   `catalog/interaction.ts`'s `HOVER_PRESETS` no longer declare `phase: 'state'`, and phase is
+ *   derived from `transitions` alone — sound by construction, since a transition emits no track.
+ * - **A `state` preset whose motion is a stylesheet `animation:` on the host.** A composed entrance
  *   writes `animation-name` *inline*, which outranks any author rule, so `fade-up, icon-bounce`
- *   compiled clean and the hover could never run at all.
+ *   compiled clean and the hover could never run at all. Dropping the phase does **not** fix this
+ *   one and never could, because it is not a channel collision: `fade-up` writes
+ *   `opacity`/`translate` and `icon-spin` writes `rotate`, so the pair is disjoint, this set is
+ *   never consulted, and it composed anyway with the hover dead — 548 pairs of it, measured.
  *
- * The stopgap both cases got is to stop declaring `phase: 'state'` where the state half is a
- * keyframe — see `catalog/media.ts`'s three `media-filter` hovers and `catalog/interaction.ts`'s
- * `HOVER_PRESETS`, which now derives phase from `transitions` alone. The real fix is to model
- * delivery mechanism (host transition, compiler-owned inline animation, stylesheet-owned host
- * animation, child, pseudo-element) as its own axis beside `phase`, and to gate this exemption on
- * *that* rather than on timing. Until then this set is exempting a condition it cannot check, and
- * every new `phase: 'state'` preset has to be checked by hand against the paragraph above.
+ * The second failure is what `Preset.delivery` and `compile.ts`'s `deliveryClobbers` exist for, and
+ * they sit deliberately *outside* this set: what they refuse is a property the two effects fight
+ * over regardless of channels, gates or phases, so it is not an exemption this table could grant or
+ * withhold. `types.ts`'s {@link DeliveryMechanism} carries the five-mechanism picture.
+ *
+ * What is left here, then, is the timing rule *given* that delivery has already been checked — and
+ * the honest reading of it is that the state half must reach the element through the cascade rather
+ * than through a track of its own. A preset that declares `phase: 'state'` while compiling
+ * keyframes is still exempting a condition this table cannot see. The two names that did are gone;
+ * a third would need `test/composition-phase.test.ts`'s stylesheet-reading suite to catch it, which
+ * is why that suite reads the shipped CSS rather than the effect records.
  * Found by three of four auditors in the 2026-09-08 catalog review.
  *
  * Every other pair is a genuine clash and stays one:
@@ -216,6 +239,47 @@ export function findConflicts(claims: ChannelClaim[]): Conflict[] {
     }
   }
   return conflicts
+}
+
+/**
+ * Clashes over *how* each segment's motion is delivered, which {@link findConflicts} cannot see.
+ *
+ * That function asks which property groups two segments write, and for two compiled animation
+ * tracks it is the right question. It is the wrong one here. A preset whose motion is
+ * `[data-kui-fx~='icon-spin']:hover { animation: … }` in `src/css/interaction.css` loses the
+ * `animation` property to *any* composed neighbour that writes `animation-name` inline, because an
+ * inline declaration outranks an author rule outright. It does not matter that `icon-spin` writes
+ * `rotate` and `fade-up` writes `opacity`/`translate` — the two never shared a channel, the
+ * detector correctly reported nothing, and `fade-up, icon-spin` composed clean with the hover
+ * silently dead. 548 such pairs, measured, and pre-existing rather than introduced by the phase
+ * axis: see `types.ts`'s {@link DeliveryMechanism} and the 2026-09-08 catalog review.
+ *
+ * There is no rescue and deliberately none offered. A gate does not help, unlike in
+ * {@link findConflicts}: `gatedAnimationName` compiles an out-of-band track to
+ * `animation-name: var(--kui-above-md, kui-in-up)` and `base.css` declares that property `none`
+ * outside the gate — `none` is still an inline value, still outranks the stylesheet rule, and
+ * leaves the hover just as dead below the breakpoint as above it. Neither does
+ * {@link additiveResolution}: `animation-composition` blends two tracks that both run, and the
+ * whole failure here is a rule that never becomes active.
+ *
+ * @returns One sentence per clobbered claim, in the shape {@link describeConflicts} produces, or an
+ *   empty array when nothing in the list writes an inline animation.
+ * @complexity O(n) time in the claim count; O(n) space.
+ * @overallScore 100
+ */
+export function deliveryClobbers(claims: ChannelClaim[]): string[] {
+  const stylesheet = claims.filter((claim) => claim.delivery === 'stylesheet-animation')
+  if (stylesheet.length === 0) return []
+  // Excluding the stylesheet-delivered claims themselves is belt-and-braces rather than a live case
+  // — a preset cannot deliver its motion from a `:hover` rule *and* compile a keyframe track — but
+  // it is what keeps a future name that somehow did both from clobbering itself.
+  const inline = claims.find((claim) => claim.inlineAnimation && !claim.delivery)
+  if (!inline) return []
+  return stylesheet.map(
+    (claim) =>
+      `"${inline.name}" writes an inline animation, which outranks the stylesheet rule ` +
+      `"${claim.name}" delivers its motion from`,
+  )
 }
 
 export function describeConflicts(conflicts: Conflict[]): string {

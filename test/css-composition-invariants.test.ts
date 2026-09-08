@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  extractHostAnimationBindings,
   extractKeyframes,
   extractPseudoElementProperties,
   extractTransitionedProperties,
@@ -183,6 +184,47 @@ describe('transition channel (compile-time merge)', () => {
   // channels were widened to cover what they actually transition.
   it("every declared transition property falls inside that preset's own channels", () => {
     expect(transitionsOutsideChannels(registry)).toEqual([])
+  })
+})
+
+/**
+ * Delivery mechanism — the stylesheet is the source of truth, `Preset.delivery` is the copy.
+ *
+ * A preset whose motion is `[data-kui-fx~='icon-spin']:hover { animation: … }` loses the
+ * `animation` property to any composed neighbour that writes `animation-name` inline, whatever
+ * channels either side claims — inline style outranks an author rule outright. `compile.ts`'s
+ * `deliveryClobbers` refuses those pairs, but only for names that declare
+ * `delivery: 'stylesheet-animation'`, and that declaration is a hand-written set of four in
+ * `catalog/interaction.ts` because nothing in the effect record distinguishes them: `transitions`
+ * does not (`shine-sweep`, `beam-border`, `underline-slide` and `underline-center` have none
+ * either, and are safe on a pseudo-element), and neither does the channel list, the renderer, or
+ * the parameter set.
+ *
+ * So the audit comes from the stylesheets, exactly the way `css-invariants.test.ts` polices
+ * `requiresOwnSubtree`. `extractHostAnimationBindings` already asks the precise question — which fx
+ * names run a keyframe block from a rule on their *own* box, base selector plus pseudo-classes,
+ * excluding `::before`/`::after` and descendants — because inline style reaches that box and no
+ * other. Asserted as set equality rather than "every derived name is declared", so both drifts
+ * fail: a fifth hover keyframe added without the declaration (which would ship a silently dead
+ * effect), and a declaration left behind on a name whose CSS moved to a pseudo-element (which would
+ * refuse pairs that are fine).
+ */
+describe('delivery mechanism (stylesheet-owned host animation)', () => {
+  const byName = (a: string, b: string) => a.localeCompare(b)
+  const derived = [
+    ...extractHostAnimationBindings(scannedCss, extractKeyframes(scannedCss)).keys(),
+  ].sort(byName)
+  const declared = registry
+    .names()
+    .filter((name) => registry.resolve(name)?.preset.delivery === 'stylesheet-animation')
+    .sort(byName)
+
+  it('finds host-level animation rules in the stylesheets, so this suite cannot pass vacuously', () => {
+    expect(derived.length).toBeGreaterThan(0)
+  })
+
+  it('declares delivery for exactly the names the stylesheets animate on their own box', () => {
+    expect(declared).toEqual(derived)
   })
 })
 

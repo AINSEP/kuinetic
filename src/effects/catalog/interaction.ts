@@ -20,7 +20,7 @@ import {
   withTimingContract,
 } from '../shared.js'
 import type { TimingContract, TimingToken } from '../shared.js'
-import { BEAM_PARAMS, BORDER_DRAW_PARAMS, COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, SHINE_PARAMS, supportsFineHover, tiltAngles } from './interaction-shared.js'
+import { BEAM_PARAMS, BORDER_DRAW_PARAMS, COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, SHINE_PARAMS, STYLESHEET_ANIMATED_HOVERS, supportsFineHover, tiltAngles } from './interaction-shared.js'
 import { STATE_PRESETS, STATE_PRIMITIVES } from './interaction-states.js'
 import { REVEAL_PRESETS, REVEAL_PRIMITIVES } from './interaction-reveal.js'
 
@@ -236,11 +236,23 @@ export const HOVER_PRIMITIVES: Primitive[] = [
  * `INDEPENDENT_PHASES`.
  *
  * Found by three of four auditors in the 2026-09-08 catalog review.
+ *
+ * ## The axis now exists, and dropping the phase did not close the hole
+ *
+ * Removing `phase` above only stopped these four *pretending to be exempt* from channel analysis.
+ * It could never have fixed them, because the clobber is not a channel clash: `fade-up` writes
+ * `opacity`/`translate` and `icon-spin` writes `rotate`, so `findConflicts` saw nothing, the pair
+ * composed, and the hover stayed dead — 548 pairs of it, measured. What an inline `animation-name`
+ * outranks is the *property*, not the channel, so the refusal has to be stated in terms of how the
+ * motion is delivered. `types.ts`'s `DeliveryMechanism` is that statement, `Preset.delivery` is
+ * where a name makes it, and `interaction-shared.ts`'s {@link STYLESHEET_ANIMATED_HOVERS} is which
+ * four names do.
  */
 export const HOVER_PRESETS: Preset[] = HOVER_PRIMITIVES.map((primitive) => ({
   name: primitive.id,
   primitive: primitive.id,
   ...(HOVER_TRANSITIONS[primitive.id] ? { transitions: HOVER_TRANSITIONS[primitive.id] } : {}),
+  ...(STYLESHEET_ANIMATED_HOVERS.includes(primitive.id) ? { delivery: 'stylesheet-animation' } : {}),
 }))
 
 // --- continuous variant: same beam-border visual, always running instead of hover-gated ---

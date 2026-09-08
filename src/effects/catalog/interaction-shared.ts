@@ -110,6 +110,26 @@ export const HOVER_TRANSITIONS: Partial<Record<string, TransitionSegment[]>> = {
   'border-glow': [{ property: 'box-shadow' }],
 }
 
+/**
+ * The hover names whose motion is a host-level `animation:` in `interaction.css` rather than a
+ * transition or a pseudo-element rule — `Preset.delivery`'s one declared value, applied by
+ * `HOVER_PRESETS`.
+ *
+ * Beside {@link HOVER_TRANSITIONS} because it is the same shape of fact about the same family: a
+ * per-name detail of how that name's CSS is written, which `HOVER_PRIMITIVES` cannot carry because
+ * one primitive backs names on both sides of it.
+ *
+ * Written out rather than derived, because there is nothing in the effect record to derive it from:
+ * `HOVER_TRANSITIONS` does not separate them (`shine-sweep`, `beam-border`, `underline-slide` and
+ * `underline-center` are absent from it too, and are safe — they animate a pseudo-element that
+ * inline style cannot reach), and neither does the channel list, the renderer, or the parameter
+ * set. The fact lives in the stylesheet, so the stylesheet is what audits it:
+ * `test/css-composition-invariants.test.ts` derives the true set from `src/css/*.css` with
+ * `extractHostAnimationBindings` and fails in both directions, which is what stops this drifting the
+ * first time a fifth hover keyframe is added.
+ */
+export const STYLESHEET_ANIMATED_HOVERS = ['icon-bounce', 'icon-spin', 'icon-wiggle', 'split-flap']
+
 /*
  * `color:` for the border and underline families. Here rather than in `interaction.ts` for the
  * same reason `HOVER_TRANSITIONS` is — that file sits exactly on its 400-line lint ceiling — not

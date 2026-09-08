@@ -92,9 +92,13 @@ const DECLARATIONS: Record<EffectPhase, string[]> = {
  *
  * The other four are safe in fact — `shine-sweep`/`beam-border` animate a pseudo-element that inline
  * style cannot reach, `underline-slide`/`underline-center` use a `transition` on `::after` — and are
- * unphased anyway, because nothing a preset declares distinguishes them from the four above, and a
- * hand-kept exception list beside a derivation is the thing that drifts. Measured cost of taking all
- * eight: 16 composing pairs out of 34,282.
+ * unphased anyway. Measured cost of taking all eight: 16 composing pairs out of 34,282.
+ *
+ * Those four *could* now be told apart: `Preset.delivery` names the broken four explicitly, and
+ * `css-composition-invariants.test.ts` derives that set from the stylesheets so it cannot drift.
+ * Restoring `phase: 'state'` to the safe four is therefore no longer a hand-kept exception list —
+ * but it is a separate change with its own 16-pair blast radius, and it is not this one. Left as
+ * found, deliberately, so that the delivery fix and the phase restoration can be measured apart.
  */
 const KEYFRAME_DELIVERED_STATES = [
   'beam-border', 'icon-bounce', 'icon-spin', 'icon-wiggle', 'shine-sweep', 'split-flap',
@@ -302,6 +306,60 @@ describe('a clash the phase rule does not cover is still refused, loudly', () =>
       expect(fx, attribute).toHaveLength(1)
     })
   }
+})
+
+/**
+ * The delivery axis, which is not a channel rule and cannot be spelled as one.
+ *
+ * Every case in `REFUSES` above is a channel the two halves both write. These are the opposite:
+ * `fade-up` writes `opacity`/`translate` and `icon-spin` writes `rotate`, so `findConflicts`
+ * correctly reports nothing, and for 548 pairs the compiler let them through with the hover
+ * silently dead. What collides is the `animation` *property* on the host box —
+ * `[data-kui-fx~='icon-spin']:hover { animation: … }` is an author rule, `fade-up` writes
+ * `animation-name` inline, and inline wins outright.
+ *
+ * `Preset.delivery` is the declaration that makes that visible to `compile.ts`, and
+ * `css-composition-invariants.test.ts` is what keeps the declaration honest against the shipped
+ * stylesheets. This suite asserts the consequence: the refusal happens, it names both sides, and it
+ * does not reach the three neighbouring cases that are genuinely fine.
+ */
+describe('a stylesheet-delivered state cannot share the host with an inline animation', () => {
+  const CLOBBERS = [
+    { attribute: 'fade-up, icon-spin', dropped: 'icon-spin' },
+    { attribute: 'icon-spin, fade-up', dropped: 'fade-up' },
+    { attribute: 'fade-up, split-flap', dropped: 'split-flap' },
+    { attribute: 'fade-up, icon-wiggle', dropped: 'icon-wiggle' },
+    { attribute: 'tween x:100px, icon-spin', dropped: 'icon-spin' },
+  ]
+
+  for (const { attribute, dropped } of CLOBBERS) {
+    it(`refuses "${attribute}" and says why`, () => {
+      const { fx, refused } = plan(attribute)
+      expect(fx, attribute).toHaveLength(1)
+      expect(refused, attribute).toHaveLength(1)
+      expect(refused[0], attribute).toContain('writes an inline animation')
+      expect(refused[0], attribute).toContain('delivers its motion from')
+      expect(refused[0], attribute).toContain(`Dropped "${dropped}"`)
+    })
+  }
+
+  it('refuses a gated entrance too, because a gate does not stop the property being written', () => {
+    // `gatedAnimationName` compiles the track to `animation-name: var(--kui-above-md, kui-in-up)`
+    // and `base.css` declares that property `none` below the breakpoint. `none` is still an inline
+    // value and still outranks the author rule, so the hover is just as dead at every width — the
+    // one place a gate exemption would read plausibly and be false.
+    expect(plan('fade-up above:md, icon-spin').refused).toHaveLength(1)
+  })
+
+  it('leaves the three neighbouring cases composing', () => {
+    // No inline animation in the list at all: `icon-spin` beside a transition-delivered hover, and
+    // beside a pseudo-element painter. Both are JavaScript-rendered, so neither writes a track.
+    expect(plan('icon-spin, lift').fx).toEqual(['icon-spin', 'lift'])
+    expect(plan('icon-spin, shine-sweep').fx).toEqual(['icon-spin', 'shine-sweep'])
+    // A `target:` split puts the two on different elements, where one cannot reach the other's
+    // inline style — the same reason `findConflicts` runs per group rather than per attribute.
+    expect(plan('fade-up target:h1, icon-spin').refused).toEqual([])
+  })
 })
 
 describe('the additive rescue', () => {

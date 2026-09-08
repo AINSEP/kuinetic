@@ -693,6 +693,39 @@ export interface TransitionSegment {
  */
 export type EffectPhase = 'entrance' | 'exit' | 'idle' | 'state'
 
+/**
+ * *How* a preset's motion reaches the element — the axis {@link EffectPhase} was mistaken for.
+ *
+ * `phase` answers **when** an effect holds a channel, and the `entrance|state` composition
+ * exemption was built on it. Three of four auditors in the 2026-09-08 catalog review arrived
+ * independently at the same correction: when is not the question that decides whether two effects
+ * can coexist. *How each one's motion is delivered* is, because delivery decides which of them the
+ * cascade lets win. Five mechanisms exist in this catalog:
+ *
+ * - **host transition / normal declaration** — sits in the cascade beneath a composed entrance, so
+ *   a from-only keyframe resolves its missing endpoint against it. This is the one the exemption
+ *   was actually reasoning about, and it is safe.
+ * - **compiler-owned inline animation** — `compile.ts` writes `animation-name` and its longhands to
+ *   `element.style`. Two of these on one channel replace each other by list order, which is what
+ *   `channels.ts` already models.
+ * - **stylesheet-owned host animation** — the motion is `[data-kui-fx~='name']:hover { animation: … }`
+ *   in `src/css/*.css`, on the host box. **This is the one that needs declaring**, because an inline
+ *   `animation-name` written by *any* composed neighbour outranks that author-rule shorthand
+ *   outright, whatever channels either side claims. `fade-up, icon-spin` compiled with zero
+ *   warnings and `icon-spin` could never run.
+ * - **pseudo-element** — `::before`/`::after`. Inline style on the host cannot reach it, which is
+ *   why `shine-sweep` and `beam-border` are unaffected and why `pseudo-before`/`sweep` model that
+ *   box as a channel instead.
+ * - **JS-driven** — the primitive writes inline style itself at runtime.
+ *
+ * Only the third has a name here, deliberately, and it is the same argument
+ * `channels.ts`'s `CHANNEL_COMPOSITION` makes for being an allowlist with one member: a value the
+ * compiler does not act on is documentation wearing a type's clothes. The other four are either
+ * already modelled (inline animation is `renderer: 'css-keyframes'`; a pseudo-element box is a
+ * channel) or need no rule at all, so naming them here would invite a declaration nothing reads.
+ */
+export type DeliveryMechanism = 'stylesheet-animation'
+
 export interface Preset {
   name: string
   primitive: string
@@ -749,6 +782,24 @@ export interface Preset {
    * open at the end, which is a fact about the stylesheet rather than about this record.
    */
   phase?: EffectPhase
+  /**
+   * How this name's motion reaches the element, when that is something the compiler has to act on —
+   * see {@link DeliveryMechanism} for the full five-mechanism picture and why only one of them is
+   * spelled here.
+   *
+   * Declared per *preset*, the same granularity as {@link cloak} and {@link phase}, because the
+   * stylesheet rule it describes is keyed on the preset name (`[data-kui-fx~='icon-spin']:hover`)
+   * and one primitive backs names on both sides of it — `HOVER_PRIMITIVES` holds `icon-spin`
+   * beside `lift`, whose motion is a transition.
+   *
+   * Absent means "nothing the composition resolver needs to know", which is every preset but four.
+   * That is a hand-written set of names and it is not allowed to stay one on trust:
+   * `test/css-composition-invariants.test.ts` derives the true set from `src/css/*.css` with
+   * `extractHostAnimationBindings` and asserts it *both* ways, so a fifth hover keyframe added to a
+   * stylesheet without this declaration fails a test instead of shipping a silently dead effect —
+   * the same shape `css-invariants.test.ts` already uses to police {@link requiresOwnSubtree}.
+   */
+  delivery?: DeliveryMechanism
   /**
    * This preset's CSS reaches past the `data-kui-fx`-stamped element — to a child, a sibling, or a
    * descendant it assumes exists — rather than animating the fx element itself. `target:` may not

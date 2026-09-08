@@ -2,11 +2,19 @@ import type { EffectGate } from './breakpoints.js'
 import {
   additiveChannels,
   additiveResolution,
+  deliveryClobbers,
   describeConflicts,
   findConflicts,
 } from './channels.js'
 import { declarationsFor, emptyTracks, pushTrack, pushTransitions } from './declarations.js'
 import type { AnimationTracks } from './declarations.js'
+import {
+  intersect,
+  mergeHostFacts,
+  resolveDefaultActivation,
+  resolvedPolicy,
+  strictestPolicy,
+} from './host-facts.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest } from './registry.js'
@@ -27,9 +35,6 @@ import type {
   ReducedMotionPolicy,
   Timeline,
 } from './types.js'
-
-/** `disable` is the strongest claim: if any effect must not run, none of the list should. */
-const RM_RANK: Record<ReducedMotionPolicy, number> = { shorten: 0, crossfade: 1, disable: 2 }
 
 export interface Entry {
   spec: EffectSpec
@@ -306,6 +311,11 @@ export function compileTargets(
   const steps = resolveSequence(sanitized.map(memberFor), timeline, (m) => warnings.push(m))
   const sequenced = sanitized.map((entry, index) => ({ ...entry, step: steps[index]! }))
 
+  // Every entry that survived composition, in host-group-first order, kept so the element's one
+  // activation can be decided from all of them at once — see {@link resolveDefaultActivation}. It
+  // has to be the *composed* lists rather than `sequenced`: an effect the resolver dropped is not
+  // going to run, so letting it name the trigger would bind the element for a corpse.
+  const composedEntries: Entry[] = []
   const targets = partitionByTarget(sequenced).map(({ selector, scope, entries: group }) => {
     // A sink of its own per group, never the document's. `buildPlan` stores the array it is handed
     // *by reference* as `plan.warnings`, so passing `warnings` here would make every plan and the
@@ -313,9 +323,18 @@ export function compileTargets(
     // and printed every warning 1 + (group count) times off a single authored attribute.
     const groupWarnings: string[] = []
     const composed = resolveComposition(group, registry, groupWarnings)
+    composedEntries.push(...composed)
     return { selector, scope, plan: buildPlan(composed, timeline, unknown, groupWarnings) }
   })
-  mergeHostFacts(targets)
+  // Flattened to the two facts the decision needs, rather than handing over the entries: `phaseOf`
+  // is this module's derivation and `host-facts.ts` has no business calling it — the same
+  // structural-input argument `channels.ts` makes for `ChannelClaim`, and what keeps that module's
+  // import of `CompiledPlan` type-only.
+  const activationClaims = composedEntries.map((entry) => ({
+    phase: phaseOf(entry),
+    defaultActivation: entry.resolved.primitive.defaultActivation,
+  }))
+  mergeHostFacts(targets, resolveDefaultActivation(activationClaims))
   // `rm:` is hoisted off the whole attribute and `mergeHostFacts` has already folded one policy
   // across every group, so this resolves once, against the document, and is written back to all of
   // them. Resolving it per group instead re-raised the identical "may only strengthen" warning once
@@ -372,87 +391,6 @@ function partitionByTarget(
     order.unshift(host!)
   }
   return order
-}
-
-/**
- * Fold the four element-scoped `CompiledPlan` facts across every target group and write the merged
- * answer back onto all of them.
- *
- * `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/`channels` are
- * facts about the *element* — there is exactly one activation binding, one reduced-motion policy,
- * one gate — even when its effects are split across several `target:` groups. `fade-up target:h1`
- * and `pin target:.x` on one host cannot each ask for a different gate; the gate is decided once,
- * from every group's facts merged, and every group's plan carries the same merged answer so
- * whichever one `animator.ts` happens to read it from agrees with the others.
- *
- * Mutates the plans in place rather than returning a new list: `buildPlan` already built each one,
- * and threading a copy through here for four field writes would cost more than it clarifies.
- *
- * @complexity O(g * c) time in groups and their channel counts; O(c) space.
- * @overallScore 100
- */
-function mergeHostFacts(targets: { plan: CompiledPlan }[]): void {
-  let reducedMotion: ReducedMotionPolicy = 'shorten'
-  let activations: NamedActivation[] | undefined
-  let timelines: Timeline[] | undefined
-  let defaultActivation: Activation | undefined
-  const channels = new Set<Channel>()
-
-  for (const { plan } of targets) {
-    reducedMotion = strictestPolicy(reducedMotion, plan.reducedMotion)
-    activations = intersect(activations, plan.supportedActivations)
-    timelines = intersect(timelines, plan.supportedTimelines)
-    defaultActivation ??= plan.defaultActivation
-    for (const channel of plan.channels) channels.add(channel)
-  }
-
-  const mergedChannels = [...channels]
-  for (const { plan } of targets) {
-    plan.reducedMotion = reducedMotion
-    plan.supportedActivations = activations ?? []
-    plan.supportedTimelines = timelines ?? []
-    plan.defaultActivation = defaultActivation
-    plan.channels = mergedChannels
-  }
-}
-
-/**
- * Fold an authored `rm:` into the policy the composed primitives declared.
- *
- * `rm:` is the one thing an author can say about reduced motion, and it is deliberately a
- * *one-way ratchet*: it can only make the policy stricter, never weaker.
- *
- * The rule is not invented for this key — it is `strictestPolicy`'s, applied one more time. That
- * function already encodes "if any effect must not run, none of the list should", and an author
- * key that could overrule it would make the whole fold advisory: `parallax` declares `disable`
- * because parallax is a documented vestibular trigger, not because the library is being cautious
- * on the author's behalf, and `rm:shorten` on it would hand a visitor who has explicitly asked
- * their operating system for less motion exactly the motion they asked not to receive. The useful
- * direction is the other one and it stays open: `rm:disable` on a spinning logo whose primitive
- * only claims `shorten` is a real request the library previously had no spelling for.
- *
- * A weakening attempt warns by name rather than being ignored, because the author wrote a value
- * and is otherwise owed an explanation for why the page does not behave as they asked.
- *
- * @param declared - Strictest policy among the composed primitives.
- * @param authored - The hoisted `rm:` value, already validated by `parse.ts`.
- * @complexity O(1) time and space.
- * @overallScore 100
- */
-function resolvedPolicy(
-  declared: ReducedMotionPolicy,
-  authored: ReducedMotionPolicy | undefined,
-  warnings: string[],
-): ReducedMotionPolicy {
-  if (authored === undefined) return declared
-  if (RM_RANK[authored] < RM_RANK[declared]) {
-    warnings.push(
-      `"rm:${authored}" is weaker than the "${declared}" these effects declare — ` +
-        `keeping "${declared}" (rm: may only strengthen the reduced-motion policy)`,
-    )
-    return declared
-  }
-  return authored
 }
 
 function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {
@@ -752,6 +690,14 @@ function additivelyComposable(entry: Entry): boolean {
  * A clash that survives all three gets one last chance at `channels.ts`'s `additiveResolution`
  * before the list is cut down to its first effect.
  *
+ * A fourth question runs beside those three and is not asked of the detector at all, because it is
+ * not about channels: {@link deliveryClobbers} asks whether one effect's motion can physically
+ * survive being composed with another's, whatever either of them writes. It has no rescue — an
+ * inline declaration outranking an author rule is a cascade fact, not a blend the browser can be
+ * asked to perform — so a clobber refuses the list outright and `additiveResolution` is skipped
+ * rather than consulted. Marking a track additive answers "these two both write `translate`"; it
+ * has nothing to say about a rule that never becomes active.
+ *
  * @returns The entries to compile — the original list, the same list marked additive, a single
  *   combo, or a single effect.
  * @complexity O(e * c) time in effects and their channels; O(c) space.
@@ -766,12 +712,20 @@ function resolveComposition(entries: Entry[], registry: Registry, warnings: stri
     gate: e.spec.gate,
     phase: phaseOf(e),
     additive: additivelyComposable(e),
+    delivery: e.resolved.preset.delivery,
+    // "Writes `animation-name` inline" needs no declaration of its own: `buildPlan` sends exactly
+    // the `css-keyframes` entries to `pushTrack`, and `declarations.ts` emits the longhands from
+    // the tracks. Only the losing side of a delivery clobber has to say what it is.
+    inlineAnimation: e.resolved.primitive.renderer === 'css-keyframes',
   }))
   const conflicts = findConflicts(claims)
-  if (conflicts.length === 0) return entries
+  const clobbers = deliveryClobbers(claims)
+  if (conflicts.length === 0 && clobbers.length === 0) return entries
 
-  const additive = additiveResolution(claims, conflicts)
-  if (additive) return entries.map((e, i) => (additive.has(i) ? { ...e, composite: 'add' } : e))
+  if (clobbers.length === 0) {
+    const additive = additiveResolution(claims, conflicts)
+    if (additive) return entries.map((e, i) => (additive.has(i) ? { ...e, composite: 'add' } : e))
+  }
 
   const combo = registry.findCombo(entries.map((e) => e.spec.name))
   const remedy = combo
@@ -795,7 +749,11 @@ function resolveComposition(entries: Entry[], registry: Registry, warnings: stri
   const kept = entries[0]!.spec.name
   const dropped = entries.slice(1).map((entry) => `"${entry.spec.name}"`)
   const loss = `Dropped ${dropped.join(', ')} — only "${kept}" will run.`
-  warnings.push(`cannot compose: ${describeConflicts(conflicts)}. ${loss} ${remedy}`)
+  // Both diagnoses in one sentence when a list manages both, rather than two warnings for one
+  // refusal: the list is cut down once, so an author owed two reasons is owed them together.
+  // `describeConflicts` already joins its own with `; `, so this is the same separator one level up.
+  const diagnosis = [...(conflicts.length > 0 ? [describeConflicts(conflicts)] : []), ...clobbers]
+  warnings.push(`cannot compose: ${diagnosis.join('; ')}. ${loss} ${remedy}`)
   return [entries[0]!]
 }
 
@@ -835,7 +793,10 @@ function buildPlan(
     const step = entry.step!
     plan.fxNames.push(preset.name)
     plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
-    plan.defaultActivation ??= primitive.defaultActivation
+    // `defaultActivation` is deliberately absent from this loop. It is the one element-scoped fact
+    // that cannot be folded per group and then merged — see `resolveDefaultActivation`, which
+    // decides it once over every group's composed entries, and `mergeHostFacts`, which writes the
+    // answer onto every plan including this one.
     activations = intersect(activations, primitive.supportedActivations)
     timelines = intersect(timelines, primitive.supportedTimelines)
     for (const channel of channelsFor(entry)) channels.add(channel)
@@ -938,29 +899,6 @@ function cascadeValue(
 function positioned(entry: Entry, step: SequenceStep): Entry {
   if (!step.sequenced) return entry
   return { ...entry, sequencedDelayMs: step.delayMs }
-}
-
-/**
- * Narrow a running capability intersection by one more primitive's support list.
- *
- * `undefined` means no primitive has contributed yet; `[]` means the composed primitives share
- * nothing. Collapsing those two states into "is the array empty?" — which is what the previous
- * `length ? filter : copy` form did — made an intersection that had legitimately emptied out
- * repopulate from the next effect: `fade-up, parallax-scale, scroll-progress-ring timeline:view`
- * emptied on the second effect and came back as `['scroll', 'view']` on the third, so
- * `style-plan.ts` applied `view()` to `fade-up`, the exact mismatch `supportedTimelines` was
- * added to prevent. Emptiness is a real answer here and must survive the rest of the list.
- *
- * @complexity O(a * b) time in the two list lengths — both are single-digit; O(a) space.
- * @overallScore 100
- */
-function intersect<T>(accumulated: T[] | undefined, supported: T[]): T[] {
-  if (!accumulated) return [...supported]
-  return accumulated.filter((value) => supported.includes(value))
-}
-
-function strictestPolicy(a: ReducedMotionPolicy, b: ReducedMotionPolicy): ReducedMotionPolicy {
-  return RM_RANK[b] > RM_RANK[a] ? b : a
 }
 
 function warnUnsupportedTimeline(
