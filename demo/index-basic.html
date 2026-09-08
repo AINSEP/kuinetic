@@ -782,7 +782,11 @@
   .slice-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
   .slice-num-note { margin-top: 0.35rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .slice-aurora { position: absolute; inset: 0; }
-  .slice-snap { display: flex; gap: 0.5rem; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; align-items: center; padding: 0 0.75rem; }
+  /* `display: flex` and `overflow-x` are the library's now — `scroll-snap-x target:img` writes
+     both (see `installSnapContainer` in `src/effects/scroll-mechanics/primitives.ts`), because
+     `scroll-snap-type` is inert without them. What's left here is the page's own: sizing and
+     rhythm. Same split as `.snap-x-row` on scroll.html. */
+  .slice-snap { gap: 0.5rem; width: 100%; height: 100%; scrollbar-width: none; align-items: center; padding: 0 0.75rem; }
   .slice-snap::-webkit-scrollbar { display: none; }
   .slice-snap img { flex: none; width: 82%; height: 76%; border-radius: 8px; object-fit: cover; scroll-snap-stop: always; }
   .slice-stack { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 100%; }
@@ -1324,7 +1328,7 @@
           <a class="slice" href="./scroll.html" data-kui="fade-up 500ms on:enter">
             <span class="slice-media">
               <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
-              <span class="slice-snap" data-kui="scroll-snap-x">
+              <span class="slice-snap" data-kui="scroll-snap-x target:img">
                 <!-- Not the three film pages: those now carry the view-timeline group lower down,
                      and no page should show the same picture twice. -->
                 <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards" loading="lazy" />
