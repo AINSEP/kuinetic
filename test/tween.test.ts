@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import type { Registry } from '../src/core/registry.js'
-import { TWEEN_GROUP_CHANNELS, TWEEN_GROUP_ORDER } from '../src/effects/tween/properties.js'
+import { TWEEN_GROUP_CHANNELS, TWEEN_GROUP_ORDER, TWEEN_PROPERTIES, withImpliedUnit } from '../src/effects/tween/properties.js'
 import { MAX_WAYPOINTS } from '../src/effects/tween/waypoints.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
 import { catalogRegistry } from './support/registry.js'
@@ -91,6 +91,66 @@ describe('tween — which keyframes get compiled', () => {
 })
 
 describe('tween — values reaching CSS', () => {
+  it.each([
+    ['x:+100', 'x', '100px'], ['x:1e3', 'x', '1000px'], ['rotate:-2e1', 'rotate', '-20deg'],
+    ['scale:50%', 'scale', '0.5'], ['opacity:1e-3', 'opacity', '0.001'],
+    ['brightness:125%', 'brightness', '1.25'], ['x:1e-30', 'x', `0.${'0'.repeat(29)}1px`],
+  ])('normalizes CSS number notation in %s without changing its meaning', (source, key, value) => {
+    const compiled = run(`tween ${source}`)
+    expect(compiled.vars[`--kui-tween-${key}`]).toBe(value)
+    expect(compiled.warnings).toEqual([])
+  })
+
+  it('bounds exponent expansion and never adds units to other parameter types', () => {
+    expect(run('tween x:1e999999999').vars['--kui-tween-x']).toBeUndefined()
+    expect(withImpliedUnit('123', 'color')).toBe('123')
+    expect(withImpliedUnit('inherit', 'length')).toBe('inherit')
+    expect(withImpliedUnit('-0', 'length')).toBe('-0px')
+  })
+
+  it('adds the missing filter functions to the existing single filter track', () => {
+    const compiled = run('tween contrast:150% hue-rotate:180 invert:25% sepia:1')
+    expect(compiled.vars).toMatchObject({
+      '--kui-tween-contrast': '1.5', '--kui-tween-hue-rotate': '180deg',
+      '--kui-tween-invert': '0.25', '--kui-tween-sepia': '1',
+    })
+    expect(compiled.declarations['animation-name']).toBe('kui-tween-to-filter')
+    expect(compiled.channels).toEqual(['filter'])
+    expect(compiled.warnings).toEqual([])
+  })
+
+  it('keeps core timing parameters out of the property vocabulary', () => {
+    for (const key of ['duration', 'delay', 'ease', 'stagger']) {
+      expect(Object.hasOwn(TWEEN_PROPERTIES, key)).toBe(false)
+    }
+    expect(run('tween x:100 duration:800ms ease:linear').vars).toMatchObject({
+      '--kui-tween-duration': '800ms', '--kui-tween-ease': 'linear',
+    })
+  })
+  it('reports prototype keys even when they pass through the variant parameter record', () => {
+    const parsed = parse('tween x:100')
+    parsed.specs[0]!.params = JSON.parse('{"x":"100","__proto__":"bad","constructor":"bad"}')
+    const warnings = compile(parsed, registry, 'time').warnings.join()
+    expect(warnings).toContain('unknown parameter "__proto__"')
+    expect(warnings).toContain('unknown parameter "constructor"')
+  })
+
+  it.each(['inherit', 'initial', 'unset', 'revert', 'revert-layer', 'INHERIT'])(
+    'rejects CSS-wide %s rather than interpreting it on a custom property', (keyword) => {
+      const compiled = run(`tween color:${keyword}`)
+      expect(compiled.vars['--kui-tween-color']).toBeUndefined()
+      expect(compiled.warnings.join()).toContain('CSS-wide keyword')
+    },
+  )
+
+  it.each(['z:50%', 'blur:20%', 'blur:-2px', 'brightness:-1', 'saturate:-1', 'grayscale:-1'])(
+    'rejects %s before it invalidates its entire CSS group', (value) => {
+      const key = value.split(':')[0]!
+      const compiled = run(`tween ${value}`)
+      expect(compiled.vars[`--kui-tween-${key}`]).toBeUndefined()
+      expect(compiled.warnings.length).toBeGreaterThan(0)
+    },
+  )
   it('writes each named property to its own custom property', () => {
     expect(run('tween x:100px opacity:0.5').vars).toMatchObject({
       '--kui-tween-x': '100px',
@@ -191,7 +251,7 @@ describe('tween — attributes that animate nothing or deadlock', () => {
     // Trap #2: an IntersectionObserver measures geometry, so a zero-area start state never
     // intersects, never activates, and never leaves the state that made it invisible.
     for (const source of ['tween-from scale:0', 'tween-from scale-x:0', 'tween-from scale-y:0']) {
-      expect(run(source).warnings.join(' '), source).toContain('no box at all')
+      expect(run(source).warnings.join(' '), source).toContain('no box area')
     }
   })
 
@@ -277,6 +337,31 @@ const waypointBlocks = TWEEN_GROUP_ORDER.flatMap((group) =>
 const expectedBlocks = [...halfBlocks, ...waypointBlocks]
 
 describe('tween.css', () => {
+  it.each(waypointBlocks.filter((name) => name.endsWith('-scale')))(
+    '%s gives a scalar axis precedence over a uniform waypoint', (name) => {
+      const body = readBalancedBlock(TWEEN_CSS, TWEEN_CSS.indexOf('{', TWEEN_CSS.indexOf(name)) + 1)
+      expect(body).toContain('var(--kui-tween-scale-x-1, var(--kui-tween-scale-x, var(--kui-tween-scale-1,')
+      expect(body).toContain('var(--kui-tween-scale-y-1, var(--kui-tween-scale-y, var(--kui-tween-scale-1,')
+    },
+  )
+
+  it.each(expectedBlocks)('%s reads every property in its vocabulary group', (name) => {
+    const group = TWEEN_GROUP_ORDER.find((candidate) => name.endsWith(`-${candidate}`))!
+    const body = readBalancedBlock(TWEEN_CSS, TWEEN_CSS.indexOf('{', TWEEN_CSS.indexOf(name)) + 1)
+    for (const [key, entry] of Object.entries(TWEEN_PROPERTIES)) {
+      if (entry.group === group) expect(body).toContain(`var(--kui-tween-${key},`)
+    }
+  })
+
+  it.each(expectedBlocks)('%s applies its group easing to every outgoing segment', (name) => {
+    const group = TWEEN_GROUP_ORDER.find((candidate) => name.endsWith(`-${candidate}`))!
+    const body = readBalancedBlock(TWEEN_CSS, TWEEN_CSS.indexOf('{', TWEEN_CSS.indexOf(name)) + 1)
+    for (const block of body.split('}')) {
+      const [selector, step] = block.trim().split('{')
+      if (step === undefined || ['to', '100%'].includes(selector!.trim())) continue
+      expect(step).toContain(`animation-timing-function: var(--kui-tween-${group}-ease, var(--kui-tween-${group}-default-ease, ease-out))`)
+    }
+  })
   it('has blocks to guard, so this suite cannot pass vacuously', () => {
     expect(blocks.size).toBe(expectedBlocks.length)
   })
@@ -292,7 +377,7 @@ describe('tween.css', () => {
   it.each(expectedBlocks)('%s writes only properties on its own channel', (name) => {
     const group = TWEEN_GROUP_ORDER.find((candidate) => name.endsWith(`-${candidate}`))!
     const allowed = CHANNEL_PROPERTIES[TWEEN_GROUP_CHANNELS[group]] ?? []
-    expect([...blocks.get(name)!].filter((property) => !allowed.includes(property))).toEqual([])
+    expect([...blocks.get(name)!].filter((property) => property !== 'animation-timing-function' && !allowed.includes(property))).toEqual([])
   })
 
   it.each(halfBlocks)('%s declares exactly one endpoint, so the other stays implicit', (name) => {
@@ -303,7 +388,8 @@ describe('tween.css', () => {
     const wanted = name.includes('-to-') ? 'to' : 'from'
     const unwanted = wanted === 'to' ? 'from' : 'to'
     expect(new RegExp(`\\b${wanted}\\s*\\{`).test(body), `${name} declares ${wanted}`).toBe(true)
-    expect(new RegExp(`\\b${unwanted}\\s*\\{|\\b(?:0|100)%\\s*\\{`).test(body)).toBe(false)
+    const other = new RegExp(`\\b${unwanted}\\s*\\{([^}]*)\\}`).exec(body)?.[1] ?? ''
+    expect(other.replace(/animation-timing-function:[^;]+;/g, '').trim()).toBe('')
   })
 
   it.each(waypointBlocks)('%s declares exactly its own count of evenly spaced steps', (name) => {

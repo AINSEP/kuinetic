@@ -1,6 +1,5 @@
-import { splitTopLevel } from '../../core/parse.js'
 import type { ParamSpec, ParameterSchema } from '../../core/types.js'
-import { TWEEN_PROPERTIES, withImpliedUnit } from './properties.js'
+import { TWEEN_PROPERTIES, tweenValue, withImpliedUnit } from './properties.js'
 import type { TweenGroup } from './properties.js'
 
 /**
@@ -34,8 +33,8 @@ import type { TweenGroup } from './properties.js'
  *
  * A budget rather than a limit of the technique: every count needs its own `@keyframes` block per
  * property group, because the step percentages are literal, so the shipped stylesheet grows with
- * this number. Five states is already more choreography than an HTML attribute reads well with, and
- * the sixth is always expressible as a second composed effect.
+ * this number. Five states keeps this static vocabulary bounded. Longer choreography needs another keyframe
+ * definition; two effects on the same property cannot bypass this budget by composing.
  */
 export const MAX_WAYPOINTS = 5
 
@@ -57,10 +56,10 @@ export interface GroupWaypoints {
 /**
  * Read one authored value as a waypoint list, or as the single value it is.
  *
- * `splitTopLevel` rather than `String.split(',')`, so a list of colours survives:
- * `color:'rgb(1,2,3),rgb(4,5,6)'` is two values, not six. It is the same paren- and quote-aware
- * tokenizer `data-kui` itself is split with, which is what makes the two agree about what a comma
- * separates.
+ * Commas inside functions and strings are data. Unlike the core tokenizer, this scanner must
+ * retain empty items: dropping the middle of `0,,100` changes both the count and the rhythm,
+ * while dropping every item of `,,` used to make the first-value lookup throw. Empty values now
+ * reach ordinary parameter validation at their authored index and use the CSS fallback.
  *
  * @returns The values in order. One entry means the author wrote a plain value, and every caller
  *   treats that as the two-point tween it has always been.
@@ -68,8 +67,32 @@ export interface GroupWaypoints {
  * @overallScore 100
  */
 export function readWaypoints(raw: string): string[] {
-  if (!raw.includes(',')) return [raw]
-  return splitTopLevel(raw, ',')
+  const values: string[] = []
+  let start = 0
+  let depth = 0
+  let i = 0
+  while (i < raw.length) {
+    const char = raw[i]!
+    if (char === '"' || char === "'") i = quotedEnd(raw, i)
+    else if (char === '(') depth++
+    else if (char === ')') depth = Math.max(0, depth - 1)
+    else if (char === ',' && depth === 0) {
+      values.push(raw.slice(start, i).trim())
+      start = i + 1
+    }
+    i++
+  }
+  values.push(raw.slice(start).trim())
+  return values
+}
+
+/** Escaped quotes cannot end a string and expose its commas as waypoint separators. */
+function quotedEnd(raw: string, start: number): number {
+  for (let i = start + 1; i < raw.length; i++) {
+    if (raw[i] === '\\') i++
+    else if (raw[i] === raw[start]) return i
+  }
+  return raw.length
 }
 
 /**
@@ -142,7 +165,8 @@ export function collectWaypoints(
   const byGroup = new Map<TweenGroup, GroupWaypoints>()
   for (const [key, raw] of authored) {
     if (raw.length < MIN_WAYPOINTS) continue
-    const property = TWEEN_PROPERTIES[key]!
+    const property = Object.hasOwn(TWEEN_PROPERTIES, key) ? TWEEN_PROPERTIES[key] : undefined
+    if (!property) continue
     const values = clampCount(key, raw, warn).map((value) =>
       withImpliedUnit(value.trim(), property.spec.type),
     )
@@ -180,13 +204,18 @@ export function expandWaypoints(
   waypoints: GroupWaypoints,
   params: Record<string, string>,
   schema: ParameterSchema,
+  warn: (message: string) => void,
 ): void {
   for (const [key, values] of waypoints.keys) {
+    if (!Object.hasOwn(TWEEN_PROPERTIES, key)) continue
     const spec = TWEEN_PROPERTIES[key]!.spec
     for (const [index, value] of values.entries()) {
       const step = index + 1
-      params[`${key}[${String(step)}]`] = value
-      schema[`${key}[${String(step)}]`] = waypointSpec(spec, key, step)
+      const label = `${key}[${String(step)}]`
+      const accepted = tweenValue(key, value, warn, label)
+      if (accepted === undefined) continue
+      params[label] = accepted
+      schema[label] = waypointSpec(spec, key, step)
     }
   }
 }
@@ -199,7 +228,7 @@ export function expandWaypoints(
  * @overallScore 100
  */
 function waypointSpec(spec: ParamSpec, key: string, step: number): ParamSpec {
-  return { type: spec.type, default: spec.default, cssProperty: `--kui-tween-${key}-${String(step)}` }
+  return { ...spec, cssProperty: `--kui-tween-${key}-${String(step)}` }
 }
 
 /**

@@ -1,4 +1,5 @@
 import { CHANNEL } from '../../core/types.js'
+import { validate } from '../../core/params.js'
 import type { Channel, ParamSpec, ParameterSchema } from '../../core/types.js'
 
 /**
@@ -80,7 +81,8 @@ interface TweenProperty {
  * to something visibly wrong.
  */
 function property(group: TweenGroup, key: string, type: ParamSpec['type'], identity: string): [string, TweenProperty] {
-  return [key, { group, spec: { type, default: identity, cssProperty: `--kui-tween-${key}` } }]
+  const constraints = type === 'number' ? { finite: true, ...(group === 'filter' ? { minimum: 0 } : {}) } : {}
+  return [key, { group, spec: { type, default: identity, cssProperty: `--kui-tween-${key}`, ...constraints } }]
 }
 
 /**
@@ -118,12 +120,15 @@ export const TWEEN_PROPERTIES: Readonly<Record<string, TweenProperty>> = Object.
 
   property('opacity', 'opacity', 'number', '1'),
 
-  // One `filter` property, four functions. Each identity is that function's no-op, so naming one
-  // never disturbs the other three.
+  // One filter list, with an identity for each function so unnamed functions do no work.
   property('filter', 'blur', 'length', '0px'),
   property('filter', 'brightness', 'number', '1'),
   property('filter', 'saturate', 'number', '1'),
   property('filter', 'grayscale', 'number', '0'),
+  property('filter', 'contrast', 'number', '1'),
+  property('filter', 'hue-rotate', 'angle', '0deg'),
+  property('filter', 'invert', 'number', '0'),
+  property('filter', 'sepia', 'number', '0'),
 
   // `currentcolor` on the `color` property resolves to the inherited colour, which is exactly the
   // "leave it alone" the other identities express.
@@ -143,11 +148,43 @@ export const TWEEN_PROPERTIES: Readonly<Record<string, TweenProperty>> = Object.
  * form that message could take.
  */
 export const TWEEN_SCHEMA: ParameterSchema = Object.fromEntries(
-  Object.entries(TWEEN_PROPERTIES).map(([key, entry]) => [key, entry.spec]),
+  [
+    ...Object.entries(TWEEN_PROPERTIES).map(([key, entry]) => [key, entry.spec]),
+    ...TWEEN_GROUP_ORDER.map((group) => [`${group}-ease`, {
+      type: 'easing', default: 'ease-out', cssProperty: `--kui-tween-${group}-ease`,
+    }]),
+  ],
 )
 
-/** Bare number, the spelling `x:100` uses. Anchored, no unit, optional sign and decimals. */
-const BARE_NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)$/
+/** CSS numbers permit a leading plus and an exponent, unlike the core's decimal-only grammar. */
+const BARE_NUMBER = /^([+-]?)(\d+(?:\.\d+)?|\.\d+)(?:e([+-]?\d+))?$/i
+
+/**
+ * Expand decimal notation lexically, without rounding a tiny scale to zero or a large integer to
+ * its nearest JS float. The cap matches the core value budget and bounds the allocation even for
+ * `1e999999999`. An unrepresentable result leaves the original input for ordinary validation to reject.
+ */
+function decimalNumber(raw: string, shift = 0): string | undefined {
+  const match = BARE_NUMBER.exec(raw)
+  if (!match || raw.length > 200) return undefined
+  const [, sign, coefficient, exponent] = match
+  const digits = coefficient!.replace('.', '')
+  const dot = coefficient!.indexOf('.')
+  const position = (dot < 0 ? digits.length : dot) + Number(exponent ?? 0) + shift
+  if (Math.abs(position) + digits.length > 190) return undefined
+  const padded = '0'.repeat(Math.max(0, -position)) + digits + '0'.repeat(Math.max(0, position - digits.length))
+  const split = Math.max(0, position)
+  const integer = padded.slice(0, split).replace(/^0+/, '') || '0'
+  const fraction = fractionalPart(padded, split)
+  return `${sign === '-' ? '-' : ''}${integer}${fraction}`
+}
+
+/** Keep tiny nonzero values intact, trimming only insignificant trailing fractional zeros. */
+function fractionalPart(digits: string, start: number): string {
+  let end = digits.length
+  while (end > start && digits[end - 1] === '0') end--
+  return end > start ? '.' + digits.slice(start, end) : ''
+}
 
 /**
  * Give a bare number the unit its property implies — `x:100` is `100px`, `rotate:45` is `45deg`.
@@ -162,15 +199,55 @@ const BARE_NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)$/
  * "100 what" has exactly one sensible answer per property. So the coercion lives here, scoped to
  * the tween's own keys, rather than loosening validation for the other 255 effects.
  *
- * Anything that is not a bare number is passed through untouched and validated as usual — `50%`,
- * `2rem` and a quoted `calc(...)` all still have to earn their acceptance in `params.ts`.
+ * Number-valued properties also accept percentages, expressed as decimal ratios for the core
+ * validator. Length percentages retain their units. Other values pass through unchanged: `2rem`
+ * and a quoted `calc(...)` still have to earn their acceptance in `params.ts`.
  *
  * @complexity O(n) time in value length; O(1) space.
  * @overallScore 100
  */
 export function withImpliedUnit(raw: string, type: ParamSpec['type']): string {
+  raw = raw.trim()
+  if (type === 'number' && raw.endsWith('%')) {
+    const value = raw.slice(0, -1)
+    return decimalNumber(value, -2) ?? raw
+  }
   if (!BARE_NUMBER.test(raw)) return raw
-  if (type === 'length') return `${raw}px`
-  if (type === 'angle') return `${raw}deg`
+  const decimal = decimalNumber(raw)
+  if (decimal === undefined) return raw
+  if (type === 'length') return `${decimal}px`
+  if (type === 'angle') return `${decimal}deg`
+  if (type === 'number') return decimal
   return raw
+}
+
+/**
+ * A shared param type is intentionally broader than some CSS slots: percentages are lengths for
+ * x/y, but not z or blur, and a negative blur invalidates the entire filter list. Check these
+ * slot-specific constraints on scalar values and waypoints alike. CSS-wide keywords are also
+ * unsafe here: `--kui-tween-color: inherit` inherits the custom property, not the element's color.
+ * All other values still go through the core validator; this never opens a second CSS escape path.
+ */
+export function tweenValue(
+  key: string,
+  raw: string,
+  warn: (message: string) => void,
+  label = key,
+): string | undefined {
+  const spec = TWEEN_PROPERTIES[key]!.spec
+  const value = withImpliedUnit(raw, spec.type)
+  const reason = slotProblem(key, value)
+  const result = reason ? { ok: false, reason, value } : validate(value, spec)
+  if (!result.ok) {
+    warn(`parameter "${label}": ${result.reason} — got "${raw}", using default "${spec.default}"`)
+    return undefined
+  }
+  return result.value
+}
+
+function slotProblem(key: string, value: string): string | undefined {
+  if (/^(?:inherit|initial|unset|revert|revert-layer)$/i.test(value)) return 'CSS-wide keyword cannot be passed through a tween custom property'
+  if ((key === 'z' || key === 'blur') && value.includes('%')) return 'expected a length without percentages'
+  if (key === 'blur' && Number.parseFloat(value) < 0) return 'blur must be non-negative'
+  return undefined
 }

@@ -8,7 +8,7 @@ import { compile } from '../src/core/compile.js'
 import type { CompiledPlan } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import type { Registry } from '../src/core/registry.js'
-import { MAX_WAYPOINTS } from '../src/effects/tween/waypoints.js'
+import { collectWaypoints, expandWaypoints, MAX_WAYPOINTS, readWaypoints } from '../src/effects/tween/waypoints.js'
 import { catalogRegistry } from './support/registry.js'
 
 let registry: Registry
@@ -52,6 +52,32 @@ describe('a value list selects an N-step block', () => {
 })
 
 describe('the expanded custom properties', () => {
+  it('does not resolve prototype names as properties in the waypoint helpers', () => {
+    const unknown: [string, string[]][] = [['__proto__', ['0', '1']], ['constructor', ['0', '1']]]
+    expect(collectWaypoints(unknown, () => {}).size).toBe(0)
+    const params = {}
+    const schema = {}
+    expandWaypoints({ count: 2, keys: new Map(unknown) }, params, schema, () => {})
+    expect(params).toEqual({})
+    expect(schema).toEqual({})
+  })
+  it('validates slot constraints and CSS-wide keywords at every numbered step', () => {
+    const compiled = plan("tween z:'0,10%,20' blur:'0,-2,4' brightness:'1,-1,2' color:'red,inherit,blue'")
+    for (const key of ['z', 'blur', 'brightness', 'color']) {
+      expect(compiled.vars[`--kui-tween-${key}-2`]).toBeUndefined()
+      expect(compiled.warnings.join()).toContain(`parameter "${key}[2]"`)
+    }
+  })
+
+  it('supports numeric notation and the added filters in lists', () => {
+    const compiled = plan("tween contrast:'50%,1e0,150%' hue-rotate:'0,90,180' invert:'0,50%,0' sepia:'0,1,0'")
+    expect(compiled.declarations['animation-name']).toBe('kui-tween-keys3-filter')
+    expect(compiled.vars).toMatchObject({
+      '--kui-tween-contrast-1': '0.5', '--kui-tween-contrast-2': '1', '--kui-tween-contrast-3': '1.5',
+      '--kui-tween-hue-rotate-2': '90deg', '--kui-tween-invert-2': '0.5', '--kui-tween-sepia-2': '1',
+    })
+    expect(compiled.warnings).toEqual([])
+  })
   it('writes one numbered property per waypoint, with the implied unit', () => {
     expect(plan("tween x:'0,100,40'").vars).toMatchObject({
       '--kui-tween-x-1': '0px',
@@ -93,6 +119,30 @@ describe('the expanded custom properties', () => {
 })
 
 describe('lists that disagree', () => {
+  it.each(['0,,100', '0,100,', ',100', ',,', '0,   ,100'])(
+    'preserves empty slots in %s and diagnoses them without changing the rhythm', (raw) => {
+      const compiled = plan(`tween x:'${raw}'`)
+      expect(readWaypoints(raw)).toHaveLength(raw.split(',').length)
+      expect(compiled.warnings.join()).toContain('empty value')
+      expect(compiled.declarations['animation-name']).toBe(`kui-tween-keys${raw.split(',').length}-translate`)
+    },
+  )
+
+  it('preserves a function comma while keeping empty neighbours', () => {
+    expect(readWaypoints('rgb(0, 0, 0), ,rgb(255, 255, 255)')).toEqual([
+      'rgb(0, 0, 0)', '', 'rgb(255, 255, 255)',
+    ])
+    expect(readWaypoints('translate(1px, 2px)')).toEqual(['translate(1px, 2px)'])
+    expect(readWaypoints(' 100 ')).toEqual(['100'])
+    expect(readWaypoints('"a,\\"b",100')).toEqual(['"a,\\"b"', '100'])
+  })
+
+  it('keeps expansion bounded for a very long list', () => {
+    const compiled = plan(`tween x:'${Array.from({ length: 2000 }, (_, i) => i).join(',')}'`)
+    expect(compiled.vars['--kui-tween-x-5']).toBe('4px')
+    expect(compiled.vars['--kui-tween-x-6']).toBeUndefined()
+    expect(compiled.warnings.join()).toContain('2000 waypoints')
+  })
   it('holds a shorter list at its last value, and says so', () => {
     // Identity would send `y` back to 0 on the last leg — a movement the author never wrote.
     const compiled = plan("tween x:'0,100,40' y:'0,-60'")
@@ -114,11 +164,27 @@ describe('lists that disagree', () => {
 })
 
 describe('the zero-area trap', () => {
+  it.each(['0%', '-0', '+0', '0e3', '-0.0%'])('recognizes zero scale spelled %s', (value) => {
+    expect(plan(`tween-from scale:${value}`).warnings.join()).toContain('starts with no box')
+  })
+  it('includes scalar scale axes held by a waypoint block', () => {
+    expect(plan("tween scale:'1,2' scale-x:0").warnings.join()).toContain('starts with no box')
+    expect(plan("tween scale-x:'1,2' scale-y:-0").warnings.join()).toContain('starts with no box')
+  })
+
+  it('uses axis overrides before uniform scale when diagnosing the start', () => {
+    expect(plan("tween scale:'0,1' scale-x:1 scale-y:1").warnings.join()).not.toContain('no box')
+    expect(plan('tween-from scale:0 scale-x:1 scale-y:1').warnings.join()).not.toContain('no box')
+  })
+
+  it('does not mistake an invalid zero-prefixed value for a collapsing scale', () => {
+    expect(plan('tween-from scale:0banana').warnings.join()).not.toContain('no box')
+  })
   it('warns when a list starts at zero scale, whichever direction the name says', () => {
     // A list writes its own 0% step, so `tween scale:'0,1'` deadlocks exactly as `tween-from
     // scale:0` does — IntersectionObserver measures geometry, so an element with no box never
     // intersects, never activates, and never leaves the state that made it invisible.
-    expect(plan("tween scale:'0,1'").warnings.join()).toContain('starts with no box at all')
+    expect(plan("tween scale:'0,1'").warnings.join()).toContain('starts with no box area')
     expect(plan("tween-from scale:'0,1.2,1'").warnings.join()).toContain('starts with no box')
   })
 
@@ -129,6 +195,38 @@ describe('the zero-area trap', () => {
 
   it('stays quiet when the list starts somewhere visible', () => {
     expect(plan("tween scale:'1,0'").warnings.join()).not.toContain('no box')
+  })
+})
+
+describe('easing per property group', () => {
+  it.each(['tween', 'tween-from'])('lets %s move and fade on different curves', (name) => {
+    const compiled = plan(`${name} x:100 opacity:0 translate-ease:linear opacity-ease:back-out 800ms`)
+    expect(compiled.vars).toMatchObject({
+      '--kui-tween-translate-ease': 'linear',
+      '--kui-tween-opacity-ease': 'var(--kui-ease-back-out, ease-out)',
+      '--kui-tween-translate-default-ease': `var(--kui-${name}-ease, ease-out)`,
+    })
+    expect(compiled.warnings).toEqual([])
+    expect(compiled.keyframeNames).toHaveLength(2)
+    expect(compiled.jsEffects).toEqual([])
+  })
+
+  it('keeps positional easing ahead of named easing for groups without an override', () => {
+    const compiled = plan("tween x:'0,100,40' opacity:'0,1' 800ms 0ms linear ease:back-out translate-ease:steps(2,end)")
+    expect(compiled.vars['--kui-tween-translate-ease']).toBe('steps(2,end)')
+    expect(compiled.vars['--kui-tween-opacity-default-ease']).toBe('linear')
+    expect(compiled.warnings).toEqual([])
+  })
+
+  it('validates group curves and synthesizes a spring into CSS', () => {
+    const compiled = plan('tween x:100 opacity:0 translate-ease:spring(1,100,10,0) opacity-ease:"linear; color:red"')
+    expect(compiled.vars['--kui-tween-translate-ease']).toMatch(/^linear\(/)
+    expect(compiled.vars['--kui-tween-opacity-ease']).toBeUndefined()
+    expect(compiled.warnings.join()).toContain('disallowed CSS syntax')
+  })
+
+  it('does not create an animation from an easing alone', () => {
+    expect(plan('tween translate-ease:linear').keyframeNames).toEqual([])
   })
 })
 

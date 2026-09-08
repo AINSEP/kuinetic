@@ -13,7 +13,7 @@ import {
   TWEEN_GROUP_ORDER,
   TWEEN_PROPERTIES,
   TWEEN_SCHEMA,
-  withImpliedUnit,
+  tweenValue,
 } from './properties.js'
 import type { TweenGroup } from './properties.js'
 import {
@@ -71,11 +71,10 @@ const TWEEN_TIMELINES: Timeline[] = ['time', 'view', 'scroll', 'pin']
 /**
  * Warn when a `from` tween starts at zero scale.
  *
- * This is trap #2 from the repo's own list, and the tween is the first effect that can walk into it
- * from an *attribute* rather than from a keyframe someone wrote. An element scaled to nothing has
- * no box; `IntersectionObserver` measures geometry, not paint, so it never intersects; so the
- * default `on:enter` activation never fires; so it never leaves the state that made it invisible.
- * Six presets shipped that deadlock before it was understood.
+ * A collapsed start makes viewport activation depend on a point or line instead of the resting
+ * box. This can strand an entrance outside the observer root, but is not a guaranteed deadlock:
+ * IntersectionObserver explicitly allows zero-area targets to intersect. Diagnose the risk
+ * without claiming to know the element's geometry, its transforms, or its activation at compile time.
  *
  * A warning rather than a clamp, and rather than the `[data-kui-state='ready']` gate the six
  * presets use. Clamping would silently animate something other than what the author wrote, and the
@@ -87,11 +86,11 @@ const TWEEN_TIMELINES: Timeline[] = ['time', 'view', 'scroll', 'pin']
  * @overallScore 100
  */
 function warnZeroScale(name: string, starts: Record<string, string>, warn: (m: string) => void): void {
-  const zero = ['scale', 'scale-x', 'scale-y'].filter((key) => Number.parseFloat(starts[key] ?? '1') === 0)
+  const zero = ['scale-x', 'scale-y'].filter((key) => Number(starts[key] ?? starts.scale ?? '1') === 0)
   if (zero.length === 0) return
   warn(
-    `"${name} ${zero[0]}:0" starts with no box at all, so an on:enter activation can never see it ` +
-      `and the element stays invisible forever — use a small non-zero scale, or on:load`,
+    `"${name}" starts with no box area on ${zero.join(', ')}, which can prevent on:enter activation ` +
+      `depending on its geometry — use a small non-zero scale, or on:load`,
   )
 }
 
@@ -107,10 +106,21 @@ function warnZeroScale(name: string, starts: Record<string, string>, warn: (m: s
  * @complexity O(p) time and space in the authored property count.
  * @overallScore 100
  */
-function startStates(direction: TweenDirection, values: [string, string[]][]): Record<string, string> {
+function startStates(
+  direction: TweenDirection,
+  values: [string, string[]][],
+  params: Record<string, string>,
+): Record<string, string> {
   const starts: Record<string, string> = {}
-  for (const [key, list] of values) {
-    if (list.length > 1 || direction === 'from') starts[key] = list[0]!
+  // The whole group gets an explicit 0% step, including scalar neighbours. Checking the shape
+  // of each key alone misses `scale-x:0` held throughout `scale-y:'1,2'`.
+  const explicit = new Set(values.filter(([, list]) => list.length > 1).map(([key]) => TWEEN_PROPERTIES[key]!.group))
+  for (const [key] of values) {
+    if (direction === 'from' || explicit.has(TWEEN_PROPERTIES[key]!.group)) {
+      // Invalid values are absent, just as they are in CSS. In particular `0banana` must not be
+      // diagnosed as zero by parseFloat while validation leaves the identity fallback in charge.
+      if (params[key] !== undefined) starts[key] = params[key]
+    }
   }
   return starts
 }
@@ -130,8 +140,45 @@ function buildVariant(
   spec: EffectSpec,
   warn: (message: string) => void,
 ): EffectVariant {
-  const groups = new Set<TweenGroup>()
-  const params: Record<string, string> = {}
+  const params: Record<string, string> = Object.create(null)
+  const values = authoredValues(spec, params, warn)
+  const groups = new Set(values.map(([key]) => TWEEN_PROPERTIES[key]!.group))
+
+  const touched = TWEEN_GROUP_ORDER.filter((group) => groups.has(group))
+  if (touched.length === 0) {
+    warn(
+      `"${spec.name}" names no properties to animate — add at least one, e.g. ` +
+        `"${spec.name} x:100" (known: ${Object.keys(TWEEN_PROPERTIES).join(', ')})`,
+    )
+    return { channels: [], keyframes: [], params }
+  }
+  warnZeroScale(spec.name, startStates(direction, values, params), warn)
+
+  const waypoints = collectWaypoints(values, warn)
+  const schema: ParameterSchema = {}
+  for (const group of waypoints.values()) expandWaypoints(group, params, schema, warn)
+  for (const group of touched) {
+    const key = `${group}[ease]`
+    const easing = groupEasing(direction, spec, group)
+    params[key] = easing.value
+    schema[key] = easing.schema
+  }
+
+  const variant: EffectVariant = {
+    channels: touched.map((group) => TWEEN_GROUP_CHANNELS[group]),
+    keyframes: touched.map((group) => keyframesFor(group, direction, waypoints.get(group))),
+    params,
+    schema,
+  }
+  return variant
+}
+
+/**
+ * Keep author-controlled record writes in a null-prototype sink. An own-property lookup protects
+ * the vocabulary, but is not enough on its own: assigning an unknown `__proto__` to `{}` invokes
+ * its setter and loses the key before the core can report the unknown parameter.
+ */
+function authoredValues(spec: EffectSpec, params: Record<string, string>, warn: (message: string) => void) {
   const values: [string, string[]][] = []
 
   for (const [key, raw] of Object.entries(spec.params)) {
@@ -146,36 +193,37 @@ function buildVariant(
       params[key] = raw
       continue
     }
-    groups.add(property.group)
     const list = readWaypoints(raw)
     values.push([key, list])
     // The plain custom property is written whatever the shape. For a single value it is the whole
     // animation; for a list it is the broadcast fallback every step falls back to, which is what
     // lets one key in a group write a list and its neighbour write a value that simply holds.
-    params[key] = withImpliedUnit(list[0]!.trim(), property.spec.type)
+    const accepted = tweenValue(key, list[0]!, warn)
+    if (accepted !== undefined) params[key] = accepted
   }
 
-  const touched = TWEEN_GROUP_ORDER.filter((group) => groups.has(group))
-  if (touched.length === 0) {
-    warn(
-      `"${spec.name}" names no properties to animate — add at least one, e.g. ` +
-        `"${spec.name} x:100" (known: ${Object.keys(TWEEN_PROPERTIES).join(', ')})`,
-    )
-    return { channels: [], keyframes: [], params }
-  }
-  warnZeroScale(spec.name, startStates(direction, values), warn)
+  return values
+}
 
-  const waypoints = collectWaypoints(values, warn)
-  const schema: ParameterSchema = {}
-  for (const group of waypoints.values()) expandWaypoints(group, params, schema)
-
-  const variant: EffectVariant = {
-    channels: touched.map((group) => TWEEN_GROUP_CHANNELS[group]),
-    keyframes: touched.map((group) => keyframesFor(group, direction, waypoints.get(group))),
-    params,
+/**
+ * A keyframe-local easing lets groups use different curves without changing the compiler's
+ * shared animation timing list. Its fallback must preserve positional easing precedence and the
+ * correct primitive's CSS theme variable, including for waypoint blocks shared by both names.
+ * The keyword schema admits only this library-generated var() expression; author curves still
+ * use the core easing validator and its named-curve/spring conversion.
+ */
+function groupEasing(direction: TweenDirection, spec: EffectSpec, group: TweenGroup) {
+  const id = direction === 'from' ? 'tween-from' : 'tween'
+  const fallback = `var(--kui-${id}-ease, ease-out)`
+  return {
+    value: spec.easing ?? fallback,
+    schema: {
+      type: spec.easing ? 'easing' as const : 'keyword' as const,
+      default: fallback,
+      values: [fallback],
+      cssProperty: `--kui-tween-${group}-default-ease`,
+    },
   }
-  if (Object.keys(schema).length > 0) variant.schema = schema
-  return variant
 }
 
 /**
