@@ -15,7 +15,7 @@ import {
   resolveEasing,
   tweenValue,
 } from './numbers-shared.js'
-import type { CountFormat, CountFormatOptions } from './numbers-shared.js'
+import type { CountFormat, CountFormatOptions, CountLayers } from './numbers-shared.js'
 
 /**
  * Numbers and data-viz effects (catalog section F).
@@ -183,6 +183,52 @@ function tweenNumber(ctx: PrepareContext, tween: NumberTween): TimedSetup {
 }
 
 /**
+ * Install a counter's two-layer DOM, run `populate` to fill it in and build its tween, and
+ * guarantee the author's original children come back if `populate` throws instead of leaving the
+ * two (now permanently empty) layers stranded in the DOM.
+ *
+ * `deferredInstance` (instances.ts) only assigns its `running` setup once a JS primitive's whole
+ * setup function returns *normally* — a throw partway through leaves nothing registered, so
+ * whatever `destroy()` would have called to undo `installCountLayers` is lost with it. This is the
+ * one place both `count` and `count-odometer` install those layers, so the restore-on-throw lives
+ * here once rather than being a second thing each `prepare*` has to remember.
+ *
+ * This does not replace validating early where that is possible (see `prepareCount`, which builds
+ * — and thereby validates — its `Intl.NumberFormat` options before calling this at all, so the
+ * common bad-parameter case never reaches here needing a restore). It is the backstop for whatever
+ * still slips through: today nothing in `populate` throws besides that formatter, but the whole
+ * point of catching here instead of trusting each caller is that this guarantee does not depend on
+ * that staying true.
+ *
+ * @param el - Element being taken over.
+ * @param doc - Document to create nodes in.
+ * @param populate - Builds the ticking display and tween from the installed layers, returning the
+ *   effect's own teardown *without* `layers.restore()` — this adds it to whichever path runs.
+ * @complexity O(1) beyond `populate`'s own cost.
+ * @overallScore 100
+ */
+function withCountLayers(
+  el: Element,
+  doc: Document,
+  populate: (layers: CountLayers) => TimedSetup,
+): TimedSetup {
+  const layers = installCountLayers(el, doc)
+  try {
+    const setup = populate(layers)
+    return {
+      ...setup,
+      cleanup: () => {
+        setup.cleanup()
+        layers.restore()
+      },
+    }
+  } catch (err) {
+    layers.restore()
+    throw err
+  }
+}
+
+/**
  * Tick a formatted number from `from` to `to`, powering `count-up`, `count-down`,
  * `count-currency`, `count-percent`, and `count-compact` — one primitive, four presets that only
  * differ in default parameters, the same "48 names from 4 primitives" shape as the entrance matrix.
@@ -199,28 +245,29 @@ function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): T
   const currency = params.text('currency', 'USD')
   const options: CountFormatOptions = { format, decimals, currency }
 
-  const layers = installCountLayers(el, doc)
-  layers.decorative.textContent = formatCount(from, options)
-  layers.srOnly.textContent = formatCount(from, options)
+  // `formatCount` constructs an `Intl.NumberFormat`, which throws synchronously on a malformed
+  // `currency` (`currency:US` is not ISO 4217 — `USD`, `US`'s actual currency code, is three
+  // letters). Doing that construction here, before `installCountLayers` has touched the DOM at
+  // all, means a bad parameter is rejected while the author's children are still their own —
+  // there is nothing to restore, because nothing has been taken yet.
+  const fromText = formatCount(from, options)
 
-  const tween = tweenNumber(ctx, {
-    from,
-    to,
-    ...tweenTimingFor(params, ctx),
-    onTick: (value, done) => {
-      layers.decorative.textContent = formatCount(value, options)
-      if (done) layers.srOnly.textContent = formatCount(to, options)
-    },
+  return withCountLayers(el, doc, (layers) => {
+    layers.decorative.textContent = fromText
+    layers.srOnly.textContent = fromText
+
+    const tween = tweenNumber(ctx, {
+      from,
+      to,
+      ...tweenTimingFor(params, ctx),
+      onTick: (value, done) => {
+        layers.decorative.textContent = formatCount(value, options)
+        if (done) layers.srOnly.textContent = formatCount(to, options)
+      },
+    })
+
+    return { cleanup: tween.cleanup, finished: tween.finished, finish: tween.finish }
   })
-
-  return {
-    cleanup: () => {
-      tween.cleanup()
-      layers.restore()
-    },
-    finished: tween.finished,
-    finish: tween.finish,
-  }
 }
 
 /**
@@ -281,28 +328,26 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
   const toGrouped = groupDigits(paddedDigits(to, width))
   const fromGrouped = groupDigits(paddedDigits(from, width))
 
-  const layers = installCountLayers(el, doc)
-  layers.srOnly.textContent = fromGrouped
-  const strips = buildOdometerColumns(layers.decorative, doc, fromGrouped)
+  // Nothing between `installCountLayers` and the return below throws today — `groupDigits` and
+  // `paddedDigits` are pure string ops on numbers `Math.max(0, ...)` already made finite and
+  // non-negative. Going through `withCountLayers` anyway, rather than only `prepareCount`, is what
+  // keeps that true by construction instead of by nobody having broken it yet.
+  return withCountLayers(el, doc, (layers) => {
+    layers.srOnly.textContent = fromGrouped
+    const strips = buildOdometerColumns(layers.decorative, doc, fromGrouped)
 
-  const tween = tweenNumber(ctx, {
-    from,
-    to,
-    ...tweenTimingFor(params, ctx),
-    onTick: (value, done) => {
-      updateOdometerColumns(strips, groupDigits(paddedDigits(value, width)))
-      if (done) layers.srOnly.textContent = toGrouped
-    },
+    const tween = tweenNumber(ctx, {
+      from,
+      to,
+      ...tweenTimingFor(params, ctx),
+      onTick: (value, done) => {
+        updateOdometerColumns(strips, groupDigits(paddedDigits(value, width)))
+        if (done) layers.srOnly.textContent = toGrouped
+      },
+    })
+
+    return { cleanup: tween.cleanup, finished: tween.finished, finish: tween.finish }
   })
-
-  return {
-    cleanup: () => {
-      tween.cleanup()
-      layers.restore()
-    },
-    finished: tween.finished,
-    finish: tween.finish,
-  }
 }
 
 export const COUNT_PRIMITIVES: Primitive[] = [

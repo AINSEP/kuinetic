@@ -55,6 +55,44 @@ const COMMAND = /([mlhvcz])|(-?(?:\d+(?:\.\d+)?|\.\d+))/gi
 const UNSUPPORTED = /[AaSsQqTt]/
 
 /**
+ * Walk the token list, one command at a time, mutating `state` as it goes.
+ *
+ * Lifted out of `parsePath` rather than left inline. The branching here is the *walk's* — a token
+ * is a letter or an argument, and either can end the parse — and once `consume` gained its
+ * rejection path that branching pushed `parsePath` past the repo's cognitive-complexity budget.
+ * Splitting on that boundary leaves the entry point reading as what it is: screen the string,
+ * walk it, report what the walk built.
+ *
+ * @returns The reason the path was rejected, or `undefined` when every token was consumed.
+ * @complexity O(n) time in the token count; O(1) space beyond `state`.
+ * @overallScore 100
+ */
+function walkTokens(tokens: string[], state: PathState): string | undefined {
+  let index = 0
+  while (index < tokens.length) {
+    const token = tokens[index]!
+    if (/[a-z]/i.test(token)) {
+      state.command = token
+      // `Z` takes no arguments, so it never reaches `consume` — it has to close the subpath here
+      // or the final side of every closed shape is silently missing.
+      if (token.toLowerCase() === 'z') closeSubpath(state)
+      index++
+      continue
+    }
+    // A path whose first token is a number rather than a command letter would otherwise reach
+    // `consume` with `state.command` still `''`. `ARITY['']` is undefined rather than 0, so it is
+    // not the zero-arity case `consume` now rejects — this guard is still the only thing standing
+    // between an untrusted `d` string and a loop that never advances. The SVG spec requires a path
+    // to start with a moveto, so rejecting here is spec-correct and not just a safety valve.
+    if (!state.command) return 'path must start with a command letter'
+    const result = consume(tokens, index, state)
+    if ('reason' in result) return result.reason
+    index = result.index
+  }
+  return undefined
+}
+
+/**
  * Parse a path's `d` attribute into absolute cubic segments.
  *
  * @param d - The `d` attribute value.
@@ -80,27 +118,8 @@ export function parsePath(d: string): ParseResult {
     command: '',
   }
 
-  let index = 0
-  while (index < tokens.length) {
-    const token = tokens[index]!
-    if (/[a-z]/i.test(token)) {
-      state.command = token
-      // `Z` takes no arguments, so it never reaches `consume` — it has to close the subpath here
-      // or the final side of every closed shape is silently missing.
-      if (token.toLowerCase() === 'z') closeSubpath(state)
-      index++
-      continue
-    }
-    // A path whose first token is a number rather than a command letter would otherwise reach
-    // `consume` with `state.command` still `''`. `ARITY['']` is undefined, so `consume` would
-    // return the same index it was given and this loop would spin forever, growing `segments`
-    // without bound — a real DoS on any untrusted `d` string. The SVG spec requires a path to
-    // start with a moveto, so rejecting here is also spec-correct, not just a safety valve.
-    if (!state.command) {
-      return { segments: [], subpaths: [], reason: 'path must start with a command letter' }
-    }
-    index = consume(tokens, index, state)
-  }
+  const reason = walkTokens(tokens, state)
+  if (reason !== undefined) return { segments: [], subpaths: [], reason }
 
   // A subpath is only ever created when a segment lands in it, so an empty list here means the
   // path drew nothing — `M0,0` on its own, or `M0,0 Z`.
@@ -166,22 +185,50 @@ function closeSubpath(state: PathState): void {
   state.open = undefined
 }
 
+/** What `consume` hands back: the next token index, or a reason the path is malformed here. */
+type ConsumeResult = { index: number } | { reason: string }
+
 /**
  * Consume one command's worth of numbers and emit its segment.
  *
- * @returns The next token index.
+ * @returns The next token index, or a reason when this command cannot be consumed at all.
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function consume(tokens: string[], index: number, state: PathState): number {
+function consume(tokens: string[], index: number, state: PathState): ConsumeResult {
   const key = state.command.toLowerCase()
   const relative = state.command === key
   // `state.command` is only ever '' before the first command letter, and the caller now rejects
   // that case before reaching here — every other value came from the `/[a-z]/i` match in the main
   // loop, which is one of `mlhvcz`, so this key is always present in `ARITY`.
   const arity = ARITY[key]!
+
+  // `z` is the one command with arity 0, and the main loop closes the subpath for `z`/`Z` directly
+  // — `consume` is never *meant* to run for it. But "never meant to" was the entire guarantee, and
+  // it broke silently: after closing, `state.command` is left holding `'z'`/`'Z'` (a truthy
+  // string), so a number token straight after `Z` still passes the first-token guard above and
+  // still reaches here. With `arity` 0, `args.length < arity` used to be `0 < 0` — false — so the
+  // old code fell through to `endpointFor`/`pushSegment` and returned `index + 0`: the same index
+  // it was given, so the `while` loop in `parsePath` spun forever, pushing a new segment every
+  // pass (verified OOM before this fix; trigger: `M0 0L1 1Z1`). Rejecting *any* zero-arity command
+  // outright — rather than teaching the main loop a second special case for `z` specifically — is
+  // what makes "the parser cannot fail to advance" a property of `consume` itself, so it stays true
+  // even if a future command is added to `ARITY` with no arguments. This does not make the
+  // first-token guard above redundant: that guard covers `state.command === ''`, where `key` is
+  // `''` and `arity` is `undefined`, not `0` — a different failure this check does not see.
+  if (arity === 0) {
+    return { reason: `'${state.command}' does not take arguments` }
+  }
+
   const args = tokens.slice(index, index + arity).map(Number)
-  if (args.length < arity) return tokens.length
+  // Too few numbers left for this command's full argument list is a truncated `d` string, not a
+  // shorter shape — silently stopping here, as the old `return tokens.length` did, handed the
+  // caller a plausible-looking partial path instead of telling it the input was invalid.
+  if (args.length < arity) {
+    return {
+      reason: `'${state.command}' expects ${arity} number${arity === 1 ? '' : 's'}, found ${args.length}`,
+    }
+  }
 
   const next = endpointFor(key, args, state.current, relative)
   if (key === 'm') {
@@ -192,12 +239,12 @@ function consume(tokens: string[], index: number, state: PathState): number {
     state.open = undefined
     // A subsequent implicit repetition of `m` is a lineto, per the SVG spec.
     state.command = relative ? 'l' : 'L'
-    return index + arity
+    return { index: index + arity }
   }
 
   pushSegment(state, straightOrCubic({ key, args, from: state.current, relative }, next))
   state.current = next
-  return index + arity
+  return { index: index + arity }
 }
 
 function endpointFor(key: string, args: number[], current: Point, relative: boolean): Point {

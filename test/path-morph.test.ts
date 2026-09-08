@@ -82,10 +82,27 @@ describe('parsePath', () => {
     expect(closed.segments).toHaveLength(redundant.segments.length)
   })
 
-  it('stops gracefully when a command is truncated mid-argument-list', () => {
+  it('rejects a command truncated mid-argument-list instead of silently dropping it', () => {
+    // `L20` is missing `L`'s second number. This used to jump straight to `tokens.length` and
+    // hand back whatever had already parsed with no `reason` set — a malformed `d` string looked
+    // exactly like a shorter, valid one. Rejecting with a reason here matches every other
+    // malformed-path case in this file.
     const { segments, reason } = parsePath('M0,0 L10,0 L20')
-    expect(reason).toBeUndefined()
-    expect(segments).toHaveLength(1)
+    expect(reason).toBe("'L' expects 2 numbers, found 1")
+    expect(segments).toEqual([])
+  })
+
+  it('rejects a number token following Z instead of hanging', () => {
+    // Regression: `Z` takes no arguments, but the main loop left `state.command` set to `'Z'`
+    // (truthy) after closing the subpath, so a number token straight after it still reached
+    // `consume`. With arity 0, `args.length < arity` was `0 < 0` — false — so `consume` fell
+    // through and returned `index + 0`, the same index it was given: the `while` loop in
+    // `parsePath` spun forever, pushing a new NaN segment every pass (verified: 200,000+
+    // iterations and still climbing, in a standalone reproduction of the pre-fix code — a real
+    // unbounded-memory DoS on any untrusted `d` string, not just a slow parse).
+    const { segments, reason } = parsePath('M0 0L1 1Z1')
+    expect(reason).toBe("'Z' does not take arguments")
+    expect(segments).toEqual([])
   })
 
   it('treats a relative moveto repetition as a relative lineto', () => {
@@ -181,6 +198,14 @@ describe('createMorph', () => {
   it('reports which side of the morph is unsupported', () => {
     expect(createMorph('M0,0 A5,5 0 0 1 10,10', SQUARE).reason).toContain('start path')
     expect(createMorph(SQUARE, 'M0,0 A5,5 0 0 1 10,10').reason).toContain('end path')
+  })
+
+  it('rejects rather than hangs on the reported trigger (a number token straight after Z)', () => {
+    // `<path d="M0 0L1 1Z" data-kui="icon-morph to:'M0 0L1 1Z1'">` — the `to:` shape is exactly
+    // this malformed `d`. createMorph must surface a reason, not lock up the tab.
+    const { morph, reason } = createMorph('M0 0L1 1Z', 'M0 0L1 1Z1')
+    expect(morph).toBeUndefined()
+    expect(reason).toBe("end path: 'Z' does not take arguments")
   })
 })
 

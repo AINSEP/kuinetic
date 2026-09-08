@@ -139,6 +139,34 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     )
   })
 
+  it('leaves the authored children untouched when the currency code is invalid', () => {
+    // Regression: `US` is not a valid ISO 4217 currency code (`USD` is), so `Intl.NumberFormat`
+    // throws inside `formatCount`. `installCountLayers` used to run — and remove the authored
+    // children — before that throw, and because `prepare`'s setup never returned normally,
+    // `deferredInstance` (instances.ts) never got a `cleanup` to register: `destroy()` had nothing
+    // to call, so the children were gone even after teardown, replaced by two permanently empty
+    // spans. The formatter must now fail before anything is taken from the element, and even a
+    // later throw must restore what was there.
+    const resolved = registry().resolve('count-currency')!
+    const el = document.createElement('div')
+    el.innerHTML = '<b>123</b>'
+    const authored = el.innerHTML
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ format: 'currency', currency: 'US' }),
+      fakeCtx(),
+    )
+
+    expect(() => instance.activate()).toThrow()
+    expect(el.innerHTML).toBe(authored)
+
+    // A rejected activation must still leave `destroy()` safe to call, and it must not have
+    // anything left to undo — the content was never taken in the first place.
+    expect(() => instance.destroy()).not.toThrow()
+    expect(el.innerHTML).toBe(authored)
+  })
+
   it('jumps straight to the final value on the first tick when duration is zero', () => {
     const resolved = registry().resolve('count-up')!
     const el = document.createElement('span')
