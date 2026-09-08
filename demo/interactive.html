@@ -240,10 +240,15 @@
      the same #e4f222 as --accent (~1.2:1 there). The rotation itself already carries the "open"
      state, so this doesn't need to stay accent-branded to keep working. */
   .accordion-header[aria-expanded='true'] .plus { transform: rotate(45deg); color: var(--fg); }
-  /* No `height: 0` / `[data-open] { height: auto }` pair here on purpose — the library ships the
-     collapsed state itself (`src/css/layout.css`: `overflow: hidden` plus `height: 0` when not
-     `[data-open]`), and the open case needs nothing since `height`'s own initial value is already
-     `auto`. Same fix as `.slice-acc-panel` on index-basic.html, which is what proved this. */
+  /* Resting state lives in ordinary CSS (0 vs auto); the accordion-height primitive only
+     supplies the animated transition between whichever two values CSS resolves to. The library
+     ships this pair too (`src/css/layout.css`), but keyed on `data-kui-fx`, which the animator
+     writes at runtime — so before the bundle at the end of <body> runs, that rule matches nothing
+     and both closed panels render at full height (254px of extra content at desktop, 397px at
+     390px) before snapping shut. `data-kui-cloak` does not cover it: `src/css/base.css` also
+     requires `data-kui-reveal`, which these panels do not carry. */
+  .accordion-panel { height: 0; overflow: hidden; }
+  .accordion-panel[data-open] { height: auto; }
   .accordion-panel-inner { padding: 0 1.25rem 1.25rem; color: var(--muted); line-height: 1.65; font-size: 0.9rem; max-width: 60ch; }
   .accordion-panel-inner code { font-size: 0.85em; padding: 0.1em 0.4em; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); }
 

@@ -17,7 +17,7 @@
  * page list — including a link to itself — and nothing here needs to vary per page on that account.
  *
  * What genuinely varies per page (kept as config below, not treated as drift):
- *   - `selfIndex`: `index.html`, `index-basic.html`, `index-old.html` link the logo/CTA to
+ *   - `selfIndex`: `index.html` and `index-old.html` link the logo/CTA to
  *     `#top`/`#install` (they ARE index.html) rather than `./index.html`/`./index.html#install`.
  *   - `dataOdId` / `navCta`: `docs.html` carries neither the `data-od-id="header"` marker nor the
  *     "Get started" CTA. Pre-existing, left alone.
@@ -114,7 +114,6 @@ const PAGES = [
   'data-hover.html',
   { file: 'docs.html', dataOdId: false, navCta: false },
   'icons-transitions.html',
-  { file: 'index-basic.html', selfIndex: true },
   { file: 'index-old.html', selfIndex: true, hamburgerVariant: 'legacy' },
   { file: 'index.html', selfIndex: true },
   'interactive.html',

@@ -55,11 +55,11 @@ const ALLOWLIST = new Map([
   ['l1', 'motif-kinetic.html — first headline line; .l2/.l3 carry the only per-line overrides'],
   // On every `.demo-hero` page, `.hero-copy` needs `max-width: 46rem` of its own (each such page
   // repeats that one rule in its own <style> block — see demo/reveals.html:38 and its siblings).
-  // index-basic.html and index-old.html don't use `.demo-hero` at all; their hero is `.hero {
+  // index-old.html does not use `.demo-hero` at all; its hero is `.hero {
   // display: grid; grid-template-columns: minmax(0,.94fr) minmax(0,1.06fr); }`, which already sizes
   // `.hero-copy` as the first grid track — an explicit width rule there would be redundant, not
   // missing. Semantic wrapper, same shape as .pin-section-figure above.
-  ['hero-copy', 'index-basic.html, index-old.html — sized by the parent .hero grid track, not its own rule'],
+  ['hero-copy', 'index-old.html — sized by the parent .hero grid track, not its own rule'],
 ])
 
 /** Class selector tokens appearing anywhere in `css` (nested/compound selectors included), unescaped. */
