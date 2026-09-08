@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Animator, createAnimator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'
 import type { Capabilities } from '../src/core/capabilities.js'
+import { KUI_EVENT } from '../src/core/control.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import type { CollectingReporter } from '../src/core/reporter.js'
+import { Registry } from '../src/core/registry.js'
+import type { EffectInstance, Primitive } from '../src/core/types.js'
 import { CAPS, fakeBinder } from './support/animator-harness.js'
 import type { FakeBinder } from './support/animator-harness.js'
 import { catalogRegistry } from './support/registry.js'
@@ -380,5 +383,86 @@ describe('Animator — target: retargeting', () => {
     expect(el().getAttribute(ATTR.normalized)).toBe('card-flip-x')
     expect(el('.face').hasAttribute(ATTR.normalized)).toBe(false)
     expect(reporter.messages.join()).toContain('cannot be retargeted')
+  })
+})
+
+/**
+ * A JS primitive whose `finished` promise is a real, per-activation pending promise rather than
+ * one that never resolves (`lifecycle.test.ts`'s `spyRegistry`) — needed to drive it to a genuine
+ * completion under test control, the same shape `count-up`'s tween gives `deferredInstance`.
+ */
+function controllableRegistry(control: { resolve?: () => void }): Registry {
+  const primitive: Primitive = {
+    id: 'controllable',
+    renderer: 'javascript',
+    channels: ['controllable'],
+    parameters: {},
+    supportedTimelines: ['time'],
+    supportedActivations: ['load', 'enter', 'click', 'manual'],
+    perfClass: 'continuous',
+    reducedMotion: 'shorten',
+    prepare(): EffectInstance {
+      let finished = Promise.resolve()
+      return {
+        activate: () => {
+          finished = new Promise<void>((resolve) => {
+            control.resolve = resolve
+          })
+        },
+        cancel: () => control.resolve?.(),
+        finish: () => control.resolve?.(),
+        get finished() {
+          return finished
+        },
+        destroy: () => {},
+      }
+    },
+  }
+  return new Registry()
+    .registerPrimitive(primitive)
+    .registerPresets([{ name: 'controllable-effect', primitive: 'controllable' }])
+}
+
+/** Wait for every microtask queued so far to drain, the same guarantee a real macrotask gives. */
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+describe('Animator — a cancelled run does not silence a later one', () => {
+  // Regression: `state.cancelled` was set by `cancel()` and never reset, so once an element's
+  // effects were ever cancelled, every activation after that one settled with `state.cancelled`
+  // still `true` — `settleWhen`'s completion handler saw the stale flag and swallowed `kui:finish`
+  // forever, even though the later run itself was never cancelled and genuinely completed.
+  it('still emits kui:finish for a second activation after the first was cancelled', async () => {
+    const control: { resolve?: () => void } = {}
+    document.body.innerHTML = '<div data-kui="controllable-effect on:manual"></div>'
+    const animator = new Animator({
+      root: document.body,
+      registry: controllableRegistry(control),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+    })
+    animator.start()
+    const target = el()
+    const events: string[] = []
+    target.addEventListener(KUI_EVENT.start, () => events.push('start'))
+    target.addEventListener(KUI_EVENT.finish, () => events.push('finish'))
+
+    animator.activate(target)
+    animator.cancel(target)
+    // Let the cancelled run's own completion handler run to completion — `cancel()` resolves the
+    // instance's `finished` promise synchronously, but `settleWhen`'s `.then()` is still a
+    // microtask away, and it has to finish writing `data-kui-state="finished"` and reading
+    // `state.cancelled` before the second activation can begin (the running-status guard in
+    // `activate()` would otherwise silently drop it).
+    await flush()
+    expect(target.getAttribute(ATTR.state)).toBe('finished')
+
+    animator.activate(target)
+    control.resolve?.()
+    await flush()
+
+    expect(events).toEqual(['start', 'start', 'finish'])
+    expect(target.getAttribute(ATTR.state)).toBe('finished')
   })
 })

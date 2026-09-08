@@ -50,6 +50,35 @@ describe('createStyleLedger restore', () => {
     expect(el.style.color).toBe('red')
   })
 
+  it("restores a property's !important priority, not just its value", () => {
+    // Regression: `remember` only ever captured `getPropertyValue`, so an author's
+    // `animation-duration:2s!important` came back as a plain `2s` — the declaration survived
+    // teardown but its priority silently didn't, changing what the cascade does for the rest of
+    // the page's life.
+    const el = document.createElement('div')
+    el.setAttribute('style', 'animation-duration:2s!important')
+    expect(el.style.getPropertyPriority('animation-duration')).toBe('important')
+
+    const ledger = createStyleLedger(el)
+    ledger.set('animation-duration', '800ms')
+    expect(el.style.getPropertyPriority('animation-duration')).toBe('')
+
+    ledger.restore()
+    expect(el.style.getPropertyValue('animation-duration')).toBe('2s')
+    expect(el.style.getPropertyPriority('animation-duration')).toBe('important')
+  })
+
+  it('restores a plain (non-important) value with a plain priority, same as before', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('opacity', '0.5')
+    const ledger = createStyleLedger(el)
+    ledger.set('opacity', '1')
+    ledger.restore()
+
+    expect(el.style.getPropertyValue('opacity')).toBe('0.5')
+    expect(el.style.getPropertyPriority('opacity')).toBe('')
+  })
+
   it('is the difference the teardown sweep measures, on a scroll-snap-shaped subtree', () => {
     const host = document.createElement('div')
     host.innerHTML = '<i>a</i><i>b</i>'

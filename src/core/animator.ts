@@ -197,6 +197,21 @@ export interface AnimatorOptions {
  * behaviour depends on module state or globals. The class itself only orchestrates: parsing,
  * compilation, and style decisions all live in pure modules it calls.
  */
+/**
+ * Which run a settle belongs to, grouped so `settleWhen` stays within the parameter budget.
+ *
+ * The three travel together by nature and never apart: `el` keys the state map, `state` is what
+ * gets written, and `run` is the identity that says whether this settle still speaks for the
+ * element. Passing them as one value is also the honest shape — a settle is *about* a run.
+ */
+interface SettleTarget {
+  el: Element
+  state: InstanceState
+  /** From `beginRun`. Checked on resolution so a superseded run's belated completion cannot act
+   *  on the run that replaced it. */
+  run: symbol
+}
+
 export class Animator {
   readonly registry: Registry
   readonly capabilities: Capabilities
@@ -224,6 +239,19 @@ export class Animator {
   private readonly states = new WeakMap<Element, InstanceState>()
   /** Iterable lifecycle index; the WeakMap remains the fast state lookup. */
   private readonly liveElements = new Set<Element>()
+  /**
+   * Which run is current for one element's `InstanceState`, so a completion that resolves after
+   * being superseded can tell it is stale even when `status` and `direction` do not say so.
+   *
+   * `state.direction` cannot serve as that identifier on its own — it only ever holds `'forward'`
+   * or `'reverse'`, so an element whose activation flips back and forth (a hover-driven card flip,
+   * `pointerenter`/`pointerleave` firing repeatedly) revisits the same direction many times over
+   * its life. A cancelled run's completion settling late would then match a much later run headed
+   * the same way, by coincidence rather than by being the same run. Keyed on `InstanceState` rather
+   * than `Element` so a `release()`-then-reinstall — a fresh state object — starts with no
+   * history, the same reason `settleWhen` already re-checks `this.states.get(el) !== state`.
+   */
+  private readonly currentRun = new WeakMap<InstanceState, symbol>()
   /** Built lazily by `watch()` when not injected, so nothing observes until `start()` needs it. */
   private domWatcher: DomWatcher | undefined
   /**
@@ -894,6 +922,11 @@ export class Animator {
     state.status = 'running'
     state.direction = 'forward'
     state.attributes.set(ATTR.state, 'running')
+    // A fresh run, so a cancellation belonging to whatever ran before this one must not still
+    // apply — see `cancelled`'s own doc comment. Never reset from inside the completion handler
+    // itself: this element's *next* activation must start clean regardless of whether the run it
+    // replaces was ever cancelled at all.
+    const run = this.beginRun(state)
 
     const started = state.instances.filter((instance) => this.startInstance(instance, el))
     if (started.length === 0 && state.instances.length > 0) {
@@ -910,7 +943,7 @@ export class Animator {
     // longhands were written straight to the style — has started, and does reach this.
     this.emit(el, state, KUI_EVENT.start, 'activated')
 
-    this.settleWhen(el, state, started, 'finished')
+    this.settleWhen({ el, state, run }, started, 'finished')
   }
 
   /**
@@ -1017,11 +1050,16 @@ export class Animator {
     state.status = 'running'
     state.direction = 'reverse'
     state.attributes.set(ATTR.state, 'running')
+    // A new run — the exit half of this activation — so any cancellation belonging to the entrance
+    // that preceded it must not carry over: an entrance cancelled mid-flight can still exit
+    // normally, and that exit's own `kui:reverse-finish` must not be swallowed by a flag left over
+    // from a run this one did not have anything to do with.
+    const run = this.beginRun(state)
     for (const instance of reversible) instance.reverse!()
     // `ready`, not `finished`: the effects have run back to the from-state they started from, so
     // the element is exactly as it was before it was ever activated — which is what `ready` means
     // everywhere else, and what an author styling `[data-kui-state]` needs it to keep meaning.
-    this.settleWhen(el, state, reversible, 'ready')
+    this.settleWhen({ el, state, run }, reversible, 'ready')
   }
 
   /**
@@ -1041,8 +1079,14 @@ export class Animator {
     // filters cannot disagree. A guard here would be unreachable code pretending to be caution.
     const playable = state.instances.filter(isDirectional)
     state.direction = 'forward'
+    // The reverse this turns around could have been cancelled a moment earlier without yet having
+    // settled — `cancel()` never touches `status`/`direction`, only `cancelled` and the instances
+    // themselves, so that flag can still be sitting `true` here. This resumed run was not
+    // cancelled, so it must not inherit the mark, and a fresh run identity means the reverse's own
+    // (now-superseded) settle callback cannot mistake this run's completion for its own either.
+    const run = this.beginRun(state)
     for (const instance of playable) instance.play!()
-    this.settleWhen(el, state, playable, 'finished')
+    this.settleWhen({ el, state, run }, playable, 'finished')
   }
 
   /**
@@ -1053,19 +1097,29 @@ export class Animator {
    * reverse that is turned around leaves its own `finished` promise pending, and letting that
    * promise write `ready` over the forward run that replaced it is how an element ends up claiming
    * it is back at its from-state while visibly finishing its entrance. Capturing the direction at
-   * the time of the call and re-checking it on resolution is what makes the stale promise a no-op.
+   * the time of the call and re-checking it on resolution is what makes the stale promise a no-op
+   * in the ordinary case — turned-around and reversed-again runs, which is why that comment and
+   * check are kept even though `run` below also covers them.
    *
+   * `run` is the check `direction` cannot be: `direction` only ever holds two values, so a run
+   * that flips back and forth several times (a hover-driven card flip, `pointerenter`/
+   * `pointerleave` firing repeatedly) revisits the same direction repeatedly, and a stale run's
+   * belated completion could otherwise be mistaken for a much later one simply travelling the same
+   * way. `beginRun` mints one identity per run; only the run that is still current when its own
+   * promise resolves gets to report anything.
+   *
+   * @param target - The element, its state, and this run's identity — see {@link SettleTarget}.
    * @param instances - The instances this particular run started; a run only waits on its own.
    * @param next - State to report when they are all done.
    * @complexity O(n) time in the instances; O(n) space for the pending promises.
    * @overallScore 100
    */
   private settleWhen(
-    el: Element,
-    state: InstanceState,
+    target: SettleTarget,
     instances: EffectInstance[],
     next: 'finished' | 'ready',
   ): void {
+    const { el, state, run } = target
     // A continuous instance — a pin, a scroll progress track, a media scrub — keeps an
     // already-resolved `finished` so that composing it with a one-shot never stops the one-shot
     // reporting complete. Waiting on it here would therefore resolve on the next microtask and
@@ -1081,6 +1135,7 @@ export class Animator {
     void Promise.all(timed.map((instance) => instance.finished)).then(() => {
       if (this.states.get(el) !== state || state.status !== 'running') return
       if (state.direction !== direction) return
+      if (this.currentRun.get(state) !== run) return
       state.status = next
       state.attributes.set(ATTR.state, next)
       // Cancelling resolves `finished` too (see `EffectInstance.finished`'s never-rejects
@@ -1098,6 +1153,30 @@ export class Animator {
       if (next === 'finished') this.emit(el, state, KUI_EVENT.finish, 'complete')
       else this.emit(el, state, KUI_EVENT.reverseFinish, 'reversed')
     })
+  }
+
+  /**
+   * Mark the start of a new run — a forward activation, a reversal, or a turnaround out of one —
+   * and clear the mark a previous run's cancellation left behind.
+   *
+   * The two things a fresh run does are bound together deliberately: `cancelled` describes *this*
+   * run, not the element for life, so every place that begins one must also disown whatever the
+   * run before it was marked with, or that run's cancellation would silently apply to a completion
+   * it had nothing to do with — see `InstanceState.cancelled`'s own doc comment for the contract
+   * this keeps. Doing both here, in one call, is what stops a caller resetting one without the
+   * other; three call sites each remembering to write two lines in the right order was exactly
+   * this bug's shape the first time.
+   *
+   * @returns This run's identity, to be threaded through to the `settleWhen` call that will
+   *   eventually report on it.
+   * @complexity O(1) time, O(1) space.
+   * @overallScore 100
+   */
+  private beginRun(state: InstanceState): symbol {
+    const run = Symbol('kui-run')
+    this.currentRun.set(state, run)
+    state.cancelled = false
+    return run
   }
 
   /**

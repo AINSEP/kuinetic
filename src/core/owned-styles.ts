@@ -33,8 +33,13 @@ export interface StyleLedger {
  */
 export function createStyleLedger(el: Element): StyleLedger {
   const style = (el as HTMLElement).style
-  // `undefined` means "was not set at all", which restores by removal rather than by writing "".
-  const previous = new Map<string, string | undefined>()
+  // A property's priority (`''` or `'important'`) travels with its value, not beside it — restoring
+  // `setProperty(property, value)` alone always writes a plain declaration, silently dropping an
+  // author's `!important` the first time this element's effects tear down. `undefined` still means
+  // "was not set at all, restore by removal", and stays a distinct case from `{ value: '', ... }`,
+  // which cannot occur: `getPropertyValue` returning `''` is exactly the signal `remember` reads
+  // below to decide there was nothing here to capture.
+  const previous = new Map<string, { value: string; priority: string } | undefined>()
   // Whether the author wrote a `style` attribute at all — not whether it held anything. Removing
   // the last property leaves the attribute itself behind, and `<div>` and `<div style="">` are
   // different markup even though they render identically.
@@ -43,7 +48,10 @@ export function createStyleLedger(el: Element): StyleLedger {
   function remember(property: string): void {
     if (previous.has(property)) return
     const existing = style.getPropertyValue(property)
-    previous.set(property, existing === '' ? undefined : existing)
+    previous.set(
+      property,
+      existing === '' ? undefined : { value: existing, priority: style.getPropertyPriority(property) },
+    )
   }
 
   return {
@@ -53,9 +61,9 @@ export function createStyleLedger(el: Element): StyleLedger {
     },
     claim: remember,
     restore() {
-      for (const [property, value] of previous) {
-        if (value === undefined) style.removeProperty(property)
-        else style.setProperty(property, value)
+      for (const [property, previousValue] of previous) {
+        if (previousValue === undefined) style.removeProperty(property)
+        else style.setProperty(property, previousValue.value, previousValue.priority)
       }
       previous.clear()
       /*
