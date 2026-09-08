@@ -236,13 +236,20 @@ describe('carousel controls', () => {
     const spec = STEP_PROGRESS_PRIMITIVE.parameters
     expect(spec.peek?.cssProperty).toBe('--kui-peek')
     expect(spec.rest?.cssProperty).toBe('--kui-rest')
+    expect(spec.main?.cssProperty).toBe('--kui-main')
     expect(spec.peek?.type).toBe('percentage')
     expect(spec.rest?.type).toBe('number')
+    // A scale, not a length. `peek:` and `rest:` are both measured against the live slide, so its
+    // own size has to be tunable too or the other two run out of room on a narrow screen — but an
+    // authored parameter lands inline, where no media query can reach it, and a width is exactly
+    // what a phone and a desktop must disagree about. A multiplier means the same at both.
+    expect(spec.main?.type).toBe('number')
+    expect(spec.main?.default).toBe('1')
   })
 
   it('leaves the spacing defaults out of the element, so they stay a var() fallback', () => {
     // design.md §7: a default is the `var()` fallback and is never written inline. A deck that
-    // names neither must therefore carry no inline peek/rest at all.
+    // names none of them must therefore carry no inline peek/rest/main at all.
     const { el } = deck()
     const instance = STEP_PROGRESS_PRIMITIVE.prepare!(
       el,
@@ -252,6 +259,7 @@ describe('carousel controls', () => {
     instance.activate()
     expect(el.style.getPropertyValue('--kui-peek')).toBe('')
     expect(el.style.getPropertyValue('--kui-rest')).toBe('')
+    expect(el.style.getPropertyValue('--kui-main')).toBe('')
     instance.destroy()
   })
 
@@ -458,6 +466,26 @@ describe('carousel: the whole pipeline', () => {
     const stepper = FORMS_PRESETS.find((preset) => preset.name === 'step-progress')
     expect(carousel?.params).toEqual({ scope: 'self' })
     expect(stepper?.params).toBeUndefined()
+  })
+
+  it('writes an authored main: through to the element, so the live slide scales from the attribute', () => {
+    // Deliberately not next to the `peek:`/`rest:` schema test above: those run `prepare` directly,
+    // and `prepare` is not what writes a `cssProperty`. `resolveParams` does, from `compile`, which
+    // only the animator reaches — so a prepare-only test can assert a property is *absent* (which
+    // it always is) and never that an authored one arrives. This is the half that can fail.
+    running = startAnimator(`
+      <div class="deck" data-kui="carousel target:.slide next:.next main:0.82">
+        <div class="track"><i class="slide"></i><i class="slide"></i><i class="slide"></i></div>
+        <button class="next"></button>
+      </div>`)
+    const deck = document.querySelector('.deck') as HTMLElement
+    expect(deck.style.getPropertyValue('--kui-main')).toBe('0.82')
+  })
+
+  it('leaves main: off the element when it is not authored, so the default stays a var() fallback', () => {
+    running = startAnimator(DECK)
+    const deck = document.querySelector('.deck') as HTMLElement
+    expect(deck.style.getPropertyValue('--kui-main')).toBe('')
   })
 
   it('binds a dot added after setup, because controls are delegated and not snapshotted', () => {

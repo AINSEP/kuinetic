@@ -533,7 +533,8 @@ const STEP_PROGRESS_BASE = jsInputPrimitive(
     prev: { type: 'text', default: '', cssProperty: '--kui-prev' },
     jump: { type: 'text', default: '', cssProperty: '--kui-jump' },
     /*
-     * Spacing, as two numbers the stylesheet reads back off `--kui-peek` / `--kui-rest`.
+     * Spacing, as three numbers the stylesheet reads back off `--kui-peek` / `--kui-rest` /
+     * `--kui-main`.
      *
      * Unlike an `axis:` — which would only have chosen between two transforms the page was
      * writing anyway, and so would have been a knob that does nothing — these are *values*. The
@@ -547,6 +548,23 @@ const STEP_PROGRESS_BASE = jsInputPrimitive(
      */
     peek: { type: 'percentage', default: '56%', cssProperty: '--kui-peek' },
     rest: { type: 'number', default: '0.78', cssProperty: '--kui-rest' },
+    /*
+     * The third number, and the one the other two are measured against.
+     *
+     * `peek:` is a percentage of a slide's own width and `rest:` a scale of it, so both are
+     * anchored to how big the live slide is — and that size was reachable only from the
+     * stylesheet. A deck that was too crowded could not be fixed from the attribute at all: with
+     * the live slide filling its clip, no `peek:` pushes a neighbour into view, because the
+     * neighbour is behind the live one rather than short of it. Two thirds of a knob is not a
+     * knob.
+     *
+     * A scale and not a width, which is what makes it safe to write in an attribute. Every
+     * authored parameter reaches the element as an *inline* custom property, so a media query
+     * cannot take it back — and a width is exactly the thing a phone and a desktop must disagree
+     * about. A multiplier does not care: `main:0.82` means the same "a bit smaller than its box"
+     * at 390px and at 1440px, and the page keeps owning the box. Same reason `rest:` is a number.
+     */
+    main: { type: 'number', default: '1', cssProperty: '--kui-main', finite: true, minimum: 0 },
     // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
     // see `prepareStepProgress`. One declaration, shared: `effects/step-marking.ts`.
     scope: SCOPE_PARAM,
