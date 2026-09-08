@@ -113,7 +113,10 @@
 
   /* --- gradient-rotate-border: a flowing linear gradient masked down to a ring, so the
      "rotation" reads as light travelling around an edge rather than the box literally spinning
-     (spinning the whole box would rotate its content, too) --- */
+     (spinning the whole box would rotate its content, too). Same `mask-composite: exclude` ring
+     technique as `gradient-border` below, and the same hazard: it subtracts this element's own
+     content box, so putting the name on real content deletes the content. It paints an edge, not
+     a fill, and needs its own element — the ring goes behind or around the content, never on it. --- */
 
   [data-kui-fx~='gradient-rotate-border'] {
     position: relative;
