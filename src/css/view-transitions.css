@@ -1,0 +1,251 @@
+/*
+ * View Transitions — catalog section L, `effects/catalog/view-transitions.ts`.
+ *
+ * Its own file rather than an addition to `three-d.css`, for a structural reason and not a
+ * filing-cabinet one: every other stylesheet in this directory paints the box that carries
+ * `data-kui-fx`. Nothing here does. The `::view-transition-*` tree is a separate, browser-built
+ * pseudo-element tree rooted on the *document element*, populated for the duration of one
+ * transition and then thrown away — so none of the scanners and invariants that keep the rest of
+ * the catalog honest (host-box channels, `@keyframes`-to-preset joins, the `--kui-transition`
+ * merge) have anything to say about these rules, and mixing them in beside `three-d.css`'s page
+ * keyframes would put two different kinds of thing under one comment header.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT THE AUTHOR WRITES, AND WHY THE LIBRARY DOES NOT WRITE IT
+ * ---------------------------------------------------------------------------
+ *
+ * Cross-document transitions are opted into with an at-rule:
+ *
+ *   @view-transition { navigation: auto; types: kui-page-slide; }
+ *
+ * That line is the author's, and it is deliberately not in this file. `@view-transition` cannot
+ * be scoped to a selector — it is a property of the *document*, not of an element — so a
+ * stylesheet that shipped one would opt every consuming site into animating every same-origin
+ * navigation, whether or not that site had ever heard of this feature. That is owning someone
+ * else's routing. What this library owns is the motion, and the `types:` descriptor is the hook
+ * the platform provides for exactly that split: the author says which navigations transition,
+ * and names the look; the rules below supply the look.
+ *
+ * Both halves of the API read the same names. The same-document half (`view-swap type:`, see
+ * `view-transitions.ts`) passes its type to `startViewTransition({ update, types })`, so
+ * `type: kui-page-slide` on a control and `types: kui-page-slide` in the at-rule animate
+ * identically. One vocabulary, two entry points.
+ *
+ * The three type names are the three page-transition presets section L already ships
+ * (`page-fade`, `page-slide`, `curtain-wipe`), prefixed so that an author's own types cannot
+ * collide with the library's. The motion is intentionally the same motion, restated here rather
+ * than reused from `three-d.css`: those keyframes animate *one element arriving*, while a
+ * transition has an old snapshot to remove as well as a new one to introduce, and running one
+ * block in reverse for the outgoing half gives the two snapshots crossing through each other.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT HAPPENS WITHOUT SUPPORT
+ * ---------------------------------------------------------------------------
+ *
+ * Nothing, in the strong sense: the page behaves exactly as it did before any of this was added.
+ *
+ * - No View Transitions API at all: `@view-transition` is an unknown at-rule and is skipped, so
+ *   the navigation is an ordinary navigation. Every selector below contains either a pseudo-
+ *   element or a pseudo-class the browser cannot parse, so the whole rule is invalid and dropped
+ *   — an unknown pseudo-element invalidates its selector rather than degrading it, which is the
+ *   one place CSS's error handling does the progressive-enhancement work for us.
+ * - The API but no transition *types* (they shipped later): `navigation: auto` still applies and
+ *   the browser plays its own default cross-fade; the typed rules below match nothing. The
+ *   same-document half detects this and skips the type rather than passing an argument the
+ *   implementation would reject — see `supportsTransitionTypes` in `view-transitions.ts`.
+ * - `page-morph` on an unsupporting browser: the runtime never writes `view-transition-name`
+ *   (it checks `capabilities.viewTransitions` first) and warns by name, so the element is simply
+ *   not part of any transition.
+ *
+ * The `@supports` gate below is therefore belt-and-braces for the pseudo-element rules, which
+ * already self-guard. It is *not* redundant for the `:root` custom-property defaults, which are
+ * ordinary declarations on an ordinary element and would otherwise be computed and inherited by
+ * every element on the page in browsers that can never use them.
+ */
+
+@layer kui.effects {
+  @supports (view-transition-name: none) {
+    /*
+     * Document-level timing knobs, and the honest reason they are document-level.
+     *
+     * Every other effect in the catalog takes its duration from a `--kui-*` custom property set
+     * inline on the element the author put the attribute on. That cannot work here. The
+     * `::view-transition` tree is generated on the document element, so it inherits from `:root`
+     * and from nothing else — a value set on the card being morphed is on the wrong branch
+     * entirely. This is why `view-morph` declares that it honours no timing token at all
+     * (`view-transitions.ts`) rather than accepting `page-morph 400ms` and dropping it: a
+     * parameter that silently does nothing is worse than one that is refused by name.
+     *
+     * So the knob is a page-level one, set the way an author sets any other design token:
+     *
+     *   :root { --kui-vt-duration: 300ms; --kui-vt-ease: ease-in-out; }
+     *
+     * `--kui-vt-*` and not `--kui-duration`: the unprefixed names are read by the compiled
+     * per-element tracks in `base.css`, and a value set on `:root` for a page transition would
+     * inherit down into every effect on the page. Same reasoning as `--kui-ambient-c1` in
+     * `ambient.css`.
+     */
+    :root {
+      --kui-vt-duration: 400ms;
+      --kui-vt-delay: 0ms;
+      --kui-vt-ease: cubic-bezier(0.4, 0, 0.2, 1);
+      --kui-vt-distance: 40px;
+    }
+
+    /*
+     * The shared-element morph — `page-morph`'s actual motion, and the default for every named
+     * pair whether the author chose a type or not.
+     *
+     * `::view-transition-group(*)` is the box the browser interpolates between the old and new
+     * position/size of a named element, so this one rule is the whole of "the card grows into the
+     * detail header". The library supplies only timing: the geometry is measured, not authored,
+     * which is the entire point of the API and the reason there is nothing else to write.
+     *
+     * `:root` prefixed rather than a bare `::view-transition-group(*)` so that the rule carries
+     * some specificity: a page wanting to tune one named group (`::view-transition-group(hero)`)
+     * has a selector that beats this one without reaching for `!important`, which is the promise
+     * `base.css`'s header makes about every layer in this library.
+     */
+    :root::view-transition-group(*) {
+      animation-duration: var(--kui-vt-duration, 400ms);
+      animation-delay: var(--kui-vt-delay, 0ms);
+      animation-timing-function: var(--kui-vt-ease, cubic-bezier(0.4, 0, 0.2, 1));
+    }
+
+    /*
+     * --- typed root motion -------------------------------------------------
+     *
+     * `::view-transition-old(root)` and `::view-transition-new(root)` are the snapshots of
+     * everything that was *not* individually named — the page behind the morph. Each pair below
+     * is one `types:` value.
+     *
+     * `:active-view-transition-type()` matches the document element, so these read as "while a
+     * transition of this type is running, animate the root snapshots like so". A browser without
+     * it drops the rule and falls back to the UA cross-fade, which is why there is no `@supports`
+     * of its own around them.
+     */
+    :root:active-view-transition-type(kui-page-fade)::view-transition-old(root) {
+      animation-name: kui-vt-fade-out;
+    }
+    :root:active-view-transition-type(kui-page-fade)::view-transition-new(root) {
+      animation-name: kui-vt-fade-in;
+    }
+
+    :root:active-view-transition-type(kui-page-slide)::view-transition-old(root) {
+      animation-name: kui-vt-slide-out;
+    }
+    :root:active-view-transition-type(kui-page-slide)::view-transition-new(root) {
+      animation-name: kui-vt-slide-in;
+    }
+
+    /*
+     * The curtain is the one type where the two snapshots must not cross-fade: the incoming page
+     * is wiped down over an outgoing page that holds still underneath it. So the old snapshot is
+     * given no animation at all beyond staying put for the duration, and — unlike the two pairs
+     * above — the stacking order is forced, because the UA default paints the new snapshot
+     * *under* the old one for a same-size root.
+     */
+    :root:active-view-transition-type(kui-curtain-wipe)::view-transition-old(root) {
+      animation-name: kui-vt-hold;
+    }
+    :root:active-view-transition-type(kui-curtain-wipe)::view-transition-new(root) {
+      animation-name: kui-vt-wipe-in;
+      z-index: 1;
+    }
+
+    /*
+     * Timing for the root pair, applied to every type at once rather than restated six times.
+     * Separate from the `animation-name` rules above so that adding a type is one declaration,
+     * not four.
+     */
+    :root::view-transition-old(root),
+    :root::view-transition-new(root) {
+      animation-duration: var(--kui-vt-duration, 400ms);
+      animation-delay: var(--kui-vt-delay, 0ms);
+      animation-timing-function: var(--kui-vt-ease, cubic-bezier(0.4, 0, 0.2, 1));
+      animation-fill-mode: both;
+    }
+
+    @keyframes kui-vt-fade-out {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @keyframes kui-vt-fade-in {
+      from {
+        opacity: 0;
+      }
+    }
+
+    /*
+     * `--kui-vt-distance` rather than the `--kui-distance` that `page-slide`'s own keyframes read,
+     * for the same reason the durations are prefixed: this one is set on `:root` and would
+     * otherwise retint every `page-slide`, `reveal-up` and `slide-open-up` on the page.
+     */
+    @keyframes kui-vt-slide-out {
+      to {
+        opacity: 0;
+        translate: 0 calc(-1 * var(--kui-vt-distance, 40px));
+      }
+    }
+
+    @keyframes kui-vt-slide-in {
+      from {
+        opacity: 0;
+        translate: 0 var(--kui-vt-distance, 40px);
+      }
+    }
+
+    /*
+     * A snapshot with no keyframes of its own is removed instantly by the UA's default
+     * cross-fade; this holds it at full opacity for the whole duration so the wipe has something
+     * to be wiped over.
+     */
+    @keyframes kui-vt-hold {
+      from,
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes kui-vt-wipe-in {
+      from {
+        clip-path: inset(0 0 100% 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+
+    /*
+     * Reduced motion.
+     *
+     * Shortened to 1ms rather than removed, which is the same choice `base.css` makes for every
+     * other effect and it matters more here than anywhere else: `animation: none` on a
+     * `::view-transition-group` does not mean "no morph", it means the group's snapshots are
+     * painted at their un-animated positions for the transition's full length, which looks like
+     * the page has broken. A 1ms animation resolves to its end state immediately and the
+     * transition finishes — the page cuts, which is exactly what a reduced-motion user is asking
+     * for.
+     *
+     * `!important` for the reason `base.css` gives for its own reduced-motion block: this has to
+     * beat the author's per-group overrides, which are unlayered and therefore win the cascade by
+     * default. A page that genuinely wants motion here can still opt back in, because
+     * `!important` in an author rule beats `!important` in a layer.
+     *
+     * Note that `view-morph` also declares `reducedMotion: 'disable'`, so under a reduced-motion
+     * request the runtime never writes a `view-transition-name` in the first place and there are
+     * usually no groups left to shorten. This covers the rest: names the author set in their own
+     * CSS, and the root snapshot pair, neither of which the runtime has any say over.
+     */
+    @media (prefers-reduced-motion: reduce) {
+      :root::view-transition-group(*),
+      :root::view-transition-old(*),
+      :root::view-transition-new(*) {
+        animation-duration: 1ms !important;
+        animation-delay: 0ms !important;
+      }
+    }
+  }
+}

@@ -306,7 +306,7 @@
     }
   }
 
-  /* --- var-weight / var-width / var-slant --- */
+  /* --- var-weight / var-width / var-slant / var-axis --- */
 
   @keyframes kui-var-weight {
     from {
@@ -337,6 +337,30 @@
     }
     to {
       font-style: oblique var(--kui-to-slant, 10deg);
+    }
+  }
+
+  /* The generic axis, for the tags CSS never gave a property to — `GRAD`, `opsz`, `SOFT`, `CASL`,
+   * `MONO`, and whatever four letters a foundry invented this year. The three keyframes above stay
+   * on their high-level properties on purpose; see the note over the primitives in
+   * `effects/catalog/text.ts` for why re-expressing them here would change what they do.
+   *
+   * `--kui-axis` carries the tag WITH its quotes, because `font-variation-settings` takes a
+   * `<string>` and an unquoted `wght` is an ident that invalidates the whole declaration. CSS has
+   * no way to add the quotes around a substituted value, so they have to arrive inside it —
+   * `varAxisVariant` in `text.ts` is what puts them there, and the reason the tag is validated
+   * against a four-character allowlist before it ever gets near this file.
+   *
+   * The fallbacks repeat the schema defaults exactly, the same contract every other block here
+   * keeps: an element whose author wrote no parameters renders identically whether or not the
+   * compiler ever writes a custom property.
+   */
+  @keyframes kui-var-axis {
+    from {
+      font-variation-settings: var(--kui-axis, "wght") var(--kui-from-axis, 100);
+    }
+    to {
+      font-variation-settings: var(--kui-axis, "wght") var(--kui-to-axis, 900);
     }
   }
 

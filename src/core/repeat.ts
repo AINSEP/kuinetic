@@ -9,7 +9,7 @@ import type { EffectSpec, Renderer, Timeline } from './types.js'
  * library uses for the count. `yoyo` is GSAP's word for `animation-direction: alternate`, and it is
  * used here in preference to the CSS one for a concrete reason rather than a stylistic one —
  * **`direction` is already a parameter**, on the split-text primitive
- * (`effects/catalog/text.ts`, `values: ['fade', 'up', 'down', 'mask']`), and shipped presets use
+ * (`effects/catalog/text.ts`, `keywords: ['fade', 'up', 'down', 'mask']`), and shipped presets use
  * it. A key lifted onto the spec never reaches `spec.params`, so spelling this `direction:` would
  * make `data-kui="split-chars direction:up"` unwritable — the identical collision `parse.ts`
  * documents for `from:` → `order:`, and resolved the same way: keep the existing parameter, choose
@@ -17,7 +17,7 @@ import type { EffectSpec, Renderer, Timeline } from './types.js'
  *
  * Overloading `direction:` by value (lift it only when it reads `alternate`, leave it in `params`
  * otherwise) was considered and rejected. It works exactly until somebody adds `reverse` to a
- * split-text `values` list, at which point one of the two meanings silently stops arriving.
+ * split-text `keywords` list, at which point one of the two meanings silently stops arriving.
  *
  * `yoyo` is a boolean rather than the full `animation-direction` keyword set. `reverse` and
  * `alternate-reverse` are the two the set would add, and the catalog already ships directional

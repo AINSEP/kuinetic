@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSameOriginPath, resolveParams, validate } from '../src/core/params.js'
+import { decimalNumber, isSameOriginPath, resolveParams, validate } from '../src/core/params.js'
 import type { ParamSpec, ParameterSchema } from '../src/core/types.js'
 
 const length: ParamSpec = { type: 'length', default: '24px', cssProperty: '--kui-distance' }
@@ -8,14 +8,14 @@ const keyword: ParamSpec = {
   type: 'keyword',
   default: 'chars',
   cssProperty: '--kui-split',
-  values: ['chars', 'words', 'lines'],
+  keywords: ['chars', 'words', 'lines'],
 }
 const text: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-src' }
 const angle: ParamSpec = { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' }
-/** `motion-path`'s `rotate:`, the one angle that also declares literals. */
+/** `motion-path`'s `rotate:`, the one parameter that is an angle *or* a word. */
 const angleWithLiterals: ParamSpec = {
-  type: 'angle',
-  values: ['auto', 'reverse'],
+  type: 'angle|keyword',
+  keywords: ['auto', 'reverse'],
   default: '0deg',
   cssProperty: '--kui-motion-rotate',
 }
@@ -116,8 +116,11 @@ describe('validate', () => {
     expect(validate('   ', length).ok).toBe(false)
   })
 
-  it('reports no declared keywords when a keyword spec carries no values list', () => {
-    const bare: ParamSpec = { type: 'keyword', default: 'x', cssProperty: '--kui-bare' }
+  it('reports no declared keywords when a keyword spec carries no list', () => {
+    // Unrepresentable in TypeScript since `keywords` became required, and deliberately still
+    // exercised: `Registry.registerPrimitive` is public, so a plain-JS caller can build exactly
+    // this. It must name the gap, not throw on `undefined.join`.
+    const bare = { type: 'keyword', default: 'x', cssProperty: '--kui-bare' } as unknown as ParamSpec
     const result = validate('anything', bare)
     expect(result.ok).toBe(false)
     expect(result.reason).toContain('(none declared)')
@@ -187,14 +190,6 @@ describe('validate', () => {
 
     it.each(['deg', '180degrees', '180 deg', '180dd', 'red'])('still rejects %s', (value) => {
       expect(validate(value, angle).ok).toBe(false)
-    })
-
-    it.each(['auto', 'reverse'])('leaves the declared literal %s untouched', (value) => {
-      expect(validate(value, angleWithLiterals)).toEqual({ value, ok: true })
-    })
-
-    it('still normalises a number on a parameter that declares literals', () => {
-      expect(validate('45', angleWithLiterals)).toEqual({ value: '45deg', ok: true })
     })
   })
 
@@ -339,5 +334,200 @@ describe('resolveParams', () => {
     const result = resolveParams(authored, schema, (m) => warnings.push(m))
     expect(result).toEqual({})
     expect(warnings.join()).toContain('unknown parameter "__proto__"')
+  })
+})
+
+/**
+ * The keyword/value split, and the union types that replaced the additive reading of `values`.
+ *
+ * `ParamSpec.values` used to mean a closed set on `type: 'keyword'` and *extra literals accepted
+ * alongside the grammar* on every other type. The second reading validated nothing while looking
+ * exactly like validation, so `{ type: 'number', values: ['80%'] }` accepted every number in
+ * existence and said nothing about it. `keywords` is the closed set and nothing else; a parameter
+ * that wants "a value or a word" declares a union type instead.
+ */
+describe('keywords is closed, and inert without a keyword half', () => {
+  it('accepts only the declared words on a keyword parameter', () => {
+    expect(validate('words', keyword)).toEqual({ value: 'words', ok: true })
+    expect(validate('sentences', keyword).ok).toBe(false)
+  })
+
+  it('names every accepted word in the rejection, so a typo is actionable', () => {
+    expect(validate('sentences', keyword).reason).toBe('expected one of chars, words, lines')
+  })
+
+  it('ignores a keywords list on a type that has no keyword half', () => {
+    // Unrepresentable in TypeScript — `ValueParamSpec` declares `keywords?: never` — and checked
+    // here because `Registry.registerPrimitive` is public, so a plain-JS caller can still build
+    // it. This is the exact shape the old additive `values` accepted in silence: the parameter is
+    // a number, so `80%` is not a number, and the stray list must not smuggle it through.
+    const smuggled = {
+      type: 'number',
+      default: '1',
+      cssProperty: '--kui-x',
+      keywords: ['80%'],
+    } as unknown as ParamSpec
+    expect(validate('80%', smuggled).ok).toBe(false)
+    expect(validate('0.8', smuggled)).toEqual({ value: '0.8', ok: true })
+  })
+})
+
+describe('union parameter types', () => {
+  /** `catalog/core.ts`'s `opacity:` — CSS spells `opacity` as a number *or* a percentage. */
+  const alpha: ParamSpec = { type: 'number|percentage', default: '0', cssProperty: '--kui-from-opacity' }
+  const boundedAlpha: ParamSpec = { ...alpha, finite: true, minimum: 0, maximum: 1 }
+  const lengthOrPercent: ParamSpec = {
+    type: 'length|percentage',
+    default: '24px',
+    cssProperty: '--kui-distance',
+  }
+
+  describe('number|percentage', () => {
+    it.each(['0', '1', '0.8', '-0.5', '.5'])('accepts the number spelling %s unchanged', (value) => {
+      expect(validate(value, alpha)).toEqual({ value, ok: true })
+    })
+
+    it.each([
+      ['80%', '0.8'],
+      ['0%', '0'],
+      ['100%', '1'],
+      ['50%', '0.5'],
+      ['-50%', '-0.5'],
+      ['12.5%', '0.125'],
+    ])('normalises %s to %s', (raw, expected) => {
+      expect(validate(raw, alpha)).toEqual({ value: expected, ok: true })
+    })
+
+    it('divides lexically, so no binary floating-point artefact reaches the stylesheet', () => {
+      // `Number('1.1') / 100` is `0.011000000000000001`. Writing that into a custom property
+      // makes a correct value look broken to anybody reading it in devtools.
+      expect(validate('1.1%', alpha)).toEqual({ value: '0.011', ok: true })
+    })
+
+    it('bounds the normalised number, so both spellings are held to the same limit', () => {
+      // This is what normalising buys beyond tidiness: `maximum: 1` could not see `150%` at all
+      // if the percentage spelling were passed through as written.
+      expect(validate('150%', boundedAlpha).ok).toBe(false)
+      expect(validate('150%', boundedAlpha).reason).toBe('expected at most 1')
+      expect(validate('80%', boundedAlpha)).toEqual({ value: '0.8', ok: true })
+    })
+
+    it('still accepts calc(), which it cannot fold and must not reject', () => {
+      expect(validate('calc(var(--a) * 2)', alpha).ok).toBe(true)
+    })
+
+    it.each(['80px', 'red', '80 %', '+50%', '80%%'])('rejects %s', (value) => {
+      expect(validate(value, alpha).ok).toBe(false)
+    })
+
+    it('names both halves of the union in the rejection', () => {
+      expect(validate('red', alpha).reason).toBe('not a valid number or percentage')
+    })
+  })
+
+  describe('length|percentage', () => {
+    it.each(['24px', '2rem', '50%', '0', 'calc(100% - 20px)'])('accepts %s unchanged', (value) => {
+      expect(validate(value, lengthOrPercent)).toEqual({ value, ok: true })
+    })
+
+    it('does not convert the percentage, which resolves against a box this code never measured', () => {
+      expect(validate('50%', lengthOrPercent).value).toBe('50%')
+    })
+
+    it.each(['24', 'red'])('rejects %s', (value) => {
+      expect(validate(value, lengthOrPercent).ok).toBe(false)
+    })
+  })
+
+  describe('angle|keyword', () => {
+    it.each(['auto', 'reverse'])('accepts the declared word %s untouched', (value) => {
+      expect(validate(value, angleWithLiterals)).toEqual({ value, ok: true })
+    })
+
+    it.each([
+      ['45deg', '45deg'],
+      ['45', '45deg'],
+      ['45d', '45deg'],
+      ['-90', '-90deg'],
+      ['0.5turn', '0.5turn'],
+    ])('accepts the angle %s as %s', (raw, expected) => {
+      expect(validate(raw, angleWithLiterals)).toEqual({ value: expected, ok: true })
+    })
+
+    it('keeps the keyword half closed — an undeclared word is not an angle either', () => {
+      expect(validate('spin', angleWithLiterals).ok).toBe(false)
+    })
+
+    it('names the angle half and every declared word in the rejection', () => {
+      expect(validate('spin', angleWithLiterals).reason).toBe(
+        'not a valid angle or one of auto, reverse',
+      )
+    })
+
+    it('reports the gap rather than throwing when a plain-JS caller declares no words', () => {
+      const bare = { type: 'angle|keyword', default: '0deg', cssProperty: '--kui-r' } as unknown as ParamSpec
+      expect(validate('spin', bare).reason).toBe('not a valid angle or one of (none declared)')
+      expect(validate('45', bare)).toEqual({ value: '45deg', ok: true })
+    })
+  })
+
+  it('resolves a normalised union value onto its custom property', () => {
+    // The end-to-end shape: what the author wrote is not what reaches element.style.
+    const warnings: string[] = []
+    const result = resolveParams({ opacity: '80%' }, { opacity: alpha }, (m) => warnings.push(m))
+    expect(result).toEqual({ '--kui-from-opacity': '0.8' })
+    expect(warnings).toEqual([])
+  })
+})
+
+describe('decimalNumber', () => {
+  it.each([
+    ['80', -2, '0.8'],
+    ['1.1', -2, '0.011'],
+    ['100', -2, '1'],
+    ['0', -2, '0'],
+    ['-50', -2, '-0.5'],
+    ['1e3', 0, '1000'],
+    ['1e-3', 0, '0.001'],
+    ['+5', 0, '5'],
+    ['2.50', 0, '2.5'],
+  ])('expands %s shifted by %i to %s', (raw, shift, expected) => {
+    expect(decimalNumber(raw, shift)).toBe(expected)
+  })
+
+  it.each(['red', '2rem', '', '1.2.3'])('returns undefined for the non-number %s', (raw) => {
+    expect(decimalNumber(raw)).toBeUndefined()
+  })
+
+  it('refuses an exponent whose expansion would blow the value budget', () => {
+    // Without the cap this asks for a gigabyte of zeroes rather than returning.
+    expect(decimalNumber('1e999999999')).toBeUndefined()
+  })
+
+  it('refuses input longer than the value budget', () => {
+    expect(decimalNumber('9'.repeat(300))).toBeUndefined()
+  })
+})
+
+describe('colour keywords are a closed set, not any run of letters', () => {
+  const tint = { type: 'color', default: '', cssProperty: '--kui-tint' } as const
+
+  it('accepts the CSS named colours, transparent and currentcolor', () => {
+    for (const value of ['red', 'rebeccapurple', 'Transparent', 'currentcolor', 'LightGoldenrodYellow'])
+      expect(validate(value, tint), value).toMatchObject({ ok: true })
+  })
+
+  it('rejects a word CSS has never defined', () => {
+    // `/^[a-z]+$/i` accepted these. Harmless while a custom property was the only consumer — CSS
+    // drops the bad declaration and the var() fallback covers it — and not harmless at all once a
+    // value is read back through getComputedStyle, where a bogus keyword returns a wrong colour
+    // rather than being dropped.
+    for (const value of ['banana', 'nonsense', 'notacolour'])
+      expect(validate(value, tint), value).toMatchObject({ ok: false })
+  })
+
+  it('still accepts hex and colour functions', () => {
+    for (const value of ['#e4f222', '#fff', 'rgb(1 2 3)', 'oklch(0.7 0.1 200)', 'color(srgb 1 0 0)'])
+      expect(validate(value, tint), value).toMatchObject({ ok: true })
   })
 })

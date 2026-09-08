@@ -211,18 +211,24 @@ function authoredValues(spec: EffectSpec, params: Record<string, string>, warn: 
  * correct primitive's CSS theme variable, including for waypoint blocks shared by both names.
  * The keyword schema admits only this library-generated var() expression; author curves still
  * use the core easing validator and its named-curve/spring conversion.
+ *
+ * The two branches are written out rather than folded into one object with a ternary `type`,
+ * because {@link ParamSpec} is now a union discriminated on `type` — a `'keyword'` spec must carry
+ * a closed `keywords` list and an `'easing'` spec must not carry one at all, and a conditional
+ * type cannot say which of those it is. Writing both is also the more honest shape: the value
+ * being validated is a different thing in each case (an author's curve, or this function's own
+ * generated `var()`), and only one of them ever needed the literal.
  */
 function groupEasing(direction: TweenDirection, spec: EffectSpec, group: TweenGroup) {
   const id = direction === 'from' ? 'tween-from' : 'tween'
   const fallback = `var(--kui-${id}-ease, ease-out)`
+  const cssProperty = `--kui-tween-${group}-default-ease`
+  if (spec.easing) {
+    return { value: spec.easing, schema: { type: 'easing' as const, default: fallback, cssProperty } }
+  }
   return {
-    value: spec.easing ?? fallback,
-    schema: {
-      type: spec.easing ? 'easing' as const : 'keyword' as const,
-      default: fallback,
-      values: [fallback],
-      cssProperty: `--kui-tween-${group}-default-ease`,
-    },
+    value: fallback,
+    schema: { type: 'keyword' as const, default: fallback, keywords: [fallback], cssProperty },
   }
 }
 
@@ -277,6 +283,41 @@ export const TWEEN_PRIMITIVES: Primitive[] = [
  * `start()` the element is painted at its *rest* state and then jumps back to animate — the flash
  * `Preset.cloak` exists to remove. A `to` tween starts at the rest state by construction, so there
  * is nothing to hide and cloaking it would blank an element that was always meant to be visible.
+ *
+ * **Neither declares `phase`, and that is deliberate — checked against the actual stylesheet, not
+ * assumed from "generic effect, therefore unknowable".**
+ *
+ * `tween` (the `to` direction) is knowable and the answer is still "no phase fits". Every block in
+ * `kui-tween-to-*` (`src/css/tween.css`) declares an explicit `to` — `translate: var(--kui-tween-x,
+ * 0) ...`, not a missing endpoint — so, per D1's correction #5, `animation-fill-mode: both` pins that
+ * exact authored value on the channel forever once the animation finishes; it never resolves against
+ * whatever the cascade underneath would otherwise say. That is precisely the shape `EffectPhase`'s
+ * own doc calls out as the trap: fifteen of the catalog's fifty-four `cloak: true` entrances close
+ * their block the same way and are *deliberately* left unphased rather than marked `entrance`,
+ * because `entrance` specifically means "plays once and releases the channel". `tween` is that same
+ * closed shape by construction — every property group's `to` block closes, with no exception — so it
+ * belongs in that same deliberately-unphased set on the same grounds, not because nothing is known.
+ * It is not `state` either (nothing gates it behind a visitor condition — it runs the moment it
+ * activates), not `idle` (it is a bounded, one-shot animation, not an unbounded loop), and not `exit`
+ * (it does not start at rest and depart; it moves *to* an arbitrary authored value).
+ *
+ * `tween-from` is where "cannot be known statically" is the literal, checked reason, not a hedge.
+ * Its two-point blocks (`kui-tween-from-*`) are the mirror of `tween`'s — `from` is explicit and `to`
+ * is missing, so a plain `tween-from y:40` *does* release: it is structurally identical to an open
+ * entrance like `fade-up`, and would be a defensible `phase: 'entrance'` on its own. But
+ * `waypoints.ts`'s `waypointKeyframes` compiles a **different, fully-explicit block** the moment any
+ * key in the group is authored as a list — `tween-from x:'0,100,40'` renders through
+ * `kui-tween-keys3-translate`, whose own comment in `tween.css` says it plainly: "unlike everything
+ * above they are fully explicit from 0% to 100%... there is no implicit half left for the browser to
+ * fill from computed style." That block does **not** release, for the same fill-forever reason
+ * `tween`'s `to` blocks do not. So whether this preset's one instance releases its channel depends on
+ * whether the *author* wrote a single value or a list for at least one key in the group — a fact
+ * about the spec, not about the preset, and exactly the shape D1 was killed over (`repeat:` turning
+ * a finite entrance into a loop at author time, invisible to a preset-level field). Declaring
+ * `phase: 'entrance'` here would be right for `tween-from y:40` and silently wrong for `tween-from
+ * y:'0,40'` on the very same element — the "wrong phase is worse than none" case this project was
+ * warned about, so it stays undeclared and collides with everything, exactly as before this field
+ * existed. See `test/catalog-phase-mechanics.test.ts` for what stays checked instead.
  */
 export const TWEEN_PRESETS: Preset[] = [
   { name: 'tween', primitive: 'tween' },

@@ -38,20 +38,42 @@ export const NAV_CSS_PRIMITIVES: Primitive[] = [
   }),
 ]
 
+/*
+ * Phase (see `EffectPhase`, `core/channels.ts`): four of these five names are genuine entrances and
+ * declare `phase: 'entrance'` below. Checked against `navigation.css` itself, not assumed from "a
+ * menu panel looks like a reveal":
+ *
+ * - `kui-nav-reveal` (`menu-stagger-open`) and `kui-panel-reveal` (`dropdown-open`,
+ *   `mega-menu-drop`) declare a bare `from` block and no `to` — `opacity`/`translate` resolve
+ *   against the underlying cascade value once the animation ends, the same release `fade-up`'s
+ *   `kui-in-up` makes, which is what `entrance`'s contract requires.
+ * - `kui-drawer-slide-right` (`drawer-slide`) is the same shape on `translate` alone: `from {
+ *   translate: 100% 0; }`, no closing step.
+ *
+ * `menu-fullscreen` is the one name here that is correctly left unphased: its keyframe
+ * (`kui-menu-fullscreen`) closes with a real `to` — `opacity: 0` to `1`, `clip-path: circle(0%)` to
+ * `circle(150%)` — so `animation-fill-mode: both` pins both channels at the authored endpoint
+ * instead of releasing them, the same closed shape `blur-up`/`wipe-*` have in `catalog/media.ts`.
+ * Declaring it `entrance` would be the silent-clobber bug this whole axis exists to prevent: a
+ * composed hover on `clip-path` or `opacity` would compile without a warning and then simply never
+ * show, because the fullscreen panel's own `to` step has already claimed the property for good.
+ */
 export const NAV_CSS_PRESETS: Preset[] = [
-  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'kui-nav-reveal' },
+  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'kui-nav-reveal', phase: 'entrance' },
   { name: 'menu-fullscreen', primitive: 'menu-fullscreen', keyframes: 'kui-menu-fullscreen' },
-  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'kui-panel-reveal' },
+  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'kui-panel-reveal', phase: 'entrance' },
   {
     name: 'mega-menu-drop',
     primitive: 'panel-reveal',
     keyframes: 'kui-panel-reveal',
     params: { duration: '550ms' },
+    phase: 'entrance',
   },
   {
     name: 'drawer-slide',
     primitive: 'drawer-slide',
     keyframes: 'kui-drawer-slide-right',
+    phase: 'entrance',
   },
 ]
 

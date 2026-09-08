@@ -1,0 +1,175 @@
+/*
+ * Materials (catalog section S) — `glass`.
+ *
+ * The first surface *material* in the catalog. Every other section animates an element from one
+ * state to another; this one paints a resting state and leaves it there, the way `rotate-static`
+ * (section R) and `background-media` do. It is here because glassmorphism is the one visual
+ * treatment pages kept hand-writing beside this library rather than with it: a translucent tinted
+ * fill, a hairline light rim, a top-weighted sheen, and the content behind it blurred.
+ *
+ * ### It imposes no markup and no pseudo-element, and that is a hard constraint
+ *
+ * Every declaration below lands on the host box — the element `data-kui-fx` is stamped on. No
+ * `::before`, no `::after`, no wrapper, no `> *` reach. That is not minimalism for its own sake;
+ * it is what makes the family compose with the three effects it is designed to be worn with:
+ *
+ *  - `beam-border` / `beam-border-auto` own the host's `::before` (`interaction.css`) — the
+ *    travelling specular rim.
+ *  - `shine-sweep` owns the host's `::after` (`interaction.css`) — the diagonal sheen band.
+ *  - `press-depth` owns `scale` and `box-shadow` on the host (`interaction.css`'s `:active` rule).
+ *
+ * A pseudo-element here would have collided with two of those three outright, and there is no
+ * third pseudo-element to retreat to. So `data-kui="glass, beam-border, press-depth"` is
+ * one element, four rules, four different physical surfaces, and no arbitration needed.
+ *
+ * ### The rim is three border longhands and deliberately not the `border` shorthand
+ *
+ * `border:` is one of the very few CSS shorthands that resets a property it does not name: it
+ * sets `border-image` back to its initial value. `border-draw` (section I) paints its ring with
+ * `border-image-source`/`border-image-slice` on this same host box, and declares the `border`
+ * channel for exactly that. This primitive does *not* declare `border` — it must not, or the
+ * compiler would refuse `glass, beam-border`, which is the pairing the whole family exists
+ * for — so writing the shorthand here would silently erase a composed `border-draw`'s ring while
+ * `channels.ts` reported a clean compose. The three longhands (`-width`/`-style`/`-color`) set
+ * exactly what they name and leave `border-image` alone, so both effects paint.
+ *
+ * The rim is uniform rather than top-weighted, and the top-weighting lives in the sheen gradient
+ * instead. A gradient border would mean `border-image-source`, which is precisely the property the
+ * paragraph above is protecting.
+ *
+ * ### Everything is a `var()` with its literal as the fallback
+ *
+ * Same contract as the hover family: an unauthored parameter emits *no declaration at all*
+ * (`resolveParams` writes only what the author wrote), so the fallbacks below are the real
+ * defaults and a page can override any of them from its own stylesheet. `tint`, `rim` and
+ * `radius` go further and default to the empty string in the schema, which is the catalog's
+ * "the author said nothing" sentinel — see `COLOR_PARAMS` in `catalog/interaction-shared.ts`.
+ *
+ * And because this whole block sits in `@layer kui.effects`, an unlayered page rule beats every
+ * one of these. `.card { border-radius: 4px }` wins over the 16px below without needing `radius:`
+ * at all; the fallback is what an element with no opinion of its own gets.
+ */
+@layer kui.effects {
+  [data-kui-fx~='glass'] {
+    /*
+     * The two passes that make it glass. `saturate()` after `blur()`, not before: blurring first
+     * averages the backdrop's colours toward grey, and saturating the *averaged* result is what
+     * puts the colour back — reversing them saturates detail that the blur then throws away, and
+     * the panel reads flat. Both orders are legal CSS and only one looks like glass.
+     *
+     * `-webkit-backdrop-filter` is the Safari-required spelling of the same property, not a
+     * progressive-enhancement fallback — Safari has shipped the unprefixed name only recently
+     * enough that dropping the prefixed one strands real installed browsers. Same reasoning
+     * `interaction.css` records for `-webkit-mask`/`-webkit-mask-composite`.
+     *
+     * A browser with no `backdrop-filter` at all shows the tint and the rim and no blur: a
+     * flat translucent panel. That is a legible resting state, not a broken one, so there is no
+     * `@supports` guard here — the same judgement `discrete.css` records for `@starting-style`.
+     *
+     * `saturate()` takes a unitless number here because the schema normalises `160%` to `1.6`
+     * before it ever reaches this property (see `'number|percentage'` in `core/types.ts`), so
+     * both authored spellings arrive as the one CSS value.
+     */
+    backdrop-filter: blur(var(--kui-glass-blur, 16px)) saturate(var(--kui-glass-saturate, 1.6));
+    -webkit-backdrop-filter: blur(var(--kui-glass-blur, 16px)) saturate(var(--kui-glass-saturate, 1.6));
+
+    /*
+     * The tint, as a colour and an alpha the author sets independently.
+     *
+     * `color-mix()` rather than the relative-colour syntax `rgb(from … r g b / var(--a))`, which
+     * expresses the same thing more directly and is the obvious first reach. Relative colours
+     * landed considerably later than `color-mix` across engines, and the fallback behaviour when
+     * an engine cannot parse it is the same in both cases — the declaration is dropped and the
+     * element has no tint at all — so the wider-support spelling is strictly better here.
+     *
+     * `calc(… * 100%)` converts the schema's normalised number into the percentage `color-mix`
+     * requires: `opacity:0.12` and `opacity:12%` both arrive as `0.12` and both become `12%`.
+     */
+    background-color: color-mix(
+      in srgb,
+      var(--kui-glass-tint, #ffffff) calc(var(--kui-glass-opacity, 0.12) * 100%),
+      transparent
+    );
+
+    /*
+     * The sheen: light from above, falling off before the halfway line.
+     *
+     * This is the top-weighting the uniform rim above deliberately does not carry. It stops at 62%
+     * rather than 100% because a gradient that reaches the bottom edge reads as a lit *panel*
+     * rather than a lit *edge* — the highlight has to end well inside the box for the eye to place
+     * a light source above it.
+     *
+     * `--kui-glass-sheen-color` has no `data-kui` parameter and is not an oversight: it falls back
+     * to the rim colour, so `rim:` recolours the sheen and the hairline together, which is what a
+     * single light source physically does. Setting the property by hand is the escape hatch for
+     * anyone who genuinely wants them to disagree — and it is a real escape hatch, because this
+     * stylesheet reads it (see `ParamSpecBase.cssProperty`'s doc for the three classes of custom
+     * property and which ones can actually be overridden this way).
+     */
+    background-image: linear-gradient(
+      var(--kui-glass-sheen-angle, 180deg),
+      color-mix(
+        in srgb,
+        var(--kui-glass-sheen-color, var(--kui-glass-rim, #ffffff))
+          calc(var(--kui-glass-sheen, 0.16) * 100%),
+        transparent
+      )
+        0%,
+      transparent 62%
+    );
+
+    /* The hairline. Three longhands, never the shorthand — see the file comment. */
+    border-width: var(--kui-glass-rim-width, 1px);
+    border-style: solid;
+    border-color: var(--kui-glass-rim, rgb(255 255 255 / 0.22));
+
+    border-radius: var(--kui-glass-radius, 16px);
+  }
+
+  /*
+   * `prefers-reduced-motion` has no rule here, and that is a decision rather than a gap.
+   *
+   * Reduced motion is a request about *movement*, and there is none in this file: no keyframe, no
+   * transition, no clock, nothing that changes after the first paint. The primitive declares
+   * `reducedMotion: 'shorten'` for the same reason `rotate-static` and `background-media` do —
+   * it is the identity element of `strictestPolicy`, so composing glass with a neighbour leaves
+   * that neighbour's own declared policy exactly as it declared it — and `base.css`'s
+   * `[data-kui-rm='shorten']` block clamps `animation-duration`, which finds nothing to clamp on
+   * this element. A composed `beam-border` still gets frozen by its own reduced-motion rule in
+   * `interaction.css`; a composed `press-depth` still gets its transition shortened by
+   * `base.css`. Neither is this file's to restate.
+   *
+   * What a glass surface *does* interact with is `prefers-reduced-transparency`, which is a
+   * different media query and a different user request, and is deliberately not handled here:
+   * every effect in this catalog that paints its own colour has the same question open, and
+   * answering it for one primitive would make the catalog inconsistent rather than accessible.
+   */
+
+  /*
+   * Windows High Contrast / `forced-colors: active`.
+   *
+   * The catalog-wide `forced-colors` pass is a separate task and this is not it — but this
+   * primitive is a special case that would get *worse* rather than merely stay unhandled if it
+   * were left to that pass, so it carries the one rule it genuinely needs.
+   *
+   * In forced-colors mode the UA overrides `background-color` and `border-color` with its own
+   * palette, which is the correct outcome and needs nothing from us. `backdrop-filter` is **not**
+   * a colour property, so it is not overridden: the blur survives into a mode whose entire purpose
+   * is maximum legibility, and blurs whatever the UA has just painted behind the panel. That is
+   * the failure mode this rule exists for, and it is unique to this primitive — nothing else in
+   * the catalog writes `backdrop-filter`.
+   *
+   * `background-image` goes too, for a smaller reason: a `color-mix` gradient is not one of the
+   * values forced-colors overrides, so the sheen would keep painting over the UA's own background.
+   *
+   * When the catalog-wide pass lands and wants every `forced-colors` rule in one place, this block
+   * is what moves — not what gets written from scratch.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='glass'] {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background-image: none;
+    }
+  }
+}

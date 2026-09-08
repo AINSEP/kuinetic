@@ -52,6 +52,17 @@ export interface AnimationTracks {
    * initial value — see {@link declarationsFor} for why that case emits no declaration at all.
    */
   directions: string[]
+  /**
+   * One `animation-composition` per track — `replace` for all but the few the composition resolver
+   * had to sum, and handled exactly like {@link directions}: an all-`replace` list is the CSS
+   * initial value and emits no declaration at all.
+   *
+   * Per track and not per element for the reason `iterationCounts` is: CSS repeats a shorter value
+   * list to match the longest one across every `animation-*` longhand in the group, so a single
+   * `add` written for one effect would be handed to every neighbour composed beside it — including
+   * the ones whose keyframes write `opacity`, where adding to the underlying 1 deletes the fade.
+   */
+  compositions: string[]
 }
 
 /**
@@ -70,6 +81,7 @@ export function emptyTracks(): AnimationTracks {
     easings: [],
     iterationCounts: [],
     directions: [],
+    compositions: [],
   }
 }
 
@@ -140,6 +152,10 @@ export function pushTrack(tracks: AnimationTracks, entry: Entry, step: SequenceS
   // dropped anything the renderer or the timeline cannot honour.
   const iterations = spec.repeat ?? `var(${iterationCountProperty(resolved.preset.name)}, 1)`
   const direction = directionValue(spec.yoyo)
+  // `replace` is the CSS initial value; `add` only ever arrives from `compile.ts`'s
+  // `composeAdditively`, which has already checked that every channel this entry's single keyframe
+  // block writes is one whose values genuinely sum.
+  const composition = entry.composite ?? 'replace'
 
   for (const name of keyframesFor(entry)) {
     // Every track this segment compiles carries the same gate, including the several a `tween`
@@ -153,6 +169,7 @@ export function pushTrack(tracks: AnimationTracks, entry: Entry, step: SequenceS
     tracks.easings.push(easing)
     tracks.iterationCounts.push(iterations)
     tracks.directions.push(direction)
+    tracks.compositions.push(composition)
   }
 }
 
@@ -241,6 +258,9 @@ export function declarationsFor(
   }
   if (tracks.directions.some((value) => value !== 'normal')) {
     declarations['animation-direction'] = tracks.directions.join(', ')
+  }
+  if (tracks.compositions.some((value) => value !== 'replace')) {
+    declarations['animation-composition'] = tracks.compositions.join(', ')
   }
   return declarations
 }

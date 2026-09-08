@@ -51,8 +51,28 @@ beforeEach(() => {
 
 describe('every warning reaches the author exactly once', () => {
   it('reports a composition warning once, not once per place the plan is reachable from', () => {
-    const { messages } = report('fade-up, lift-shadow')
+    const { messages } = report('fade-up, fade-left')
     expect(occurrences(messages, 'cannot compose')).toBe(1)
+  })
+
+  it('names the effect it dropped, not just the channel that clashed', () => {
+    // The diagnosis ("both animate translate") was already there; the consequence was not. An
+    // author who writes this gets no slide, and the old sentence never said an effect was removed.
+    //
+    // Two entrances deliberately, not the entrance+hover pair this used to use: `fade-up,
+    // lift-shadow` composes now that phases ship, so it no longer produces a warning to assert on.
+    // Same-phase claims on one channel are still a genuine, unresolvable clash.
+    const { messages } = report('fade-up, fade-left')
+    const composition = messages.find((message) => message.includes('cannot compose')) ?? ''
+    expect(composition).toContain('Dropped "fade-left"')
+    expect(composition).toContain('only "fade-up" will run')
+  })
+
+  it('names every dropped effect when more than one is discarded', () => {
+    const { messages } = report('fade-up, fade-left, fade-down')
+    const composition = messages.find((message) => message.includes('cannot compose')) ?? ''
+    expect(composition).toContain('"fade-left"')
+    expect(composition).toContain('"fade-down"')
   })
 
   it('reports a document-scoped warning once', () => {
@@ -76,7 +96,7 @@ describe('every warning reaches the author exactly once', () => {
   })
 
   it('never reports the same warning through both a plan and the document', () => {
-    const document_ = compiled('fade-upp, fade-up, lift-shadow')
+    const document_ = compiled('fade-upp, fade-up, fade-left')
     for (const target of document_.targets) {
       expect(target.plan.warnings).not.toBe(document_.warnings)
       for (const warning of target.plan.warnings) {
@@ -102,13 +122,13 @@ describe('compile() still returns one flat warning list', () => {
   })
 
   it('keeps group-scoped warnings on it too', () => {
-    expect(compile(parse('fade-up, lift-shadow'), catalogRegistry(), 'time').warnings.join()).toContain(
+    expect(compile(parse('fade-up, fade-left'), catalogRegistry(), 'time').warnings.join()).toContain(
       'cannot compose',
     )
   })
 
   it('carries both halves at once, each exactly once', () => {
-    const plan = compile(parse('fade-upp, fade-up, lift-shadow'), catalogRegistry(), 'time')
+    const plan = compile(parse('fade-upp, fade-up, fade-left'), catalogRegistry(), 'time')
     expect(occurrences(plan.warnings, 'unknown effect')).toBe(1)
     expect(occurrences(plan.warnings, 'cannot compose')).toBe(1)
   })
@@ -122,21 +142,11 @@ describe('compile() still returns one flat warning list', () => {
  * channels are whatever properties the author named).
  */
 const COLLISIONS: { attribute: string; channel: string; effects: [string, string]; keeps: string }[] = [
-  { attribute: 'fade-up, lift-shadow', channel: 'translate', effects: ['fade-up', 'lift-shadow'], keeps: 'fade-up' },
-  { attribute: 'lift-shadow, fade-up', channel: 'translate', effects: ['lift-shadow', 'fade-up'], keeps: 'lift-shadow' },
-  { attribute: 'fade-up, pop-open', channel: 'opacity', effects: ['fade-up', 'pop-open'], keeps: 'fade-up' },
-  { attribute: 'pop-open, fade-up', channel: 'opacity', effects: ['pop-open', 'fade-up'], keeps: 'pop-open' },
   { attribute: 'tween y:120px, fade-in', channel: 'translate', effects: ['tween', 'fade-in'], keeps: 'tween' },
   { attribute: 'fade-in, tween y:120px', channel: 'translate', effects: ['fade-in', 'tween'], keeps: 'fade-in' },
   { attribute: 'tween opacity:0, fade-in', channel: 'opacity', effects: ['tween', 'fade-in'], keeps: 'tween' },
   // Extra parameters, durations and an easing on both halves — the knobs a real page carries, and
   // the ones a fixture frozen at `"a, b"` would never exercise.
-  {
-    attribute: 'fade-up distance:40px 800ms expo-out, lift-shadow 600ms',
-    channel: 'translate',
-    effects: ['fade-up', 'lift-shadow'],
-    keeps: 'fade-up',
-  },
   // A tween touching three property groups still collides on the one its neighbour shares.
   {
     attribute: 'tween x:64px rotate:12deg y:120px 900ms, fade-in 400ms',
@@ -162,7 +172,21 @@ describe('a channel collision is never silent', () => {
 })
 
 describe('effects on disjoint channels still compose, in either order', () => {
-  const SAFE = ['fade-up, blur-in', 'blur-in, fade-up', 'fade-up, shine-sweep', 'shine-sweep, fade-up']
+  // `fade-up, lift-shadow` and `fade-up, pop-open` joined this list when `Preset.phase` shipped:
+  // an entrance and a state response claim the same channel but never drive it at the same moment,
+  // so refusing them was a false positive the channel model could not see. They are asserted here
+  // in both orders because the exemption must not depend on which half the author wrote first.
+  const SAFE = [
+    'fade-up, blur-in',
+    'blur-in, fade-up',
+    'fade-up, shine-sweep',
+    'shine-sweep, fade-up',
+    'fade-up, lift-shadow',
+    'lift-shadow, fade-up',
+    'fade-up, pop-open',
+    'pop-open, fade-up',
+    'fade-up distance:40px 800ms expo-out, lift-shadow 600ms',
+  ]
 
   for (const attribute of SAFE) {
     it(`composes "${attribute}" without a warning`, () => {

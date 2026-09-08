@@ -20,6 +20,13 @@
  * for free: their `animation` shorthand lives in the state rule already, so the fourth value is
  * simply `animation-delay` and there is no un-hover side to it.
  *
+ * Two families near the bottom key on something other than "the pointer is over me". `press-depth`
+ * keys on `:active` and is the only rule in the file with no fine-pointer gate — a press has an end
+ * the way a hover does not, so the reason for the gate does not apply to it. `group-dim` keys on
+ * `:has()` and paints the *children* of the element the name is written on rather than that element
+ * itself, which is why it is the one preset here that declares `requiresOwnSubtree`. Both carry
+ * their own reasoning at the rules themselves.
+ *
  * `lift`/`pop`/`lift-shadow`/`border-draw`/`border-glow` no longer own a bare host-rule
  * `transition:` here — a shorthand on one preset's rule reset any other composed preset's, so
  * `data-kui="lift, border-glow"` used to compile `transition-property: box-shadow` only and `lift`
@@ -72,11 +79,30 @@
     position: relative;
     overflow: hidden;
   }
+  /*
+   * The band's three literals are now `angle:`, `width:` and `color:` (`SHINE_PARAMS`,
+   * `interaction-shared.ts`), spelled here as `var()` fallbacks so an unauthored instance renders
+   * exactly what it always did.
+   *
+   * The two outer stops are computed from one `width` rather than authored as a pair, because a
+   * pair invites the two halves to disagree and an off-centre band is not a look anybody asks for
+   * — it just makes the sweep arrive early on one side. `calc(50% - 0.2 * 50%)` is `40%` and
+   * `calc(50% + 0.2 * 50%)` is `60%`: the shipped geometry, unchanged, at the default.
+   *
+   * `color:` layers *outside* the pre-existing `--kui-c1` hook rather than replacing it. That
+   * property is un-namespaced and predates the per-effect convention, but a page may be setting it,
+   * and nesting the fallbacks means both spellings still work with the new parameter winning.
+   */
   [data-kui-fx~='shine-sweep']::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(115deg, transparent 40%, var(--kui-c1, rgb(255 255 255 / 0.35)) 50%, transparent 60%);
+    background: linear-gradient(
+      var(--kui-shine-sweep-angle, 115deg),
+      transparent calc(50% - var(--kui-shine-sweep-width, 0.2) * 50%),
+      var(--kui-shine-sweep-color, var(--kui-c1, rgb(255 255 255 / 0.35))) 50%,
+      transparent calc(50% + var(--kui-shine-sweep-width, 0.2) * 50%)
+    );
     background-size: 220% 100%;
     background-position: 120% 0;
     pointer-events: none;
@@ -162,14 +188,73 @@
 
   /* --- border family --- */
 
+  /*
+   * `border-draw` paints its ring on a masked `::before`, not through `border-image`.
+   *
+   * ### Why the old spelling could not be kept
+   *
+   * It was `border: 2px solid transparent` plus a `border-image-source` conic gradient, and that
+   * approach has one defect with no workaround inside it: **`border-image` ignores
+   * `border-radius` entirely.** The spec says a border image is drawn against the border box's
+   * nine-slice grid, and nothing in it is curved — so the moment an element with a border image
+   * has a radius, the browser draws a *square* frame over the rounded box. Every rounded card,
+   * pill button and avatar in the catalog's most obvious use for this effect came out with four
+   * hard corners. That is not a bug in how the rule was written; it is what `border-image` is.
+   *
+   * ### The replacement, which is not a new invention
+   *
+   * `gradient-rotate-border`/`gradient-border` (ambient.css) and `beam-border` (below) already
+   * paint a ring the way this now does: put the gradient on a box, then subtract that box's own
+   * content area from it with two full-size mask layers composited `exclude`, leaving only the
+   * padding ring. `border-radius: inherit` curves the pseudo-element with its host, so the ring
+   * follows the corner instead of ignoring it. `beam-border`'s own comment above carries the long
+   * version of why this beats `border-image` on rounded corners; this rule is that same technique
+   * with a *sweep* (a growing arc) instead of a *rotation*.
+   *
+   * `--kui-border-pct` is untouched by the move: still the registered `<percentage>` at the top of
+   * this file, still the one thing `Preset.transitions` eases (`catalog/interaction.ts`), still
+   * driving where the conic gradient's colour stops. Only the property it feeds changed, from
+   * `border-image-source` to `background`. An authored `border-draw duration:900ms` behaves
+   * exactly as it did.
+   *
+   * ### The one behaviour change, stated plainly
+   *
+   * The old rule reserved 2px of real border on the host, so the ring occupied layout and pushed
+   * the element's content inward. This one is an overlay: the host's box is unchanged and the ring
+   * is drawn *over* its edge. A page that was relying on `border-draw` for 2px of spacing will see
+   * its content shift out by 2px. That is the same model `beam-border` has always used, and it is
+   * the right one — an effect that silently changes an element's size is a layout effect wearing a
+   * decoration's name.
+   *
+   * `width:` and `outset:` (`BORDER_DRAW_PARAMS`, `interaction-shared.ts`) exist because the move
+   * created the need for them. `width:` was the hardcoded `2px`, now authorable since the ring is
+   * no longer a real border anyone can restyle from the page. `outset:` is the identical
+   * compensation `beam-border` documents at length two rules down: an absolutely positioned
+   * pseudo-element resolves `inset` against its host's *padding* box, so a host with its own 1px
+   * border renders this ring floating 1px inside its edge, and no CSS length can read a host's
+   * border-width to fix that automatically.
+   */
   [data-kui-fx~='border-draw'] {
-    border: 2px solid transparent;
-    border-image-slice: 1;
-    border-image-source: conic-gradient(
+    position: relative;
+  }
+  [data-kui-fx~='border-draw']::before {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--kui-border-draw-outset, 0px));
+    border-radius: inherit;
+    padding: var(--kui-border-draw-width, 2px);
+    background: conic-gradient(
       from -90deg,
       var(--kui-border-draw-color, var(--accent, #d2691e)) 0 var(--kui-border-pct, 0%),
       transparent 0
     );
+    /* Both spellings, not a progressive-enhancement pair: Safari needs the `-webkit-` forms and
+       every other engine needs the standard ones. Same as `beam-border` below. */
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
   }
   [data-kui-fx~='border-draw']:focus-visible {
     --kui-border-pct: 100%;
@@ -220,14 +305,50 @@
     inset: calc(-1 * var(--kui-beam-border-outset, 0px));
     border-radius: inherit;
     padding: var(--kui-beam-border-width, 3px);
+    /*
+     * Five derived angles, so `arc:` and `softness:` (`BEAM_PARAMS`, `interaction-shared.ts`) can
+     * reshape the ring without any of the six stops below being authored twice.
+     *
+     * Read from the seam backwards, because that is where the gradient's colour ends:
+     *   `-span`   — `arc:`, how much of the ring carries colour at all.
+     *   `-start`  — where the arc begins fading up from transparent.
+     *   `-ramp`   — how much of the arc that fade occupies. This is `softness`, and it is the whole
+     *               mechanism: a long ramp is a soft rim light, a zero ramp is a hard dash.
+     *   `-stop1`  — where the fade completes and the first colour lands.
+     *   `-stop4`  — the last colour, held 6% of the arc short of the seam so the ring closes on a
+     *               short transparent tail rather than a butt joint.
+     *   `-step`   — stop1..stop4 evenly spaced across what is left between them.
+     *
+     * Named `--kui-beam-arc-*` and not `--kui-beam-*`, so none of them sits one character away from
+     * the four `--kui-beam-border-c1..c4` *colour* slots below and reads as a matched pair with
+     * them. These are angles; those are colours. Same reasoning `press-depth` records for calling
+     * its own slot `--kui-press-shadow-depth`.
+     *
+     * At the defaults (`arc: 100deg`, `softness: 0.22`) these resolve to 260 / 282 / 306 / 330 /
+     * 354 / 360 — the exact six numbers this gradient was hand-written with, which is the point:
+     * the parameters are a generalisation of the shipped ring, not a replacement for it.
+     *
+     * Softening had to happen here in the stops rather than as a `filter: blur()` on this
+     * pseudo-element, which is the obvious first reach and does not work: a filter is applied
+     * *before* masking, so the `mask-composite` two lines down would cut the blurred ring back to
+     * hard inner and outer edges. `interaction-shared.ts` records that at length.
+     */
+    --kui-beam-arc-span: var(--kui-beam-border-arc, 100deg);
+    --kui-beam-arc-start: calc(360deg - var(--kui-beam-arc-span));
+    --kui-beam-arc-ramp: calc(var(--kui-beam-arc-span) * var(--kui-beam-border-softness, 0.22));
+    --kui-beam-arc-stop1: calc(var(--kui-beam-arc-start) + var(--kui-beam-arc-ramp));
+    --kui-beam-arc-stop4: calc(360deg - var(--kui-beam-arc-span) * 0.06);
+    --kui-beam-arc-step: calc((var(--kui-beam-arc-stop4) - var(--kui-beam-arc-stop1)) / 3);
     background: conic-gradient(
       from var(--kui-border-angle, 0deg),
       transparent 0deg,
-      transparent 260deg,
-      var(--kui-beam-border-c1, #ff5f6d) 282deg,
-      var(--kui-beam-border-c2, var(--kui-beam-border-c1, #ffc371)) 306deg,
-      var(--kui-beam-border-c3, var(--kui-beam-border-c1, #4facfe)) 330deg,
-      var(--kui-beam-border-c4, var(--kui-beam-border-c1, #a855f7)) 354deg,
+      transparent var(--kui-beam-arc-start),
+      var(--kui-beam-border-c1, #ff5f6d) var(--kui-beam-arc-stop1),
+      var(--kui-beam-border-c2, var(--kui-beam-border-c1, #ffc371))
+        calc(var(--kui-beam-arc-stop1) + var(--kui-beam-arc-step)),
+      var(--kui-beam-border-c3, var(--kui-beam-border-c1, #4facfe))
+        calc(var(--kui-beam-arc-stop1) + var(--kui-beam-arc-step) * 2),
+      var(--kui-beam-border-c4, var(--kui-beam-border-c1, #a855f7)) var(--kui-beam-arc-stop4),
       transparent 360deg
     );
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -263,6 +384,43 @@
     [data-kui-fx~='beam-border-auto']::before {
       animation: none;
       --kui-border-angle: 45deg;
+    }
+  }
+
+  /*
+   * `forced-colors: active` — `beam-border`/`beam-border-auto`/`border-draw` are the ring family
+   * `ambient.css`'s own `forced-colors` block names as the pattern this generalises: a masked
+   * `conic-gradient` standing in for a border, with no real `border-*` property for the UA to
+   * correct, and `background-image` (what actually paints the gradient) is the one channel forced-
+   * colors does not remap on its own. Left alone, the rainbow arc keeps drawing over whatever the
+   * UA just forced everything else to.
+   *
+   * Same fix as `gradient-rotate-border`/`gradient-border`: a solid `CanvasText` fill through the
+   * identical mask, so the ring survives as a plain outline instead of vanishing or staying a
+   * multi-hue wash. `::before` rules are outside `test/support/css-scan.ts`'s channel-tracked
+   * static-rule scan (a pseudo-element paints a different box than the one the channel model
+   * polices), so this needs no channel bookkeeping — confirmed by reading that scanner directly.
+   *
+   * `beam-border-auto`'s ring is unconditional, so it gets the override unconditionally too.
+   * `beam-border`/`border-draw` only need it in the states that actually paint the ring: a flat
+   * fill replaces the multi-stop arc or the `--kui-border-pct`-driven sweep only where `opacity`/
+   * `--kui-border-pct` would otherwise have made it visible, so an unfocused, unhovered element
+   * stays exactly as invisible as it always was — a bare, ungated `:hover::before` selector here
+   * would paint the ring on a touchscreen's sticky post-tap hover even though the *base* rule that
+   * actually drives `--kui-border-pct`/opacity stays fine-pointer-gated (this file's opening
+   * comment), so the hover half is split into its own fine-pointer-gated block below to match.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='border-draw']:focus-visible::before,
+    [data-kui-fx~='beam-border']:focus-visible::before,
+    [data-kui-fx~='beam-border-auto']::before {
+      background: CanvasText;
+    }
+  }
+  @media (forced-colors: active) and (hover: hover) and (pointer: fine) {
+    [data-kui-fx~='border-draw']:hover::before,
+    [data-kui-fx~='beam-border']:hover::before {
+      background: CanvasText;
     }
   }
 
@@ -341,8 +499,310 @@
     75% { translate: 0 -3px; }
   }
 
+  /* --- press family --- */
+
+  /*
+   * `press-depth`: the `:active` state, which is the one interaction state this file had never
+   * expressed. Twenty-two names above it, every one with a `:focus-visible` twin, and the only
+   * `:active` selector anywhere in the library was a coarse-pointer fallback in `media.css`.
+   *
+   * **No `@media (hover: hover) and (pointer: fine)` gate, deliberately, and this is the one place
+   * in the file where that is not an oversight.** The gate on every `:hover` rule above exists for
+   * a single failure: a tap on a touchscreen leaves `:hover` matching with no pointer left to move
+   * away, so the element sits permanently in its hovered state. `:active` cannot fail that way —
+   * it is bound to the press itself and the browser releases it on pointerup (and on the touch
+   * being cancelled by a scroll), so the state has an end even where a hover does not. A press
+   * effect is also worth *more* on a touchscreen than on a desktop, not less: touch has no hover
+   * to signal that a control is live, so the press is the only affordance a tap ever gets. Scoping
+   * this to fine pointers would remove it from exactly the devices that need it.
+   *
+   * The honest limit, since it is a real one: `:active` is what the *browser* decides, and a
+   * keyboard press reaches it only on elements the browser treats as activatable. `<button>` and
+   * `<a href>` hold `:active` while Space/Enter is down in every current engine, which is what
+   * makes the keyboard equivalent native here rather than something this rule has to mirror the
+   * way the `:focus-visible` rules above mirror `:hover`. A `<div role="button">` gets no `:active`
+   * from a keypress in any engine, and no CSS can give it one — that element needs a real
+   * `<button>`, which it needed anyway.
+   *
+   * The shadow is authored from one length rather than as a whole `box-shadow` value: `depth:`
+   * drives offset, blur, and spread together through `calc()`, so the collapse stays proportional
+   * however far it is pushed. It is a *replacement* shadow, not a modification of whatever the
+   * element had at rest — CSS has no way to read an existing `box-shadow` and shrink it — which is
+   * why the default is a tight contact shadow that reads as the element meeting the surface,
+   * whether it was raised before the press or already flat.
+   */
+  [data-kui-fx~='press-depth']:active {
+    scale: var(--kui-press-scale, 0.96);
+    box-shadow: 0 var(--kui-press-shadow-depth, 2px) calc(var(--kui-press-shadow-depth, 2px) * 2)
+      calc(var(--kui-press-shadow-depth, 2px) * -1) var(--kui-press-shadow-color, rgb(0 0 0 / 0.35));
+    --kui-tx-delay-press-depth: var(--kui-press-delay, 0ms);
+  }
+
+  /* --- group family: one element, its children's collective state --- */
+
+  /*
+   * `group-dim`: hover one card and the rest of the grid recedes.
+   *
+   * The name goes on the *container*, and the rules below read whatever children are already
+   * inside it — no wrapper class, no per-child attribute, no structural CSS in the page. That is
+   * the whole reason this is a library effect rather than six lines every page rewrites: the
+   * selector is fiddly to get right and gets subtly wrong in ways that only show up with a
+   * keyboard.
+   *
+   * Three details the obvious version of this misses:
+   *
+   * 1. The lit member is `:hover` **or** focus, and both rules exclude the same set. Written as
+   *    two independent rules — one dimming everything but the hovered child, one dimming
+   *    everything but the focused child — a pointer over card A while focus sits on card B makes
+   *    each rule dim the other rule's survivor, and the whole grid goes flat.
+   * 2. Focus is tested with `:has(:focus-visible)` on the child, not `:focus-visible` alone. The
+   *    focusable thing is almost never the card: it is the link inside it. `:focus-within` would
+   *    also catch that, and is wrong for a different reason — it matches a *click*-derived focus
+   *    too, so clicking a card and moving the mouse away would leave the grid dimmed with nothing
+   *    under the pointer to explain why.
+   * 3. `:hover` appears in the always-on rule, inside the `:not()`. That is not a missing
+   *    fine-pointer gate: it only ever *widens* what stays lit, so a touchscreen's sticky post-tap
+   *    hover can at worst leave one extra card undimmed, never strand one dimmed. The rule that
+   *    hover actually *triggers* is gated, in the block below.
+   *
+   * The children's transition is authored here rather than through `Preset.transitions`, which is
+   * the mechanism every other transitioning preset in this file uses. That mechanism compiles into
+   * one `--kui-transition` property on the element carrying `data-kui-fx` — the container, which
+   * does not move — so it cannot reach the children at all. A bare `transition:` is safe on this
+   * selector for the reason it is not safe on a host rule: the host box is shared by every
+   * composed preset, while nothing but `group-dim` can ever write to
+   * `[data-kui-fx~='group-dim'] > *`, since a second effect that wanted to would be on this
+   * primitive's `group` channel and refused at compile time before it got here.
+   *
+   * The delay is on the state rules only, never on the base rule they transition from — the same
+   * asymmetry this file's opening comment describes for `lift`. It buys hover intent (don't dim
+   * the grid until I have meant it) without leaving the grid dim after the pointer has gone.
+   */
+  [data-kui-fx~='group-dim'] > * {
+    transition: opacity var(--kui-group-dim-duration, 260ms) var(--kui-group-dim-ease, ease-out);
+  }
+  [data-kui-fx~='group-dim']:has(:focus-visible)
+    > :not(:hover, :focus-visible, :has(:focus-visible)) {
+    opacity: var(--kui-group-dim-opacity, 0.4);
+    transition-delay: var(--kui-group-dim-delay, 0ms);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    [data-kui-fx~='group-dim']:has(> :hover, :focus-visible)
+      > :not(:hover, :focus-visible, :has(:focus-visible)) {
+      opacity: var(--kui-group-dim-opacity, 0.4);
+      transition-delay: var(--kui-group-dim-delay, 0ms);
+    }
+  }
+  /* The dim itself survives, only its travel time does not — the same "shorten, never remove"
+     choice `base.css`'s reduced-motion block makes for the whole transition tier, and for the same
+     reason: an opacity change that is shortened still lands on its end value, so no card can be
+     stranded half-lit. The reach has to be written out here because `base.css` shortens
+     `[data-kui-rm]` and its pseudo-elements, and this effect's motion is on a child box that
+     attribute never lands on. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-kui-fx~='group-dim'] > * {
+      transition-duration: 1ms;
+    }
+  }
+
+  /* --- two-box family: the state is on the trigger, the motion is on a second element --- */
+
+  /*
+   * `masked-label-swap` (three axes) and `hover-intent` are the first two effects in this file whose
+   * motion is on a box *other* than the one carrying `data-kui-fx`, and every rule below is shaped
+   * by one constraint that is not obvious from reading it: **none of them may contain a combinator
+   * after an `[data-kui-fx~='…']` compound.**
+   *
+   * `test/css-requires-own-subtree.test.ts` re-derives, from these stylesheets, the set of names
+   * whose CSS reaches past themselves, and requires every one of them to declare
+   * `Preset.requiresOwnSubtree` — which makes `compile.ts` refuse to relocate them with `target:`.
+   * That refusal is right for `group-dim` above (its subject really is the container) and wrong for
+   * these two: `data-kui="masked-label-swap target:.label"` on a button that also holds an icon is
+   * the main way anyone will write this, not an edge case.
+   *
+   * So the trigger's state travels **by inheritance, not by selector**. The host rules set
+   * `--kui-<x>-shown` (0 at rest, 1 in the state) and `--kui-<x>-lag` (0ms at rest, the authored
+   * delay in the state); the marked part's rule is a *standalone* `[data-kui-swap]` /
+   * `[data-kui-hint]` selector with no fx prefix at all, and computes its own `opacity`/`translate`/
+   * `transition-delay` from the inherited values. Nothing reaches past anything, both names stay out
+   * of the re-derived set, and `target:` works. `catalog/interaction-reveal.ts`'s `INHERITED_STATE`
+   * note carries the long version.
+   *
+   * Routing the *delay* through the same inherited property is what makes this hover **intent**
+   * rather than a lag. A CSS transition reads its parameters from the after-change style, so with
+   * the delay present only in the state rule: entering arms a delayed transition, and leaving before
+   * it elapses reverts the property and cancels the pending transition before it ever started —
+   * nothing is drawn, and nothing has to be un-drawn. Leaving *after* it has run reverts at once,
+   * because the base rule's lag is `0ms`. That is the same asymmetry this file's opening comment
+   * describes for `lift delay:200ms`, relayed one box further out.
+   *
+   * The two part rules apply unconditionally, with no fx element above them required, and the two
+   * families land differently on that — worth stating because one of the two is a real, if small,
+   * cost of the approach:
+   *
+   * - A stray or pre-JS `[data-kui-hint]` is *hidden*, which is the right answer: `opacity` falls
+   *   back to `0`, so no page ever flashes a tooltip before `Animator.start()` stamps `data-kui-fx`.
+   * - A stray or pre-JS `[data-kui-swap]` pair is two ordinary inline elements, both visible —
+   *   "DownloadGet the file" until the fx attribute lands, because `inline-grid` and `overflow`
+   *   live on the host rule and nothing has matched it yet. That window is the same one every
+   *   `:hover`-tier effect in this file has (an `underline-slide` has no underline before JS runs
+   *   either) and it closes on the first paint after `start()`. It is *not* fixable by keying the
+   *   clip on the authored `[data-kui~='…']` attribute as well: that attribute stays on the outer
+   *   element when `target:` moves the effect inward, so the outer element would keep a permanent
+   *   `inline-grid`, and a button holding an icon beside its label would stack the two. `cloak` is
+   *   the library's real answer if a page needs the window closed, at the price of hiding the whole
+   *   control until JavaScript arrives.
+   */
+
+  [data-kui-fx~='masked-label-swap'],
+  [data-kui-fx~='masked-label-swap-x'],
+  [data-kui-fx~='masked-label-swap-diagonal'] {
+    /* `inline-grid` so both copies land in the same cell (`grid-area: 1 / 1` on the parts) and the
+       box sizes itself to the *larger* of the two — a swap that resized its own button as the text
+       changed would shove the rest of the row around mid-hover. `overflow: hidden` is the mask the
+       name refers to: the copies travel a full box-length, and this is what turns that travel into
+       one label leaving through an edge instead of two labels overlapping the page. */
+    display: inline-grid;
+    place-items: center;
+    overflow: hidden;
+    --kui-label-swap-shown: 0;
+    --kui-label-swap-lag: 0ms;
+  }
+
+  /* The axis, as two offsets. A `distance` of `100%` resolves against each part's own box, so one
+     unit of travel is exactly one label — the outgoing copy clears the clip at the same instant the
+     incoming one lands, whatever the font size. Vertical is the unsuffixed default because that is
+     what a changing number or price reads as; horizontal suits a changing call to action. */
+  [data-kui-fx~='masked-label-swap'] {
+    --kui-label-swap-dx: 0%;
+    --kui-label-swap-dy: calc(-1 * var(--kui-label-swap-distance, 100%));
+  }
+  [data-kui-fx~='masked-label-swap-x'] {
+    --kui-label-swap-dx: var(--kui-label-swap-distance, 100%);
+    --kui-label-swap-dy: 0%;
+  }
+  [data-kui-fx~='masked-label-swap-diagonal'] {
+    --kui-label-swap-dx: var(--kui-label-swap-distance, 100%);
+    --kui-label-swap-dy: calc(-1 * var(--kui-label-swap-distance, 100%));
+  }
+
+  [data-kui-fx~='masked-label-swap']:focus-visible,
+  [data-kui-fx~='masked-label-swap-x']:focus-visible,
+  [data-kui-fx~='masked-label-swap-diagonal']:focus-visible {
+    --kui-label-swap-shown: 1;
+    --kui-label-swap-lag: var(--kui-label-swap-delay, 0ms);
+  }
+
+  /*
+   * The two copies. `from` rests in place and is pushed out; `to` starts one offset *behind* the
+   * clip and arrives. Writing the second as `(shown - 1)` rather than a separate pair of offsets is
+   * what keeps the two exactly complementary at every point of the tween — authored as two
+   * independent expressions they would drift apart the moment anyone edited one of them, and a
+   * label swap where the copies are not the same distance apart reads as a stutter.
+   */
+  [data-kui-swap] {
+    grid-area: 1 / 1;
+    translate: calc(var(--kui-label-swap-dx, 0%) * var(--kui-label-swap-shown, 0))
+      calc(var(--kui-label-swap-dy, 0%) * var(--kui-label-swap-shown, 0));
+    transition: translate var(--kui-label-swap-duration, 320ms)
+      var(--kui-label-swap-ease, ease-out) var(--kui-label-swap-lag, 0ms);
+  }
+  [data-kui-swap='to'] {
+    translate: calc(var(--kui-label-swap-dx, 0%) * (var(--kui-label-swap-shown, 0) - 1))
+      calc(var(--kui-label-swap-dy, 0%) * (var(--kui-label-swap-shown, 0) - 1));
+  }
+
+  /*
+   * `hover-intent`: the hint stays hidden until the pointer has rested, and an early leave cancels
+   * it before anything is painted. See the block comment above for why the delay reaching this rule
+   * through `--kui-hover-intent-lag` is what makes that cancellation native rather than scripted.
+   *
+   * `:has(:focus-visible)` beside `:focus-visible`, the same pair `group-dim` uses and for the same
+   * reason: the focusable thing is very often a link or button *inside* the element the effect is
+   * written on. `:focus-within` would also catch that and is wrong — it matches a click-derived
+   * focus too, so clicking the trigger would pin the hint open with nothing under the pointer to
+   * explain it.
+   */
+  [data-kui-fx~='hover-intent'] {
+    position: relative;
+    --kui-hover-intent-shown: 0;
+    --kui-hover-intent-lag: 0ms;
+  }
+  [data-kui-fx~='hover-intent']:focus-visible,
+  [data-kui-fx~='hover-intent']:has(:focus-visible) {
+    --kui-hover-intent-shown: 1;
+    --kui-hover-intent-lag: var(--kui-hover-intent-delay, 1000ms);
+  }
+  /* `pointer-events: none` in every state, deliberately and permanently. A revealed panel the
+     pointer can move *into* is a menu, and a menu has to survive the pointer leaving its trigger —
+     which is trajectory intent, a genuinely different feature needing pointer history rather than a
+     delay. Keeping this one uninteractive is what stops it being mistaken for that. */
+  [data-kui-hint] {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-bottom: var(--kui-hover-intent-gap, 8px);
+    opacity: var(--kui-hover-intent-shown, 0);
+    translate: -50%
+      calc(var(--kui-hover-intent-distance, 4px) * (1 - var(--kui-hover-intent-shown, 0)));
+    pointer-events: none;
+    transition:
+      opacity var(--kui-hover-intent-duration, 160ms) var(--kui-hover-intent-ease, ease-out)
+        var(--kui-hover-intent-lag, 0ms),
+      translate var(--kui-hover-intent-duration, 160ms) var(--kui-hover-intent-ease, ease-out)
+        var(--kui-hover-intent-lag, 0ms);
+  }
+
+  /*
+   * Coarse-pointer fallback for both families — `:active`, not a hover, and not nothing.
+   *
+   * Every `:hover` rule in this file is fine-pointer-gated so a tap cannot leave an element stuck
+   * hovered, which on a touchscreen leaves these two reachable by keyboard focus alone. That is a
+   * real gap rather than an acceptable one: a phone is where a swapping label and a hint are most
+   * worth having. `:active` closes it for the reason `press-depth` documents at length — the state
+   * is bound to the press and the browser releases it, so it cannot strand anything — and for
+   * `hover-intent` it lands on exactly the right gesture by accident of arithmetic: `:active` plus a
+   * one-second delay *is* a long-press, and long-press-to-reveal is what a touch platform already
+   * trains its users to expect from a hint.
+   */
+  @media (pointer: coarse) {
+    [data-kui-fx~='masked-label-swap']:active,
+    [data-kui-fx~='masked-label-swap-x']:active,
+    [data-kui-fx~='masked-label-swap-diagonal']:active {
+      --kui-label-swap-shown: 1;
+      --kui-label-swap-lag: var(--kui-label-swap-delay, 0ms);
+    }
+    [data-kui-fx~='hover-intent']:active {
+      --kui-hover-intent-shown: 1;
+      --kui-hover-intent-lag: var(--kui-hover-intent-delay, 1000ms);
+    }
+  }
+
+  /* Shortened, never removed — the same choice `group-dim` makes just above, and written out here
+     for the identical reason: `base.css` shortens `[data-kui-rm]` and its pseudo-elements, and both
+     of these families move a *child* box that attribute never lands on. The delay is deliberately
+     left alone. Reduced motion is a request about movement, not about intent, and a hint that
+     appears instantly after a second's rest is still the effect the author asked for; one that
+     appears the moment the pointer grazes the control is not.
+
+     `[data-kui-preview]` (`anchored-preview`) and `[data-kui-search-field]` (`search-expand`), both
+     below, join this same block rather than each carrying their own: every standalone child-box
+     selector in this file needs the identical treatment for the identical reason, and one shared
+     rule is what keeps `catalog-interaction-reveal.test.ts`'s "last reduced-motion block in the
+     file" check pointed at a block that actually lists every one of them. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-kui-swap],
+    [data-kui-hint],
+    [data-kui-preview],
+    [data-kui-search-field] {
+      transition-duration: 1ms;
+    }
+  }
+
   /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
-     reach the identical state — grouped in one block so the two never drift apart. */
+     reach the identical state — grouped in one block so the two never drift apart. `press-depth`
+     and `group-dim` are outside it on purpose and carry their own reasons: the first has no hover
+     state to mirror, and the second's hover rule is not a verbatim copy of its focus rule. */
   @media (hover: hover) and (pointer: fine) {
     [data-kui-fx~='lift']:hover {
       translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
@@ -393,6 +853,20 @@
     [data-kui-fx~='icon-bounce']:hover {
       animation: kui-icon-bounce var(--kui-icon-bounce-duration, 500ms) var(--kui-icon-bounce-ease, ease-out) var(--kui-icon-bounce-delay, 0ms);
     }
+    /* The two-box family's mirrors. Verbatim copies of their `:focus-visible` rules above, like
+       every other pair in this block — the state they set is two inherited custom properties, and
+       the part rules that read those live outside any pointer-type gate, so hover and keyboard
+       reach one identical rendering path. */
+    [data-kui-fx~='masked-label-swap']:hover,
+    [data-kui-fx~='masked-label-swap-x']:hover,
+    [data-kui-fx~='masked-label-swap-diagonal']:hover {
+      --kui-label-swap-shown: 1;
+      --kui-label-swap-lag: var(--kui-label-swap-delay, 0ms);
+    }
+    [data-kui-fx~='hover-intent']:hover {
+      --kui-hover-intent-shown: 1;
+      --kui-hover-intent-lag: var(--kui-hover-intent-delay, 1000ms);
+    }
   }
 
   /* --- pointer-tracking family: JS writes the motion; this is presentation only --- */
@@ -420,6 +894,17 @@
       color-mix(in srgb, var(--accent, #d2691e) 30%, transparent),
       transparent 70%
     );
+  }
+
+  /* `forced-colors: active` — purely decorative, no boundary or state to preserve the way
+     `beam-border`'s ring has, so this gets the plain glass-sheen treatment: turn the wash off
+     rather than repaint it. `background-image` is the one channel the UA leaves unforced (see
+     `ambient.css`'s own `forced-colors` block), so left alone this radial glow keeps following the
+     pointer in its own unforced hue over whatever the UA just corrected everything else to. */
+  @media (forced-colors: active) {
+    [data-kui-fx~='cursor-spotlight']::before {
+      background: none;
+    }
   }
 
   .kui-cursor-dot {
@@ -452,6 +937,25 @@
        pure white — overriding --kui-invert-color trades away the always-visible guarantee. */
     background: var(--kui-invert-color, #fff);
     mix-blend-mode: difference;
+    /*
+     * `forced-colors: active` — the one place this pass reaches for the escape hatch, and the
+     * justification is mechanical rather than aesthetic (the bar the file comment above sets, and
+     * every other rule in this pass meets by *not* reaching for it).
+     *
+     * This element is not scanned by `[data-kui-fx~=…]` at all — it is a synthetic dot the runtime
+     * appends to `<body>`, not the element the effect is authored on — so nothing here is even
+     * reachable through the compiled catalog; it is pure JS-owned chrome. Its whole trick is
+     * `mix-blend-mode: difference` against a literal, exact white, which is what makes the dot
+     * legible against *any* backdrop without ever reading what that backdrop is — the guarantee
+     * the comment above already documents. Forcing `background-color` to a system colour would not
+     * make this more accessible, it would break the one thing that makes it accessible: difference
+     * blending needs the literal white to hold its contrast promise, and a UA-chosen colour is not
+     * guaranteed to differ from what's underneath the way white-via-difference is guaranteed to.
+     * Meanwhile there is no information to lose — a synthetic pointer-following dot carries no
+     * text and marks no control forced-colors mode exists to protect — so opting out costs nothing
+     * a forced-colors user needs and keeps the actual guarantee intact.
+     */
+    forced-color-adjust: none;
   }
 
   .kui-cursor-dot-label {
@@ -478,6 +982,235 @@
   @media (pointer: coarse) {
     .kui-cursor-dot {
       display: none;
+    }
+  }
+
+  /* --- anchored-preview: a name tag springing from an avatar, or an image popping out beside a
+     hovered word — one mechanism, four placements. Same `INHERITED_STATE` shape `hover-intent`/
+     `masked-label-swap` use (see `interaction-reveal.ts`'s doc comment on the primitive): the host
+     sets `--kui-anchored-preview-shown`/`-lag` on itself, plus two placement-specific custom
+     properties precomputed once per preset name, and `[data-kui-preview]` is a wholly generic
+     standalone rule with no `[data-kui-fx~=…]` prefix at all — so no rule here carries a combinator
+     past the fx compound, `requiresOwnSubtree` is never needed, and `target:` relocates all four
+     placements cleanly. */
+
+  [data-kui-fx~='anchored-preview'],
+  [data-kui-fx~='anchored-preview-bottom'],
+  [data-kui-fx~='anchored-preview-left'],
+  [data-kui-fx~='anchored-preview-right'] {
+    position: relative;
+    --kui-anchored-preview-shown: 0;
+    --kui-anchored-preview-lag: 0ms;
+  }
+
+  /* Placement geometry, precomputed per preset so the child rule below stays generic. `-inset` is
+     the four-value `inset` shorthand for that side (`top right bottom left`), `-travel` is the
+     `translate` pair combining the constant `-50%` cross-axis centering with the main-axis spring
+     distance — sign and axis already resolved here, so `[data-kui-preview]` never has to know
+     which placement it belongs to. */
+  [data-kui-fx~='anchored-preview'] {
+    --kui-anchored-preview-inset: auto auto calc(100% + var(--kui-anchored-preview-gap, 10px)) 50%;
+    --kui-anchored-preview-travel: -50%
+      calc(var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0)));
+  }
+  [data-kui-fx~='anchored-preview-bottom'] {
+    --kui-anchored-preview-inset: calc(100% + var(--kui-anchored-preview-gap, 10px)) auto auto 50%;
+    --kui-anchored-preview-travel: -50%
+      calc(-1 * var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0)));
+  }
+  [data-kui-fx~='anchored-preview-left'] {
+    --kui-anchored-preview-inset: 50% calc(100% + var(--kui-anchored-preview-gap, 10px)) auto auto;
+    --kui-anchored-preview-travel: calc(
+        var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0))
+      )
+      -50%;
+  }
+  [data-kui-fx~='anchored-preview-right'] {
+    --kui-anchored-preview-inset: 50% auto auto calc(100% + var(--kui-anchored-preview-gap, 10px));
+    --kui-anchored-preview-travel: calc(
+        -1 * var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0))
+      )
+      -50%;
+  }
+
+  [data-kui-fx~='anchored-preview']:focus-visible,
+  [data-kui-fx~='anchored-preview']:has(:focus-visible),
+  [data-kui-fx~='anchored-preview-bottom']:focus-visible,
+  [data-kui-fx~='anchored-preview-bottom']:has(:focus-visible),
+  [data-kui-fx~='anchored-preview-left']:focus-visible,
+  [data-kui-fx~='anchored-preview-left']:has(:focus-visible),
+  [data-kui-fx~='anchored-preview-right']:focus-visible,
+  [data-kui-fx~='anchored-preview-right']:has(:focus-visible) {
+    --kui-anchored-preview-shown: 1;
+    --kui-anchored-preview-lag: var(--kui-anchored-preview-delay, 0ms);
+  }
+
+  /* The marked part: fully generic, reads only the inherited custom properties above. `scale`
+     springs from `--kui-anchored-preview-scale` (the "sprung from" size) up to `1` as `shown` goes
+     0→1 — one `calc()` rather than a second custom property, since the two ends of that ramp are
+     already the primitive's own knobs. */
+  [data-kui-preview] {
+    position: absolute;
+    inset: var(--kui-anchored-preview-inset, auto);
+    translate: var(--kui-anchored-preview-travel, 0 0);
+    opacity: var(--kui-anchored-preview-shown, 0);
+    scale: calc(
+      var(--kui-anchored-preview-scale, 0.85) +
+        (1 - var(--kui-anchored-preview-scale, 0.85)) * var(--kui-anchored-preview-shown, 0)
+    );
+    pointer-events: none;
+    transition:
+      opacity var(--kui-anchored-preview-duration, 220ms) var(--kui-anchored-preview-ease, ease-out)
+        var(--kui-anchored-preview-lag, 0ms),
+      scale var(--kui-anchored-preview-duration, 220ms) var(--kui-anchored-preview-ease, ease-out)
+        var(--kui-anchored-preview-lag, 0ms),
+      translate var(--kui-anchored-preview-duration, 220ms) var(--kui-anchored-preview-ease, ease-out)
+        var(--kui-anchored-preview-lag, 0ms);
+  }
+
+  /* Coarse-pointer fallback: `:active` plus a rest delay is the same long-press-to-reveal gesture
+     `hover-intent` documents at length — the state is bound to the press and the browser releases
+     it, so it cannot strand the preview open. */
+  @media (pointer: coarse) {
+    [data-kui-fx~='anchored-preview']:active,
+    [data-kui-fx~='anchored-preview-bottom']:active,
+    [data-kui-fx~='anchored-preview-left']:active,
+    [data-kui-fx~='anchored-preview-right']:active {
+      --kui-anchored-preview-shown: 1;
+      --kui-anchored-preview-lag: var(--kui-anchored-preview-delay, 0ms);
+    }
+  }
+
+  /* Reduced motion: `[data-kui-preview]` joins the shared block above `masked-label-swap`/
+     `hover-intent` already use, rather than carrying its own — see that block's comment. */
+
+  /* Fine-pointer hover mirrors the `:focus-visible` rule above, verbatim — grouped with the rest of
+     this file's hover mirrors so mouse and keyboard reach the identical state. */
+  @media (hover: hover) and (pointer: fine) {
+    [data-kui-fx~='anchored-preview']:hover,
+    [data-kui-fx~='anchored-preview-bottom']:hover,
+    [data-kui-fx~='anchored-preview-left']:hover,
+    [data-kui-fx~='anchored-preview-right']:hover {
+      --kui-anchored-preview-shown: 1;
+      --kui-anchored-preview-lag: var(--kui-anchored-preview-delay, 0ms);
+    }
+  }
+
+  /* --- proximity-field / proximity-glow: one shared light source across a grid of cards, cross-
+     element pointer proximity without a per-frame JS loop. See `interaction-proximity.ts`'s file
+     comment for the full mechanism (`background-attachment: fixed` is what makes one pair of
+     container-level custom properties read as one light source on every card, with distance
+     falloff and zero per-card JS math) and the pseudo-element collision cost of joining
+     `pseudo-before` here. `proximity-field` (the container) has no CSS of its own — it only writes
+     the two custom properties below, which inherit down to every `proximity-glow` card. */
+
+  [data-kui-fx~='proximity-glow'] {
+    position: relative;
+  }
+  [data-kui-fx~='proximity-glow']::before {
+    content: '';
+    position: absolute;
+    /* Same host-padding-box compensation `beam-border`/`border-draw` document at length: an
+       absolutely positioned pseudo-element resolves `inset` against the host's padding box, so a
+       bordered host would otherwise render this ring floating inside its own edge. */
+    inset: calc(-1 * var(--kui-proximity-glow-outset, 0px));
+    border-radius: inherit;
+    padding: var(--kui-proximity-glow-width, 1px);
+    background: radial-gradient(
+      circle var(--kui-proximity-glow-radius, 220px) at var(--kui-proximity-x, -9999px)
+        var(--kui-proximity-y, -9999px),
+      var(--kui-proximity-glow-color, var(--accent, #d2691e)),
+      transparent 70%
+    );
+    /* The whole mechanism: fixed attachment reads `at ...` against the *viewport*, not this
+       element's own box, so every card samples the identical light with no per-card offset. */
+    background-attachment: fixed;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    opacity: var(--kui-proximity-opacity, 0);
+    transition: opacity var(--kui-proximity-glow-duration, 200ms) var(--kui-proximity-glow-ease, ease-out);
+    pointer-events: none;
+  }
+
+  /* `forced-colors: active` — the same glass-sheen treatment as `cursor-spotlight` above: this
+     glow tracks a shared pointer position across a whole grid and carries no boundary or state
+     of its own to preserve, so it is turned off rather than repainted. Same reasoning, same gap
+     (`background-image` is the one channel forced-colors leaves unforced). */
+  @media (forced-colors: active) {
+    [data-kui-fx~='proximity-glow']::before {
+      background: none;
+    }
+  }
+
+  /* --- search-expand: a search icon that grows into a full input field. Explicit-length
+     `inline-size` transition, deliberately not a FLIP job (see `interaction-reveal.ts`'s doc
+     comment on the primitive) and deliberately not `interpolate-size` (`todo.md` records that
+     technique as owner-deferred pending Safari support). The input's fade uses the same
+     `INHERITED_STATE` shape as `hover-intent`/`anchored-preview`: `[data-kui-search-field]` is a
+     standalone selector with no fx prefix, so `requiresOwnSubtree` is never triggered and `target:`
+     stays live. */
+
+  [data-kui-fx~='search-expand'] {
+    display: inline-flex;
+    align-items: center;
+    /* Clips the input's own text/placeholder while the host is still icon-width — the same
+       unconditional, untracked `overflow: hidden` `shine-sweep`'s host rule already carries. */
+    overflow: hidden;
+    inline-size: var(--kui-search-expand-collapsed, 2.5em);
+    --kui-search-expand-shown: 0;
+    --kui-search-expand-lag: 0ms;
+  }
+
+  /* `:focus-visible` on the host plus `:has(:focus-visible)` on its focusable descendant — the same
+     pair `group-dim`/`hover-intent` already use, and for the identical reason: the focusable thing
+     is the nested `<input>`, not the `<label>` itself, which is never a `:focus-visible` target on
+     its own. `:has(input:not(:placeholder-shown))` is the one addition beyond that established
+     pair: it keeps the field open once a query has been typed, so blurring an in-progress search
+     does not collapse it out from under the visitor. */
+  [data-kui-fx~='search-expand']:focus-visible,
+  [data-kui-fx~='search-expand']:has(:focus-visible),
+  [data-kui-fx~='search-expand']:has(input:not(:placeholder-shown)) {
+    inline-size: var(--kui-search-expand-width, 240px);
+    --kui-search-expand-shown: 1;
+    --kui-search-expand-lag: var(--kui-search-expand-delay, 0ms);
+  }
+
+  /* Coarse-pointer fallback, the same long-press shape `hover-intent`/`anchored-preview` document:
+     tapping the `<label>` already focuses the `<input>` natively (`:focus-visible` from a touch tap
+     is engine-dependent, so this is not a formality), and `:active` cannot strand the state open —
+     the browser releases it on release. */
+  @media (pointer: coarse) {
+    [data-kui-fx~='search-expand']:active {
+      inline-size: var(--kui-search-expand-width, 240px);
+      --kui-search-expand-shown: 1;
+      --kui-search-expand-lag: var(--kui-search-expand-delay, 0ms);
+    }
+  }
+
+  [data-kui-search-field] {
+    /* Fills whatever room the host's growth makes available; `min-inline-size: 0` is what lets a
+       flex item shrink below its own text's intrinsic width instead of forcing the host wider than
+       `collapsed` before any state has been reached. */
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    opacity: var(--kui-search-expand-shown, 0);
+    transition: opacity var(--kui-search-expand-duration, 260ms)
+      var(--kui-search-expand-ease, ease-out) var(--kui-search-expand-lag, 0ms);
+  }
+
+  /* Reduced motion: `[data-kui-search-field]` joins the shared block above `masked-label-swap`/
+     `hover-intent` already use, rather than carrying its own — see that block's comment. */
+
+  /* Hover is a preview only, gated to fine pointers for the reason every other `:hover` rule in
+     this file is: a tap has no pointer left to leave, which the coarse-pointer `:active` fallback
+     above already covers. */
+  @media (hover: hover) and (pointer: fine) {
+    [data-kui-fx~='search-expand']:hover {
+      inline-size: var(--kui-search-expand-width, 240px);
+      --kui-search-expand-shown: 1;
+      --kui-search-expand-lag: var(--kui-search-expand-delay, 0ms);
     }
   }
 }

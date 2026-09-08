@@ -45,6 +45,32 @@
     }
   }
 
+  /*
+   * `forced-colors: active` — this preset's entire visible output is a `box-shadow`, and
+   * `box-shadow` is suppressed outright under forced-colors (nothing this file writes brings it
+   * back). Unlike `spinner-dots` in `feedback.css`, this one is worth a real fix rather than a
+   * documented gap: a page that reaches for `focus-ring-grow` has very plausibly done so *instead
+   * of* the browser's native focus outline — that is the whole reason a custom focus ring exists —
+   * so losing it silently in forced-colors mode is a real WCAG 2.4.7 (focus visible) regression for
+   * exactly the visitors this mode serves, not a cosmetic one.
+   *
+   * `outline` is the fix, not another `box-shadow` trick: it is never suppressed the way
+   * `box-shadow` is, and it is the same mechanism browsers use for their own default focus rings —
+   * `Highlight` (the system's own selection colour) rather than `currentColor` or the authored
+   * `--kui-ring-color`, so the ring reads as the platform's real, guaranteed-to-be-visible focus
+   * colour rather than a value forced-colors would repaint out from under it. `animation: none`
+   * drops the grow keyframe (it would only be animating a suppressed property) so the outline shows
+   * at its full 3px immediately, matching how `beam-border`'s `prefers-reduced-motion` block above
+   * freezes rather than removes.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='focus-ring-grow'] {
+      animation: none;
+      outline: 3px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
+
   /* --- validate-shake / validate-check: css-keyframes, author-triggered on validation --- */
   @keyframes kui-validate-shake {
     10%,
@@ -106,6 +132,57 @@
   [data-kui-fx~='strength-meter'][data-kui-strength-level='20'] ~ .kui-meter > *:nth-child(-n + 20) {
     opacity: 1;
     background: var(--kui-meter-on, #2e9e5b);
+  }
+
+  /*
+   * `forced-colors: active` — `strength-meter`/`step-progress` (below) are the one shape in this
+   * pass where `background-color` being auto-forced is not enough. Every other rule in this file
+   * conveys its state through colour *and* something else — `toggle-morph`'s thumb slides,
+   * `radio-fill`'s dot scales, `checkbox-draw`'s check draws — so even if two states' fills
+   * collapse to the same forced colour, the state is still visible. These two have nothing else:
+   * a segment is lit or unlit *only* by which arbitrary hex background it was given and how opaque
+   * it is. Two same-role, unstyled `<div>`s distinguished only by author `background-color` are
+   * exactly the documented forced-colors failure case for custom meters and progress bars — the UA
+   * is not obliged to give two arbitrary same-role fills different system colours, and if both
+   * collapse to the same one (typically `Canvas`), an opacity difference of one colour against
+   * itself is not merely low-contrast, it can be no visible difference at all. (Reasoned from
+   * established forced-colors guidance for exactly this widget shape, not something visible from
+   * here — see the report for what's tested versus reasoned.)
+   *
+   * The fix: an `outline` (not `border`, which would shift every segment's box by the outline
+   * width; not `box-shadow`, which forced-colors suppresses outright) puts a guaranteed-visible
+   * edge on every segment regardless of what its fill collapses to, and the "on" segments swap to
+   * `Highlight` — a system colour whose entire job is to differ from `Canvas`/`ButtonFace` — instead
+   * of leaning on opacity to keep an identical hue apart from itself.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='strength-meter'] ~ .kui-meter > * {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+    }
+
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='1'] ~ .kui-meter > *:nth-child(-n + 1),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='2'] ~ .kui-meter > *:nth-child(-n + 2),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='3'] ~ .kui-meter > *:nth-child(-n + 3),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='4'] ~ .kui-meter > *:nth-child(-n + 4),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='5'] ~ .kui-meter > *:nth-child(-n + 5),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='6'] ~ .kui-meter > *:nth-child(-n + 6),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='7'] ~ .kui-meter > *:nth-child(-n + 7),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='8'] ~ .kui-meter > *:nth-child(-n + 8),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='9'] ~ .kui-meter > *:nth-child(-n + 9),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='10'] ~ .kui-meter > *:nth-child(-n + 10),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='11'] ~ .kui-meter > *:nth-child(-n + 11),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='12'] ~ .kui-meter > *:nth-child(-n + 12),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='13'] ~ .kui-meter > *:nth-child(-n + 13),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='14'] ~ .kui-meter > *:nth-child(-n + 14),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='15'] ~ .kui-meter > *:nth-child(-n + 15),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='16'] ~ .kui-meter > *:nth-child(-n + 16),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='17'] ~ .kui-meter > *:nth-child(-n + 17),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='18'] ~ .kui-meter > *:nth-child(-n + 18),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='19'] ~ .kui-meter > *:nth-child(-n + 19),
+    [data-kui-fx~='strength-meter'][data-kui-strength-level='20'] ~ .kui-meter > *:nth-child(-n + 20) {
+      background: Highlight;
+    }
   }
 
   /* --- toggle-morph: checkbox immediately followed by a `.kui-track` containing a `.kui-thumb` --- */
@@ -190,6 +267,31 @@
     outline: none;
   }
 
+  /*
+   * `forced-colors: active` — `appearance: none` above already opted this element out of the
+   * native range-track appearance the UA would otherwise render correctly under forced-colors, so
+   * this hand-rolled two-stop `background: linear-gradient` is standing in for that native look —
+   * and it is standing in with two fixed author hues (`--accent`/`--border`) on a channel
+   * (`background-image`) forced-colors does not remap, so it keeps painting those exact hues
+   * regardless of the user's chosen palette. `accent-color` above is left alone; it is a real,
+   * forced-colors-aware property already.
+   *
+   * The fix reuses the identical hard-edge, two-stop mechanism — same `--kui-fill` cutoff, same
+   * shape — swapped to the two system colours that exist for exactly this (`Highlight` for "this
+   * portion is selected/filled", `ButtonFace` for the surrounding control), which is the standard
+   * technique for a custom range/progress fill under forced-colors: the track now degrades to
+   * looking like a native one instead of an unforced accent colour bar.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='range-fill'] {
+      background: linear-gradient(
+        to right,
+        Highlight var(--kui-fill, 0%),
+        ButtonFace var(--kui-fill, 0%)
+      );
+    }
+  }
+
   /* --- submit-to-spinner-to-check: button with three inner states swapped by data-kui-stage --- */
   [data-kui-fx~='submit-to-spinner-to-check'] .kui-stage-idle,
   [data-kui-fx~='submit-to-spinner-to-check'] .kui-stage-loading,
@@ -260,5 +362,25 @@
   .kui-step-track > [data-kui-step-state='active'] {
     opacity: 1;
     background: var(--accent, #d2691e);
+  }
+
+  /* `forced-colors: active` — the identical shape and identical fix as `strength-meter` above:
+     segments distinguished only by arbitrary-hex `background` + opacity, no positional/shape
+     signal behind them, so a same-colour collapse under forced-colors can erase the distinction
+     outright. Same outline-plus-Highlight treatment; see that block's comment for the full
+     reasoning, which applies here unchanged. */
+  @media (forced-colors: active) {
+    [data-kui-fx~='step-progress'] > [data-kui-step-state],
+    .kui-step-track > [data-kui-step-state] {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
+    }
+
+    [data-kui-fx~='step-progress'] > [data-kui-step-state='before'],
+    [data-kui-fx~='step-progress'] > [data-kui-step-state='active'],
+    .kui-step-track > [data-kui-step-state='before'],
+    .kui-step-track > [data-kui-step-state='active'] {
+      background: Highlight;
+    }
   }
 }

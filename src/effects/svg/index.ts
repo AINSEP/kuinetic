@@ -230,7 +230,7 @@ export const SVG_PRESETS: Preset[] = [
   { name: 'checkmark-draw', primitive: 'path-draw', keyframes: 'kui-checkmark-draw', params: { duration: '320ms' } },
   { name: 'cross-draw', primitive: 'path-draw', keyframes: 'kui-cross-draw', params: { duration: '260ms' } },
   { name: 'chart-line-draw', primitive: 'path-draw', keyframes: 'kui-chart-line-draw', params: { duration: '1200ms', ease: 'ease-in-out' } },
-  { name: 'gradient-stroke', primitive: 'path-draw', keyframes: 'kui-gradient-stroke', params: { duration: '2400ms', ease: 'ease-in-out' } },
+  { name: 'gradient-stroke', phase: 'idle', primitive: 'path-draw', keyframes: 'kui-gradient-stroke', params: { duration: '2400ms', ease: 'ease-in-out' } },
 
   // Fills.
   { name: 'heart-fill', primitive: 'shape-fill', keyframes: 'kui-heart-fill', params: { duration: '420ms' } },
@@ -254,8 +254,8 @@ export const SVG_PRESETS: Preset[] = [
   // aria state, not a compiled animation. Same shape as forms.ts's native-state presets.
   // `requiresOwnSubtree: true` on all three: each moves its own `.kui-bar` children, assumed
   // present under the fx element itself.
-  { name: 'hamburger-to-x', primitive: 'icon-toggle', requiresOwnSubtree: true },
-  { name: 'play-to-pause', primitive: 'icon-toggle', requiresOwnSubtree: true },
+  { name: 'hamburger-to-x', phase: 'state', primitive: 'icon-toggle', requiresOwnSubtree: true },
+  { name: 'play-to-pause', phase: 'state', primitive: 'icon-toggle', requiresOwnSubtree: true },
   // Only `plus-to-minus` transitions on the shared `icon-toggle` primitive's host box — the other
   // two only move their `.kui-bar` children, a different box `transitions` deliberately does not
   // describe (see `Preset.transitions`'s own doc comment). Transcribed from svg.css's

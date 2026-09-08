@@ -26,6 +26,39 @@ import type { CountFormat, CountFormatOptions, CountLayers } from './numbers-sha
  * built on the same accessible two-layer pattern as `split-text`: an `aria-hidden` display that
  * ticks every frame, and a visually-hidden twin that is written exactly once, on completion, so
  * assistive tech is told the final value and is never spammed mid-count.
+ *
+ * Phase (see `EffectPhase`, `core/channels.ts`): **all thirteen presets in this file are
+ * deliberately left unphased.** Neither group is a blanket call — each was checked against its own
+ * mechanism, and both land the same way for different reasons:
+ *
+ * - **The six counters** (`count-up`/`count-down`/`count-currency`/`count-percent`/
+ *   `count-compact`/`odometer-roll`) tick a value once and then simply *stop* — `tweenNumber`'s
+ *   `finish`/last `tick` calls `onTick` a final time and the interval is cleared; nothing "yields"
+ *   the `content` channel afterward the way a released CSS channel would. The final digits are the
+ *   whole point and must not revert to whatever the cascade would otherwise show — there is no
+ *   cascade fallback for text content at all, unlike `opacity`/`translate`, so `entrance`'s "hands
+ *   the channel back" story does not apply even loosely. It is not `state` either: nothing
+ *   re-derives the count from an ongoing condition the way `strength-meter` re-derives its level
+ *   from live input — a counter runs once and holds its own JS-computed answer, full stop. Not
+ *   `idle` (bounded, and `repeat:infinite` is handled generically by `compile.ts`'s `phaseOf`
+ *   before a preset's own declaration is even consulted). Not `exit` (nothing departs). Leaving
+ *   these unphased is not a gap papered over: `catalog/text.ts`'s `word-cycler` claims the same
+ *   `content` channel, and two JS effects racing to own one element's text content is a genuine
+ *   collision that should keep refusing, not a false positive this axis exists to rescue.
+ * - **The seven meters** (`progress-ring`, `gauge-sweep`, `donut-sweep`, `sparkline-draw`,
+ *   `progress-bar`, `progress-segments`, `star-rating-fill`) look like `entrance`s — a single CSS
+ *   keyframe drawing once on activation — and are exactly the shape `EffectPhase`'s own doc warns
+ *   about: every one of their keyframe blocks (`numbers.css`) closes with an explicit `to`
+ *   (`stroke-dashoffset: 0`, `scale: 1 1`, `opacity: 1`, a `clip-path` at `--kui-fill`) rather than
+ *   from-only, so `animation-fill-mode: both` pins the drawn/filled value for good — which is the
+ *   entire point of a persistent gauge, not an oversight. Declaring `entrance` here would be the
+ *   silent-clobber failure mode the phase axis exists to prevent, and `test
+ *   /composition-phase.test.ts` asserts catalog-wide that no `phase: 'entrance'` preset closes its
+ *   block — the same reasoning that keeps `progress-bar` (`cloak: true`) out of the entrance list
+ *   today. `progress-bar` in particular is one of the test's own named `cloak: true` exceptions;
+ *   leaving it alongside its six siblings here is applying the existing rule, not inventing one.
+ *   None of the seven is `state` (nothing is CSS-condition-driven; they draw once on whatever
+ *   activation the author names) or `exit` (nothing departs).
  */
 
 // --- JS-tier: count, count-odometer ---
@@ -51,7 +84,7 @@ const countParams: ParameterSchema = {
     type: 'keyword',
     default: 'number',
     cssProperty: '--kui-format',
-    values: ['number', 'currency', 'percent', 'compact'],
+    keywords: ['number', 'currency', 'percent', 'compact'],
   },
   currency: { type: 'text', default: 'USD', cssProperty: '--kui-currency' },
 }

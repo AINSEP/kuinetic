@@ -3,9 +3,12 @@ import { registerAmbient } from './ambient.js'
 import { registerDiscrete } from './discrete.js'
 import { registerFeedback } from './feedback.js'
 import { registerInteraction } from './interaction.js'
+import { registerInteractionProximity } from './interaction-proximity.js'
+import { registerMaterials } from './materials.js'
 import { registerMedia } from './media.js'
 import { registerNumbers } from './numbers.js'
 import { registerText } from './text.js'
+import { registerTransforms } from './transforms.js'
 
 /**
  * Register the CSS-oriented catalog sections.
@@ -27,6 +30,9 @@ export function registerCatalog(registry: Registry): Registry {
   registerFeedback(registry)
   registerNumbers(registry)
   registerInteraction(registry)
+  registerInteractionProximity(registry)
   registerDiscrete(registry)
+  registerTransforms(registry)
+  registerMaterials(registry)
   return registry
 }

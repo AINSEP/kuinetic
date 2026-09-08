@@ -456,7 +456,7 @@ The build-time template scanner becomes an **optional optimizer, not a correctne
 It breaks on dynamic names, CMS markup, JSX abstractions, `.play()` aliases, A/B tests, custom
 template languages, and out-of-graph monorepo templates. Ship a safelist + extraction callback.
 
-**Do not create one runtime chunk per name.** 268 named effects come from 33 primitive families — ship a compressed
+**Do not create one runtime chunk per name.** 290 named effects come from 34 primitive families — ship a compressed
 alias table (names → primitive + defaults), CSS per primitive/category, and lazy chunks only
 for expensive JS. Fifteen small requests can lose to one 10KB stylesheet. **Generate the full
 catalog CSS and measure gzip/Brotli before designing any splitting.**
@@ -533,12 +533,102 @@ an iframe, a test harness, or an SSR-hydrated subtree.
 - **Accessibility** — split by grapheme via `Intl.Segmenter` (not code units); one accessible
   reading representation; no `aria-live` spam from counters; hidden reveal targets must not be
   focusable; hover needs focus + coarse-pointer equivalents; policies for flashing, continuous
-  motion, zoom, forced colors, reduced transparency.
+  motion, zoom, reduced transparency. Forced colors: see §12a, now catalog-wide.
 - **Directionality** — `slide-left` stays physically left; add logical `slide-inline-start` etc.
   Silently flipping "left" in RTL is surprising.
 - **Print** — unconditional final-state layer.
 - **Versioning** — preset visuals ARE the API. Changing a default distance or easing breaks
   branded sites even with compatible types.
+
+---
+
+## 12a. Forced colors and `prefers-contrast`
+
+Two different media queries, two different answers — conflating them was the first mistake this
+section exists to rule out.
+
+**`forced-colors: active`** (Windows High Contrast Mode and equivalents) is a hard, OS-level
+palette override outside the page's control, and most of the catalog needs nothing for it: the UA
+forcibly remaps `color`, `background-color`, `border-color` (and suppresses `box-shadow` rendering
+entirely) regardless of what value an author or this library wrote, on every element, without a
+media query in sight. An effect built from those four things — which is most of the catalog —
+already degrades correctly with zero lines of forced-colors CSS.
+
+The gap is **`background-image`**, the one paint channel forced-colors does not remap. Any
+gradient, pattern, or mask-driven paint keeps drawing its own unforced hues straight over whatever
+the UA just corrected everything else to. `glass.css`'s `[data-kui-fx~='glass']` block was the
+first case of this (its blurred sheen and tint survive forced-colors precisely because
+`backdrop-filter`/`background-image` aren't remapped) and is the precedent every later fix in this
+family generalises rather than reinvents. The catalog-wide pass (`src/css/*.css`, 2026-09) settled
+three shapes this gap takes, each with its own answer:
+
+1. **A persistent decorative wash with no structural meaning** (`ambient.css`'s `gradient-mesh`,
+   `aurora`, `wave-blob`, `spotlight-follow`, `scanline`, the two drift grids, `starfield`;
+   `feedback.css`'s `skeleton-shimmer`; `interaction.css`'s `cursor-spotlight`/`proximity-glow`) —
+   `background-image: none`. There is nothing underneath worth preserving; this is glass's own
+   fix, applied wherever the same shape recurs.
+2. **A `background-image` standing in for a real boundary** — a masked ring with no actual
+   `border-*` property behind it for the UA to correct on its own (`ambient.css`'s
+   `gradient-rotate-border`/`gradient-border`; `interaction.css`'s `beam-border`/
+   `beam-border-auto`/`border-draw`) — repaint the same mask with a solid system colour
+   (`CanvasText`) rather than deleting it outright. Zeroing the image here wouldn't just remove
+   ambience, it would delete the edge the effect exists to draw.
+3. **A gradient that already defaults to `currentColor`** (`text.css`'s gradient-text family,
+   `svg.css`'s stroke-cycle) — needs nothing. Every stop it could paint is already the
+   correctly-forced value; the worst case is a subtle intensity ripple of the right colour, never
+   an off-palette or illegible one. An author who overrides the default with a literal hue has made
+   an explicit choice this policy does not second-guess, the same way it doesn't second-guess any
+   other author-supplied colour parameter.
+
+A fourth, separate risk showed up once, and it is not a `background-image` problem at all:
+**two arbitrary-hex `background-color`s, with no positional or shape signal backing them up,
+distinguished only by which was authored and by opacity** (`forms.css`'s `strength-meter` and
+`step-progress` segments). This is the documented forced-colors failure mode for custom meters and
+progress bars: two same-role, unstyled elements are not guaranteed distinct system colours, and if
+both collapse to the same one, an opacity difference of one colour against itself is not merely
+low-contrast — it can be no visible difference at all. Every *other* colour-conveys-state effect in
+the catalog (`toggle-morph`, `radio-fill`, `checkbox-draw`) also moves something — a thumb slides,
+a dot scales, a check draws — so the state survives even if the fill collapses. These two don't,
+which is why they're the one place this pass reaches past "the UA already handles color" and adds
+an `outline` (never `border`, which shifts layout; never `box-shadow`, which forced-colors
+suppresses) plus a `Highlight` fill for the "on" state, instead of leaning on opacity alone.
+
+**`box-shadow` suppression** gets its own callout because it is not a colour problem, it is a
+disappearance problem: an effect whose *entire* visible output is a `box-shadow` (`forms.css`'s
+`focus-ring-grow`) goes fully invisible under forced-colors, no gradient involved. Where that
+shadow is plausibly a page's only focus indicator, losing it silently is a WCAG 2.4.7 regression,
+not a cosmetic one — the fix is `outline: solid Highlight`, the same mechanism browsers use for
+their own native focus rings, not another shadow trick. Where no CSS-only substitute exists
+(`feedback.css`'s `spinner-dots`, which fakes two extra dots via `box-shadow` rather than real
+elements), the finding is documented in place rather than papered over — three dots degrading to
+one pulsing dot is a real, accepted loss, not a bug this layer can fix.
+
+**`forced-color-adjust: none`** is almost always the wrong answer — it opts an element out of the
+one thing forced-colors mode exists to guarantee. The one justified use in the catalog
+(`interaction.css`'s `.kui-cursor-dot-invert`, a synthetic pointer-following dot) is justified
+mechanically, not aesthetically: its `mix-blend-mode: difference` contrast guarantee depends on an
+*exact* literal white, which a forced system colour would break, on an element that carries no
+information forced-colors mode protects (no text, no control). Every future reach for this escape
+hatch needs the same shape of argument — what does forcing this specific property actually break —
+not "it looks better this way."
+
+**`prefers-contrast: more`** was evaluated and deliberately gets no catalog-wide CSS. It is a
+different question from forced-colors: a *soft* signal about the *author's* palette choices, not a
+hard OS override outside the page's control. Every colour/opacity default this pass touched
+(`--kui-group-dim-opacity`, `--kui-meter-on`, `--accent`, `--kui-sweep-color`, …) is already an
+author-overridable custom property, which is the correct layer for a page's own contrast decision
+— a page that wants more contrast already has the hook to set it in its own
+`@media (prefers-contrast: more)` block. Adding a second, competing library-level default would be
+inventing work, not closing a gap: nothing in the catalog fails under `prefers-contrast: more` the
+way `strength-meter` and `focus-ring-grow` actually fail under forced-colors.
+
+For the next effect: if it paints only `color`/`background-color`/`border-color`, it needs
+nothing. If it paints a persistent `background-image`, ask whether the image is decoration (turn
+it off) or a boundary substitute (repaint it with a system colour through the same mask). If its
+*only* channel is `box-shadow`, it needs an `outline` fallback the moment that shadow is load-
+bearing rather than decorative. If two of its states differ only by an arbitrary same-hue fill with
+no other signal, it needs a system-colour `outline` too. Everything else is already handled by the
+platform.
 
 ---
 
@@ -560,7 +650,7 @@ Classify every effect by `perfClass` and attach automated layout/paint/long-task
 
 Names are additive: adding a new named effect is a row in an alias table (name → primitive +
 defaults), not new code, provided the underlying primitive and parameter schema already exist.
-That's why the catalog can carry 268 named effects from only 33 primitive families.
+That's why the catalog can carry 290 named effects from only 34 primitive families.
 
 Deliberately out of scope:
 - **Accessible UI components.** Accordion, carousel, and menu components own their own state,

@@ -120,14 +120,64 @@ export const MEDIA_CSS_PRESETS: Preset[] = [
   { name: 'ken-burns', primitive: 'media-ken-burns', keyframes: 'kui-ken-burns' },
   { name: 'ken-burns-out', primitive: 'media-ken-burns', keyframes: 'kui-ken-burns-out' },
   { name: 'blur-up', primitive: 'media-blur-up', keyframes: 'kui-blur-up', cloak: true },
-  { name: 'duotone-hover', primitive: 'media-filter', keyframes: 'kui-duotone-hover' },
-  { name: 'grayscale-hover', primitive: 'media-filter', keyframes: 'kui-grayscale-hover' },
-  { name: 'saturate-hover', primitive: 'media-filter', keyframes: 'kui-saturate-hover' },
+  /*
+   * The three `media-filter` hovers below are `phase: 'state'`, not unphased and not `entrance`.
+   * `media-filter` declares `defaultActivation: 'hover'` (above), so each name's keyframe plays on
+   * `:hover`/`:focus-visible` and reverses on leave — a condition the visitor's pointer drives and
+   * un-drives, held at whichever end it currently rests on, exactly the shape `icon-bounce` and
+   * `shine-sweep` (`catalog/interaction.ts`) already declare `state` for. `transitions` does not
+   * apply here and so cannot derive it: these compile through a keyframed `animation:` on the
+   * pseudo-class, not a bare host-rule `transition:` on the fx element, the same distinction
+   * `HOVER_TRANSITIONS`'s own comment (`interaction-shared.ts`) draws between the two hover shapes
+   * that already exist in the catalog. Before this, `blur-in, grayscale-hover` hit the
+   * undeclared-phase wall every other unphased preset did: `blur-in` already carries
+   * `phase: 'entrance'` (`catalog/core.ts`'s `pIn`) and shares `filter` with every one of these
+   * three, so the pairing was refused outright rather than composing the way `fade-up, lift`
+   * (an entrance beside a `state`) already does.
+   *
+   * All three close their keyframe with an explicit `to` (`kui-duotone-hover`, `kui-grayscale-hover`,
+   * `kui-saturate-hover` all end at a resolved value, never an open `from`-only block) — irrelevant
+   * to this phase, unlike `entrance`: `state` makes no claim about a from-only block yielding a
+   * channel back to the cascade, only that the property is held by a condition the visitor changes,
+   * which a two-ended hover keyframe is exactly.
+   */
+  { name: 'duotone-hover', primitive: 'media-filter', keyframes: 'kui-duotone-hover', phase: 'state' },
+  {
+    name: 'grayscale-hover',
+    primitive: 'media-filter',
+    keyframes: 'kui-grayscale-hover',
+    phase: 'state',
+  },
+  {
+    name: 'saturate-hover',
+    primitive: 'media-filter',
+    keyframes: 'kui-saturate-hover',
+    phase: 'state',
+  },
+  /*
+   * `image-parallax-frame` stays unphased: it is scroll/view-timeline-scrubbed (`media-parallax-frame`
+   * declares `timelines: ['view', 'scroll']`), the same precedent `catalog/core.ts`'s `parallax-y`
+   * already sets for a continuously-scrubbed effect — there is no "turn" to take with a neighbour,
+   * because progress never stops being read off the scrollport.
+   *
+   * `bg`/`background` also stay unphased: `background-media` is a permanent backdrop material, held
+   * unconditionally from `load` for as long as the element exists (see its own `continuousSetup`
+   * above) — it fits none of the four phases, and should keep conflicting with any other primitive
+   * that claims the same channel unconditionally, which is what "permanent" means here.
+   */
   {
     name: 'image-parallax-frame',
     primitive: 'media-parallax-frame',
     keyframes: 'kui-image-parallax-frame',
   },
+  // `ken-burns`/`ken-burns-out`/`before-after-wipe`/`lightbox-open` are NOT touched here even though
+  // they look like the three hovers above at a glance. All four close their keyframe block with an
+  // explicit `to` (`kui-ken-burns`, `kui-ken-burns-out`, `kui-before-after-wipe`, `kui-lightbox-open`
+  // in `media.css`) and none is hover-toggled — they are one-shot plays, not a visitor-held
+  // condition, so `state` would misdescribe them. They are the same closed-keyframe shape as the ten
+  // `cloak: true` presets this file already excludes from `entrance`, but — unlike those ten — they
+  // are not yet in `test/composition-phase.test.ts`'s `excluded` list. That is a fact about a file
+  // this task does not own; left for whoever does.
   { name: 'before-after-wipe', primitive: 'media-wipe', keyframes: 'kui-before-after-wipe' },
   { name: 'lightbox-open', primitive: 'media-lightbox', keyframes: 'kui-lightbox-open' },
 ]
@@ -147,7 +197,7 @@ const slatParams: ParameterSchema = {
     type: 'keyword',
     default: 'vertical',
     cssProperty: '--kui-axis',
-    values: ['vertical', 'horizontal'],
+    keywords: ['vertical', 'horizontal'],
   },
   /*
    * The general form of `axis:`, in degrees: `0deg` is `axis:vertical`, `90deg` is
@@ -165,9 +215,9 @@ const slatParams: ParameterSchema = {
     type: 'keyword',
     default: 'alternate',
     cssProperty: '--kui-from',
-    values: ['alternate', 'start', 'end', 'edges', 'random-ish'],
+    keywords: ['alternate', 'start', 'end', 'edges', 'random-ish'],
   },
-  fold: { type: 'keyword', default: 'false', cssProperty: '--kui-fold', values: ['true', 'false'] },
+  fold: { type: 'keyword', default: 'false', cssProperty: '--kui-fold', keywords: ['true', 'false'] },
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
@@ -286,7 +336,7 @@ const backgroundMediaParams: ParameterSchema = {
     type: 'keyword',
     default: 'cover',
     cssProperty: '--kui-fit',
-    values: ['cover', 'contain'],
+    keywords: ['cover', 'contain'],
   },
   /*
    * Which part of the picture a `cover` crop keeps. Nine named points rather than a free
@@ -299,7 +349,7 @@ const backgroundMediaParams: ParameterSchema = {
     type: 'keyword',
     default: 'center',
     cssProperty: '--kui-focus',
-    values: FOCAL_POINT_NAMES,
+    keywords: FOCAL_POINT_NAMES,
   },
   /*
    * The scrim. This is the parameter that makes the whole effect usable, because the point of a
@@ -328,7 +378,7 @@ const backgroundMediaParams: ParameterSchema = {
     type: 'keyword',
     default: 'in-view',
     cssProperty: '--kui-autoplay',
-    values: ['in-view', 'always', 'never'],
+    keywords: ['in-view', 'always', 'never'],
   },
   /*
    * Bounded at both ends: `0` is a clip that is loaded, decoding, and permanently frozen — worse
@@ -343,7 +393,7 @@ const backgroundMediaParams: ParameterSchema = {
     minimum: 0.25,
     maximum: 4,
   },
-  loop: { type: 'keyword', default: 'true', cssProperty: '--kui-loop', values: ['true', 'false'] },
+  loop: { type: 'keyword', default: 'true', cssProperty: '--kui-loop', keywords: ['true', 'false'] },
   /*
    * There is deliberately no `controls:`. The layer this primitive builds paints at `z-index: -1`
    * behind the author's own children, so a native control bar there is focusable by keyboard and

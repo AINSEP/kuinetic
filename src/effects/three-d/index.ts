@@ -112,7 +112,7 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
       type: 'keyword',
       default: 'click',
       cssProperty: '--kui-flip-trigger',
-      values: ['click', 'hover', 'hover-latch', 'hover-toggle'],
+      keywords: ['click', 'hover', 'hover-latch', 'hover-toggle'],
     },
   },
   supportedTimelines: ['time'],
@@ -196,7 +196,7 @@ export const THREE_D_PRESETS: Preset[] = [
   // the other.
   {
     name: 'fold-panel',
-    primitive: 'flip-face',
+    phase: 'entrance', primitive: 'flip-face',
     keyframes: 'kui-fold-panel',
     params: { angle: '-90deg' },
     cloak: true,
@@ -209,13 +209,13 @@ export const THREE_D_PRESETS: Preset[] = [
   // `cloak: true` for the same reason as `fold-panel`: `kui-loading-bar`'s `from { scale: 0 1 }`
   // (three-d.css) is a zero-width box, not just an invisible one — see that file's
   // `[data-kui-fx~='loading-bar'][data-kui-state='ready']` rule.
-  { name: 'loading-bar', primitive: 'bar', keyframes: 'kui-loading-bar', cloak: true },
+  { name: 'loading-bar', phase: 'entrance', primitive: 'bar', keyframes: 'kui-loading-bar', cloak: true },
 
   // No `keyframes`: its motion is a CSS transition in three-d.css keyed off the control's
   // aria-pressed, not a compiled animation. Same shape as the icon toggles in svg.ts.
   // `requiresOwnSubtree`: the transition rotates `> .kui-face-front`/`.kui-face-back` children
   // (three-d.css:297-306), assumed to exist under the fx element itself.
-  { name: 'flip-card', primitive: 'card-toggle', requiresOwnSubtree: true },
+  { name: 'flip-card', phase: 'state', primitive: 'card-toggle', requiresOwnSubtree: true },
 ]
 
 /**

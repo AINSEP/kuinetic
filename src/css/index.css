@@ -3,6 +3,7 @@
 @import './entrance.css';
 @import './scroll.css';
 @import './three-d.css';
+@import './carousel.css';
 @import './media.css';
 @import './text.css';
 @import './navigation.css';
@@ -16,3 +17,9 @@
 @import './svg.css';
 @import './tween.css';
 @import './motion-path.css';
+@import './view-transitions.css';
+/* After interaction.css deliberately. `border-draw` seeds a transparent 2px `border` shorthand on
+   the host, and `glass` sets the three border longhands on that same box; both live in
+   `@layer kui.effects`, so source order decides, and the glass hairline is the one an author who
+   wrote `glass` is asking to see. */
+@import './glass.css';

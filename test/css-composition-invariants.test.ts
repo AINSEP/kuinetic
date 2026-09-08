@@ -92,14 +92,41 @@ describe('pseudo-element ownership', () => {
    * more of the same shape: `underline-center` shares `shine-sweep`'s `::after` for the same reason
    * `underline-slide` does, and `beam-border`/`beam-border-auto`/`cursor-spotlight`/`redaction-reveal`
    * (`text.css`, outside this cluster's owned files) all paint `::before`.
+   *
+   * ### The `::before` half of that list is now four entries shorter and one entry longer
+   *
+   * "Giving each pseudo-element painter its own tracked box channel" — the design the paragraph
+   * above declines to do — is exactly what happened for `::before`, forced by an unrelated fix:
+   * `border-draw`'s ring had to move off `border-image` (which ignores `border-radius`, so every
+   * rounded card came out square) onto a masked pseudo-element, which meant picking a contended box
+   * and paying for it. `catalog/interaction.ts` carries the cost comparison that chose `::before`;
+   * the token is `pseudo-before`, the mirror of `feedback.ts`'s `sweep` for `::after`, and it was
+   * added to all four `::before` painters this cluster owns in the same change — a channel with one
+   * member refuses nothing.
+   *
+   * Two pairs therefore left this list by being **refused outright** rather than merely reported:
+   * `beam-border + cursor-spotlight` and `beam-border-auto + cursor-spotlight`. That is the list
+   * shrinking for the right reason, and it is the only reason it may ever shrink.
+   *
+   * One pair joined it: `border-draw + redaction-reveal`. `redaction-reveal` lives in
+   * `catalog/text.ts`, which belonged to a different cluster when this landed, so it is the one
+   * `::before` painter still outside the token — and every pair *it* forms stays reported here for
+   * that single reason. Adding `pseudo-before` to `redaction-reveal`'s primitive empties the
+   * `::before` half of this list completely; nothing else is needed, and no other name is involved.
+   *
+   * A fifth `::before` pair joined for the identical reason: `proximity-glow`
+   * (`catalog/interaction-proximity.ts`, the bento-grid cross-element pointer glow) also joined
+   * `pseudo-before` on arrival, which is why it refuses outright against the four existing members
+   * rather than appearing here against any of them — `redaction-reveal` is still the one painter
+   * standing outside the token, so it is still the only name every reported pair shares.
    */
   it('names every disjoint-channel pair that paints a colliding property on the same pseudo-element', () => {
     expect(pseudoElementCollisions(scannedCss, channelsOf)).toEqual([
-      "beam-border + cursor-spotlight (::before): background, border-radius, content, inset, opacity, pointer-events, position, transition",
       "beam-border + redaction-reveal (::before): background, content, inset, position",
-      "beam-border-auto + cursor-spotlight (::before): background, border-radius, content, inset, opacity, pointer-events, position, transition",
       "beam-border-auto + redaction-reveal (::before): background, content, inset, position",
+      "border-draw + redaction-reveal (::before): background, content, inset, position",
       "cursor-spotlight + redaction-reveal (::before): background, content, inset, position",
+      "proximity-glow + redaction-reveal (::before): background, content, inset, position",
       "shine-sweep + underline-center (::after): background, content, position",
       "shine-sweep + underline-slide (::after): background, content, position",
     ])

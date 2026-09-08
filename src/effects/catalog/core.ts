@@ -19,7 +19,18 @@ import { cssPrimitive as css } from '../shared.js'
 // a single known field.
 const distance = {
   distance: { type: 'length', default: '24px', cssProperty: '--kui-distance' },
-  opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' },
+  /*
+   * `'number|percentage'` because `--kui-from-opacity` feeds `opacity:`, and CSS spells that
+   * property's value `<alpha-value>` — a number *or* a percentage, meaning the same thing either
+   * way. An author who writes `opacity:80%` is writing correct CSS, and rejecting it taught them
+   * a rule this library invented. The union accepts both and `normalise` in `core/params.ts`
+   * converts the percentage, so `0.8` is what reaches the custom property from either spelling
+   * and there is still exactly one value shape in devtools.
+   *
+   * Purely a widening: every attribute already written against this parameter is a bare number,
+   * and a bare number is still the canonical form.
+   */
+  opacity: { type: 'number|percentage', default: '0', cssProperty: '--kui-from-opacity' },
 } as const satisfies ParameterSchema
 
 /*
@@ -145,7 +156,10 @@ export const PRIMITIVES: Primitive[] = [
   }),
 
   css('scroll-fade', [CHANNEL.opacity], {
-    parameters: { opacity: { type: 'number', default: '0', cssProperty: '--kui-from-opacity' } },
+    // `'number|percentage'` for the reason `distance.opacity` above gives.
+    parameters: {
+      opacity: { type: 'number|percentage', default: '0', cssProperty: '--kui-from-opacity' },
+    },
     timelines: ['view', 'scroll', 'pin'],
     activations: ['manual'],
     reducedMotion: 'disable',
@@ -218,18 +232,54 @@ const p = (
 /**
  * `p`, but for a name whose from-state must not be painted before the runtime installs it.
  *
- * Two spellings rather than a `cloak: true` on every row, because the distinction being drawn is
+ * Three spellings rather than a `cloak: true` on every row, because the distinction being drawn is
  * exactly "entrance or not" and a reader scanning the matrix below should be able to see which is
  * which without reading a fourth argument on forty-eight lines. `fade-up` enters from invisible
  * and displaced; `fade-out` starts at the rest state and has nothing to hide. See `Preset.cloak`
  * for why this is declared rather than derived from channels or timelines.
+ *
+ * `phase: 'entrance'` rides along, and that is **not** the same claim as `cloak` even though every
+ * row below makes both. `cloak` is about how an effect *starts* — hidden, so paint it hidden.
+ * `phase` is about how it *ends*: an entrance may share `translate` with a hover state only because
+ * its keyframes name no closing step, so `animation-fill-mode: both` holds it at the underlying
+ * value and hands the property back. Fifteen `cloak: true` presets elsewhere in the catalog
+ * (`wipe-*`, `blur-up`, `slat-assemble`, `card-flip-*` and the rest) close their block and must
+ * therefore stay unphased — which is exactly why `core/compile.ts`'s `phaseOf` refuses to derive
+ * one from the other.
+ *
+ * The two coincide *here*, in this matrix, and that was checked rather than assumed: all
+ * thirty-three `pIn` rows resolve to the shared `reveal`/`scale`/`flip-3d`/`rotate`/`roll`/`blur`
+ * primitives whose `entrance.css` blocks are uniformly `from`-only, and none of the fifteen
+ * exceptions is declared through this helper. `test/composition-phase.test.ts` re-derives that from
+ * the shipped stylesheets on every run, so a future `pIn` row with a closing keyframe fails a test
+ * instead of silently composing into a pinned property.
  */
 const pIn = (
   name: string,
   primitive: string,
   keyframes: string,
   params?: Record<string, string>,
-): Preset => ({ ...p(name, primitive, keyframes, params), cloak: true })
+): Preset => ({ ...p(name, primitive, keyframes, params), cloak: true, phase: 'entrance' })
+
+/**
+ * `p`, but for the exit half of the matrix — the mirror of {@link pIn}.
+ *
+ * No `cloak`: an exit starts at the rest state, so there is nothing to hide (see `Preset.cloak`).
+ * What it does carry is the other half of the pair, `phase: 'exit'`, and it exists as a helper for
+ * the same reason `pIn` does — sixteen rows that all make one claim should make it once.
+ *
+ * A third spelling rather than a `phase` argument on `p`, because `p` is still doing a second job
+ * below: section B's ten scroll and parallax names are neither entrances nor exits, hold their
+ * channels for as long as the page is scrolled, and must stay unphased. A helper that took the
+ * phase as a parameter would put `undefined` on ten of those rows and invite the next reader to
+ * fill it in.
+ */
+const pOut = (
+  name: string,
+  primitive: string,
+  keyframes: string,
+  params?: Record<string, string>,
+): Preset => ({ ...p(name, primitive, keyframes, params), phase: 'exit' })
 
 // --- A. Entrance & exit matrix — 48 names -------------------------------------------------
 
@@ -239,15 +289,15 @@ const pIn = (
 
 const FADE: Preset[] = [
   pIn('fade-in', 'reveal', 'kui-in'),
-  p('fade-out', 'reveal', 'kui-out'),
+  pOut('fade-out', 'reveal', 'kui-out'),
   pIn('fade-up', 'reveal', 'kui-in-up'),
   pIn('fade-down', 'reveal', 'kui-in-down'),
   pIn('fade-left', 'reveal', 'kui-in-right'),
   pIn('fade-right', 'reveal', 'kui-in-left'),
-  p('fade-out-up', 'reveal', 'kui-out-up'),
-  p('fade-out-down', 'reveal', 'kui-out-down'),
-  p('fade-out-left', 'reveal', 'kui-out-left'),
-  p('fade-out-right', 'reveal', 'kui-out-right'),
+  pOut('fade-out-up', 'reveal', 'kui-out-up'),
+  pOut('fade-out-down', 'reveal', 'kui-out-down'),
+  pOut('fade-out-left', 'reveal', 'kui-out-left'),
+  pOut('fade-out-right', 'reveal', 'kui-out-right'),
 ]
 
 /** Slides travel further and keep full opacity — same keyframes, different defaults. */
@@ -258,10 +308,10 @@ const SLIDE: Preset[] = [
   pIn('slide-down', 'reveal', 'kui-in-down', SLIDE_PARAMS),
   pIn('slide-left', 'reveal', 'kui-in-right', SLIDE_PARAMS),
   pIn('slide-right', 'reveal', 'kui-in-left', SLIDE_PARAMS),
-  p('slide-out-up', 'reveal', 'kui-out-up', SLIDE_PARAMS),
-  p('slide-out-down', 'reveal', 'kui-out-down', SLIDE_PARAMS),
-  p('slide-out-left', 'reveal', 'kui-out-left', SLIDE_PARAMS),
-  p('slide-out-right', 'reveal', 'kui-out-right', SLIDE_PARAMS),
+  pOut('slide-out-up', 'reveal', 'kui-out-up', SLIDE_PARAMS),
+  pOut('slide-out-down', 'reveal', 'kui-out-down', SLIDE_PARAMS),
+  pOut('slide-out-left', 'reveal', 'kui-out-left', SLIDE_PARAMS),
+  pOut('slide-out-right', 'reveal', 'kui-out-right', SLIDE_PARAMS),
 ]
 
 /**
@@ -277,9 +327,9 @@ const LOGICAL: Preset[] = [
 
 const ZOOM: Preset[] = [
   pIn('zoom-in', 'scale', 'kui-zoom-in'),
-  p('zoom-out', 'scale', 'kui-zoom-out'),
+  pOut('zoom-out', 'scale', 'kui-zoom-out'),
   pIn('pop-in', 'scale', 'kui-zoom-in', { scale: '0.6', ease: 'back-out' }),
-  p('pop-out', 'scale', 'kui-zoom-out', { scale: '0.6', ease: 'back-in' }),
+  pOut('pop-out', 'scale', 'kui-zoom-out', { scale: '0.6', ease: 'back-in' }),
   pIn('zoom-in-up', 'scale-move', 'kui-zoom-in-up'),
   pIn('zoom-in-down', 'scale-move', 'kui-zoom-in-down'),
 ]
@@ -287,23 +337,23 @@ const ZOOM: Preset[] = [
 const FLIP: Preset[] = [
   pIn('flip-in-x', 'flip-3d', 'kui-flip-in-x'),
   pIn('flip-in-y', 'flip-3d', 'kui-flip-in-y'),
-  p('flip-out-x', 'flip-3d', 'kui-flip-out-x'),
-  p('flip-out-y', 'flip-3d', 'kui-flip-out-y'),
+  pOut('flip-out-x', 'flip-3d', 'kui-flip-out-x'),
+  pOut('flip-out-y', 'flip-3d', 'kui-flip-out-y'),
 ]
 
 const ROTATE: Preset[] = [
   pIn('rotate-in', 'rotate', 'kui-rotate-in'),
-  p('rotate-out', 'rotate', 'kui-rotate-out'),
+  pOut('rotate-out', 'rotate', 'kui-rotate-out'),
   pIn('rotate-in-left', 'rotate', 'kui-rotate-in', { angle: '-45deg' }),
   pIn('rotate-in-right', 'rotate', 'kui-rotate-in', { angle: '45deg' }),
   pIn('roll-in', 'roll', 'kui-roll-in'),
-  p('roll-out', 'roll', 'kui-roll-out'),
+  pOut('roll-out', 'roll', 'kui-roll-out'),
   pIn('swing-in', 'rotate', 'kui-swing-in', { angle: '-15deg', ease: 'back-out' }),
 ]
 
 const BLUR: Preset[] = [
   pIn('blur-in', 'blur', 'kui-blur-in'),
-  p('blur-out', 'blur', 'kui-blur-out'),
+  pOut('blur-out', 'blur', 'kui-blur-out'),
   pIn('fade-blur-up', 'reveal-blur', 'kui-fade-blur-up'),
   pIn('fade-blur-in', 'reveal-blur', 'kui-fade-blur-in'),
 ]

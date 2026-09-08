@@ -818,7 +818,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
      */
     channels: ['scroll-behavior'],
     parameters: {
-      behavior: { type: 'keyword', default: 'smooth', cssProperty: '--kui-scroll-behavior', values: ['smooth', 'auto'] },
+      behavior: { type: 'keyword', default: 'smooth', cssProperty: '--kui-scroll-behavior', keywords: ['smooth', 'auto'] },
     },
     prepare: deferPrepare(prepareSmoothScroll),
     perfClass: 'layout',
@@ -828,18 +828,18 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     id: 'scroll-snap',
     channels: ['layout'],
     parameters: {
-      axis: { type: 'keyword', default: 'y', cssProperty: '--kui-axis', values: ['x', 'y'] },
+      axis: { type: 'keyword', default: 'y', cssProperty: '--kui-axis', keywords: ['x', 'y'] },
       strictness: {
         type: 'keyword',
         default: 'mandatory',
         cssProperty: '--kui-snap-strictness',
-        values: ['mandatory', 'proximity'],
+        keywords: ['mandatory', 'proximity'],
       },
       align: {
         type: 'keyword',
         default: 'start',
         cssProperty: '--kui-snap-align',
-        values: ['start', 'center', 'end'],
+        keywords: ['start', 'center', 'end'],
       },
       // Names the snap items. Also what opts this primitive into owning the scroll container
       // itself — see `installSnapContainer`. Without it, the direct children are the items and

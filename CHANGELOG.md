@@ -65,9 +65,41 @@ they used to look like is unaffected.
   that — wrapping the element in an always-visible decoy so it wasn't blank before the click — it's
   no longer needed and can be removed.
 
+- **`border-draw` no longer breaks `border-radius`.** It used to paint its ring with
+  `border-image`, and `border-image` ignores `border-radius` entirely by spec — every rounded
+  card or pill button using it rendered with four hard square corners regardless. It now paints on
+  a masked `::before`, which inherits the host's radius and curves with it correctly. One real
+  consequence: the old rule reserved 2px of genuine border, which occupied layout and pushed the
+  host's own content inward; the new ring is an overlay drawn over the host's edge instead, so a
+  page that was relying on `border-draw` for 2px of spacing will see that content shift out by 2px.
+  It also gained `width:` and `outset:` parameters: `width:` was a hardcoded `2px` with no way to
+  author it, and `outset:` compensates for the same case `beam-border` already documents — a host
+  with its own border pushes an absolutely-positioned ring 1px out of alignment, and no CSS length
+  can read a host's border width to correct that on its own.
+
+### Changed
+
+- **An entrance and a hover/state effect claiming the same property now compose, instead of the
+  compiler silently dropping the second one.** `data-kui="fade-up, lift"` used to compile only
+  `fade-up` — `lift`, the hover response, vanished behind a dev-mode warning most authors never
+  see. Every preset now declares a `phase` (`entrance`, `exit`, `idle`, or `state`), and an
+  entrance or exit is recognized as handing its channel back the moment it finishes: their
+  keyframes are deliberately one-sided (`kui-in-up` has no closing block), so once the entrance has
+  played, CSS resolves the missing endpoint against whatever the `:hover` rule underneath it says.
+
+  Measured directly against the current 283-name registry (a snapshot — the catalog is still
+  growing today, and this figure gets re-derived at release rather than treated as a fixed
+  property of the library): sweeping every one of the 39,903 possible unordered pairs of names
+  through the real compiler, 30,998 pairs composed before this change and 31,555 compose now — a
+  gain of 557. "Zero regressions" is the stronger of two claims and worth stating precisely: it is
+  not "the test suite passes," it is that the *same sweep*, repeated with `phase` stripped back
+  off every preset that declares one, produces no pair that used to compose and now refuses — that
+  set difference, checked directly rather than assumed, is empty. Reproducible from
+  `ADS-memory/2026-09-08-catalog-review/phase-gain-sweep.ts`.
+
 ### Added
 
-Nine new named effects, none of them changing anything about an existing name:
+New named effects, none of them changing anything about an existing name:
 
 - **`press-depth`** is the catalog's first `:active` state. Every hover effect already had a
   `:focus-visible` twin; before this, the only `:active` rule anywhere in the library was a
@@ -82,7 +114,7 @@ Nine new named effects, none of them changing anything about an existing name:
 - **`view-swap`** is the same-document half specifically: a one-listener shim around
   `document.startViewTransition()`, for the case that needs the browser to capture the old state
   before the DOM changes.
-- **`glass-surface`** is the catalog's first *material* — a resting surface treatment (blur, a
+- **`glass`** is the catalog's first *material* — a resting surface treatment (blur, a
   masked rim) rather than a change of state — and the first thing in the source to use
   `backdrop-filter`. It exists because pages were hand-writing glassmorphism in their own
   stylesheets next to a library that had no name for it.
@@ -91,17 +123,35 @@ Nine new named effects, none of them changing anything about an existing name:
   elements relative to each other instead of animating one element about its own centre. The three
   named variants steepen the ring's tilt up (`-high`) or down (`-low`), or flip it concave so the
   viewer stands inside the ring facing a 120° arc instead of outside the full circle (`-inside`).
+- **`masked-label-swap`, `masked-label-swap-x`, `masked-label-swap-diagonal`** stack two real,
+  selectable copies of a label in a clipped box and slide one out as the other slides in.
+  Vertical is the unsuffixed default — a price or a count changing reads as a roll — with `-x`
+  and `-diagonal` for wording that reads better sliding sideways.
+- **`hover-intent`** reveals a hint only once the pointer has rested on the trigger for a full
+  second, and leaving early cancels it outright, so it never fires as a twitchy instant tooltip.
+  The one-second default delay is deliberate rather than incidental: an unauthored `hover-intent`
+  with no wait would be a different, ordinary hover reveal wearing this one's name.
+- **`var-axis`** is a generic variable-font axis — `data-kui="var-axis axis:GRAD from:0 to:150"` —
+  for any OpenType variation axis a font carries beyond the three (`wght`, `wdth`, `slnt`) CSS
+  already gives a dedicated property to.
 
-And two effects gained parameters whose defaults reproduce the shipped look byte-for-byte, so no
-existing page changes at all:
+And three smaller parameter changes, none of which affect a page that doesn't touch them:
 
-- **`beam-border`** gained `arc:` and `softness:` (defaults `100deg` / `0.22`).
-- **`shine-sweep`** gained `angle:`, `width:`, and `color:` (defaults `115deg` / `0.2` / unset).
+- **`beam-border`** gained `arc:` and `softness:` (defaults `100deg` / `0.22`), and **`shine-sweep`**
+  gained `angle:`, `width:`, and `color:` (defaults `115deg` / `0.2` / unset) — both sets of
+  defaults reproduce the shipped look byte-for-byte, so an existing page renders identically either
+  way.
+- **`ripple`'s internal `spread:` parameter is renamed `extent:`.** This is not a break: `spread`
+  is a reserved attribute-level key (the stagger budget), intercepted before it ever reaches a
+  primitive's own parameters. `data-kui="ripple spread:6"` was always silently redirected into the
+  stagger system, never into ripple's `spread`, no matter what the primitive declared — so there
+  was nothing a rename could take away from anyone.
 
 ---
 
-**No authored `data-kui` attribute changed meaning.** Every existing HTML page — every
-`data-kui="ripple"`, every `data-kui="confetti-burst"`, every `data-kui="beam-border"` — keeps
-working exactly as it did before, untouched. Everything above is either a TypeScript-only compile
-break for custom-primitive authors, a fix to effects that weren't doing what their names promised,
-a wholly new name, or a purely additive parameter.
+**Every authored `data-kui` attribute still parses and still means what it meant.** No name was
+renamed, no grammar changed, and none of this requires touching a line of markup. Three effects do
+render differently than they did yesterday — `ripple`, `confetti-burst`, and `border-draw` — and
+each is documented above as a fix to behavior that was wrong, not a redesign of behavior that
+worked. Everything else is a TypeScript-only compile break for custom-primitive authors, new
+composability between existing names, a wholly new name, or a purely additive parameter.

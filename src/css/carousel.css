@@ -1,0 +1,338 @@
+/*
+ * The spatial carousel — N children arranged on a ring in 3D.
+ *
+ * Nothing else in this catalog places children relative to each other. Every other 3D name rotates
+ * one element about its own centre, which is an animation; this is a *layout*, and the whole of it
+ * is here. `src/effects/carousel/index.ts` publishes four numbers and marks the slots; these rules
+ * turn those numbers into positions.
+ *
+ * The numbers, and who writes each:
+ *
+ *   --kui-offset        per slot, `effects/step-marking.ts` — signed places from the live one
+ *   --kui-item-count    per slot, `effects/step-marking.ts` — how many places its group has
+ *   --kui-step          on the host, this effect — the live place, as an integer
+ *   --kui-step-position on the host, this effect — the live place, as a real number
+ *   --kui-item-width    on the host, this effect — a measured card width, for the derived radius
+ *
+ * INVARIANT: a keyframe may only write properties belonging to its primitive's declared channels.
+ * `test/css-invariants.test.ts` enforces this against these files. This one compiles no keyframes
+ * at all — a ring has no from-state and no end, it has a position — so the transitions below are
+ * ordinary CSS on properties the `skew` channel covers (`transform`).
+ */
+@layer kui.effects {
+  /*
+   * --- the camera (channel: skew) ---
+   *
+   * `perspective` and `transform-style` on the same element, which is the whole scene in one box.
+   *
+   * The textbook arrangement is two: a `.scene` carrying the perspective and a `.ring` inside it
+   * carrying `preserve-3d` and the spin. That split exists because in the textbook version the ring
+   * *rotates* and the camera must not rotate with it — `perspective` is resolved in the coordinate
+   * system of the element it sits on, so a perspective on a turning box turns the vanishing point
+   * too, and the scene swims.
+   *
+   * Here the ring never rotates. Each slot computes its own angle from its own `--kui-offset` and
+   * the shared drift, so the spin is distributed across the slots and there is no turning box for
+   * the camera to be trapped inside. What the second element would have carried — the tilt — is the
+   * outermost factor of every slot's transform instead, which is the same matrix: `rotateX(t)`
+   * applied identically to every slot before its own `rotateY` is exactly `rotateX(t)` applied once
+   * to a box containing all of them. So the element is not missing; it has been multiplied out.
+   *
+   * What the host still owes the scene is depth sorting. Without `transform-style: preserve-3d`
+   * here, children are painted in DOM order and the sixth card paints over the first even when it
+   * is behind it — the ring reads as a stack of overlapping rectangles rather than a ring. With it,
+   * the browser sorts the slots by depth and the far side goes behind the near side, which is the
+   * only thing making this look three-dimensional at all.
+   *
+   * `display: grid` with every slot in cell `1 / 1` is how they all start from the same point
+   * without any of them being taken out of flow: the host still sizes itself to its content, the
+   * slots still size themselves to theirs, and no `position: absolute` is imposed on the author's
+   * cards. Same technique, for the same reason, as the two-sided cards in `three-d.css`.
+   */
+  [data-kui-fx~='carousel-3d'],
+  [data-kui-fx~='carousel-3d-high'],
+  [data-kui-fx~='carousel-3d-low'],
+  [data-kui-fx~='carousel-3d-inside'] {
+    display: grid;
+    place-items: center;
+    perspective: var(--kui-perspective, 1600px);
+    transform-style: preserve-3d;
+    /*
+     * The camera's own attitude, resolved once here so every slot inherits one answer.
+     *
+     * Negated, deliberately, and this is the one place in the file worth reading twice. The
+     * parameter's sign convention is "positive means the camera is above, looking down", because
+     * that is the sentence a designer says. CSS `rotateX()` turns the other way for a ring: the ring
+     * lies in the XZ plane, its far side sits at `z = -r`, and `rotateX(a)` maps that point's `y` to
+     * `+r * sin(a)`. Screen `y` grows downwards, so a positive angle pushes the far side *down* the
+     * screen — the view from underneath. Handing the author's `18deg` straight to `rotateX()` would
+     * therefore have shown them the underside of their own carousel, and every page would have
+     * worked around it by writing a minus sign nobody could explain.
+     *
+     * Clamped for legibility. Past about eighty degrees the ring is edge-on: every card is a line,
+     * and the effect has silently become nothing. The clamp is on the angle rather than baked into a
+     * normalised 0-1 knob, so an author reading the computed value in devtools sees degrees, and so
+     * the bound is one visible number rather than an invisible rescale of theirs.
+     */
+    --kui-ring-tilt: clamp(-80deg, calc(-1 * var(--kui-tilt, 0deg)), 80deg);
+    /*
+     * How far the ring has travelled past the live place, in places, as a signed fraction.
+     *
+     * Both terms are published together by one writer on this same element, so they cannot disagree
+     * about where the ring is — which is why the continuous position is absolute (`2.4`) rather than
+     * the delta this expression derives from it. An absolute number has one reading; a published
+     * delta has two ("0.4 past what?") and the second one is only discoverable by experiment.
+     *
+     * The JS re-snaps `--kui-step` whenever this passes half a place, so it stays inside ±0.5 and
+     * the ring never has to travel back across every card in between to wrap from the last to the
+     * first. That snap-back is the difference between a deck that "carried on" and one that "jumped
+     * to the beginning".
+     */
+    --kui-ring-drift: calc(var(--kui-step-position, 0) - var(--kui-step, 0));
+  }
+
+  /*
+   * --- the slots (channel: skew) ---
+   *
+   * Matched by the attribute `step-marking.ts` stamps rather than by `> *`, so a `target:` naming
+   * something other than the direct children still places what it named. The host's grid only
+   * centres direct children, so a deeper `target:` needs the page to stack them itself — that is the
+   * one structural thing this effect cannot do on the author's behalf, and `docs/catalog.md` says
+   * so rather than leaving it to be discovered.
+   */
+  [data-kui-fx~='carousel-3d'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-high'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-low'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-inside'] [data-kui-step-offset] {
+    grid-area: 1 / 1;
+    /*
+     * `backface-visibility: hidden` and a *flat* slot, and the pair has to be read together.
+     *
+     * `transform-style` is deliberately left at its initial `flat` here rather than set to
+     * `preserve-3d`, which is the opposite of what a 3D effect usually wants. Flat means the slot's
+     * own children are rendered into the slot's plane instead of joining the scene, so the whole
+     * card — content included — is one surface with one back face, and the `backface-visibility`
+     * below hides all of it at once when the ring turns it away.
+     *
+     * `preserve-3d` here would hide only the slot's own box: `backface-visibility` is not inherited,
+     * so every element inside it would default back to `visible` and keep painting, mirrored, on the
+     * far side of the ring. That is exactly the "the animation broke" symptom the one-sided flip note
+     * in `three-d.css` describes, multiplied by the number of cards.
+     *
+     * Depth sorting is unaffected — that happens in the *host's* 3D context, which each slot is a
+     * plane in whatever its own `transform-style` says. The one case that does need the scene to
+     * continue into the slot is `facing:camera`, whose counter-rotation is on a child; that rule
+     * turns `preserve-3d` back on for itself, further down.
+     */
+    backface-visibility: hidden;
+
+    /* Degrees between neighbours: the spread divided by how many places share it. */
+    --kui-ring-spacing: calc(var(--kui-arc, 360deg) / max(1, var(--kui-item-count, 1)));
+
+    /*
+     * This slot's angle from the camera-facing position.
+     *
+     * `--kui-offset` is where it sits relative to the live place and `--kui-ring-drift` is where the
+     * ring has got to between two places, so the difference is where it sits relative to the
+     * *camera* — which is the only frame the rest of these rules care about.
+     */
+    --kui-ring-angle: calc((var(--kui-offset, 0) - var(--kui-ring-drift)) * var(--kui-ring-spacing));
+
+    /*
+     * The ring's radius, derived from the content unless the author names one.
+     *
+     * `var(--kui-radius, <fallback>)` and not two rules: an unset parameter is never written inline
+     * (design.md §7 — a parameter's default *is* its `var()` fallback), so the fallback is exactly
+     * the "author said nothing" branch and an authored `radius:320px` beats it by being present.
+     *
+     * The fallback is the circumradius of a regular polygon whose sides are as long as a card plus
+     * its gap: `(w + gap) / (2 * tan(spacing / 2))`. That is the arrangement where neighbours just
+     * touch — the answer every consumer would otherwise have derived by hand, differently, on every
+     * deck. It works for a slice as well as a full ring, because the spacing it divides by is
+     * already `arc / count`.
+     *
+     * The half-angle is clamped because `tan(90deg)` is not a number: a two-item full ring puts
+     * neighbours half a turn apart and the formula divides by infinity. Clamping to 60 degrees makes
+     * the degenerate counts (1 and 2) space themselves like a triangle, which is a ring you can see
+     * rather than one collapsed to a point. The lower bound only matters for very large counts and
+     * is there to keep the expression finite rather than to shape anything.
+     */
+    --kui-ring-radius: var(
+      --kui-radius,
+      calc(
+        (var(--kui-item-width, 260px) + var(--kui-gap, 24px)) /
+          (2 * tan(clamp(0.5deg, var(--kui-ring-spacing) / 2, 60deg)))
+      )
+    );
+
+    /*
+     * Placement. The order of these three functions is load-bearing and is not interchangeable.
+     *
+     * `rotateX` (the camera) has to come *before* `rotateY` (the place on the ring), so that the
+     * ring orbits around its own tilted pole. Written the other way round — `rotateY` then
+     * `rotateX` — each card is first swung to its place and then tipped about the screen's
+     * horizontal axis, so the ring tumbles like a flipped coin instead of turning like a carousel,
+     * and the cards on the left and right of it lean in opposite directions.
+     *
+     * `translateZ` last, so it pushes along the axis the two rotations have just aimed. It is what
+     * makes this a ring at all: without it every card is at the origin and the rotations only spin
+     * them in place.
+     */
+    transform: rotateX(var(--kui-ring-tilt)) rotateY(var(--kui-ring-angle))
+      translateZ(var(--kui-ring-radius));
+
+    /*
+     * The travel between two places, as a transition rather than a keyframe.
+     *
+     * A keyframe has a start and an end and this has neither: the ring is at a position, it goes to
+     * another position, and the next request can arrive mid-flight and must be interpolated from
+     * wherever it actually is. That is a transition's entire job, and it is the same reason
+     * `flip-card` is a transition while `card-flip-y` is a keyframe.
+     *
+     * `base.css`'s policy layer already shortens this under `prefers-reduced-motion`, which is the
+     * right treatment: the ring keeps working and stops sliding.
+     */
+    transition: transform var(--kui-spatial-ring-duration, 620ms)
+      var(--kui-spatial-ring-ease, cubic-bezier(0.22, 1, 0.36, 1))
+      var(--kui-spatial-ring-delay, 0ms);
+  }
+
+  /*
+   * While a finger is down there is no travel to ease — the ring is following the pointer, and a
+   * transition on top of that is a lag between the card and the finger holding it. Suspended rather
+   * than shortened, because "nearly instant" still reads as slip on a direct-manipulation gesture.
+   */
+  [data-kui-ring-dragging='true'] [data-kui-step-offset] {
+    transition: none;
+  }
+
+  /*
+   * --- turned away from the camera (channel: skew) ---
+   *
+   * `backface-visibility: hidden` above already stops a reversed card *painting*. It is not
+   * dependable as a hit-testing rule — WebKit in particular will still deliver a click to a card
+   * whose back is turned — so the far half of the ring silently swallows presses aimed at the near
+   * half, which reads as "the buttons on my carousel do nothing sometimes".
+   *
+   * The fix keys off the attribute the runtime publishes rather than deriving anything, because CSS
+   * cannot branch on the sign or magnitude of a `calc()`, and "is this angle more than a quarter
+   * turn from the camera" is exactly that question.
+   */
+  [data-kui-ring-face='back'] {
+    pointer-events: none;
+  }
+
+  /*
+   * Inside the ring, "turned away" means *behind the viewer*, which is a stronger fact than "facing
+   * away" and deserves a stronger answer. `visibility: hidden` — not `opacity: 0` — because an
+   * invisible card that is still hit-testable, still focusable, and still in the accessibility tree
+   * gives a deck dead tab stops with no focus ring to explain them. This is the same argument
+   * `step-marking.ts` makes for publishing the offset as an attribute in the first place.
+   *
+   * Deliberately not applied to the outward-facing names. There the far half of the ring is content:
+   * smaller and dimmer and part of the composition. Hiding it would delete two thirds of the effect.
+   */
+  [data-kui-fx~='carousel-3d-inside'] [data-kui-ring-face='back'] {
+    visibility: hidden;
+  }
+
+  /*
+   * --- billboarding (channel: skew) ---
+   *
+   * `facing:camera` keeps a card square to the viewer wherever it is on the ring, which is what a
+   * raised camera needs: text on a slot that is both tilted and turned is legible as a shape and not
+   * as words.
+   *
+   * The counter-rotation lands on the slot's *children*, never on the slot. Appending it to the
+   * placement transform would be the same matrix and a worse design: the two are changed for
+   * different reasons and at different times, and once they share a declaration every later edit to
+   * one has to re-derive the other. Separate boxes keep `rotateX · rotateY · translateZ` readable as
+   * placement and `rotateY⁻¹ · rotateX⁻¹` readable as "undo the placement's rotation".
+   *
+   * The inverse composes on the *inside* of the chain — the slot's rotations are applied to it, then
+   * these undo them — which is why the two functions appear in the opposite order to the ones above.
+   * The `translateZ` between them is untouched, so the card stays out on the ring and only its
+   * orientation changes.
+   *
+   * A slot with several element children billboards each of them about its own centre rather than
+   * about the slot's. The orientation is right either way; only their relative offsets shift
+   * slightly. One wrapper per slide avoids it entirely, which is what `docs/catalog.md` shows.
+   */
+  /*
+   * Gated on the published attribute for all four names, `carousel-3d-inside` included, even though
+   * that one *defaults* to `facing:camera`. A default is not a guarantee: `carousel-3d-inside
+   * facing:radial` is a legal attribute, and an unconditional rule for the concave name would have
+   * billboarded it anyway — a parameter that parses, validates, and then does nothing on one of the
+   * four names that declare it.
+   */
+  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera'] [data-kui-step-offset] {
+    /*
+     * The one case that needs the scene to continue past the slot: the counter-rotation below lands
+     * on a child, and a child of a flat slot is painted into the slot's plane rather than turned in
+     * space, so the billboard would do nothing at all. `backface-visibility: hidden` stays on the
+     * slot and now applies only to the slot's own box — which is correct here, because the card is
+     * the child and the child is always facing the camera.
+     */
+    transform-style: preserve-3d;
+  }
+
+  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera'] [data-kui-step-offset] > * {
+    transform: rotateY(calc(-1 * var(--kui-ring-angle))) rotateX(calc(-1 * var(--kui-ring-tilt)));
+    transform-style: preserve-3d;
+  }
+
+  /*
+   * --- inside the ring (channel: skew) ---
+   *
+   * One sign, and everything else about the name differs. Negative Z puts the camera at the centre
+   * of the ring rather than outside it, so the cards surround the viewer and face inward: the slot's
+   * own front normal, after `rotateY(a) translateZ(-r)`, points back at the origin without any extra
+   * rotation, which is the mirror of the outward case needing none either.
+   *
+   * Written as an override of the shared placement rather than as a `curve:` parameter on it. The
+   * sign is the only thing these two share — the sensible arc, what "behind" means, which cards are
+   * worth culling and whether text needs billboarding are all different questions with different
+   * answers — and a single name carrying both would have documented itself in sentences beginning
+   * "unless". See the note on `CAROUSEL_PRESETS` in `effects/carousel/index.ts`.
+   */
+  [data-kui-fx~='carousel-3d-inside'] [data-kui-step-offset] {
+    transform: rotateX(var(--kui-ring-tilt)) rotateY(var(--kui-ring-angle))
+      translateZ(calc(-1 * var(--kui-ring-radius)));
+  }
+
+  /*
+   * --- before the runtime has touched anything ---
+   *
+   * Every rule above is scoped to `data-kui-fx`, which the runtime stamps when it starts. Between
+   * first paint and that moment a ring is a column of full-size cards stacked down the page, which
+   * on a deck of five images is a very visible reflow — and it is the author's page that looks
+   * broken, not this library's.
+   *
+   * These key off `data-kui`, the attribute the author wrote, which is in the markup from the first
+   * byte. They set structure only — one grid cell, the same one — and deliberately set no transform
+   * and no transition, so nothing can move before the library is there to drive it. `~=` matches
+   * whitespace-separated tokens, so this holds for `carousel-3d tilt:20deg` and for a composed
+   * `fade-up, carousel-3d` alike. Same technique, same reasoning, as `flip-card`'s pre-JS block in
+   * `three-d.css`.
+   */
+  [data-kui~='carousel-3d'],
+  [data-kui~='carousel-3d-high'],
+  [data-kui~='carousel-3d-low'],
+  [data-kui~='carousel-3d-inside'] {
+    display: grid;
+    place-items: center;
+  }
+
+  [data-kui~='carousel-3d'] > *,
+  [data-kui~='carousel-3d-high'] > *,
+  [data-kui~='carousel-3d-low'] > *,
+  [data-kui~='carousel-3d-inside'] > * {
+    grid-area: 1 / 1;
+  }
+}

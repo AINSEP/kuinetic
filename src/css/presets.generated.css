@@ -11,6 +11,30 @@
     --kui-auto-height-ease: ease-out;
   }
 
+  [data-kui-fx~='anchored-preview'] {
+    --kui-anchored-preview-duration: 220ms;
+    --kui-anchored-preview-delay: 0ms;
+    --kui-anchored-preview-ease: ease-out;
+  }
+
+  [data-kui-fx~='anchored-preview-bottom'] {
+    --kui-anchored-preview-duration: 220ms;
+    --kui-anchored-preview-delay: 0ms;
+    --kui-anchored-preview-ease: ease-out;
+  }
+
+  [data-kui-fx~='anchored-preview-left'] {
+    --kui-anchored-preview-duration: 220ms;
+    --kui-anchored-preview-delay: 0ms;
+    --kui-anchored-preview-ease: ease-out;
+  }
+
+  [data-kui-fx~='anchored-preview-right'] {
+    --kui-anchored-preview-duration: 220ms;
+    --kui-anchored-preview-delay: 0ms;
+    --kui-anchored-preview-ease: ease-out;
+  }
+
   [data-kui-fx~='aurora'] {
     --kui-ambient-gradient-duration: 10s;
     --kui-ambient-gradient-delay: 0ms;
@@ -146,6 +170,38 @@
     --kui-step-progress-duration: 400ms;
     --kui-step-progress-delay: 0ms;
     --kui-step-progress-ease: ease-out;
+  }
+
+  [data-kui-fx~='carousel-3d'] {
+    --kui-tilt: 12deg;
+    --kui-spatial-ring-duration: 620ms;
+    --kui-spatial-ring-delay: 0ms;
+    --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-kui-fx~='carousel-3d-high'] {
+    --kui-tilt: 30deg;
+    --kui-perspective: 1200px;
+    --kui-spatial-ring-duration: 620ms;
+    --kui-spatial-ring-delay: 0ms;
+    --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-kui-fx~='carousel-3d-inside'] {
+    --kui-arc: 120deg;
+    --kui-facing: camera;
+    --kui-perspective: 900px;
+    --kui-spatial-ring-duration: 620ms;
+    --kui-spatial-ring-delay: 0ms;
+    --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-kui-fx~='carousel-3d-low'] {
+    --kui-tilt: -18deg;
+    --kui-perspective: 1800px;
+    --kui-spatial-ring-duration: 620ms;
+    --kui-spatial-ring-delay: 0ms;
+    --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   [data-kui-fx~='chart-area-fill'] {
@@ -591,6 +647,12 @@
     --kui-flip-container-ease: ease-out;
   }
 
+  [data-kui-fx~='group-dim'] {
+    --kui-group-dim-duration: 260ms;
+    --kui-group-dim-delay: 0ms;
+    --kui-group-dim-ease: ease-out;
+  }
+
   [data-kui-fx~='hamburger-to-x'] {
     --kui-icon-toggle-duration: 260ms;
     --kui-icon-toggle-delay: 0ms;
@@ -598,10 +660,10 @@
   }
 
   [data-kui-fx~='heart-burst'] {
-    --kui-feedback-burst-duration: 700ms;
+    --kui-feedback-heart-burst-duration: 700ms;
     --kui-pop-scale: 1.4;
-    --kui-feedback-burst-delay: 0ms;
-    --kui-feedback-burst-ease: var(--kui-ease-back-out, ease-out);
+    --kui-feedback-heart-burst-delay: 0ms;
+    --kui-feedback-heart-burst-ease: var(--kui-ease-back-out, ease-out);
   }
 
   [data-kui-fx~='heart-fill'] {
@@ -615,6 +677,12 @@
     --kui-text-sweep-duration: 600ms;
     --kui-text-sweep-delay: 0ms;
     --kui-text-sweep-ease: ease-out;
+  }
+
+  [data-kui-fx~='hover-intent'] {
+    --kui-hover-intent-duration: 160ms;
+    --kui-hover-intent-delay: 1000ms;
+    --kui-hover-intent-ease: ease-out;
   }
 
   [data-kui-fx~='icon-bounce'] {
@@ -719,6 +787,24 @@
     --kui-media-mask-duration: 600ms;
     --kui-media-mask-delay: 0ms;
     --kui-media-mask-ease: ease-out;
+  }
+
+  [data-kui-fx~='masked-label-swap'] {
+    --kui-label-swap-duration: 320ms;
+    --kui-label-swap-delay: 0ms;
+    --kui-label-swap-ease: ease-out;
+  }
+
+  [data-kui-fx~='masked-label-swap-diagonal'] {
+    --kui-label-swap-duration: 320ms;
+    --kui-label-swap-delay: 0ms;
+    --kui-label-swap-ease: ease-out;
+  }
+
+  [data-kui-fx~='masked-label-swap-x'] {
+    --kui-label-swap-duration: 320ms;
+    --kui-label-swap-delay: 0ms;
+    --kui-label-swap-ease: ease-out;
   }
 
   [data-kui-fx~='masonry-reflow'] {
@@ -880,6 +966,12 @@
     --kui-scale-delay: 0ms;
   }
 
+  [data-kui-fx~='press-depth'] {
+    --kui-press-duration: 120ms;
+    --kui-press-delay: 0ms;
+    --kui-press-ease: ease-out;
+  }
+
   [data-kui-fx~='progress-bar'] {
     --kui-meter-bar-duration: 600ms;
     --kui-meter-bar-delay: 0ms;
@@ -902,6 +994,11 @@
     --kui-meter-segments-duration: 600ms;
     --kui-meter-segments-delay: 0ms;
     --kui-meter-segments-ease: ease-out;
+  }
+
+  [data-kui-fx~='proximity-glow'] {
+    --kui-proximity-glow-duration: 200ms;
+    --kui-proximity-glow-ease: ease-out;
   }
 
   [data-kui-fx~='pull-to-refresh'] {
@@ -1046,6 +1143,12 @@
 
   [data-kui-fx~='scrollytelling-step'] {
     --kui-steps: 4;
+  }
+
+  [data-kui-fx~='search-expand'] {
+    --kui-search-expand-duration: 260ms;
+    --kui-search-expand-delay: 0ms;
+    --kui-search-expand-ease: ease-out;
   }
 
   [data-kui-fx~='sequence-scrub'] {
@@ -1427,6 +1530,12 @@
     --kui-validate-shake-ease: ease-out;
   }
 
+  [data-kui-fx~='var-axis'] {
+    --kui-var-axis-duration: 600ms;
+    --kui-var-axis-delay: 0ms;
+    --kui-var-axis-ease: ease-out;
+  }
+
   [data-kui-fx~='var-slant'] {
     --kui-var-slant-duration: 600ms;
     --kui-var-slant-delay: 0ms;
@@ -1443,6 +1552,10 @@
     --kui-var-width-duration: 600ms;
     --kui-var-width-delay: 0ms;
     --kui-var-width-ease: ease-out;
+  }
+
+  [data-kui-fx~='view-swap'] {
+    --kui-view-swap-delay: 0ms;
   }
 
   [data-kui-fx~='wave-blob'] {

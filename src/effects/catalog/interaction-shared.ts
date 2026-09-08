@@ -122,9 +122,150 @@ export const HOVER_TRANSITIONS: Partial<Record<string, TransitionSegment[]>> = {
  * every author who never asked for one. The properties are the ones `interaction.css` already
  * reads — the hooks existed long before anything was wired to them.
  */
+/*
+ * `beam-border`/`beam-border-auto`'s non-timing parameters. Here for the same reason
+ * `COLOR_PARAMS` below and `HOVER_TRANSITIONS` above are: `interaction.ts` sits on the 400-line
+ * lint ceiling, and this record was the smallest thing that could move without splitting a
+ * primitive from its own registration row.
+ *
+ * `color`/`outset` carry the empty default `COLOR_PARAMS` documents at length: unauthored means
+ * "not in the resolved output at all" (see `resolveParams`), so `interaction.css`'s existing
+ * four-stop rainbow fallback in `var(--kui-beam-border-c1, #ff5f6d)` is untouched for every
+ * instance that never sets `color:`, and c2-c4 fall back to c1 before their own hardcoded defaults
+ * so authoring one colour turns the rainbow into a single-colour beam without a second parameter.
+ *
+ * `outset:` is the same empty-default story for geometry rather than colour: it pulls the ring out
+ * over the host's own border, which the pseudo-element's `inset: 0` alone cannot reach — see that
+ * rule's own comment in `interaction.css` for why no CSS length can read a host's `border-width`.
+ *
+ * ### `arc` and `softness`: the same ring, made soft enough to read as a specular rim
+ *
+ * These two exist because a glass panel (`catalog/materials.ts`) wants a *rim light* — a soft,
+ * partial, blurred arc travelling round the edge — and the obvious move was to mint a second
+ * near-duplicate of this effect for it. That was rejected, correctly: the mechanism is identical
+ * (a conic gradient rotated behind a perimeter mask) and only the stop geometry differs, so the
+ * difference belongs in parameters.
+ *
+ * **They are geometry, not a filter, and that is forced rather than chosen.** The visually obvious
+ * way to soften a ring is `filter: blur()` on the pseudo-element. It does not work here: CSS
+ * Filter Effects applies a filter *before* clipping and masking, so the `mask-composite` that cuts
+ * this gradient down to the perimeter would slice the blur back to hard inner and outer edges and
+ * the ring would come out exactly as crisp as it went in — just dimmer. Softening has to happen in
+ * the gradient's own stops, which is what these two do.
+ *
+ * **The defaults reproduce today's ring exactly**, which is the whole reason they are shaped the
+ * way they are. Today's stops are `transparent 260deg`, `c1 282`, `c2 306`, `c3 330`, `c4 354`,
+ * `transparent 360`. Read as fractions of a 100deg arc ending 6deg before the seam: the colour ramp
+ * is 22% of the arc, and c1..c4 are evenly spaced across what is left. So with `arc:100deg` and
+ * `softness:0.22` the `calc()` chain in `interaction.css` resolves to 260/282/306/330/354 — the
+ * same six numbers, not merely a similar-looking ring. Every page that never writes either
+ * parameter renders identically.
+ *
+ * `softness` is capped at `0.9` rather than `1`. At exactly `1` the ramp consumes the whole arc,
+ * which puts the first colour stop past the last one; CSS clamps out-of-order stops to their
+ * predecessor, so the result is a *hard* edge — the opposite of what the parameter's name promises,
+ * reached by asking for the maximum of it. `0.9` is the largest value that still leaves the stops
+ * in order, and rejecting `1` by name is better than accepting it and rendering the inverse.
+ */
+export const BEAM_PARAMS: ParameterSchema = {
+  color: { type: 'color', default: '', cssProperty: '--kui-beam-border-c1' },
+  outset: { type: 'length', default: '', cssProperty: '--kui-beam-border-outset' },
+  /**
+   * How many degrees of the ring carry colour; the rest is transparent. Small values read as a
+   * short bright dash chasing the perimeter, large ones as a full glowing ring.
+   *
+   * `angle`, so `arc:100`, `arc:100d` and `arc:100deg` are one value (`core/params.ts`'s
+   * `BARE_ANGLE`), and `0.28turn` works too.
+   */
+  arc: { type: 'angle', default: '100deg', cssProperty: '--kui-beam-border-arc' },
+  /**
+   * What fraction of the arc is spent fading up from transparent to the first colour. `0` is a
+   * hard leading edge; `0.9` is an arc that is almost entirely fade, which is the soft specular
+   * rim the glass family reaches for.
+   *
+   * `'number|percentage'` so `softness:0.6` and `softness:60%` are the same request — the union
+   * normalises to the number, which is what keeps the bounds below meaningful for both spellings.
+   */
+  softness: {
+    type: 'number|percentage',
+    default: '0.22',
+    cssProperty: '--kui-beam-border-softness',
+    finite: true,
+    minimum: 0,
+    maximum: 0.9,
+  },
+}
+
+/*
+ * `shine-sweep`'s non-timing parameters — the diagonal band that crosses a control's face on hover.
+ *
+ * The effect shipped with none at all: the gradient's angle, band width and colour were three
+ * literals in `interaction.css`, so a page that wanted a wider or warmer sweep had to restate the
+ * whole `::after` rule. These three are those literals, promoted.
+ *
+ * As with `BEAM_PARAMS` above, the defaults are the existing values rather than an improvement on
+ * them: `115deg`, a band spanning 40%→60% of the gradient (hence `width: 0.2`), and the
+ * `rgb(255 255 255 / 0.35)` highlight. `interaction.css` computes the two outer stops as
+ * `calc(50% ∓ width * 50%)`, which resolves to exactly 40% and 60% at the default.
+ *
+ * `color` carries the empty default for the reason `COLOR_PARAMS` documents, with one extra wrinkle
+ * worth naming: the rule's existing fallback reads `var(--kui-c1, …)` — an un-namespaced property
+ * predating the per-effect naming convention. The new parameter is layered *outside* it
+ * (`var(--kui-shine-sweep-color, var(--kui-c1, …))`) rather than replacing it, so any page already
+ * setting `--kui-c1` keeps working.
+ *
+ * These are what let a glass panel express its sheen sweep without a new effect: `shine-sweep
+ * angle:135deg width:0.4 color:rgb(255 255 255 / 0.5)` is the wide, bright, steeply-raked band the
+ * glassmorphism reference asks for, and it is the same primitive a plain button uses.
+ */
+export const SHINE_PARAMS: ParameterSchema = {
+  color: { type: 'color', default: '', cssProperty: '--kui-shine-sweep-color' },
+  /** Rake of the band. `115deg` is the shipped default — steeper than a diagonal, which is what
+   *  stops it reading as a corner-to-corner wipe. */
+  angle: { type: 'angle', default: '115deg', cssProperty: '--kui-shine-sweep-angle' },
+  /**
+   * Band width as a fraction of the gradient's own span, centred on the midpoint. `0.2` is the
+   * shipped 40%→60% band; `1` is a full-width wash with no transparent margin left.
+   *
+   * `'number|percentage'`, bounded 0..1, for the same reason `softness` above is: `width:40%` and
+   * `width:0.4` are the same request, and normalising to the number is what keeps the bounds
+   * honest for both.
+   */
+  width: {
+    type: 'number|percentage',
+    default: '0.2',
+    cssProperty: '--kui-shine-sweep-width',
+    finite: true,
+    minimum: 0,
+    maximum: 1,
+  },
+}
+
 export const COLOR_PARAMS: Record<string, ParameterSchema> = {
   borderDraw: { color: { type: 'color', default: '', cssProperty: '--kui-border-draw-color' } },
   borderGlow: { color: { type: 'color', default: '', cssProperty: '--kui-border-glow-color' } },
   underlineSlide: { color: { type: 'color', default: '', cssProperty: '--kui-underline-slide-color' } },
   underlineCenter: { color: { type: 'color', default: '', cssProperty: '--kui-underline-center-color' } },
+}
+
+/*
+ * `border-draw`'s own parameters — its `color:` from `COLOR_PARAMS` above, plus the two knobs its
+ * move off `border-image` onto a masked `::before` created rather than invented.
+ *
+ * `width:` was the literal `2px` in the `border:` shorthand the old rule seeded. While the ring was
+ * a real CSS border, a page that wanted a thicker one could restate `border-width` and the
+ * `border-image` would follow it; now that the ring is a pseudo-element's padding, nothing a page
+ * writes on the host reaches it, so the knob has to exist here or the thickness is unreachable.
+ *
+ * `outset:` is character-for-character the same problem `BEAM_PARAMS.outset` documents above, and
+ * it is here for the same reason: an absolutely positioned pseudo-element resolves `inset` against
+ * its host's *padding* box, so every pixel of border on the host pushes this ring that far inward,
+ * and no CSS length can read a host's `border-width` to compensate automatically. `0px` — not the
+ * empty default the colour parameters carry — because unlike a colour, "not authored" here has a
+ * correct concrete answer: a borderless host's padding box already is its border box.
+ */
+export const BORDER_DRAW_PARAMS: ParameterSchema = {
+  ...COLOR_PARAMS.borderDraw,
+  width: { type: 'length', default: '2px', cssProperty: '--kui-border-draw-width' },
+  outset: { type: 'length', default: '0px', cssProperty: '--kui-border-draw-outset' },
 }

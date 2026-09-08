@@ -135,7 +135,14 @@ export type PerfClass = 'compositor' | 'paint' | 'layout' | 'continuous' | 'dom-
  */
 export type ReducedMotionPolicy = 'shorten' | 'crossfade' | 'disable'
 
-export type ParamType =
+/**
+ * Parameter types that name exactly one grammar.
+ *
+ * Kept separate from {@link UnionParamType} so the union members can be spelled as
+ * `'<a>|<b>'` and expanded back into this list by one table in `core/params.ts`, rather than
+ * every validation site learning which spellings are compound.
+ */
+export type ScalarParamType =
   | 'length'
   | 'time'
   | 'number'
@@ -162,23 +169,81 @@ export type ParamType =
    */
   | 'path'
 
-export interface ParamSpec {
-  type: ParamType
+/**
+ * Parameter types that accept two grammars from one parameter.
+ *
+ * CSS properties routinely take "a keyword or a value", or "a number or a percentage", and a
+ * parameter that models one has to accept both spellings without inventing a second parameter for
+ * the second spelling. `offset-rotate` is `[ auto | reverse ] || <angle>`; `opacity` is
+ * `<alpha-value>`, which is a number *or* a percentage and means the same thing either way.
+ *
+ * **This list is deliberately closed and deliberately short.** The alternative — a per-property
+ * table of CSS grammars, so any parameter can declare any combination — is a second CSS parser to
+ * own and keep correct, and every entry in it is a new way for an authored value to be accepted
+ * into a declaration nobody checked. Three unions cover the properties the catalog actually has.
+ * Adding a fourth should be a considered decision with a parameter that needs it, not a default.
+ *
+ * The member order is the order the grammars are tried, which matters only for
+ * {@link ScalarParamType} overlaps; today there are none.
+ */
+export type UnionParamType =
+  /**
+   * `0.8` or `80%`, normalised to `0.8` before it reaches anything. Both spellings are legal CSS
+   * for an `<alpha-value>` and mean the same thing, so accepting only one of them is a papercut
+   * with no upside; normalising to the number means `minimum`/`maximum` still bound the parameter
+   * whichever way it was written, and a custom property holding it composes inside `calc()`.
+   */
+  | 'number|percentage'
+  /**
+   * `24px` or `50%`. No normalisation is possible — a percentage resolves against a box this code
+   * has not measured and must not guess at — so both spellings reach the stylesheet as written.
+   *
+   * Note that `length`'s own grammar has accepted `%` since it was written, and narrowing it now
+   * would break authored pages, so this union is not currently wider than `length`. It exists
+   * because it *says so*: a parameter declared `'length|percentage'` is one where a percentage is
+   * a supported reading rather than an accident of the unit list, and a reader of the declaration
+   * can tell which without going to look at the regex.
+   */
+  | 'length|percentage'
+  /**
+   * `45deg` or one of a closed set of words — the `offset-rotate` shape. The angle half also takes
+   * the bare and `d`-suffixed spellings every `angle` parameter takes; the keyword half is
+   * {@link KeywordParamSpec.keywords}, which is closed exactly as it is for `'keyword'` itself.
+   */
+  | 'angle|keyword'
+
+export type ParamType = ScalarParamType | UnionParamType
+
+/** Everything a parameter declares regardless of which grammar it accepts. */
+interface ParamSpecBase {
   /** Used as the `var()` fallback in CSS. Never written to element.style — see design.md §7. */
   default: string
-  /** Custom property this parameter feeds, e.g. `--kui-reveal-distance`. */
-  cssProperty: string
   /**
-   * The accepted values of a `keyword` param — and, for every other type, extra literals accepted
-   * *alongside* the type's own grammar.
+   * Custom property this parameter feeds, e.g. `--kui-reveal-distance`.
    *
-   * The second reading exists because CSS properties routinely take a keyword or a value:
-   * `offset-rotate` is `[ auto | reverse ] || <angle>`, so `motion-path`'s `rotate:` has to accept
-   * `auto`, `reverse`, and `45deg` from one parameter. Declaring it `keyword` would mean
-   * enumerating every angle anybody might want; declaring it `angle` alone would drop `auto`,
-   * which is the default and the whole feature. See `validate` in `core/params.ts`.
+   * **This is not, on its own, an escape hatch.** It is easy to read the field as a promise that
+   * any parameter can be overridden from a page's own stylesheet by setting the custom property
+   * directly — that a closed `keywords` list is therefore only a convenience, with the raw
+   * property underneath it for anyone who needs a value the list does not have. That is true for
+   * exactly one of the three ways a parameter is consumed:
+   *
+   * - **Read by CSS.** A stylesheet somewhere does `var(--kui-reveal-distance, 24px)`. The
+   *   cascade decides, so a page rule genuinely wins and the parameter is overridable. Most of
+   *   the catalog is here.
+   * - **Read by JavaScript.** The property is written and then nothing reads it back: `prepare()`
+   *   takes the *validated attribute string* through `readParams`, never `getComputedStyle`.
+   *   `scramble-text`'s `charset` is the clearest case — `--kui-charset` is compiled and no
+   *   `var()` anywhere consumes it, so setting it in a stylesheet changes nothing at all and says
+   *   nothing about having changed nothing. There is **no** escape hatch for these, and widening
+   *   one means widening its `keywords` list in this repository.
+   * - **`type: 'text'`.** `resolveParams` drops these before the stylesheet, so the property is
+   *   never written in the first place and this field is inert.
+   *
+   * Which class a parameter is in is not derivable from the declaration; it depends on whether
+   * any shipped CSS reads the property. Do not tell an author to "just set the custom property"
+   * without checking that something does.
    */
-  values?: readonly string[]
+  cssProperty: string
   /** Require a numeric parameter to convert to a finite JavaScript number. */
   finite?: boolean
   /** Inclusive lower bound for numeric parameters. */
@@ -188,6 +253,51 @@ export interface ParamSpec {
   /** Require a numeric parameter to have no fractional part. */
   integer?: boolean
 }
+
+/**
+ * A parameter with a keyword half: either nothing but words (`'keyword'`), or words beside a
+ * value grammar (`'angle|keyword'`).
+ *
+ * `keywords` is **required**, not optional. A keyword parameter with no list accepts nothing at
+ * all and can only ever fall back to its default, which is a declaration bug that used to compile
+ * and then report `expected one of (none declared)` at runtime. Requiring the field moves that to
+ * the type checker.
+ */
+export interface KeywordParamSpec extends ParamSpecBase {
+  type: 'keyword' | 'angle|keyword'
+  /**
+   * The complete set of words this parameter accepts. **Closed** — a value that is not in this
+   * list is rejected, and for `'angle|keyword'` is then tried against the angle grammar and
+   * nothing else.
+   *
+   * This field replaced `values`, which meant a closed set on `'keyword'` and *additive* extra
+   * literals on every other type. One key with two meanings validated nothing on the second
+   * reading while looking exactly like validation on the first: `{ type: 'number', values:
+   * ['80%'] }` accepted every number in existence and said nothing. The additive meaning has not
+   * been renamed, it has been removed — a parameter that wants "a value or a word" declares a
+   * union type, which is checkable, instead of smuggling the words past the type.
+   */
+  keywords: readonly string[]
+}
+
+/**
+ * A parameter whose grammar is entirely a value shape — a length, a time, a colour, a path.
+ *
+ * `keywords?: never` is the half of the split that does the work: it makes attaching a word list
+ * to a numeric parameter a compile error rather than a silent no-op.
+ */
+export interface ValueParamSpec extends ParamSpecBase {
+  type: Exclude<ParamType, 'keyword' | 'angle|keyword'>
+  keywords?: never
+}
+
+/**
+ * One parameter's declaration.
+ *
+ * A discriminated union on `type` rather than one interface with optional fields, so that the
+ * relationship between the type and the word list is checked instead of documented.
+ */
+export type ParamSpec = KeywordParamSpec | ValueParamSpec
 
 export type ParameterSchema = Record<string, ParamSpec>
 
@@ -537,6 +647,52 @@ export interface TransitionSegment {
   easing?: string
 }
 
+/**
+ * *When* an effect owns the channels it claims — the axis `core/channels.ts` needs to tell a real
+ * collision apart from two effects that merely name the same CSS property.
+ *
+ * Channels alone answer "do these two write `translate`?" and the answer for `fade-up, lift` is
+ * yes, which is why the compiler used to drop `lift`. It is the wrong question. `fade-up` is a
+ * from-only `@keyframes` — `kui-in-up` declares a `from` block and no `to`, so its endpoint is the
+ * *underlying* value the cascade supplies, re-evaluated every frame — and `lift` is a
+ * `:hover`-scoped normal declaration with a transition. The entrance owns `translate` while it
+ * plays and hands it straight back afterwards, which is precisely the layering an author asking for
+ * "fade it in, then let it lift on hover" wants.
+ *
+ * The four values are the four ways an effect can hold a channel over time:
+ *
+ * - `entrance` — plays once on arrival from a hidden/displaced from-state, then yields the channel
+ *   to whatever the cascade says. Every `cloak: true` preset in the catalog.
+ * - `exit` — the mirror: starts at the rest state and plays once to a departed one.
+ * - `idle` — runs unbounded, so it never yields the channel at all. Ambient loops, and anything an
+ *   author promoted with `repeat:infinite`.
+ * - `state` — held by a CSS state on the element (`:hover`, `[aria-expanded]`, a
+ *   `data-kui-step-state`), so it changes only when the visitor does something.
+ *
+ * **This has to be declared, not derived** — the same conclusion `cloak` above reached, for the
+ * same reason and after the same measurement. Phase cannot come from the `Primitive`: a primitive
+ * carries no iteration count (that is a per-*preset* custom property, see
+ * `declarations.ts`'s `iterationCountProperty`), and entrances and exits share primitives outright
+ * — `fade-in` and `fade-out` are both `reveal`. A census of the 37 primitives backing two or more
+ * presets found exactly two whose presets would disagree about phase (`path-draw`, six finite draws
+ * beside an infinite `gradient-stroke`; `text-marquee`, an infinite `marquee` beside a
+ * scroll-linked one), so preset granularity is where the fact actually lives.
+ *
+ * `entrance` is specifically "plays once and *releases* the channel". That is what makes the pairing
+ * safe, and it is narrower than "is an entrance": fifteen of the catalog's fifty-four entrances
+ * close their keyframe block with an explicit `to`, so their `animation-fill-mode: both` pins the
+ * property for good and a composed hover would silently do nothing. `test/composition-phase.test.ts`
+ * asserts the released half against the shipped stylesheets, the way `css-invariants.test.ts`
+ * already does for `requiresOwnSubtree`.
+ *
+ * Undeclared is a real fifth state and not a synonym for any value: `compile.ts`'s `phaseOf` derives
+ * `state` from `transitions` — sound by construction, a transition has no clock and emits no
+ * animation track — and otherwise leaves the phase unknown, which conflicts with everything exactly
+ * as the library behaved before this field existed. Nothing is guessed from `cloak`; see `phaseOf`
+ * for the measurement that ruled it out.
+ */
+export type EffectPhase = 'entrance' | 'exit' | 'idle' | 'state'
+
 export interface Preset {
   name: string
   primitive: string
@@ -576,6 +732,23 @@ export interface Preset {
    * hide and cloaking it would blank an element that should be visible until it leaves.
    */
   cloak?: boolean
+  /**
+   * When this name holds the channels its primitive claims — see {@link EffectPhase} for what the
+   * four values mean and why the fact is per-preset rather than per-primitive.
+   *
+   * Optional, and omitting it is not a shortcut for "entrance". `compile.ts`'s `phaseOf` derives
+   * `state` from `transitions` and otherwise treats the preset as unphased, which composes exactly
+   * as the library did before this field existed. Declaring it is how a name opts *into* composing
+   * with a neighbour on a shared channel; it is never how one opts out.
+   *
+   * So everything except the seventeen presets carrying `transitions` declares its own phase or
+   * composes as it always did. None of the three remaining values has a signal the compiler can
+   * read: an `idle` loop keeps its `infinite` iteration count in CSS as
+   * `--kui-fx-<name>-iterations`, an `exit` is structurally identical to an entrance at this layer
+   * (same primitive, no cloak), and an `entrance` only qualifies if its keyframes leave the channel
+   * open at the end, which is a fact about the stylesheet rather than about this record.
+   */
+  phase?: EffectPhase
   /**
    * This preset's CSS reaches past the `data-kui-fx`-stamped element — to a child, a sibling, or a
    * descendant it assumes exists — rather than animating the fx element itself. `target:` may not

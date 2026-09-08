@@ -17,6 +17,8 @@ import {
   segmentGraphemes,
   splitRevealFinishMs,
   stepMsFor,
+  varAxisParams,
+  varAxisVariant,
 } from './text-shared.js'
 import type { SplitUnit, TypeState } from './text-shared.js'
 import { captureChildren } from './subtree-capture.js'
@@ -24,11 +26,12 @@ import { captureChildren } from './subtree-capture.js'
 /**
  * Text and typography effects (catalog section D).
  *
- * Twelve names are pure CSS — gradients, font-variation axes, a marquee track, a redaction bar,
- * a layered text-shadow. The other fourteen need JS because they restructure the DOM (segmented
+ * Thirteen names are pure CSS — gradients, font-variation axes, a marquee track, a redaction
+ * bar, a layered text-shadow. The other fourteen need JS because they restructure the DOM (segmented
  * spans), or mutate content over time (typing, scrambling, cycling): `text-shared.ts` carries the
- * segmentation, the accessible two-layer pattern, and the two pure state machines (`nextTypeState`,
- * `scrambledFrame`) that drive them, so every `prepare` below is orchestration only.
+ * segmentation, the accessible two-layer pattern, the two pure state machines (`nextTypeState`,
+ * `scrambledFrame`) that drive them, and `var-axis`'s tag grammar, so every `prepare` below is
+ * orchestration only.
  */
 
 // --- CSS-tier: gradients, sweeps, variable-font axes, marquee, redaction, extrude ---
@@ -87,9 +90,45 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('text-gradient-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
   cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
+  /*
+   * The three named axes stay, and stay implemented the way they are.
+   *
+   * `var-axis` below generalises the *mechanism*, so the obvious tidy-up is to re-express these on
+   * top of it — `var-weight` becomes `var-axis axis:wght`, and three schemas collapse into one.
+   * That would change all three, and one of them would visibly break:
+   *
+   * - `var-weight` animates `font-weight`, which is a real CSS property with a defined behaviour on
+   *   fonts that have no `wght` axis at all: the browser synthesises a bold. `font-variation-
+   *   settings "wght"` does nothing there. Rewriting it would silently drop every non-variable font
+   *   out of the effect.
+   * - `var-width` animates `font-stretch`, in percentages, which is likewise defined against
+   *   non-variable width faces the way the raw `wdth` axis is not.
+   * - `var-slant` is the one that breaks outright. It animates `font-style: oblique <angle>`, and
+   *   the `slnt` axis uses the OPPOSITE sign convention — negative `slnt` leans right, positive
+   *   `oblique` leans right. See the note over `kui-var-slant` in `text.css`, which already had to
+   *   work this out for the default. `var-axis axis:slnt from:0 to:10` leans the text the other way
+   *   from what `var-slant 0deg -> 10deg` has always done.
+   *
+   * Beyond that, `font-variation-settings` is the low-level escape hatch and the CSS Fonts spec
+   * says to prefer the high-level property wherever one exists — it does not inherit or animate the
+   * way the high-level properties do, and it overrides them wholesale. So the three names are not
+   * legacy spellings of the generic one; they are the correct implementation for the three axes CSS
+   * modelled properly, and `var-axis` is for the axes it did not.
+   */
   cssPrimitive('var-weight', ['font'], { parameters: fontWeightParams }),
   cssPrimitive('var-width', ['font'], { parameters: fontWidthParams }),
   cssPrimitive('var-slant', ['font'], { parameters: fontSlantParams }),
+  /*
+   * Channel `font`, the same as its three siblings, which is what stops `data-kui="var-weight,
+   * var-axis"` compiling. That pair looks composable — two different CSS properties — and is not:
+   * `font-variation-settings` overrides the high-level font properties for any axis it names, so
+   * whichever landed last would silently win the glyph shape. Two `var-axis` segments collide for
+   * the blunter reason that both write the whole `font-variation-settings` declaration.
+   *
+   * `variantFor` is spread on rather than passed through `cssPrimitive`, whose options object
+   * covers the shared timing/activation defaults only. Nothing else about this primitive differs.
+   */
+  { ...cssPrimitive('var-axis', ['font'], { parameters: varAxisParams }), variantFor: varAxisVariant },
   /*
    * `defaultActivation: 'load'` for the same reason every ambient primitive declares it, and it
    * was missing here: a marquee is continuous motion, so `reducedMotion: 'disable'` is only half
@@ -132,7 +171,7 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
 ]
 
 export const TEXT_CSS_PRESETS: Preset[] = [
-  { name: 'gradient-shimmer', primitive: 'text-shimmer', keyframes: 'kui-gradient-shimmer' },
+  { name: 'gradient-shimmer', phase: 'idle', primitive: 'text-shimmer', keyframes: 'kui-gradient-shimmer' },
   { name: 'gradient-sweep', primitive: 'text-gradient-sweep', keyframes: 'kui-gradient-sweep' },
   {
     name: 'highlight-sweep',
@@ -145,7 +184,8 @@ export const TEXT_CSS_PRESETS: Preset[] = [
   { name: 'var-weight', primitive: 'var-weight', keyframes: 'kui-var-weight' },
   { name: 'var-width', primitive: 'var-width', keyframes: 'kui-var-width' },
   { name: 'var-slant', primitive: 'var-slant', keyframes: 'kui-var-slant' },
-  { name: 'marquee', primitive: 'text-marquee', keyframes: 'kui-marquee' },
+  { name: 'var-axis', primitive: 'var-axis', keyframes: 'kui-var-axis' },
+  { name: 'marquee', phase: 'idle', primitive: 'text-marquee', keyframes: 'kui-marquee' },
   { name: 'marquee-scroll-linked', primitive: 'text-marquee', keyframes: 'kui-marquee' },
   { name: 'redaction-reveal', primitive: 'redaction-reveal', keyframes: 'kui-redaction-reveal' },
   { name: 'text-3d-extrude', primitive: 'text-3d-extrude', keyframes: 'kui-text-3d-extrude' },
@@ -187,13 +227,13 @@ const splitTiming: ParameterSchema = {
     type: 'keyword',
     default: 'chars',
     cssProperty: '--kui-unit',
-    values: ['chars', 'words', 'lines'],
+    keywords: ['chars', 'words', 'lines'],
   },
   direction: {
     type: 'keyword',
     default: 'fade',
     cssProperty: '--kui-direction',
-    values: ['fade', 'up', 'down', 'mask'],
+    keywords: ['fade', 'up', 'down', 'mask'],
   },
 }
 
@@ -208,13 +248,13 @@ const motionParams: ParameterSchema = {
     type: 'keyword',
     default: 'wave',
     cssProperty: '--kui-motion',
-    values: ['wave', 'jitter'],
+    keywords: ['wave', 'jitter'],
   },
 }
 
 const typewriterParams: ParameterSchema = {
   step: { type: 'time', default: '55ms', cssProperty: '--kui-step' },
-  loop: { type: 'keyword', default: 'false', cssProperty: '--kui-loop', values: ['true', 'false'] },
+  loop: { type: 'keyword', default: 'false', cssProperty: '--kui-loop', keywords: ['true', 'false'] },
   ...TRIGGER_DELAY_PARAM,
 }
 
@@ -235,7 +275,7 @@ const scrambleParams: ParameterSchema = {
     type: 'keyword',
     default: 'upper',
     cssProperty: '--kui-charset',
-    values: ['upper', 'binary', 'symbols'],
+    keywords: ['upper', 'binary', 'symbols'],
   },
 }
 

@@ -289,10 +289,14 @@ export function clampStep(step: number, total: number): number {
  * deck with five dots is ten. Per-parent is also precisely how the marker numbers them, so the
  * count and the marking cannot disagree.
  *
+ * Exported for `effects/carousel`, which drives an index over the same shape of markup and must
+ * count it the same way. A second implementation of "how many slides are there" is exactly the
+ * drift `createStepMarker` was extracted to end for the marking half.
+ *
  * @complexity O(n) time and space in the matched elements.
  * @overallScore 100
  */
-function countSteps(params: EffectParams, resolveSteps: () => Iterable<Element>): number {
+export function countSteps(params: EffectParams, resolveSteps: () => Iterable<Element>): number {
   const authored = Math.round(params.num('steps', 0))
   if (authored >= 1) return authored
   const groups = new Map<Element | null, number>()
@@ -303,7 +307,7 @@ function countSteps(params: EffectParams, resolveSteps: () => Iterable<Element>)
 }
 
 /** One named control group: the selector the author wrote, and what pressing a match does. */
-interface ControlGroup {
+export interface ControlGroup {
   selector: string
   /** @param position - The pressed control's place among its own group, in document order. */
   run: (node: Element, position: number) => void
@@ -324,12 +328,16 @@ interface ControlGroup {
  * always resolved with, a control may legitimately sit outside the element it drives — arrows in a
  * section header above the deck — and a listener on the host would never see those clicks.
  *
+ * Exported for `effects/carousel` alongside `countSteps`: `next:`/`prev:`/`jump:` mean the same
+ * thing on a ring as they do on a bar, and every subtlety in the walk below (the `:scope` root, the
+ * per-press re-query, the `scope:self` containment) was found once and should not be found again.
+ *
  * @returns The teardown for the one listener.
  * @complexity O(g × (m + d)) per click — one scoped query and one ancestor walk per named group,
  *   in that group's matches `m` and the pressed node's depth `d`; O(m) space for the largest group.
  * @overallScore 100
  */
-function delegateControls(request: {
+export function delegateControls(request: {
   el: Element
   ctx: PrepareContext
   scope: TargetScope

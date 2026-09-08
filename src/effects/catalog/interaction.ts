@@ -20,7 +20,9 @@ import {
   withTimingContract,
 } from '../shared.js'
 import type { TimingContract, TimingToken } from '../shared.js'
-import { COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, supportsFineHover, tiltAngles } from './interaction-shared.js'
+import { BEAM_PARAMS, BORDER_DRAW_PARAMS, COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, SHINE_PARAMS, supportsFineHover, tiltAngles } from './interaction-shared.js'
+import { STATE_PRESETS, STATE_PRIMITIVES } from './interaction-states.js'
+import { REVEAL_PRESETS, REVEAL_PRIMITIVES } from './interaction-reveal.js'
 
 /**
  * Hover and pointer effects (catalog section I).
@@ -87,17 +89,6 @@ const popParams: ParameterSchema = {
   scale: { type: 'number', default: '1.06', cssProperty: '--kui-pop-scale', finite: true, minimum: 0 },
 }
 
-// Empty default, same convention as `sequence-scrub`'s `src:` (scroll-mechanics/primitives.ts):
-// unauthored means "not in the resolved output at all" (see `resolveParams`'s doc comment), so the
-// existing four-stop rainbow default in interaction.css's `var(--kui-beam-border-c1, #ff5f6d)`
-// fallback is untouched for every beam-border/beam-border-auto instance that doesn't set `color:`.
-// `outset:` is the same empty-default story for geometry: it pulls the ring out over the host's
-// own border, which `inset: 0` alone cannot reach (see interaction.css's rule comment).
-const beamParams: ParameterSchema = {
-  color: { type: 'color', default: '', cssProperty: '--kui-beam-border-c1' },
-  outset: { type: 'length', default: '', cssProperty: '--kui-beam-border-outset' },
-}
-
 /**
  * Keep the declared schema and the declared contract from drifting apart.
  *
@@ -152,7 +143,7 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('lift', ['translate'], liftParams),
   hoverPrimitive('pop', ['scale'], popParams),
   hoverPrimitive('lift-shadow', ['translate', 'shadow'], liftParams),
-  hoverPrimitive('shine-sweep', ['sweep']),
+  hoverPrimitive('shine-sweep', ['sweep'], SHINE_PARAMS),
   // `'skew'`, not `'rotate'`: `@keyframes kui-split-flap` writes the `transform` *shorthand*
   // (`perspective(...) translateZ(...) rotateX(...)`), not the standalone `rotate:` property —
   // `perspective()` only affects an element's own depth from inside `transform`, so the flip has
@@ -165,9 +156,47 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   // show/hide use of the same physical property, but `display` is tracked as one channel
   // regardless of the value a primitive writes into it.
   hoverPrimitive('split-flap', ['skew', 'discrete']),
-  hoverPrimitive('border-draw', ['border'], COLOR_PARAMS.borderDraw),
+  /*
+   * `pseudo-before` is the ownership token for "this preset paints its own `::before`", the exact
+   * mirror of `feedback.ts`'s `sweep` for `::after` — read that primitive's comment for the full
+   * argument, which applies here word for word. `::before` is one physical box per host element, so
+   * two presets that both paint it cannot compose, and a shared channel is how the compiler is told
+   * to refuse the pair instead of letting the later rule in source order silently win the box.
+   *
+   * `border-draw` joined that box when its ring moved off `border-image` (see `interaction.css`),
+   * and choosing which box to move it *to* was the decision, not an implementation detail. The two
+   * candidates were not equally priced:
+   *
+   * - **`::after`** is painted by `shine-sweep` (this file), `underline-slide`/`underline-center`
+   *   (this file), and `ripple`/`confetti-burst` (`feedback.ts`). Landing there would newly refuse
+   *   five pairs, and three of them — `border-draw, shine-sweep`, `border-draw, ripple`,
+   *   `border-draw, confetti-burst` — are the ordinary furniture of a single button. A button that
+   *   draws its border on hover and ripples on click is not an exotic composition; it is the
+   *   default one.
+   * - **`::before`** is painted by `beam-border`/`beam-border-auto` (this file), `cursor-spotlight`
+   *   (this file), and `redaction-reveal` (`text.css`, another cluster's file). Two of those four
+   *   cost *nothing*: both beam presets already share `border-draw`'s `border` channel, so the
+   *   compiler has always refused them against it — a second ring on one box was never composable.
+   *   That leaves two genuinely new refusals, `border-draw, cursor-spotlight` and `border-draw,
+   *   redaction-reveal`, neither of which is a pattern anything in this repository writes.
+   *
+   * So `::before` costs two marginal pairs where `::after` costs three load-bearing ones, and the
+   * ring goes on `::before`. The channel is added to `beam-border`, `beam-border-auto` and
+   * `cursor-spotlight` in the same change rather than to `border-draw` alone, because a channel
+   * with one member refuses nothing: declaring it only on the new arrival would have documented the
+   * ownership without enforcing it, which is the failure mode the whole channel model exists to
+   * avoid. `redaction-reveal` is the one `::before` painter left out, for the mundane reason that
+   * `catalog/text.ts` belongs to another cluster in this change — so `border-draw +
+   * redaction-reveal` lands in `css-composition-invariants.test.ts`'s enumerated
+   * "known reachable collision" list rather than being refused. Adding `pseudo-before` there is the
+   * one-line follow-up that closes it.
+   *
+   * Net effect on that enumerated list: two entries leave it (`beam-border + cursor-spotlight`,
+   * `beam-border-auto + cursor-spotlight` are now refused outright) and one joins it.
+   */
+  hoverPrimitive('border-draw', ['border', 'pseudo-before'], BORDER_DRAW_PARAMS),
   hoverPrimitive('border-glow', ['shadow'], COLOR_PARAMS.borderGlow),
-  hoverPrimitive('beam-border', ['border'], beamParams, LINEAR_HOVER),
+  hoverPrimitive('beam-border', ['border', 'pseudo-before'], BEAM_PARAMS, LINEAR_HOVER),
   hoverPrimitive('underline-slide', ['scale'], COLOR_PARAMS.underlineSlide),
   hoverPrimitive('underline-center', ['scale'], COLOR_PARAMS.underlineCenter),
   hoverPrimitive('icon-wiggle', ['rotate']),
@@ -179,6 +208,16 @@ export const HOVER_PRESETS: Preset[] = HOVER_PRIMITIVES.map((primitive) => ({
   name: primitive.id,
   primitive: primitive.id,
   ...(HOVER_TRANSITIONS[primitive.id] ? { transitions: HOVER_TRANSITIONS[primitive.id] } : {}),
+  // `phase: 'state'` only for the rows with no `transitions`.
+  //
+  // Not a second list to keep in sync with the one above: `phaseOf` (`core/compile.ts`) already
+  // resolves a preset that declares `transitions` to `state` on its own, so declaring it here too
+  // would be a duplicate that can only ever drift. What it cannot see is a hover name whose motion
+  // is a compiled keyframe rather than a transition — `icon-spin`, `shine-sweep` and the rest paint
+  // `:hover`/`:focus-visible` from an `@keyframes` block, so nothing in the preset says "this is a
+  // response to a state" until it is said here. Deriving it from the absence of `transitions` keeps
+  // the two halves of that answer in one expression instead of two lists.
+  ...(HOVER_TRANSITIONS[primitive.id] ? {} : { phase: 'state' as const }),
 }))
 
 // --- continuous variant: same beam-border visual, always running instead of hover-gated ---
@@ -193,12 +232,14 @@ export const CONTINUOUS_BORDER_PRIMITIVES: Primitive[] = [
   {
     id: 'beam-border-auto',
     renderer: 'javascript' as Renderer,
-    channels: ['border'],
+    // `pseudo-before` for the same reason its hover twin carries it — the two share one `::before`
+    // rule in `interaction.css`. See the block comment on `border-draw` in `HOVER_PRIMITIVES`.
+    channels: ['border', 'pseudo-before'],
     // `duration` only, of the three. Unlike its hover twin this one has no start moment at all —
     // it is `animation: ... infinite` with no `:hover` gate, running from the moment the rule
     // lands — so there is nothing for a delay to be relative to; and it spins linear for the same
     // seam reason `icon-spin` does. `duration` still means something: one revolution.
-    parameters: { duration: hoverTiming.duration!, ...beamParams },
+    parameters: { duration: hoverTiming.duration!, ...BEAM_PARAMS },
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
@@ -211,9 +252,10 @@ export const CONTINUOUS_BORDER_PRIMITIVES: Primitive[] = [
   },
 ]
 
-export const CONTINUOUS_BORDER_PRESETS: Preset[] = [
-  { name: 'beam-border-auto', primitive: 'beam-border-auto' },
-]
+// One line rather than three: this file is on its 400-line lint ceiling (see `HOVER_TRANSITIONS`
+// in `interaction-shared.ts` for the first time that forced a move), and a single-entry array is
+// the cheapest thing here that reads the same either way.
+export const CONTINUOUS_BORDER_PRESETS: Preset[] = [{ name: 'beam-border-auto', primitive: 'beam-border-auto' }]
 
 // --- pointer-tracking family: real JS, continuous, reversible on leave ---
 
@@ -556,7 +598,10 @@ export const POINTER_PRIMITIVES: Primitive[] = [
   pointerPrimitive('cursor-lag', ['translate'], cursorDotParams, deferPrepare(prepareCursorLag)),
   pointerPrimitive('cursor-label', ['translate'], cursorDotParams, deferPrepare(prepareCursorLabel)),
   pointerPrimitive('cursor-invert', ['translate'], cursorDotParams, deferPrepare(prepareCursorInvert)),
-  pointerPrimitive('cursor-spotlight', ['spotlight'], {}, deferPrepare(prepareSpotlight)),
+  // `pseudo-before`: the glow overlay is a `::before` rule in `interaction.css`, so this primitive
+  // owns that box the same way the border family does. See `border-draw`'s comment in
+  // `HOVER_PRIMITIVES` for what the token means and why it was added here in the same change.
+  pointerPrimitive('cursor-spotlight', ['spotlight', 'pseudo-before'], {}, deferPrepare(prepareSpotlight)),
 ]
 
 function prepareCursorFollow(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
@@ -586,11 +631,15 @@ export const INTERACTION_PRIMITIVES: Primitive[] = [
   ...HOVER_PRIMITIVES,
   ...POINTER_PRIMITIVES,
   ...CONTINUOUS_BORDER_PRIMITIVES,
+  ...STATE_PRIMITIVES,
+  ...REVEAL_PRIMITIVES,
 ]
 export const INTERACTION_PRESETS: Preset[] = [
   ...HOVER_PRESETS,
   ...POINTER_PRESETS,
   ...CONTINUOUS_BORDER_PRESETS,
+  ...STATE_PRESETS,
+  ...REVEAL_PRESETS,
 ]
 
 /**

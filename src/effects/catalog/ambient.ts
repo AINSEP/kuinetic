@@ -118,11 +118,11 @@ export const AMBIENT_PRIMITIVES: Primitive[] = [
 ]
 
 export const AMBIENT_PRESETS: Preset[] = [
-  { name: 'gradient-mesh', primitive: 'ambient-gradient', keyframes: 'kui-gradient-mesh' },
-  { name: 'aurora', primitive: 'ambient-gradient', keyframes: 'kui-aurora' },
+  { name: 'gradient-mesh', phase: 'idle', primitive: 'ambient-gradient', keyframes: 'kui-gradient-mesh' },
+  { name: 'aurora', phase: 'idle', primitive: 'ambient-gradient', keyframes: 'kui-aurora' },
   {
     name: 'gradient-rotate-border',
-    primitive: 'ambient-gradient-ring',
+    phase: 'idle', primitive: 'ambient-gradient-ring',
     keyframes: 'kui-gradient-rotate-border',
     params: { duration: '6s', ease: 'linear' },
   },
@@ -131,7 +131,7 @@ export const AMBIENT_PRESETS: Preset[] = [
     // a ring, so putting the name on real content deletes the content. `-border` says that out loud,
     // matching `gradient-rotate-border` and `beam-border`.
     name: 'gradient-border',
-    primitive: 'ambient-gradient-ring',
+    phase: 'idle', primitive: 'ambient-gradient-ring',
     keyframes: 'kui-gradient-border',
     params: { duration: '6s', ease: 'linear' },
   },
@@ -146,55 +146,55 @@ export const AMBIENT_PRESETS: Preset[] = [
   // },
   {
     name: 'scanline',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-scanline',
     params: { duration: '3.5s', ease: 'linear' },
   },
   {
     name: 'dot-grid-drift',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-dot-grid-drift',
     params: { duration: '16s', ease: 'linear' },
   },
   {
     name: 'line-grid-drift',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-line-grid-drift',
     params: { duration: '16s', ease: 'linear' },
   },
   {
     name: 'starfield',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-starfield',
     params: { duration: '40s', ease: 'linear' },
   },
   {
     name: 'spotlight-follow',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-spotlight-follow',
     params: { duration: '9s' },
   },
   {
     name: 'wave-blob',
-    primitive: 'ambient-tint',
+    phase: 'idle', primitive: 'ambient-tint',
     keyframes: 'kui-wave-blob',
     params: { duration: '12s' },
   },
-  { name: 'float', primitive: 'ambient-float', keyframes: 'kui-float' },
+  { name: 'float', phase: 'idle', primitive: 'ambient-float', keyframes: 'kui-float' },
   {
     name: 'bob',
-    primitive: 'ambient-float',
+    phase: 'idle', primitive: 'ambient-float',
     keyframes: 'kui-bob',
     params: { duration: '2s', distance: '8px' },
   },
   {
     name: 'floating-shapes',
-    primitive: 'ambient-float',
+    phase: 'idle', primitive: 'ambient-float',
     keyframes: 'kui-floating-shapes',
     params: { duration: '6s', distance: '10px' },
   },
-  { name: 'orbit', primitive: 'ambient-orbit', keyframes: 'kui-orbit' },
-  { name: 'glow-pulse', primitive: 'ambient-pulse', keyframes: 'kui-glow-pulse' },
+  { name: 'orbit', phase: 'idle', primitive: 'ambient-orbit', keyframes: 'kui-orbit' },
+  { name: 'glow-pulse', phase: 'idle', primitive: 'ambient-pulse', keyframes: 'kui-glow-pulse' },
 ]
 
 /**

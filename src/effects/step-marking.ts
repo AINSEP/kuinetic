@@ -203,6 +203,29 @@ export function createStepMarker(
         const offset = circularOffset(position, local, size)
         style.set('--kui-offset', String(offset))
         ledger.set(STEP_OFFSET_ATTR, String(offset))
+        /*
+         * How many places the ring has, published beside the place this element occupies on it.
+         *
+         * `--kui-offset` alone is not enough to put an element anywhere in space: "two places
+         * behind the live one" is a position only once you know how far apart two places are, and
+         * that spacing is `arc / count`. So the two numbers have to travel together, and they have
+         * to be the *same* count — the per-parent group size this element was actually numbered
+         * against, not a page-wide total. A deck with five slides and four dots numbers each group
+         * on its own ring (see `indexWithin` above), and a shared count would place the dots at the
+         * slides' spacing and leave the last one on top of the first.
+         *
+         * Deliberately not `--kui-stagger-count`, which is the nearest existing number and the
+         * wrong contract for the same reason `--kui-i` is the wrong contract for `--kui-offset`:
+         * that one counts *stagger ranks*, so reversing or randomising a stagger changes it, and
+         * anything geometric keyed off it would rearrange itself when the timing changed. This
+         * counts elements.
+         *
+         * Written per element rather than once on the host, because the host is not a parameter
+         * here — `createStepMarker` is handed a resolver, never the element that owns it — and
+         * because per-element is the only form that can carry a per-group answer at all. An element
+         * that needs the count of a *different* group inherits nothing wrong: its own is closer.
+         */
+        style.set('--kui-item-count', String(size))
       }
     },
     restore() {

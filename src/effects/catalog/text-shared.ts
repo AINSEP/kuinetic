@@ -1,5 +1,12 @@
 import { cssEasingValue } from '../../core/easing.js'
-import type { Cleanup, EffectParams } from '../../core/types.js'
+import type {
+  Cleanup,
+  EffectParams,
+  EffectSpec,
+  EffectVariant,
+  KeywordParamSpec,
+  ParameterSchema,
+} from '../../core/types.js'
 import { captureChildren } from './subtree-capture.js'
 
 /** How `split-text` breaks a string into decorative pieces. */
@@ -431,4 +438,125 @@ export function scrambledFrame(
       return charset[Math.floor(random() * charset.length)] ?? charset[0] ?? grapheme
     })
     .join('')
+}
+
+// --- var-axis: the generic variable-font axis grammar ---
+//
+// Here rather than in `text.ts` for the reason everything else in this file is: `text.ts` is the
+// registration table and this is a pure function with its own vocabulary. It is also the only way
+// both fit — `text.ts` sits at its 400-line ceiling, and pushing the registration table over it to
+// keep a validator next to the primitive that uses it would be the wrong side of the trade.
+
+/**
+ * A four-character OpenType variation axis tag, exactly as `font-variation-settings` spells it.
+ *
+ * **Case is significant and is never normalised.** The convention is not decoration: the five
+ * *registered* axes are lowercase (`wght`, `wdth`, `slnt`, `ital`, `opsz`) and every vendor axis is
+ * uppercase (`GRAD`, `CASL`, `MONO`, `CRSV`, `SOFT`, `WONK`, `XOPQ`, `FILL`, …), which is how a
+ * font tells the two apart. A helpful `.toLowerCase()` here would turn every custom axis into a tag
+ * no font has, and the failure is silent — `font-variation-settings` ignores an axis the font does
+ * not carry, so the text simply would not move.
+ *
+ * Narrower than the OpenType tag grammar, which is four bytes anywhere in U+20–U+7E. That admits
+ * `"` and `\` and every other character that would let an authored value escape the CSS string it
+ * lands inside, and no registered or shipped vendor axis has ever used anything outside this set.
+ * A tag is data going into a stylesheet, so the allowlist is drawn at what real tags need.
+ */
+const AXIS_TAG = /^[A-Za-z0-9]{4}$/
+
+/** The axis tag itself, split out so {@link varAxisVariant} can re-declare it per spec. */
+const varAxisTagSpec: KeywordParamSpec = {
+  type: 'keyword',
+  // Quoted, because that is what reaches the stylesheet: `font-variation-settings` takes a
+  // `<string>`, and an unquoted `wght` is an ident that makes the whole declaration invalid.
+  default: '"wght"',
+  cssProperty: '--kui-axis',
+  /*
+   * Deliberately empty, and deliberately not a guess at the real axis list.
+   *
+   * The accepted set is open — any tag the author's font carries — which no closed `keywords` list
+   * can express. `varAxisVariant` below synthesises a one-entry list per authored spec instead, so
+   * the value `resolveParams` checks is always exactly the tag that spec asked for. This declared
+   * list is only reachable if that variant did not run, which cannot happen today; empty makes that
+   * unreachable path reject and fall back to the stylesheet's own `"wght"`, which is the safe
+   * direction. A plausible-looking list here would be the unsafe one: it would silently become the
+   * real allowlist the day the variant stopped being called.
+   */
+  keywords: [],
+}
+
+/**
+ * The generic variable-font axis: `data-kui="var-axis axis:GRAD from:0 to:150"`.
+ *
+ * `var-weight`/`var-width`/`var-slant` cover the three axes CSS gave a high-level property to.
+ * Everything else a real type system exposes — Fraunces' `SOFT` and `WONK`, Recursive's `CASL`,
+ * `MONO` and `CRSV`, Roboto Flex's `GRAD` and `XOPQ`, `opsz` on almost everything modern — has no
+ * property of its own and can only be reached through `font-variation-settings`. Three hardcoded
+ * names cannot grow to meet that; a tag parameter can.
+ *
+ * `from`/`to` are deliberately unbounded numbers. Axis ranges are a property of the *font*, not of
+ * CSS — `wght` is 1–1000, `opsz` is typically 8–144, `GRAD` runs −200 to 150, `CASL` is 0–1 — so
+ * any `minimum`/`maximum` this schema could state would be wrong for most axes and would reject
+ * legitimate values. The renderer already handles the out-of-range case correctly: CSS Fonts 4
+ * clamps an axis value to the range the font declares, so an over-large `to:` reads as "all the way
+ * to that axis's maximum" rather than as a broken declaration.
+ *
+ * The defaults are weight-shaped (100 → 900) because `wght` is far and away the most common axis
+ * and a bare `data-kui="var-axis"` should do something recognisable. On a font with no `wght` axis
+ * that is a no-op, which is also what an unsupported axis should look like.
+ */
+export const varAxisParams: ParameterSchema = {
+  axis: varAxisTagSpec,
+  from: { type: 'number', default: '100', cssProperty: '--kui-from-axis', finite: true },
+  to: { type: 'number', default: '900', cssProperty: '--kui-to-axis', finite: true },
+}
+
+/**
+ * Turn an authored `axis:GRAD` into the quoted CSS string the keyframe needs, and into a schema
+ * that accepts exactly that one value.
+ *
+ * This is the whole reason `var-axis` can be generic while every parameter in the library is
+ * validated against a closed grammar. `ParamSpec` has no "four-character font tag" type, and the
+ * types that *are* open (`text`) are dropped before the stylesheet precisely because they are open
+ * — so a tag cannot reach CSS as an ordinary parameter at all. What `variantFor` adds is the
+ * ability to decide the grammar *per spec*: the tag is checked against {@link AXIS_TAG} here, then
+ * declared as the sole legal keyword, so `resolveParams` still runs its full escape screen over a
+ * value it can only accept if it is identical to the one already vetted. Two independent gates, and
+ * neither is loosened — this narrows the accepted set to one string rather than widening it.
+ *
+ * The `tween` primitive uses the same mechanism for the same class of reason: one authored key
+ * (`x:'0,100,40'`) expanding into parameters the primitive could not have declared statically. See
+ * `EffectVariant.schema` in `core/types.ts`.
+ *
+ * A rejected tag is *dropped*, not substituted. Rewriting it to the default would animate the
+ * wrong axis under a name the author did not write, which is the silent-wrong-behaviour outcome
+ * this codebase treats as worse than doing nothing; dropping it leaves the `var()` fallback in
+ * force and the warning is the only account of what happened.
+ *
+ * @param spec - The authored spec, untouched — `compile` recompiles the same value on every rescan.
+ * @param warn - Diagnostic sink, so a mistyped tag is named rather than silently ignored.
+ * @returns A variant carrying the quoted tag and its one-value schema, or an empty refinement.
+ * @complexity O(p) time and space in the spec's parameter count, for the copy.
+ */
+export function varAxisVariant(spec: EffectSpec, warn: (message: string) => void): EffectVariant {
+  const tag = spec.params['axis']
+  if (tag === undefined) return {}
+
+  // Rebuilt by filter rather than by destructuring-and-discarding, so there is no bound name
+  // whose only job is to be thrown away. `spec` itself is never touched — `compile` recompiles the
+  // same parsed value on every rescan, so a mutation here would be a per-rescan behaviour change.
+  const rest = Object.fromEntries(Object.entries(spec.params).filter(([key]) => key !== 'axis'))
+  if (!AXIS_TAG.test(tag)) {
+    warn(
+      `"axis:${tag}" is not an OpenType axis tag — expected exactly four letters or digits, ` +
+        `case-significant, e.g. axis:wght (registered) or axis:GRAD (vendor)`,
+    )
+    return { params: rest }
+  }
+
+  const quoted = `"${tag}"`
+  return {
+    params: { ...rest, axis: quoted },
+    schema: { axis: { ...varAxisTagSpec, keywords: [quoted] } },
+  }
 }

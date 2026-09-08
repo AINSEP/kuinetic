@@ -261,7 +261,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
         type: 'keyword',
         default: 'false',
         cssProperty: '--kui-flip-scale',
-        values: ['true', 'false'],
+        keywords: ['true', 'false'],
       },
     },
     deferPrepare(prepareFlipContainer),

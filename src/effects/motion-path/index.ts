@@ -82,10 +82,13 @@ const MOTION_PATH_PARAMS: ParameterSchema = {
    * card, a badge, a line of text. GSAP made the same call — `autoRotate` is off unless asked for
    * — and this is a parity feature, so it matches. `rotate:auto` opts in.
    *
-   * `type: 'angle'` with two declared literals, rather than a `keyword` with an enumerated angle
-   * list, because `offset-rotate` is genuinely `[ auto | reverse ] || <angle>`: `auto` follows the
-   * tangent, `reverse` follows it backwards, and a bare angle pins a fixed rotation instead
-   * (`0deg`, the default, being "keep the orientation you already had"). See `ParamSpec.values`.
+   * `type: 'angle|keyword'` rather than a `keyword` with an enumerated angle list, because
+   * `offset-rotate` is genuinely `[ auto | reverse ] || <angle>`: `auto` follows the tangent,
+   * `reverse` follows it backwards, and a bare angle pins a fixed rotation instead (`0deg`, the
+   * default, being "keep the orientation you already had"). This is the parameter the union types
+   * were added for — it used to be an `'angle'` carrying two literals in the old, additive reading
+   * of `values`, which is the reading that made the same key mean validation on one type and
+   * nothing at all on the others. See {@link UnionParamType}.
    *
    * The combined `auto 90deg` form — follow the tangent, but the artwork points up rather than
    * right — is deliberately not exposed as a parameter, since it is one value in a space of
@@ -93,7 +96,12 @@ const MOTION_PATH_PARAMS: ParameterSchema = {
    * `--kui-motion-rotate: auto 90deg` in its own stylesheet, which the cascade design already
    * supports without `!important`.
    */
-  rotate: { type: 'angle', values: ['auto', 'reverse'], default: '0deg', cssProperty: '--kui-motion-rotate' },
+  rotate: {
+    type: 'angle|keyword',
+    keywords: ['auto', 'reverse'],
+    default: '0deg',
+    cssProperty: '--kui-motion-rotate',
+  },
 
   /**
    * Which point of the element rides the path.
@@ -110,7 +118,7 @@ const MOTION_PATH_PARAMS: ParameterSchema = {
     type: 'keyword',
     default: '0 0',
     cssProperty: '--kui-motion-anchor',
-    values: ['auto', 'center', 'top', 'bottom', 'left', 'right', '0 0', 'top left', 'top right', 'bottom left', 'bottom right'],
+    keywords: ['auto', 'center', 'top', 'bottom', 'left', 'right', '0 0', 'top left', 'top right', 'bottom left', 'bottom right'],
   },
 
   /**

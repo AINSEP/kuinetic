@@ -8,7 +8,589 @@ library should own it. Never call something "not the library's job" without grep
 
 ---
 
+## 2026-09-08 catalog review — the roll-up
+
+One session, three outside reviews (Codex 5.6 Sol, Gemini 3.8 Flash via `agy`, a Sonnet subagent),
+all with repo read access except where noted. Full transcripts, both briefs included, are archived
+in **`ADS-memory/2026-09-08-catalog-review/`** (gitignored):
+
+| File | What it is |
+|---|---|
+| `00-brief-round1.md` | first brief — **contains three factual errors**, see below |
+| `01-brief-round2.md` | corrected brief, the one to reuse |
+| `10-codex-5.6-sol.md` | best of the three; caught the errors in brief 1 |
+| `11-gemini-3.8-flash-NO-CODE-ACCESS.md` | answered from the brief alone — **treat as unreliable**, it recommended building two things that already ship |
+| `12-gemini-3.8-flash-round2.md` | same model with code access; found the composition trap |
+| `13-sonnet-round2.md` | found the collective-hover gap |
+
+**Three claims in the round-1 brief were wrong and propagated into every reviewer's answer.** Kept
+here so nobody repeats them: the CSS budget is **not** blown (14 kB limit, ~12.2 kB actual — **these
+two numbers moved again later the same day, see the add-on-bundle entry below: cap is now 20 KB,
+measured size is 15.17 KB**); variable-font motion **already ships** (`var-weight`/`var-width`/
+`var-slant`); `:active` **already
+appears** in coarse-pointer fallbacks (`src/css/media.css:53`). Verify a brief's own claims before
+dispatching it.
+
+### FIX — bugs and traps in what already ships
+
+1. **Composition silently drops same-channel effects.** Largely closed 2026-09-08 —
+   **CORRECTION: item 1's own "zero combos registered" was itself a wrong claim**, propagating
+   the same round-1 brief error the box below already flags for other numbers. `COMBOS` in
+   `src/effects/catalog/core.ts:415` has always had **two** entries (`fade-up+blur-in`,
+   `fade-in+blur-in`), verified on disk. What actually shipped 2026-09-08: `Preset.phase`
+   (`EffectPhase = 'entrance' | 'exit' | 'idle' | 'state'`, `core/types.ts:694`) plus phase-aware
+   `findConflicts`, so an entrance can now hand its channel to a `:hover`/`:active` state effect
+   instead of being refused outright. A full sweep (`ADS-memory/2026-09-08-catalog-review/
+   phase-gain-sweep.ts`) measured **+1,244 pairs now compose with 0 regressions**. See the
+   narrower remaining gap in the entry below (still only 2 registered combos; a real 5th
+   `EffectPhase` value is still missing for JS-rendered/closed-keyframe effects).
+2. **Four effects deface their host, none flagged `requiresOwnSubtree`** — **3 of 4 fixed
+   2026-09-08.** `ripple` and `confetti-burst` (`feedback.css`) now paint their disc/particles on
+   `::after`, off the host box entirely — verified on disk. `border-draw` (`interaction.css:192`)
+   now paints its ring on a masked `::before` instead of `border-image`, which fixes the
+   square-corners-on-rounded-cards defect too. `gradient-rotate-border` (`ambient.css:130`)
+   is the one still live — see the dedicated entry above (established 2026-09-08) for why
+   `requiresOwnSubtree` is the wrong tool for it; it currently carries only a warning comment,
+   which is a holding position, not a fix.
+3. **`confetti-burst` does not burst — FIXED 2026-09-08.** Real outward travel per particle
+   (angle/distance/settle), gated to zero size when idle instead of the old always-on dots.
+   `demo/ambient-feedback.html`'s hand-rolled workaround for the old always-visible dots is now
+   unnecessary dead weight — not removed yet, flagged in its own entry below.
+4. **`forced-colors` / `prefers-contrast` unaddressed** across the whole catalog. Still true,
+   checked against source 2026-09-08: `forced-colors` appears in exactly one file
+   (`src/css/glass.css`, pre-existing before today's `glass` build), `prefers-contrast` appears in
+   zero. An audit agent (`build-forced-colors.md`) started this pass today but its checkpoint was
+   left at "STARTING" with every section still `TBD` — do not assume it finished; check
+   `src/css/*.css` again before relying on this being closed.
+5. **Close the stale size entry** — done 2026-09-08; it had misled a planning session. **The
+   numbers it was closed with are themselves now stale, corrected again 2026-09-08 in
+   `.size-limit.json` directly: the cap was raised to 20 KB brotli (was 14 KB) and the measured
+   size is 15.17 KB (was ~12.2 KB).** Also corrected: the reasoning "names are expensive,
+   parameters are free" no longer holds — a later measurement (stripping 20 rule blocks and
+   re-measuring) found a preset name costs only ~9 bytes brotli, because `presets.generated.css`'s
+   repetitive rows compress hard; the actual weight is in the hand-written stylesheets
+   (`interaction.css` 14.94 KB brotli, `base.css` 7.27 KB, `carousel.css` 5.70 KB). See the full
+   entry lower in this file, which needs the same correction.
+
+- [ ] **A parameter whose name matches a reserved attribute key is silently swallowed — and nothing
+      guards against it.** Found 2026-09-08 by an implementation agent probing empirically rather
+      than reading the parser; **verified**. There are **18 reserved attribute-level keys** that are
+      hoisted out before params are resolved and therefore never reach `spec.params`. `HOISTS` holds
+      11 — `on`, `actions`, `timeline`, `threshold`, `cascade`, `spread`, `order`, `cols`, `along`,
+      `rm`, `func` — and `applyLifted()` swallows 7 more *before* `HOISTS` is consulted: `at`, the
+      gate directions `above`/`below`/`wide`/`narrow`, and the playback keys `repeat`/`yoyo`.
+      (An earlier version of this entry said 14; `wide`, `narrow`, `repeat` and `yoyo` were missed by
+      a hand-written list — which is itself the argument for the behavioural guard in fix 2 below
+      rather than a mirrored constant.)
+      Across the **119 distinct parameter names** in the registry, exactly one collides today:
+      **`spread` on `feedback-ripple`/`ripple`**. The repro is silent in both directions:
+      ```
+      parse('ripple spread:6')
+        warnings      : []
+        params        : {}      <- the parameter vanished
+        parsed.spread : "6"     <- redirected into the stagger budget
+      compile(...).warnings: []
+      ```
+      So `data-kui="ripple spread:6"` leaves the ripple at its default of 4 AND silently applies a
+      stagger budget the author never asked for. Nothing warns.
+      **Two things to fix. The first shipped 2026-09-08; the second, which matters more, did not.**
+      1. **FIXED.** `ripple`'s `spread` param was renamed to `extent` (`feedback.ts:70`) — verified
+         on disk, with the old name and the bug both documented in the new param's own doc comment.
+      2. **The missing guard — still open.** Those 18 names are a de-facto reserved word list and
+         *nothing enforces it*, so the next person to add a `spread`, `order`, `at` or `along`
+         parameter walks into the same wall with no signal. Grepped every test file 2026-09-08 —
+         no registry-wide test asserts "no declared parameter name collides with a hoisted key"
+         exists anywhere. Add one. Cheap, permanent, and it is the same class of silent-no-op as the
+         compiler dropping effects without saying so and `ParamSpec.values` validating nothing (both
+         since addressed) — this codebase has a pattern of them, and a guard test is how the pattern
+         stops.
+
+- [ ] **No mechanism declares "this effect masks or replaces its host box" — `requiresOwnSubtree` is
+      the wrong tool and does not fit.** Established 2026-09-08 when a fix attempt was stopped and
+      checked rather than shipped. `requiresOwnSubtree` is evaluated at `src/core/compile.ts:591`,
+      **inside `liftTarget`**, which early-returns at line 579 when no `target:` was authored. It
+      exists solely to stop `target:` relocating a preset whose CSS reaches past its own element via
+      a combinator — and `test/css-requires-own-subtree.test.ts` re-derives that set by scanning for
+      `[data-kui-fx~='NAME']` followed by a combinator. So for `gradient-rotate-border`, whose rule
+      (`src/css/ambient.css:121`) is a single compound selector with no combinator, the flag would be
+      **a no-op for the real bug** (a plain `data-kui="gradient-rotate-border"` with no `target:` at
+      all still erases the card's contents) **and** would fail two assertions in that test — "never
+      flags a name whose CSS never reaches past itself" and the exact hand-list match.
+      **The real gap is a family, not one preset.** `gradient-rotate-border` and `gradient-border`
+      both subtract their own content box with `mask-composite: exclude`, which is correct for a
+      border wrapper and catastrophic on a content card. `gradient-border` carries only a comment
+      saying so; there is no code anywhere that enforces it. This is the same class as `ripple`,
+      `confetti-burst` and `border-draw` — effects that mutate or replace the box they are put on —
+      except those three were fixable by restructuring, and this one's masking *is* the effect.
+      Proposed: a declared flag (`masksOwnContent` / `replacesHostBox`) that documents the contract
+      and lets the compiler emit a dev-mode warning when such an effect lands on an element with
+      element children. **Lives in `compile.ts`, so it is downstream of the composition work.**
+      Interim state: `gradient-rotate-border` now carries the same explicit warning comment
+      `gradient-border` already had, so both siblings document the hazard identically. Comment-only
+      is knowingly weak — it is a holding position, not the fix.
+
+### ADD — features and categories that have no home today
+
+**Eight of these ten shipped 2026-09-08 (plus one, #10, already shipped before today and mislabeled
+here) — verified against the registry, not against agent claims.** #15 is mixed (2 of its 5 names
+shipped), and #8 is the one genuinely unbuilt item left in the whole list.
+
+6. **View Transitions — SHIPPED.** `page-morph` (shared-element, primitive `view-morph`) and
+   `view-swap` (same-document, click-driven) both registered; catalog section L now 7 shipped, 0
+   planned. See the dedicated GSAP-parity entry for detail.
+7. **Collective hover — SHIPPED as `group-dim`.** Goes on the container, `requiresOwnSubtree`,
+   dims every child except the hovered/focused one via `:has()`. Verified in `interaction.css`.
+8. **Cross-element choreography** — badge → headline → subhead → CTA across *different* elements.
+   Still nothing covers this; `stagger.ts` does uniform siblings, `sequence.ts` is single-element.
+   **The one item in this list that is still genuinely missing** — grepped 2026-09-08, no `scene`
+   concept anywhere in `src/core` or `src/effects`.
+9. **Pointer proximity — SHIPPED as `proximity-field` + `proximity-glow`.** Container tracks the
+   pointer into two custom properties; each card's ring reads them via
+   `background-attachment: fixed`, zero per-card JS. Verified registered and documented.
+10. **`masked-label-swap` — was already shipped before today**, not new: `masked-label-swap`/`-x`/
+    `-diagonal` are a pre-existing primitive in `interaction-reveal.ts`, used today as the design
+    precedent for `anchored-preview`'s inherited-custom-property mechanism. This list item was
+    already stale when written.
+11. **A generic press (`:active`) state — SHIPPED as `press-depth`.** Primitive `press`, channels
+    `[scale, shadow]` (deliberately not `translate`, so it composes with `lift`). Verified in
+    `interaction-states.ts`.
+12. **`anchored-preview` — SHIPPED, all 4 placements** (`anchored-preview`, `-bottom`, `-left`,
+    `-right`). One primitive, four placement presets rather than a `placement:` param (CSS cannot
+    branch on a custom property's *value*). Does **not** use CSS anchor positioning — that stayed
+    dropped (see RULED OUT) — built on the same inherited-custom-property mechanism as
+    `masked-label-swap`/`hover-intent` instead, which needs no fallback branch in any browser.
+    `docs/catalog.md` confirms its own worked example covers both halves of this list item ("a name
+    tag beside an avatar, a preview image popping out beside a linked word").
+13. **`glass` + `backdrop-filter` — SHIPPED.** New `src/css/glass.css` + `materials.ts`, primitive
+    `glass`, channels `[background, backdrop]` (new `backdrop` channel added to
+    `test/support/channel-properties.ts`). Composes with `press-depth`, `beam-border`,
+    `shine-sweep`; refuses `gradient-mesh`. Ships its own hairline `rim`/`rim-width` params.
+14. **`spatial-carousel` — SHIPPED as `carousel-3d` / `-high` / `-low` / `-inside`.** See the
+    dedicated entry below for the full build — it landed with real deviations from this list's
+    spec (`--kui-step-position` instead of `--kui-progress`, a 3-level anatomy instead of 4) that
+    are worth reading before treating this as "done exactly as scoped."
+15. **Second tier — mixed.** `search-expand` and `hover-intent` were **already shipped** before
+    today (same false-staleness as #10 — `hover-intent` is a pre-existing primitive, not new).
+    `dock-magnify`, `scroll-state` affordances and `coverflow-scroll` are still unbuilt — grepped
+    2026-09-08, zero hits in `src/`.
+
+### LABS — a GPU tier, if we want one
+
+23. **Shaders / WebGL as a third delivery tier.** Owner's ask, 2026-09-08; Codex raised the same
+    thing unprompted as `shader-displace` (item 15 of its list). One shared WebGL/WebGPU renderer
+    would unlock the class of effects CSS provably cannot do: true refraction (the thing that killed
+    `glass-refract`), fluid pointer distortion, image-to-image transitions with real displacement,
+    liquid/metaball surfaces, and particle fields with actual physics.
+    **The case for it:** every one of those is currently either impossible or a bad fake. The catalog
+    tops out exactly where the expensive/premium tier begins.
+    **The case against, and it is the strong one:** "CSS-first, ~63% of the catalog never touches JS
+    per frame" is this library's entire differentiator. A WebGL tier is per-frame JS, a canvas that
+    does not compose with any CSS channel, a real payload, and a whole new accessibility and
+    reduced-motion surface. It must not dilute the core claim.
+    **Therefore: a genuinely separate `labs` package**, not a section of the add-on bundle — this is
+    the third tier already named in the split rule above. Separate entry point, separate size budget,
+    separate docs, loudly labelled. One renderer shared by every shader effect, never one per effect.
+    **Open questions before any of this:** does a shader effect participate in the channel model at
+    all, or is it opaque? What is the no-WebGL fallback for each name? Does `prefers-reduced-motion`
+    disable it or swap it for a static frame? **Decide the composition model first** — that answer
+    determines whether a non-CSS renderer can even be expressed in this grammar.
+
+### PARAMETERISE — knobs and API shape
+
+**Five of these seven shipped 2026-09-08.**
+
+16. **Fix `ParamSpec` before shipping parameter-heavy families — SHIPPED.** `ParamSpec` is now a
+    discriminated union (`KeywordParamSpec | ValueParamSpec`); `values` is gone entirely, replaced
+    by required `keywords` on keyword-shaped types and `keywords?: never` elsewhere. Union types
+    landed exactly as scoped: `'number|percentage'`, `'length|percentage'`, `'angle|keyword'`, each
+    normalising to one internal form (e.g. `80%` → `0.8`). This gated — and unblocked — items 13,
+    14, 18, 19 below, all of which shipped the same day.
+17. **Reword "total parameter control"** into something testable. **Not verified done or not** —
+    the literal phrase does not appear anywhere in the repo today (checked `docs/design.md` and
+    every `.md` file), so either it was already reworded before this phrase was ever written down
+    verbatim, or it never shipped. Check `docs/design.md`'s current parameter-control language
+    directly before assuming either way.
+18. **`tilt:` takes an angle — SHIPPED**, as part of the carousel build: `type: 'angle', default:
+    '0deg'`, with named presets (`carousel-3d-high` at `30deg`, `-low` at `-18deg`) exactly as
+    scoped, not a normalized `-1..1` scalar.
+19. **Arbitrary variable-font axes — SHIPPED as `var-axis`.** New generic primitive (`text.ts`,
+    `text.css:358`) takes an `axis:` parameter for `GRAD`/`opsz`/`SOFT`/`MONO`/etc., alongside the
+    three existing fixed ones (`var-weight`/`var-width`/`var-slant`, which stay separate — the doc
+    comment explains they animate different high-level properties, not `font-variation-settings`
+    directly, so folding them into `var-axis` would be a behaviour change, not a tidy-up).
+20. **`glass-rim` / `glass-sweep` become parameters on `beam-border` / `shine-sweep` — SHIPPED,
+    exactly as scoped, no new preset names.** `beam-border` gained `arc:`/`softness:` (the
+    travelling specular arc); `shine-sweep` gained `color:`/`angle:`/`width:` (the diagonal sweep).
+    `glass` itself also ships its own built-in hairline `rim:`/`rim-width:`.
+21. **Publish `--kui-item-count`; `--kui-progress` for ring geometry was rejected, correctly —
+    scope narrower than planned.** `--kui-item-count` shipped on `step-marking.ts` exactly as
+    asked. **`--kui-progress` did not ship as the carousel's continuous position token — a real
+    collision was found and documented in `carousel/index.ts`:** it is already the scroll-mechanics
+    progress fraction (`scroll-mechanics/primitives.ts:28`), consumed by `pinnedDelays()` to seek
+    every `timeline:pin` descendant's delay — a carousel writing a fractional ring position into
+    the same name would send nested pinned animations to a nonsense negative delay. Shipped
+    `--kui-step-position` instead (unambiguous, no collision). `--kui-offset` for ring geometry
+    (never `--kui-i`) shipped exactly as asked.
+22. **Composites need a documented parts contract — partially shipped, anatomy deviated.** The
+    carousel build documents its parts contract in `carousel/index.ts`'s module comment, but
+    landed as **3 levels, not the 4 originally proposed** (camera, ring, slot, face): camera and
+    scene collapsed into one element (the fx host itself), with tilt multiplied into every slot's
+    own transform rather than held at a separate camera level. `anchored-preview` documents its own
+    two-part contract (trigger + `[data-kui-preview]`) independently. No cross-family contract
+    documentation format exists yet — each composite still writes its own.
+
+### RULED OUT — do not build, decided 2026-09-08
+
+- **`glass-refract`** (SVG `feDisplacementMap` over live DOM) — both reviewers, unprompted. If real
+  refraction ever matters, it is one shared WebGL renderer in a labs package, not "CSS glass".
+- **A shared spotlight grid as a new effect** — per-element already works; put `cursor-spotlight` on
+  each card. Only the cross-card *proximity* falloff (item 9) is missing.
+- **`interpolate-size` / `calc-size()`** — already deferred, owner's call 2026-08-26. Zero Safari,
+  zero Firefox, so `prepareAutoHeight` cannot be retired and it adds a second mechanism for one
+  preset. See the entry lower in this file.
+- **Real `<kbd>` keydown animation in core** — global listeners, keyboard-layout and stuck-key edge
+  cases. Demo/docs tooling at most.
+- **Normalized scalar ranges anywhere** — use real CSS units.
+
+---
+
 ## Open
+
+- [x] **Lifecycle phasing (fix candidate 2) — SHIPPED 2026-09-08, and it is the big one.** This
+      entry originally offered two candidate fixes and asked for an owner call; phasing is the one
+      that landed. `EffectPhase = 'entrance' | 'exit' | 'idle' | 'state'` (`core/types.ts:694`),
+      declared per-preset as `Preset.phase`, consulted by phase-aware `findConflicts` so two effects
+      in complementary phases on the same channel compose instead of refusing — an entrance can now
+      hand its channel to a `:hover`/`:active` state effect once it finishes, the same way it always
+      could hand off to an *unrelated*-channel effect. ~34 presets across gestures, forms, layout,
+      materials, media, navigation, scroll-mechanics and carousel were phased today; a catalog-wide
+      sweep (`ADS-memory/2026-09-08-catalog-review/phase-gain-sweep.ts`) measured **+1,244 composing
+      pairs, 0 regressions**. `animation-composition: add` (fix candidate 1) was not built — phasing
+      solved the practical problem without it.
+      **What is still open, narrower than the original bug:**
+      1. **Still only 2 registered combos.** `COMBOS` (`core/catalog/core.ts:415`) is unchanged —
+         `fade-up+blur-in` and `fade-in+blur-in` only. The "register the obvious combos" ask from
+         this entry's original text was not done; genuinely-same-channel, same-phase pairs
+         (`fade-up, lift`, both `translate`, both `entrance`-vs-`state`... no, both plain entrances)
+         still drop silently with a remedy message pointing at a nearly-empty feature.
+      2. **A real 5th `EffectPhase` value is missing.** `test/composition-phase.test.ts` requires
+         every `entrance`-phase preset to resolve a real `@keyframes` block with no closing step —
+         which is correct for CSS entrances but wrongly forecloses `entrance` for two shapes that
+         otherwise fit it: JS-rendered effects with no `@keyframes` at all (FLIP layout, counters),
+         and CSS effects that close their keyframe to a *meaningful, must-persist* value (a drawn
+         meter, a grown ring) rather than an arbitrary one. Multiple agents hit this independently
+         today (`build-phase-forms-layout.md`, `build-phase-mechanics.md`) and left ~25+ presets per
+         family deliberately unphased rather than mis-declare them. A fifth value — something like
+         `'reveal'`: closes to a persisted value, never releases, not re-derived from a live
+         condition — was proposed but not built; still needs an owner decision, and it means editing
+         the currently off-limits `composition-phase.test.ts`.
+      3. **Still silent.** The warning still goes to a reporter that is silent by default — "make
+         this warning loud" from the original entry was not addressed either.
+
+- [ ] **Four `media.ts` presets are the same closed-keyframe shape as the presets
+      `composition-phase.test.ts` already excludes from `phase: 'entrance'`, but are missing from
+      that exclusion list.** Found and verified 2026-09-08 by two different phasing agents working
+      the same file independently (`build-phase-materials.md`, `build-phase-media-nav.md`), and
+      re-verified directly against the test file today: `ken-burns`, `ken-burns-out`,
+      `before-after-wipe` and `lightbox-open` all close their keyframe block with an explicit
+      `to`/`100%` step (checked against `src/css/media.css`), the identical shape as the 19 names
+      currently in `composition-phase.test.ts`'s `excluded` array (that array itself grew from an
+      original 10 to 19 sometime today, but never picked up these four). They are correctly
+      unphased *today* — nobody has mis-declared them `entrance` — but the missing exclusion means
+      nothing stops a future edit from doing so by pattern-matching the file, and the invariant that
+      exists specifically to catch that would not catch it here. Cheap, mechanical fix: add the four
+      names to the array. Both agents that found this flagged it rather than fixing it because
+      `composition-phase.test.ts` was off-limits to them at the time.
+
+- [ ] **All five CSS presets in `src/effects/navigation/index.ts` lack `cloak`, so they flash their
+      rest state before JS installs the from-state.** Found and verified 2026-09-08
+      (`build-phase-media-nav.md`, `build-phase-materials.md`), re-confirmed today: `cloak` does not
+      appear anywhere in that file. `menu-stagger-open`, `dropdown-open`, `mega-menu-drop` and
+      `drawer-slide` are all from-only keyframes with no closing step (correctly phased `entrance`
+      today) but ship with no `cloak: true`, unlike `pIn()`-built entrances elsewhere in the catalog
+      which set it automatically. `menu-fullscreen`'s from-state (`opacity:0`,
+      `clip-path: circle(0%)`) has the same gap. Not a phase bug — a visible-flash bug on every one
+      of this family's five names. Nobody has fixed it; both agents that found it said so explicitly
+      rather than touching the off-limits/not-theirs file.
+
+- [ ] **`docs/design.md`'s framing of `idle` as a phase worth declaring deserves scrutiny — flagged
+      2026-09-08, not independently confirmed in `docs/design.md` itself.** The technical claim
+      behind this is verified: `INDEPENDENT_PHASES` (`core/channels.ts:77`) is `new Set(['entrance|
+      state', 'exit|state'])` — `idle` is not a member of either pair, so declaring a preset `idle`
+      changes zero composition outcomes today; an unphased claim and an `idle` claim behave
+      identically against every other claim on the same channel. **Could not locate the literal
+      claim in `docs/design.md`** — grepped the file for "idle" and "phase" and found neither the
+      word nor an equivalent paraphrase, so either the claim lives somewhere else, was already
+      corrected, or was mis-attributed. Whoever picks this up should re-locate the actual claim
+      before writing a fix, not assume this description of it is accurate. Separately worth
+      recording: today's phase work still declared `idle` on ~17 scroll-mechanics/carousel presets
+      anyway (see the GSAP-parity/phase entries), reasoning that "runs unbounded, never yields" is
+      worth being honest about even though it changes no compiler behavior yet — that reasoning
+      itself might be exactly what this entry should end up pointing at instead of `design.md`.
+
+- [ ] **Four shipped effects deface the element they are put on — 3 of 4 FIXED 2026-09-08,
+      `gradient-rotate-border` remains.** Found by two independent outside reviews; all four
+      verified in the CSS then, re-verified against today's fixes:
+      - `ripple` (`src/css/feedback.css:247`) — **FIXED.** Now paints on `::after`, off the host
+        entirely; the host rule is `position: relative` only.
+      - `confetti-burst` (`src/css/feedback.css:407`) — **FIXED.** Also moved to `::after`.
+      - `border-draw` (`src/css/interaction.css:192`) — **FIXED**, and via a different mechanism
+        than flagging: a masked `::before` ring instead of `border-image`, which also fixes the
+        separate square-corners-on-rounded-cards defect `border-image` caused.
+      - `gradient-rotate-border` (`src/css/ambient.css:130`) — **still live.** `mask-composite:
+        exclude` still erases the content box. See the dedicated entry higher in this file
+        (established 2026-09-08) for why `requiresOwnSubtree` is the wrong tool here — it needs a
+        new `masksOwnContent`/`replacesHostBox`-shaped flag that does not exist yet. Currently
+        carries only a warning comment (a holding position, explicitly not a fix).
+      None of the three fixes used `requiresOwnSubtree` — all three moved to a pseudo-element
+      instead, which sidesteps the flag question entirely for a preset that can be restructured.
+
+- [x] **`confetti-burst` does not burst — FIXED 2026-09-08.** `src/css/feedback.css:485` now gives
+      each particle real per-particle outward travel (angle, distance, a constant downward settle),
+      gated to zero size when idle via `@property --kui-confetti-fade` instead of the old
+      always-visible dots. New params: `distance:`, `fan:` (angular spread — named `fan`, not
+      `spread`, because `spread:` is a hoisted stagger-budget key and unreachable as a param name),
+      `size:`, `spill:`, `color1..5`. `demo/ambient-feedback.html:211-229`'s hand-rolled workaround
+      for the old always-invisible-until-clicked dots is now dead weight — not removed, see its own
+      entry below.
+
+- [x] **No collective-hover category exists — hovering one card cannot dim its siblings — SHIPPED
+      2026-09-08 as `group-dim`.** New primitive/preset in `interaction-states.ts`, goes on the
+      container (`requiresOwnSubtree: true`), dims every child except the hovered/focused one via
+      `:has()` — exactly the mechanism this entry proposed. Verified registered and documented in
+      `docs/catalog.md` section I.
+
+- [ ] **No cross-element choreography — a timed sequence across *different* elements.** Still
+      genuinely open — nothing shipped 2026-09-08 despite the surrounding session's heavy output.
+      Found 2026-09-08. `core/stagger.ts` handles uniform siblings; `core/sequence.ts` (`at:-200ms`) is
+      single-element. A hero that plays badge → headline → subhead → CTA, four unrelated elements in
+      order, is today hand-counted `delay:` values scattered across four tags, and adding a fifth
+      element means editing all of them. Nothing in A–R covers it. Candidate shape: a named scene on
+      a container, with members declaring their place in it, so the timing lives in one place.
+      **Check first** whether the existing comma + `key:value` grammar already reaches this — a
+      previous session concluded it covers grouped/serial cases; this is the case it may not.
+
+- [x] **`backdrop-filter` appears nowhere in `src/` — SHIPPED 2026-09-08 as `glass`.** New
+      `src/css/glass.css` + `src/effects/catalog/materials.ts`, primitive `glass`, channels
+      `[background, backdrop]` (new `backdrop` channel). Given a `perfClass: 'paint'` classification
+      as this entry anticipated. Composes with `press-depth`/`beam-border`/`shine-sweep`; correctly
+      refuses `gradient-mesh` (same `background` channel). `glass-rim`/`glass-sweep` did **not**
+      ship as new names under it — see the PARAMETERISE section, they became parameters on
+      `beam-border`/`shine-sweep` instead, plus `glass`'s own built-in `rim:`/`rim-width:`.
+
+- [x] **Variable fonts: only three fixed axes, no arbitrary one — SHIPPED 2026-09-08 as `var-axis`.**
+      New generic primitive (`text.ts`, keyframes `kui-var-axis` in `text.css:358`) takes a generic
+      `axis:` parameter for `GRAD`/`opsz`/`SOFT`/`MONO`/etc. `var-weight`/`var-width`/`var-slant`
+      were deliberately **not** collapsed into it — the doc comment explains they animate
+      high-level properties (`font-weight`, `font-stretch`, `font-style: oblique <angle>`), not
+      `font-variation-settings` directly, and `slnt`'s sign convention is inverted relative to CSS
+      `oblique <angle>`, so re-expressing them would be a behaviour change, not a tidy-up.
+
+- [x] **Pointer proximity: nothing in `src/` tracks the pointer as a reusable coordinate — SHIPPED
+      2026-09-08 as `proximity-field` + `proximity-glow`.** Two primitives in the new
+      `interaction-proximity.ts`: `proximity-field` goes on the shared container, tracks the
+      pointer via one listener, writes two custom properties, paints nothing itself; `proximity-glow`
+      goes on each card and is pure CSS — a masked-ring `::before` reading the container's
+      properties via `background-attachment: fixed`, exactly the mechanism this entry proposed, with
+      zero per-card JS. Verified registered and documented in `docs/catalog.md` section I.
+
+- [ ] **Reject "total parameter control" as currently worded; replace it with a testable rule.**
+      Outside review, 2026-09-08. "No hard-coded literal an author might want to change" is unbounded
+      and untestable, turns every implementation detail into permanent public API, and makes future
+      rendering improvements breaking changes. Workable version, which still satisfies the owner's
+      actual requirement: *every externally meaningful design token gets a documented parameter or a
+      custom-property escape hatch; geometry invariants, safety clamps and numerical tolerances stay
+      private.* **This wording question is still open** — the literal phrase "total parameter
+      control" does not appear anywhere in the repo, so it's unclear whether it was ever written
+      down where this entry implies, or already reworded elsewhere; check `docs/design.md` directly.
+      **The validator half — SHIPPED 2026-09-08, narrow this entry to the wording only.**
+      `ParamSpec` is now a discriminated union (`KeywordParamSpec | ValueParamSpec`); `values` is
+      gone entirely; union types shipped exactly as asked (`number|percentage`, `length|percentage`,
+      `angle|keyword`), each normalising equivalent spellings (`80%` → `0.8`) to one internal form.
+      `target:`'s inability to remove structural requirements is still true and still means
+      composites need a documented parts contract — see the PARAMETERISE section, where the
+      carousel build's own contract landed at 3 levels, not the 4 (camera, ring, slot, face) named
+      here.
+
+- [ ] **Accessibility surface nobody has looked at: `forced-colors` and `prefers-contrast`.** Raised
+      2026-09-08. `prefers-reduced-motion` is handled everywhere; these two are unaddressed across
+      the catalog. Effects that paint their own colour (`beam-border`, the ambient gradients, the
+      glass family which landed today) are exactly the ones Windows High Contrast will strip or
+      invert. **Still true as of the end of 2026-09-08** — re-checked directly against source:
+      `forced-colors` appears in exactly one file (`src/css/glass.css`, and that coverage predates
+      today's `glass` build, not new), `prefers-contrast` appears in zero. An audit agent started
+      this today (`build-forced-colors.md`) but its checkpoint stopped at "STARTING" with every
+      section marked `TBD` — do not assume finished without re-checking `src/css/*.css`. Audit and
+      decide a house rule.
+
+- [ ] **Decide the add-on bundle: a second file that requires the base.** Owner's ask, 2026-09-08.
+      The idea is a plug-in layer for compound effects too heavy or too opinionated for the core
+      catalog — the first three candidates are the entries directly below.
+      **The size justification needs correcting AGAIN — this entry's own numbers went stale the
+      same day it was written.** `.size-limit.json` was corrected once already (14 kB → this
+      entry's ~12.2 kB), then corrected a second time later on 2026-09-08: the cap is now **20 KB**
+      brotli (raised deliberately) and the measured stylesheet is **15.17 KB**. `npm run size` is
+      still not failing. The reasoning changed too: a later measurement (stripping 20 rule blocks
+      and re-measuring) found a preset name costs only **~9 bytes brotli** — `presets.generated.css`
+      compresses hard because its rows are repetitive — so "growth is names" is false; the actual
+      weight is in the hand-written stylesheets (`interaction.css` 14.94 KB brotli, `base.css` 7.27,
+      `carousel.css` 5.70 — carousel alone is over a third of `interaction.css`'s weight). Owner's
+      position is unchanged in substance: size is not a concern unless something becomes unusually
+      large, prefer parameters over names for *API* reasons, not bytes.
+      **Bigger problem: the decision below appears to have been bypassed by what actually shipped
+      today.** `spatial-carousel` (as `carousel-3d`/`-high`/`-low`/`-inside`) and `anchored-preview`
+      — the two composites this entry's own classification exercise names as the load-bearing
+      *reason* the bundle earns its place — were both registered **directly into the core registry**
+      (`registerCarousel`/interaction-reveal wiring inside `createRegistry()`), not into a separate
+      `./composites` or `./scenes` export. So did `glass`, `proximity-field`/`-glow`, and
+      `search-expand`. None of this "Decide the add-on bundle" work — the shape, the exports block,
+      the separate `.size-limit.json` row — was built; the effects it was meant to gate went to core
+      anyway. Either the classification below needs to be re-litigated against what already shipped,
+      or the bundle idea itself needs an explicit owner call on whether it's still wanted at all,
+      since four of its own named candidates are now core catalog names with no opt-in required.
+      **The bundle's argument for existing at all, restated:** `spatial-carousel`
+      and `anchored-preview` impose a specific markup anatomy on the page — worth separating
+      from effects you can drop on any single element. API shape, not bytes. That argument is
+      unaffected by where the code actually landed; only the *execution* of the decision is.
+      Shape to confirm: `src/presets/` with its own `registerPresets(registry)` entry, a `"./presets"`
+      block in `package.json` `exports` (which already does `.`, `./core`, `./effects`, `./css`), its
+      own `.size-limit.json` row, and its CSS emitted as `dist/kuinetic-presets.css`. **Decided
+      2026-09-08: one bundle, one folder.** Not three themed entry points — that is three of
+      everything (exports, size rows, docs sections, test files) for about thirty names.
+
+      **What goes in it — split rule revised 2026-09-08.** The first rule ("compound vs platform
+      feature") classified by implementation trivia and was called arbitrary by both reviewers, with
+      a fair counter-example: anchor positioning is a *platform* feature, but an anchored avatar
+      label is still a composite needing trigger, popup, placement, collision fallback and markup
+      anatomy. Classify by adoption cost instead:
+      - **Core** — broadly reusable, small, stable, imposes no component anatomy, no expensive
+        rendering, degrades gracefully.
+      - **Add-on** — assumes multiple named parts, coordinates children, or embodies a distinct
+        visual style.
+      - **Labs** — per-frame JS, canvas/WebGL, SVG displacement, unstable platform support, or
+        substantial accessibility responsibility. Keep these out of the CSS-first bundle entirely;
+        mixing them in weakens the library's clearest differentiator.
+
+      **Name it something other than `presets`.** "Preset" already means a registry preset and names
+      `presets.generated.css`. `./composites` or `./scenes` is unambiguous.
+
+      **What deliberately does not, and why — three of four confirmed by what actually shipped.**
+      Three of the six ideas raised on 2026-09-08 are platform CSS features or gaps in an existing
+      family, not compound presets. Putting them behind an opt-in import would leave the core
+      library missing something it should simply have:
+      - **View Transitions** → core, section L. **SHIPPED to core exactly as predicted here** —
+        `page-morph`/`view-swap`, registered in `createRegistry()`, not a bundle.
+      - **CSS anchor positioning** → core. Still not built (stays dropped — see RULED OUT).
+      - **Variable-font motion** (`font-variation-settings`) → core, section D. **SHIPPED to core as
+        predicted** — `var-axis`, registered alongside the existing three fixed-axis names.
+      - **A press (`:active`) state** → core, section I. **SHIPPED to core as predicted** —
+        `press-depth` (primitive `press`), registered alongside the hover family, not the bundle.
+        The doc comment on `press` even names `glass-press` as the natural next composition, in
+        those words — so this prediction was specifically validated, not just generally correct.
+
+      **Parameter control is non-negotiable — owner's words, 2026-09-08.** Every name in the bundle
+      exposes every value it paints: `data-kui="glass opacity:0.8 blur:20px rim:silver"`. The
+      existing grammar already carries this — `ParamSpec` (`core/types.ts:165`) has `type`,
+      `default`, `cssProperty`, plus `values` / `minimum` / `maximum` / `integer` / `finite`, and a
+      parameter that maps to a `cssProperty` costs one `var()` and no JavaScript. Three rules:
+      1. **No hard-coded value an author might reasonably want to change.** If a keyframe or rule
+         carries a literal colour, length, angle or duration, it needs a parameter with that literal
+         as the `var()` fallback.
+      2. **Accept both spellings wherever CSS does.** The owner's example writes `opacity:0.8|80%`,
+         read here as "a unit-less number and a percentage must both parse". Careful: `ParamSpec.values`
+         is *additive* for every type except `keyword`, so `{ type: 'number', values: ['0%'] }` does
+         not close the set and validates nothing. The answer is a `type` whose grammar covers the
+         range, or a `text` param normalised inside the primitive. Settle this before writing the
+         first parameter — it applies to all of them.
+      3. **`target:` names inner elements; the library owns the structure.** Every composite here has
+         inner parts (a ring and its items, a glass panel and its rim). The page must not have to
+         write structural CSS for them.
+
+- [x] **3D carousel, with a camera: `tilt` and `curve` — SHIPPED 2026-09-08, as `carousel-3d` /
+      `-high` / `-low` / `-inside`.** New `src/effects/carousel/index.ts` (primitive `spatial-ring`)
+      + `src/css/carousel.css`, registered directly into the core registry (see the add-on-bundle
+      entry above for why that's a live tension with this list's own classification exercise). All
+      four presets declare `requiresOwnSubtree: true` and `phase: 'idle'`.
+      **Shipped as specified:**
+      - **`tilt:` is an angle**, not a normalized scalar — `type: 'angle', default: '0deg'`, with
+        `carousel-3d-high`/`-low` presets at `30deg`/`-18deg` exactly as asked.
+      - **`--kui-offset`/`--kui-item-count`** used for ring geometry, never `--kui-i` — confirmed in
+        `step-marking.ts`.
+      - **`facing: radial | camera`** shipped as specified, spelled with that exact name.
+      - **Convex/concave shipped as two separate effects** (`carousel-3d*` vs `carousel-3d-inside`),
+        exactly the alternative this entry itself proposed over a `curve:` parameter — the module
+        doc even titles the section "Convex and concave are two names, not one parameter." `arc:`
+        (default `360deg`, `120deg` on `-inside`) and `radius: auto`-by-default both shipped.
+      - **Grabbable shipped** — `grab:` keyword param (`true`/`false`) plus a dedicated
+        `carousel/drag.ts` controller (pointer + keyboard, snap-to-nearest-step), not a reuse of
+        `drag-inertia` — the "treat it as a new controller, not a parameter" instinct was right, and
+        that's what got built.
+      **Deviated from spec, both documented in-file with reasoning:**
+      1. **`--kui-progress` was rejected for the continuous index — real collision, not a style
+         choice.** It's already the scroll-mechanics progress fraction consumed by `pinnedDelays()`
+         to seek every `timeline:pin` descendant; a ring publishing a fractional position into the
+         same name would send nested pinned animations to nonsense negative delays. Shipped
+         `--kui-step-position` instead. See the PARAMETERISE section for the full writeup.
+      2. **Anatomy is 3 levels, not 4.** Camera and ring/scene collapsed into one element (the fx
+         host); tilt is multiplied into every slot's own transform instead of held at a separate
+         camera level. Face level was kept as specified.
+      **Not verified:** the `preserve-3d`-flattens-under-an-ancestor risk this entry flagged
+      (`overflow: hidden`/`clip-path`/`opacity<1`/`filter`/`backdrop-filter` on any ancestor) was
+      not re-tested against the shipped carousel in a browser — the concern and its cause are
+      unchanged from when this entry was written, only the effect it applies to now exists for real.
+
+- [ ] **`liquid-glass.css` — a glass surface family. 3 of 5 pieces SHIPPED 2026-09-08, 1 remains, 1
+      correctly stays ruled out.** Owner's ask, with a reference image (dark glassmorphism kit:
+      panels and pills with a bright specular rim, a diagonal sheen band, blurred content behind).
+      - `glass` — **SHIPPED.** New `src/css/glass.css` + `materials.ts`, primitive `glass`,
+        `backdrop-filter: blur() saturate()`, a hairline inset border, a sheen gradient, given
+        `perfClass: 'paint'` per this entry's own instruction. Also ships its own built-in
+        `rim:`/`rim-width:` params, so the base already carries a hairline light edge on its own.
+      - `glass-rim` — **SHIPPED, exactly as the "check first" note here predicted**: it became
+        `arc:`/`softness:` parameters on `beam-border`, not a second primitive.
+      - `glass-sweep` — **SHIPPED, same pattern**: became `color:`/`angle:`/`width:` parameters on
+        `shine-sweep`, not a second primitive.
+      - `glass-press` — **still not built**, but the blocking piece it needed now exists: `press`
+        (preset `press-depth`) shipped today as the catalog's first `:active` state, and its own doc
+        comment names `glass-press` by name as the natural next composition. What's left is
+        composing `glass` + `press-depth` (or a dedicated variant), not building `:active` handling
+        from scratch.
+      - `glass-refract` — **correctly not built.** Already covered by RULED OUT below: SVG
+        `feDisplacementMap` over live DOM, both outside reviewers flagged it unprompted, real
+        refraction belongs in a future WebGL labs tier, not "CSS glass." No change from the original
+        call.
+
+- [ ] **Micro-interactions from a reference video — 6 of 7 "genuinely missing" items turned out to
+      already exist or shipped 2026-09-08; only 1 remains.** Owner's ask, 2026-09-08 (transcript
+      supplied; the video itself was not watched). Mapped against the catalog:
+      **Already covered — do not rebuild.** The shimmer/gradient stroke is `beam-border` +
+      `beam-border-auto`. The progress bar drawing along a stroke is `border-draw` / `draw-stroke` /
+      `loading-bar`. The toast sequence is `toast-slide-in` → `spinner` → `confetti-burst` composed
+      with the existing comma grammar. The card-swipe stack is `stacking-cards` + the `swipe-x`
+      gesture.
+      **The "genuinely missing" list itself was wrong when written, independent of today's other
+      work — items 1 and 3 were already shipped before this entry was drafted:**
+      1. ~~**Masked text swap on hover**~~ — **was already shipped, not missing.** `masked-label-swap`
+         (plus `-x`/`-diagonal`) is a pre-existing primitive in `interaction-reveal.ts`, confirmed
+         registered and documented in `docs/catalog.md`, and was used today as the design precedent
+         for `anchored-preview`'s own mechanism.
+      3. ~~**Hover intent — a delay that cancels**~~ — **was already shipped, not missing.**
+         `hover-intent` is a pre-existing primitive in the same file, `delay:` default `1000ms`,
+         also confirmed registered and documented.
+      **SHIPPED 2026-09-08:**
+      2. **A press state — SHIPPED as `press-depth`.** Channels `[scale, shadow]`, deliberately not
+         `translate`, so it composes with `lift`.
+      4. **Anchored label pop-out — SHIPPED as `anchored-preview`** (all 4 placements). Built on the
+         inherited-custom-property mechanism, not CSS anchor positioning (which stays dropped).
+      5. **Text hover pop-out — SHIPPED, same primitive as #4.** `docs/catalog.md`'s own worked
+         example for `anchored-preview` explicitly covers this case ("a preview image popping out
+         beside a linked word").
+      6. **Search-bar expansion — SHIPPED as `search-expand`.** Explicit `inline-size` transition via
+         `Preset.transitions`, not FLIP and not `interpolate-size` (which stays deferred pending
+         Safari support).
+      **Still genuinely missing:**
+      7. **Keyboard-shortcut key press** — `<kbd>` keys depress on the real keydown, then a success
+         state. Needs a JS primitive, so it needs sign-off per the ground rule at the top of this file.
 
 - [x] **Install section rebuilt with a CDN option and a GitHub link — SHIPPED 2026-08-28**
       (`8ee89d2`). The homepage's install card only ever showed local relative paths
@@ -138,6 +720,165 @@ library should own it. Never call something "not the library's job" without grep
       mid-body as the behaviour under test and keep that call. Zero assertions changed, and all 11
       tests were verified to pass individually via `-t` filters as well as grouped — no test turned
       out to be depending on the leak.
+
+- [ ] **`scripts/generate-nav-header.mjs` is a landmine — fix it or delete it.** Flagged by the
+      peer session 2026-09-07 as explicitly unowned work, and it already cost that session a
+      12-page revert the same day. The script predates the migration to runtime mount points, so
+      running it re-inflates pre-migration markup into 13 demo pages and **kills the theme toggle
+      site-wide**: `nav.js` only wires a toggle when it finds `<span data-theme-toggle-mount>`, and
+      deliberately skips any page carrying a hardcoded `#theme-toggle` button — which is exactly
+      what the generator emits. Confirmed still true 2026-09-07: the script references
+      `theme-toggle` and does not emit `data-nav-panel`/`data-theme-toggle-mount` in the shape
+      `nav.js` expects. **Do not run it** until it is fixed.
+
+      Second-order: `demo/system.css`'s hiding-header comment states that "every page generates
+      this header from `scripts/generate-nav-header.mjs`", which is now a claim about a script
+      nobody is allowed to run. Whichever way this goes — update the generator to emit the mounts,
+      or delete it and make the 14 headers hand-maintained — that comment needs to match.
+
+- [ ] **The mobile nav scrim collapses to a 213x54 pill instead of covering the viewport.**
+      Measured 2026-09-07 in a real browser on `scroll.html` at 390x740 with the hamburger menu
+      open: the backdrop rects at `213x54 @88,17`; it should be `390x740 @0,0`. **Pre-existing —
+      present in git HEAD, not from the hiding-header work.** Cause isolated by toggling one
+      property live: `.site-header { backdrop-filter: blur(14px) }` (`demo/system.css:146`) makes
+      the header a containing block for its `position: fixed` descendants, and the scrim is one.
+      ```
+      as-shipped              213x54 @88,17
+      backdrop-filter removed 390x740 @0,0   <- restored
+      backdrop-filter back    213x54 @88,17
+      ```
+      Note the `:has([data-nav-hamburger][aria-expanded='true'])` escape added the same day DOES
+      fire correctly (`hamExp=true hdrHidden=true hdrTranslate=none`) — it is not the problem, and
+      the comment at `demo/system.css:152` naming `translate` as the reason a scrim would collapse
+      is wrong or at least incomplete: `backdrop-filter` had already done it. Fix is probably to
+      move the scrim out of the header's subtree rather than to drop the blur.
+
+- [ ] **Hero dot hit targets are 10x10px, under the 24x24 accessibility minimum.** Measured
+      2026-09-07 at 390px on `demo/index.html`. `.video-hero-dot` has `padding: 0` and no
+      `::before` expansion, so the tappable area is the painted dot. WCAG 2.2 target size (minimum)
+      wants 24x24 CSS px. These are the primary control for the hero carousel on a phone, which is
+      the audience. Fix without changing the look: an `::before` inset by negative margins, or
+      padding plus `background-clip: content-box` — the dot stays 10px, the target grows. Check the
+      expanded targets do not overlap each other at the current gap.
+
+- [ ] **Astra's 8 library-absorption proposals are unbuilt.** Carried over from the peer session's
+      2026-09-07 handoff, which named `target:@children` and the drag `touch-action` CSS as the two
+      cheap ones and did not enumerate the rest. **The full list was not handed over** — recover it
+      from the peer session (`kuinetic-20`) or from `ADS-memory/` before starting, rather than
+      guessing at eight items from two names.
+
+- [ ] **The 2026-09-07 `settleArmed` fix has a hole: `cancel()` re-entered from a `kui:start`
+      listener still locks an all-continuous element out forever.** Found 2026-09-07 by an
+      adversarial audit of that same day's fixes, then **reproduced** on a real
+      `<div data-kui="pin-section">`. The original bug (one `cancel()` leaves a pin stuck at
+      `running`, and `activate()`'s guard then refuses every restart) was fixed and shipped, and
+      the fix is correct for every path that goes through `settleWhen` first. This is the one that
+      does not.
+
+      The ordering in `activate()` (`src/core/animator.ts`) is the whole bug:
+      ```
+      946: state.status = 'running'
+      968: this.emit(el, state, KUI_EVENT.start, 'activated')   <- synchronous; listeners run HERE
+      970: this.settleWhen({ el, state, run }, started, 'finished')
+      ```
+      `cancel()` (`:1268`) decides whether to write the terminal state with
+      `if (wasRunning && this.settleArmed.get(state) === false)`. A listener that calls
+      `cancel(el)` inside `kui:start` runs at line 968 — *before* `settleWhen` has recorded
+      anything — so the lookup returns `undefined`, `=== false` is false, and no status is
+      written. Control returns to line 970, `settleWhen` sets `settleArmed` to `false` and returns
+      early without arming a gate, and nothing will ever write the status again.
+
+      Measured (probe against the real catalog, jsdom, `pin-section` with a `kui:start` listener
+      that calls `animator.cancel(node)`):
+      ```
+      PROBE-REENTRANT state=running restarted=false
+      ```
+      `data-kui-state` stays `running` and the next `activate()` is silently dropped — the exact
+      lockout the fix was written to remove, reached through a narrower door. `kui:start` is a
+      public documented lifecycle event, so this is reachable by consumer code; nothing in this
+      repo does it today, which is why it is tomorrow's work and not a hotfix.
+
+      **Do not take the obvious fix without thinking.** Defaulting `settleArmed` to `false` at
+      `beginRun()` makes the re-entrant case correct, but `cancel()` would then write `'finished'`
+      for a cancelled *reverse* as well, and a reverse settles on `'ready'` — see the reasoning in
+      `cancel()`'s own comment and `control.test.ts:950`. Check what `reverseFrom` does about
+      emit-vs-`settleWhen` ordering before choosing. Arming the bookkeeping earlier (where
+      `started` is already known, before the emit) is probably the shape, but verify the reverse
+      path. Regression test must fail before the fix, and must use a real continuous catalog
+      primitive at its DEFAULT activation — an `on:manual`/`on:enter` gate adds a non-continuous
+      CSS companion instance and silently makes the whole scenario unreachable, which is how the
+      original bug survived one earlier review.
+
+- [ ] **Two `gesture.ts` cleanup paths can strand the recogniser mid-drag.** Both found
+      2026-09-07 by the same audit. Verified against the source; **neither reproduced by running
+      it**, so confirm before fixing.
+
+      (a) **`pointercancel` can throw before cleanup, under `capturePointer: true`.**
+      `pointercancel` is routed to `onUp` (`src/core/gesture.ts:247`) with a comment saying it is
+      there so that "a gesture interrupted by the browser (scroll takeover, alt-tab) leaves the
+      recogniser permanently mid-drag" — which is precisely what it fails to prevent. By the time
+      `pointercancel` fires the pointer is no longer active, so
+      `el.releasePointerCapture?.(event.pointerId)` throws `NotFoundError`; `?.` guards the
+      method's existence, not the throw. The exception aborts `onUp` before `handlers.onEnd` and
+      before the `origin = null; active = false; samples = []` reset at the bottom. This affects
+      every gesture that keeps capture — `drag`, `drag-x`, `drag-y`, `throwable`, `pressable`,
+      `elastic-pull` — and is **pre-existing**: the 2026-09-07 guard only covered the
+      `capturePointer: false` path (`swipe-x`). The fix is probably a `try`/`catch` (or the
+      `runQuietly` pattern `animator.ts` already uses) rather than a wider flag, because cleanup
+      must never be able to abort the payload — that principle is already written into the
+      comment above that line.
+
+      (b) **With `capturePointer: false`, a pointer released outside the element never reaches
+      `onUp`.** `pointerdown`/`move`/`up`/`cancel` are all bound to `el` itself
+      (`src/core/gesture.ts:243-247`), never to `window`/`document`. Capture used to paper over
+      this: it routed the whole sequence back to the capturing element regardless of where the
+      finger went. `swipe-x` now opts out of capture, so a swipe that lifts outside the element's
+      box never fires `onUp`, never computes a direction, and leaves `active` stuck `true`.
+      Low practical impact for the one live consumer (`.video-hero` is a full-bleed `100svh` box,
+      so leaving it means leaving the viewport) and the next `pointerdown` resets `origin` — but
+      it is a real semantic change that came in with `capturePointer: false` and it will bite the
+      first non-full-bleed `swipe-x`. Options: bind `pointerup`/`pointercancel` to `window` when
+      `capturePointer` is false, or keep capture and drop it on the first `pointermove` that is
+      not a drag. Whichever, prove it with a pointer sequence that ends outside the element.
+
+- [ ] **`path-morph`'s tokeniser silently drops what it cannot match, so two classes of `d` string
+      produce a wrong shape with no `reason`.** Found 2026-09-07 while adversarially auditing that
+      day's two path-morph fixes. Those fixes are sound and are not what this is about — this is one
+      layer below them, in `COMMAND` (`src/core/path-morph.ts:54`) and the `matchAll` that feeds it.
+      `[...d.matchAll(COMMAND)]` keeps only what matches and discards every other character without
+      a word, which is the same "plausible-looking wrong shape" the module's own header doc
+      (`:9-11`) says the whole file exists to prevent. Two reachable symptoms, both measured by
+      bundling the module with esbuild and running it in node:
+
+      (a) **Scientific notation is mangled into two numbers.** The number branch is
+      `-?(?:\d+(?:\.\d+)?|\.\d+)` — no exponent. So `e` matches nothing, is dropped, and the
+      digits either side become separate tokens:
+      `parsePath('M0,0 L1e3,1e3')` → `reason: undefined`, **2** segments, both to **(1,3)**. The
+      author asked for one line to (1000,1000). SVG 1.1/2 both allow exponents in path data, and
+      several icon/optimiser toolchains emit them (SVGO will happily produce `1e3`), so this is not
+      a theoretical input. Related: `5e-3` is *rejected*, but with the misleading
+      `'L' expects 2 numbers, found 1`, because the `-3` survives as its own number token.
+
+      (b) **An unrecognised command letter vanishes and its arguments get absorbed.**
+      `UNSUPPORTED` (`:55`) only screens `A S Q T`. Any *other* letter — a typo, a future SVG
+      command, junk — matches neither branch and is simply dropped:
+      `parsePath('M0,0 X10,10 L5,5')` → `reason: undefined`, 2 segments, with `10,10` silently
+      eaten as a lineto continuation of the preceding `M`. A single mistyped letter turns into a
+      different shape rather than an error.
+
+      Both are **pre-existing** — `COMMAND` is unchanged by anything in the 2026-09-07 work — and
+      neither is a regression from the `Number.isNaN` guard or `takeCommand`. Verified in the same
+      run that the new guards break no valid path: implicit repetition (`M 10 20 30 40`),
+      `M...Z M...Z`, `Z Z`, relative implicit (`m0,0 l10,10 20,20`), and the empty/whitespace/bare-`Z`
+      cases all still parse or reject correctly.
+
+      Owner's call 2026-09-07: **not worth fixing right now.** When it is picked up, the shape is
+      probably: add an exponent to the number branch, and screen *any* letter outside `mlhvcz`
+      rather than only `ASQT` — a third alternation group that matches a stray letter and lets the
+      walk reject it by name, so the failure says which letter it choked on. Both want the same
+      kind of test as the `takeCommand` ones: assert the exact `reason` string, not just that one
+      exists. Low user impact today (the site's own icons are hand-authored and clean), which is
+      why it is parked rather than urgent.
 
 - [ ] **`demo/docs.html`'s new `scroll-spy` TOC is not browser-verified.** Landed in `33b12e2` with
       lint/typecheck/`demo-markup` green, but the browser slot was held so nothing rendered a frame.
@@ -289,9 +1030,25 @@ library should own it. Never call something "not the library's job" without grep
       `scope:page`, D5 rescan, D7 stagger numbering); each was sized to land inside one step so none
       blocks starting.
 
-- [ ] **`npm run size` fails — CSS is 4.53 kB over an 8 kB cap.** Confirmed 2026-08-26. Decide
-      whether to raise the budget or trim; the number has been stale for long enough that the gate
-      trains people to ignore it, which is the disease the gate is meant to cure.
+- [x] **~~`npm run size` fails — CSS is 4.53 kB over an 8 kB cap.~~ STALE, CLOSED 2026-09-08.**
+      This entry was itself the stale number it complained about, and it misled a later planning
+      session into justifying an architectural split on a size crisis that does not exist.
+      **UPDATED AGAIN, same day: the numbers this entry was closed with are themselves now stale.**
+      The state as of the end of 2026-09-08, read straight from `.size-limit.json`: the cap was
+      raised to **20 KB** brotli (was 14 KB) and the measured stylesheet is **15.17 KB** (was
+      ~12.2 KB) — real behavioural growth from today's session (glass, carousel, proximity,
+      confetti's pseudo-element move, etc.), not drift in the measurement. **The "presets are the
+      weight" theory is also now corrected, not just the numbers**: a follow-up measurement
+      (stripping 20 rule blocks and re-measuring) found a preset name costs only **~9 bytes
+      brotli**, because `presets.generated.css`'s repetitive rows compress hard — the actual weight
+      sits in the hand-written stylesheets (`interaction.css` 14.94 KB brotli, `base.css` 7.27 KB,
+      `carousel.css` 5.70 KB). Owner's position is consistent across both corrections: size is not a
+      concern unless something becomes unusually large, and prefer parameters over names for *API*
+      reasons, not bytes. **Do not use size as a justification without re-reading `.size-limit.json`
+      first — it will very likely have moved again.** The per-category CSS export idea from this
+      entry's original text is superseded by the corrected reasoning: splitting by category would
+      mostly split the cheap, repetitive `presets.generated.css` rows, not the actual weight, which
+      lives in a handful of whole hand-written files.
 
 - [ ] **Remove `demo/nav-forms.html`.** Owner's ask, 2026-08-26: "this is just not even stuff we
       should be doing" — the page isn't earning its place in the showcase. Not started; check the
@@ -549,15 +1306,15 @@ library should own it. Never call something "not the library's job" without grep
       h1, subhead, or a new one-liner) so "CSS animation library, authored via HTML attributes" is
       unambiguous on first look, not something you piece together from the playground below it.
 
-- [ ] **`.size-limit.json`'s CSS budget is stale — real size is over the stated cap.** Found
-      2026-08-24 by a design subagent sourcing real numbers, confirmed independently the same
-      session. `.size-limit.json` claims `dist/kuinetic.css` is "current: ~7.6 KB" against an
-      `"limit": "8 KB"`. Direct brotli measurement of `demo/kuinetic.css` (byte-identical build
-      output to `dist/kuinetic.css`) is **11,233 bytes** — 40% over the stated number, and over the
-      8 KB cap outright. `npm run size` will very likely fail if run right now. Either the CSS
-      genuinely grew past budget (in which case decide whether to raise the cap or trim), or the
-      comment is just stale and never got updated after a past growth — check `git log -p --
-      .size-limit.json` to see when "~7.6 KB" was last true, then fix the number or the budget.
+- [x] **`.size-limit.json`'s CSS budget is stale — real size is over the stated cap. SUPERSEDED,
+      closed 2026-09-08.** This is the "stale entry lower in this file" the 2026-09-08 corrections
+      elsewhere point at. Its numbers (8 KB cap era, ~11.2 KB measured) describe a state from
+      2026-08-24 that no longer exists at all: the cap has since been raised twice (to 14 KB, then
+      to 20 KB as of 2026-09-08) and the measured size has moved with it (to ~12.2 KB, then to
+      15.17 KB). `.size-limit.json` itself now carries its own current-as-of measurement inline —
+      read it directly rather than trusting any number written down in this file, including the
+      ones in the 2026-09-08 entries above, which will themselves go stale the same way this one
+      did.
 
 - [ ] **Find better hero videos.** The owner does not think the current ones make sense — they
       should be **about UI and animation**, which the present clips are not. Sourcing job before

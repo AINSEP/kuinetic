@@ -31,6 +31,20 @@
     }
   }
 
+  /*
+   * `forced-colors: active` — same glass-sheen treatment `ambient.css`'s block generalises:
+   * `background-image` is the one channel the UA leaves unforced, so this highlight band would
+   * keep sweeping in its own unforced white over whatever the UA just corrected `background-color`
+   * to. The placeholder itself stays legible without it — `background-color` above is a real
+   * forced property, so the block still reads as a solid, correctly-forced placeholder shape, just
+   * without the moving highlight.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='skeleton-shimmer'] {
+      background-image: none;
+    }
+  }
+
   @keyframes kui-skeleton-to-content {
     from {
       opacity: 0;
@@ -68,7 +82,20 @@
     }
   }
 
-  /* --- spinner-dots: one element, two box-shadow "dots" riding the same scale/opacity pulse --- */
+  /* --- spinner-dots: one element, two box-shadow "dots" riding the same scale/opacity pulse ---
+   *
+   * `forced-colors: active` note, left as a documented finding rather than a fix: `box-shadow` is
+   * suppressed unconditionally under forced-colors (nothing an author writes brings it back short
+   * of `forced-color-adjust: none`, which is the wrong trade here — see `.kui-cursor-dot-invert` in
+   * `interaction.css` for what a *justified* use of that escape hatch looks like, and this isn't
+   * one: unlike that element, this one's colour is plain `currentColor`, which the UA already gets
+   * right, so there is no correctness reason to opt out of forced-colors here). The two side dots
+   * this primitive fakes through `box-shadow` (rather than real DOM siblings) disappear, leaving
+   * one pulsing dot from the unconditional `background: currentColor` above. That is a real, visible
+   * degradation — three dots become one — but the loading signal itself (a pulsing, currentColor
+   * dot) survives correctly, and there is no CSS-only fix: a real fix needs a third real element,
+   * which is a change to `src/effects/*`, outside this pass's remit.
+   */
 
   [data-kui-fx~='spinner-dots'] {
     display: inline-block;
@@ -195,21 +222,80 @@
     }
   }
 
-  /* --- ripple --- */
+  /*
+   * ripple: a disc that expands *over* the element, not one the element turns into.
+   *
+   * This used to paint `border-radius: 50%; background: currentColor` straight onto the host and
+   * then animate the host's own `scale`/`opacity`, so `data-kui="ripple"` on a button made the
+   * button round, filled it with its own text colour, blew it up to 4x and faded it away. Every
+   * page that wanted a Material ripple therefore had to build a throwaway element to put the
+   * effect on — `demo/ambient-feedback.html` still has one, a 12px `.ripple-dot` inside a
+   * `.ripple-surface`, which is the workaround rather than the intent. The disc is now `::after`,
+   * so the element underneath keeps its shape, its background and its content.
+   *
+   * The compiler writes `animation-name`/`-duration`/etc. as an inline style on the authored
+   * element and has no way to target a pseudo-element, so the keyframe animates two registered
+   * custom properties on the real element and `::after` reads them back through `var()`; custom
+   * properties inherit into pseudo-elements, which is what carries the motion across. This is the
+   * same bridge `redaction-reveal` uses in `text.css` — see the long comment over `@property
+   * --kui-redaction-x` there for the failure mode it exists to avoid.
+   *
+   * Two properties rather than one because the disc has to be *invisible at rest*. Playback is
+   * gated with `animation-play-state: paused` against `animation-fill-mode: both`, so an element
+   * that has never been clicked paints the 0% keyframe — and a single progress value that started
+   * the disc at 20% scale and 0.6 opacity would leave a permanent faint blob sitting on top of
+   * every button carrying the effect. `--kui-ripple-alpha` opens at 0, snaps up over the first
+   * 8%, and returns to 0, so both ends of the animation paint nothing at all.
+   *
+   * `::after` rather than `::before`: `shine-sweep` is the only other `::after` painter whose
+   * channels would otherwise be disjoint from this one's, and declaring `sweep` here (see
+   * `catalog/feedback.ts`) makes the compiler refuse that pair outright instead of letting them
+   * silently overwrite each other. `::before` would have collided with four presets at once
+   * (`beam-border`, `beam-border-auto`, `cursor-spotlight`, `redaction-reveal`) and there is no
+   * channel that covers all four.
+   */
+  @property --kui-ripple-progress {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+  @property --kui-ripple-alpha {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
 
   [data-kui-fx~='ripple'] {
+    /* So the disc positions against this element. An author's own `position` wins from outside
+       `@layer kui.effects`, and every value except `static` keeps working as the containing
+       block — the demo's absolutely-positioned dot included. */
+    position: relative;
+  }
+  [data-kui-fx~='ripple']::after {
+    content: '';
+    position: absolute;
+    inset: 0;
     border-radius: 50%;
-    background: currentColor;
-    transform-origin: center;
+    background: var(--kui-ripple-color, currentColor);
+    /* The host is usually the button being clicked; the disc must never eat that click. */
+    pointer-events: none;
+    opacity: var(--kui-ripple-alpha);
+    scale: calc(
+      var(--kui-ripple-start, 0.2) + (var(--kui-ripple-scale, 4) - var(--kui-ripple-start, 0.2)) *
+        var(--kui-ripple-progress)
+    );
   }
   @keyframes kui-ripple {
-    from {
-      scale: 0.2;
-      opacity: 0.6;
+    0% {
+      --kui-ripple-progress: 0;
+      --kui-ripple-alpha: 0;
     }
-    to {
-      scale: var(--kui-ripple-scale, 4);
-      opacity: 0;
+    8% {
+      --kui-ripple-alpha: var(--kui-ripple-opacity, 0.6);
+    }
+    100% {
+      --kui-ripple-progress: 1;
+      --kui-ripple-alpha: 0;
     }
   }
 
@@ -257,26 +343,201 @@
     }
   }
 
-  [data-kui-fx~='confetti-burst'] {
-    background-image: radial-gradient(circle at 20% 20%, var(--kui-c1, #f43f5e) 0 3px, transparent 3px),
-      radial-gradient(circle at 75% 15%, var(--kui-c2, #fbbf24) 0 3px, transparent 3px),
-      radial-gradient(circle at 50% 75%, var(--kui-c3, #34d399) 0 3px, transparent 3px),
-      radial-gradient(circle at 85% 65%, var(--kui-c4, #60a5fa) 0 3px, transparent 3px),
-      radial-gradient(circle at 15% 65%, var(--kui-c5, #c084fc) 0 3px, transparent 3px);
-    background-repeat: no-repeat;
+  /*
+   * confetti-burst: five particles that leave the centre, fan out, and fall.
+   *
+   * The five layers are five separate `radial-gradient` background layers, which is what makes
+   * this a CSS-only particle system: `background-position` takes a per-layer comma list, so one
+   * expression moves five particles along five different vectors with no per-frame JavaScript.
+   * That is the whole reason the particles are background layers and not five child elements — a
+   * preset cannot invent DOM.
+   *
+   * They paint on `::after`, sized `--kui-confetti-spill` larger than the host on every side. A
+   * background layer is clipped to the box that paints it, so while the particles lived on the
+   * host they could never leave it: on the 18px dot `demo/ambient-feedback.html` celebrates with,
+   * a burst had 9px of room in each direction. The oversized pseudo-element is what lets confetti
+   * actually spray past the button, and it keeps the host's own background, shape and content
+   * untouched — the effect no longer writes anything the author can see on the element itself.
+   *
+   * Each layer is a *particle-sized box*, not a full-element gradient. `closest-side` on a square
+   * `background-size` puts the circle's radius at exactly half the box, so the painted disc is
+   * exactly `--kui-confetti-size` across and the one knob means what it says. (The original
+   * version pinned each dot with `circle at 20% 20%` inside a full-bleed layer, which is why
+   * nothing could travel: the dot's position was baked into the image rather than into
+   * `background-position`, and an image's own paint position is not animatable.)
+   *
+   * Motion crosses onto the pseudo-element through two registered custom properties. The compiler
+   * writes `animation-name`/`-duration`/etc. as an inline style on the authored element and cannot
+   * target `::after`, so the keyframe animates `--kui-confetti-travel` and `--kui-confetti-fade`
+   * on the real element and the rule below reads them back with `var()`; custom properties inherit
+   * into pseudo-elements, which is what carries the animation across. `redaction-reveal`
+   * (`text.css`) documents this bridge and the exact failure mode it avoids.
+   *
+   * Nothing is painted at rest. Playback is gated with `animation-play-state: paused` against
+   * `animation-fill-mode: both`, so an element that has never been clicked paints the 0% keyframe:
+   * travel 0 (every particle stacked dead centre) and fade `0%` (every particle mixed all the way
+   * to `transparent`). 100% returns the fade to `0%`, so the same holds once the burst is over. A
+   * browser that drops the animation entirely lands on the `@property` initial values, which are
+   * the same pair.
+   *
+   * `::after` rather than `::before`, and `sweep` declared alongside the paint channels in
+   * `catalog/feedback.ts`: `shine-sweep` is the only other `::after` painter whose channels would
+   * otherwise be disjoint from `feedback-burst`'s, and sharing a channel makes the compiler refuse
+   * `shine-sweep, confetti-burst` outright rather than letting one silently overwrite the other on
+   * the one `::after` box they would both own. `::before` would have collided with four presets at
+   * once and no single channel covers all four. See `test/css-composition-invariants.test.ts`.
+   *
+   * Colours read `--kui-confetti-cN` and fall back to the bare `--kui-cN` behind it — the same
+   * two-step `ambient.css` uses, and for the same reason: `--kui-cN` is a flat inherited namespace
+   * shared with `shine-sweep`, so writing it from a parameter would retint every descendant that
+   * happens to carry either effect. The prefixed name reaches only these five layers; the bare
+   * fallback keeps a page that hand-sets `--kui-c1` working unchanged.
+   *
+   * Reduced motion needs nothing here, as everywhere else in this file: `feedback-burst` keeps the
+   * default `shorten` policy, and a shortened burst still ends at 100% with the particles faded
+   * out, which is the right resting state rather than a frozen mid-flight one.
+   */
+  @property --kui-confetti-travel {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
   }
+  @property --kui-confetti-fade {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 0%;
+  }
+
+  /*
+   * `forced-colors: active` — considered, no action. The five `radial-gradient` layers below are
+   * arbitrary, unforced hues on `background-image`, the same gap every other rule in this pass
+   * exists to close, but this one is a transient (well under 1s) burst of 6px particles with no
+   * text ever painted on the same box, unlike a persistent wash (`ambient.css`) or a border
+   * substitute (`beam-border`/`gradient-border`). Nothing here destroys standing contrast or hides
+   * a boundary; it is a moment of unforced colour on an otherwise-correct button, the same category
+   * `text.css`'s author-overridable `--kui-sweep-color` is treated as out of scope for.
+   */
+  [data-kui-fx~='confetti-burst'] {
+    /* So the particle box positions against this element — same note as `ripple` above. */
+    position: relative;
+  }
+  /*
+   * Five hand-picked unit vectors rather than a computed ring: a perfect pentagon reads as a
+   * mechanism, and confetti does not come out of a machine. `--kui-confetti-fan` scales the
+   * horizontal component only, so the burst narrows into a fountain at `fan:0.3` and opens into a
+   * full circle at `fan:1.6` without any particle changing how far it travels.
+   *
+   * `50%` in `background-position` aligns the image's own midpoint with the area's, so `50%` is
+   * dead centre and `calc(50% ± n)` is a true offset from it regardless of particle size — the
+   * percentage basis (area minus image) cancels out at the midpoint. That is what lets
+   * `--kui-confetti-distance` default to a percentage and still accept a length: `45%` reaches
+   * just inside the edge of a particle box of any size, and `distance:40px` is 40px, both legal in
+   * the same expression.
+   *
+   * Each y term carries a second `+ distance * 0.3 * travel * travel`: that is the settle.
+   * Squared, because displacement under gravity is — a particle barely drops over the first half
+   * of its flight and then falls away at the end, which is the read that separates confetti from a
+   * starburst. It cannot tumble as well (a background layer has no transform of its own), so the
+   * fade does the work of a particle leaving the scene.
+   */
+  [data-kui-fx~='confetti-burst']::after {
+    content: '';
+    position: absolute;
+    /* Bigger than the host on every side, so the burst is not clipped to a button's own box. */
+    inset: calc(-1 * var(--kui-confetti-spill, 24px));
+    /* The host is usually the button being clicked; the particle box must never eat that click. */
+    pointer-events: none;
+    /*
+     * Clamped once here rather than five times below, and clamped at all because the preset's
+     * default easing is `back-out`: an overshooting curve carries the registered `<percentage>`
+     * past 100%, and a bare `var()` substituting a literal `104%` token into `color-mix()` is a
+     * parse error, not a clamp — the whole `background-image` would fall out at computed-value
+     * time and every particle would blink off at exactly the moment the burst starts.
+     */
+    --kui-confetti-alpha: clamp(0%, var(--kui-confetti-fade), 100%);
+    background-image: radial-gradient(
+        circle closest-side,
+        color-mix(in srgb, var(--kui-confetti-c1, var(--kui-c1, #f43f5e)) var(--kui-confetti-alpha), transparent) 0 96%,
+        transparent 100%
+      ),
+      radial-gradient(
+        circle closest-side,
+        color-mix(in srgb, var(--kui-confetti-c2, var(--kui-c2, #fbbf24)) var(--kui-confetti-alpha), transparent) 0 96%,
+        transparent 100%
+      ),
+      radial-gradient(
+        circle closest-side,
+        color-mix(in srgb, var(--kui-confetti-c3, var(--kui-c3, #34d399)) var(--kui-confetti-alpha), transparent) 0 96%,
+        transparent 100%
+      ),
+      radial-gradient(
+        circle closest-side,
+        color-mix(in srgb, var(--kui-confetti-c4, var(--kui-c4, #60a5fa)) var(--kui-confetti-alpha), transparent) 0 96%,
+        transparent 100%
+      ),
+      radial-gradient(
+        circle closest-side,
+        color-mix(in srgb, var(--kui-confetti-c5, var(--kui-c5, #c084fc)) var(--kui-confetti-alpha), transparent) 0 96%,
+        transparent 100%
+      );
+    background-repeat: no-repeat;
+    /* Square, so `closest-side` resolves to half the box and the disc is exactly one
+       `--kui-confetti-size` across. */
+    background-size: var(--kui-confetti-size, 6px) var(--kui-confetti-size, 6px);
+    background-position:
+      calc(50% - var(--kui-confetti-distance, 45%) * var(--kui-confetti-fan, 1) * 0.9 * var(--kui-confetti-travel))
+        calc(
+          50% - var(--kui-confetti-distance, 45%) * 0.55 * var(--kui-confetti-travel) + var(--kui-confetti-distance, 45%) *
+            0.3 * var(--kui-confetti-travel) * var(--kui-confetti-travel)
+        ),
+      calc(50% + var(--kui-confetti-distance, 45%) * var(--kui-confetti-fan, 1) * 0.72 * var(--kui-confetti-travel))
+        calc(
+          50% - var(--kui-confetti-distance, 45%) * 0.86 * var(--kui-confetti-travel) + var(--kui-confetti-distance, 45%) *
+            0.3 * var(--kui-confetti-travel) * var(--kui-confetti-travel)
+        ),
+      calc(50% + var(--kui-confetti-distance, 45%) * var(--kui-confetti-fan, 1) * var(--kui-confetti-travel))
+        calc(
+          50% + var(--kui-confetti-distance, 45%) * 0.18 * var(--kui-confetti-travel) + var(--kui-confetti-distance, 45%) *
+            0.3 * var(--kui-confetti-travel) * var(--kui-confetti-travel)
+        ),
+      calc(50% - var(--kui-confetti-distance, 45%) * var(--kui-confetti-fan, 1) * 0.62 * var(--kui-confetti-travel))
+        calc(
+          50% + var(--kui-confetti-distance, 45%) * 0.72 * var(--kui-confetti-travel) + var(--kui-confetti-distance, 45%) *
+            0.3 * var(--kui-confetti-travel) * var(--kui-confetti-travel)
+        ),
+      calc(50% + var(--kui-confetti-distance, 45%) * var(--kui-confetti-fan, 1) * 0.1 * var(--kui-confetti-travel))
+        calc(
+          50% - var(--kui-confetti-distance, 45%) * 1.05 * var(--kui-confetti-travel) + var(--kui-confetti-distance, 45%) *
+            0.3 * var(--kui-confetti-travel) * var(--kui-confetti-travel)
+        );
+  }
+  /*
+   * The host's own `scale` pop stays, and stays *small*: it is the click acknowledgement the
+   * `scale` parameter names, and the burst is now carried by the particles rather than by the
+   * element growing. It no longer opens at `scale: 0.6; opacity: 0` — with `fill-mode: both` and a
+   * paused animation, that from-state was what an un-clicked host painted, i.e. every idle
+   * confetti-burst element was invisible until someone clicked the thing they could not see.
+   */
   @keyframes kui-confetti-burst {
     0% {
-      scale: 0.6;
-      opacity: 0;
+      scale: 1;
+      --kui-confetti-travel: 0;
+      --kui-confetti-fade: 0%;
     }
-    40% {
+    14% {
+      --kui-confetti-fade: 100%;
+    }
+    30% {
       scale: var(--kui-pop-scale, 1.18);
-      opacity: 1;
+    }
+    70% {
+      scale: 1;
+      --kui-confetti-fade: 100%;
     }
     100% {
       scale: 1;
-      opacity: 1;
+      --kui-confetti-travel: 1;
+      --kui-confetti-fade: 0%;
     }
   }
 

@@ -110,17 +110,37 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     expect(reaching.length).toBeGreaterThan(0)
   })
 
-  it('matches the hand-maintained list exactly — 16 names, unchanged since the plan measured them', () => {
+  it('matches the hand-maintained list exactly — 21 names, five added since the plan measured them', () => {
     // Not a tautology: this is read straight from `src/css/*.css`, compared against a literal list
     // transcribed from `docs/plan-scope-page.md` §0.3 by a human, not derived from the scan itself.
-    // A drift in either direction — a 17th reaching name, or one of these 16 stopping to reach past
+    // A drift in either direction — a 22nd reaching name, or one of these 21 stopping to reach past
     // itself — fails here first.
+    //
+    // Five additions to the plan's original 16, and all five are the same kind of thing: an effect
+    // whose subject is a *collection* rather than a box.
+    //
+    // `group-dim` was the first. The name goes on a container and its rules paint that container's
+    // children (`interaction.css`), so reaching past itself is not incidental to how it is written —
+    // it is the entire effect.
+    //
+    // The four `carousel-3d*` names are the same shape taken further (`carousel.css`): the host is
+    // a camera and every rule past the host rule places the *slots*, so a `target:` that relocated
+    // `data-kui-fx` onto one slot would leave those selectors hunting for grandchildren nobody
+    // authored. Worth noting that the refusal is belt-and-braces for these four — their primitive
+    // declares a `target` parameter of its own, so `compile.ts` never consults the flag (see
+    // `Preset.requiresOwnSubtree` in `core/types.ts`) — but the fact the flag records is true, and
+    // this file asserts facts rather than reachable code paths.
     expect(reaching).toEqual(
       [
         'card-flip-x',
         'card-flip-y',
+        'carousel-3d',
+        'carousel-3d-high',
+        'carousel-3d-inside',
+        'carousel-3d-low',
         'checkbox-draw',
         'flip-card',
+        'group-dim',
         'hamburger-to-x',
         'input-underline-grow',
         'label-float',

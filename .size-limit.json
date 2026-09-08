@@ -4,9 +4,9 @@
     "path": "dist/kuinetic.js"
   },
   {
-    "name": "kuinetic.css (core effects stylesheet, brotli) — current: ~12.2 KB; presets.generated.css is ~58% of it and grows per preset",
+    "name": "kuinetic.css (core effects stylesheet, brotli) — cap has deliberate headroom above current size, not a tight fit (measured 15.17 KB brotli as of 2026-09-08 — that figure will drift, run `npm run size` for the real one rather than trusting this line). the growth term is NEW BEHAVIOUR, not new names — measured 2026-09-08 by stripping 20 rule blocks and re-measuring: a preset name costs ~9 bytes brotli, because presets.generated.css's rows are repetitive enough that brotli crushes 50 KB raw to ~5 KB. Weight lives in the hand-written stylesheets (interaction.css 14.94 KB brotli, base.css 7.27, carousel.css 5.70). Prefer parameters over names for API reasons — one concept, one name, less to document — NOT for bytes. `npm run size` is not in `ci`, so nothing reports this automatically",
     "path": "dist/kuinetic.css",
-    "limit": "14 KB"
+    "limit": "20 KB"
   },
   {
     "name": "kuinetic.all.js (standalone drop-in, JS+CSS, brotli) — reported, not capped (embeds kuinetic.js, so bound by the same owner decision)",

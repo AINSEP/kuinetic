@@ -9,7 +9,9 @@ import { registerNavigation } from './navigation/index.js'
 import { registerScrollMechanics } from './scroll-mechanics/index.js'
 import { registerSvg } from './svg/index.js'
 import { registerThreeD } from './three-d/index.js'
+import { registerCarousel } from './carousel/index.js'
 import { registerTween } from './tween/index.js'
+import { registerViewTransitions } from './catalog/view-transitions.js'
 
 export { PRIMITIVES, PRESETS, COMBOS, registerCore } from './catalog/core.js'
 export { registerGestures } from './gestures/index.js'
@@ -18,8 +20,10 @@ export { registerMotionPath } from './motion-path/index.js'
 export { registerScrollMechanics } from './scroll-mechanics/index.js'
 export { registerSvg } from './svg/index.js'
 export { registerThreeD } from './three-d/index.js'
+export { registerCarousel } from './carousel/index.js'
 export { registerCatalog } from './catalog/index.js'
 export { registerTween, TWEEN_PRESETS, TWEEN_PRIMITIVES } from './tween/index.js'
+export { registerViewTransitions } from './catalog/view-transitions.js'
 
 /**
  * A registry with the full catalog registered.
@@ -40,9 +44,11 @@ export function createRegistry(): Registry {
   registerMotionPath(registry)
   registerGestures(registry)
   registerThreeD(registry)
+  registerCarousel(registry)
   registerCatalog(registry)
   registerNavigation(registry)
   registerForms(registry)
   registerTween(registry)
+  registerViewTransitions(registry)
   return registry
 }

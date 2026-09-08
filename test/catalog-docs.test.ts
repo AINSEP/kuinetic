@@ -132,11 +132,11 @@ function totalsRows(): Map<string, string> {
     const cells = trimmed.slice(1, -1).split('|').map((cell) => cell.trim())
     if (cells.length !== 2) continue
     const letter = cells[0]!.split(' ')[0]!
-    // A–Q: the lettered catalog sections as they stand. A row outside the range is not a section
+    // A–S: the lettered catalog sections as they stand. A row outside the range is not a section
     // row — the totals table also carries `**Total shipped**` and the planned-count line, and both
     // are read separately below. Widen the range when a section letter is added, or the new
     // section silently reports "no row in the totals table" while the row is sitting right there.
-    if (letter.length === 1 && letter >= 'A' && letter <= 'Q') rows.set(letter, cells[1]!)
+    if (letter.length === 1 && letter >= 'A' && letter <= 'S') rows.set(letter, cells[1]!)
   }
   return rows
 }
@@ -199,18 +199,14 @@ function documentedNames(): Map<string, string> {
 
 /**
  * Names the catalog knowingly documents ahead of implementation, each carrying a `†` and an
- * explanation in its section. All four need JavaScript — scroll direction, the View Transitions
- * API, or pointer tracking — which is a decision the library has not taken, not an oversight.
+ * explanation in its section. All three need JavaScript — scroll direction or pointer tracking —
+ * which is a decision the library has not taken, not an oversight. (`page-morph` was the fourth,
+ * and shipped: `effects/catalog/view-transitions.ts`.)
  *
  * Implementing one means deleting it from here. Adding one means the same conversation happened
  * again, which is the point of it being a hand-written list rather than "anything with a dagger".
  */
-const KNOWN_PLANNED = [
-  'depth-layers-pointer',
-  'page-morph',
-  'perspective-grid',
-  'reveal-direction-aware',
-]
+const KNOWN_PLANNED = ['depth-layers-pointer', 'perspective-grid', 'reveal-direction-aware']
 
 const documented = documentedNames()
 const registered = new Set(catalogRegistry().names())

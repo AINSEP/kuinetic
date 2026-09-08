@@ -23,6 +23,25 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   scale: ['scale'],
   rotate: ['rotate'],
   filter: ['filter'],
+  /**
+   * `backdrop-filter` and its `-webkit-` twin (tracked for the same reason
+   * `-webkit-mask-composite` is: the property scanner admits vendor-prefixed names, so leaving one
+   * half of a prefixed pair unmapped is a hole with the shape of a covered channel).
+   *
+   * Deliberately **not** folded into `filter` above, even though the two properties differ by one
+   * word. They are independent CSS properties — an element can carry both, and writing one never
+   * disturbs the other — so a shared channel would make the compiler refuse `glass, blur`,
+   * which is a coherent request: blur your own content *and* the backdrop behind you. That is the
+   * "one channel name over two properties that never collide" failure the `text-shadow` entry
+   * below documents at length, and the fix is the same one: a channel of its own.
+   *
+   * `glass` (`catalog/materials.ts`) is the only member today and the only writer of either
+   * property in the catalog — confirmed by grep across `src/` before this entry was added, the
+   * same discipline the `background`/`layout`/`discrete` entries record. Until it existed
+   * `backdrop-filter` was in no channel at all, which made it structurally invisible to the
+   * static-rule check rather than merely unasserted.
+   */
+  backdrop: ['backdrop-filter', '-webkit-backdrop-filter'],
   clip: ['clip-path'],
   /**
    * The `mask` shorthand and `mask-composite` sit here beside the longhands, for the same reason
@@ -118,8 +137,19 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * them would make the compiler reject pairs that do not collide.
    */
   offset: ['offset-path', 'offset-distance', 'offset-rotate', 'offset-anchor'],
-  text: ['letter-spacing', 'word-spacing', 'font-variation-settings'],
-  font: ['font-weight', 'font-stretch', 'font-style'],
+  text: ['letter-spacing', 'word-spacing'],
+  /*
+   * `font-variation-settings` is filed here rather than under `text`, where it sat unused until
+   * `var-axis` became the first primitive in the catalog to write it.
+   *
+   * `text` would have been the "two different channel names, one physical property" collision this
+   * file's header describes, and a live one rather than a hypothetical: `font-variation-settings`
+   * overrides `font-weight`/`font-stretch`/`font-style` for any axis it names, so a `var-axis`
+   * on channel `text` and a `var-weight` on channel `font` would look disjoint to the compiler and
+   * compose into one element where whichever landed last silently owns the glyph shape. Under one
+   * channel the pair is refused, which is the correct answer.
+   */
+  font: ['font-weight', 'font-stretch', 'font-style', 'font-variation-settings'],
   shadow: ['box-shadow'],
   /**
    * `text-shadow` gets a channel of its own rather than joining `box-shadow` under `shadow`.
@@ -145,12 +175,19 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    */
   'text-shadow': ['text-shadow'],
   /**
-   * `border-draw`'s only channel-tracked writes: the shorthand it uses to seed a transparent 2px
-   * base ring, and the two `border-image-*` longhands that paint the animated conic-gradient over
-   * it (`interaction.css`'s `[data-kui-fx~='border-draw']` rule). `allowedProperties()` returned an
-   * empty set for `channels: ['border']` before this entry existed, which made every property
-   * `border-draw` writes structurally invisible to the static-rule check — the same "absent, not
-   * merely unasserted" hole the top-of-file note describes for `text-shadow`.
+   * `border-draw`'s only channel-tracked write today: the registered custom property its transition
+   * eases. `allowedProperties()` returned an empty set for `channels: ['border']` before this entry
+   * existed, which made every property `border-draw` writes structurally invisible to the
+   * static-rule check — the same "absent, not merely unasserted" hole the top-of-file note
+   * describes for `text-shadow`.
+   *
+   * `border-image-source`/`border-image-slice` are kept listed although **nothing writes either one
+   * any more.** They were `border-draw`'s ring until that ring moved onto a masked `::before`
+   * (`interaction.css` records why: `border-image` ignores `border-radius`, so every rounded card
+   * came out with square corners, and there is no workaround inside that approach). Keeping the two
+   * longhands mapped costs nothing — an unwritten property is simply never scanned — and withdrawing
+   * them would quietly re-open the hole for the next primitive that reaches for a border image,
+   * which is the direction this map must not be wrong in.
    *
    * Deliberately narrow. Plain `border-color`/`border-width`/`border-style`/`border-top-color` stay
    * untracked on purpose: `feedback.css`'s `spinner`/`spinner-ring` (primitive `feedback-spin`,
@@ -189,6 +226,88 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * to grow into if the pseudo-element audit ever gets extended to check that box directly.
    */
   sweep: [],
+  /**
+   * `pseudo-before` is `sweep`'s opposite number: the ownership token for "this preset paints its
+   * own `::before`", where `sweep` (badly named, see `feedback.ts`) means the same for `::after`.
+   * Empty for the identical reason `sweep` is — every property its four members paint lives on the
+   * pseudo-element, and both `extractBaseRuleProperties` and `extractHostAnimationBindings`
+   * deliberately skip that box — and declared rather than left absent so
+   * `allowedProperties(['pseudo-before'])` reads as an intentional "no host property" instead of an
+   * accidental `?? []`.
+   *
+   * Members: `border-draw`, `beam-border`, `beam-border-auto`, `cursor-spotlight`. `border-draw`
+   * joined the box when its ring moved off `border-image`, and the other three were given the token
+   * in the same change — a channel with one member refuses nothing, so declaring it only on the new
+   * arrival would have documented the ownership without enforcing it. `redaction-reveal`
+   * (`catalog/text.ts`) is the one `::before` painter still outside it, which is why
+   * `border-draw + redaction-reveal` appears in `css-composition-invariants.test.ts`'s enumerated
+   * collision list rather than being refused; adding the token there is the one-line follow-up.
+   */
+  'pseudo-before': [],
+  /**
+   * `masked-label-swap`'s three names, one primitive (`label-swap`, `catalog/interaction-reveal.ts`).
+   *
+   * All three properties are custom properties written on the *host* rule and read by the marked
+   * parts' own standalone `[data-kui-swap]` rule, so they are attributed to the channel of the
+   * physical property they feed — `translate`, on a child box — exactly the reasoning
+   * `--kui-border-pct` records under `border` above. They are listed rather than left untracked so
+   * the static-rule check can see the host rule writing them at all; the alternative is the
+   * structurally-invisible state this map exists to end.
+   *
+   * A channel of its own rather than `translate`, for the reason `group` is not `opacity`: the
+   * motion is on a child box, so folding it into `translate` would make the compiler refuse
+   * `data-kui="lift, masked-label-swap"` — a button that rises while its label swaps — although the
+   * two never touch the same box.
+   */
+  'label-swap': [
+    '--kui-label-swap-shown',
+    '--kui-label-swap-lag',
+    '--kui-label-swap-dx',
+    '--kui-label-swap-dy',
+  ],
+  /**
+   * `hover-intent`'s two inherited signals, same shape and same reasoning as `label-swap` above:
+   * written on the host rule, read by the standalone `[data-kui-hint]` rule, feeding `opacity` and
+   * `translate` on a child box that no other effect can reach.
+   */
+  hint: ['--kui-hover-intent-shown', '--kui-hover-intent-lag'],
+  /**
+   * `anchored-preview`'s four inherited signals, same shape and reasoning as `hint`/`label-swap`
+   * above: written on the host rule (one pair for state, one pair precomputed per placement
+   * preset), read by the standalone `[data-kui-preview]` rule, feeding `opacity`/`scale`/`translate`
+   * on a child box no other effect can reach. `catalog/interaction-reveal.ts`'s doc comment on the
+   * primitive has the full placement-geometry derivation.
+   */
+  preview: [
+    '--kui-anchored-preview-shown',
+    '--kui-anchored-preview-lag',
+    '--kui-anchored-preview-inset',
+    '--kui-anchored-preview-travel',
+  ],
+  /**
+   * `search-expand`'s two inherited signals, same shape and reasoning as `hint` above: written on
+   * the host rule's `:focus-within`/`:hover`/`:has(...)` states, read by the standalone
+   * `[data-kui-search-field]` rule, feeding `opacity` on the nested `<input>` — a child box the
+   * host's own `expand`/`discrete` channels (below) never touch.
+   */
+  'search-field': ['--kui-search-expand-shown', '--kui-search-expand-lag'],
+  /**
+   * `search-expand`'s own box: the one physical property this primitive claims on its own host,
+   * `inline-size`. A channel of its own for the reason `skew`/`border` document — no existing
+   * channel names this property, and folding it into `layout` (which already tracks
+   * `padding-block`/`font-size` for `header-shrink`) would couple two primitives that have nothing
+   * to do with each other.
+   */
+  expand: ['inline-size'],
+  /**
+   * `proximity-field`'s ownership token — the container that tracks the pointer and publishes
+   * `--kui-proximity-x`/`-y`/`-opacity` for `proximity-glow` (below) to read. Declared empty rather
+   * than left absent, for the identical reason `sweep`/`pseudo-before`/`group` are: the container
+   * paints nothing of its own, so there is nothing on the *host* for this channel to police, and an
+   * explicit empty array says so rather than falling through `?? []` by accident. Exists purely so
+   * two `proximity-field`s can never be composed on one element.
+   */
+  proximity: [],
   /**
    * One property, its own channel — same shape as `text-shadow` above, and for the same reason:
    * `transform-origin` does not collide with a transform the way writing `transform` itself would

@@ -1,6 +1,6 @@
 import { CHANNEL } from '../../core/types.js'
-import { validate } from '../../core/params.js'
-import type { Channel, ParamSpec, ParameterSchema } from '../../core/types.js'
+import { decimalNumber, validate } from '../../core/params.js'
+import type { Channel, ParamSpec, ParameterSchema, ValueParamSpec } from '../../core/types.js'
 
 /**
  * The generic tween's vocabulary: which property names an author may put in a `key:value` slot,
@@ -80,7 +80,10 @@ interface TweenProperty {
  * takes over. The rejection warns; the animation degrades to "that axis does not move" rather than
  * to something visibly wrong.
  */
-function property(group: TweenGroup, key: string, type: ParamSpec['type'], identity: string): [string, TweenProperty] {
+// `ValueParamSpec['type']`, not `ParamSpec['type']`: no tweenable property is a keyword, and the
+// narrower type is what lets the spec below be built without a `keywords` list. A future keyword
+// property would need its own builder anyway, since it would have a closed set to declare.
+function property(group: TweenGroup, key: string, type: ValueParamSpec['type'], identity: string): [string, TweenProperty] {
   const constraints = type === 'number' ? { finite: true, ...(group === 'filter' ? { minimum: 0 } : {}) } : {}
   return [key, { group, spec: { type, default: identity, cssProperty: `--kui-tween-${key}`, ...constraints } }]
 }
@@ -156,35 +159,12 @@ export const TWEEN_SCHEMA: ParameterSchema = Object.fromEntries(
   ],
 )
 
-/** CSS numbers permit a leading plus and an exponent, unlike the core's decimal-only grammar. */
-const BARE_NUMBER = /^([+-]?)(\d+(?:\.\d+)?|\.\d+)(?:e([+-]?\d+))?$/i
-
 /**
- * Expand decimal notation lexically, without rounding a tiny scale to zero or a large integer to
- * its nearest JS float. The cap matches the core value budget and bounds the allocation even for
- * `1e999999999`. An unrepresentable result leaves the original input for ordinary validation to reject.
+ * `BARE_NUMBER` and {@link decimalNumber} used to live here. They moved to `core/params.ts` when
+ * the `'number|percentage'` union landed and the core needed the same lexical decimal shift to
+ * turn `opacity:80%` into `0.8` — one implementation, so the two paths cannot drift into
+ * disagreeing about what `50%` means.
  */
-function decimalNumber(raw: string, shift = 0): string | undefined {
-  const match = BARE_NUMBER.exec(raw)
-  if (!match || raw.length > 200) return undefined
-  const [, sign, coefficient, exponent] = match
-  const digits = coefficient!.replace('.', '')
-  const dot = coefficient!.indexOf('.')
-  const position = (dot < 0 ? digits.length : dot) + Number(exponent ?? 0) + shift
-  if (Math.abs(position) + digits.length > 190) return undefined
-  const padded = '0'.repeat(Math.max(0, -position)) + digits + '0'.repeat(Math.max(0, position - digits.length))
-  const split = Math.max(0, position)
-  const integer = padded.slice(0, split).replace(/^0+/, '') || '0'
-  const fraction = fractionalPart(padded, split)
-  return `${sign === '-' ? '-' : ''}${integer}${fraction}`
-}
-
-/** Keep tiny nonzero values intact, trimming only insignificant trailing fractional zeros. */
-function fractionalPart(digits: string, start: number): string {
-  let end = digits.length
-  while (end > start && digits[end - 1] === '0') end--
-  return end > start ? '.' + digits.slice(start, end) : ''
-}
 
 /**
  * Give a bare number the unit its property implies — `x:100` is `100px`, `rotate:45` is `45deg`.
@@ -212,7 +192,8 @@ export function withImpliedUnit(raw: string, type: ParamSpec['type']): string {
     const value = raw.slice(0, -1)
     return decimalNumber(value, -2) ?? raw
   }
-  if (!BARE_NUMBER.test(raw)) return raw
+  // No separate "is this a number at all" guard: `decimalNumber` returns `undefined` for anything
+  // that is not one, which is the same answer the guard used to give a line earlier.
   const decimal = decimalNumber(raw)
   if (decimal === undefined) return raw
   if (type === 'length') return `${decimal}px`

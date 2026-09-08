@@ -1,6 +1,6 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into seventeen sections (A–Q).
+This catalog lists every named effect the library ships, grouped into nineteen sections (A–S).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **268** named effects, over **33 primitive families**. Note that 48 names come from a
+**Counts:** **290** named effects, over **38 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -18,7 +18,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–P sections below — see [Gestures & physics](#gestures-physics) at the end
+outside the lettered A–S sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
 
@@ -31,7 +31,7 @@ here that is not a named effect at all: it is how you animate something the cata
 
 ---
 
-## The 33 primitive families
+## The 38 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -68,6 +68,11 @@ here that is not a named effect at all: it is how you animate something the cata
 | 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`) |
 | 32 | `tween` | css | per attribute | generic property tween — `tween`, `tween-from` |
 | 33 | `motion-path` | css | x | travel along an arbitrary curve (`offset-path`) |
+| 34 | `rotate-static` | js | r | fixed, persistent tilt on any element (`rotate-static`) |
+| 35 | `view-morph` | js | x | View Transitions shared-element handoff (`page-morph`) |
+| 36 | `view-swap` | js | x | starts a same-document view transition around one state change (`view-swap`) |
+| 37 | `glass` | js | x | translucent blurred surface material |
+| 38 | `spatial-ring` | js | x | N children placed on a ring in 3D — the spatial carousel |
 
 ---
 
@@ -271,7 +276,7 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 
 ---
 
-## D. Text & typography — 26 names
+## D. Text & typography — 27 names
 
 Primitives 17–19, 13, 23, 24.
 
@@ -284,11 +289,31 @@ Primitives 17–19, 13, 23, 24.
 | resolve | `scramble` `decode` `glitch` |
 | color | `gradient-shimmer` `gradient-sweep` `highlight-sweep` `text-outline-fill` |
 | line | `underline-draw` |
-| variable font | `var-weight` `var-width` `var-slant` |
+| variable font | `var-weight` `var-width` `var-slant` `var-axis` |
 | structural | `word-cycler` `marquee` `marquee-scroll-linked` `redaction-reveal` `text-3d-extrude` |
 
 > All splitting uses `Intl.Segmenter` (grapheme clusters, not code units), preserves one
 > accessible reading representation, and restores selectable text on cleanup.
+
+> **`var-axis` is the generic one; the other three are not shorthands for it.** `var-axis
+> axis:GRAD from:0 to:150` animates any OpenType axis by its four-character tag — `GRAD`, `opsz`,
+> `SOFT`, `CASL`, `MONO`, or whatever a foundry invented — through `font-variation-settings`. The
+> tag is case-significant (`wght` is lowercase because it is a registered axis; every vendor axis
+> is uppercase) and is validated as exactly four letters or digits; anything else warns and the
+> effect falls back to `wght`. `from:`/`to:` are plain unbounded numbers, because an axis range
+> belongs to the font rather than to CSS — a value past the end is clamped by the font, not
+> rejected.
+>
+> `var-weight`, `var-width` and `var-slant` stay because they animate `font-weight`,
+> `font-stretch` and `font-style` — the high-level properties, which behave sensibly on
+> *non-variable* fonts too and which the CSS Fonts spec says to prefer wherever one exists.
+> `var-slant` in particular is not `var-axis axis:slnt`: the `slnt` axis leans right for
+> *negative* values and `oblique` leans right for positive ones, so the two spellings tilt
+> opposite ways. Reach for `var-axis` when CSS gave your axis no property of its own.
+>
+> One `var-axis` per element. It writes the whole `font-variation-settings` declaration, so a
+> second one — or a `var-weight` beside it — is refused as a channel conflict rather than
+> silently letting the last one win.
 
 > **`text-reveal-mask` under tight leading.** The reveal ends on `clip-path: inset(0)`, which clips
 > to each item's *border box* — so display type set below `line-height: 1` gives it a box shorter
@@ -476,20 +501,186 @@ Primitive 28. `js`. One technique unlocks the whole group.
 
 ---
 
-## I. Hover & pointer — 22 names
+## I. Hover & pointer — 35 names
 
 Primitives 21, 22, plus CSS.
 
 | Group | Names |
 |---|---|
 | button | `lift` `lift-shadow` `pop` `magnetic` `shine-sweep` `split-flap` |
+| press | `press-depth` |
 | border | `border-draw` `border-glow` `beam-border` `beam-border-auto` |
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
 | card | `tilt-3d` `tilt-parallax` |
+| group | `group-dim` |
+| label | `masked-label-swap` `masked-label-swap-x` `masked-label-swap-diagonal` |
+| intent | `hover-intent` |
+| preview | `anchored-preview` `anchored-preview-bottom` `anchored-preview-left` `anchored-preview-right` |
+| search | `search-expand` |
 | cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` |
+| proximity | `proximity-field` `proximity-glow` |
 
 > Every hover effect ships a `:focus-visible` equivalent and a coarse-pointer fallback.
+
+> **`border-draw`** paints its ring on a masked pseudo-element, not with `border-image`. That is
+> worth stating because it changed: `border-image` ignores `border-radius` outright — the spec draws
+> a border image against an uncurved nine-slice grid — so the old spelling put four square corners
+> on every rounded card it was used on, with no workaround available inside that approach. The ring
+> is now a conic gradient on a `::before`, masked down to its own perimeter, which is the same
+> technique `beam-border` and `gradient-border` already used and which follows the corner radius.
+> One behaviour change comes with it: the ring is an overlay rather than 2px of real border, so it
+> no longer occupies layout, and a page that leaned on it for spacing will see content shift out by
+> that much. Params: `color:`, plus `width:` (the ring's thickness, default `2px`, previously a
+> hardcoded literal) and `outset:` (default `0px`, pulls the ring out over a host's own border — the
+> same compensation `beam-border` documents, needed for the same reason). It claims `::before`, so
+> it is refused against `beam-border`, `beam-border-auto` and `cursor-spotlight`.
+
+> **`masked-label-swap`** stacks two copies of a label in a clipped box: on hover, focus or press one
+> slides out as the other slides in. `masked-label-swap-x` is the horizontal axis and
+> `masked-label-swap-diagonal` travels on both; vertical is the unsuffixed default because that is
+> what a changing number or price reads as, where a changing call to action reads better sideways.
+> The "old number slides out, upgraded number slides in" pattern is this same effect with numerals
+> in the two parts, so it needs no name of its own. Markup is two marked children and no CSS:
+> `<button data-kui="masked-label-swap"><span data-kui-swap="from">Download</span><span
+> data-kui-swap="to">Get the file</span></button>` — real elements with real text, not
+> `::before`/`content`, which cannot be selected or copied and reaches assistive technology
+> inconsistently. Params: `distance:` (travel, `100%` of the part's own box by default, so the
+> outgoing copy clears the clip exactly as the incoming one lands) plus duration/delay/ease. It
+> claims `discrete` (it pins `display: inline-grid` to stack the copies) and a `label-swap` box
+> channel of its own, so `lift, masked-label-swap` composes and two axes on one host do not.
+
+> **`hover-intent`** reveals a hint only once the pointer has *rested* on the trigger — `delay:`
+> defaults to `1000ms` here, the one non-zero delay default in the catalog, because an instant
+> version of this is a different effect that should have a different name. Leaving early cancels it
+> outright, and that comes free rather than from a script: a CSS transition reads its parameters
+> from the after-change style, so a delay carried only by the state rule means an early leave
+> reverts the property and cancels the pending transition before it ever started. Markup is one
+> marked child: `<button data-kui="hover-intent" aria-describedby="t"><span data-kui-hint id="t"
+> role="tooltip">…</span>Archive</button>`. On a touchscreen the fallback is `:active`, which with
+> the same delay is long-press-to-reveal. The hint is `pointer-events: none` in every state,
+> deliberately — a panel you can move the pointer *into* is a menu, which needs trajectory intent
+> (predicting a pointer heading toward it) and is a genuinely different, JavaScript-shaped feature.
+> Params: `distance:` (the small rise as it arrives, default `4px`) plus duration/delay/ease.
+
+> **Both two-box names work with `target:`**, which is why neither writes a descendant selector.
+> The trigger's state reaches the second box as an *inherited custom property* read by a standalone
+> part rule, so no rule reaches past the element carrying `data-kui-fx` and `compile.ts` is free to
+> relocate it: `data-kui="masked-label-swap target:.label"` on a button that also holds an icon is
+> the ordinary way to write this. Any rule spelled the obvious way instead would force
+> `requiresOwnSubtree` and take `target:` away silently.
+
+> **`anchored-preview`** springs a second element out from its trigger on hover or focus — a name
+> tag beside an avatar, a preview image popping out beside a linked word. One primitive, four fixed
+> placements, not a `placement:` parameter: CSS cannot branch on a custom property's *value* without
+> `@container style()`, so a keyword there would have to be read by JavaScript for the sake of one
+> word, the same reasoning `masked-label-swap`'s axis suffixes are built on. `anchored-preview` (no
+> suffix) springs from the top, matching where a tooltip normally reads; `-bottom`, `-left` and
+> `-right` are the other three sides.
+>
+> ```html
+> <span data-kui="anchored-preview" class="avatar-wrap" tabindex="0">
+>   <img class="avatar" src="jane.jpg" alt="">
+>   <span data-kui-preview class="name-tag">Jane Doe</span>
+> </span>
+> ```
+>
+> The trigger has to be its own focusable, hoverable element — an `<img>` can't contain the preview,
+> which is why the markup above wraps both in a `<span tabindex="0">` rather than putting `data-kui`
+> on the image itself. Params: `distance:` (how far the preview travels while springing in, default
+> `10px`), `gap:` (how far it rests from the trigger once arrived — a separate length on purpose, so
+> a bigger spring does not also push the resting position further away), `scale:` (the "sprung from"
+> starting size, `0..1`, default `0.85`), plus duration/delay/ease. Like `masked-label-swap`, the
+> preview is a real, selectable element rather than `::before`/`content`, and its state reaches it as
+> an inherited custom property rather than a descendant selector — the same mechanism the note above
+> describes — so `target:` relocates all four placements cleanly. The preview is `pointer-events:
+> none` in every state, for the same reason `hover-intent`'s hint is: a panel you can move the
+> pointer *into* is a menu, which needs trajectory intent (predicting where a pointer is heading) and
+> is a different, JavaScript-shaped feature this name deliberately does not attempt.
+>
+> CSS anchor positioning (`anchor()`/`position-anchor`) is the textbook fit and was considered; it is
+> the one "modern CSS technique" this project's own notes record as having a *harmful* fallback — an
+> unsupported `anchor()` puts the element in the wrong place rather than a neutral one — so this
+> reuses the inherited-custom-property mechanism instead, which needs no feature detection at all.
+
+> **`search-expand`** grows a search icon into a full input field on focus, hover, or once the field
+> already holds text — an explicit `inline-size` transition between two authored lengths, not a FLIP
+> measure/invert/play (it grows in place; nothing relocates) and not `interpolate-size:
+> allow-keywords` (deferred pending Safari support elsewhere in this catalog too).
+>
+> ```html
+> <label data-kui="search-expand">
+>   <svg aria-hidden="true">…</svg>
+>   <input data-kui-search-field type="search" placeholder="Search…">
+> </label>
+> ```
+>
+> The host is a `<label>`, not a `<div>` — clicking anywhere in it, icon included, natively focuses
+> the `<input>` with no JavaScript and no matching `for`/`id` pair, which is what lets a collapsed,
+> icon-only control stay one click from typing. Params: `collapsed:` (icon-only width, default
+> `2.5em`), `width:` (expanded width, default `240px`; both accept a percentage for a flexible
+> header), plus duration/delay/ease. The input's own fade uses the same inherited-custom-property
+> mechanism as `masked-label-swap`, `hover-intent` and `anchored-preview`, so `target:` still
+> relocates the whole effect.
+
+> **`proximity-field` and `proximity-glow`** are the cross-element version of `cursor-spotlight`
+> (table above) — the Linear/Vercel/Raycast bento-grid effect, where one light source tracks the pointer
+> across a whole grid and nearby cards illuminate at their nearest edge *without* being hovered
+> themselves. `proximity-field` goes on the shared container and only tracks the pointer; it paints
+> nothing itself. `proximity-glow` goes on each card and is pure CSS — a ring on a masked
+> `::before`, the same technique `beam-border`/`border-draw` use, reading two custom properties the
+> field publishes.
+>
+> ```html
+> <div data-kui="proximity-field" class="grid">
+>   <div class="card" data-kui="proximity-glow">…</div>
+>   <div class="card" data-kui="proximity-glow">…</div>
+>   <div class="card" data-kui="proximity-glow">…</div>
+> </div>
+> ```
+>
+> The field writes raw viewport coordinates on `pointermove` — no rect subtraction, no spring, no
+> `requestAnimationFrame` — and every card paints the identical `radial-gradient(...)`, positioned
+> with `background-attachment: fixed`, so distance falloff and the shared-light illusion both come
+> from one CSS declaration rather than any per-card math. `proximity-glow` params: `color:` (default
+> falls back to `--accent`), `radius:` (the light's reach, default `220px`), `width:` (ring
+> thickness, default `1px`), `outset:` (pulls the ring out over the host's own border, default
+> `0px`), plus duration/ease. It shares the `pseudo-before` channel with `border-draw`,
+> `beam-border`, `beam-border-auto` and `cursor-spotlight`, so it refuses to compose with any of
+> them — two rings fighting over one `::before` is a real conflict, not a false positive.
+>
+> **A transform on an ancestor breaks the illusion.** `background-attachment: fixed` measures
+> against the viewport only when nothing between the card's `::before` and the viewport establishes
+> its own containing block — a `transform`, `filter`, `perspective`, or `will-change: transform` on
+> an ancestor (a card also running `tilt-3d`, say) breaks it for that card specifically. Nothing
+> warns about this; it is a visual check, not a compile-time one. Coarse pointers get no proximity
+> light at all — there is no "hover near" on a touchscreen — and keyboard users see no glow either,
+> since a shared light source has no single point to jump to the way one element's own midpoint is.
+
+> **`press-depth`** is the section's one `:active` effect: hold the control and it scales down
+> while its shadow collapses toward the surface. It is the one rule in the file with no
+> fine-pointer gate, deliberately — a press is released with the pointer, so it cannot leave an
+> element stuck the way a tap on a `:hover` rule can, and touch is the pointer type with no hover
+> to signal a control is live at all. `<button>` and `<a href>` hold `:active` for a Space/Enter
+> press too, so the keyboard equivalent is native rather than a mirrored rule; a
+> `<div role="button">` gets no `:active` from a keypress in any engine and needs a real button.
+> Params: `scale:` (default `0.96`), `depth:` (the shadow's offset, blur and spread scale together
+> from this one length, default `2px`), `color:`. Claims the `scale` and `shadow` channels and
+> deliberately *not* `translate`, so `data-kui="lift, press-depth"` — raise on hover, sink on
+> press — composes; `lift-shadow` and `border-glow` both write `box-shadow` on the same box and
+> are refused. Its primitive is `press`, so a future pressed treatment is a new name on the same
+> parameters and timing namespace rather than a second implementation.
+
+> **`group-dim`** goes on the **container**, not the cards: hover or focus one child and every
+> other child recedes. It reads whatever children are already there, so the page writes no
+> structural CSS — `<ul data-kui="group-dim">` over any list, grid or row. A child stays lit when
+> it is hovered, focused, or *contains* the focused element, which is what makes it work for the
+> usual case where the focusable thing is a link inside the card rather than the card itself.
+> Params: `opacity:` (how far the others recede, `0.4` or `40%`, default `0.4`), plus the usual
+> duration/delay/ease — the delay is hover intent, applied on the way in and never on the way out.
+> It claims a channel of its own (`group`) because it paints its children's opacity rather than
+> its own, so `fade-in, group-dim` on one container composes; a second `group-*` effect would not.
+> Because its rules reach past the element carrying them, `target:` refuses to relocate it.
 
 ---
 
@@ -542,14 +733,78 @@ Primitives 9, 10, 13, 15.
 
 ---
 
-## L. Page transitions — 5 shipped, 1 planned
+## L. Page transitions — 7 names
 
-Primitives 1, 5, plus the View Transitions API.
+Primitives 1, 5, 35, 36, plus the View Transitions API.
 
-`page-fade` · `page-slide` · `curtain-wipe` · `page-morph`† · `loading-bar` · `smooth-scroll-to`
+`page-fade` · `page-slide` · `curtain-wipe` · `loading-bar` · `smooth-scroll-to` ·
+`page-morph` · `view-swap`
 
-> `page-morph`† is a View Transitions shared-element handoff; it degrades to `page-fade`
-> where unsupported.
+> The first five are ordinary entrance effects that happen to look like a page arriving. The last
+> two are the View Transitions API, which is a different thing entirely: it animates the
+> *relationship* between two states of the page, so a card can become the detail view it links to
+> rather than one thing fading out while another fades in. The browser does all of the work — it
+> measures where the element was and where it ended up — which is why neither name has a distance,
+> an angle, or anything else to configure.
+
+> **`page-morph`** names an element so the browser can morph it into its counterpart on the other
+> view. Put it on both halves of the pair. `name:` defaults to `auto`, which means "use this
+> element's `id`" — exactly what the native `view-transition-name: auto` keyword does — so naming
+> a pair is just giving both elements the same `id`:
+>
+> ```html
+> <!-- index.html -->
+> <a href="/pricing"><img id="hero-shot" src="/hero.avif" data-kui="page-morph"></a>
+>
+> <!-- pricing.html -->
+> <img id="hero-shot" src="/hero.avif" data-kui="page-morph">
+> ```
+>
+> Write `name:something` when the two elements cannot share an `id`. Only `load` and `manual`
+> activations are accepted: an `on:enter` would leave every off-screen half of a pair unnamed,
+> which is not a slower morph but no morph at all.
+
+> **The one line the library does not write for you.** Cross-document transitions are opted into
+> with an at-rule, and an at-rule cannot be scoped to a selector — a stylesheet that shipped one
+> would opt every consuming site into animating every same-origin navigation. So it is yours:
+>
+> ```css
+> @view-transition { navigation: auto; types: kui-page-slide; }
+> ```
+>
+> `types:` picks the motion for the page *behind* the morph. Three are shipped, matching the three
+> names above: `kui-page-fade`, `kui-page-slide`, `kui-curtain-wipe`. Omit `types:` for the
+> browser's own cross-fade. Tune all of it from `:root` with `--kui-vt-duration`,
+> `--kui-vt-delay`, `--kui-vt-ease` and `--kui-vt-distance` — these are page-level rather than
+> per-effect because the `::view-transition` pseudo-elements hang off the document root and no
+> value set on your card can reach them. `page-morph` says so out loud: it refuses `duration`,
+> `delay` and `ease` by name instead of accepting them and doing nothing.
+
+> **`view-swap`** is the same-document half — one page rewriting itself, with no navigation. It
+> goes on the **control**, and it wraps a state change you already declare in markup:
+> `aria-controls` says which element changes, and the library flips `data-open` on it (the same
+> attribute section Q's open/close family reads) inside `document.startViewTransition()`. It does
+> not manage focus, does not move anything, and is not a router.
+>
+> ```html
+> <button aria-controls="detail" aria-expanded="false"
+>         data-kui="view-swap type:kui-page-slide">Details</button>
+> <section id="detail" data-kui="fade-open">…</section>
+> ```
+>
+> Params: `controls:` (a selector, when `aria-controls` is not the right answer), `attribute:`
+> (default `data-open`), `type:` (a view-transition type, the same vocabulary as the at-rule
+> above), and `delay:`. `aria-expanded` on the control is kept in step when it is already there,
+> and never added when it is not.
+
+> **Without support, nothing breaks.** No View Transitions API: the at-rule is skipped, every
+> rule in `view-transitions.css` contains a pseudo-element the browser cannot parse and is
+> dropped, `page-morph` warns by name and writes nothing, and `view-swap` applies its state
+> change directly. The API but no transition *types* (they shipped later): you get the browser's
+> default cross-fade, and `view-swap` detects it and omits the type rather than passing an
+> argument that would throw. Under `prefers-reduced-motion: reduce`, `page-morph` never names
+> anything and `view-swap` skips the transition entirely — the page still navigates and still
+> swaps, it just cuts.
 
 > **† Not yet implemented.** `page-morph` is documented here but is not registered in `src/effects` — `data-kui` will not resolve it. Verified against the live registry.
 
@@ -564,12 +819,13 @@ Primitives 1, 5, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 6 shipped, 2 planned
+## N. 3D & perspective — 10 shipped, 2 planned
 
-Primitives 14, 22.
+Primitives 14, 22, 38.
 
 `card-flip-x` · `card-flip-y` · `flip-card` · `cube-rotate` · `book-page-turn` ·
-`fold-panel` · `depth-layers-pointer`† · `perspective-grid`†
+`fold-panel` · `carousel-3d` · `carousel-3d-high` · `carousel-3d-low` ·
+`carousel-3d-inside` · `depth-layers-pointer`† · `perspective-grid`†
 
 > **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
 > reading twice. `card-flip-y` is an *entrance*: one keyframe, half a turn, played once, nothing on
@@ -651,6 +907,102 @@ Primitives 14, 22.
 > the same relationship the `:has()` rule uses, so a `flip-card` nested inside another card's face
 > keeps its own state instead of writing its parent's.
 
+> **The spatial carousel — `carousel-3d`, and the only name here that places more than one element.**
+>
+> Every other name in this section rotates *one* box about its own centre. This one arranges N
+> children on a ring in space, which is a layout rather than an animation, and it is what a
+> cover-flow, a coverwheel and a panorama all are.
+>
+> ```html
+> <div data-kui="carousel-3d tilt:18deg" aria-label="Featured work">
+>   <figure><img src="one.jpg" alt="…"></figure>
+>   <figure><img src="two.jpg" alt="…"></figure>
+>   <figure><img src="three.jpg" alt="…"></figure>
+>   <figure><img src="four.jpg" alt="…"></figure>
+>   <figure><img src="five.jpg" alt="…"></figure>
+> </div>
+> ```
+>
+> That is the whole markup. The children are the slides; no wrapper, no per-slide class, and no
+> page CSS. The library stacks them in one grid cell, gives each one its place on the ring, and
+> makes the container grabbable and arrow-key operable.
+>
+> **`tilt:` takes a real CSS angle**, not a 0–1 scalar: `18deg`, `-14deg`, `0.05turn`. **Positive
+> tilts the camera up and over the ring**, looking down at it. It is clamped to ±80 degrees, because
+> past that the ring is edge-on and every card is a line. Three presets carry a tilt for you —
+> `carousel-3d` (a gentle 12 degrees), `carousel-3d-high` (30, a close raised camera), and
+> `carousel-3d-low` (−18, looking up at it).
+>
+> **`radius:` defaults to the ring the content asks for.** Left unset, the library derives the
+> circumradius of a regular polygon whose sides are as long as a card plus its `gap:` — the
+> arrangement where neighbours just touch — from the measured width of the first slide. Set it
+> (`radius:340px`) when you want a specific one. Nothing else needs solving by hand.
+>
+> **`arc:` is how much of a turn the slides spread over.** `360deg` is a full ring, which is the
+> default for the outward-facing names; anything less is a slice.
+>
+> **`facing:` decides whether a slide keeps its own outward orientation (`radial`, the default) or
+> stays square to the viewer (`camera`).** Billboarding lands on the slide's *child*, so
+> `facing:camera` wants one element inside each slide to carry the content:
+>
+> ```html
+> <div data-kui="carousel-3d tilt:26deg facing:camera">
+>   <div><article class="card"> … </article></div>
+>   <div><article class="card"> … </article></div>
+> </div>
+> ```
+>
+> **`carousel-3d-inside` is the concave one, and it is a separate name rather than a parameter.**
+> It puts the camera at the centre of the ring instead of outside it, so the slides surround the
+> viewer. It defaults to `arc:120deg` and `facing:camera`, because from inside a *full* ring two
+> thirds of the deck is behind your head, and a slide at the edge of the slice is legible as a shape
+> rather than as words. Slides that end up behind the viewer are hidden outright — `visibility`, not
+> `opacity`, so they take no tab stop and swallow no clicks.
+
+> **Grab it, press it, or drive it from your own controls.**
+>
+> The container is draggable by default (`grab:false` turns the gesture off; the keyboard stays).
+> A drag moves the ring *between* two slides rather than a whole card at a time, throws with the
+> momentum you let go with, and always settles facing a slide. `travel:` is how many pointer pixels
+> move it one place — 220 by default. A drag that started on a link does not follow it.
+>
+> Arrow keys (both axes), Page Up/Down, Home and End all step the ring, and the container is given
+> `tabindex="0"` unless you set one yourself. **Labelling is yours**: the library invents no ARIA
+> role, for the same reason `step-progress` does not — a guessed `role` on markup it did not author
+> announces something confidently wrong rather than nothing. Give the container an `aria-label`.
+>
+> `next:` / `prev:` / `jump:` take selectors and behave exactly as they do on `carousel` in section
+> O, including the `scope:` rule — here they default to `scope:self`, so two rings on one page do
+> not drive each other.
+>
+> ```html
+> <div data-kui="carousel-3d next:.fwd prev:.back jump:.dot" aria-label="Case studies">
+>   <figure> … </figure>
+>   <figure> … </figure>
+> </div>
+> <button class="back" type="button">Previous</button>
+> <button class="fwd" type="button">Next</button>
+> ```
+
+> **The one thing that will silently break it: a flattening ancestor.**
+>
+> `transform-style: preserve-3d` — which is what makes the ring three-dimensional at all — collapses
+> to flat 2D if **any ancestor** has `overflow` other than `visible`, a `clip-path`, `opacity` below
+> 1, a `filter`, or a `backdrop-filter`. A ring inside a modal, a drawer, or a clipped grid card
+> therefore renders as a row of overlapping cards with no depth, and nothing errors. This is a
+> browser rule, not a library one, and there is nothing this library can safely do about a property
+> on an element it does not own — so it warns instead, naming the ancestor and the property.
+>
+> Two related gotchas, same cause. A 3D effect *nested inside* a slide (`card-flip-y` on a card in
+> the ring) joins the ring's own 3D space rather than getting one of its own, which is rarely what
+> you want. And `target:` may name elements that are not the container's direct children, but the
+> grid cell that stacks the slides only reaches direct children — a deeper `target:` needs your page
+> to stack them itself.
+>
+> Under `prefers-reduced-motion` the travel between slides is shortened by the policy layer and
+> everything else keeps working: the arrows still step, the drag still follows, the right slide is
+> still marked. Reduced motion is a request for less movement, never for less function.
+
 > **† Not yet implemented.** `depth-layers-pointer` · `perspective-grid` are documented here but are not registered in `src/effects` — `data-kui` will not resolve them. Verified against the live registry.
 
 ---
@@ -707,24 +1059,48 @@ Primitives 1, 10, 15.
 > rather than adding to it — a deck whose whole frame advances on click makes its own text
 > unselectable, and the arrows are already the affordance.
 >
-> **`peek:` and `rest:` — how crowded the deck is, from the attribute.** `peek:` is how far each
-> place on the ring moves a slide (a percentage of the slide's own width, default `56%`), and
-> `rest:` is the scale of every slide that is not live (default `0.78`). They reach the stylesheet
-> as `--kui-peek` and `--kui-rest`:
+> **`peek:`, `rest:` and `main:` — how crowded the deck is, from the attribute.** `peek:` is how
+> far each place on the ring moves a slide (a percentage of the slide's own width, default `56%`),
+> `rest:` is the scale of every slide that is not live (default `0.78`), and `main:` is the scale
+> of the one that is (default `1`). They reach the stylesheet as `--kui-peek`, `--kui-rest` and
+> `--kui-main`:
 >
 > ```html
-> <div data-kui="carousel target:'.slide, .dot' next:.next prev:.prev jump:.dot peek:34% rest:0.9">
+> <div data-kui="carousel target:'.slide, .dot' next:.next prev:.prev jump:.dot peek:34% rest:0.9 main:0.82">
 > ```
 >
 > ```css
 > .slide { translate: calc(var(--kui-offset, 0) * var(--kui-peek, 56%)) 0; scale: var(--kui-rest, 0.78); }
+> .slide[data-kui-step-state='active'] { scale: var(--kui-main, 1); }
 > ```
 >
 > Lower `peek:` to crowd the deck, raise it to let the neighbours breathe. Per §7 the defaults are
-> the `var()` fallbacks and are never written inline, so a deck naming neither carries no inline
-> style at all. Note what these are *not*: an `axis:` would only pick between two transforms the
-> page already writes, which is why there is none. These are values the library publishes and
-> `calc()` consumes — the same contract every other `cssProperty` parameter has.
+> the `var()` fallbacks and are never written inline, so a deck naming none of them carries no
+> inline style at all.
+>
+> **Reach for `main:` when `peek:` stops working.** The other two are measured *against* the live
+> slide — one is a percentage of its width, the other a fraction of its scale — so when the live
+> slide is as wide as the frame that clips it, no `peek:` can rescue the deck: the neighbours are
+> already outside the clip, hidden *behind* the live slide rather than short of it. Shrinking the
+> live one is the only move left, and on a phone, where a slide is most of the screen, it is the
+> usual one.
+>
+> It is a scale and not a width on purpose. Every authored parameter lands on the element as an
+> inline custom property, which a media query cannot override — and a width is exactly what a
+> phone and a desktop need to disagree about. A multiplier means the same thing at both, so the
+> page keeps owning the box (`width`, breakpoints and all) and the attribute owns the proportions
+> inside it.
+>
+> Two rules for using it. **Keep it above `0`.** A negative scale is rejected, but `main:0` is
+> accepted and paints nothing while the live slide stays visible to hit-testing and to the
+> keyboard — the same invisible-but-clickable state the inactive slides use `visibility: hidden`
+> to avoid. And **give your stylesheet the same number as the `var()` fallback.** The fallback is
+> what paints before the library activates; if a deck transitions `scale`, a fallback that
+> disagrees with the attribute makes the deck resize itself the moment it comes into view.
+>
+> Note what these are *not*: an `axis:` would only pick between two transforms the page already
+> writes, which is why there is none. These are values the library publishes and `calc()`
+> consumes — the same contract every other `cssProperty` parameter has.
 
 > **`--kui-offset` — the one that makes it loop instead of rewind.** Every step element also
 > carries its own signed place on the ring: `0` is live, `-1` is the slide behind it, `+1` the one
@@ -866,6 +1242,113 @@ rather than a compiled `animation-*` track.
 
 ---
 
+## R. Static transforms — 1 name
+
+Primitive 34. `js`, and the smallest JS-rendered primitive in the catalog: one property, written
+once, on activation.
+
+`rotate-static`
+
+> **What this is not.** Section A's `rotate-in`/`rotate-out`/`roll-in`/`swing-in` are *entrances* —
+> they animate from an authored angle down to `0deg` and the motion is the whole point.
+> `rotate-static` never animates: it sets a fixed tilt and leaves it there, the way you would reach
+> for `angle:180deg` on `rotate-in` if you wanted the element to *arrive* rotated but instead want
+> it to simply *be* rotated, indefinitely, with nothing to watch. Reach for section A when you want
+> motion into a resting angle; reach for this when the angle **is** the resting state.
+>
+> ```html
+> <span data-kui="rotate-static angle:-4deg">on sale</span>
+> ```
+>
+> `angle:` is the one parameter, and it is deliberately the same `type: 'angle'` grammar
+> `rotate-in`'s own `angle:` uses — `45`, `45d`, `45deg`, and the `rad`/`grad`/`turn` units all mean
+> what they mean there. **There is no default angle**: unlike `rotate-in`'s `-8deg` or `orbit`'s
+> `360deg`, the bare name has no canonical look of its own to default to, so a `rotate-static` with
+> no `angle:` writes nothing at all rather than picking an arbitrary one. That is a genuine no-op,
+> which matters more than it sounds: writing a default `0deg` would flatten a rotation you had
+> already set yourself in CSS, so the bare name would silently undo your own stylesheet. An
+> explicit `angle:0deg` is a different instruction and is still honoured — that one really does
+> mean "flatten this". An angle it cannot parse (`angle:banana`) warns and leaves the element
+> alone, for the same reason.
+>
+> **Works on anything** — text, a number, an image, an icon, a whole card — because it makes no
+> assumption about content at all. Where `background-media` is a full-bleed backdrop plus DOM
+> surgery, this is the smallest version of the same "persistent state, not an animation" idea: one
+> property write and nothing else. Composes with anything that does not also claim the `rotate`
+> channel:
+> `rotate-static angle:6deg, fade-up` tilts and fades in together, and `rotate-static angle:-8deg,
+> split-chars` tilts the whole heading while its own characters animate independently.
+>
+> **No timing tokens**, refused by name the same way `background-media` refuses all three: there is
+> no later moment for a `delay` to push a single synchronous write to, no span for a `duration` to
+> stretch it across, and no curve for an `ease` to bend it along. `rotate-static angle:45deg 400ms`
+> warns rather than silently discarding the `400ms`.
+>
+> Writes the CSS **individual** `rotate` property, never `transform` — the same convention every
+> other rotation in this catalog follows (`entrance.css`, `ambient.css`'s `orbit`), and the reason a
+> static tilt never collides with an unrelated `translate`/`scale` effect on the same element.
+
+---
+
+## S. Materials — 1 name
+
+Primitive 37. `js`, and like section R it never animates: a *material* is what an element is made
+of, not something it does.
+
+`glass`
+
+> **The whole family in one attribute.** Glassmorphism is four separate things stacked on one box —
+> a blurred backdrop, a translucent tint, a light rim, a sheen — and only the first two are new.
+> The other two already had names, so this section adds one effect and two sets of parameters
+> rather than four effects:
+>
+> ```html
+> <div data-kui="glass, beam-border softness:0.8 arc:140deg, shine-sweep angle:135deg width:0.4, press-depth">
+>   Frosted panel with a travelling rim light, a sheen on hover, and a press response.
+> </div>
+> ```
+>
+> Four effects, four different physical surfaces — the host box, its `::before`, its `::after`, and
+> its `:active` state — so the channels are disjoint and all four run. `glass` claims
+> nothing but `background` and `backdrop`, deliberately: claiming `border` would have made the rim
+> light impossible and claiming `shadow` would have refused the press.
+>
+> **Params:** `blur:` (backdrop blur radius, default `16px`), `saturate:` (default `1.6` — the blur
+> averages the backdrop toward grey and this puts the colour back), `opacity:` (how opaque the tint
+> is, `0.12` by default; `0.8` and `80%` are the same request), `tint:` (the glass colour — white on
+> a dark page, near-black on a light one), `rim:` (hairline colour, which also colours the sheen),
+> `rim-width:` (default `1px`), `sheen:` (strength of the top-weighted highlight, default `0.16`,
+> `0` to remove it), `radius:` (default `16px`; `radius:999px` is the pill).
+>
+> **It imposes no markup.** `<div data-kui="glass">` works on any box — no wrapper, no
+> pseudo-element, no structural CSS in your page. Every rule lands on the element itself, which is
+> also what leaves `::before` and `::after` free for the two effects above.
+>
+> **What it costs, and where that bites.** `backdrop-filter` is not compositor-cheap. The browser
+> snapshots everything painted behind the element, blurs it, and composites the result — extra
+> render passes whose cost scales with the panel's **area**, and which are paid again whenever
+> anything *behind* the panel changes, even though the panel itself is static. A fixed glass header
+> over a scrolling page re-blurs every frame. Two overlapping glass surfaces multiply it, because
+> each one's backdrop contains the other. Keep the blurred area small, do not stack glass on glass,
+> and remember `blur:0px` turns the pass off entirely while leaving the tint, rim and sheen — a
+> legible non-glass surface you can fall back to behind your own media query.
+>
+> **Where it degrades.** A browser with no `backdrop-filter` shows the tint and the rim with no
+> blur: a flat translucent panel, which is a resting state rather than a broken one, so there is no
+> `@supports` guard. Under Windows High Contrast (`forced-colors: active`) the blur and the sheen
+> are dropped outright — `backdrop-filter` is not a colour property, so the UA would not have
+> overridden it, and a blur is exactly wrong in a mode that exists for legibility.
+>
+> **It needs something behind it to blur.** The effect is invisible on an element sitting on a flat
+> page background, and clipped if an ancestor carries its own `filter` or `backdrop-filter`. That is
+> the property's own rule, not this library's.
+>
+> **`glass-refract`** — warping the content behind at the panel's edges — is not planned and is not
+> a gap. It needs an SVG `feDisplacementMap` over live DOM, which no engine composites predictably,
+> or a WebGL renderer, which is out of scope for this library (see the note at the top).
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -873,25 +1356,27 @@ rather than a compiled `animation-*` track.
 | A Entrance/exit | 48 |
 | B Scroll reveal & parallax | 12 (+1 planned) |
 | C Scroll mechanics | 12 |
-| D Text & typography | 26 |
+| D Text & typography | 27 |
 | E SVG & icons | 17 |
 | F Numbers & data viz | 13 |
 | G Media & images | 20 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 22 |
+| I Hover & pointer | 35 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
-| L Page transitions | 5 (+1 planned) |
+| L Page transitions | 7 |
 | M Navigation | 8 |
-| N 3D & perspective | 6 (+2 planned) |
+| N 3D & perspective | 10 (+2 planned) |
 | O Forms & inputs | 13 |
 | P Motion paths | 5 |
 | Q Discrete open/close | 6 |
+| R Static transforms | 1 |
+| S Materials | 1 |
 | Generic tween | 2 |
-| **Total shipped** | **268** |
-| Documented but not yet shipped | 4 |
+| **Total shipped** | **290** |
+| Documented but not yet shipped | 3 |
 
-Renderer split: **~175 `css`** · ~12 `prep` · ~64 `js`.
+Renderer split: **~175 `css`** · ~12 `prep` · ~69 `js`.
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -928,10 +1413,16 @@ Two names over one primitive family, sitting outside the lettered A–P sections
 >     <div data-kui="tween-from y:40 opacity:0 600ms on:enter">
 >
 > **Properties.** `x` `y` `z` (translate) · `rotate` · `scale` `scale-x` `scale-y` · `opacity` ·
-> `blur` `brightness` `saturate` `grayscale` (filter) · `color` · `background-color`. Anything
+> `blur` `brightness` `saturate` `grayscale` `contrast` `hue-rotate` `invert` `sepia` (filter) · `color` · `background-color`. Anything
 > else is reported by name rather than ignored. A bare number takes the unit the property implies
 > — `x:100` is `100px`, `rotate:45` is `45deg` — and a value containing spaces or a comma must be
-> quoted, e.g. `x:"calc(100% - 20px)"`.
+> quoted, e.g. `x:"calc(100% - 20px)"`. Scientific notation and a leading plus work too:
+> `x:1e3` means 1000px and `rotate:+45` means 45deg. Number-valued properties accept percentages:
+> `scale:50%`, `opacity:50%`, and `contrast:150%` mean 0.5, 0.5, and 1.5 respectively.
+> `z` and `blur` require lengths without percentages; blur and numeric filter amounts cannot be
+> negative. CSS-wide keywords (`inherit`, `initial`, `unset`, `revert`, `revert-layer`) warn and
+> are dropped, because on a custom property they would affect that variable rather than the
+> animated property. `width`, `height`, and `clip-path` are outside this vocabulary.
 >
 > **Channels are read off your attribute**, not fixed in advance: `tween x:100` owns `translate`
 > and so cannot be composed with `fade-up`, while `tween opacity:0` owns `opacity` and can be
@@ -940,7 +1431,7 @@ Two names over one primitive family, sitting outside the lettered A–P sections
 > **A property is written whole.** `translate` is a single CSS property, so an axis you do not name
 > resolves to its initial value rather than to whatever the element currently has: on an element
 > already carrying `translate: 0 50px`, `tween x:100` returns y to 0 as well. Same for `scale` and
-> for the four `filter` functions. Name every axis you need to keep.
+> for the eight `filter` functions. Name every axis you need to keep.
 >
 > **Several states, not just two: give a property a list.**
 >
@@ -951,7 +1442,7 @@ Two names over one primitive family, sitting outside the lettered A–P sections
 > every other library spells as a keyframe array (`animate(el, { x: [0, 100, 40] })`), and the one
 > thing the catalog had no primitive for at all.
 >
-> It is still one static `@keyframes` block and one compositor-run CSS animation; the list picks
+> It is still one static `@keyframes` block and one CSS animation per group; the list picks
 > which block. Even spacing is not a simplification but the mechanism: a keyframe's percentage is
 > the one part of a block that cannot be a `var()`. Repeat a value to hold it for a step.
 >
@@ -961,10 +1452,32 @@ Two names over one primitive family, sitting outside the lettered A–P sections
 >
 > **Within a group, one list sets the rhythm and plain values ride along.** `tween x:'0,100,40'
 > y:20` holds `y` at 20px across all three steps. Two lists of different lengths in the same group
-> is a warning, and the shorter one holds at its last value.
+> is a warning, and the shorter one holds at its last value. An axis-specific scale always wins
+> over uniform `scale`, including when one is a list and the other is a scalar.
 >
-> **`tween-from scale:0` is a trap and warns.** An element scaled to nothing has no box, an
-> `IntersectionObserver` measures geometry, and the default `on:enter` therefore never fires — so
-> it would stay invisible forever. Use a small non-zero scale, or `on:load`. A list starting at
-> zero scale (`tween scale:'0,1'`) is the same trap and warns the same way, whichever name it is
-> written under — the list makes the first state explicit.
+> Empty entries (`x:'0,,100'`, including leading/trailing commas) warn at their waypoint index and
+> retain their place in the rhythm, using the plain property's fallback value. A list longer than
+> five entries is truncated with a warning naming its new endpoint. Commas inside CSS functions
+> are preserved: `color:'rgb(0,0,0),rgb(255,255,255)'` has two waypoints.
+>
+> **Easing per group.** Add `translate-ease`, `rotate-ease`, `scale-ease`, `opacity-ease`,
+> `filter-ease`, `color-ease`, or `background-ease` to give that group's segments their own curve:
+>
+>     <div data-kui="tween x:'0,100,40' opacity:'0,1,1' translate-ease:back-out opacity-ease:linear 1200ms">
+>
+> CSS curves, named kUInetic curves and `spring(...)` use the same validation as ordinary easing.
+> A group without an override uses the effect's positional easing, then its named/theme easing,
+> then `ease-out`. `x` and `y` share one `translate` property and therefore one curve; the same
+> applies to scale axes and filter functions. The override works for both directions and for
+> each segment of a waypoint list, without JavaScript interpolation.
+>
+> Arbitrary per-waypoint offsets are not supported: this compiler selects shipped blocks and has
+> no custom-keyframe emission hook, while CSS selectors require literal percentages. Offsets
+> would need a compiler extension; they cannot be supplied through the existing CSS variables.
+>
+> **A zero-scale start warns about viewport activation.** `tween-from scale:0`, a list starting
+> at zero (`tween scale:'0,1'`), or a zero scalar axis held beside a scale waypoint list all
+> collapse the starting box. That can prevent `on:enter` from activating depending on geometry;
+> it is not guaranteed, since observers can report zero-area intersections. Use a small non-zero
+> scale, or `on:load`. The check follows axis overrides and recognizes percentages and signed
+> zero. It cannot evaluate stylesheet values or `calc()` expressions at compile time.

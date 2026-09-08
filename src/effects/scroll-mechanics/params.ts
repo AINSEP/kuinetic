@@ -35,6 +35,6 @@ export const stickyParams: ParameterSchema = {
     type: 'keyword',
     default: 'false',
     cssProperty: '--kui-spacer',
-    values: ['true', 'false'],
+    keywords: ['true', 'false'],
   },
 }

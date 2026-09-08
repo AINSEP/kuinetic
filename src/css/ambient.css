@@ -377,6 +377,58 @@
     }
   }
 
+  /*
+   * Windows High Contrast / `forced-colors: active` — the catalog-wide pass.
+   *
+   * `background-image` is the one channel this mode does not remap: `color`/`background-color`/
+   * `border-color` are forcibly overridden to the user's chosen palette, but a gradient painted
+   * through `background-image` keeps drawing its own, unforced hues straight over whatever the UA
+   * just corrected — see `glass.css`'s own `forced-colors` block for the precedent this one
+   * generalises, and its comment for the fuller account of why `background-image` specifically is
+   * the gap.
+   *
+   * Two different fixes below, because these ten presets fall into two different shapes:
+   *
+   * `gradient-mesh`/`aurora`/`wave-blob`/`spotlight-follow`/`scanline`/`dot-grid-drift`/
+   * `line-grid-drift`/`starfield` are full-bleed decorative washes with no structural meaning to
+   * preserve — the fix is exactly glass's: `background-image: none` removes the ambience and
+   * leaves nothing behind, the same trade glass makes for its sheen. Every one of them defaults to
+   * a fixed brand hue (`--kui-ambient-c1`..`c4`, none of them `currentColor`), so there is no safe
+   * value left to fall back to; unlike `text.css`'s gradient-text family (which defaults to
+   * `currentColor` and so degrades to the correctly-forced colour on its own), these have to be
+   * told to stop.
+   *
+   * `gradient-rotate-border`/`gradient-border` are a different shape: their `background-image` is
+   * not a fill, it is a ring — `mask-composite: exclude` subtracts the box's own content area,
+   * so what's left is a border substitute with no real `border-*` property behind it for the UA to
+   * correct on its own. Zeroing `background-image` here the same way would not just remove
+   * ambience, it would delete the boundary these two presets exist to draw — their own file
+   * comment calls this out explicitly ("it paints an edge, not a fill"). So instead of removing the
+   * ring, this repaints it: `background-color: CanvasText` is a solid fill in the one system colour
+   * meant for exactly this ("the colour of text and default UI"), still masked to the identical
+   * ring shape, so the boundary survives forced-colors as a plain single-colour outline instead of
+   * a four-stop rainbow. `background-image: none` still has to come first — the shorthand's
+   * gradient would otherwise keep painting over the solid colour, since both target the same box.
+   */
+  @media (forced-colors: active) {
+    [data-kui-fx~='gradient-mesh'],
+    [data-kui-fx~='aurora'],
+    [data-kui-fx~='wave-blob'],
+    [data-kui-fx~='spotlight-follow'],
+    [data-kui-fx~='scanline'],
+    [data-kui-fx~='dot-grid-drift'],
+    [data-kui-fx~='line-grid-drift'],
+    [data-kui-fx~='starfield'] {
+      background-image: none;
+    }
+
+    [data-kui-fx~='gradient-rotate-border'],
+    [data-kui-fx~='gradient-border'] {
+      background-image: none;
+      background-color: CanvasText;
+    }
+  }
+
   /* --- float / bob / floating-shapes: one primitive, three amplitudes/timings --- */
 
   [data-kui-fx~='float'] {

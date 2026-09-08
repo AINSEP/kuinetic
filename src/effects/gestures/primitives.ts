@@ -257,6 +257,11 @@ function prepareSwipeable(el: Element, params: EffectParams): Cleanup {
     {
       axis: params.text('axis', 'both') as 'x' | 'y' | 'both',
       swipeVelocity: params.num('velocity', 300),
+      // This primitive publishes an attribute and moves nothing, so it has no reason to hold the
+      // pointer — and holding it retargets the following `click` at this element, which silently
+      // breaks every interactive child. A `swipe-x` on a carousel shell killed its own dots and
+      // buttons that way. See `capturePointer` in `core/gesture.ts`.
+      capturePointer: false,
     },
   )
 
@@ -342,19 +347,19 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     ['translate'],
     {
       ...springParams,
-      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', values: ['x', 'y', 'both'] },
+      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
       bounds: { type: 'number', default: '0', cssProperty: '--kui-bounds' },
       return: {
         type: 'keyword',
         default: 'false',
         cssProperty: '--kui-return',
-        values: ['true', 'false'],
+        keywords: ['true', 'false'],
       },
       inertia: {
         type: 'keyword',
         default: 'false',
         cssProperty: '--kui-inertia',
-        values: ['true', 'false'],
+        keywords: ['true', 'false'],
       },
       resistance: {
         type: 'number',
@@ -373,7 +378,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     'swipeable',
     ['state'],
     {
-      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', values: ['x', 'y', 'both'] },
+      axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
       velocity: { type: 'number', default: '300', cssProperty: '--kui-velocity' },
     },
     deferPrepare(prepareSwipeable),

@@ -446,10 +446,14 @@ const TIMING_REFUSALS: Record<string, string> = {
   'cursor-label': 'pointer position',
   'cursor-invert': 'pointer position',
   'cursor-spotlight': 'pointer position',
+  'proximity-field': 'pointer position, tracked continuously across a whole container',
   magnetic: 'pointer position',
   draggable: 'pointer position and velocity',
   swipeable: 'pointer position and velocity',
   pressable: 'pointer position; its `duration` is a hold threshold, not a span',
+  'proximity-glow':
+    'it is ambient chrome fed by an ancestor `proximity-field` and has no discrete start moment ' +
+    'of its own to delay; `duration`/`ease` are still honoured for its opacity fade',
 
   // Scroll-driven: the effect is a function of where the page is.
   pin: 'scroll position',
@@ -464,14 +468,52 @@ const TIMING_REFUSALS: Record<string, string> = {
   'back-to-top-fade': 'scroll position',
 
   // Neither a clock nor a position: nothing here moves on its own at all.
+  'view-morph':
+    'it writes one view-transition-name and the browser owns the motion from there — and the ' +
+    '::view-transition pseudo-elements hang off the document root, so no per-element value ' +
+    'could reach them anyway (set --kui-vt-duration on :root)',
   'background-media': 'it paints a backdrop rather than animating',
+  glass: 'it paints a resting surface material rather than animating',
   'beam-border-auto': 'an always-on loop with no start moment',
+  'rotate-static': 'it writes its one property once, synchronously, on activation',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.
   'native-state': 'forms.css pins its timing literally',
   'toggle-morph': 'forms.css pins its timing literally',
   'radio-fill': 'forms.css pins its timing literally',
+}
+
+/**
+ * `parameters.delay.default` exceptions — primitives that genuinely accept a delay (they are not
+ * in `TIMING_REFUSALS`, and are honoured exactly like every other accepting primitive) but for
+ * which `0ms` would silently rewrite the effect into a different one.
+ *
+ * `hover-intent` is the one member today, and the reason is written in full in its own doc comment
+ * (`catalog/interaction-reveal.ts`): `readEffectParams` fills every declared parameter, so a
+ * non-zero default is indistinguishable from an authored value everywhere else in the catalog —
+ * which is exactly why every other `delay` defaults to `0ms`. That guard covers primitives whose
+ * delay is a *modifier* on something that would otherwise happen at once. `hover-intent`'s delay is
+ * not a modifier: an unauthored `hover-intent` with a zero delay is not this effect at all, it is an
+ * ordinary instant hover reveal, which already has other names. A second's rest is also what
+ * desktop platforms have used for a tooltip since Windows 95, so the non-zero default matches what
+ * a reader's hand already expects.
+ *
+ * Verified before adding this rather than routing around the assertion: `hover-intent`'s `delay` is
+ * a real, working `key:value`/positional parameter — `interaction.css`'s `:focus-visible`/`:hover`
+ * rules read `var(--kui-hover-intent-delay, 1000ms)`, and `revealPrimitive`'s `stylesheetTimingPrepare`
+ * mirrors the positional spelling onto the same property — so it belongs in the *accepting* half of
+ * this file's classification, not in `TIMING_REFUSALS`. Moving it there would claim the primitive
+ * cannot honour a delay at all, which is false and would silence a real warning path.
+ *
+ * A named, reasoned table rather than a bare exclusion so a *second* primitive reaching for the
+ * same non-zero-default pattern is a one-line, self-explaining addition instead of a magic name
+ * threaded through the filter below.
+ */
+const NON_ZERO_DEFAULT_DELAY: Record<string, string> = {
+  'hover-intent':
+    'the non-zero default is the entire effect — see the primitive doc comment in ' +
+    'catalog/interaction-reveal.ts',
 }
 
 describe('every JS-rendered primitive either accepts a delay or is on the record refusing one', () => {
@@ -512,12 +554,25 @@ describe('every JS-rendered primitive either accepts a delay or is on the record
     expect(stale).toEqual([])
   })
 
-  it('gives every accepting primitive the same no-op-by-default declaration', () => {
+  it('gives every accepting primitive the same no-op-by-default declaration, bar the named exceptions', () => {
     const offenders = jsPrimitives
       .filter((primitive) => primitive.parameters.delay)
+      .filter(({ id }) => !NON_ZERO_DEFAULT_DELAY[id])
       .filter(({ parameters }) => parameters.delay!.type !== 'time' || parameters.delay!.default !== '0ms')
       .map((primitive) => primitive.id)
 
     expect(offenders).toEqual([])
+  })
+
+  it('keeps NON_ZERO_DEFAULT_DELAY free of stale entries', () => {
+    // The mirror of `TIMING_REFUSALS`'s own staleness guard above: a name that stopped accepting a
+    // delay, or that quietly went back to a `0ms` default, should not keep sitting in this table
+    // pretending to explain a deviation that no longer exists.
+    const stale = Object.keys(NON_ZERO_DEFAULT_DELAY).filter((id) => {
+      const primitive = jsPrimitives.find((candidate) => candidate.id === id)
+      return !primitive || !primitive.parameters.delay || primitive.parameters.delay.default === '0ms'
+    })
+
+    expect(stale).toEqual([])
   })
 })

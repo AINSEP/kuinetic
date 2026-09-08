@@ -9,6 +9,7 @@ import { AMBIENT_PRESETS } from '../../src/effects/catalog/ambient.js'
 import { DISCRETE_PRESETS } from '../../src/effects/catalog/discrete.js'
 import { FEEDBACK_PRESETS } from '../../src/effects/catalog/feedback.js'
 import { INTERACTION_PRESETS } from '../../src/effects/catalog/interaction.js'
+import { MATERIALS_PRESETS } from '../../src/effects/catalog/materials.js'
 import { MEDIA_PRESETS } from '../../src/effects/catalog/media.js'
 import { NUMBERS_PRESETS } from '../../src/effects/catalog/numbers.js'
 import { TEXT_PRESETS } from '../../src/effects/catalog/text.js'
@@ -17,6 +18,8 @@ import { NAVIGATION_PRESETS } from '../../src/effects/navigation/index.js'
 import { MOTION_PATH_PRESETS } from '../../src/effects/motion-path/index.js'
 import { SVG_PRESETS } from '../../src/effects/svg/index.js'
 import { THREE_D_PRESETS } from '../../src/effects/three-d/index.js'
+import { CAROUSEL_PRESETS } from '../../src/effects/carousel/index.js'
+import { VIEW_TRANSITION_PRESETS } from '../../src/effects/catalog/view-transitions.js'
 import { extractBaseRuleProperties, extractKeyframes, stripComments } from './css-scan.js'
 
 /**
@@ -59,6 +62,9 @@ export const EFFECT_FILES = [
   'text.css',
   'svg.css',
   'motion-path.css',
+  'glass.css',
+  'carousel.css',
+  'view-transitions.css',
 ]
 
 /**
@@ -84,6 +90,7 @@ export const ALL_PRESETS = [
   ...AMBIENT_PRESETS,
   ...FEEDBACK_PRESETS,
   ...INTERACTION_PRESETS,
+  ...MATERIALS_PRESETS,
   ...DISCRETE_PRESETS,
   ...MEDIA_PRESETS,
   ...NUMBERS_PRESETS,
@@ -93,6 +100,8 @@ export const ALL_PRESETS = [
   ...SVG_PRESETS,
   ...MOTION_PATH_PRESETS,
   ...THREE_D_PRESETS,
+  ...CAROUSEL_PRESETS,
+  ...VIEW_TRANSITION_PRESETS,
 ]
 
 /**

@@ -1,5 +1,10 @@
 import type { EffectGate } from './breakpoints.js'
-import { describeConflicts, findConflicts } from './channels.js'
+import {
+  additiveChannels,
+  additiveResolution,
+  describeConflicts,
+  findConflicts,
+} from './channels.js'
 import { declarationsFor, emptyTracks, pushTrack, pushTransitions } from './declarations.js'
 import type { AnimationTracks } from './declarations.js'
 import { resolveParams } from './params.js'
@@ -12,6 +17,7 @@ import type { TargetScope } from './target.js'
 import type {
   Activation,
   Channel,
+  EffectPhase,
   EffectSpec,
   EffectVariant,
   NamedActivation,
@@ -65,6 +71,16 @@ export interface Entry {
   target?: string
   /** Which tree {@link target} is searched in. Only meaningful when `target` is set. */
   scope?: TargetScope
+  /**
+   * `animation-composition` for every track this entry compiles, when the composition resolver had
+   * to make it additive to let a same-channel neighbour survive — see {@link resolveComposition}.
+   *
+   * Absent means the CSS initial value, `replace`, which is what every entry compiled before this
+   * existed and what all but the handful of additively-resolved ones still compile to.
+   * `declarations.ts` omits the declaration entirely when no track sets it, the same way it already
+   * omits an all-`normal` `animation-direction`.
+   */
+  composite?: 'add'
 }
 
 /**
@@ -647,6 +663,74 @@ function refusePlayback(entry: Entry, timeline: Timeline, warnings: string[]): E
 }
 
 /**
+ * When one entry holds the channels it claims.
+ *
+ * Three sources, in a fixed order, and the order is the whole design:
+ *
+ * 1. **An authored `repeat:infinite` wins outright.** `repeat` is per effect segment, so
+ *    `data-kui="fade-up repeat:infinite"` turns a finite entrance into an unbounded loop at
+ *    authoring time — the preset's own declaration is describing a name, not this segment. A loop
+ *    never yields its channel back, which is exactly what `idle` means, so the promotion happens
+ *    here rather than leaving the detector to reason about a preset that no longer describes what
+ *    will run. Read *after* `refusePlayback` has had its say (see `compileTargets`'s ordering), so
+ *    a `repeat:infinite` the renderer or timeline refused does not promote anything.
+ * 2. **The preset's own declaration**, which is the source of truth — see {@link EffectPhase}.
+ * 3. **One derived signal, and only one.** `transitions` means the preset's motion is a CSS state
+ *    rule easing between two normal declarations, which is `state` by construction — a transition
+ *    has no clock of its own and emits no animation track, so it cannot be an entrance or a loop.
+ *    That saves the seventeen presets carrying it from needing a declaration at all.
+ *
+ * `cloak` is deliberately **not** a second signal, and that was measured rather than assumed. It
+ * looks like a perfect proxy — it means "begins from a state the visitor must not see", every
+ * entrance in the catalog carries it and no exit does — but the exemption is not really about
+ * *starting* hidden, it is about *ending* released: an entrance may hand its channel back only
+ * because its keyframes name no endpoint, so CSS resolves the missing one against the underlying
+ * value. Fifteen of the fifty-four `cloak: true` presets close their block anyway (`wipe-up`,
+ * `blur-up`, `slat-assemble` and the rest), and eleven of those share a channel with a preset the
+ * derivation calls `state`. Deriving from `cloak` would have composed those eleven into a fill that
+ * pins the property and a hover that silently does nothing — a loud drop traded for a quiet clobber,
+ * which is the one trade this whole change exists to avoid. So an entrance says so itself.
+ *
+ * `undefined` is the honest fourth answer and not a default: an unphased claim collides with
+ * everything, which is how every claim behaved before phases existed.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function phaseOf(entry: Entry): EffectPhase | undefined {
+  if (entry.spec.repeat === 'infinite') return 'idle'
+  const { preset } = entry.resolved
+  if (preset.phase) return preset.phase
+  if (preset.transitions?.length) return 'state'
+  return undefined
+}
+
+/**
+ * Whether this entry's tracks could carry `animation-composition: add` without lying about what
+ * they animate.
+ *
+ * Three conditions, and each of them has already cost someone a debugging session somewhere:
+ *
+ * - **It must render through CSS keyframes.** `animation-composition` is a property of an animation
+ *   track. `lift` has none — its motion is a `:hover` normal declaration plus a transition — so
+ *   there is nothing on it to make additive.
+ * - **It must compile exactly one keyframe block.** A variant naming several (the generic tween)
+ *   splits its channels across them and records nowhere which block writes which, so there is no
+ *   honest way to mark only the additive half.
+ * - **Every channel it claims must be additive.** See `channels.ts`'s `additiveChannels`: one block
+ *   writes all of the preset's channels, so rescuing `fade-up`'s `translate` this way would also
+ *   add its `opacity` to the underlying 1 and delete the fade.
+ *
+ * @complexity O(c) time in the entry's channel count; O(1) space.
+ * @overallScore 100
+ */
+function additivelyComposable(entry: Entry): boolean {
+  if (entry.resolved.primitive.renderer !== 'css-keyframes') return false
+  if (entry.variant?.keyframes) return false
+  return additiveChannels(channelsFor(entry))
+}
+
+/**
  * Decide whether a comma list may compose.
  *
  * Order matters: a purpose-built combo preset beats channel analysis, because `fade-up, blur-in`
@@ -654,27 +738,64 @@ function refusePlayback(entry: Entry, timeline: Timeline, warnings: string[]): E
  * A genuine collision falls back to the first effect rather than emitting a visibly wrong
  * animation, and always warns.
  *
- * Each segment's viewport gate goes to the detector along with its channels: two effects that can
- * never be live at the same width cannot collide, and `fade-up below:md, parallax-y above:md` —
- * the case the gate exists for — shares a channel in every other respect. See `channels.ts`.
+ * Each segment reaches the detector with three facts about it, not one, because "these two write
+ * the same property" is only the first of three questions:
  *
- * @returns The entries to compile — either the original list, a single combo, or a single effect.
+ * - **its channels** — what it writes at all;
+ * - **its viewport gate** — two effects that can never be live at the same width cannot collide,
+ *   and `fade-up below:md, parallax-y above:md` is the case the gate exists for;
+ * - **its {@link phaseOf phase}** — two effects that hold the channel at different times are not
+ *   fighting over it. `fade-up, lift` is that case, and it is the one this whole axis was added
+ *   for: the compiler used to drop `lift` outright and tell the author their hover had been
+ *   removed, for a pair the browser composes correctly on its own.
+ *
+ * A clash that survives all three gets one last chance at `channels.ts`'s `additiveResolution`
+ * before the list is cut down to its first effect.
+ *
+ * @returns The entries to compile — the original list, the same list marked additive, a single
+ *   combo, or a single effect.
  * @complexity O(e * c) time in effects and their channels; O(c) space.
  * @overallScore 100
  */
 function resolveComposition(entries: Entry[], registry: Registry, warnings: string[]): Entry[] {
   if (entries.length <= 1) return entries
 
-  const conflicts = findConflicts(
-    entries.map((e) => ({ name: e.spec.name, channels: channelsFor(e), gate: e.spec.gate })),
-  )
+  const claims = entries.map((e) => ({
+    name: e.spec.name,
+    channels: channelsFor(e),
+    gate: e.spec.gate,
+    phase: phaseOf(e),
+    additive: additivelyComposable(e),
+  }))
+  const conflicts = findConflicts(claims)
   if (conflicts.length === 0) return entries
+
+  const additive = additiveResolution(claims, conflicts)
+  if (additive) return entries.map((e, i) => (additive.has(i) ? { ...e, composite: 'add' } : e))
 
   const combo = registry.findCombo(entries.map((e) => e.spec.name))
   const remedy = combo
     ? `Use the "${combo.preset.name}" effect instead.`
     : 'Apply them to nested elements, or register a combined effect.'
-  warnings.push(`cannot compose: ${describeConflicts(conflicts)}. ${remedy}`)
+  /*
+   * Name what was dropped, not just what clashed.
+   *
+   * The old sentence said two effects both animate a channel and then stopped, which describes the
+   * *diagnosis* and hides the *consequence*: everything after the first entry is discarded on the
+   * next line, so an author who wrote `fade-up, lift` gets a page with no lift and a message that
+   * never uses the word. That is the whole reason this read as "the attribute silently did nothing"
+   * rather than "the library removed an effect" — the removal was the one fact left out.
+   *
+   * Kept inside the existing single-reporter contract deliberately. `animator.ts:222` and
+   * `control.ts:350` both record that every diagnostic goes to one sink and `consoleReporter()`
+   * makes them loud together; a private channel for this one message would be exactly the split
+   * those comments rejected. Whether a *destructive* diagnostic should outrank the silent default
+   * is a separate question about the default itself, not about this call site.
+   */
+  const kept = entries[0]!.spec.name
+  const dropped = entries.slice(1).map((entry) => `"${entry.spec.name}"`)
+  const loss = `Dropped ${dropped.join(', ')} — only "${kept}" will run.`
+  warnings.push(`cannot compose: ${describeConflicts(conflicts)}. ${loss} ${remedy}`)
   return [entries[0]!]
 }
 

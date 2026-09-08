@@ -99,7 +99,7 @@ export function resolveTarget(selector: string, ctx: TargetContext, effect: stri
  * sibling figure.
  *
  * Two values, declared as a list rather than a boolean, so `'parent'` or `'section'` can be added
- * later by extending {@link SCOPE_PARAM}'s `values` — a one-line change with no rename anywhere.
+ * later by extending {@link SCOPE_PARAM}'s `keywords` — a one-line change with no rename anywhere.
  */
 export type TargetScope = 'self' | 'page'
 
@@ -108,7 +108,7 @@ export type TargetScope = 'self' | 'page'
  *
  * Declared once rather than restated per primitive for the same reason `resolveTarget` lives here
  * rather than in each caller: `target:`/`scope:` is one convention across the library, and six
- * copies of a `values` list is six places for it to drift.
+ * copies of a `keywords` list is six places for it to drift.
  *
  * `default: ''` is load-bearing, not a style choice. `readParams` (`core/js-params.ts`) seeds
  * `out[name] = spec.default` for *every* declared parameter before reading authored values, and
@@ -118,10 +118,10 @@ export type TargetScope = 'self' | 'page'
  * `'self'` for the container form), so "unset" has to be spellable — which is exactly why `target`
  * itself is already declared `default: ''` on every primitive that owns the parameter.
  *
- * `type: 'keyword'`, not `'text'`: only `keyword` treats `values` as a *closed set*. On every other
- * type `values` is additive — "extra literals accepted alongside the type's own grammar" — and a
- * `text` param short-circuits to `ok` immediately after the `values` check, so `scope:pgae` would
- * be accepted in silence and then read as unset. The cost is that `--kui-scope` reaches
+ * `type: 'keyword'`, not `'text'`: a `text` param accepts any string that survives the escape
+ * screen, so `scope:pgae` would be accepted in silence and then read as unset. `keyword` is the
+ * type whose `keywords` list is the *whole* grammar, so a typo is named. The cost is that
+ * `--kui-scope` reaches
  * `element.style` when authored, where nothing reads it; an inert custom property is a much smaller
  * price than a typo that fails silently.
  */
@@ -129,7 +129,7 @@ export const SCOPE_PARAM: ParamSpec = {
   type: 'keyword',
   default: '',
   cssProperty: '--kui-scope',
-  values: ['self', 'page'],
+  keywords: ['self', 'page'],
 }
 
 /**

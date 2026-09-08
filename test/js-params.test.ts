@@ -20,7 +20,7 @@ const schema: ParameterSchema = {
     type: 'keyword',
     default: 'false',
     cssProperty: '--kui-spacer',
-    values: ['true', 'false'],
+    keywords: ['true', 'false'],
   },
   target: { type: 'text', default: '', cssProperty: '--kui-target' },
 }

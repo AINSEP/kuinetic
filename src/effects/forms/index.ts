@@ -34,19 +34,62 @@ export const FORMS_PRIMITIVES: Primitive[] = [
 // `target:` relocating just the fx stamp would compile those rules to silence. `focus-ring-grow`,
 // `validate-shake`, `validate-check` and `range-fill` are not on the list — their CSS only ever
 // touches the fx element's own box.
+//
+// Phase (see `EffectPhase`, `core/channels.ts`): nine of these twelve hold their channels only
+// while a native control state is true, which is `state` — the textbook case the value exists for.
+// Nine, not the seven whose primitive is literally named `native-state`, because the fact is "held
+// by a condition the visitor drives, changing only when they act again," and `strength-meter`/
+// `range-fill`/`submit-to-spinner-to-check`/`step-progress`/`carousel` fit that exactly even though
+// their condition is JS-published (an attribute or stage) rather than a browser pseudo-class:
+// - `label-float`, `input-underline-grow`, `checkbox-draw`, `radio-fill`, `toggle-morph` transition
+//   between two normal declarations scoped to `:focus`/`:checked`/`:not(:placeholder-shown)`
+//   (forms.css) — released the instant the visitor blurs/unchecks, same shape as `lift`.
+// - `strength-meter` re-derives `data-kui-strength-level` on every `input` event and forms.css
+//   transitions opacity/background off it — the attribute is the condition, typed keystrokes are
+//   what changes it.
+// - `range-fill` republishes `--kui-fill` on every `input` event the same way; the gradient is
+//   `background`, held at whatever the slider currently reads.
+// - `submit-to-spinner-to-check`/`step-progress`/`carousel` swap children via `data-kui-stage`/
+//   `data-kui-step(-state)`, held at the current stage/index until the next click moves it — the
+//   same "rests at a value until changed again" shape `gestures/index.ts` established for
+//   `draggable`'s rest position, just driven by a click-state-machine instead of a spring.
+//
+// `focus-ring-grow` and `validate-check` are deliberately **not** `entrance` despite looking like
+// one (a CSS-keyframes draw from a start to an end): both keyframe blocks close with an explicit
+// `to` (`box-shadow` at full ring width; `stroke-dashoffset: 0`, forms.css), so — per `EffectPhase`'s
+// own doc and `compile.ts`'s `phaseOf` — they pin the channel via `animation-fill-mode: both`
+// instead of releasing it, and neither is authored with an un-fire (no `focus/blur` pairing, no
+// second click). `test/composition-phase.test.ts` asserts, catalog-wide, that every `phase:
+// 'entrance'` preset's keyframe block has no closing step — declaring either of these `entrance`
+// would fail that invariant, correctly, since it would silently clobber a composed hover rather
+// than the loud drop an unphased claim still produces today. `validate-shake` is the same shape one
+// level plainer: its keyframe returns `translate` to identity and holds it there, a transient pulse
+// with no persisted value at all — the architecture notes name `shake` and `focus-ring` by name as
+// feedback primitives that "match none of the four phases," and that holds at preset granularity
+// too. All three are left unphased on purpose; this is not an oversight.
 export const FORMS_PRESETS: Preset[] = [
-  { name: 'label-float', primitive: 'native-state', requiresOwnSubtree: true },
-  { name: 'input-underline-grow', primitive: 'native-state', requiresOwnSubtree: true },
+  { name: 'label-float', primitive: 'native-state', requiresOwnSubtree: true, phase: 'state' },
+  {
+    name: 'input-underline-grow',
+    primitive: 'native-state',
+    requiresOwnSubtree: true,
+    phase: 'state',
+  },
   { name: 'focus-ring-grow', primitive: 'focus-ring', keyframes: 'kui-focus-ring-grow' },
   { name: 'validate-shake', primitive: 'validate-shake', keyframes: 'kui-validate-shake' },
   { name: 'validate-check', primitive: 'validate-check', keyframes: 'kui-validate-check' },
-  { name: 'strength-meter', primitive: 'strength-meter', requiresOwnSubtree: true },
-  { name: 'toggle-morph', primitive: 'toggle-morph', requiresOwnSubtree: true },
-  { name: 'checkbox-draw', primitive: 'native-state', requiresOwnSubtree: true },
-  { name: 'radio-fill', primitive: 'radio-fill', requiresOwnSubtree: true },
-  { name: 'range-fill', primitive: 'range-fill' },
-  { name: 'submit-to-spinner-to-check', primitive: 'submit-flow', requiresOwnSubtree: true },
-  { name: 'step-progress', primitive: 'step-progress', requiresOwnSubtree: true },
+  { name: 'strength-meter', primitive: 'strength-meter', requiresOwnSubtree: true, phase: 'state' },
+  { name: 'toggle-morph', primitive: 'toggle-morph', requiresOwnSubtree: true, phase: 'state' },
+  { name: 'checkbox-draw', primitive: 'native-state', requiresOwnSubtree: true, phase: 'state' },
+  { name: 'radio-fill', primitive: 'radio-fill', requiresOwnSubtree: true, phase: 'state' },
+  { name: 'range-fill', primitive: 'range-fill', phase: 'state' },
+  {
+    name: 'submit-to-spinner-to-check',
+    primitive: 'submit-flow',
+    requiresOwnSubtree: true,
+    phase: 'state',
+  },
+  { name: 'step-progress', primitive: 'step-progress', requiresOwnSubtree: true, phase: 'state' },
   /*
    * Same primitive, second name — an index that wraps is a progress bar when its steps are
    * segments of a bar and a carousel when they are slides, and the only thing separating those
@@ -77,7 +120,7 @@ export const FORMS_PRESETS: Preset[] = [
    * sit outside it, and `step-progress` — which is what the shipped stepper form is authored as —
    * is untouched.
    */
-  { name: 'carousel', primitive: 'step-progress', params: { scope: 'self' } },
+  { name: 'carousel', primitive: 'step-progress', params: { scope: 'self' }, phase: 'state' },
 ]
 
 /**
