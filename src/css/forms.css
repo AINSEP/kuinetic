@@ -62,10 +62,30 @@
    * drops the grow keyframe (it would only be animating a suppressed property) so the outline shows
    * at its full 3px immediately, matching how `beam-border`'s `prefers-reduced-motion` block above
    * freezes rather than removes.
+   *
+   * Two rules, not one, and the split is the whole point of this block. `animation: none` is
+   * unscoped because the property it animates is suppressed *at all times* under forced-colors, not
+   * only while focused — there is never a moment when running `kui-focus-ring-grow` paints
+   * anything. The `outline` is scoped, because an outline is not suppressed, and an unscoped one
+   * paints a permanent 3px `Highlight` ring on every control carrying this preset whether it holds
+   * focus or not. That is the same WCAG 2.4.7 failure this block exists to fix, inverted: instead of
+   * no focus indicator, every control looks focused and none of them is distinguishable. Reported
+   * by two independent auditors in the 2026-09-08 catalog review.
+   *
+   * `:focus`, not `:focus-visible`, because that is the contract the primitive actually has:
+   * `FOCUS_RING_PRIMITIVE` (`effects/forms/primitives.ts`) declares `defaultActivation: 'focus'`,
+   * and `activation.ts` wires that to `focusin` — which fires for pointer and programmatic focus
+   * too, exactly `:focus`'s own condition. `:focus-visible` would show the forced-colors ring for a
+   * strictly narrower set of focus events than the ring the library draws everywhere else, so the
+   * two indicators would disagree about what counts as focused. It is also this file's existing
+   * convention: `label-float` and `input-underline-grow` above both key off `:focus`.
    */
   @media (forced-colors: active) {
     [data-kui-fx~='focus-ring-grow'] {
       animation: none;
+    }
+
+    [data-kui-fx~='focus-ring-grow']:focus {
       outline: 3px solid Highlight;
       outline-offset: 2px;
     }

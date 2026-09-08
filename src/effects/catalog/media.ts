@@ -121,39 +121,36 @@ export const MEDIA_CSS_PRESETS: Preset[] = [
   { name: 'ken-burns-out', primitive: 'media-ken-burns', keyframes: 'kui-ken-burns-out' },
   { name: 'blur-up', primitive: 'media-blur-up', keyframes: 'kui-blur-up', cloak: true },
   /*
-   * The three `media-filter` hovers below are `phase: 'state'`, not unphased and not `entrance`.
-   * `media-filter` declares `defaultActivation: 'hover'` (above), so each name's keyframe plays on
-   * `:hover`/`:focus-visible` and reverses on leave — a condition the visitor's pointer drives and
-   * un-drives, held at whichever end it currently rests on, exactly the shape `icon-bounce` and
-   * `shine-sweep` (`catalog/interaction.ts`) already declare `state` for. `transitions` does not
-   * apply here and so cannot derive it: these compile through a keyframed `animation:` on the
-   * pseudo-class, not a bare host-rule `transition:` on the fx element, the same distinction
-   * `HOVER_TRANSITIONS`'s own comment (`interaction-shared.ts`) draws between the two hover shapes
-   * that already exist in the catalog. Before this, `blur-in, grayscale-hover` hit the
-   * undeclared-phase wall every other unphased preset did: `blur-in` already carries
-   * `phase: 'entrance'` (`catalog/core.ts`'s `pIn`) and shares `filter` with every one of these
-   * three, so the pairing was refused outright rather than composing the way `fade-up, lift`
-   * (an entrance beside a `state`) already does.
+   * The three `media-filter` hovers below are deliberately **unphased**, and the reason is worth
+   * writing down because they briefly were not.
    *
-   * All three close their keyframe with an explicit `to` (`kui-duotone-hover`, `kui-grayscale-hover`,
-   * `kui-saturate-hover` all end at a resolved value, never an open `from`-only block) — irrelevant
-   * to this phase, unlike `entrance`: `state` makes no claim about a from-only block yielding a
-   * channel back to the cascade, only that the property is held by a condition the visitor changes,
-   * which a two-ended hover keyframe is exactly.
+   * They carried `phase: 'state'` on the argument that a hover is a condition the visitor drives
+   * and un-drives, held at whichever end it currently rests on. That is a true description of
+   * *when* the channel is held, and it is not the question `INDEPENDENT_PHASES` (`core/channels.ts`)
+   * is really asking. The `entrance|state` exemption is sound only when the state half is delivered
+   * as a **transition or a normal declaration** — the cascade *beneath* the entrance, which a
+   * from-only entrance keyframe resolves its missing endpoint against and which shows through the
+   * moment the entrance has played. `media-filter` is `renderer: 'css-keyframes'`, so a `state`
+   * declaration here does not put anything beneath the entrance; it puts a second `@keyframes`
+   * track beside it, on the same element, on the same channel.
+   *
+   * Measured, before this was reverted — `data-kui="blur-in, duotone-hover"` compiled to
+   * `animation-name: kui-blur-in, kui-duotone-hover` with `animation-fill-mode: both, both`, no
+   * `animation-composition`, and **zero warnings**. `@keyframes kui-duotone-hover` is two-ended, so
+   * it is not an underlying value for `kui-blur-in`'s open endpoint to resolve against: it is later
+   * in the list, wins `filter` outright, and `fill-mode: both` clamps its `filter: none` there
+   * permanently. The entrance is deleted and the hover is spent before the pointer ever arrives.
+   * The explicit `to` that the previous note here called "irrelevant to this phase" was in fact the
+   * whole mechanism.
+   *
+   * So `blur-in, grayscale-hover` goes back to being refused loudly, which is the honest answer: a
+   * loud drop the author can see beats a silent clobber they cannot. Reaching the composition again
+   * needs delivery mechanism modelled as its own axis beside `phase` — see `channels.ts`'s
+   * `INDEPENDENT_PHASES`. Found by three of four auditors in the 2026-09-08 catalog review.
    */
-  { name: 'duotone-hover', primitive: 'media-filter', keyframes: 'kui-duotone-hover', phase: 'state' },
-  {
-    name: 'grayscale-hover',
-    primitive: 'media-filter',
-    keyframes: 'kui-grayscale-hover',
-    phase: 'state',
-  },
-  {
-    name: 'saturate-hover',
-    primitive: 'media-filter',
-    keyframes: 'kui-saturate-hover',
-    phase: 'state',
-  },
+  { name: 'duotone-hover', primitive: 'media-filter', keyframes: 'kui-duotone-hover' },
+  { name: 'grayscale-hover', primitive: 'media-filter', keyframes: 'kui-grayscale-hover' },
+  { name: 'saturate-hover', primitive: 'media-filter', keyframes: 'kui-saturate-hover' },
   /*
    * `image-parallax-frame` stays unphased: it is scroll/view-timeline-scrubbed (`media-parallax-frame`
    * declares `timelines: ['view', 'scroll']`), the same precedent `catalog/core.ts`'s `parallax-y`

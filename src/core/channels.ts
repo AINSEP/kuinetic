@@ -63,6 +63,30 @@ export interface Conflict {
  * shows through the moment the entrance has played. Exits are the mirror image — `to`-only, resting
  * at the authored state until they run — so they layer the same way.
  *
+ * **The real precondition is delivery, not timing, and `phase` is only a proxy for it.** Read that
+ * paragraph again and every load-bearing step is about *how* the state half reaches the element:
+ * "the cascade beneath it", "the `:hover` rule `lift` ships". The exemption is sound when the state
+ * half is a **transition or a normal declaration**, and unsound the moment it is a keyframe
+ * animation, which sits beside the entrance rather than beneath it. Two shapes broke on this and
+ * both shipped silently:
+ *
+ * - A `state` preset that compiles its own keyframe track. `blur-in, duotone-hover` emitted
+ *   `animation-name: kui-blur-in, kui-duotone-hover` with `fill-mode: both, both` and no warning;
+ *   `kui-duotone-hover` is two-ended, so it is no underlying value for `kui-blur-in`'s open
+ *   endpoint — it is later in the list, wins `filter`, and clamps it. The entrance was deleted.
+ * - A `state` preset whose motion is a stylesheet `animation:` on the host. A composed entrance
+ *   writes `animation-name` *inline*, which outranks any author rule, so `fade-up, icon-bounce`
+ *   compiled clean and the hover could never run at all.
+ *
+ * The stopgap both cases got is to stop declaring `phase: 'state'` where the state half is a
+ * keyframe — see `catalog/media.ts`'s three `media-filter` hovers and `catalog/interaction.ts`'s
+ * `HOVER_PRESETS`, which now derives phase from `transitions` alone. The real fix is to model
+ * delivery mechanism (host transition, compiler-owned inline animation, stylesheet-owned host
+ * animation, child, pseudo-element) as its own axis beside `phase`, and to gate this exemption on
+ * *that* rather than on timing. Until then this set is exempting a condition it cannot check, and
+ * every new `phase: 'state'` preset has to be checked by hand against the paragraph above.
+ * Found by three of four auditors in the 2026-09-08 catalog review.
+ *
  * Every other pair is a genuine clash and stays one:
  *
  * - `entrance | exit` — both are filling tracks with a real from- or to-state, both live on the

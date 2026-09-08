@@ -204,20 +204,43 @@ export const HOVER_PRIMITIVES: Primitive[] = [
   hoverPrimitive('icon-bounce', ['translate']),
 ]
 
+/*
+ * Phase comes from `transitions` and from nothing else — there is no `phase:` line here any more,
+ * and its absence is the fix.
+ *
+ * It used to read `...(HOVER_TRANSITIONS[primitive.id] ? {} : { phase: 'state' as const })`: the
+ * rows with a transition let `phaseOf` (`core/compile.ts`) derive `state` on its own, and the rows
+ * without one — whose motion is an `@keyframes` block on `:hover`/`:focus-visible` — declared it
+ * here so they were not left unphased. Both halves describe *when* the channel is held, and both
+ * are accurate about that. But `INDEPENDENT_PHASES` (`core/channels.ts`) is not really asking when;
+ * the `entrance|state` exemption is sound only when the state half is delivered as a **transition
+ * or a normal declaration**, so that it sits in the cascade *beneath* the entrance and shows
+ * through once the entrance has played. A keyframe animation does not sit beneath anything.
+ *
+ * For this family the failure is not even a cascade race, it is a rule that can never apply.
+ * `icon-bounce`, `icon-spin`, `icon-wiggle` and `split-flap` deliver their motion as a host-level
+ * `animation:` in an author stylesheet (`css/interaction.css`), while a composed entrance writes
+ * `animation-name` **inline**. Inline style outranks any author rule, so the hover animation never
+ * becomes active at all: `data-kui="fade-up, icon-bounce"` compiled with zero warnings and
+ * `icon-bounce` was silently dead. That is precisely the loud-drop-for-quiet-clobber trade the
+ * phase axis exists to avoid, so those pairs go back to refusing.
+ *
+ * The other four unphased rows — `shine-sweep` and `beam-border` (an `@keyframes` on `::before`
+ * /`::after`, which inline style cannot reach) and `underline-slide`/`underline-center` (a
+ * `transition` on `::after`) — are in fact safe, and they lose the exemption anyway. That is
+ * deliberate: nothing a preset or primitive declares today distinguishes them from the four above,
+ * so any rule that keeps them has to name them, and a hand-maintained exclusion list beside a
+ * derivation is the thing that drifts the first time a hover name is added. Measured, the whole
+ * over-refusal costs 16 composing pairs out of 34,282 — cheaper than the list. Earning them back
+ * properly means modelling delivery mechanism as its own axis beside `phase`; see `channels.ts`'s
+ * `INDEPENDENT_PHASES`.
+ *
+ * Found by three of four auditors in the 2026-09-08 catalog review.
+ */
 export const HOVER_PRESETS: Preset[] = HOVER_PRIMITIVES.map((primitive) => ({
   name: primitive.id,
   primitive: primitive.id,
   ...(HOVER_TRANSITIONS[primitive.id] ? { transitions: HOVER_TRANSITIONS[primitive.id] } : {}),
-  // `phase: 'state'` only for the rows with no `transitions`.
-  //
-  // Not a second list to keep in sync with the one above: `phaseOf` (`core/compile.ts`) already
-  // resolves a preset that declares `transitions` to `state` on its own, so declaring it here too
-  // would be a duplicate that can only ever drift. What it cannot see is a hover name whose motion
-  // is a compiled keyframe rather than a transition — `icon-spin`, `shine-sweep` and the rest paint
-  // `:hover`/`:focus-visible` from an `@keyframes` block, so nothing in the preset says "this is a
-  // response to a state" until it is said here. Deriving it from the absence of `transitions` keeps
-  // the two halves of that answer in one expression instead of two lists.
-  ...(HOVER_TRANSITIONS[primitive.id] ? {} : { phase: 'state' as const }),
 }))
 
 // --- continuous variant: same beam-border visual, always running instead of hover-gated ---

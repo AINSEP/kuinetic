@@ -530,4 +530,7 @@ describe('colour keywords are a closed set, not any run of letters', () => {
     for (const value of ['#e4f222', '#fff', 'rgb(1 2 3)', 'oklch(0.7 0.1 200)', 'color(srgb 1 0 0)'])
       expect(validate(value, tint), value).toMatchObject({ ok: true })
   })
+
+  // The CSS system colours (`Canvas`, `Highlight`, …) are the third group in that set, and they
+  // have their own file — `params-system-colors.test.ts`, because this one is over its line cap.
 })

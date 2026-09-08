@@ -292,6 +292,9 @@ describe('view-swap starts a same-document transition', () => {
     expect(document.getElementById('detail')!.hasAttribute('data-open')).toBe(true)
   })
 
+  // The delayed-swap teardown contract lives in `view-swap-teardown.test.ts`, for the reason
+  // `word-cycler-teardown.test.ts` gives for its own split: this file is at its line cap.
+
   it('passes the authored type when the browser supports transition types', () => {
     stubApi(true)
     const { control } = swapPage()

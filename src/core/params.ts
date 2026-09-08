@@ -124,15 +124,30 @@ const COLOR_FUNCTIONS = /^(?:rgba?|hsla?|okl(?:ch|ab)|l(?:ch|ab)|color)\([^()]*\
  * stale or wrong colour instead. A validator whose whole job is checking authored values should not
  * be the thing that waves those through.
  *
- * A `Set` rather than a regex alternation: `has()` is one lookup against 149 entries instead of a
- * backtracking match, and the list reads as data. `transparent` and `currentcolor` lead because
- * they are the two that are *not* named colours but are accepted everywhere one is.
+ * A `Set` rather than a regex alternation: `has()` is one lookup instead of a backtracking match,
+ * and the list reads as data. `transparent` and `currentcolor` lead because they are the two that
+ * are *not* named colours but are accepted everywhere one is.
+ *
+ * The system colours are a third group and they are not decoration. The old regex accepted them by
+ * accident — they are runs of letters — and closing the set to named colours alone silently took
+ * them away, so `glass tint:Canvas` and `proximity-glow color:Highlight` started warning and
+ * falling back to their defaults. That is a live regression rather than a theoretical one: these
+ * are the only colours that mean anything under `forced-colors: active`, and this library's own
+ * `forms.css` reaches for `Highlight` in exactly that block. The list is CSS Color 4's `<system-color>`
+ * production in full; the deprecated CSS2 names (`ButtonShadow`, `InfoBackground` and the rest) are
+ * left out on purpose — they are no longer in the spec, and a validator that accepts them is back
+ * to guessing. Reported in the 2026-09-08 catalog review.
  *
  * Deliberately not `CSS.supports('color', value)`, which would be authoritative and free: this
  * module is imported by tests running under node, where `CSS` does not exist, and a validator that
  * silently accepts everything in one environment and validates in another is worse than either.
  */
 const COLOR_KEYWORDS = new Set([
+  // Lowercase throughout, matching how the only reader spells the lookup: `value.toLowerCase()`.
+  // CSS keywords are ASCII case-insensitive, so `Canvas`, `canvas` and `CANVAS` are one value.
+  'accentcolor', 'accentcolortext', 'activetext', 'buttonborder', 'buttonface', 'buttontext',
+  'canvas', 'canvastext', 'field', 'fieldtext', 'graytext', 'highlight', 'highlighttext',
+  'linktext', 'mark', 'marktext', 'selecteditem', 'selecteditemtext', 'visitedtext',
   'transparent', 'currentcolor', 'aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige',
   'bisque', 'black', 'blanchedalmond', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue',
   'chartreuse', 'chocolate', 'coral', 'cornflowerblue', 'cornsilk', 'crimson', 'cyan', 'darkblue',

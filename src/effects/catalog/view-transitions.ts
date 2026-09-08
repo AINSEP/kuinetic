@@ -408,15 +408,43 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
     if (el.hasAttribute('aria-expanded')) el.setAttribute('aria-expanded', String(!open))
   }
 
+  /*
+   * A set of live handles, not a discarded return value and not a single one — the shape
+   * `word-cycler` (`catalog/text.ts`) settled on, for the same two reasons.
+   *
+   * `ctx.signal` removes the click listener on teardown but cannot cancel a timer already in
+   * flight, so a control torn down inside its own `delay:` window still fired its swap and wrote
+   * an attribute onto a target this effect no longer owned — the same "looked torn down, and then
+   * silently wasn't" defect word-cycler's own comment describes. And `delay:` is author-controlled
+   * with nothing stopping a second click landing inside the first one's window, so remembering
+   * only the latest handle would leak the earlier one, while clearing the previous handle on each
+   * click would be worse than the defect: every swap but the last would be cancelled before it
+   * could run. Each swap drops itself once it fires, so the set holds only what is really queued.
+   *
+   * Found by two independent auditors in the 2026-09-08 catalog review.
+   */
+  const pendingSwaps = new Set<number>()
+
   const onClick = (): void => {
-    if (delay > 0) ctx.win.setTimeout(() => runSwap(flip, type, ctx), delay)
-    else runSwap(flip, type, ctx)
+    if (delay <= 0) {
+      runSwap(flip, type, ctx)
+      return
+    }
+    const handle = ctx.win.setTimeout(() => {
+      pendingSwaps.delete(handle)
+      runSwap(flip, type, ctx)
+    }, delay)
+    pendingSwaps.add(handle)
   }
 
   // `ctx.signal` is aborted on teardown, so the listener needs no explicit removal — the same
-  // route `PrepareContext` documents for exactly this.
+  // route `PrepareContext` documents for exactly this. The queued swaps above are the one thing it
+  // does not reach, so the returned `Cleanup` clears them by hand.
   el.addEventListener('click', onClick, { signal: ctx.signal })
-  return () => {}
+  return () => {
+    for (const handle of pendingSwaps) ctx.win.clearTimeout(handle)
+    pendingSwaps.clear()
+  }
 }
 
 /*

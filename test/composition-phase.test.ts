@@ -34,7 +34,8 @@ const registry = catalogRegistry()
  * The list is the specification, not a fixture: `expectations` below asserts the catalog actually
  * declares each of these, so a row deleted from `src/effects/` fails here instead of quietly
  * reverting a pair to the drop-and-warn path. Only {@link OUTSTANDING} is applied by hand, and only
- * because those four files were held by other agents when this landed.
+ * because those files were held by other agents when this landed. {@link KEYFRAME_DELIVERED_STATES}
+ * is the opposite list: names that must stay unphased, and why.
  *
  * `entrance` deliberately excludes the fifteen `cloak: true` presets whose keyframes close with an
  * explicit `to` (`wipe-*`, `blur-up`, `slat-assemble`, `card-flip-*`, `chart-bar-grow`,
@@ -65,23 +66,52 @@ const DECLARATIONS: Record<EffectPhase, string[]> = {
     'line-grid-drift', 'marquee', 'orbit', 'progress-indeterminate', 'scanline', 'skeleton-shimmer',
     'spinner', 'spinner-dots', 'spinner-ring', 'spotlight-follow', 'starfield', 'wave-blob',
   ],
-  // Hover- and toggle-driven names that ship a `:hover`/`:focus-visible` rule but no `transitions`,
-  // so the derivation cannot see them.
-  state: [
-    'beam-border', 'flip-card', 'group-dim', 'hamburger-to-x', 'icon-bounce', 'icon-spin',
-    'icon-wiggle', 'play-to-pause', 'shine-sweep', 'split-flap', 'underline-center',
-    'underline-slide',
-  ],
+  // Toggle-driven names that hold a channel through a normal declaration until the next click.
+  //
+  // The eight `HOVER_PRESETS` names that used to sit here — `beam-border`, `icon-bounce`,
+  // `icon-spin`, `icon-wiggle`, `shine-sweep`, `split-flap`, `underline-center`,
+  // `underline-slide` — are gone, and {@link KEYFRAME_DELIVERED_STATES} below is where they went.
+  state: ['flip-card', 'group-dim', 'hamburger-to-x', 'play-to-pause'],
 }
+
+/**
+ * Hover names deliberately left unphased, even though "state" describes their timing perfectly.
+ *
+ * These eight ship a `:hover`/`:focus-visible` rule and no `transitions`, and for one commit
+ * `HOVER_PRESETS` (`catalog/interaction.ts`) declared `phase: 'state'` on exactly that basis. The
+ * 2026-09-08 catalog review found the basis was the wrong one. `INDEPENDENT_PHASES`
+ * (`core/channels.ts`) reads as a rule about *when* a channel is held, but every load-bearing step
+ * of its argument is about *how* the state half is delivered: it must be a transition or a normal
+ * declaration, so that it sits in the cascade beneath the entrance. All eight deliver theirs as a
+ * keyframe animation instead.
+ *
+ * Four of them are actively broken by the exemption — `icon-bounce`, `icon-spin`, `icon-wiggle` and
+ * `split-flap` put their `animation:` on the host element, and a composed entrance writes
+ * `animation-name` *inline*, which outranks any author stylesheet. `fade-up, icon-bounce` compiled
+ * with zero warnings and `icon-bounce` was silently dead.
+ *
+ * The other four are safe in fact — `shine-sweep`/`beam-border` animate a pseudo-element that inline
+ * style cannot reach, `underline-slide`/`underline-center` use a `transition` on `::after` — and are
+ * unphased anyway, because nothing a preset declares distinguishes them from the four above, and a
+ * hand-kept exception list beside a derivation is the thing that drifts. Measured cost of taking all
+ * eight: 16 composing pairs out of 34,282.
+ */
+const KEYFRAME_DELIVERED_STATES = [
+  'beam-border', 'icon-bounce', 'icon-spin', 'icon-wiggle', 'shine-sweep', 'split-flap',
+  'underline-center', 'underline-slide',
+]
 
 /**
  * The declarations that are not in `src/effects/` yet, applied here for the length of the file.
  *
- * `catalog/text.ts`, `catalog/feedback.ts` and `catalog/interaction.ts` were being rewritten by
- * other agents when the rest of the migration landed, so these fifteen rows are still to be
- * written. They are applied rather than dropped so the behaviour they unlock is under test now, and
- * `expectations` deliberately skips them — the day they land, deleting a name from here changes
- * nothing except which of the two lists is doing the work.
+ * `catalog/text.ts` and `catalog/feedback.ts` were being rewritten by other agents when the rest of
+ * the migration landed, so these seven `idle` rows are still to be written. They are applied rather
+ * than dropped so the behaviour they unlock is under test now, and `expectations` deliberately
+ * skips them — the day they land, deleting a name from here changes nothing except which of the two
+ * lists is doing the work.
+ *
+ * The eight `catalog/interaction.ts` rows that used to sit here are not pending any more; they are
+ * decided against. See {@link KEYFRAME_DELIVERED_STATES}.
  */
 const OUTSTANDING: Record<string, EffectPhase> = {
   marquee: 'idle',
@@ -91,14 +121,6 @@ const OUTSTANDING: Record<string, EffectPhase> = {
   spinner: 'idle',
   'spinner-dots': 'idle',
   'spinner-ring': 'idle',
-  'beam-border': 'state',
-  'icon-bounce': 'state',
-  'icon-spin': 'state',
-  'icon-wiggle': 'state',
-  'shine-sweep': 'state',
-  'split-flap': 'state',
-  'underline-center': 'state',
-  'underline-slide': 'state',
 }
 
 /**
@@ -141,6 +163,21 @@ describe('the catalog declares the phases this change specified', () => {
     ]
     const declared = excluded.filter((name) => presetNamed(name).phase !== undefined)
     expect(declared).toEqual([])
+  })
+
+  it('leaves every keyframe-delivered hover state unphased', () => {
+    // See KEYFRAME_DELIVERED_STATES. Asserted here rather than left implicit because the phase was
+    // declared on all eight once already, on an argument that reads as correct — "a hover is a
+    // state" — and the only thing standing between the catalog and doing it again is this row.
+    const declared = KEYFRAME_DELIVERED_STATES.filter((name) => presetNamed(name).phase !== undefined)
+    expect(declared).toEqual([])
+  })
+
+  it('derives no phase for them through Preset.transitions either', () => {
+    // The other half: `phaseOf` resolves any preset carrying `transitions` to `state`, so an
+    // absent `phase` is only enough while these eight also carry no transition list.
+    const derived = KEYFRAME_DELIVERED_STATES.filter((name) => presetNamed(name).transitions?.length)
+    expect(derived).toEqual([])
   })
 })
 
@@ -194,11 +231,6 @@ const COMPOSES: { attribute: string; channel: string; why: string }[] = [
     why: 'an exit is the mirror image and layers the same way',
   },
   {
-    attribute: 'fade-up, icon-bounce',
-    channel: 'translate',
-    why: 'a declared state, not one derived from `transitions`',
-  },
-  {
     attribute: 'fade-up distance:40px 800ms expo-out, lift-shadow 600ms',
     channel: 'translate',
     why: 'the knobs a real page carries do not change the phase of either half',
@@ -245,7 +277,11 @@ const REFUSES: { attribute: string; why: string }[] = [
   },
   {
     attribute: 'lift, icon-bounce',
-    why: 'two states are two normal declarations for one property, resolved by source order',
+    why: 'a transition-delivered state beside a keyframe-delivered one, which is not exempted',
+  },
+  {
+    attribute: 'fade-up, icon-bounce',
+    why: 'icon-bounce delivers its state as a host animation, which no entrance can layer over',
   },
   {
     attribute: 'parallax-y, parallax-y',

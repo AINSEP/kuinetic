@@ -6,11 +6,17 @@
 // unknown — the same shape `catalog-gestures-phase.test.ts` and `catalog-phase-materials.test.ts`
 // already document for their own families.
 //
-// `duotone-hover`/`grayscale-hover`/`saturate-hover` are hover-toggled `media-filter` presets that
-// share the `filter` channel with `blur-in`'s entrance; `menu-stagger-open`/`dropdown-open`/
-// `mega-menu-drop`/`drawer-slide` are from-only navigation reveals that share `translate` with
-// `lift`'s hover state. Both pairs used to be refused outright with no warning that a real entrance
-// or hover had quietly lost its neighbour.
+// `menu-stagger-open`/`dropdown-open`/`mega-menu-drop`/`drawer-slide` are from-only navigation
+// reveals that share `translate` with `lift`'s hover state. That pair used to be refused outright
+// with no warning that a real entrance or hover had quietly lost its neighbour, and declaring the
+// phase fixed it.
+//
+// `duotone-hover`/`grayscale-hover`/`saturate-hover` share the `filter` channel with `blur-in`'s
+// entrance and were given the same treatment in the same change — and that half was wrong, so this
+// file now proves the opposite for them. The difference is *delivery*: `lift`'s hover is a
+// transition, which is an underlying value a from-only entrance resolves against; a `media-filter`
+// hover is a second keyframe track, which is not. See `channels.ts`'s `INDEPENDENT_PHASES` for the
+// full rule and the 2026-09-08 catalog review for how it was found.
 //
 // `menu-fullscreen` stays unphased on purpose — its keyframe closes with an explicit `to`, the same
 // closed shape the ten `cloak: true` presets `composition-phase.test.ts` already excludes from
@@ -47,17 +53,30 @@ function plan(attribute: string) {
 const MEDIA_HOVER_NAMES = ['duotone-hover', 'grayscale-hover', 'saturate-hover']
 const NAV_ENTRANCE_NAMES = ['menu-stagger-open', 'dropdown-open', 'mega-menu-drop', 'drawer-slide']
 
-describe('media.ts: the three hover filters declare phase: state', () => {
-  it.each(MEDIA_HOVER_NAMES)('declares phase: state on %s', (name) => {
-    expect(resolvedPreset(name).phase).toBe('state')
+describe('media.ts: the three hover filters are unphased, because their state is a keyframe', () => {
+  // These three carried `phase: 'state'` for one commit and this block asserted it. Both the
+  // declaration and the assertion have been reverted, and the reason is not that the phase was the
+  // wrong *name* for when the channel is held — "held while the pointer is on it" is an accurate
+  // description of a hover filter. It is that `INDEPENDENT_PHASES` (`core/channels.ts`) is not
+  // really gating on timing. Its exemption is sound only when the state half is delivered as a
+  // transition or a normal declaration, so that it sits in the cascade *beneath* the entrance and
+  // shows through once the entrance has played. `media-filter` is `renderer: 'css-keyframes'`, so
+  // the "state" here is a second `@keyframes` track *beside* the entrance on the same channel:
+  // `blur-in, duotone-hover` compiled to `animation-name: kui-blur-in, kui-duotone-hover` with
+  // `fill-mode: both, both` and no warning, and because `kui-duotone-hover` is two-ended it won
+  // `filter` outright and clamped it. See the block comment above the three presets in `media.ts`.
+  it.each(MEDIA_HOVER_NAMES)('leaves %s unphased', (name) => {
+    expect(resolvedPreset(name).phase).toBeUndefined()
   })
 
-  it('declares phase directly rather than through Preset.transitions', () => {
-    // `phaseOf` already derives `'state'` from a preset's `transitions` field, so a preset carrying
-    // both would be duplicate data that can only drift from the field it was derived from. These
-    // three compile through a keyframed `animation:` on `:hover`/`:focus-visible`
-    // (`media-filter`'s `defaultActivation: 'hover'`), not a bare host-rule `transition:`, so none
-    // has a `transitions` list to derive from in the first place.
+  it('has no Preset.transitions to derive a phase from either', () => {
+    // The other half of the same guarantee. `phaseOf` derives `'state'` from a preset's
+    // `transitions` field, so leaving `phase` off is only enough while these three also carry no
+    // transition list — and they carry none, because they compile through a keyframed `animation:`
+    // on `:hover`/`:focus-visible` (`media-filter`'s `defaultActivation: 'hover'`) rather than a
+    // bare host-rule `transition:`. If one ever gains a real host transition, deriving `state` from
+    // it would be correct, and this assertion is what will fail first and force that to be thought
+    // about rather than inherited.
     for (const name of MEDIA_HOVER_NAMES) expect(resolvedPreset(name).transitions, name).toBeUndefined()
   })
 
@@ -108,21 +127,33 @@ describe('navigation/index.ts: the four from-only reveals declare phase: entranc
   })
 })
 
-describe('an entrance now composes with a hover state on the same channel', () => {
+describe('an entrance still refuses a keyframe-delivered hover on the same channel', () => {
+  // The inverse of the block below, and the distinction between the two is the whole lesson of the
+  // 2026-09-08 catalog review. `lift` earns the exemption because its hover is a *transition* — a
+  // real underlying value for `menu-stagger-open`'s open endpoint to resolve against. These three
+  // do not, because a `media-filter` hover is another keyframe track: it lands beside the entrance
+  // in `animation-name`, wins the channel on source order, and `fill-mode: both` clamps it there.
+  //
+  // Refusing is the honest outcome, not a lesser one. The author sees a warning naming both effects
+  // and can nest them; the composing version silently deleted the entrance and spent the hover
+  // before the pointer arrived. Both orders, for the reason the block below gives.
+  it.each([
+    ['blur-in, grayscale-hover', ['blur-in']],
+    ['grayscale-hover, blur-in', ['grayscale-hover']],
+    ['blur-in, duotone-hover', ['blur-in']],
+    ['blur-in, saturate-hover', ['blur-in']],
+  ])('%s refuses, keeping only the first effect', (attribute, expectedFx) => {
+    const result = plan(attribute)
+    expect(result.refused, attribute).toHaveLength(1)
+    expect(result.refused[0], attribute).toContain('both animate filter')
+    expect(result.fx, attribute).toEqual(expectedFx)
+  })
+})
+
+describe('an entrance composes with a transition-delivered hover state on the same channel', () => {
   // Both orders, for the reason `composition-phase.test.ts`'s own `COMPOSES` table checks both
   // orders of `fade-up, lift`: authoring order decided which effect the old undeclared-phase code
   // kept, and a table frozen around one spelling would miss a rule that only works left-to-right.
-  it.each([
-    ['blur-in, grayscale-hover', ['blur-in', 'grayscale-hover']],
-    ['grayscale-hover, blur-in', ['grayscale-hover', 'blur-in']],
-    ['blur-in, duotone-hover', ['blur-in', 'duotone-hover']],
-    ['blur-in, saturate-hover', ['blur-in', 'saturate-hover']],
-  ])('%s composes both effects with no "cannot compose" warning', (attribute, expectedFx) => {
-    const result = plan(attribute)
-    expect(result.refused, attribute).toEqual([])
-    expect(result.fx, attribute).toEqual(expectedFx)
-  })
-
   it.each([
     ['menu-stagger-open, lift', ['menu-stagger-open', 'lift']],
     ['lift, menu-stagger-open', ['lift', 'menu-stagger-open']],
