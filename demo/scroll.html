@@ -768,14 +768,24 @@
     min-height: var(--kui-pin-room); box-sizing: border-box;
     display: grid; grid-template-columns: 1fr;
     align-content: center; align-items: center; gap: 2rem;
-    /* Was 6.5rem on top to clear the sticky pill header, and for a while this comment claimed the
-       header hid itself on the way down so there was nothing to clear. It does not. `.site-header`
-       is unconditionally `position: sticky` and renders at exactly top:16/bottom:72 at every scroll
-       position on this page — measured at five of them. The library does ship a
-       `header-hide-on-scroll` preset, but this page's header (`:1208`) does not use it; only
-       `nav-forms.html:385` does. The padding is symmetric for a better reason than the false one:
-       `offset-top` already pins this card at 88px, below the header's 72px bottom edge, so the
-       header is cleared by the offset and the padding is free to just centre the composition. */
+    /* Was 6.5rem on top to clear the sticky pill header. This comment has now been wrong about
+       that header twice in opposite directions: first it claimed the header hid itself on the way
+       down so there was nothing to clear, then the correction claimed it never hides — that
+       `.site-header` is unconditionally `position: sticky` at top:16/bottom:72 (measured at five
+       scroll positions), that this page did not use the `header-hide-on-scroll` preset, and that
+       only `nav-forms.html` did. Both are stale. Every header in the demo set now carries the
+       preset, this page's included (`:1421`), so it does hide on the way down; and
+       `nav-forms.html`'s two appearances of it are its own site header (`:228`) and the
+       standalone mini-header demo (`:337`), neither of which was the line this comment named.
+
+       None of which changes the padding, and that is the point of writing it down: the reason the
+       padding is symmetric never depended on the header's behaviour. `pin-section`'s `offset-top`
+       defaults to `--kui-pin-offset` — 88px, `system.css:65` — so this card is pinned 88px down
+       the scrollport, below the header's 72px bottom edge, for the whole 200vh hold. The header
+       is cleared by the offset whether it is sitting there or translated away, which leaves the
+       padding no clearance job at all and frees it to just centre the composition. If
+       `--kui-pin-offset` ever changes, re-check the clearance here. If the header's hide
+       behaviour changes again, do not — it is not what this number is for. */
     padding: 3.5rem clamp(1.25rem, 3vw, 2.5rem) 3.5rem;
   }
   /* 3.5rem top and bottom is 112px of the room, and on a phone the room is all there is. At
@@ -1418,7 +1428,7 @@
     </svg>
   </div>
 
-  <header class="site-header" data-od-id="header" data-nav-root>
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
@@ -1447,7 +1457,7 @@
 
       <!-- HERO -->
       <section class="demo-hero" data-od-id="hero">
-        <p class="kicker" data-kui="fade-up 700ms">CSS Animations · Scroll</p>
+        <p class="kicker" data-kui="split-chars stagger:60ms on:load">CSS Animations · Scroll</p>
         <h1 data-kui="fade-up 700ms">Scroll owns the timeline.</h1>
 
         <!-- Two videos, one slot. `flip-card` is the library's stateful two-sided card — not

@@ -60,6 +60,14 @@
      channel and a data-kui-dragging flag, cursor/touch-action is always the page's job. */
   .section-head [data-kui='rubber-band'] { touch-action: none; cursor: grab; }
   .section-head [data-kui='rubber-band'][data-kui-dragging='true'] { cursor: grabbing; }
+  /* The heading's drag lives on an inner <span>, not the <h2> itself: the <h2> already carries
+     `fade-up on:enter`, and the drag family declares no `phase`, so the compiler's channel-conflict
+     detector (both claim `translate`) treats the pair as unphased-collides-with-everything and cuts
+     the list down to the first effect, silently dropping the second rather than composing. Two
+     elements sidestep that — same fix as the drag wrapping the paragraph below. A bare span is
+     display:inline, and `translate` does not apply to non-replaced inline boxes, so it would carry
+     the effect but never visibly move without this. */
+  .section-head h2 [data-kui='rubber-band'] { display: inline-block; }
 
   /* ---------- matrix groups ---------- */
   .matrix-group { margin-top: 2.5rem; }
@@ -270,7 +278,7 @@
 </head>
 <body>
 
-  <header class="site-header" data-od-id="header" data-nav-root>
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="./index.html" class="logo" aria-label="kUInetic home">
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
@@ -300,7 +308,7 @@
       <!-- HERO -->
       <section class="demo-hero" data-od-id="hero">
         <div class="hero-copy">
-          <p class="kicker">CSS Animations · Interactive</p>
+          <p class="kicker" data-kui="split-chars stagger:60ms on:load">CSS Animations · Interactive</p>
           <h1 data-kui="fade-up 700ms">Gestures and layout.</h1>
           <!-- split-text (and scramble, tried first) both replace this element's children with a
                plain-text decorative layer while they run (text-shared.ts's installSplitLayers) —
@@ -326,16 +334,7 @@
       <!-- GESTURES & PHYSICS -->
       <section id="gestures" data-od-id="gestures">
         <div class="section-head">
-          <h2 data-kui="fade-up on:enter">Gestures &amp; physics</h2>
-          <div data-kui="rubber-band">
-            <p data-kui="split-lines 650ms">
-              Thirteen preset names over four primitives — <code>draggable</code>, <code>swipeable</code>,
-              <code>pressable</code>, <code>magnetic</code> — sitting outside the lettered A–O catalog
-              sections. The drag family differs only in what happens on release: nothing (<code>drag</code>),
-              back to origin with varying spring stiffness (<code>elastic-pull</code>, <code>rubber-band</code>,
-              <code>snap-back</code>), or onward with momentum (<code>drag-inertia</code>, <code>throwable</code>).
-            </p>
-          </div>
+          <h2 data-kui="fade-up on:enter"><span data-kui="rubber-band">Gestures &amp; physics</span></h2>
         </div>
 
         <div class="matrix-group">
@@ -510,13 +509,6 @@
       <section id="layout" data-od-id="layout">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Layout &amp; FLIP</h2>
-          <p data-kui="blur-in">
-            Nine preset names, one technique: the library measures each child's box before a DOM
-            change, measures again after, and animates only the delta. Filtering is a class or
-            <code>hidden</code> change on the children — a layout change isn't expressible as
-            keyframes. These animate elements <em>you</em> control; <code>accordion-height</code>
-            animates height only, it doesn't own <code>aria-expanded</code> or keyboard handling.
-          </p>
         </div>
 
         <div class="matrix-group">

@@ -15,7 +15,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic CSS3 Animations</title>
-<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 268 named effects from 33 primitives. JavaScript only for the handful of effects that genuinely need it." />
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 290 named effects from 33 primitives. JavaScript only for the handful of effects that genuinely need it." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -36,6 +36,22 @@
 <link rel="stylesheet" href="./kuinetic.css" />
 <script defer src="./nav.js"></script>
 <style>
+  /* Restated here, not inherited: this page does not load `system.css` (same note as the show-code
+     chip below). The library's own `[data-kui-fx~='header-hide-on-scroll'][data-kui-hidden='true']`
+     in `navigation.css` parks the pill at `translate: 0 -100%`, which is exactly its own height —
+     and this header is a floating pill at `top: 1rem`, so -100% leaves its last 16px plus its
+     shadow on screen. Same specificity as the library's rule, and this block is after the
+     stylesheet link, so this is the one that lands. Same channel (`translate`), so the 220ms
+     ease-out the preset already declared is the transition that runs. */
+  .site-header[data-kui-hidden='true'] { translate: 0 calc(-100% - 1.5rem); }
+
+  /* ...except while the mobile menu is open. The panel and its backdrop are children of this pill,
+     so hiding it would drag an open menu off the top of the screen — and `translate` makes the pill
+     the containing block for the `position: fixed` backdrop, collapsing a full-viewport scrim into
+     a 58px pill on the way out. `nav.js` keeps `aria-expanded` on the hamburger as the single
+     open/closed fact, so that is what this reads. */
+  .site-header:has([data-nav-hamburger][aria-expanded='true'])[data-kui-hidden='true'] { translate: none; }
+
   :root,
   :root[data-theme='light'] {
     --bg: #ffffff;
@@ -183,12 +199,24 @@
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------- header / nav ---------- */
+  /* Not theme-scoped like the colour tokens up top — this is a layout constant, and the video hero
+     at the top of the page reads it to pull itself up under the pill by exactly the pill's flow
+     box. Declared here, next to the rule that consumes it. */
+  :root { --site-header-h: 3.625rem; }
   .site-header {
     position: sticky;
     top: 1rem;
     z-index: 100;
     margin: 1rem auto 0;
     max-width: fit-content;
+    /* Pinned, not left to the content. The video hero below has to pull itself up by exactly this
+       pill's flow box (`1rem` of margin plus this height) to sit full-bleed underneath it, and a
+       height that drifts with the content is a number that section can only guess at — which it
+       did, twice, at `3.4rem` and then `4.5rem`, each guess trading a sliver of page background
+       above the clip for one below it. `border-box`, so this is the whole pill including its
+       padding and border; the tallest child is the 40px CTA, so there is 18px of room in here.
+       Keep `--site-header-h` and this height in step if anything taller ever goes in the pill. */
+    height: var(--site-header-h);
     display: flex;
     align-items: center;
     gap: 1.75rem;
@@ -386,11 +414,353 @@
        ends. */
     padding-top: clamp(6.25rem, 5vw + 4.25rem, 8.25rem);
     padding-bottom: clamp(3.5rem, 5vw, 5.5rem);
-    /* Pulled up under the floating header so the stage starts at the very top of the document
-       rather than below a white strip the header is sitting on. */
-    margin-top: calc(-1 * (1rem + 3.4rem));
+    /* No negative margin here any more. This used to pull the stage up under the floating header
+       — right when this was the first thing in `<main>`, directly below `</header>`. Now the video
+       hero carousel is first and already does that same pull-up for itself (see `.video-hero`'s
+       own margin-top); this section just follows it in normal flow. Restoring this rule would pull
+       the stage up *again*, overlapping it into the bottom of the video above — which is exactly
+       the "white band under the video" bug this replaced: `.hero-stage` paints an opaque
+       `--s-bg`, so that overlap showed as blank page colour eating the last ~70px of the clip. */
   }
   .hero-inner { position: relative; z-index: 1; }
+
+  /* ---------- VIDEO HERO — full-bleed clip carousel at the very top of the page ---------- */
+  /* Sits above `.hero-stage` and borrows its "pulled up under the floating header" trick (same
+     negative margin-top) so this is the first thing painted, edge to edge, under the sticky nav
+     pill rather than below a gap it's floating over. `100svh`, not `100vh`: on mobile Safari the
+     large-viewport value counts the address bar as present, so the section doesn't jump taller
+     once the chrome collapses on scroll. The section itself has no padding/centring of its own —
+     every slide is absolutely positioned inside it (see `.video-hero-slide`), so it only needs to
+     hold the stack's shape and clip it at the edges. */
+  .video-hero {
+    position: relative;
+    overflow: clip;
+    min-height: 100svh;
+    /* Exactly the floating header's flow box: its `1rem` top margin plus its now-pinned height.
+       Not a guess, and not an overshoot. An overshoot lifts this section's top edge above the
+       viewport, and a `100svh` box whose top starts above the viewport necessarily ends the same
+       distance short of the viewport floor — that shortfall is what painted `.hero-stage`'s opaque
+       white as a thin band along the bottom of the first screen. Paying for it with extra height
+       instead is not a fix either: every slide is `inset: 0`, so a taller section pushes the
+       caption, dots and "Show code" chip below the fold with it. Exact is the only value that
+       leaves the clip flush at both ends. */
+    margin-top: calc(-1 * (1rem + var(--site-header-h)));
+    color: #ffffff;
+    /* The one line that makes `swipe-x` safe here. The gesture recogniser watches raw pointer
+       events, so on a touchscreen the browser decides first whether a drag is a page scroll or the
+       page's own gesture — and this hero is a full `100svh` box at the very top, i.e. the entire
+       first screen someone has to scroll past. `touch-action: none` (what three other demo pages
+       hand-write for their drag arenas) would swallow that scroll and strand a phone visitor on the
+       hero. `pan-y` keeps vertical scrolling native and hands only the horizontal axis to the page;
+       `pinch-zoom` keeps the zoom gesture, which `pan-y` alone would also take away. */
+    touch-action: pan-y pinch-zoom;
+  }
+  /* One per clip, all stacked in the same box. `video-hero.js` toggles `.is-active`; the rest is a
+     plain opacity cross-fade so a slide switch never has to wait on the next clip's first frame —
+     both `bg` layers autoplay unconditionally (`autoplay:always`) the moment the page loads. Every
+     slide's own content is just its `.video-hero-caption` and "Show code" chip, both absolutely
+     positioned corners — no centred content block, so the slide itself carries no padding or
+     alignment of its own. */
+  .video-hero-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 600ms ease;
+  }
+  .video-hero-slide.is-active { opacity: 1; pointer-events: auto; z-index: 1; }
+
+  /* Bottom-centre, not corner-anchored — the one piece of the carousel meant to be read as a
+     caption rather than a control, so it gets the middle of the stage to itself. `--accent`, not
+     `--accent-text`: the two are the same bright #e4f222 in both themes (see this page's own
+     `:root` token comment), and `--accent` is the honest name for "brand yellow as a deliberate
+     accent" here — the owner's call, on a busy video backdrop rather than the flat paper/near-black
+     surface `--accent-text` was tuned to sit on. */
+  .video-hero-caption {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(1.25rem, 4vw, 2.5rem);
+    transform: translateX(-50%);
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(1.25rem, 1.4vw + 1rem, 1.75rem);
+    /* The body's inherited `1.5` line-height reserves a lot of leading above and below a single
+       short line — harmless on its own, but it put this caption's visual centre several px above
+       the chip/dots row it shares a `bottom` value with, even though all three anchor to the same
+       line. `1` collapses the box down to roughly the glyphs' own height, which is what actually
+       lines a one-line label up with a chip or a dot instead of the space around it. */
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    white-space: nowrap;
+    z-index: 1;
+  }
+
+  /* The right-edge vertical credit rail. Turned by the library — `rotate-static angle:90deg` on
+     each of the three `<p>`s — rather than by `writing-mode: vertical-rl`, which is what
+     `.hero-media-eyebrow` further down still uses for its own right-edge label. The two look the
+     same on Latin text (`vertical-rl` defaults to `text-orientation: mixed`, which lays a Latin run
+     on its side rather than stacking upright glyphs), but they do very different things to the box:
+     `writing-mode` makes the box itself tall and narrow, where `rotate` turns only the paint and
+     leaves a box that is still as wide as the credit string is long. So the offsets below cannot be
+     the old `right: clamp(...); transform: translateY(-50%)` — that positioned a box the same shape
+     as its paint, and against a wide box it threw the rendered text out past the right edge, where
+     `.video-hero`'s `overflow: clip` ate it.
+
+     What the offsets do instead: `rotate` spins about the box centre, so the rendered strip is
+     always centred on that point whatever the string's length. Park the box at `right: 0; top: 50%`
+     and move its centre to where the strip belongs, using the `translate` PROPERTY — which CSS
+     applies before `rotate`, so it moves in unrotated space, unlike a `transform` (applied after,
+     i.e. along the turned axes). Its percentages resolve against the element's own box, and that is
+     the whole trick: `50%` is half the width, which is exactly the unknown that varies between "VC:
+     Kling AI" and "VC: @jojogh_007", so it cancels out and one rule fits all three. The rest is the
+     gap from the edge plus half a line box (`0.5lh`), because a strip `1lh` wide centred on a point
+     has its right edge half a line box further right. */
+  .video-hero-credit {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    translate: calc(50% - clamp(0.75rem, 3vw, 1.5rem) - 0.5lh) -50%;
+    margin: 0;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    color: rgb(255 255 255 / 0.75);
+    z-index: 1;
+  }
+
+  /* No reduced-motion override for this label, and the absence is the fix rather than an
+     oversight — there was one here, and it had become the bug.
+
+     What stood here restored the `writing-mode: vertical-rl` technique plus the `right`/
+     `translate` geometry that goes with it, on the stated grounds that `rotate-static` declared
+     `reducedMotion: 'disable'`, so for a visitor asking for less motion the animator never wrote
+     `rotate` and the offsets above were left positioning an unturned box. That was true when it
+     was written and is not true now: `catalog/transforms.ts:188` declares `reducedMotion:
+     'shorten'`, and `animator.ts`'s gate skips `prepare` only for `'disable'` — a `'shorten'`
+     primitive runs exactly as it always does. `'shorten'`'s own implementation
+     (`base.css`'s `[data-kui-rm='shorten']`) clamps `animation-duration` to 1ms, and this
+     primitive has no animation to clamp. Both states are one state: `rotate: 90deg` is written in
+     both, so the offsets above are correct in both and there is nothing left to override.
+
+     What the stale block did once the primitive changed under it, because it is the failure mode
+     to recognise if anyone reaches for a `prefers-reduced-motion` query here again: the library's
+     90deg landed on top of `writing-mode`'s own 90deg and the credit rendered at 180deg — upside
+     down — while `right: clamp(...)` and `translate: 0 -50%` centred against a tall, narrow box
+     that `rotate` had just laid back down flat, throwing it past the hero's clipped right edge.
+
+     The measurement that motivated the original block is still worth keeping, because it is what
+     an UNROTATED `.video-hero-credit` does and therefore the shape of the failure if the tilt is
+     ever taken away (an authored `rm:disable`, or the script never reaching the page): the credit
+     comes out 111.5x19.2 instead of 19.2x111.5, right edge 33.7px PAST the hero's, where
+     `.video-hero`'s `overflow: clip` eats it. Not an unrotated label — a broken one. If that day
+     comes, the fallback belongs on the state the library actually stamps —
+     `.video-hero-credit[data-kui-rm='disable']`, the only case in which `base.css` flattens the
+     tilt with `rotate: none !important` — and never on a bare `prefers-reduced-motion` query,
+     which fires while the rotation is still there. */
+
+  /* Each slide's own "Show code" chip, so the printed source is that slide's markup and not the
+     whole carousel. Bottom-left, level with the dots and to their left — the pair that used to sit
+     in the caption's old corner once the caption moved to bottom-centre. Both still clear
+     `.kui-replay-fab` (fixed, `right/bottom: 1.5rem`, 52px — this page's own site-wide "replay
+     animations" button) because that fab is parked on the opposite (right) corner, not this one. */
+  /* The cycler swaps real words of real, different widths — "text" against "backgrounds" is a
+     ~90px spread at this size — and the caption is a centred line, so every swap re-centred the
+     whole line and dragged the fixed "Animate" sideways with it, by about half that. The library
+     gives this element `display: inline-block` (text.css) but reserves no width, and it can't:
+     nothing in `word-cycler` measures the set. So the page reserves it.
+
+     The reserve is the widest word itself, printed into a zero-height `::before`, and NOT a `ch`
+     count. `ch` is the advance of "0" and takes no account of `letter-spacing`, so a character
+     count came up short by exactly the caption's tracking times the word's length — 2.25px on the
+     first attempt, which read as "Animate" still drifting by that much. Printing the word measures
+     in the element's own font, size and tracking, with no arithmetic to keep in sync. The library
+     replaces this element's `textContent` on every swap (catalog/text.ts), which leaves a
+     pseudo-element untouched. Keep that string equal to the longest word in `words:` below.
+
+     The fill makes the swap read as a deliberate slot rather than a word that keeps resizing. Same
+     pair the "Show code" chip uses page-wide — `--accent-ink` fill, `--accent` label, both fixed
+     values in both themes — because this sits on video, the one surface with no theme to agree
+     with. Centred, not left-aligned: the reserved box is a constant width, and a short word
+     centred in a constant fill looks like a slot, where one pinned left looks like a fill that
+     failed to shrink. */
+  .video-hero-caption [data-kui~='word-cycler'] {
+    text-align: center;
+    background: var(--accent-ink);
+    color: var(--accent);
+    padding: 0.06em 0.3em;
+    border-radius: 0.18em;
+  }
+  .video-hero-caption [data-kui~='word-cycler']::before {
+    content: 'backgrounds';
+    display: block;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+
+  .video-hero-code { position: absolute; left: clamp(1.25rem, 4vw, 2.5rem); bottom: clamp(1.25rem, 4vw, 2.5rem); z-index: 1; }
+
+  /* The slide switcher. Lives on `.video-hero` itself, not inside any one slide, so it survives
+     every cross-fade and always reflects — via `.is-active`/`aria-selected`, both written by
+     `video-hero.js` — whichever clip is actually on screen. Same row as the "Show code" chip,
+     shifted right by roughly the chip's own width plus a gap — two independently-positioned
+     elements rather than one shared flex row, because the chip lives inside whichever slide is
+     active while the dots live on the carousel root; matching `bottom` and a fixed offset for
+     `left` is what lines them up without needing a shared parent. */
+  .video-hero-dots {
+    position: absolute;
+    left: calc(clamp(1.25rem, 4vw, 2.5rem) + 6.75rem);
+    bottom: clamp(1.25rem, 4vw, 2.5rem);
+    z-index: 2;
+    /* `height` matched to the chip's own natural box (`.kui-show-code-toggle`'s padding renders
+       it at roughly this tall) so a tiny 0.6rem dot centers on the same line as the chip's label
+       instead of hugging its own bottom edge. */
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .video-hero-dot {
+    width: 0.6rem; height: 0.6rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgb(255 255 255 / 0.6);
+    background: rgb(255 255 255 / 0.25);
+  }
+  .video-hero-dot.is-active { background: var(--accent); border-color: var(--accent); }
+  .video-hero-dot:hover { border-color: #ffffff; }
+
+  /* Right corner — the mirror of the left cluster now that the caption owns the middle. Both rows
+     stay clear of `.kui-replay-fab` (fixed, bottom-right, 52px) by sitting a full row above it. */
+  .video-hero-audio {
+    position: absolute;
+    right: clamp(1.25rem, 4vw, 2.5rem);
+    bottom: clamp(5.5rem, 9vw, 6.5rem);
+    z-index: 1;
+    width: 2.25rem; height: 2.25rem;
+    padding: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgb(255 255 255 / 0.6);
+    background: rgb(8 9 10 / 0.35);
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+  }
+  .video-hero-audio:hover { border-color: #ffffff; }
+  /* `aria-pressed="true"` means "unmuted" (the button's own written contract — see the click
+     handler in `video-hero.js`), so the accent-filled state is the *engaged* state exactly like
+     every other toggle-shaped control on this page reads it. */
+  .video-hero-audio[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  /* Stacked above the audio button on the same corner — present only on slides that link
+     somewhere real (`data-source-url` on the slide), so an absent link never leaves a gap the
+     audio button was supposed to fill.
+
+     Centred on the circles' axis, not right-edge-aligned with them, and that is the one thing this
+     rule does differently from the two controls below it. It used to carry `.video-hero-audio`'s
+     exact `right: clamp(1.25rem, 4vw, 2.5rem)` — the same number, so on paper the three controls
+     agreed. They did not: `right` aligns RIGHT EDGES, and this is the only one of the three that is
+     not a 2.25rem circle. "Source ↗" renders about 68px wide in this face at this size, so aligning
+     its right edge with a 36px circle's puts its optical centre roughly 16px LEFT of the centre the
+     two circles share, and the column reads as one control that failed to line up — which is
+     exactly how it was reported off a phone screenshot, with the note that only this element needed
+     moving.
+
+     The fix is not an eyeballed nudge, because a nudge would have to be a fixed number of pixels
+     and the quantity it has to cancel — the rendered width of the string — is not a number this
+     stylesheet gets to know. It changes with the face that actually resolves (`↗`, U+2197, is very
+     likely NOT in SF Mono and comes from a fallback with its own advance), with `font-size`, and
+     with the string itself if it is ever reworded. So: park the right edge ON the axis
+     (`+ 1.125rem`, half the circles' 2.25rem box), then shove the whole thing back right by half of
+     its OWN box. `translate` percentages resolve against the element's own border box, so `50%` IS
+     the unknown, and it cancels. Same trick, same property, same reason as `.video-hero-credit`
+     ~130 lines above, which centres a rotated credit of three different lengths on one rail.
+
+     The `clamp()` is untouched and still the shared term: `1.125rem` is a constant, so the anchor
+     tracks the gutter identically to the circles at every width the clamp resolves to — 20px below
+     ~500px, `4vw` through the middle, 40px above ~1000px. Measured against the axis: at 390px both
+     land at 38px from the edge, at 750px both at 48px, at 1440px both at 58px. One expression, not
+     three cases. `.kui-replay-fab` copies `.video-hero-audio`'s `right` and its 2.25rem box under
+     `max-width: 640px` (~:1479), so on a phone all three centres are this one number.
+
+     The cost, stated so nobody rediscovers it as a bug: centring a ~68px run on a 36px circle's
+     axis necessarily pushes the run ~16px PAST the circles' right edge. At 390px, where the gutter
+     clamp is pinned at its 20px floor, that leaves this link about 4px of screen edge where every
+     other control has 20. `.video-hero` is `overflow: clip`, so nothing is cut — but if that ever
+     reads as falling off the screen, the lever is this element's own box (its `font-size`, or the
+     space before the arrow), NOT the alignment, which is the part that was actually wrong. */
+  .video-hero-source {
+    position: absolute;
+    right: calc(clamp(1.25rem, 4vw, 2.5rem) + 1.125rem);
+    translate: 50% 0;
+    bottom: clamp(8rem, 13vw, 9.5rem);
+    z-index: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85rem;
+    color: #ffffff;
+    text-decoration: none !important;
+    opacity: 0.85;
+  }
+  .video-hero-source:hover { opacity: 1; text-decoration: underline !important; }
+
+  /* Narrow phones only: the chip+dots row and the centred caption both want the bottom-left-ish
+     band, and at this width there isn't room for both beside each other without crowding into the
+     caption's own centred text. Moving the chip+dots row up onto its own line, still left-aligned,
+     is the "rearrange" rather than "shrink everything until it's unreadable" way out — the
+     audio/source stack on the right is untouched since it's already clear of this by being on the
+     opposite side. */
+  @media (max-width: 640px) {
+    /* The hero's bottom furniture resolves into three rows, declared here as one rhythm instead of
+       six independent `bottom` values that have to be kept in agreement by hand. Declared on
+       `:root` rather than on `.video-hero` because `.kui-replay-fab` reads the caption row too and
+       is a child of `<body>`, not of the hero — it is `position: fixed`, so it is not inside
+       anything.
+
+       The caption row was `clamp(1.25rem, 4vw, 2.5rem)`, i.e. 20px off the floor at phone widths.
+       That put the replay fab — which centres on the same row, so it sits half its own extra
+       height lower — at 14px, inside the strip a phone's home indicator covers and below the edge
+       of what a desktop device-emulator can display. A control nobody can see is the same as a
+       control that is not there, which is exactly how it kept getting reported. Everything moves up
+       together so the rows stay a rhythm rather than becoming three separate decisions. */
+    :root {
+      --hero-row-caption: clamp(2.5rem, 7vw, 3.5rem);
+      --hero-row-chips: calc(var(--hero-row-caption) + 3.25rem);
+      --hero-row-source: calc(var(--hero-row-chips) + 3.25rem);
+      /* Half the difference between a ~1.5rem text row and the 2.25rem circular controls that
+         join it. `bottom` aligns boxes by their floors; centres are what the eye reads as level. */
+      --hero-control-drop: 0.375rem;
+    }
+
+    .video-hero-code,
+    .video-hero-dots { bottom: var(--hero-row-chips); }
+    .video-hero-source { bottom: var(--hero-row-source); }
+
+    /* The mute button drops out of its own private height and onto the chip/dots row, so the
+       bottom of the hero resolves into two full-width rows instead of five separate altitudes.
+       The value is not a new number: it is the row's own `bottom` expression, offset by half the
+       difference between the row's height (the chip and the dots are both ~1.5rem) and this
+       control's (2.25rem). `bottom` aligns boxes by their floors, and floor-aligning a 36px circle
+       against a 24px chip leaves the circle sitting 6px proud of the row it is meant to join —
+       centres are what the eye reads as "level", so the correction buys exactly that. Same
+       arithmetic, same two constants, as the fab's own rule further down. */
+    .video-hero-audio { bottom: calc(var(--hero-row-chips) - var(--hero-control-drop)); }
+
+    /* Left-aligned rather than centred at this width. A centred one-line caption on a narrow
+       screen has the "Show code" chip and the dots stacked above its left half and the replay fab
+       arriving on its right, so the one element with no corner of its own ends up the only thing
+       not on the page's left margin. Sharing that margin with the chip above it reads as a column;
+       centring it between two occupied corners reads as a collision waiting to happen. `transform`
+       is cleared, not overridden, because the centring was `left: 50%` plus a `translateX(-50%)`
+       and leaving either half behind would offset the caption by half its own width. */
+    .video-hero-caption {
+      left: clamp(1.25rem, 4vw, 2.5rem);
+      bottom: var(--hero-row-caption);
+      transform: none;
+      text-align: left;
+    }
+  }
 
   .hero {
     display: flex; flex-direction: column; align-items: center; text-align: center;
@@ -712,12 +1082,11 @@
   .hero-flip-code:hover, .hero-flip-code:focus-visible {
     background: rgb(8 9 10 / 0.72); border-color: rgb(255 255 255 / 0.6); color: #fff;
   }
-  /* Under ~520px the two pills would meet in the middle. Stack them at the bottom-left instead of
-     letting them collide — a control that overlaps another control is worse than one that moved. */
-  @media (max-width: 520px) {
-    .kui-flip-control, .hero-flip-code { justify-self: start; }
-    .kui-flip-control { margin-bottom: 3.1rem; }
-  }
+  /* No mobile stack. The pair used to be pushed into a single bottom-left column under 520px
+     because they would meet in the middle — but that was measured against a Flip pill that still
+     carried the *name* of the face it flipped to (see the comment on the button). Stripped back to
+     the verb it is ~55px wide against Show code's ~97px, so the two corners are still 100px apart
+     inside a 272px card at 320px. Opposite corners is the design; it holds at every width now. */
   .kui-flip-control:hover, .kui-flip-control:focus-visible { background: rgb(8 9 10 / 0.82); border-color: rgb(255 255 255 / 0.5); }
   .kui-flip-control .flip-label { font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   /* Reuses `.kicker`, same as `.hero-media-eyebrow` beside the video — the tagline is split
@@ -824,10 +1193,10 @@
      `--kui-step` on the shell for the track's position, `data-kui-step-state` on each slide and
      each dot for which one is live. */
   .deck-shell {
-    /* Crowding is `peek:` and `rest:` in the attribute now, not tokens here — the library
-       publishes them as `--kui-peek` / `--kui-rest` and the rules below read them with these
-       numbers as the `var()` fallback, so the deck looks right with neither named and retunes
-       from the attribute the moment one is. Width stays a page concern; it is layout, not
+    /* Crowding is `peek:`, `rest:` and `main:` in the attribute now, not tokens here — the library
+       publishes them as `--kui-peek` / `--kui-rest` / `--kui-main` and the rules below read them
+       with *this page's own* numbers as the `var()` fallback, so the deck looks right before the
+       library lands and does not move when it does. Width stays a page concern; it is layout, not
        carousel behaviour. */
     --deck-slide: min(560px, 74vw);
     position: relative;
@@ -841,13 +1210,17 @@
      * artwork, and first-time readers were not finding them at all. In flow, directly under the
      * frame and directly above the dots, they are the only thing in their row and cannot be missed.
      *
-     * The control row is `var(--deck-slide)` wide and centred, so the arrows land on the *active
-     * video's* own left and right edges rather than the shell's — the shell is 1120px against a
-     * 560px slide, and pinned to its edges the pair sits so far apart it stops reading as one
-     * control. Both arrows share the single `ctrl` area and split it with `justify-self`.
+     * The control row is as wide as the live slide *as painted* — `--deck-slide` times the
+     * attribute's `main:` — and centred, so the arrows land on the active video's own left and
+     * right edges rather than the shell's: the shell is 1120px against a 476px video, and pinned
+     * to its edges the pair sits so far apart it stops reading as one control. The `main:` factor
+     * is not decoration here. `scale` is a paint transform, so a scaled slide keeps its full
+     * layout box; a row measured on the box alone would drift off the video's edges by half the
+     * difference the moment anyone tuned `main:`, which is exactly when this row matters most.
+     * Both arrows share the single `ctrl` area and split it with `justify-self`.
      */
     display: grid;
-    grid-template-columns: 1fr minmax(0, var(--deck-slide)) 1fr;
+    grid-template-columns: 1fr minmax(0, calc(var(--deck-slide) * var(--kui-main, 0.85))) 1fr;
     grid-template-areas:
       'view view view'
       '.    ctrl .'
@@ -903,7 +1276,7 @@
     margin: 0;
     /* The resting state is the *inactive* one, so a slide the library has not marked yet reads as
        a neighbour rather than flashing full-size on first paint. */
-    scale: var(--kui-rest, 0.78);
+    scale: var(--kui-rest, 0.6);
     /*
      * Hidden, not transparent — `visibility`, keyed on the library's `data-kui-step-offset`.
      *
@@ -936,7 +1309,7 @@
    * the un-enhanced state a correct still of the deck rather than a pile.
    */
   .deck-slide:not([data-kui-step-offset]) { visibility: hidden; }
-  .deck-slide:not([data-kui-step-offset]):first-child { visibility: visible; scale: 1; }
+  .deck-slide:not([data-kui-step-offset]):first-child { visibility: visible; scale: var(--kui-main, 0.85); }
   /*
    * `--kui-offset` is the library's per-slide place on the ring: 0 is live, -1 is the one behind,
    * +1 the one ahead, and it wraps — so at slide 1 the *last* slide reads -1 and sits on the left,
@@ -950,8 +1323,19 @@
        that the ordering is not visible anyway. */
     z-index: 1;
   }
+  /*
+   * `var(--kui-main, ...)`, not a bare number: the live slide's size is the third value the
+   * attribute publishes, and every other rule in this deck is measured against it.
+   *
+   * The fallback is `0.85` and not the library's own `1` for the same reason `--kui-peek`'s is
+   * `56%` — it is what *this page* authors. The fallback is what paints before the library lands,
+   * and `.deck-slide` transitions `scale` for 620ms, so a fallback that disagrees with the
+   * attribute is not a harmless default: the first slide paints at the fallback, activation swaps
+   * it to the authored value, and the deck visibly shrinks itself the moment it scrolls into view.
+   * Keep these four numbers equal to the attribute's, or the entrance grows a wobble.
+   */
   .deck-slide[data-kui-step-state='active'] {
-    scale: 1;
+    scale: var(--kui-main, 0.85);
     z-index: 20;
   }
   /* Only the live slide is named. The tucked ones are edges, and a caption on an edge is litter. */
@@ -1031,11 +1415,28 @@
      aspect ratio, so nothing here has to restate it. */
   @media (max-width: 720px) {
     .deck-shell {
-      /* `.wrap` pads 1.5rem a side here (3rem total) — 86vw alone clears that fine down to ~400px
-         but overshoots it below that (320px: 86vw is 275.2px against a 272px content box), clipping
-         the slide. `calc(100vw - 3.5rem)` is that same 3rem plus an 8px safety margin, so `min()`
-         only swaps to it once 86vw would no longer fit; above ~400px it stays exactly 86vw. */
-      --deck-slide: min(86vw, calc(100vw - 3.5rem));
+      /*
+       * 70vw, not 86vw — the box the live slide is scaled inside on a phone.
+       *
+       * The neighbours are pushed out by `peek:`, a percentage of the slide's *own* width, so at
+       * every sane peek they run past the clipped viewport on both sides. That makes the visible
+       * sliver of each one simply `(clip - painted live slide) / 2` — how much narrower the live
+       * video is than the box it is clipped in — and nothing to do with `peek:` or `rest:` at all.
+       * `.wrap` pads 1.5rem a side, so the clip is `100vw - 3rem`: at 86vw and no `main:` the
+       * sliver was 4px on a 390px phone, less than the slide's own corner radius, and the deck read
+       * as one video with nothing beside it.
+       *
+       * Two knobs share the work now and they are not interchangeable. `main:0.85` in the attribute
+       * is the proportion, and it holds at every width because it is a scale. This is the *box*,
+       * which is layout, so it stays here where a media query can still reach it — a width is the
+       * one thing a phone and a desktop have to disagree about, and an authored parameter lands
+       * inline where no media query can. Together: 273px of box, 232px of painted video, 55px of
+       * each neighbour showing — enough for the play button, which is what the desktop deck shows.
+       *
+       * No `min()` guard any more. 86vw needed one because it overshot `.wrap`'s padding below
+       * ~400px; 70vw only reaches that content box below a 187px viewport, which does not exist.
+       */
+      --deck-slide: 70vw;
     }
   }
 
@@ -1082,9 +1483,50 @@
     position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60;
     width: 52px; height: 52px; padding: 0; border: none; border-radius: 50%;
     background: var(--fg); color: var(--bg); display: grid; place-items: center; cursor: pointer;
-    box-shadow: var(--shadow-float);
+    /* The `--bg` ring is what stops this reading as missing rather than merely dark. The disc is
+       painted `--fg`, so in light mode it is a near-black circle — fine on the page's own white,
+       invisible against a dark frame of the hero video it floats over, which is exactly the report
+       that sent me looking for a positioning bug that was not there. A ring in `--bg` is the disc's
+       own inverse, so it solves both directions at once: near-white here, and near-black in dark
+       mode where the disc is the light one and the risk is a bright frame instead. On the page's
+       own background the ring matches it and simply is not seen. */
+    box-shadow: var(--shadow-float), 0 0 0 1.5px var(--bg);
   }
   .kui-replay-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* The fab joins the hero's source/audio column instead of squatting in the bottom-right corner.
+     Two reasons, and the second is the one that matters: at this width the corner is where the
+     caption's own line ends, and — on iOS Safari especially — the bottom ~1.5rem of a `position:
+     fixed` element is the strip the browser's own toolbar sits over, which is why it reads as
+     missing rather than merely low. Lifted to `2.75rem` it clears both, and matched to
+     `.video-hero-audio`'s exact `right` and its `2.25rem` box, so the three right-edge controls
+     line up on one axis as a column rather than as three separate decisions.
+
+     This block lives here, next to the rule it overrides, and NOT up in the hero's own
+     `max-width: 640px` block with the caption and chip overrides — that block is ~700 lines
+     earlier in this stylesheet, and at equal specificity the later rule wins, so the override
+     there was simply dropped. Same media query, different source position, opposite outcome.
+
+     Note this is the site-wide fab and not a hero-local one, so it stays smaller and higher for
+     the rest of the page too at this width. That is the intended trade: the corner it used to sit
+     in is the same contested strip on every section, not just this one. */
+  @media (max-width: 640px) {
+    .kui-replay-fab {
+      /* Stays `position: fixed` (from the base rule) — this block only moves and shrinks it. It was
+         briefly `absolute`, mounted inside the hero, to hold it level with the caption at every
+         scroll position; that worked and was still wrong, because an element inside the hero
+         scrolls away with the hero and the control vanished from every section below the first.
+         Pinned to the viewport it follows the reader down the page, which is the whole point of a
+         floating replay button, and it lines up with the caption at scroll 0 only. */
+      right: clamp(1.25rem, 4vw, 2.5rem);
+      /* The caption's own `bottom`, less half the height difference between that ~1.5rem line and
+         this 2.25rem circle — so the fab reads as level with "Animate <word>" rather than merely
+         near it. Same correction the mute button takes onto the chip row above. */
+      bottom: calc(var(--hero-row-caption) - var(--hero-control-drop));
+      width: 2.25rem;
+      height: 2.25rem;
+    }
+  }
 
   /* ---------- the attribute line, shared by both playgrounds ----------
      The same mono-plus-accent-band treatment as the hero chip, at body scale. Repeating it is the
@@ -1284,8 +1726,45 @@
   .slice-num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
   .slice-num-note { margin-top: 0.35rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .slice-aurora { position: absolute; inset: 0; }
+  /* `display: flex` and `overflow-x: auto` on this rule are NOT leftovers to be tidied away now
+     that the attribute names its items. They are the reduced-motion fallback, and deleting them
+     is a regression that has already been shipped once in this repo.
+
+     The element carries `scroll-snap-x target:img`. Naming the items is also what opts the host
+     into `installSnapContainer` (`scroll-mechanics/primitives.ts`), which writes exactly
+     `overflow-x: auto` and `display: flex` as inline styles — the two properties
+     `scroll-snap-type` is inert without, and the pair every demo on this site used to hand-write
+     for itself. `target:img` changes nothing about WHICH children snap: with no `target:` the
+     items were `el.children`, and the only children here are those same three `<img>`s. Opting
+     into the container is the entire reason it is there.
+
+     The exception is why these two declarations stay. `scrollPrimitive` declares
+     `reducedMotion: 'disable'` for every scroll primitive (`scroll-mechanics/primitives.ts:77`),
+     and `'disable'` in this library does not mean "run a shorter version" — `animator.ts` never
+     runs `prepare` at all. So for a visitor who asks for less motion `installSnapContainer` never
+     runs and writes nothing. Strip these two on the grounds that the library owns them, and that
+     visitor gets three 82%-wide images stacked vertically down a fixed-height `<span>` instead of
+     a horizontal strip: no snapping, which is correct because snapping is the motion, but no
+     strip either, which is not.
+
+     Which is which, so the next reader does not have to work it out: `display: flex` and
+     `overflow-x: auto` are the fallback for properties the library owns in the normal case, and
+     the inline styles win over them whenever it does run. `gap`, `width`, `height`,
+     `align-items`, `padding` and the scrollbar hiding below are the page's own and have no
+     library equivalent. `scroll-snap-type` on this element and `scroll-snap-align` on each image
+     belong to the library alone — do not add either here. */
   .slice-snap { display: flex; gap: 0.5rem; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; align-items: center; padding: 0 0.75rem; }
   .slice-snap::-webkit-scrollbar { display: none; }
+  /* `scroll-snap-stop` here, `scroll-snap-align` deliberately not. `prepareSnap` writes
+     `scroll-snap-align: start` onto every matched child as an inline style through that child's
+     own ledger, so authoring it in this rule would be inert in both directions: in the normal
+     case the inline value simply wins, and under the reduced-motion preference that stops
+     `prepare` from running at all, an aligned image inside a container that never received
+     `scroll-snap-type` snaps to nothing. Dead either way, and a second author for one fact.
+     `scroll-snap-stop` is the opposite case — no parameter exposes it and nothing in the library
+     writes it — so it stays the page's to set. `flex: none` is load-bearing next to the
+     library's `display: flex`: without it a percentage-width flex item shrinks to fit the row
+     instead of overflowing it, and there is nothing to scroll. */
   .slice-snap img { flex: none; width: 82%; height: 76%; border-radius: 8px; object-fit: cover; scroll-snap-stop: always; }
   .slice-stack { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 100%; }
   .slice-badge { position: relative; display: inline-grid; place-items: center; padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; }
@@ -1662,7 +2141,7 @@
 </head>
 <body>
 
-  <header class="site-header" data-od-id="header" data-nav-root>
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="#top" class="logo" aria-label="kUInetic home">
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
@@ -1687,6 +2166,100 @@
   </header>
 
   <main id="top">
+
+    <!-- VIDEO HERO — full-bleed clip carousel, the first thing on the page.
+         Each `.video-hero-slide` is `bg` (alias of `background-media`) building its own `<video>`
+         from `src:`/`poster:` — cover-fit, muted, looping, autoplaying regardless of which slide is
+         on screen, so switching slides is instant with no re-buffer. No `overlay:` — plain
+         unscrimmed footage, per the owner's call; text sits directly on the clip. Only one slide is
+         ever `.is-active` at a time (`video-hero.js`); the dots switch it. Each slide carries its
+         own "Show code" chip (so the printed source stays that slide's markup, not the whole
+         carousel's), and — only where it actually applies — a mute toggle (`.video-hero-audio`,
+         `data-has-audio="true"` slides only; `bg` always forces the underlying `<video>` muted, so
+         unmuting is a real user click, not an attribute) and a link to where the clip came from
+         (`.video-hero-source`, only slides with a real source page to send someone to).
+         `swipe-x` (gestures) is the touch half of the dots: it recognises the flick and publishes
+         `data-kui-swipe="left"`/`"right"` on this same root, and `video-hero.js` maps that onto the
+         one `activate(index)` the dots already call — the pairing docs/catalog.md names for exactly
+         this case. It moves nothing itself, so the cross-fade stays the slide's own.
+
+         The attribute was briefly removed, and the reason is worth keeping: `core/gesture.ts` used
+         to call `setPointerCapture()` on `pointerdown` unconditionally, and pointer capture
+         redirects the whole sequence — so the browser fired the resulting `click` at THIS section
+         rather than at the dot or "Show code" chip actually pressed, and every interactive control
+         inside the hero went dead. The fix is in the library, not here: `GestureOptions
+         .capturePointer` (default `true`) with `swipeable` passing `false`
+         (`effects/gestures/primitives.ts`), on the reasoning that capture exists to keep a *moving*
+         element under the finger and `swipeable` moves nothing. If the dots ever stop responding
+         again, that is the first thing to check — not this attribute. -->
+    <section class="video-hero" data-od-id="video-hero" data-video-carousel data-kui="swipe-x">
+      <div
+        class="video-hero-slide is-active"
+        id="video-hero-slide-0"
+        data-has-audio="true"
+        data-source-url="https://www.youtube.com/watch?v=E9PvSeIO5NY"
+        data-kui="bg src:./assets/webdesign/midjourney-showcase.mp4 poster:./assets/webdesign/midjourney-showcase-poster.jpg fit:cover autoplay:always"
+      >
+        <p class="video-hero-caption"><span data-kui="split-chars delay:400ms on:load">Animate</span> <span data-kui="fade-up 500ms 2000ms on:load"><span data-kui="word-cycler words:anything|text|numbers|images|videos|backgrounds interval:2200ms delay:4200ms">anything</span></span></p>
+        <p class="video-hero-credit" data-kui="rotate-static angle:90deg">VC: Midjourney</p>
+        <button type="button" class="kui-show-code-toggle video-hero-code" data-show-code-target="video-hero-slide-0">Show code</button>
+        <button type="button" class="video-hero-audio" aria-pressed="false" aria-label="Unmute video">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 5V4L8 9H4Z"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M16 9l6 6m0-6-6 6"/></svg>
+        </button>
+        <a class="video-hero-source" href="https://www.youtube.com/watch?v=E9PvSeIO5NY" target="_blank" rel="noopener noreferrer">Source ↗</a>
+      </div>
+
+      <div
+        class="video-hero-slide"
+        id="video-hero-slide-1"
+        aria-hidden="true"
+        data-mobile-src="./assets/webdesign/kling-dogs-cooking-mobile.mp4"
+        data-mobile-poster="./assets/webdesign/kling-dogs-cooking-mobile-poster.jpg"
+        data-mobile-source-url="https://kling.ai/app/ai-video/dogs-cooking-funny-moments/314630307504261"
+        data-kui="bg src:./assets/webdesign/kling-animate-anything.mp4 poster:./assets/webdesign/kling-animate-anything-poster.jpg fit:cover autoplay:always"
+      >
+        <p class="video-hero-caption"><span data-kui="split-chars delay:400ms on:load">Animate</span> <span data-kui="fade-up 500ms 2000ms on:load"><span data-kui="word-cycler words:anything|text|numbers|images|videos|backgrounds interval:2200ms delay:4200ms">anything</span></span></p>
+        <p class="video-hero-credit" data-kui="rotate-static angle:90deg">VC: Kling AI</p>
+        <button type="button" class="kui-show-code-toggle video-hero-code" data-show-code-target="video-hero-slide-1">Show code</button>
+      </div>
+
+      <div
+        class="video-hero-slide"
+        id="video-hero-slide-2"
+        aria-hidden="true"
+        data-source-url="https://x.com/jojogh_007/status/2049123558102810714/video/1"
+        data-mobile-src="./assets/webdesign/kling-veiled-royalty-mobile.mp4"
+        data-mobile-poster="./assets/webdesign/kling-veiled-royalty-mobile-poster.jpg"
+        data-mobile-credit="VC: Kling AI"
+        data-mobile-source-url="https://kling.ai/app/ai-shorts-video/veiled-royalty-dark-light/861802271851167831"
+        data-kui="bg src:./assets/webdesign/brick-build-hero.mp4 poster:./assets/webdesign/brick-build-hero-poster.jpg fit:cover autoplay:always"
+      >
+        <p class="video-hero-caption"><span data-kui="split-chars delay:400ms on:load">Animate</span> <span data-kui="fade-up 500ms 2000ms on:load"><span data-kui="word-cycler words:anything|text|numbers|images|videos|backgrounds interval:2200ms delay:4200ms">anything</span></span></p>
+        <p class="video-hero-credit" data-kui="rotate-static angle:90deg">VC: @jojogh_007</p>
+        <button type="button" class="kui-show-code-toggle video-hero-code" data-show-code-target="video-hero-slide-2">Show code</button>
+        <a class="video-hero-source" href="https://x.com/jojogh_007/status/2049123558102810714/video/1" target="_blank" rel="noopener noreferrer">Source ↗</a>
+      </div>
+
+      <div class="video-hero-dots" role="tablist" aria-label="Choose a background video">
+        <button type="button" class="video-hero-dot is-active" data-slide-target="0" role="tab" aria-selected="true" aria-label="Video 1"></button>
+        <button type="button" class="video-hero-dot" data-slide-target="1" role="tab" aria-selected="false" tabindex="-1" aria-label="Video 2"></button>
+        <button type="button" class="video-hero-dot" data-slide-target="2" role="tab" aria-selected="false" tabindex="-1" aria-label="Video 3"></button>
+      </div>
+    </section>
+
+    <!-- The video hero's closing edge, and the page's own separator device rather than a new one —
+         four more of these already mark the boundaries further down. It is deliberately NOT part
+         of the first screen: `.video-hero` is exactly `100svh`, so this bar sits just under the
+         fold on landing and only reveals itself the moment someone starts scrolling. No JS and no
+         scroll listener does that — the hero's exact height is what does it, which is the other
+         half of why that height had to stop overshooting. Scroll vocabulary here, deliberately
+         disjoint from `ticker-reel`'s list further down so the two never read as the same bar. -->
+    <section class="ticker stage" aria-label="Scroll mechanics — the effects that key motion to the scrollbar" data-od-id="ticker-scroll">
+      <div class="ticker-row" data-kui="marquee 36s">
+        <span>pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
+      </div>
+    </section>
 
     <!-- HERO — the stage.
          Full-bleed and near-black in both themes, because that is the surface the brand's acid
@@ -2136,9 +2709,9 @@
           <h2 data-kui="typewriter">One attribute, an endless deck.</h2>
         </div>
 
-        <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
+        <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
 
-        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.78, fade-blur-up distance:280px 1800ms on:enter">
+        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter">
           <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
           </button>
@@ -2354,7 +2927,7 @@
           <a class="slice" href="./scroll.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media">
               <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
-              <span class="slice-snap" data-kui="scroll-snap-x">
+              <span class="slice-snap" data-kui="scroll-snap-x target:img">
                 <!-- Not the three film pages: those now carry the view-timeline group lower down,
                      and no page should show the same picture twice. -->
                 <img src="./assets/webdesign/carsellcenter-amg-configurator.jpg" alt="The Cars Sell Center configurator — a gold Mercedes-AMG C 63 S Coupe with feature callouts and spec cards" loading="lazy" />
@@ -2395,13 +2968,13 @@
           <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
             <span class="slice-media is-composed">
               <span class="slice-stack">
-                <span class="slice-num" data-kui="count-up 1600ms to:268, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
+                <span class="slice-num" data-kui="count-up 1600ms to:269, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
                 <span class="slice-num-note">named effects</span>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Numbers &amp; data <b>13</b></span>
-              <span class="slice-fx">count-up to:268, tween-from spring</span>
+              <span class="slice-fx">count-up to:269, tween-from spring</span>
             </span>
           </a>
 
@@ -2719,6 +3292,11 @@ kuinetic({ observe: true }).start()</code></pre>
     })()
   </script>
 
+  <!-- Before the bundle, deliberately. `background-media` reads its `src:` out of `data-kui` once,
+       when the animator processes the element, so this is the only window in which swapping the
+       hero to its portrait clips has any effect — and the only one that stops a phone downloading
+       the landscape files first. See the file's own header. -->
+  <script src="./video-hero-sources.js"></script>
   <script src="./kuinetic.js"></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
@@ -3080,5 +3658,6 @@ kuinetic({ observe: true }).start()</code></pre>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>
   <script src="./video-lightbox.js"></script>
+  <script src="./video-hero.js"></script>
 </body>
 </html>
