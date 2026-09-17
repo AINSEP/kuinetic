@@ -456,6 +456,100 @@ export async function run({ browser }) {
   check('double-destroy: canvas unmounted when refCount reaches 0', doubleDestroy.canvasRemoved === true, `canvasRemoved=${doubleDestroy.canvasRemoved}`)
 
   // -------------------------------------------------------------------------
+  // 5b. The `inputReaders` pass exists for an *ordering*, and nothing asserted it.
+  //
+  //     `renderFrame` runs every registered instance's reads — scroll progress, an audio band,
+  //     and the element geometry — in full before any instance's draw call, because a draw call
+  //     writes `opacity` and all three reads can reach `getComputedStyle`/`getBoundingClientRect`.
+  //     Interleaved, that is one forced style recalculation per instance instead of one per frame.
+  //     Block 9 proves the progress *value* reaches `u_progress`, which is a different claim:
+  //     swapping the two loops in `renderFrame` left every check in this tier green.
+  //
+  //     So: two shaders drawing in one frame, with `getComputedStyle`,
+  //     `getBoundingClientRect` and the `opacity` setter instrumented to record a call order,
+  //     captured per frame. The assertion is that no frame contains a read after a write — plus,
+  //     because a frame with no writes satisfies that for free, that some captured frame did
+  //     write. Several frames are captured rather than one: the writes land on the first frame
+  //     that draws, and with the loops swapped the first frame has no geometry yet and draws
+  //     nothing, so the violation only appears on the second.
+  // -------------------------------------------------------------------------
+  const readOrder = await page.evaluate(async () => {
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const elA = document.getElementById('order-a')
+    const elB = document.getElementById('order-b')
+    const instances = [
+      prepareShaders(elA, createEffectParams({ mode: 'displace' })),
+      prepareShaders(elB, createEffectParams({ mode: 'liquid' })),
+    ]
+
+    const frames = []
+    let current = null
+    const realComputedStyle = window.getComputedStyle
+    const realRect = Element.prototype.getBoundingClientRect
+    const realSetProperty = CSSStyleDeclaration.prototype.setProperty
+    window.getComputedStyle = function (...args) {
+      if (current) current.push('read')
+      return realComputedStyle.apply(window, args)
+    }
+    Element.prototype.getBoundingClientRect = function () {
+      if (current) current.push('read')
+      return realRect.call(this)
+    }
+    CSSStyleDeclaration.prototype.setProperty = function (prop, value, priority) {
+      if (current && prop === 'opacity') current.push('write')
+      return realSetProperty.call(this, prop, value, priority)
+    }
+
+    for (const inst of instances) inst.activate()
+    const renderer = getSharedShaderRenderer()
+    const realRenderFrame = renderer.renderFrame
+    renderer.renderFrame = function (timeSeconds) {
+      current = []
+      try {
+        return realRenderFrame.call(this, timeSeconds)
+      } finally {
+        frames.push(current)
+        current = null
+      }
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    }
+
+    renderer.renderFrame = realRenderFrame
+    window.getComputedStyle = realComputedStyle
+    Element.prototype.getBoundingClientRect = realRect
+    CSSStyleDeclaration.prototype.setProperty = realSetProperty
+    for (const inst of instances) inst.destroy()
+
+    const readAfterWrite = frames
+      .map((order, i) => [i, order.indexOf('write')])
+      .filter(([, firstWrite]) => firstWrite >= 0)
+      .filter(([i, firstWrite]) => frames[i].indexOf('read', firstWrite) > firstWrite)
+      .map(([i]) => i)
+
+    return {
+      capturedFrames: frames.length,
+      framesWithWrites: frames.filter((order) => order.includes('write')).length,
+      writeCount: frames.reduce((sum, order) => sum + order.filter((e) => e === 'write').length, 0),
+      readAfterWrite,
+      worstFrame: frames.find((order) => order.includes('write'))?.join(',') ?? '',
+    }
+  })
+
+  check(
+    'read-order: two shaders drew, and at least one captured frame actually wrote opacity',
+    readOrder.capturedFrames > 1 && readOrder.framesWithWrites > 0 && readOrder.writeCount >= 2,
+    `frames=${readOrder.capturedFrames}, withWrites=${readOrder.framesWithWrites}, writes=${readOrder.writeCount}`,
+  )
+  check(
+    'read-order: no frame reads layout or computed style after an opacity write',
+    readOrder.readAfterWrite.length === 0,
+    `offendingFrames=${JSON.stringify(readOrder.readAfterWrite)}, firstWritingFrame=[${readOrder.worstFrame}]`,
+  )
+
+  // -------------------------------------------------------------------------
   // 6. Real WebGL2 shader compilation. jsdom has no real GL context at all (see the unit suite's
   //    "Not implemented: HTMLCanvasElement.prototype.getContext" logs) — a mocked `getContext`
   //    always reports success regardless of whether the actual GLSL in `glsl.ts` is valid. This is
