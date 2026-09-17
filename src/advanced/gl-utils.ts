@@ -118,12 +118,77 @@ export function disposeGLResources(
   }
 }
 
+type AnyGL = WebGLRenderingContext | WebGL2RenderingContext
+
+/**
+ * The source's own pixel dimensions, as `[0, 0]` when it does not report any.
+ *
+ * Three different property pairs, because `TexImageSource` is a union: an `<img>` carries
+ * `naturalWidth`, a `<video>` `videoWidth`, and a canvas or `ImageBitmap` a plain `width`. `[0, 0]`
+ * is "unknown", which the size check below reads as "do not refuse" — an unmeasurable source is not
+ * evidence of an oversized one.
+ */
+function sourceExtent(source: TexImageSource): [number, number] {
+  const s = source as unknown as Record<string, unknown>
+  const w = Number(s.naturalWidth ?? s.videoWidth ?? s.width ?? 0)
+  const h = Number(s.naturalHeight ?? s.videoHeight ?? s.height ?? 0)
+  return [Number.isFinite(w) ? w : 0, Number.isFinite(h) ? h : 0]
+}
+
+/**
+ * Whether this source is larger than the device will accept as a texture.
+ *
+ * `MAX_TEXTURE_SIZE` is 4096 on plenty of mid-range Android GPUs, and a 2× srcset asset reaches
+ * 3840-5120 routinely, so this is an ordinary hero image rather than a pathological one. Over the
+ * limit, `texImage2D` sets `INVALID_VALUE` and leaves the texture *incomplete* — it does not throw,
+ * so the `catch` below never sees it — and WebGL2 samples an incomplete texture as opaque black.
+ * Refusing here is what keeps the caller's `drew` false, and therefore keeps the element visible
+ * instead of hidden behind a black rectangle.
+ *
+ * Every read is guarded and every non-numeric answer means "no limit known". The unit suites' GL
+ * doubles do not implement `getParameter`, and a double that answered `undefined` would otherwise
+ * make *every* mocked upload oversized, turning the guard into a dead-effect generator.
+ */
+function exceedsTextureLimit(gl: AnyGL, source: TexImageSource): boolean {
+  if (typeof gl.getParameter !== 'function') return false
+  const limit = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE))
+  if (!Number.isFinite(limit) || limit <= 0) return false
+  const [w, h] = sourceExtent(source)
+  return w > limit || h > limit
+}
+
+/**
+ * Empty the GL error queue, so a later `getError()` reports only what happened in between.
+ *
+ * `getError` returns one error and clears that flag, and the flags it reports were set by whatever
+ * ran before — a neighbouring instance's draw included. Without draining first, this module's
+ * texture upload gets blamed for someone else's error. Bounded because a context that answers a
+ * non-zero code forever would otherwise spin here.
+ */
+function drainGLErrors(gl: AnyGL): void {
+  if (typeof gl.getError !== 'function') return
+  for (let i = 0; i < 8; i += 1) {
+    if (Number(gl.getError()) === 0) return
+  }
+}
+
+/** Whether a GL error was raised since {@link drainGLErrors}. A non-numeric answer means "no". */
+function glRaisedError(gl: AnyGL): boolean {
+  if (typeof gl.getError !== 'function') return false
+  const code = gl.getError()
+  return typeof code === 'number' && code !== 0
+}
+
 export function createGLTexture(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   source: TexImageSource,
 ): WebGLTexture | null {
+  // Before allocating anything: an oversized source can only produce an incomplete texture, and
+  // the whole point is to hand the caller a `null` it will read as "did not draw".
+  if (exceedsTextureLimit(gl, source)) return null
   const tex = gl.createTexture()
   if (!tex) return null
+  drainGLErrors(gl)
   try {
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -141,6 +206,13 @@ export function createGLTexture(
     // turn every mocked texture upload into "failed", i.e. into a dead effect.
     if (typeof gl.pixelStorei === 'function') gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    // The upload can fail without throwing — `OUT_OF_MEMORY` on a constrained device, or a
+    // dimension the size check above could not see because the source reports none. Only a JS
+    // exception reaches the `catch`; a GL error has to be asked for.
+    if (glRaisedError(gl)) {
+      if (gl.deleteTexture) gl.deleteTexture(tex)
+      return null
+    }
     return tex
   } catch {
     if (gl.deleteTexture) gl.deleteTexture(tex)

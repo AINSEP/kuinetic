@@ -680,6 +680,67 @@ describe('Advanced Shaders Labs Module', () => {
     expect(mockGL.deleteTexture).toHaveBeenCalled()
   })
 
+  describe('a texture upload that fails without throwing', () => {
+    /** The mock GL plus the two entry points `createGLTexture`'s new guards read. */
+    function glWithLimits(maxTextureSize: unknown, errors: unknown[]) {
+      return {
+        ...createMockGL(),
+        MAX_TEXTURE_SIZE: 3379,
+        getParameter: vi.fn(() => maxTextureSize),
+        getError: vi.fn(() => (errors.length > 0 ? errors.shift() : 0)),
+      }
+    }
+
+    it('refuses a source larger than MAX_TEXTURE_SIZE, before allocating anything', () => {
+      const gl = glWithLimits(4096, [])
+      // A 2x srcset hero. `texImage2D` would set INVALID_VALUE and leave the texture incomplete,
+      // which WebGL2 samples as opaque black — and the caller reads a returned texture as "drew",
+      // hides the element and paints the black over it.
+      expect(createGLTexture(gl as any, { naturalWidth: 5120, naturalHeight: 2880 } as any)).toBeNull()
+      expect(gl.texImage2D).not.toHaveBeenCalled()
+      expect(gl.createTexture).not.toHaveBeenCalled()
+
+      // The same image on a device that can take it.
+      expect(createGLTexture(glWithLimits(8192, []) as any, { naturalWidth: 5120, naturalHeight: 2880 } as any)).not.toBeNull()
+    })
+
+    it('reads the extent from whichever pair the source carries, and lets an unmeasurable one through', () => {
+      // `TexImageSource` is a union and each member names its size differently: `<video>`.
+      expect(createGLTexture(glWithLimits(4096, []) as any, { videoWidth: 8000, videoHeight: 100 } as any)).toBeNull()
+      // A canvas or an `ImageBitmap`.
+      expect(createGLTexture(glWithLimits(4096, []) as any, { width: 100, height: 9000 } as any)).toBeNull()
+      // An `<img>`, whose `width`/`height` are the *layout* box — the natural size is the one the
+      // upload is measured against, and it is the larger of the two here.
+      expect(createGLTexture(glWithLimits(4096, []) as any, { naturalWidth: 5120, naturalHeight: 2880, width: 400, height: 225 } as any)).toBeNull()
+      // No dimensions at all is not evidence of an oversized source, so it must still upload.
+      expect(createGLTexture(glWithLimits(4096, []) as any, {} as any)).not.toBeNull()
+    })
+
+    it('treats a GL error raised by the upload as a failed upload', () => {
+      // 1285 is OUT_OF_MEMORY: texImage2D returns normally and the texture is incomplete.
+      const gl = glWithLimits(8192, [0, 1285])
+      expect(createGLTexture(gl as any, { width: 10, height: 10 } as any)).toBeNull()
+      expect(gl.deleteTexture).toHaveBeenCalled()
+    })
+
+    it('drains errors left by an earlier caller rather than blaming the upload for them', () => {
+      // A neighbouring instance's draw left 1282 (INVALID_OPERATION) queued. The drain clears it
+      // before the upload, so the check afterwards reports only this upload's own result.
+      const gl = glWithLimits(8192, [1282, 0, 0])
+      expect(createGLTexture(gl as any, { width: 10, height: 10 } as any)).not.toBeNull()
+      expect(gl.deleteTexture).not.toHaveBeenCalled()
+    })
+
+    it('stays inert against a context that reports neither a limit nor an error', () => {
+      // Every GL double in these suites is this shape. A guard that read `undefined` as "oversized"
+      // or as "errored" would turn every mocked upload into a dead effect.
+      const bare = createMockGL()
+      expect(createGLTexture(bare as any, { naturalWidth: 99999, naturalHeight: 99999 } as any)).not.toBeNull()
+      const junk = glWithLimits(undefined, [undefined])
+      expect(createGLTexture(junk as any, { naturalWidth: 99999, naturalHeight: 99999 } as any)).not.toBeNull()
+    })
+  })
+
   it('renderFrame catches individual draw errors and continues next callbacks without aborting RAF', () => {
     const mockCanvas = document.createElement('canvas')
     mockCanvas.getContext = vi.fn().mockReturnValue(createMockGL())

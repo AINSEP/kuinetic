@@ -563,6 +563,54 @@ export async function run({ browser }) {
   )
 
   // -------------------------------------------------------------------------
+  // 5c. A texture the device cannot take must not hide the element.
+  //
+  //     `drew` used to mean "no JS exception": `drawElementQuad` returns true as soon as
+  //     `gl.drawArrays` was called, and `createGLTexture` handed back the texture even when
+  //     `texImage2D` had raised a GL error rather than thrown. An image over the device's
+  //     `MAX_TEXTURE_SIZE` — 4096 on plenty of mid-range Android GPUs, and a 2× srcset asset
+  //     reaches 3840-5120 routinely — leaves an incomplete texture, which WebGL2 samples as opaque
+  //     black, so the element was hidden behind a black rectangle with nothing logged.
+  //
+  //     The limit is stubbed rather than the image grown: this needs a real GL context, real
+  //     `texImage2D` and the real draw path, and headless Chromium's actual limit is far above
+  //     anything an `<img>` here could reach. What is under test is the guard, not Chromium's cap.
+  // -------------------------------------------------------------------------
+  const oversized = await page.evaluate(async () => {
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const twoFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const el = document.getElementById('order-a')
+
+    const inst = prepareShaders(el, createEffectParams({ mode: 'displace' }))
+    inst.activate()
+    const renderer = getSharedShaderRenderer()
+    const realGetParameter = renderer.gl.getParameter.bind(renderer.gl)
+    renderer.gl.getParameter = (pname) => (pname === renderer.gl.MAX_TEXTURE_SIZE ? 16 : realGetParameter(pname))
+    await twoFrames()
+    const opacityUnderLimit = el.style.opacity
+    const registeredWhileRefused = renderer.drawCalls.size
+
+    // And back: the same element, the same instance, once the device will take the texture.
+    renderer.gl.getParameter = realGetParameter
+    await twoFrames()
+    const opacityOnceAccepted = el.style.opacity
+
+    inst.destroy()
+    return { opacityUnderLimit, registeredWhileRefused, opacityOnceAccepted }
+  })
+
+  check(
+    'texture-limit: a source over MAX_TEXTURE_SIZE leaves the element visible instead of hiding it behind black',
+    oversized.opacityUnderLimit === '' && oversized.registeredWhileRefused > 0,
+    `opacity=${JSON.stringify(oversized.opacityUnderLimit)}, registered=${oversized.registeredWhileRefused}`,
+  )
+  check(
+    'texture-limit: the same element is hidden again once the texture fits — the refusal is the limit, not a dead instance',
+    oversized.opacityOnceAccepted === '0',
+    `opacity=${JSON.stringify(oversized.opacityOnceAccepted)}`,
+  )
+
+  // -------------------------------------------------------------------------
   // 6. Real WebGL2 shader compilation. jsdom has no real GL context at all (see the unit suite's
   //    "Not implemented: HTMLCanvasElement.prototype.getContext" logs) — a mocked `getContext`
   //    always reports success regardless of whether the actual GLSL in `glsl.ts` is valid. This is
