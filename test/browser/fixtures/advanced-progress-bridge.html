@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — advanced scroll-progress-to-shader bridge fixture</title>
+    <style>
+      /*
+        No `overflow: hidden` here (unlike advanced-webgl.html): this fixture needs the window
+        itself to scroll for real, since `scroll-progress` tracks real window scroll position.
+      */
+      body {
+        margin: 0;
+        padding: 0;
+        background: #14110f;
+      }
+      .spacer {
+        height: 300px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spacer"></div>
+
+    <!--
+      Same-element case: `scroll-progress` and `shaders` composed on one element, via the same
+      comma grammar any two primitives share (`data-kui="a, b"`). Own height (1200px, authored via
+      CSS, independent of the SVG's intrinsic size) is `scroll-progress`'s default distance.
+    -->
+    <img
+      id="progress-same"
+      data-kui="scroll-progress, shaders mode:displace strength:0.3"
+      style="display: block; width: 200px; height: 1200px"
+      src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>"
+    />
+
+    <div class="spacer" style="height: 800px"></div>
+
+    <!--
+      Ancestor case: `scroll-progress` sits on the (non-visual) container; the shader is three
+      levels below it and never writes `--kui-progress` itself. Only inheriting the ancestor's
+      inline write through `getComputedStyle` can make this element's shader track scroll.
+    -->
+    <div id="ancestor-driver" data-kui="scroll-progress" style="height: 1200px; position: relative">
+      <div style="height: 400px"></div>
+      <div>
+        <img
+          id="progress-child"
+          data-kui="shaders mode:liquid strength:0.3"
+          style="display: block; width: 200px; height: 200px"
+          src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/></svg>"
+        />
+      </div>
+    </div>
+
+    <div class="spacer" style="height: 800px"></div>
+
+    <script src="./advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

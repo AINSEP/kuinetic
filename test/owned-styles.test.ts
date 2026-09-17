@@ -91,3 +91,68 @@ describe('createStyleLedger restore', () => {
     expect(host.innerHTML).toBe(authored)
   })
 })
+
+describe('createStyleLedger peek', () => {
+  it('returns undefined for a property this ledger has never touched', () => {
+    const el = document.createElement('div')
+    const ledger = createStyleLedger(el)
+    expect(ledger.peek('transform')).toBeUndefined()
+  })
+
+  it("returns the author's value from immediately before the first write", () => {
+    const el = document.createElement('div')
+    el.style.transform = 'scale(1.2)'
+    const ledger = createStyleLedger(el)
+    ledger.set('transform', 'rotateX(10deg)')
+
+    expect(ledger.peek('transform')).toBe('scale(1.2)')
+    // The element's live value has moved on; peek keeps answering with the pre-write one.
+    expect(el.style.transform).toBe('rotateX(10deg)')
+  })
+
+  it('keeps answering with the original value across repeated writes', () => {
+    const el = document.createElement('div')
+    el.style.opacity = '0.8'
+    const ledger = createStyleLedger(el)
+    // Three separate writes to the same property, deliberately — proving peek() doesn't drift
+    // toward whichever one ran most recently.
+    for (const value of ['0', '0.5', '1']) ledger.set('opacity', value)
+
+    expect(ledger.peek('opacity')).toBe('0.8')
+  })
+
+  it("distinguishes 'never captured' from 'captured, and there was nothing there'", () => {
+    const el = document.createElement('div')
+    const ledger = createStyleLedger(el)
+
+    // Not yet asked about `transform` at all.
+    expect(ledger.peek('transform')).toBeUndefined()
+
+    // `claim()` captures without writing, same as `set()` does before its own write.
+    ledger.claim('transform')
+    expect(ledger.peek('transform')).toBe('')
+    expect(el.style.transform).toBe('')
+  })
+
+  it('reports a captured !important value without its priority — value only, by design', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('opacity', '0.4', 'important')
+    const ledger = createStyleLedger(el)
+    ledger.set('opacity', '0')
+
+    expect(ledger.peek('opacity')).toBe('0.4')
+    // The priority still round-trips correctly on the write path that matters: restore().
+    ledger.restore()
+    expect(el.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  it('forgets what it captured once restore() runs', () => {
+    const el = document.createElement('div')
+    el.style.transform = 'scale(1.2)'
+    const ledger = createStyleLedger(el)
+    ledger.set('transform', 'rotateX(10deg)')
+    ledger.restore()
+
+    expect(ledger.peek('transform')).toBeUndefined()
+  })
+})

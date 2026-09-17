@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — advanced webgl fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #14110f;
+        overflow: hidden;
+      }
+      #img1, #img2 {
+        position: absolute;
+        top: 10px;
+        width: 100px;
+        height: 100px;
+      }
+      #img1 { left: 10px; }
+      #img2 { left: 150px; }
+      /* Half off-screen: left -50px, width 100px. Visible from x=0..50 */
+      #img-clipped {
+        position: absolute;
+        left: -50px;
+        top: 150px;
+        width: 100px;
+        height: 100px;
+      }
+      #authored-zero {
+        position: absolute;
+        left: 10px;
+        top: 260px;
+        width: 100px;
+        height: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      SVG data URIs load synchronously in Chromium and provide naturalWidth/naturalHeight > 0
+      with complete = true immediately.
+      Left half of img-clipped is red, right half is green (50..100px).
+    -->
+    <img id="img1" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+    <img id="img2" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/></svg>" />
+    <img id="img-clipped" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect x='0' width='50' height='100' fill='rgb(255,0,0)'/><rect x='50' width='50' height='100' fill='rgb(0,255,0)'/></svg>" />
+    <img id="authored-zero" style="opacity: 0;" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,255,0)'/></svg>" />
+
+    <script src="./advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

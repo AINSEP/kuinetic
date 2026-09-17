@@ -21,6 +21,19 @@ export interface StyleLedger {
   restore(): void
   /** Properties currently owned. Diagnostics and leak assertions. */
   owned(): string[]
+  /**
+   * The value this ledger will restore `property` to — whatever was there immediately before its
+   * first `set()` or `claim()` — or `undefined` if this ledger has never captured that property.
+   *
+   * `restore()` can put a value back, but until now nothing could ask what it remembered without
+   * writing it: a caller that needs the *value itself* mid-effect (a "resting state" to fall back
+   * to when its own live input settles at a neutral point, say) had to keep a private snapshot of
+   * its own, taken at its own moment, which is exactly the two-sources-of-truth bug this ledger
+   * exists to prevent everywhere else. `undefined` here means only "never captured" — a property
+   * that *was* captured but held no value beforehand reads back as `''`, matching what a live
+   * `getPropertyValue` call would have returned for it at that same instant.
+   */
+  peek(property: string): string | undefined
 }
 
 /**
@@ -92,6 +105,11 @@ export function createStyleLedger(el: Element): StyleLedger {
         el.removeAttribute('style')
     },
     owned: () => [...previous.keys()],
+    peek(property) {
+      if (!previous.has(property)) return undefined
+      const previousValue = previous.get(property)
+      return previousValue === undefined ? '' : previousValue.value
+    },
   }
 }
 
