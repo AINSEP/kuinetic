@@ -15,7 +15,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { AudioSourceController, prepareAudioSource } from '../audio.js'
-import { CameraController } from '../camera-3d.js'
+import { CameraController, prepareCameraScene } from '../camera-3d.js'
 import { SceneController, parseChildStep } from '../scenes.js'
 import { ParticleEmitter } from '../particles.js'
 import type { EffectParams } from '../../core/types.js'
@@ -255,5 +255,236 @@ describe('advanced modules restore what was there immediately before the first w
       expect(host.style.position).toBe('relative')
       expect(host.style.getPropertyPriority('position')).toBe('important')
     })
+  })
+})
+
+/**
+ * Two owners of one element.
+ *
+ * The invariant above is per module; this is the one *between* modules, and it is the one a private
+ * `LedgerSet` per controller cannot hold. `prepareScene` and `prepareCameraScene` both query
+ * descendant-wide (`[data-kui*="scene-step"]`, `[data-kui*="camera-layer"]`) and neither query stops
+ * at a nested host, so a step or a layer can genuinely belong to two controllers at once — and then
+ * the second controller's own ledger captures the first controller's frame value as "the author's".
+ *
+ * Every case below is ordered so the second owner writes *after* the first, which is exactly what a
+ * per-controller ledger cannot survive: it would restore to the first owner's library value, without
+ * its priority, and leave the element pinned there with nothing running.
+ */
+describe('two controllers writing to one element share a single capture', () => {
+  it('a nested scene does not pin its parent scene\'s step to a frame value', () => {
+    const outerStage = document.createElement('div')
+    const innerStage = document.createElement('div')
+    const step = document.createElement('div')
+    step.setAttribute('data-kui', 'scene-step at:0..1 opacity:0->1')
+    outerStage.appendChild(innerStage)
+    innerStage.appendChild(step)
+
+    const outer = new SceneController(outerStage, { progress: 'scroll' }, { window: null })
+    const inner = new SceneController(innerStage, { progress: 'scroll' }, { window: null })
+    outer.addStep(step, parseChildStep(step))
+    inner.addStep(step, parseChildStep(step))
+
+    step.style.setProperty('opacity', '0.3', 'important')
+
+    // Document order: the outer scene is scanned first, so its write is the one that captures.
+    outer.progress = 0.5
+    outer.updateAll()
+    expect(step.style.opacity).toBe('0.5')
+    inner.progress = 0.8
+    inner.updateAll()
+    expect(step.style.opacity).toBe('0.8')
+
+    // The outer scene lets go first. The inner one is still driving the step, so nothing is
+    // restored yet — restoring here would hand the author's value back under a live effect.
+    outer.destroy()
+    expect(step.style.opacity).toBe('0.8')
+
+    inner.destroy()
+    expect(step.style.opacity).toBe('0.3')
+    expect(step.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  it('a nested camera scene does not pin its parent\'s layer transform', () => {
+    const outerStage = document.createElement('div')
+    const innerStage = document.createElement('div')
+    const layer = document.createElement('div')
+    outerStage.appendChild(innerStage)
+    innerStage.appendChild(layer)
+
+    const outer = new CameraController(outerStage, { depth: 1000, mouseTilt: false }, { window: null })
+    const inner = new CameraController(innerStage, { depth: 400, mouseTilt: false }, { window: null })
+    outer.addLayer(layer, 40)
+    inner.addLayer(layer, 90)
+
+    layer.style.setProperty('transform', 'translateZ(5px)', 'important')
+
+    outer.render()
+    const afterOuter = layer.style.transform
+    expect(afterOuter).toContain('translate3d(0, 0, 40px)')
+    inner.render()
+    expect(layer.style.transform).toContain('translate3d(0, 0, 90px)')
+
+    outer.destroy()
+    expect(layer.style.transform).not.toBe('translateZ(5px)')
+
+    inner.destroy()
+    expect(layer.style.transform).toBe('translateZ(5px)')
+    expect(layer.style.getPropertyPriority('transform')).toBe('important')
+  })
+
+  it('an element that is both a scene step and a camera layer survives both owners', () => {
+    const sceneStage = document.createElement('div')
+    const cameraStage = document.createElement('div')
+    const both = document.createElement('div')
+    both.setAttribute('data-kui', 'camera-layer z:-100, scene-step at:0..1 y:40px->0px')
+    sceneStage.appendChild(cameraStage)
+    cameraStage.appendChild(both)
+
+    const scene = new SceneController(sceneStage, { progress: 'scroll' }, { window: null })
+    const camera = new CameraController(cameraStage, { depth: 1000, mouseTilt: false }, { window: null })
+    scene.addStep(both, parseChildStep(both))
+    camera.addLayer(both, -100)
+
+    both.style.transform = 'rotate(3deg)'
+
+    scene.progress = 0.5
+    scene.updateAll()
+    camera.render()
+    expect(both.style.transform).not.toBe('rotate(3deg)')
+
+    scene.destroy()
+    camera.destroy()
+    expect(both.style.transform).toBe('rotate(3deg)')
+  })
+
+  it('two audio-source controllers on one element restore the author\'s custom property', () => {
+    const host = document.createElement('div')
+    host.appendChild(document.createElement('audio'))
+    // One frame queue per controller. Sharing one array silently let the *first* controller's
+    // rescheduled tick be shifted off in place of the second's very first one, so the second never
+    // wrote at all and the case passed without ever creating a second owner.
+    const env = (level: number) => {
+      const { ctx, analyser } = mockAudioContext()
+      analyser.getByteFrequencyData = vi.fn((arr: Uint8Array) => { arr.fill(level) })
+      return {
+        window: {
+          AudioContext: vi.fn().mockImplementation(() => ctx),
+          HTMLMediaElement: window.HTMLMediaElement,
+        } as unknown as Window,
+        document,
+        raf: () => null,
+        caf: () => null,
+      }
+    }
+
+    const first = new AudioSourceController(host, { source: 'media' }, env(100))
+    const second = new AudioSourceController(host, { source: 'media' }, env(200))
+
+    host.style.setProperty('--kui-audio-level', '0.5')
+
+    first.start()
+    first.updateFrame()
+    const afterFirst = host.style.getPropertyValue('--kui-audio-level')
+    expect(afterFirst).not.toBe('0.5')
+
+    second.start()
+    second.updateFrame()
+    // Different band data, so the second controller demonstrably wrote over the first's value —
+    // which is exactly the value a private ledger would have captured as the author's.
+    expect(host.style.getPropertyValue('--kui-audio-level')).not.toBe(afterFirst)
+
+    first.destroy()
+    second.destroy()
+    expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.5')
+  })
+})
+
+/**
+ * Where `restore()` lives once the animator hands a controller `ctx.style`.
+ *
+ * `ctx.style` is the host's entry in the animator's own `LedgerSet`, and the animator restores that
+ * set itself — `release()` aborts the signal, runs every `instance.destroy()`, *then* calls
+ * `state.ledgers.restore()`. A controller that also restored it would be unwinding core's writes
+ * while the element is still live. Everything the controller reached on its own — a layer, a step —
+ * is in no core set at all, so the controller must restore those itself.
+ *
+ * This case asserts both halves of that split, which is the only way to tell "I correctly left the
+ * host alone" apart from "I forgot the host".
+ */
+describe('restore responsibility for a context-provided host ledger', () => {
+  const cameraParams = {
+    num: (name: string, fallback: number) => (name === 'depth' ? 800 : fallback),
+    text: (_name: string, fallback: string) => fallback,
+    is: (_name: string, value: string) => value === 'on',
+  } as unknown as EffectParams
+
+  it('activate, cancel, re-activate and destroy return the element to its authored value', () => {
+    const host = document.createElement('div')
+    const layer = document.createElement('div')
+    layer.setAttribute('data-kui', 'camera-layer z:40')
+    host.appendChild(layer)
+    document.body.appendChild(host)
+
+    const ctx = createRealPrepareContext(host, { win: null, reducedMotion: false })
+    const inst = prepareCameraScene(host, cameraParams, ctx)
+
+    // Authored after preparation, on both an element core knows about (the host) and one only this
+    // module ever reaches (the layer).
+    host.style.setProperty('perspective', '1500px', 'important')
+    layer.style.setProperty('transform', 'translateZ(5px)', 'important')
+
+    inst.activate()
+    expect(host.style.perspective).toBe('800px')
+    expect(layer.style.transform).toContain('translate3d')
+
+    // `cancel` is "stop where it is, leaving the element mid-effect" — no restore.
+    inst.cancel()
+    expect(host.style.perspective).toBe('800px')
+
+    // And it can come back: `start()` is not spent by a cancel.
+    inst.activate()
+    expect(host.style.perspective).toBe('800px')
+    expect(layer.style.transform).toContain('translate3d')
+
+    inst.destroy()
+    // The layer is this module's own; destroy is the last thing that will ever touch it.
+    expect(layer.style.transform).toBe('translateZ(5px)')
+    expect(layer.style.getPropertyPriority('transform')).toBe('important')
+    // The host is the animator's. Untouched by us, still carrying the library value.
+    expect(host.style.perspective).toBe('800px')
+
+    // What `Animator.release()` does after every `instance.destroy()`.
+    ctx.style.restore()
+    expect(host.style.perspective).toBe('1500px')
+    expect(host.style.getPropertyPriority('perspective')).toBe('important')
+
+    host.remove()
+  })
+
+  it('two controllers handed the same host ledger share it rather than capturing each other', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const ctx = createRealPrepareContext(host, { win: null, reducedMotion: false })
+
+    const first = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null }, ctx.style)
+    const second = new CameraController(host, { depth: 400, mouseTilt: false }, { window: null }, ctx.style)
+
+    host.style.setProperty('perspective', '1500px', 'important')
+
+    first.start()
+    expect(host.style.perspective).toBe('800px')
+    second.start()
+    expect(host.style.perspective).toBe('400px')
+
+    first.destroy()
+    second.destroy()
+    // Neither controller owns this ledger, so neither restored it.
+    expect(host.style.perspective).toBe('400px')
+
+    ctx.style.restore()
+    expect(host.style.perspective).toBe('1500px')
+    expect(host.style.getPropertyPriority('perspective')).toBe('important')
+    host.remove()
   })
 })

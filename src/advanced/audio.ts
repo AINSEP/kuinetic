@@ -16,11 +16,12 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import { createLedgerSet, type LedgerSet } from '../core/owned-styles.js'
+import type { StyleLedger } from '../core/owned-styles.js'
 import {
-  type AdvancedEnv, type AnyWindow, type AnyDocument, type RafFunction, type CafFunction,
-  clamp, createEffectInstance, createInertInstance, isReducedMotion, registerInto, resolveEnv,
-  styleOf,
+  type AdvancedEnv, type AdvancedLedgers, type AnyWindow, type AnyDocument,
+  type RafFunction, type CafFunction,
+  clamp, createAdvancedLedgers, createEffectInstance, createInertInstance, isReducedMotion,
+  registerInto, resolveEnv, styleOf,
 } from './base.js'
 
 /** The host custom properties this module owns. Also the primitive's declared channels. */
@@ -191,8 +192,12 @@ export class AudioSourceController {
    * replaced captured all five properties in this constructor and restored them on destroy, which
    * meant an author who wrote `--kui-audio-bass` any time after `prepare` had that write silently
    * reverted to a value from before their own.
+   *
+   * Shared with every other controller writing to this element — see `createAdvancedLedgers`. Two
+   * `audio-source` effects on one element (`audio-reactive` plus `audio-mic`, say) would otherwise
+   * open a ledger each, and the second would capture the first's `0.000` as the author's value.
    */
-  private ledgers: LedgerSet
+  private ledgers: AdvancedLedgers
 
   /**
    * Which microphone request is the live one.
@@ -206,7 +211,12 @@ export class AudioSourceController {
    */
   private micRequestToken = 0
 
-  constructor(element: HTMLElement, options: AudioSourceOptions = {}, env: AdvancedEnv = {}) {
+  constructor(
+    element: HTMLElement,
+    options: AudioSourceOptions = {},
+    env: AdvancedEnv = {},
+    hostLedger?: StyleLedger | null,
+  ) {
     this.element = element
     this.options = options
     this.env = env
@@ -215,7 +225,7 @@ export class AudioSourceController {
     this.document = resolved.document
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createLedgerSet(element)
+    this.ledgers = createAdvancedLedgers(element, hostLedger)
   }
 
   private connectMicSource(ctx: AudioContext, analyser: AnalyserNode, win: Window | null): void {
@@ -377,10 +387,12 @@ export function prepareAudioSource(
   const smoothing = clamp(params.num ? params.num('smoothing', 0.8) : 0.8, 0, 0.99)
   const fftSize = clamp(params.num ? params.num('fft', 256) : 256, 32, 2048)
 
+  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
   const controller = new AudioSourceController(
     el as HTMLElement,
     { source, media, smoothing, fftSize },
     resolvedEnv,
+    ctx?.style,
   )
 
   return createEffectInstance({

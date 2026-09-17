@@ -6,13 +6,15 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import { createLedgerSet, type LedgerSet } from '../core/owned-styles.js'
+import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv,
+  type AdvancedLedgers,
   type WindowLike,
   type RafFunction,
   type CafFunction,
   clamp,
+  createAdvancedLedgers,
   createEffectInstance,
   createInertInstance,
   isReducedMotion,
@@ -90,10 +92,22 @@ export class CameraController {
   audioLevel = 0
   isListening = false
 
-  /** Container and every depth layer, each ledger opened at that element's first write. */
-  private ledgers: LedgerSet
+  /**
+   * Container and every depth layer, each ledger opened at that element's first write and shared
+   * with every other controller writing to the same element — see `createAdvancedLedgers`.
+   *
+   * A nested `camera-scene` matters here: `prepareCameraScene`'s `[data-kui*="camera-layer"]` query
+   * is descendant-wide, so an inner scene claims the outer scene's layers too, and both write
+   * `transform` to them.
+   */
+  private ledgers: AdvancedLedgers
 
-  constructor(container: HTMLElement, options: CameraOptions = {}, env: AdvancedEnv = {}) {
+  constructor(
+    container: HTMLElement,
+    options: CameraOptions = {},
+    env: AdvancedEnv = {},
+    hostLedger?: StyleLedger | null,
+  ) {
     this.container = container
     this.options = options
     this.env = env
@@ -101,7 +115,7 @@ export class CameraController {
     this.window = resolved.window
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createLedgerSet(container)
+    this.ledgers = createAdvancedLedgers(container, hostLedger)
     this.onScroll = this.onScroll.bind(this)
     this.onMouseMove = this.onMouseMove.bind(this)
   }
@@ -323,7 +337,10 @@ export function prepareCameraScene(
   const audio = parseAudioBand(params.text ? params.text('audio', 'off') : 'off')
 
   const htmlEl = el as HTMLElement
-  const controller = new CameraController(htmlEl, { depth, mouseTilt, audio }, resolvedEnv)
+  // `ctx.style` is the host's entry in the animator's own `LedgerSet` (`animator.ts` hands every
+  // JS primitive on an element the same one), so adopting it is what makes `camera-scene` and any
+  // CSS-rendered effect on the same element share one capture instead of snapshotting each other.
+  const controller = new CameraController(htmlEl, { depth, mouseTilt, audio }, resolvedEnv, ctx?.style)
   const layerEls = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="camera-layer"]') : []
 
   for (const layer of layerEls) {

@@ -6,14 +6,16 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import { createLedgerSet, type LedgerSet } from '../core/owned-styles.js'
+import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv,
+  type AdvancedLedgers,
   type WindowLike,
   type DocumentLike,
   type RafFunction,
   type CafFunction,
   clamp,
+  createAdvancedLedgers,
   createEffectInstance,
   createInertInstance,
   isReducedMotion,
@@ -121,14 +123,21 @@ export class ParticleEmitter {
    * The hand-rolled pair this replaced read back only the value, never the priority, so an
    * author's `position: relative !important` came back as a plain declaration on teardown. The
    * canvas's own `cssText` needs no ledger — that element is created and removed here.
+   *
+   * Shared with every other controller writing to this element — see `createAdvancedLedgers`.
    */
-  private ledgers: LedgerSet
+  private ledgers: AdvancedLedgers
 
-  constructor(element: HTMLElement, options: ParticleOptions = {}, env: AdvancedEnv = {}) {
+  constructor(
+    element: HTMLElement,
+    options: ParticleOptions = {},
+    env: AdvancedEnv = {},
+    hostLedger?: StyleLedger | null,
+  ) {
     this.element = element
     this.options = options
     this.env = env
-    this.ledgers = createLedgerSet(element)
+    this.ledgers = createAdvancedLedgers(element, hostLedger)
     const resolved = resolveEnv(null, env)
     this.window = resolved.window
     this.document = resolved.document
@@ -313,7 +322,8 @@ export function prepareParticles(
   const color = params.text ? params.text('color', '#e4f222') : '#e4f222'
 
   const htmlEl = el as HTMLElement
-  const emitter = new ParticleEmitter(htmlEl, { count, radius, color }, resolvedEnv)
+  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
+  const emitter = new ParticleEmitter(htmlEl, { count, radius, color }, resolvedEnv, ctx?.style)
   let isMounted = false
 
   return createEffectInstance({

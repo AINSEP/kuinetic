@@ -6,13 +6,15 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import { createLedgerSet, type LedgerSet } from '../core/owned-styles.js'
+import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv,
+  type AdvancedLedgers,
   type WindowLike,
   type RafFunction,
   type CafFunction,
   clamp,
+  createAdvancedLedgers,
   createEffectInstance,
   createInertInstance,
   isReducedMotion,
@@ -151,15 +153,25 @@ export class SceneController {
   timeStart = 0
 
   /**
-   * One ledger per step element, each opened at that step's first write.
+   * One ledger per step element, each opened at that step's first write and shared with every
+   * other controller writing to the same element — see `createAdvancedLedgers`.
    *
    * Steps are collected during `prepare`, which can be a long way before the scene ever scrolls
    * into view. Recording opacity and transform *there* meant destroy restored the markup as it
    * looked at preparation time, discarding anything the author wrote in between.
+   *
+   * Sharing is what makes a nested `scene` safe: `prepareScene`'s `[data-kui*="scene-step"]` query
+   * is descendant-wide and does not stop at an inner `scene`, so a step inside two scenes is
+   * claimed by both and written by both, every frame.
    */
-  private ledgers: LedgerSet
+  private ledgers: AdvancedLedgers
 
-  constructor(container: HTMLElement, options: SceneOptions = {}, env: AdvancedEnv = {}) {
+  constructor(
+    container: HTMLElement,
+    options: SceneOptions = {},
+    env: AdvancedEnv = {},
+    hostLedger?: StyleLedger | null,
+  ) {
     this.container = container
     this.options = options
     this.env = env
@@ -167,7 +179,7 @@ export class SceneController {
     this.window = resolved.window
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createLedgerSet(container)
+    this.ledgers = createAdvancedLedgers(container, hostLedger)
     this.onScroll = this.onScroll.bind(this)
   }
 
@@ -284,7 +296,13 @@ export function prepareScene(
   const duration = clamp(params.num ? params.num('duration', 1000) : 1000, 100, 60000)
 
   const htmlEl = el as HTMLElement
-  const controller = new SceneController(htmlEl, { name, progress: progressMode, duration }, resolvedEnv)
+  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
+  const controller = new SceneController(
+    htmlEl,
+    { name, progress: progressMode, duration },
+    resolvedEnv,
+    ctx?.style,
+  )
   const childSteps = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="scene-step"]') : []
   for (const child of childSteps) {
     controller.addStep(child, parseChildStep(child))
