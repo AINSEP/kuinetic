@@ -20,6 +20,7 @@ import {
   resolveEnv,
   styleOf,
 } from './base.js'
+import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './audio.js'
 
 export { clamp }
 
@@ -36,7 +37,21 @@ export interface CameraLayer {
 export interface CameraOptions {
   depth?: number
   mouseTilt?: boolean
+  /** Which `audio-source` band pushes the camera forward, or absent/null for none. */
+  audio?: AudioBand | null
 }
+
+/**
+ * How far a full-scale band pushes the camera, as a fraction of the scene's own `depth`.
+ *
+ * Expressed against `depth` rather than in pixels because `depth` is also the container's
+ * `perspective`, and the two together are what decide how much closer the scene *looks*. A fixed
+ * 60px push is a shove at `depth: 100` and invisible at `depth: 5000`; a tenth of `depth` reads as
+ * the same ~5% swell at either end. It is a tenth rather than a half so a beat is a breath, not a
+ * lurch: `cameraZ` already spans 0..depth across the scroll, so audio at full scale moves the
+ * camera as far as scrolling 10% further through the scene.
+ */
+const AUDIO_PUSH_RATIO = 0.1
 
 /**
  * Parse depth value from CSS string.
@@ -70,6 +85,9 @@ export class CameraController {
   mouse = { x: 0, y: 0, targetX: 0, targetY: 0 }
   rafId: number | null = null
   scrollRafId: number | null = null
+  audioRafId: number | null = null
+  /** Last value read for the selected band, 0..1. Stays 0 for a scene with no `audio:`. */
+  audioLevel = 0
   isListening = false
 
   /** Container and every depth layer, each ledger opened at that element's first write. */
@@ -118,10 +136,13 @@ export class CameraController {
     this.bindEvents()
     this.isListening = true
     this.updateScroll()
+    this.readAudio()
     // The scene's depth is a scroll position, and until something renders it every layer sits at
     // z = 0. `startLoop()` returns immediately when `mouse-tilt: off`, so a scene that never got
     // this call stayed visibly flat from load until the visitor's first scroll or resize.
     this.render()
+    // Before `startLoop()`, which stands down when this one is running — see `startAudioLoop`.
+    this.startAudioLoop()
     this.startLoop()
   }
 
@@ -135,6 +156,8 @@ export class CameraController {
     this.rafId = null
     if (this.scrollRafId) this.caf(this.scrollRafId)
     this.scrollRafId = null
+    if (this.audioRafId) this.caf(this.audioRafId)
+    this.audioRafId = null
     this.isListening = false
   }
 
@@ -148,8 +171,37 @@ export class CameraController {
     this.cameraZ = progress * (this.options.depth || 1000)
   }
 
+  /** The selected band's current value, or 0 for a scene that asked for none. */
+  readAudio(): void {
+    this.audioLevel = this.options.audio ? readAudioBand(this.container, this.options.audio) : 0
+  }
+
+  /**
+   * The one frame loop an audio-driven scene runs, doing every read before every write.
+   *
+   * An audio band changes on its own, without a scroll or a pointer move to hang a frame on, so
+   * this scene needs a loop of its own — and then it needs to be the *only* loop, which is why
+   * `onScroll` and `startLoop` both stand down while it is running. Three callbacks each reading
+   * geometry (`getBoundingClientRect`) or style (`readAudioBand`'s computed fallback) and then
+   * writing transforms would force a layout or style recalculation per callback per frame; one
+   * pass that reads scroll position, reads the band, steps the pointer spring and only then
+   * renders forces at most one.
+   */
+  startAudioLoop(): void {
+    if (this.audioRafId || !this.options.audio) return
+    const tick = () => {
+      this.updateScroll()
+      this.readAudio()
+      if (this.options.mouseTilt) this.stepMouse()
+      this.render()
+      this.audioRafId = this.isListening ? this.raf(tick) : null
+    }
+    this.audioRafId = this.raf(tick)
+  }
+
   onScroll(): void {
-    if (this.scrollRafId) return
+    // The audio loop already re-reads scroll position every frame.
+    if (this.scrollRafId || this.audioRafId) return
     const id = this.raf(() => {
       this.scrollRafId = null
       this.updateScroll()
@@ -188,7 +240,9 @@ export class CameraController {
   }
 
   startLoop(): void {
-    if (this.rafId || !this.options.mouseTilt) return
+    // The audio loop steps the pointer spring itself, so a second loop would only double the
+    // renders and interleave its reads with this one's writes.
+    if (this.rafId || this.audioRafId || !this.options.mouseTilt) return
     const tick = () => {
       const moving = this.stepMouse()
       this.render()
@@ -231,10 +285,13 @@ export class CameraController {
       this.renderStageTilt(this.mouse.y * -8, this.mouse.x * 8)
     }
 
+    // `audioLevel` is 0 for every scene that did not ask for a band, and `+ 0` leaves `cameraZ`
+    // and the transform string it produces exactly as they were.
+    const cameraZ = this.cameraZ + this.audioLevel * (this.options.depth || 1000) * AUDIO_PUSH_RATIO
     for (const layer of this.layers) {
       styleOf(this.ledgers, layer.element)?.set(
         'transform',
-        computeLayerTransform(layer.depthZ, this.cameraZ),
+        computeLayerTransform(layer.depthZ, cameraZ),
       )
     }
   }
@@ -262,9 +319,11 @@ export function prepareCameraScene(
   const resolvedEnv = resolveEnv(ctx)
   const depth = clamp(params.num ? params.num('depth', 1000) : 1000, 100, 5000)
   const mouseTilt = parseMouseTilt(params)
+  // `off`, an unknown word and an accessor with no `text` at all all come back as `null`.
+  const audio = parseAudioBand(params.text ? params.text('audio', 'off') : 'off')
 
   const htmlEl = el as HTMLElement
-  const controller = new CameraController(htmlEl, { depth, mouseTilt }, resolvedEnv)
+  const controller = new CameraController(htmlEl, { depth, mouseTilt, audio }, resolvedEnv)
   const layerEls = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="camera-layer"]') : []
 
   for (const layer of layerEls) {
@@ -298,6 +357,23 @@ export const CAMERA_PARAMETERS = {
     default: 'on',
     keywords: ['on', 'off'],
     cssProperty: '--kui-camera-tilt',
+  },
+  /**
+   * Which `audio-source` band pushes the camera forward, if any.
+   *
+   * Same name, same words and the same `off` default as the `shaders` primitive's: one spelling
+   * for "follow this band" across this directory rather than a second word per consumer. Opt-in
+   * for the reason that one is — the value is written by another primitive, and a scene that read
+   * it unasked would start pulsing the moment an unrelated `audio-source` appeared above it.
+   *
+   * Turning it on also changes *how* the scene renders: see `startAudioLoop`, which becomes the
+   * scene's only frame loop.
+   */
+  audio: {
+    type: 'keyword' as const,
+    default: 'off',
+    keywords: ['off', ...AUDIO_BANDS],
+    cssProperty: '--kui-camera-audio',
   },
 }
 
