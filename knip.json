@@ -5,7 +5,8 @@
     "test/**/*.test.ts",
     "test/browser/**/*.mjs",
     "src/core/index.ts",
-    "src/effects/index.ts"
+    "src/effects/index.ts",
+    "src/advanced/index.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.css", "scripts/**/*.mjs"],
   "ignoreExportsUsedInFile": true,

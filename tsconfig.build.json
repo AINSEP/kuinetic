@@ -7,5 +7,8 @@
     "outDir": "dist/types",
     "types": []
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests colocated inside `src` (src/advanced/__tests__) are source, not published surface.
+  // Without this they emit into dist/types and `npm pack` ships declarations for the suite.
+  "exclude": ["src/**/__tests__/**"]
 }

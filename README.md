@@ -54,6 +54,25 @@ import 'kuinetic/css'
 kuinetic({ observe: true }).start()
 ```
 
+### Experimental: `kuinetic/advanced`
+
+A separate, opt-in subpath of WebGL, CSS-3D and Web-Audio primitives — shader surfaces, a depth
+camera, particle dissolve, a fluid cursor trail, and an audio-reactive driver:
+
+```js
+import { kuinetic } from 'kuinetic'
+import { registerAdvanced } from 'kuinetic/advanced'
+
+const k = kuinetic()
+registerAdvanced(k) // or one module at a time: registerShaders, registerCamera, …
+k.start()
+```
+
+It is **unstable and not covered by the guarantees the rest of this README makes** — the API can
+change without a major version, and nothing here is CSS-first or zero-JS. Nothing is imported
+unless you write that import: the default entry is byte-for-byte the same whether or not this
+subpath exists. See `docs/advanced-modules.md` for what each module does and what it costs.
+
 ### CDN reference
 
 Every file is mirrored on jsDelivr and unpkg — both update automatically from every npm release,

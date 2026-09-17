@@ -2,15 +2,39 @@
 
 `src/advanced/` is a set of WebGL/CSS-3D/Web-Audio extensions that sit outside the core library.
 
-**Status: experimental, unshipped.** Nothing under `src/advanced/` is exported from `src/index.ts`,
-listed in `package.json`'s `exports` map, built into `dist/`, or referenced by any page in `demo/`.
-There is no public entry point today — a consumer would have to import the source files directly
-(`kuinetic/src/advanced/index.ts`), which is not a supported path. Core's "CSS-first, zero-dependency"
-claims are unaffected by this directory: nothing here is bundled into the core output regardless of
-whether `src/advanced/` itself ships.
+**Status: shipped as an opt-in subpath, and experimental.** As of 2026-09-17 `src/advanced/index.ts`
+is a published entry point — `package.json`'s `exports` map names `"./advanced"`, and `build:dist`
+emits `dist/esm/advanced/index.mjs` plus `dist/types/advanced/*.d.ts` alongside the core outputs:
 
-Treat everything below as a description of what the code on disk does today, not a commitment about
-if or when it ships.
+```js
+import { registerAdvanced } from 'kuinetic/advanced'
+```
+
+Read "experimental" literally. This directory was written by an AI, has been through five review
+rounds, and two further reviews on the day it was exported each found P1 bugs still being fixed. The
+parameter names, preset names, and module boundaries can change without a major version bump. It is
+**not covered by the core library's stability guarantees**, and none of core's "CSS-first, zero-JS,
+zero-dependency" claims describe it: every module here is JavaScript, and the shader modules need
+WebGL2. Nothing under `src/advanced/` is referenced by any page in `demo/`. Prefer a core effect
+whenever one will do.
+
+It is opt-in in the strict sense — `src/index.ts` does not import it and nothing auto-registers, so
+the default entry is byte-for-byte identical whether or not this subpath exists (verified by
+`test/advanced-subpath.test.ts`, which also asserts none of these exports leak into `kuinetic`). The
+subpath's own code is 56,973 bytes minified — 16,820 gzip, 15,148 brotli — measured on 2026-09-17
+with `src/core` externalised, so those are the advanced modules alone. Core is not double-counted
+for a consumer who also imports `kuinetic` or `kuinetic/core`: the split build shares one core chunk
+across all four entries. To re-measure rather than trust this line:
+
+```bash
+esbuild src/advanced/index.ts --bundle --format=esm --minify --external:'../core/*' \
+  --outfile=/tmp/adv.mjs --metafile=/tmp/adv.meta.json
+```
+
+The metafile is the point — it lists the inputs that landed in the output, which is how you confirm
+no `src/core/*` leaked in. Earlier size claims in this repo were wrong for exactly that reason.
+
+Treat everything below as a description of what the code on disk does today.
 
 ## Files
 
@@ -38,8 +62,8 @@ time, which would discard anything the author wrote in between.
 Nothing here is auto-registered. A consumer opts in explicitly:
 
 ```javascript
-import { kuinetic } from '../src/index.js'
-import { registerAdvanced } from '../src/advanced/index.js'
+import { kuinetic } from 'kuinetic'
+import { registerAdvanced } from 'kuinetic/advanced'
 
 const k = kuinetic()
 registerAdvanced(k) // registers all six primitives
@@ -49,6 +73,11 @@ k.start()
 Or one module at a time, via each file's own `register*` export (`registerShaders`,
 `registerScenes`, `registerCamera`, `registerParticles`, `registerFluidCursor`, `registerAudio`) —
 `registerAdvanced` is exactly these six calls in sequence.
+
+`registerAdvanced` takes a `Registry`, an `Animator`, or anything carrying a `.registry` — so
+`kuinetic/core`'s bare `new Registry()` works too, for a consumer assembling their own catalog
+without the bundled effects. There is no CSS counterpart to `kuinetic/css`: nothing here ships a
+stylesheet.
 
 ## Authoring surface
 

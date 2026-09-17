@@ -106,10 +106,13 @@ for (const path of packedPaths) {
 
 // --- 4. every ESM entry point actually imports and yields something usable ----------------
 try {
-  const [main, core, effects] = await Promise.all(
-    ['dist/esm/index.mjs', 'dist/esm/core/index.mjs', 'dist/esm/effects/index.mjs'].map((p) =>
-      import(pathToFileURL(`${root}${p}`).href),
-    ),
+  const [main, core, effects, advanced] = await Promise.all(
+    [
+      'dist/esm/index.mjs',
+      'dist/esm/core/index.mjs',
+      'dist/esm/effects/index.mjs',
+      'dist/esm/advanced/index.mjs',
+    ].map((p) => import(pathToFileURL(`${root}${p}`).href)),
   )
 
   if (typeof main.kuinetic !== 'function') fail('dist/esm/index.mjs does not export a `kuinetic` function')
@@ -131,6 +134,19 @@ try {
     const names = effects.createRegistry().names()
     if (names.length < 100) fail(`the built registry only has ${names.length} effect names — catalog looks truncated`)
     else ok(`dist/esm/effects/index.mjs: registry resolves to ${names.length} effect names`)
+  }
+
+  // `kuinetic/advanced` registers into a `Registry` the consumer got from `kuinetic/core`, and
+  // `registerInto()` gates on `instanceof Registry`. If the split build ever gave the two subpaths
+  // separate copies of that class, every register* call would throw for a consumer who imported
+  // both — a failure no source-level test can see, because it is a chunking outcome.
+  if (typeof advanced.registerAdvanced !== 'function') {
+    fail('dist/esm/advanced/index.mjs does not export `registerAdvanced`')
+  } else {
+    const registry = new core.Registry()
+    advanced.registerAdvanced(registry)
+    if (!registry.getPrimitive('shaders')) fail('registerAdvanced() did not register the `shaders` primitive')
+    else ok('dist/esm/advanced/index.mjs registers into a Registry from dist/esm/core/index.mjs')
   }
 } catch (error) {
   fail(`an ESM entry point failed to import: ${error.stack ?? error}`)
