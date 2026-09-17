@@ -5,9 +5,15 @@
 
 import type { EffectInstance, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { StyleLedger } from '../core/owned-styles.js'
+// The one value this tier imports from core, and the one core module that therefore lands inside
+// `dist/kuinetic.advanced.js` (516 bytes of it, measured). `owned-styles.ts` has no imports of its
+// own, and `createStyleLedger` is deliberately absent from `src/core/index.ts`'s barrel, so sharing
+// it across the two bundles would mean widening core's public API to save half a kilobyte. Leave it
+// inlined. Everything else below is `import type`, which is what keeps the rest of core out — see
+// `asRegistry`.
 import { createStyleLedger } from '../core/owned-styles.js'
-import { Registry } from '../core/registry.js'
-import { Animator } from '../core/animator.js'
+import type { Registry } from '../core/registry.js'
+import type { Animator } from '../core/animator.js'
 
 export interface WindowLike {
   innerWidth?: number
@@ -381,12 +387,40 @@ function toList<T>(val: T | T[]): T[] {
   return Array.isArray(val) ? val : [val]
 }
 
-function isValidRegistry(target: unknown): target is Registry | Animator | { registry: Registry } {
-  if (!target || typeof target !== 'object') return false
-  if (target instanceof Registry) return true
-  if (target instanceof Animator && target.registry instanceof Registry) return true
-  const r = target as { registry?: unknown }
-  return r.registry instanceof Registry
+/** The two methods `registerInto` actually calls. Checking more would assert a capability it never
+ * exercises; checking fewer would accept an object it is about to crash on. */
+function hasRegistrarShape(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const v = value as { registerPrimitives?: unknown; registerPresets?: unknown }
+  return typeof v.registerPrimitives === 'function' && typeof v.registerPresets === 'function'
+}
+
+/**
+ * Find the registry inside `target`, by shape rather than by constructor.
+ *
+ * This used to be `target instanceof Registry` / `target instanceof Animator`, and that is the one
+ * thing standing between this tier and shipping as its own `<script>` tag. `instanceof` is class
+ * *identity*: two independent esbuild IIFE bundles each inline their own copy of
+ * `src/core/registry.ts`, so the `Registry` the advanced bundle tests against is a different class
+ * object from the one core built the animator's registry with, and a perfectly valid animator gets
+ * rejected. Shape survives that; identity cannot.
+ *
+ * The second payoff is a build one. Those two `instanceof` operands were the *only* reason this
+ * module imported `Registry` and `Animator` as values. As types they erase at compile time, and the
+ * entire transitively-reachable core graph erases with them: the advanced bundle went from 45.6 KB
+ * to 17.4 KB gzipped, with no `--external:`, no esbuild plugin and no global-lookup shim. Do not
+ * reintroduce a value import from `../core/` here without re-measuring.
+ *
+ * Deliberately NOT loosened into "accepts anything": an object carrying the singular
+ * `registerPrimitive` and nothing else is still rejected, which is what
+ * `__tests__/staging.test.ts` has always probed for.
+ */
+function asRegistry(target: unknown): Registry | undefined {
+  if (!target || typeof target !== 'object') return undefined
+  if (hasRegistrarShape(target)) return target as Registry
+  const host = target as { registry?: unknown }
+  if (hasRegistrarShape(host.registry)) return host.registry as Registry
+  return undefined
 }
 
 export function registerInto(
@@ -395,12 +429,10 @@ export function registerInto(
   presets: Preset | Preset[] | unknown,
   name = 'module',
 ): Registry | Animator {
-  if (!isValidRegistry(target)) {
+  const reg = asRegistry(target)
+  if (!reg) {
     throw new Error(`kuinetic: register${name} requires a Registry or Animator instance`)
   }
-  const reg: Registry = target instanceof Registry
-    ? target
-    : (target as { registry: Registry }).registry
   reg.registerPrimitives(toList(primitives) as Primitive[])
   reg.registerPresets(toList(presets) as Preset[])
   return target as Registry | Animator

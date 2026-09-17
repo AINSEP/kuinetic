@@ -23,12 +23,23 @@ load) — download `kuinetic.js` + `kuinetic.css`, or use them straight from the
 ```html
 <link rel="stylesheet" href="./kuinetic.css">
 <script src="./kuinetic.js"></script>
+```
+
+That is the whole integration — no JavaScript of your own. The script starts itself once the
+document is ready, with `observe: true`, so elements added later by your app, a CMS or a
+client-side router are picked up automatically.
+
+To drive it by hand instead, put `data-kui-manual` on the tag and the script does nothing until you
+say so:
+
+```html
+<script src="./kuinetic.js" data-kui-manual></script>
 <script>
   kuinetic.kuinetic({ observe: true }).start()
 </script>
 ```
 
-**One tag, self-hosted** — CSS embedded, auto-started with `observe: true`:
+**One tag, self-hosted** — same auto-start, CSS embedded so there is no `<link>` either:
 
 ```html
 <script src="./kuinetic.all.js"></script>
@@ -54,10 +65,22 @@ import 'kuinetic/css'
 kuinetic({ observe: true }).start()
 ```
 
-### Experimental: `kuinetic/advanced`
+### Experimental: the advanced tier
 
-A separate, opt-in subpath of WebGL, CSS-3D and Web-Audio primitives — shader surfaces, a depth
-camera, particle dissolve, a fluid cursor trail, and an audio-reactive driver:
+A separate, opt-in set of WebGL, CSS-3D and Web-Audio primitives — shader surfaces, a depth camera,
+particle dissolve, a fluid cursor trail, and an audio-reactive driver. It is a **tier**: a second
+file you add beside core, never a different build of core.
+
+```html
+<script src="./kuinetic.js"></script>
+<script src="./kuinetic.advanced.js"></script>
+```
+
+In either order, with nothing else. Core is not shipped twice — the tier externalises it — and the
+two find each other and share one animator. A later tier (`kuinetic.3d.js`, when it exists) is
+another tag on the same terms, never a combined bundle.
+
+Or via npm, where the subpath resolves to the same package instance:
 
 ```js
 import { kuinetic } from 'kuinetic'
@@ -83,14 +106,27 @@ no separate action needed — and additionally self-hosted on Cloudflare at **`k
 | `kuinetic.js` | [`/npm/kuinetic`](https://cdn.jsdelivr.net/npm/kuinetic) † | [`/kuinetic`](https://unpkg.com/kuinetic) † | [`/kuinetic.js`](https://kuinetic.pages.dev/kuinetic.js) |
 | `kuinetic.css` | [`/npm/kuinetic/dist/kuinetic.css`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css) | [`/kuinetic/dist/kuinetic.css`](https://unpkg.com/kuinetic/dist/kuinetic.css) | [`/kuinetic.css`](https://kuinetic.pages.dev/kuinetic.css) |
 | `kuinetic.all.js` | [`/npm/kuinetic/dist/kuinetic.all.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js) | [`/kuinetic/dist/kuinetic.all.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.js) | [`/kuinetic.all.js`](https://kuinetic.pages.dev/kuinetic.all.js) |
+| `kuinetic.advanced.min.js` | [`/npm/kuinetic/dist/kuinetic.advanced.min.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.advanced.min.js) | [`/kuinetic/dist/kuinetic.advanced.min.js`](https://unpkg.com/kuinetic/dist/kuinetic.advanced.min.js) | — |
 
 † shorthand — resolves via the `"jsdelivr"`/`"unpkg"` fields in `package.json`; only `kuinetic.js`
 gets one, since a package can only designate a single default file that way.
 
-`kuinetic.js` is the split bundle — side-effect-free on load, pair it with `kuinetic.css`, which
-keeps working even if the JS is slow,
-blocked, or fails to load. `kuinetic.all.js` is the one-tag drop-in — CSS embedded, auto-started
-with `observe: true` — trading that CSS-independence guarantee for one less step.
+`kuinetic.js` is the split bundle — pair it with `kuinetic.css`, which keeps working even if the JS
+is slow, blocked, or fails to load. `kuinetic.all.js` is the one-tag drop-in, the same thing with
+the CSS embedded, trading that CSS-independence guarantee for one less step.
+`kuinetic.advanced.min.js` is a tier: it needs core on the page, in either order, and never carries
+a copy of it.
+
+Every one of those browser bundles starts itself once the document is ready. `data-kui-manual` on a
+`<script>` tag turns that off for that file. Importing from npm does **not** start anything — a
+module import stays side-effect-free, which is the guarantee the bundler path is built on.
+
+> **Changed in 0.2.** These bundles used to do nothing until you called
+> `kuinetic.kuinetic({ observe: true }).start()` yourself, and `kuinetic.all.js` started itself the
+> instant it parsed rather than at `DOMContentLoaded`. If you already write that call, it keeps
+> working and your animator is still the one the page uses — you will see one console line saying
+> the call is now redundant. Add `data-kui-manual` to the tag to silence it and go back to driving
+> everything by hand.
 
 ## Your first animation
 

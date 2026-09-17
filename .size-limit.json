@@ -11,5 +11,9 @@
   {
     "name": "kuinetic.all.js (standalone drop-in, JS+CSS, brotli) — reported, not capped (embeds kuinetic.js, so bound by the same owner decision)",
     "path": "dist/kuinetic.all.js"
+  },
+  {
+    "name": "kuinetic.advanced.min.js (advanced tier, core externalised, brotli) — reported, not capped, same owner decision. this file is the one to watch if the tier scheme ever regresses: it must NOT contain core. `src/advanced/base.ts` keeps core out by importing Registry/Animator as types only (see `asRegistry` there) — a single value import from `../core/` re-inlines the reachable core graph and roughly doubles this number. measured 2026-09-17 with esbuild --minify: 51,504 bytes gzip before the fix, 22,672 after, of which ~1.5 KB gzip is the appended self-start. those figures drift with src/advanced/; run `npm run size` for the real ones",
+    "path": "dist/kuinetic.advanced.min.js"
   }
 ]

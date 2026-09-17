@@ -6,7 +6,11 @@
     "test/browser/**/*.mjs",
     "src/core/index.ts",
     "src/effects/index.ts",
-    "src/advanced/index.ts"
+    "src/advanced/index.ts",
+    // Reached only by `scripts/build-tiers.mjs`, which bundles it on its own and appends it to the
+    // browser IIFEs. Nothing under `src/` imports it — that is the whole point, and what keeps the
+    // self-start out of the ESM output — so without this line knip reads it as a dead file.
+    "src/browser/boot.ts"
   ],
   "project": ["src/**/*.ts", "src/**/*.css", "scripts/**/*.mjs"],
   "ignoreExportsUsedInFile": true,

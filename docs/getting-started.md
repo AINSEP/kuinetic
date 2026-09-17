@@ -9,19 +9,29 @@ the channel model, activation vs. timeline, the packaging strategy — see
 
 ## Install
 
-Two files, no build step, no bundler config.
+Two files, no build step, no bundler config, and no JavaScript of your own.
 
 ```html
 <link rel="stylesheet" href="./kuinetic.css">
 <script src="./kuinetic.js"></script>
+```
+
+That is the whole integration. The script starts itself once the document is ready, and it runs
+with `observe: true`, which keeps a `MutationObserver` going so elements added to the page later —
+by your own app code, a CMS, or a client-side router — get picked up automatically. The animator it
+made is on `window.__kuinetic` if you need a handle on it.
+
+To drive it yourself instead — a fully static page where you want the smallest possible init, or
+anything else you would rather control — put `data-kui-manual` on the tag. The script then does
+nothing at all until you say so:
+
+```html
+<link rel="stylesheet" href="./kuinetic.css">
+<script src="./kuinetic.js" data-kui-manual></script>
 <script>
   kuinetic.kuinetic({ observe: true }).start()
 </script>
 ```
-
-`observe: true` keeps a `MutationObserver` running so elements added to the page later — by your
-own app code, a CMS, or a client-side router — get picked up automatically. Drop it if you're
-authoring a fully static page and want the smallest possible init.
 
 From a CDN, the same two files without downloading anything:
 
@@ -38,6 +48,11 @@ import 'kuinetic/css'
 
 kuinetic({ observe: true }).start()
 ```
+
+The call is not optional here, and that is deliberate: importing a module never starts anything. A
+`<script>` tag is a decision to run something; an `import` is a decision to *have* something, and a
+library that scanned your document because you imported it would be unusable in SSR, in hydration,
+and in tests.
 
 ---
 
@@ -773,7 +788,7 @@ Four things to know before you reach for it:
 does — a selector, an element, or any iterable of elements — and its methods chain:
 
 ```js
-const kui = kuinetic({ observe: true }).start()
+const kui = kuinetic({ observe: true }).start() // from a <script> tag: const kui = window.__kuinetic
 
 const hero = kui.control('.hero')
 hero.pause()

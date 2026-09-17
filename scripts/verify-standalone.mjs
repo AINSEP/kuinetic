@@ -4,6 +4,17 @@
  * Not part of `vitest run` on purpose — it exercises a *built artifact*
  * (`dist/kuinetic.all.js`), the same convention `verify:browser`/`check:showcase` already follow
  * for build-dependent checks kept out of the main suite.
+ *
+ * **A behaviour change this file now pins down.** `kuinetic.all.js` used to construct the animator
+ * *and* call `.start()` synchronously, at script-parse time. The self-start it carries now comes
+ * from `src/browser/boot.ts` (appended to every distributed browser bundle by
+ * `scripts/build-tiers.mjs`), which still constructs synchronously but starts at
+ * `DOMContentLoaded`. That is what lets a tier bundle loaded from a later — or earlier — script tag
+ * be folded into the same animator instead of racing it, and it is strictly more correct for a
+ * head-placed tag, which used to scan a `<body>` that did not exist yet. The half authors could
+ * actually observe, `window.__kuinetic` being readable by an inline script immediately after the
+ * tag, is unchanged, and is checked below before the document is ready precisely to keep it that
+ * way.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -53,9 +64,19 @@ else if (!style.textContent.includes('@layer')) fail('injected style content loo
 if (typeof window.kuinetic?.kuinetic !== 'function') {
   fail('window.kuinetic.kuinetic was not exposed by the IIFE')
 }
+// Synchronously, in the same tick the tag finished executing — the guarantee an inline script
+// sitting immediately after the tag depends on.
 if (!window.__kuinetic || typeof window.__kuinetic.start !== 'function') {
-  fail('window.__kuinetic was not auto-started')
+  fail('window.__kuinetic was not exposed synchronously by the tag')
 }
+
+// The scan waits for the document, so this has to as well. `once` plus the readyState guard covers
+// both orders, because jsdom may already have finished parsing by the time we get here.
+await new Promise((resolve) => {
+  if (document.readyState !== 'loading') resolve()
+  else window.addEventListener('DOMContentLoaded', resolve, { once: true })
+})
+
 const marked = window.document.querySelector('[data-kui-fx]')
 if (!marked) fail('the fade-up element was never scanned/processed — auto-start did not run')
 

@@ -670,7 +670,11 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(inert).toBeDefined()
     })
 
-    it('registerInto requires real Registry or Animator instance and registers items', () => {
+    // Renamed from "requires real Registry or Animator instance": the gate checks shape, not class
+    // (see `asRegistry` in `base.ts` — `instanceof` across two bundles was the bug). Every
+    // assertion below is unchanged and still correct, including the duck carrying the *singular*
+    // `registerPrimitive`, which a shape check has to keep refusing.
+    it('registerInto requires the two registrar methods it calls, and registers items', () => {
       expect(() => {
         registerInto({} as any, [], [], 'Test')
       }).toThrow(/requires a Registry or Animator instance/)
