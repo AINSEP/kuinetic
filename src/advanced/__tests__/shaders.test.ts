@@ -5,6 +5,7 @@ import {
   prepareShaders,
   registerShaders,
   setSharedShaderRenderer,
+  SHADER_PARAMETERS,
   SHADERS_PRESETS,
   SharedShaderRenderer,
   bindShaderTexture,
@@ -1042,5 +1043,105 @@ describe('Advanced Shaders Labs Module', () => {
 
     renderer.destroy()
     setSharedShaderRenderer(null)
+  })
+
+  describe('the audio band a shader can follow', () => {
+    /** Params as the animator hands them over: every schema key present, `audio` chosen. */
+    function audioParams(audio: string): EffectParams {
+      return {
+        text: (name: string, fallback = '') => (name === 'audio' ? audio : fallback),
+        num: (_name: string, fallback = 0) => fallback,
+      } as unknown as EffectParams
+    }
+
+    /** Every value uploaded to `u_audio` across the frames this mock GL saw. */
+    function audioUploads(gl: WebGL2RenderingContext): unknown[] {
+      const calls = (gl.uniform1f as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      return calls.filter((c) => (c[0] as { name?: string })?.name === 'u_audio').map((c) => c[1])
+    }
+
+    function drawOneFrame(el: HTMLElement, params: EffectParams) {
+      const gl = createMockGL()
+      const mockCanvas = document.createElement('canvas')
+      mockCanvas.width = 1000
+      mockCanvas.height = 800
+      mockCanvas.getContext = vi.fn().mockReturnValue(gl)
+      const frames: FrameRequestCallback[] = []
+      const renderer = new SharedShaderRenderer({
+        createCanvas: () => mockCanvas,
+        raf: (fn: FrameRequestCallback) => { frames.push(fn); return frames.length },
+      })
+      setSharedShaderRenderer(renderer)
+      const inst = prepareShaders(el, params, createRealPrepareContext(el, { reducedMotion: false, createCanvas: () => mockCanvas }))
+      inst.activate()
+      frames[0]?.(1000)
+      const uploads = audioUploads(gl)
+      inst.destroy()
+      renderer.destroy()
+      setSharedShaderRenderer(null)
+      return uploads
+    }
+
+    function shaderImg(): HTMLImageElement {
+      const img = document.createElement('img')
+      Object.defineProperty(img, 'complete', { value: true })
+      Object.defineProperty(img, 'naturalWidth', { value: 100 })
+      Object.defineProperty(img, 'naturalHeight', { value: 100 })
+      img.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
+      return img
+    }
+
+    it('declares one closed, off-by-default keyword list', () => {
+      expect(SHADER_PARAMETERS.audio.type).toBe('keyword')
+      expect(SHADER_PARAMETERS.audio.default).toBe('off')
+      expect(SHADER_PARAMETERS.audio.keywords).toEqual(['off', 'bass', 'mid', 'treble', 'level'])
+    })
+
+    it('takes the band from the authored parameters and refuses anything else as one', () => {
+      expect(extractShaderOptions(audioParams('bass')).audioBand).toBe('bass')
+      expect(extractShaderOptions(audioParams('level')).audioBand).toBe('level')
+      expect(extractShaderOptions(audioParams('off')).audioBand).toBeNull()
+      expect(extractShaderOptions(audioParams('')).audioBand).toBeNull()
+      expect(extractShaderOptions(audioParams('loudness')).audioBand).toBeNull()
+    })
+
+    it('uploads the band it read from the element', () => {
+      const img = shaderImg()
+      img.style.setProperty('--kui-audio-bass', '0.5')
+      expect(drawOneFrame(img, audioParams('bass'))).toEqual([0.5])
+    })
+
+    it('uploads 0 for an element whose driver is silent, and clamps a value above 1', () => {
+      const silent = shaderImg()
+      silent.style.setProperty('--kui-audio-mid', '0.000')
+      expect(drawOneFrame(silent, audioParams('mid'))).toEqual([0])
+
+      const shouting = shaderImg()
+      shouting.style.setProperty('--kui-audio-treble', '9')
+      expect(drawOneFrame(shouting, audioParams('treble'))).toEqual([1])
+    })
+
+    it('uploads 0 with no band selected, even when the properties are right there', () => {
+      const img = shaderImg()
+      // Every band at full scale, and an `audio-source` on this very element: without `audio:`
+      // the shader must still draw exactly as it did before the parameter existed.
+      for (const prop of ['--kui-audio-bass', '--kui-audio-mid', '--kui-audio-treble', '--kui-audio-level']) {
+        img.style.setProperty(prop, '1')
+      }
+      expect(drawOneFrame(img, audioParams('off'))).toEqual([0])
+    })
+
+    it('reads the computed value when the element has none of its own, which is the ancestor case', () => {
+      const img = shaderImg()
+      document.body.appendChild(img)
+      const computed = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+        getPropertyValue: (name: string) => (name === '--kui-audio-level' ? '0.75' : ''),
+      } as unknown as CSSStyleDeclaration)
+
+      expect(drawOneFrame(img, audioParams('level'))).toEqual([0.75])
+
+      computed.mockRestore()
+      img.remove()
+    })
   })
 })

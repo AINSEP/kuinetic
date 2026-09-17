@@ -160,12 +160,30 @@ export const BLEND_MODES = {
 
 export type ProgramOrLocations = ShaderProgramLocations | WebGLProgram | null
 
+/**
+ * Fill in `u_audio`'s location on first use, and remember the answer.
+ *
+ * `gl-utils.ts`'s `extractLocations` is the generic helper every caller shares and knows nothing
+ * about this module's own uniforms, so the lookup happens here instead — once per program rather
+ * than once per draw, with `undefined` meaning "not looked up yet" and `null` meaning "looked up,
+ * the program does not declare it". Safe to cache on the record: a lost context rebuilds the
+ * programs from scratch (`initPrograms`), so a stale location cannot outlive its program.
+ */
+function cacheAudioLocation(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  program: WebGLProgram,
+): ShaderProgramLocations {
+  if (locs.u_audio === undefined) locs.u_audio = gl.getUniformLocation(program, 'u_audio')
+  return locs
+}
+
 function resolveLocations(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   progInfo: ProgramOrLocations,
 ): ShaderProgramLocations | null {
   if (!progInfo) return null
-  if ('program' in progInfo && progInfo.program) return progInfo
+  if ('program' in progInfo && progInfo.program) return cacheAudioLocation(gl, progInfo, progInfo.program)
   const p = progInfo as WebGLProgram
   const g = (n: string) => gl.getUniformLocation(p, n)
   return {
@@ -400,7 +418,7 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     progress: params.num ? params.num('progress', -1) : -1,
     // `parseAudioBand` answers `null` for `off`, for an empty string, and for any word that is not
     // a band, so a caller passing an unvalidated accessor cannot turn the feature on by accident.
-    audioBand: parseAudioBand(params.text ? params.text('audio', 'off') : 'off'),
+    audioBand: parseAudioBand(params.text('audio', 'off')),
   }
 }
 
@@ -556,10 +574,7 @@ export class SharedShaderRenderer {
     this.programs = {}
     for (const [n, fs] of [['displace', DISPLACE_FS], ['fluid', FLUID_FS], ['liquid', LIQUID_FS], ['particles', PARTICLES_FS], ['morph', MORPH_FS]] as const) {
       const prog = createProgram(gl, FULLSCREEN_QUAD_VS, fs)
-      const locs = prog ? extractLocations(gl, prog) : null
-      // `u_audio` is looked up here rather than in `gl-utils.ts`: it belongs to this module's own
-      // programs, and `extractLocations` is the generic helper every other caller shares.
-      if (locs && prog) this.programs[n] = { ...locs, u_audio: gl.getUniformLocation(prog, 'u_audio') }
+      if (prog) this.programs[n] = extractLocations(gl, prog)
     }
   }
 

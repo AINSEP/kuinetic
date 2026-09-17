@@ -4,8 +4,13 @@ import { Animator } from '../../core/animator.js'
 import {
   AudioSourceController,
   computeFrequencyBands,
+  parseAudioBand,
   prepareAudioSource,
+  readAudioBand,
   registerAudio,
+  AUDIO_BANDS,
+  AUDIO_BAND_PROPERTIES,
+  AUDIO_CHANNELS,
   AUDIO_PARAMETERS,
   AUDIO_PRIMITIVES,
   AUDIO_PRESETS,
@@ -228,6 +233,64 @@ describe('Audio-Reactive Source Module', () => {
       expect(reg.resolve('camera-scene')).toBeDefined()
       expect(reg.resolve('particle-dissolve')).toBeDefined()
       expect(reg.resolve('fluid-trail')).toBeDefined()
+    })
+  })
+
+  describe('The band contract a consumer reads', () => {
+    it('only ever names properties the driver actually writes', () => {
+      for (const prop of Object.values(AUDIO_BAND_PROPERTIES)) {
+        expect(AUDIO_CHANNELS).toContain(prop)
+      }
+      // `--kui-audio` is the one channel deliberately absent: it is a second spelling of `level`,
+      // not a fifth band.
+      expect(Object.values(AUDIO_BAND_PROPERTIES)).not.toContain('--kui-audio')
+      expect(AUDIO_BANDS).toEqual(['bass', 'mid', 'treble', 'level'])
+    })
+
+    it('parses a band name and refuses everything else', () => {
+      expect(parseAudioBand('bass')).toBe('bass')
+      expect(parseAudioBand(' treble ')).toBe('treble')
+      expect(parseAudioBand('off')).toBeNull()
+      expect(parseAudioBand('')).toBeNull()
+      expect(parseAudioBand(undefined)).toBeNull()
+      expect(parseAudioBand('volume')).toBeNull()
+      // Inherited keys are not bands, however much they look like own properties.
+      expect(parseAudioBand('__proto__')).toBeNull()
+      expect(parseAudioBand('constructor')).toBeNull()
+    })
+
+    it('reads the inline value the driver wrote, clamped to 0..1', () => {
+      const el = document.createElement('div')
+      el.style.setProperty('--kui-audio-bass', '0.625')
+      expect(readAudioBand(el, 'bass')).toBe(0.625)
+
+      el.style.setProperty('--kui-audio-mid', '4')
+      expect(readAudioBand(el, 'mid')).toBe(1)
+      el.style.setProperty('--kui-audio-treble', '-3')
+      expect(readAudioBand(el, 'treble')).toBe(0)
+      el.style.setProperty('--kui-audio-level', 'loud')
+      expect(readAudioBand(el, 'level')).toBe(0)
+    })
+
+    it('falls back to the computed value, which is how an ancestor driver reaches a consumer', () => {
+      const el = document.createElement('div')
+      document.body.appendChild(el)
+      const computed = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+        getPropertyValue: (name: string) => (name === '--kui-audio-bass' ? '0.5' : ''),
+      } as unknown as CSSStyleDeclaration)
+
+      expect(readAudioBand(el, 'bass')).toBe(0.5)
+      // Nothing declared it at all: a consumer sees the same 0 a silent driver writes.
+      expect(readAudioBand(el, 'treble')).toBe(0)
+
+      // The inline value wins without consulting the computed style at all.
+      computed.mockClear()
+      el.style.setProperty('--kui-audio-bass', '0.25')
+      expect(readAudioBand(el, 'bass')).toBe(0.25)
+      expect(computed).not.toHaveBeenCalled()
+
+      computed.mockRestore()
+      el.remove()
     })
   })
 })

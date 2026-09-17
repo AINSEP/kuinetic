@@ -14,6 +14,7 @@ import {
   SceneController,
 } from '../scenes.js'
 import {
+  CAMERA_PARAMETERS,
   CAMERA_PRESETS,
   CAMERA_PRIMITIVES,
   CameraController,
@@ -517,6 +518,130 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       const inst3 = CAMERA_PRIMITIVES[0]!.prepare!(stage, {} as any, noCtx)
       expect(inst3).toBeDefined()
       inst3.destroy()
+    })
+
+    describe('the audio band a camera scene can follow', () => {
+      /** A scene parked at scroll progress 0, so every z offset below is the audio push alone. */
+      function parkedScene(options: { audio?: 'bass' | 'mid' | 'treble' | 'level' | null; mouseTilt?: boolean } = {}) {
+        const stage = document.createElement('div')
+        // `top` at the fallback window height means `dist` is 0: no scroll contribution at all.
+        stage.getBoundingClientRect = () => ({ top: 800, height: 400 } as DOMRect)
+        const layer = document.createElement('div')
+        stage.appendChild(layer)
+        let tick: (() => void) | null = null
+        const raf = vi.fn((fn: FrameRequestCallback) => { tick = fn as unknown as () => void; return 42 })
+        const caf = vi.fn()
+        const controller = new CameraController(
+          stage,
+          { depth: 1000, mouseTilt: Boolean(options.mouseTilt), audio: options.audio ?? null },
+          { window: null, raf, caf },
+        )
+        controller.addLayer(layer, 0)
+        return { controller, stage, layer, raf, caf, runFrame: () => tick?.() }
+      }
+
+      it('pushes the camera forward by a tenth of the scene depth at full scale', () => {
+        const scene = parkedScene({ audio: 'bass' })
+        scene.stage.style.setProperty('--kui-audio-bass', '0.5')
+        scene.controller.start()
+
+        // 0.5 * depth(1000) * 0.1 = 50 of camera travel, which `computeLayerTransform` halves.
+        expect(scene.layer.style.transform).toBe('translate3d(0, 0, 25px)')
+
+        scene.stage.style.setProperty('--kui-audio-bass', '1')
+        scene.runFrame()
+        expect(scene.layer.style.transform).toBe('translate3d(0, 0, 50px)')
+
+        scene.controller.destroy()
+      })
+
+      it('clamps a band above 1 instead of pushing the scene through the viewer', () => {
+        const scene = parkedScene({ audio: 'treble' })
+        scene.stage.style.setProperty('--kui-audio-treble', '9')
+        scene.controller.start()
+        expect(scene.layer.style.transform).toBe('translate3d(0, 0, 50px)')
+        scene.controller.destroy()
+      })
+
+      it('leaves the scene exactly where it was with no band selected', () => {
+        const scene = parkedScene()
+        // A driver on the container writing at full scale, and no `audio:` asking for it.
+        for (const prop of ['--kui-audio-bass', '--kui-audio-mid', '--kui-audio-treble', '--kui-audio-level']) {
+          scene.stage.style.setProperty(prop, '1')
+        }
+        scene.controller.start()
+
+        expect(scene.layer.style.transform).toBe('translate3d(0, 0, 0px)')
+        expect(scene.controller.audioLevel).toBe(0)
+        // No band, no loop: `start()` scheduled nothing, so nothing reads or writes per frame.
+        expect(scene.controller.audioRafId).toBeNull()
+        expect(scene.raf).not.toHaveBeenCalled()
+
+        scene.controller.destroy()
+      })
+
+      it('is the scene\'s only frame loop while it runs', () => {
+        const scene = parkedScene({ audio: 'bass', mouseTilt: true })
+        scene.controller.start()
+
+        expect(scene.controller.audioRafId).toBe(42)
+        // The pointer loop and the scroll handler both stand down: one pass per frame reads
+        // geometry and style, then writes.
+        expect(scene.controller.rafId).toBeNull()
+        scene.controller.onMouseMove({ clientX: 900, clientY: 700 } as MouseEvent)
+        expect(scene.controller.rafId).toBeNull()
+        scene.controller.onScroll()
+        expect(scene.controller.scrollRafId).toBeNull()
+        // And it is not restartable into a second copy of itself.
+        scene.controller.startAudioLoop()
+        expect(scene.raf).toHaveBeenCalledTimes(1)
+
+        // The frame steps the pointer spring itself, which the pointer loop would have done.
+        scene.runFrame()
+        expect(scene.stage.style.transform).toContain('rotateX')
+        expect(scene.controller.audioRafId).toBe(42)
+
+        scene.controller.stop()
+        expect(scene.caf).toHaveBeenCalledWith(42)
+        expect(scene.controller.audioRafId).toBeNull()
+        // A frame already queued when the effect was cancelled does not reschedule.
+        scene.runFrame()
+        expect(scene.controller.audioRafId).toBeNull()
+
+        scene.controller.destroy()
+      })
+
+      it('reaches the controller from the authored keyword, and only for a real band', () => {
+        const drive = (authored: string) => {
+          const stage = document.createElement('div')
+          stage.getBoundingClientRect = () => ({ top: 10000, height: 400 } as DOMRect)
+          const layer = document.createElement('div')
+          layer.setAttribute('data-kui', 'camera-layer z:0')
+          stage.appendChild(layer)
+          stage.style.setProperty('--kui-audio-level', '1')
+          const params = {
+            num: (_name: string, fallback = 0) => fallback,
+            text: (name: string, fallback = '') => (name === 'audio' ? authored : fallback),
+            is: () => false,
+          } as unknown as EffectParams
+          const ctx = createRealPrepareContext(stage, { reducedMotion: false, raf: () => 1, caf: () => undefined })
+          const inst = CAMERA_PRIMITIVES[0]!.prepare!(stage, params, ctx)
+          inst.activate()
+          const transform = layer.style.transform
+          inst.destroy()
+          return transform
+        }
+
+        expect(drive('level')).toBe('translate3d(0, 0, 50px)')
+        expect(drive('off')).toBe('translate3d(0, 0, 0px)')
+        expect(drive('rumble')).toBe('translate3d(0, 0, 0px)')
+      })
+
+      it('declares one closed, off-by-default keyword list, the same words as the shaders', () => {
+        expect(CAMERA_PARAMETERS.audio.type).toBe('keyword')
+        expect(CAMERA_PARAMETERS.audio.default).toBe('off')
+        expect(CAMERA_PARAMETERS.audio.keywords).toEqual(['off', 'bass', 'mid', 'treble', 'level'])
+      })
     })
 
     it('registerCamera throws on invalid registry target', () => {

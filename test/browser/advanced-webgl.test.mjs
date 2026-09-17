@@ -24,6 +24,11 @@ import { createChecker, loadChromium } from '../../scripts/browser-harness.mjs'
  * 9. Scroll -> shader progress bridge: a `scroll-progress` primitive on the shader's own element,
  *    and on an ancestor (relying on `--kui-progress` inheriting through `getComputedStyle`), both
  *    drive the real `u_progress` uniform as the page actually scrolls.
+ * 10. Audio -> shader and audio -> camera bridge: a `--kui-audio-*` band on the consumer's own
+ *    element and on an ancestor drives the real `u_audio` uniform and the camera's real
+ *    `translate3d`, and a consumer with no `audio:` stays at 0 with every band at full scale.
+ * 11. The same chain end to end with a real `audio-source`: a WAV built in the page, played
+ *    through a real Web Audio graph, read back off the real uniform.
  */
 export const name = 'advanced-webgl'
 
@@ -579,6 +584,222 @@ void main() { this is not valid glsl at all !! }
   )
 
   await bridgeContext.close()
+
+  // -------------------------------------------------------------------------
+  // 10. Audio -> shader and audio -> camera, driven through the contract itself: the `--kui-audio-*`
+  //     custom properties, written on the consumer's own element and on an ancestor of it. Written
+  //     directly rather than through a real `audio-source` so the value under test is exact and the
+  //     check is not waiting on an audio graph; check 11 does the real thing.
+  // -------------------------------------------------------------------------
+  const AUDIO_FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/advanced-audio-bridge.html', import.meta.url))}`
+  const audioContext = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  const audioPage = await audioContext.newPage()
+  await audioPage.goto(AUDIO_FIXTURE_URL)
+  await audioPage.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+
+  const audioBridge = await audioPage.evaluate(async () => {
+    const { kuinetic, registerAdvanced, getSharedShaderRenderer } = window.kUIAdvanced
+    const k = kuinetic()
+    registerAdvanced(k)
+    k.start()
+
+    const settle = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    await settle()
+
+    const renderer = getSharedShaderRenderer()
+    const gl = renderer.gl
+    if (!gl) return { error: 'no gl' }
+
+    // Real GPU state for one mode's `u_audio`. Each element in this fixture uses a mode of its
+    // own precisely because the programs are shared: `getUniform` answers with whatever the last
+    // instance to draw with that program uploaded.
+    function readAudioUniform(mode) {
+      const prog = renderer.programs[mode]
+      if (!prog || !prog.program || !prog.u_audio) return null
+      return gl.getUniform(prog.program, prog.u_audio)
+    }
+    // The camera writes the push into the layer's `translate3d`; this is the z it landed on.
+    function layerZ() {
+      const match = /translate3d\([^,]+,[^,]+,\s*(-?[\d.]+)px\)/.exec(document.getElementById('cam-layer').style.transform)
+      return match ? parseFloat(match[1]) : null
+    }
+
+    const same = document.getElementById('audio-same')
+    const child = document.getElementById('audio-child')
+    const driver = document.getElementById('audio-driver')
+    const off = document.getElementById('audio-off')
+    const cam = document.getElementById('cam')
+    const camDriver = document.getElementById('cam-driver')
+
+    const quiet = {
+      same: readAudioUniform('liquid'),
+      child: readAudioUniform('displace'),
+      off: readAudioUniform('fluid'),
+      z: layerZ(),
+    }
+    const childInlineAtStart = child.style.getPropertyValue('--kui-audio-mid')
+
+    same.style.setProperty('--kui-audio-bass', '0.8')
+    driver.style.setProperty('--kui-audio-mid', '0.6')
+    // Every band at full scale on an element whose shader never asked for one.
+    for (const prop of ['--kui-audio-bass', '--kui-audio-mid', '--kui-audio-treble', '--kui-audio-level']) {
+      off.style.setProperty(prop, '1')
+    }
+    cam.style.setProperty('--kui-audio-bass', '1')
+    await settle()
+    const loud = {
+      same: readAudioUniform('liquid'),
+      child: readAudioUniform('displace'),
+      off: readAudioUniform('fluid'),
+      z: layerZ(),
+      camPerspective: cam.style.perspective,
+    }
+
+    same.style.setProperty('--kui-audio-bass', '0')
+    driver.style.setProperty('--kui-audio-mid', '0')
+    cam.style.removeProperty('--kui-audio-bass')
+    await settle()
+    const backToQuiet = { same: readAudioUniform('liquid'), child: readAudioUniform('displace'), z: layerZ() }
+
+    // The camera's own container now declares nothing; only inheritance can reach it.
+    camDriver.style.setProperty('--kui-audio-bass', '1')
+    await settle()
+    const inheritedZ = layerZ()
+
+    return { quiet, loud, backToQuiet, childInlineAtStart, inheritedZ }
+  })
+
+  check('audio-bridge: a shader with no audio: uniform starts at 0', audioBridge.quiet.same === 0 && audioBridge.quiet.child === 0, `same=${audioBridge.quiet.same}, child=${audioBridge.quiet.child}`)
+  check(
+    "audio-bridge: a band on the shader's own element reaches the real GPU uniform",
+    Math.abs(audioBridge.loud.same - 0.8) < 0.01,
+    `uniform=${audioBridge.loud.same}`,
+  )
+  check('audio-bridge: the shader element never writes --kui-audio-mid on its own inline style', audioBridge.childInlineAtStart === '', `inline=${JSON.stringify(audioBridge.childInlineAtStart)}`)
+  check(
+    'audio-bridge: a band on an ancestor reaches a shader that declares none of its own',
+    Math.abs(audioBridge.loud.child - 0.6) < 0.01,
+    `uniform=${audioBridge.loud.child}`,
+  )
+  check(
+    'audio-bridge: a shader without audio: stays at 0 with every band at full scale on its own element',
+    audioBridge.loud.off === 0,
+    `uniform=${audioBridge.loud.off}`,
+  )
+  check(
+    'audio-bridge: the uniform follows the band back down, not just up',
+    audioBridge.backToQuiet.same === 0 && audioBridge.backToQuiet.child === 0,
+    `same=${audioBridge.backToQuiet.same}, child=${audioBridge.backToQuiet.child}`,
+  )
+
+  check('audio-camera: the scene renders a real depth before any audio', audioBridge.quiet.z !== null && audioBridge.quiet.z > 0, `z=${audioBridge.quiet.z}`)
+  check('audio-camera: perspective comes from the authored depth', audioBridge.loud.camPerspective === '1000px', `perspective=${audioBridge.loud.camPerspective}`)
+  check(
+    'audio-camera: a full-scale band on the container pushes the camera a tenth of depth (50px of layer z)',
+    Math.abs((audioBridge.loud.z - audioBridge.quiet.z) - 50) < 0.5,
+    `quiet=${audioBridge.quiet.z}, loud=${audioBridge.loud.z}`,
+  )
+  check(
+    'audio-camera: removing the band puts the scene back exactly where it was',
+    Math.abs(audioBridge.backToQuiet.z - audioBridge.quiet.z) < 0.5,
+    `quiet=${audioBridge.quiet.z}, after=${audioBridge.backToQuiet.z}`,
+  )
+  check(
+    'audio-camera: a band on an ancestor of the container drives it too',
+    Math.abs((audioBridge.inheritedZ - audioBridge.quiet.z) - 50) < 0.5,
+    `quiet=${audioBridge.quiet.z}, inherited=${audioBridge.inheritedZ}`,
+  )
+
+  await audioContext.close()
+
+  // -------------------------------------------------------------------------
+  // 11. The whole chain for real, in one page: a WAV built at runtime -> `<audio>` -> the
+  //     `audio-source` primitive's Web Audio graph -> `--kui-audio-bass` on the host -> the
+  //     shader's `u_audio`. Nothing here is written by the test.
+  //
+  //     Two environment facts make it work headless: a trusted click before anything starts
+  //     (Chromium's autoplay policy needs user activation before an AudioContext will leave
+  //     `suspended`), and a blob URL rather than a cross-origin source (a tainted media element
+  //     feeds silence into `createMediaElementSource`). A failure here on a machine with no audio
+  //     backend at all is the environment, not the bridge — check 10 covers the contract itself
+  //     without any audio.
+  // -------------------------------------------------------------------------
+  const e2eContext = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  const e2ePage = await e2eContext.newPage()
+  await e2ePage.goto(AUDIO_FIXTURE_URL)
+  await e2ePage.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+  await e2ePage.mouse.click(700, 550)
+
+  const realAudio = await e2ePage.evaluate(async () => {
+    const { kuinetic, registerAdvanced, getSharedShaderRenderer } = window.kUIAdvanced
+
+    /** A 120Hz sine — squarely inside the 20..250Hz the bass band averages — as a WAV blob. */
+    function sineWav(freq, seconds, rate) {
+      const samples = Math.floor(seconds * rate)
+      const view = new DataView(new ArrayBuffer(44 + samples * 2))
+      const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)) }
+      str(0, 'RIFF'); view.setUint32(4, 36 + samples * 2, true); str(8, 'WAVEfmt ')
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+      view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true)
+      view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, samples * 2, true)
+      for (let i = 0; i < samples; i++) {
+        view.setInt16(44 + i * 2, Math.round(Math.sin((2 * Math.PI * freq * i) / rate) * 32000), true)
+      }
+      return new Blob([view.buffer], { type: 'audio/wav' })
+    }
+
+    const media = document.getElementById('e2e-audio')
+    media.src = URL.createObjectURL(sineWav(120, 1, 48000))
+    media.volume = 0.5
+    let playError = ''
+    try {
+      await media.play()
+    } catch (err) {
+      playError = String(err && err.message)
+    }
+
+    const k = kuinetic()
+    registerAdvanced(k)
+    k.start()
+
+    const el = document.getElementById('e2e')
+    const renderer = getSharedShaderRenderer()
+    const gl = renderer.gl
+    if (!gl) return { error: 'no gl' }
+    const readMorphAudio = () => {
+      const prog = renderer.programs.morph
+      if (!prog || !prog.program || !prog.u_audio) return null
+      return gl.getUniform(prog.program, prog.u_audio)
+    }
+
+    // The driver's own write and the shader's upload are a frame apart by design (the renderer
+    // reads every instance at the top of its own frame), so wait for both.
+    let inline = ''
+    let uniform = null
+    const started = performance.now()
+    while (performance.now() - started < 8000) {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      inline = el.style.getPropertyValue('--kui-audio-bass')
+      uniform = readMorphAudio()
+      if (parseFloat(inline) > 0.3 && uniform > 0.3) break
+    }
+
+    return { playError, paused: media.paused, inline, uniform, waited: Math.round(performance.now() - started) }
+  })
+
+  check('real-audio: the WAV actually plays', realAudio.playError === '' && realAudio.paused === false, `error=${realAudio.playError}, paused=${realAudio.paused}`)
+  check(
+    'real-audio: audio-source turns a real 120Hz tone into a real --kui-audio-bass on its host',
+    parseFloat(realAudio.inline) > 0.3,
+    `inline=${JSON.stringify(realAudio.inline)}, waited=${realAudio.waited}ms`,
+  )
+  check(
+    "real-audio: and the shader composed beside it uploads that band as its own uniform",
+    realAudio.uniform !== null && realAudio.uniform > 0.3,
+    `uniform=${realAudio.uniform}, inline=${realAudio.inline}`,
+  )
+
+  await e2eContext.close()
   return results
 }
 

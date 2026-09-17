@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — advanced audio-to-consumer bridge fixture</title>
+    <style>
+      /*
+        Everything is absolutely positioned inside one 800x600 viewport and nothing scrolls: the
+        consumer contract under test here is a CSS custom property, not scroll position, and a
+        shader only draws (and so only uploads its uniforms) while its element is on screen.
+      */
+      body {
+        margin: 0;
+        padding: 0;
+        background: #14110f;
+        overflow: hidden;
+      }
+      .probe {
+        position: absolute;
+        display: block;
+        width: 100px;
+        height: 100px;
+      }
+      #audio-same { left: 10px; top: 10px; }
+      #audio-child { left: 120px; top: 10px; }
+      #audio-off { left: 230px; top: 10px; }
+      #e2e { left: 10px; top: 140px; }
+      #cam {
+        position: absolute;
+        left: 340px;
+        top: 10px;
+        width: 200px;
+        height: 120px;
+      }
+      #cam-layer {
+        width: 100px;
+        height: 60px;
+        background: #e4f222;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Same-element case: the band is read off this element's own inline style, which is where an
+      `audio-source` composed onto the same element writes it every frame.
+    -->
+    <img
+      id="audio-same"
+      class="probe"
+      data-kui="shaders mode:liquid audio:bass"
+      src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>"
+    />
+
+    <!--
+      Ancestor case: the band is declared two levels up and never written on the shader element
+      itself. Only inheritance through `getComputedStyle` can carry it down.
+    -->
+    <div id="audio-driver">
+      <div>
+        <img
+          id="audio-child"
+          class="probe"
+          data-kui="shaders mode:displace audio:mid"
+          src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/></svg>"
+        />
+      </div>
+    </div>
+
+    <!--
+      The opt-in control: the same properties at full scale, written right on the element, and no
+      `audio:` asking for them. Its uniform must stay 0 — and it uses a mode of its own, since the
+      five programs are shared and `gl.getUniform` reads whatever drew last.
+    -->
+    <img
+      id="audio-off"
+      class="probe"
+      data-kui="shaders mode:fluid"
+      src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,255,0)'/></svg>"
+    />
+
+    <!-- Camera: same two cases, read off the container or off an ancestor of it. -->
+    <div id="cam-driver">
+      <div id="cam" data-kui="camera-scene audio:bass mouse-tilt:off depth:1000">
+        <div id="cam-layer" data-kui="camera-layer z:0"></div>
+      </div>
+    </div>
+
+    <!--
+      End to end: a real `audio-source` composed onto a real shader element, with the audio graph
+      fed by a WAV the test builds at runtime (see the suite). `media:` names the element so the
+      driver cannot pick up some other media element on the page.
+    -->
+    <audio id="e2e-audio" loop></audio>
+    <img
+      id="e2e"
+      class="probe"
+      data-kui="audio-source media:#e2e-audio, shaders mode:morph audio:bass"
+      src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,255,0)'/></svg>"
+    />
+
+    <script src="./advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>
