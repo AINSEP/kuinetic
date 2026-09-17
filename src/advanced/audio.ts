@@ -146,16 +146,44 @@ export function computeFrequencyBands(
   }
 }
 
+/** What `media:` searches for when the author named nothing. */
+const DEFAULT_MEDIA_SELECTOR = 'audio, video'
+
+/**
+ * Whether this element is itself a media element.
+ *
+ * The constructor comes off the injected window so a cross-document element answers correctly. The
+ * `?? Object` this replaced made the check true for *every* element, so any window without an
+ * `HTMLMediaElement` — which is every test double in this directory — treated a plain `<div>` as
+ * its own media source and then handed it to `createMediaElementSource`.
+ */
+function isMediaElement(el: Element, win: Window | null): boolean {
+  const injected = (win as { HTMLMediaElement?: typeof HTMLMediaElement } | null)?.HTMLMediaElement
+  const ctor = injected ?? (typeof HTMLMediaElement !== 'undefined' ? HTMLMediaElement : null)
+  return ctor ? el instanceof ctor : false
+}
+
+/**
+ * The media element this effect reads, or `null` when there is none to read.
+ *
+ * @param el - The authored element.
+ * @param authored - The author's `media:` selector, or `null` when they wrote none.
+ * @complexity O(n) in the subtree searched.
+ */
 function findMediaElement(
   el: HTMLElement,
-  selector: string,
+  authored: string | null,
   win: Window | null,
   doc: Document | null,
 ): HTMLMediaElement | null {
-  const winMediaCtor = (win as { HTMLMediaElement?: typeof HTMLMediaElement })?.HTMLMediaElement ?? Object
-  if (el instanceof winMediaCtor) return el as unknown as HTMLMediaElement
-  const found = el.querySelector?.(selector) || doc?.querySelector?.(selector)
-  return (found as HTMLMediaElement | null) || null
+  if (isMediaElement(el, win)) return el as unknown as HTMLMediaElement
+  const local = el.querySelector?.(authored ?? DEFAULT_MEDIA_SELECTOR)
+  if (local) return local as unknown as HTMLMediaElement
+  // Only an author who actually named a selector reaches outside their own subtree. On the
+  // default, an element containing no media used to bind to the first media element *anywhere in
+  // the document* — a hero card silently reacting to a footer video.
+  if (!authored) return null
+  return (doc?.querySelector?.(authored) as HTMLMediaElement | null) || null
 }
 
 function safeDisconnect(node: { disconnect?: () => void } | null): void {
@@ -203,6 +231,9 @@ export function snapFftSize(requested: number): number {
   }
   return best
 }
+
+/** The gestures a suspended context is allowed to wake on. */
+const GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const
 
 type AudioWindow = (Window & {
   AudioContext?: typeof AudioContext
@@ -402,6 +433,9 @@ export class AudioSourceController {
    */
   private micRequestToken = 0
 
+  /** Detaches the one-shot gesture listeners armed by {@link armGestureResume}. */
+  private releaseGestureResume: (() => void) | null = null
+
   constructor(
     element: HTMLElement,
     options: AudioSourceOptions = {},
@@ -440,9 +474,8 @@ export class AudioSourceController {
 
   private connectMediaSource(graph: SharedAudioGraph, analyser: AnalyserNode, win: Window | null): void {
     const doc = this.document as Document | null
-    const selector = this.options.media || 'audio, video'
     try {
-      const mediaEl = findMediaElement(this.element, selector, win, doc)
+      const mediaEl = findMediaElement(this.element, this.options.media || null, win, doc)
       if (!mediaEl) return
       const source = mediaSourceFor(graph, mediaEl)
       if (!source) return
@@ -502,10 +535,42 @@ export class AudioSourceController {
     if (this.isActive) return
     this.isActive = true
     this.initAudio()
-    if (this.audioCtx?.state === 'suspended') {
-      this.audioCtx.resume().catch(() => undefined)
-    }
+    this.resumeContext()
     this.startLoop()
+  }
+
+  /**
+   * Wake a context the browser suspended for autoplay policy.
+   *
+   * `defaultActivation` is `'load'`, so the context is very often constructed before the visitor
+   * has touched anything, and a context built outside a user gesture starts `suspended`. A bare
+   * `resume()` there is rejected or left pending — WebKit is strict about it, and iOS is this
+   * repo's main audience — after which `getByteFrequencyData` fills zeros and all five properties
+   * sit at `0.000` for the rest of the session. `on:click` only worked by luck, because it happens
+   * to run inside a gesture.
+   *
+   * So: try immediately, and arm a one-shot retry on the visitor's first gesture. The `on:click`
+   * path still succeeds on the first attempt and the listeners are never needed.
+   */
+  private resumeContext(): void {
+    const ctx = this.audioCtx
+    if (!ctx || ctx.state !== 'suspended') return
+    ctx.resume().catch(() => undefined)
+    this.armGestureResume()
+  }
+
+  private armGestureResume(): void {
+    const win = this.window
+    if (this.releaseGestureResume || !win?.addEventListener || !win.removeEventListener) return
+    const onGesture = (): void => {
+      this.releaseGestureResume?.()
+      this.audioCtx?.resume().catch(() => undefined)
+    }
+    this.releaseGestureResume = () => {
+      this.releaseGestureResume = null
+      for (const type of GESTURE_EVENTS) win.removeEventListener?.(type, onGesture)
+    }
+    for (const type of GESTURE_EVENTS) win.addEventListener(type, onGesture, { passive: true })
   }
 
   startLoop(): void {
@@ -531,11 +596,36 @@ export class AudioSourceController {
     }
 
     const level = bands.level.toFixed(3)
-    style.set('--kui-audio-bass', bands.bass.toFixed(3))
-    style.set('--kui-audio-mid', bands.mid.toFixed(3))
-    style.set('--kui-audio-treble', bands.treble.toFixed(3))
-    style.set('--kui-audio-level', level)
-    style.set('--kui-audio', level)
+    this.writeChannel(style, '--kui-audio-bass', bands.bass.toFixed(3))
+    this.writeChannel(style, '--kui-audio-mid', bands.mid.toFixed(3))
+    this.writeChannel(style, '--kui-audio-treble', bands.treble.toFixed(3))
+    this.writeChannel(style, '--kui-audio-level', level)
+    this.writeChannel(style, '--kui-audio', level)
+  }
+
+  /**
+   * One channel, written only when it would actually change anything.
+   *
+   * These are unregistered custom properties, so they inherit: five unconditional `setProperty`
+   * calls per frame per instance dirty the whole subtree's style 60 times a second even on a page
+   * whose audio is silent or whose context never resumed, where all five values are the identical
+   * `0.000`.
+   *
+   * The comparison reads the live inline value rather than a remembered one on purpose. A cache
+   * would go stale the moment the author wrote the property themselves — this module would agree
+   * with its own record, skip the write, and look dead. Reading the CSSOM's own map is a lookup,
+   * not a style resolution, so it costs nothing a `setProperty` would not already cost.
+   *
+   * `claim()` first and unconditionally, because the very first frame can legitimately skip its
+   * write (the author happened to have written the same string), and the ledger still has to have
+   * captured what was there to restore it.
+   *
+   * @complexity O(1).
+   */
+  private writeChannel(style: StyleLedger, property: string, value: string): void {
+    style.claim(property)
+    if (this.element.style.getPropertyValue(property) === value) return
+    style.set(property, value)
   }
 
   /**
@@ -567,6 +657,7 @@ export class AudioSourceController {
       this.caf(this.rafId)
       this.rafId = null
     }
+    this.releaseGestureResume?.()
     this.disconnectAudioNodes()
   }
 

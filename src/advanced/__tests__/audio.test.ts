@@ -328,6 +328,128 @@ describe('Audio-Reactive Source Module', () => {
       expect(snapFftSize(32)).toBe(32)
       expect(snapFftSize(2048)).toBe(2048)
     })
+
+    it('a context suspended by autoplay policy resumes on the visitor\'s first gesture', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.state = 'suspended'
+      const listeners = new Map<string, EventListener>()
+      const win = env.window as unknown as Record<string, unknown>
+      win.addEventListener = vi.fn((type: string, fn: EventListener) => { listeners.set(type, fn) })
+      win.removeEventListener = vi.fn((type: string) => { listeners.delete(type) })
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      ctrl.start()
+      // The immediate attempt is made, but outside a gesture WebKit refuses or defers it, and
+      // there was no retry anywhere in the module — so `on:load` reactivity was all zeros.
+      expect(ctx.resume).toHaveBeenCalledTimes(1)
+      expect(listeners.has('pointerdown')).toBe(true)
+
+      listeners.get('pointerdown')!(new Event('pointerdown'))
+      expect(ctx.resume).toHaveBeenCalledTimes(2)
+      // One-shot: the listeners come straight back off.
+      expect(listeners.size).toBe(0)
+
+      ctrl.destroy()
+    })
+
+    it('an unchanged frame writes nothing, and an author write is never skipped', () => {
+      const host = hostWithVideo()
+      const { env } = faithfulContext()
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      ctrl.start()
+      ctrl.updateFrame()
+      const settled = host.style.getPropertyValue('--kui-audio-level')
+
+      const setProperty = vi.spyOn(host.style, 'setProperty')
+      ctrl.updateFrame()
+      // Steady or silent audio: five inherited custom properties are not re-dirtied per frame.
+      expect(setProperty).not.toHaveBeenCalled()
+
+      // The author takes the property over mid-effect. The next frame has to win it back rather
+      // than agree with a remembered value of its own and look dead.
+      host.style.setProperty('--kui-audio-level', '0.9')
+      setProperty.mockClear()
+      ctrl.updateFrame()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe(settled)
+
+      setProperty.mockRestore()
+      ctrl.destroy()
+    })
+  })
+
+  describe('which media element an effect binds to', () => {
+    function contextDouble() {
+      const ctx: any = {
+        state: 'running',
+        sampleRate: 44100,
+        destination: {},
+        createGain: vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() })),
+        createAnalyser: vi.fn(() => ({
+          fftSize: 256,
+          frequencyBinCount: 128,
+          smoothingTimeConstant: 0.8,
+          getByteFrequencyData: vi.fn(),
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        })),
+        createMediaElementSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
+        resume: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      }
+      return ctx
+    }
+
+    function envFor(ctx: any, withMediaCtor = true) {
+      const win: Record<string, unknown> = { AudioContext: vi.fn().mockImplementation(() => ctx) }
+      if (withMediaCtor) win.HTMLMediaElement = window.HTMLMediaElement
+      return { window: win as unknown as Window, document, raf: () => null, caf: () => null }
+    }
+
+    it('the default selector never reaches outside the element\'s own subtree', () => {
+      const stray = document.createElement('video')
+      const host = document.createElement('div')
+      document.body.append(stray, host)
+      const ctx = contextDouble()
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, envFor(ctx))
+      ctrl.start()
+      // An element containing no media used to bind to the first media element anywhere in the
+      // document — a hero card reacting to a footer video nobody had played.
+      expect(ctx.createMediaElementSource).not.toHaveBeenCalled()
+
+      ctrl.destroy()
+      host.remove()
+      stray.remove()
+    })
+
+    it('an authored selector may still name an element elsewhere in the document', () => {
+      const hero = document.createElement('video')
+      hero.id = 'hero-media'
+      const host = document.createElement('div')
+      document.body.append(hero, host)
+      const ctx = contextDouble()
+
+      const ctrl = new AudioSourceController(host, { source: 'media', media: '#hero-media' }, envFor(ctx))
+      ctrl.start()
+      expect(ctx.createMediaElementSource).toHaveBeenCalledWith(hero)
+
+      ctrl.destroy()
+      host.remove()
+      hero.remove()
+    })
+
+    it('a plain element is not its own media source, even with no HTMLMediaElement on the window', () => {
+      const host = document.createElement('div')
+      const ctx = contextDouble()
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, envFor(ctx, false))
+      ctrl.start()
+      // `el instanceof (win.HTMLMediaElement ?? Object)` was true for every element.
+      expect(ctx.createMediaElementSource).not.toHaveBeenCalled()
+
+      ctrl.destroy()
+    })
   })
 
   describe('prepareAudioSource and Registry Integration', () => {
