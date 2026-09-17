@@ -69,11 +69,12 @@
     {
       id: 'advanced',
       label: 'Advanced',
-      pages: ['scroll.html', 'interactive.html', 'data-hover.html', 'tween-advanced.html'],
+      pages: ['scroll.html', 'interactive.html', 'data-hover.html', 'shaders-audio.html', 'tween-advanced.html'],
       links: [
         { href: './scroll.html', label: 'Scroll', page: 'scroll.html' },
         { href: './interactive.html', label: 'Interactive', page: 'interactive.html' },
         { href: './data-hover.html', label: 'Data & Hover', page: 'data-hover.html' },
+        { href: './shaders-audio.html', label: 'Shaders & Audio', page: 'shaders-audio.html' },
         // { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
       ],
     },

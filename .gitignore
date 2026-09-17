@@ -6,6 +6,9 @@ coverage/
 demo/kuinetic.js
 demo/kuinetic.css
 demo/kuinetic.all.js
+# Same category as demo/kuinetic.js: a hand-built esbuild artifact, not a source file. Built from
+# the tracked demo/kuinetic-advanced-entry.ts, which carries the command in its header.
+demo/kuinetic-advanced.js
 demo/showcase/tailwind.css
 .artifacts/
 .playwright-mcp/

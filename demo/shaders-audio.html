@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Shaders &amp; Audio</title>
+<meta name="description" content="Experimental WebGL shader modes and Web-Audio-reactive effects for kUInetic — displace, fluid, liquid, particles and morph on one shared WebGL2 context, plus an audio driver that writes bass/mid/treble as CSS custom properties." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* ---------- demo hero (shared vocabulary, copied from three-d.html) ---------- */
+  .demo-hero {
+    padding-bottom: clamp(2.5rem, 4vw, 4rem);
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: center;
+  }
+  @media (min-width: 900px) { .demo-hero { grid-template-columns: 1.15fr 0.85fr; gap: 3rem; } }
+  .demo-hero .hero-copy { max-width: 46rem; }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 20ch; }
+  .demo-hero .lede { margin-top: 1.25rem; max-width: 56ch; font-size: clamp(1.02rem, 0.3vw + 1rem, 1.15rem); line-height: 1.6; color: var(--muted); }
+  .demo-hero .lede code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+  .demo-hero-actions { margin-top: 2rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+
+  /* ---------- section heads (shared vocabulary, copied from three-d.html) ---------- */
+  .section-head h2 { font-size: clamp(1.5rem, 1vw + 1.2rem, 1.85rem); letter-spacing: -0.02em; max-width: 30ch; }
+  .section-head p { margin-top: 0.6rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
+  .section-head p + p { margin-top: 0.75rem; }
+
+  /* ---------- matrix groups (shared vocabulary, copied from three-d.html) ---------- */
+  .matrix-group { margin-top: 2.5rem; }
+  .matrix-group + .matrix-group { margin-top: 2.75rem; }
+  .matrix-group-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.85rem;
+  }
+  .matrix-group-note { margin: 0 0 0.85rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
+
+  /* ---------- the experimental marker ----------
+     Not a decorative badge: `src/advanced/` is unexported, unbuilt and unshipped
+     (docs/advanced-modules.md's own first line), and this page is the first time any of it has run
+     outside a test fixture. A reader who takes these effects for shipped catalog names will reach
+     for one and find nothing there, so the label carries real information and gets real weight. */
+  /* `display: flex` with a width of its own, not `inline-flex`: system.css's `.kicker` is itself
+     inline-flex, so an inline badge after it shares the kicker's line and two competing
+     uppercase monospace labels end up fighting for the same rung of the hierarchy. */
+  .lab-badge {
+    display: flex; width: fit-content; align-items: center; gap: 0.5rem; margin: 0.9rem 0 1rem;
+    padding: 0.3rem 0.7rem; border: 1px solid var(--fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem;
+    letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500;
+  }
+  .lab-badge::before { content: ''; width: 6px; height: 6px; background: var(--accent); }
+
+  /* ---------- GL plates ----------
+     Square corners and no clipping ancestor, on purpose, and the one place this page departs from
+     `.demo-card`'s rounded-and-clipped treatment everywhere else in the showcase.
+
+     The shader does not paint inside the element. `SharedShaderRenderer` keeps ONE fixed
+     full-viewport canvas at `z-index: 9999` and scissors it to each element's bounding rect
+     (shaders.ts), so what you see is a replica drawn over the image, not the image itself. The
+     geometry layer that teaches that replica about `object-fit`, `border-radius` and rectangular
+     clipping ancestors is being written as this page is built, so nothing here leans on it: every
+     plate gives its image the element box the image already has (`width:100%`, `height:auto`, so
+     the intrinsic aspect ratio decides and `object-fit` is never consulted), keeps the corners
+     square so there is no radius to reproduce, and puts no `overflow` clip between the image and
+     the page. That makes the plates correct whether or not the geometry layer has landed.
+
+     Square corners are not a new vocabulary either — index.html, scroll.html, interactive.html,
+     tween.html and the motif pages all carry hard-edged media already.
+
+     The caption sits BELOW the image and outside its rect, which is also load-bearing: anything
+     that overlaps a shader element's bounding box is painted under the replica. */
+  .gl-plate { margin: 0; display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--surface); }
+  .gl-plate > img { display: block; width: 100%; height: auto; }
+  .gl-plate figcaption {
+    flex: 1 0 auto; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; color: #ffffff; background: var(--accent-ink); border-top: 1px solid var(--accent-ink);
+  }
+  :root[data-theme='dark'] .gl-plate figcaption {
+    color: var(--accent-ink); background: var(--accent); border-top-color: var(--accent);
+  }
+
+  /* Two plates on a wide screen, one on a phone.
+     Capped at 52rem rather than left to fill the 1200px wrap, because these plates are square and
+     an uncapped 1fr column makes each one ~525px tall — enough that a plate and its own caption
+     no longer fit on screen together, and the caption is where the `data-kui` string lives. At
+     52rem a plate is ~400px and you read the two as a pair. Explicit `repeat(2, …)` rather than
+     `auto-fit`, so a group holding one plate gets one column's width instead of stretching that
+     plate across the whole row. */
+  .gl-row { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+  @media (min-width: 900px) {
+    .gl-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem; max-width: 52rem; }
+  }
+  .matrix-group .gl-row { margin-top: 0; }
+
+  /* ---------- the A→B pair a morph needs ----------
+     `to:` is a CSS selector resolved with `document.querySelector`, and the module only accepts a
+     real `<img>` that has finished loading (`complete && naturalWidth > 0`, shaders.ts). So the
+     second image has to be in the document and has to be allowed to load — which is why it is a
+     visible thumbnail here rather than a `display:none` node with `loading="lazy"` on it. Showing
+     it is the better documentation anyway: a morph you cannot see both ends of is just a haze.
+     The texture is uploaded at the image's intrinsic size, so a 96px-wide thumbnail still feeds
+     the shader the full 900px source. */
+  .ab-pair { display: flex; align-items: flex-start; gap: 0.9rem; margin-top: 1rem; }
+  .ab-item { display: flex; flex-direction: column; gap: 0.35rem; }
+  .ab-item img { display: block; width: 96px; height: auto; border: 1px solid var(--border); }
+  .ab-item span {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  }
+
+  /* ---------- the scroll-driven track ----------
+     Sized against the two tokens system.css already defines for exactly this: `--kui-pin-offset`
+     is the room the floating header pill needs (5.5rem), and `--kui-pin-room` is the viewport
+     minus that. A sticky box sized to `100dvh` instead hangs one offset past the fold.
+
+     200vh is measured, not picked. `scroll-progress` ramps 0→1 over one viewport height of
+     scrolling past the track's top (sampled in Chrome: 0.36 at 345px, 0.72 at 690px, 1.0 at
+     ~767px = 100vh), while the sticky stage stays pinned for `trackHeight - stageHeight`, and the
+     stage is `--kui-pin-room` tall (100dvh - 5.5rem). So the scrub only finishes before the pin
+     releases if `trackHeight >= 2 × 100vh - 5.5rem`, and 200vh is the round number just above
+     that. A taller track (240vh was the first guess) leaves the morph sitting finished through
+     40vh of dead scrolling. */
+  .scrub-track { position: relative; margin-top: 2rem; height: 200vh; }
+  .scrub-stage {
+    position: sticky; top: var(--kui-pin-offset); height: var(--kui-pin-room);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .scrub-stage .gl-plate { width: min(100%, 60rem); }
+
+  /* ---------- audio ---------- */
+  .audio-bar {
+    margin-top: 2rem; padding: 1.1rem 1.25rem; border: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; gap: 0.85rem; align-items: flex-start;
+  }
+  @media (min-width: 720px) { .audio-bar { flex-direction: row; align-items: center; gap: 1.25rem; } }
+  .audio-bar p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; max-width: 48ch; }
+  /* 44px minimum, both axes — this is the one real control on the page and most of the traffic
+     here is a thumb. */
+  .audio-bar button { min-height: 44px; }
+
+  /* The live readout of what the driver is actually writing. Five custom properties updated every
+     frame, shown as five bars, so "is the audio graph running" is answerable by looking rather
+     than by opening devtools. `--kui-audio-*` are plain unregistered custom properties, so they
+     inherit down to these bars from the rig above exactly as they inherit down to the shaders. */
+  .band-readout { margin-top: 1.25rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.6rem 1.25rem; }
+  @media (min-width: 720px) { .band-readout { grid-template-columns: repeat(4, 1fr); } }
+  .band { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; gap: 0.6rem; }
+  .band span {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  }
+  .band i { display: block; height: 6px; background: var(--border); position: relative; }
+  .band i::after {
+    content: ''; position: absolute; inset: 0 auto 0 0; background: var(--accent);
+    width: calc(var(--band, 0) * 100%);
+  }
+  .band-bass i::after { --band: var(--kui-audio-bass, 0); }
+  .band-mid i::after { --band: var(--kui-audio-mid, 0); }
+  .band-treble i::after { --band: var(--kui-audio-treble, 0); }
+  .band-level i::after { --band: var(--kui-audio-level, 0); }
+
+  /* The camera scene's own stage. `camera-scene` builds CSS 3D depth with `perspective` +
+     `preserve-3d`, so this is not WebGL at all — it is the one effect in this directory that never
+     touches the shared canvas. It gets a dark backing because the layers are translucent plates
+     and depth only reads against something. */
+  .cam-stage { aspect-ratio: 1 / 1; position: relative; overflow: hidden; background: #0b0d10; display: grid; place-items: center; }
+  .cam-layer { display: grid; place-items: center; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .cam-layer-far { width: 68%; aspect-ratio: 1 / 1; border: 1px solid rgb(228 242 34 / 0.55); color: rgb(228 242 34 / 0.75); }
+  .cam-layer-mid { position: absolute; width: 46%; aspect-ratio: 1 / 1; border: 1px solid rgb(228 242 34 / 0.8); color: rgb(228 242 34 / 0.95); }
+  .cam-layer-near { position: absolute; width: 24%; aspect-ratio: 1 / 1; background: var(--accent); color: var(--accent-ink); }
+
+  /* Microphone opt-in. Deliberately its own block, its own button and its own warning: nothing on
+     this page requests a microphone until someone presses this, and the browser's own permission
+     prompt is the second gate. */
+  .mic-optin { margin-top: 1.5rem; padding: 1.1rem 1.25rem; border: 1px dashed var(--border); display: flex; flex-direction: column; gap: 0.85rem; align-items: flex-start; }
+  @media (min-width: 720px) { .mic-optin { flex-direction: row; align-items: center; gap: 1.25rem; } }
+  .mic-optin p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; max-width: 48ch; }
+  .mic-optin button { min-height: 44px; }
+
+  /* ---------- honest limits ---------- */
+  .limit-list { margin: 2rem 0 0; padding: 0; list-style: none; display: grid; gap: 1.1rem; }
+  @media (min-width: 900px) { .limit-list { grid-template-columns: repeat(2, 1fr); gap: 1.25rem 2rem; } }
+  .limit-list li { padding-top: 0.9rem; border-top: 1px solid var(--border); }
+  .limit-list h3 { font-size: 0.95rem; letter-spacing: -0.01em; }
+  .limit-list p { margin-top: 0.4rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+  .limit-list code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; color: var(--fg); }
+
+  /* ---------- the load snippet ----------
+     Every other showcase page needs one script tag. This one needs two and a registration call,
+     because nothing under `src/advanced/` is auto-registered — so the snippet is content, not
+     boilerplate, and it goes above the effects rather than in a footnote. */
+  .load-snippet { margin-top: 2rem; overflow-x: auto; padding: 1.1rem 1.25rem; border: 1px solid var(--border); background: var(--surface); }
+  .load-snippet pre { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden></nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <span data-theme-toggle-mount></span>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="demo-hero" data-od-id="hero">
+        <div class="hero-copy">
+          <p class="kicker" data-kui="split-chars stagger:60ms on:load">Advanced · Shaders &amp; Audio</p>
+          <p class="lab-badge">Experimental — not in the shipped bundle</p>
+          <h1 data-kui="fade-up 700ms">The five things CSS could not do.</h1>
+          <p class="lede" data-kui="fade-up 700ms 90ms">
+            <code>src/advanced/</code> is a WebGL2 and Web-Audio tier that sits outside the catalog:
+            one shared canvas driving five fragment programs, and an audio driver that turns a
+            playing track into four CSS custom properties anything downstream can read. It is
+            <strong>unexported, unbuilt and unshipped</strong> — this page is the first time it has
+            run anywhere but a test fixture.
+          </p>
+          <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
+            <a href="#modes" class="btn btn-primary">See the five modes</a>
+            <a href="#limits" class="btn btn-accent" data-kui="shine-sweep">Read what it is not →</a>
+          </div>
+        </div>
+        <div>
+          <!-- The hero plate. `fluid` is the most legible mode at rest: it moves on its own,
+               without needing a pointer or a scroll, so the page arrives already animating. -->
+          <figure class="gl-plate" data-show-code>
+            <img
+              src="./assets/shaders/fluid-aurora.jpg"
+              alt="Aurora borealis in green and violet bands over a dark mountain ridge, mirrored in still water"
+              data-kui="shaders mode:fluid strength:0.5 speed:0.6"
+            />
+            <figcaption>data-kui="shaders mode:fluid strength:0.5 speed:0.6"</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- LOADING IT -->
+      <section id="load" data-od-id="load">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Nothing here is auto-registered</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            Every other page in this showcase needs one script tag and no JavaScript of its own.
+            This one needs two and a registration call, because <code>registerAdvanced</code> is
+            opt-in by design — a page that never asks for it pays nothing, and core's
+            zero-dependency, CSS-first claims stay true whether or not this tier ever ships.
+          </p>
+          <p data-kui="fade-up 700ms 140ms on:enter">
+            Registration has to happen <em>before</em> <code>.start()</code>. The animator resolves
+            every <code>data-kui</code> name against the registry as it processes the document, so a
+            primitive registered afterwards is a primitive the page has already failed to find.
+          </p>
+        </div>
+        <div class="load-snippet" data-kui="fade-up 700ms 190ms on:enter">
+<pre>import { kuinetic } from 'kuinetic'
+import { registerAdvanced } from 'kuinetic/advanced'  // shaders, scene, camera, particles, cursor, audio
+
+const k = kuinetic({ observe: true })
+registerAdvanced(k)   // before start(), not after
+k.start()</pre>
+        </div>
+        <div class="section-head" style="margin-top:2rem;">
+          <p data-kui="fade-up 700ms on:enter">
+            <strong>One module graph, not two script tags.</strong>
+            <code>registerAdvanced</code> checks its argument with
+            <code>instanceof Registry</code>. That is class identity, not shape — so if core and
+            this tier arrive as two separately-bundled scripts, each carrying its own inlined copy
+            of that class, the check compares two different class objects and throws
+            <code>requires a Registry or Animator instance</code> on an animator that is perfectly
+            valid. The import form above is fine, because a subpath of the same package resolves to
+            the same instance. This page therefore loads a single hand-built bundle with both
+            halves in it, which is the same thing
+            <code>test/browser/fixtures/advanced-webgl-entry.ts</code> does, for the same reason.
+          </p>
+        </div>
+      </section>
+
+      <!-- THE FIVE MODES -->
+      <section id="modes" data-od-id="modes">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">One primitive, five programs</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            <code>shaders</code> is a single primitive with a <code>mode:</code> keyword, and the
+            five modes are the five fragment programs in <code>glsl.ts</code>. Each one also has a
+            preset name — <code>shader-displace</code>, <code>fluid-pointer</code>,
+            <code>liquid-distort</code>, <code>particle-field</code>, <code>image-morph</code> — so
+            the common case needs no parameters at all.
+          </p>
+          <p data-kui="fade-up 700ms 140ms on:enter">
+            The source has to be a raster the page already has: an <code>&lt;img&gt;</code>,
+            <code>&lt;video&gt;</code> or <code>&lt;canvas&gt;</code>. There is no live-DOM capture,
+            which is the scope cut that keeps the renderer small.
+          </p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">displace &amp; liquid — the two that bend the image</p>
+          <p class="matrix-group-note">
+            <code>strength</code> is the only amplitude knob, and it goes to 10 — both of these sit
+            at 0.45 because water already carries the distortion, and past roughly 0.6 the
+            displacement pushes the sample point off the edge of the texture and you get a smeared
+            border instead of refraction. <code>chromatic</code> splits the channels on the way,
+            which is what the faint colour fringe on the left edge is.
+          </p>
+          <div class="gl-row" data-kui="cascade:90ms">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/displace-coast.jpg"
+                alt="Turquoise sea breaking over pale limestone rocks, shot from above"
+                data-kui="shaders mode:displace strength:0.45 frequency:14 chromatic:0.2"
+              />
+              <figcaption>data-kui="shaders mode:displace strength:0.45 frequency:14 chromatic:0.2"</figcaption>
+            </figure>
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/liquid-fjord.jpg"
+                alt="Norwegian fjord in flat calm, steep green cliffs reflected in the water"
+                data-kui="shaders mode:liquid strength:0.45 speed:0.8 frequency:8"
+              />
+              <figcaption>data-kui="shaders mode:liquid strength:0.45 speed:0.8 frequency:8"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">fluid &amp; particles — the two that follow the pointer</p>
+          <p class="matrix-group-note">
+            <code>fluid</code> has an ambient flow of its own and adds a push where the cursor goes;
+            <code>particles</code> masks the image into a dot grid and sparkles it. Both need a
+            pointer to show their second half — on a touch screen you get the ambient half only,
+            which is a real limit of the effect and not a bug in this page.
+          </p>
+          <div class="gl-row" data-kui="cascade:90ms">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/particles-city.jpg"
+                alt="City skyline at night, dense grid of window and street lights under a dark blue sky"
+                data-kui="shaders mode:particles strength:1.2 frequency:30 iridescence:0.4"
+              />
+              <figcaption>data-kui="shaders mode:particles strength:1.2 frequency:30 iridescence:0.4"</figcaption>
+            </figure>
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/fluid-aurora.jpg"
+                alt="Aurora borealis in green and violet bands over a dark mountain ridge, mirrored in still water"
+                data-kui="fluid-pointer strength:0.8 speed:1.4"
+              />
+              <figcaption>data-kui="fluid-pointer strength:0.8 speed:1.4" — the preset, same program</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">morph — the one that needs two images</p>
+          <p class="matrix-group-note">
+            <code>to:</code> takes a <strong>CSS selector</strong>, not a URL: the second texture is
+            another <code>&lt;img&gt;</code> already on the page, matched with
+            <code>querySelector</code>. With nothing driving <code>progress</code>, the crossfade
+            sits wherever <code>strength</code> puts it — so <code>strength:0.5</code> below is a
+            still, half-morphed frame. Scroll drives it properly in the next section.
+          </p>
+          <div class="gl-row">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/morph-dunes.jpg"
+                alt="Rippled orange sand dunes in low sun, sharp shadow line along the crest"
+                data-kui="shaders mode:morph to:#morph-b strength:0.5 frequency:6"
+              />
+              <figcaption>data-kui="shaders mode:morph to:#morph-b strength:0.5 frequency:6"</figcaption>
+            </figure>
+            <div>
+              <p class="matrix-group-label">The two textures</p>
+              <div class="ab-pair">
+                <div class="ab-item">
+                  <img src="./assets/shaders/morph-dunes.jpg" alt="" aria-hidden="true" />
+                  <span>A — host</span>
+                </div>
+                <div class="ab-item">
+                  <img id="morph-b" src="./assets/shaders/morph-canyon.jpg" alt="Narrow slot canyon, banded orange sandstone walls curving overhead" />
+                  <span>B — to:#morph-b</span>
+                </div>
+              </div>
+              <p class="matrix-group-note" style="margin-top:1rem;">
+                B is a visible 96px thumbnail rather than a hidden node on purpose. The module only
+                accepts an <code>&lt;img&gt;</code> that has finished loading, and the texture is
+                uploaded at the file's intrinsic size — so the thumbnail feeds the shader the full
+                900px source while still showing a reader both ends of the morph.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCROLL-DRIVEN -->
+      <section id="scroll-driven" data-od-id="scroll-driven">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Scroll drives the shader, through one custom property</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            There is no shader-specific scroll plumbing. <code>scroll-progress</code> is the same
+            core primitive the progress bars on every other page use, and all it does is write
+            <code>--kui-progress</code>. The renderer reads that property back — off the element's
+            own inline style first, then off the computed style, so a driver on an
+            <em>ancestor</em> reaches down by plain CSS inheritance.
+          </p>
+          <p data-kui="fade-up 700ms 140ms on:enter">
+            Below, the driver is on the tall track and the shader is on the sticky image inside it,
+            which is the ancestor case. Scrub the page and the morph runs A→B.
+          </p>
+        </div>
+
+        <!-- The driver. `scroll-progress` needs real height to measure against, so the track is
+             240vh and the stage inside it is sticky — the same pin-offset/pin-room token pair
+             every other held thing in this showcase is sized with. -->
+        <div class="scrub-track" data-kui="scroll-progress">
+          <div class="scrub-stage">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/scroll-range.jpg"
+                alt="Snow-lined mountain range under cloud, seen across a broad valley"
+                data-kui="shaders mode:morph to:#scrub-b frequency:5"
+              />
+              <figcaption>data-kui="shaders mode:morph to:#scrub-b frequency:5" — inside a div with data-kui="scroll-progress"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="ab-pair">
+          <div class="ab-item">
+            <img src="./assets/shaders/scroll-range.jpg" alt="" aria-hidden="true" />
+            <span>A — host</span>
+          </div>
+          <div class="ab-item">
+            <img id="scrub-b" src="./assets/shaders/scroll-valley.jpg" alt="Forested valley under low mist, ridgelines fading back into white" />
+            <span>B — to:#scrub-b</span>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Both primitives on one element</p>
+          <p class="matrix-group-note">
+            The same comma grammar any two primitives share. Here <code>scroll-progress</code>
+            writes <code>--kui-progress</code> as an inline style on the element the shader is also
+            on, so the renderer finds it on the first of its two lookups. For the four continuous
+            modes <code>progress</code> is not a position in a timeline — it scales the amplitude —
+            so this reads as the distortion fading up as the image crosses the viewport.
+          </p>
+          <div class="gl-row">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/liquid-fjord.jpg"
+                alt="Norwegian fjord in flat calm, steep green cliffs reflected in the water"
+                data-kui="scroll-progress, shaders mode:displace strength:0.3"
+              />
+              <figcaption>data-kui="scroll-progress, shaders mode:displace strength:0.3"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIO -->
+      <section id="audio" data-od-id="audio">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Audio is a driver, not an effect</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            <code>audio-source</code> renders nothing. It runs an <code>AnalyserNode</code> over a
+            playing media element and writes four bands —
+            <code>--kui-audio-bass</code>, <code>-mid</code>, <code>-treble</code>,
+            <code>-level</code> — onto its host every frame. They are ordinary unregistered custom
+            properties, so they inherit, and anything below can read one: two primitives in this
+            tier do, and so do the four bars under the button.
+          </p>
+          <p data-kui="fade-up 700ms 140ms on:enter">
+            <strong>A browser will not start an <code>AudioContext</code> without a real click</strong>,
+            so this section cannot start itself and does not try. The driver is declared
+            <code>on:click</code> on the block below —
+            <code>data-kui="audio-source media:#kui-audio-track on:click"</code> — so your press on
+            the button both starts the track and activates the analyser inside the same trusted
+            gesture. <code>media:</code> names the element explicitly, so the analyser cannot latch
+            onto some other media element elsewhere on the page.
+          </p>
+        </div>
+
+        <!-- The driver sits here, on the common ancestor of every consumer, and activates from the
+             click that bubbles up out of the button. `media:` names the element explicitly so the
+             analyser cannot latch onto some other media element elsewhere on the page. -->
+        <!-- No `data-show-code` on this wrapper, deliberately. show-code.js mounts its chip into
+             the first `figcaption` it finds *inside* the element it was given, so a
+             `data-show-code` here would claim the volcano plate's caption and that caption would
+             end up with two chips — one for the plate, one for the rig. The rig's own attribute is
+             quoted in the copy above instead. -->
+        <div class="audio-rig" data-kui="audio-source media:#kui-audio-track on:click">
+          <audio id="kui-audio-track" src="./assets/shaders/audio-bands-loop.m4a" loop preload="auto"></audio>
+
+          <div class="audio-bar">
+            <button type="button" class="btn btn-primary" data-audio-play aria-pressed="false">Play the test loop</button>
+            <p>
+              Eight seconds, generated with ffmpeg for this page: a 55&nbsp;Hz bass pulse, a
+              520&nbsp;Hz mid, and noise high-passed above 5&nbsp;kHz, each on its own tremolo. It
+              is a test tone, not music. The top end is <em>noise</em> rather than a third sine
+              because <code>treble</code> averages 4–16&nbsp;kHz — about 64 FFT bins at the default
+              <code>fft:256</code> — and one sine lands in two of them, which averages to almost
+              zero. A band is only as legible as the bandwidth feeding it.
+            </p>
+          </div>
+
+          <div class="band-readout" aria-hidden="true">
+            <div class="band band-bass"><span>bass</span><i></i></div>
+            <div class="band band-mid"><span>mid</span><i></i></div>
+            <div class="band band-treble"><span>treble</span><i></i></div>
+            <div class="band band-level"><span>level</span><i></i></div>
+          </div>
+
+          <div class="gl-row">
+            <figure class="gl-plate" data-show-code>
+              <img
+                src="./assets/shaders/audio-volcano.jpg"
+                alt="Volcanic fissure at night, orange lava fountaining against black rock and smoke"
+                data-kui="shaders mode:liquid strength:0.4 speed:0.9 audio:bass"
+              />
+              <figcaption>data-kui="shaders mode:liquid strength:0.4 speed:0.9 audio:bass" — wave depth doubles at a full band</figcaption>
+            </figure>
+            <figure class="gl-plate" data-show-code>
+              <div class="cam-stage" data-kui="camera-scene audio:bass depth:1200 mouse-tilt:off">
+                <div class="cam-layer cam-layer-far" data-kui="camera-layer z:-400">z:-400</div>
+                <div class="cam-layer cam-layer-mid" data-kui="camera-layer z:-120">z:-120</div>
+                <div class="cam-layer cam-layer-near" data-kui="camera-layer z:160">z:160</div>
+              </div>
+              <figcaption>data-kui="camera-scene audio:bass depth:1200 mouse-tilt:off" — CSS 3D, no WebGL</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="mic-optin">
+          <button type="button" class="btn btn-ghost" data-mic-start>Use my microphone instead</button>
+          <p>
+            A separate, explicit opt-in. Nothing on this page touches
+            <code>getUserMedia</code> until you press this, and your browser will ask again before
+            it hands anything over. <code>audio-source source:mic</code> is the same driver reading
+            a live stream instead of a file.
+          </p>
+        </div>
+        <!-- A <template>, not a `hidden` div, and the distinction is the whole opt-in.
+             `audio-source` defaults to `on:load`, and `hidden` does not stop the animator from
+             processing an element — a hidden rig in the initial DOM would have requested the
+             microphone at page load. Template content is inert and unprocessed until it is cloned,
+             so the request cannot happen before the press. -->
+        <template id="mic-rig-template">
+          <div class="gl-row">
+            <figure class="gl-plate" data-show-code>
+              <div data-kui="audio-source source:mic">
+                <img
+                  src="./assets/shaders/particles-city.jpg"
+                  alt="City skyline at night, dense grid of window and street lights under a dark blue sky"
+                  data-kui="shaders mode:particles strength:1.0 frequency:26 audio:level"
+                />
+              </div>
+              <figcaption>data-kui="audio-source source:mic" + data-kui="shaders mode:particles audio:level"</figcaption>
+            </figure>
+          </div>
+        </template>
+        <div id="mic-rig-mount"></div>
+      </section>
+
+      <!-- HONEST LIMITS -->
+      <section id="limits" data-od-id="limits">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">What this is not</h2>
+          <p data-kui="fade-up 700ms 90ms on:enter">
+            Every item below is a real, current limit, not a caveat added for modesty. Most of them
+            are consequences of the one design decision that makes this tier cheap: a single fixed
+            canvas shared by every instance on the page.
+          </p>
+        </div>
+        <ul class="limit-list" data-kui="cascade:80ms">
+          <li>
+            <h3><code>liquid</code> and <code>fluid</code> are not fluid simulation</h3>
+            <p>
+              Both are noise-driven UV offsets sampled from one still image. Nothing is advected,
+              nothing conserves mass, and there is no solver. They look like moving water because
+              water was photographed, not because water is being computed.
+            </p>
+          </li>
+          <li>
+            <h3>The shader paints over the element, at <code>z-index: 9999</code></h3>
+            <p>
+              One fixed full-viewport canvas, scissored to each element's rect. Stacking order is
+              the limit a single canvas cannot reproduce: anything that should sit
+              <em>above</em> a shader element — the header pill on this page, an open modal — is
+              painted under the replica while they overlap.
+            </p>
+          </li>
+          <li>
+            <h3>There is no amount knob on the audio response</h3>
+            <p>
+              A band is a gain of 1 to 2 on the amplitude a program already had — silence is exactly
+              1.0, a full band is double, and nothing in between is adjustable.
+              <code>camera-scene</code>'s push is a fixed tenth of its <code>depth</code>. A subtler
+              or stronger response is a parameter this code does not have.
+            </p>
+          </li>
+          <li>
+            <h3>Only two consumers read audio</h3>
+            <p>
+              <code>shaders</code> and <code>camera-scene</code>. Nothing in the main catalog reads
+              a band, because presets that depended on a driver which does not ship would be dead
+              weight in the shipped CSS.
+            </p>
+          </li>
+          <li>
+            <h3>Reduced motion turns all of it off</h3>
+            <p>
+              Every <code>prepare</code> here returns an inert instance under
+              <code>prefers-reduced-motion</code>, so you get the plain image and the plain layers.
+              A 1&nbsp;ms GPU loop is not a reduction for someone on constrained hardware, so these
+              declare <code>reducedMotion: 'disable'</code> rather than shortening.
+            </p>
+          </li>
+          <li>
+            <h3>A cross-origin track feeds silence</h3>
+            <p>
+              <code>createMediaElementSource</code> on a tainted media element hands the analyser
+              zeroes with no error. The loop on this page is same-origin for that reason, and it is
+              a browser rule the driver cannot work around.
+            </p>
+          </li>
+          <li>
+            <h3>No per-instance frame budget</h3>
+            <p>
+              Every instance draws inside one shared <code>requestAnimationFrame</code> loop. Draw
+              errors are isolated — one instance throwing does not stop the others — but a merely
+              <em>slow</em> instance has no circuit breaker and costs the whole page its frame.
+            </p>
+          </li>
+          <li>
+            <h3>Unexported, unbuilt, unshipped</h3>
+            <p>
+              <code>src/advanced/</code> is not in <code>src/index.ts</code>, not in
+              <code>package.json</code>'s exports map and not in <code>dist/</code>. The bundle this
+              page loads was built by hand. Treat all of it as a description of what the code does
+              today, not a commitment about what ships.
+            </p>
+          </li>
+        </ul>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer" data-footer-mount></footer>
+
+  <!-- ONE bundle, carrying core and advanced together, and deliberately not `./kuinetic.js` plus a
+       second script beside it. `registerInto` gates on `instanceof Registry`, and two independent
+       esbuild IIFE bundles each inline their own copy of that class — so the check compares two
+       different class objects and throws on a perfectly good animator. See
+       demo/kuinetic-advanced-entry.ts, and the #load section above. -->
+  <script src="./kuinetic-advanced.js"></script>
+  <script>
+    window.__kui = kuineticLab.kuinetic({ observe: true, reporter: kuineticLab.consoleReporter() })
+    kuineticLab.registerAdvanced(window.__kui)
+    window.__kui.start()
+  </script>
+  <script>
+    // Media transport only — no animation is driven from here. The `audio-source` primitive is
+    // declared `on:click` in the markup and activates from the same click that starts the track,
+    // which is what keeps the AudioContext's user-gesture requirement satisfied without this
+    // script reaching into the library.
+    ;(function () {
+      var track = document.getElementById('kui-audio-track')
+      var playBtn = document.querySelector('[data-audio-play]')
+      if (!track || !playBtn) return
+
+      function paint() {
+        var playing = !track.paused
+        playBtn.textContent = playing ? 'Pause the test loop' : 'Play the test loop'
+        playBtn.setAttribute('aria-pressed', String(playing))
+      }
+
+      playBtn.addEventListener('click', function () {
+        if (track.paused) {
+          var started = track.play()
+          if (started && started.catch) started.catch(function () {})
+        } else {
+          track.pause()
+        }
+      })
+
+      track.addEventListener('play', paint)
+      track.addEventListener('pause', paint)
+      paint()
+    })()
+  </script>
+  <script>
+    // Microphone opt-in. Clones the template into the page on click; `observe: true`'s
+    // MutationObserver is what picks up the `data-kui` inside the clone, the same path nav.js
+    // relies on for the dropdown markup it builds after `.start()`. Cloning rather than unhiding
+    // is what guarantees `getUserMedia` cannot run before the press — see the template's comment.
+    // The browser's own permission prompt is the second gate.
+    ;(function () {
+      var btn = document.querySelector('[data-mic-start]')
+      var tpl = document.getElementById('mic-rig-template')
+      var mount = document.getElementById('mic-rig-mount')
+      if (!btn || !tpl || !mount) return
+      btn.addEventListener('click', function () {
+        mount.appendChild(tpl.content.cloneNode(true))
+        btn.disabled = true
+        btn.textContent = 'Microphone rig added — your browser will ask next'
+      })
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>
