@@ -34,7 +34,11 @@ export const name = 'advanced-webgl'
 
 const FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/advanced-webgl.html', import.meta.url))}`
 const ENTRY_FILE = fileURLToPath(new URL('./fixtures/advanced-webgl-entry.ts', import.meta.url))
-const BUNDLE_FILE = fileURLToPath(new URL('./fixtures/advanced-webgl.bundle.js', import.meta.url))
+// Out of the repo's tracked tree and into its gitignored `.artifacts/`. Next to the fixtures this
+// was an untracked file in `git status` after every run, which in this repo is how an agent ends up
+// staging a build artifact — or reaching for a destructive command to clean one up. The four
+// fixtures reach it back out through `../../../.artifacts/`.
+const BUNDLE_FILE = fileURLToPath(new URL('../../.artifacts/browser-fixtures/advanced-webgl.bundle.js', import.meta.url))
 
 export async function run({ browser }) {
   const { check, results } = createChecker()
@@ -268,7 +272,11 @@ export async function run({ browser }) {
   check('draw-isolation: both instances hidden during normal draw', isolation.img1OpacityBefore === '0' && isolation.img2OpacityBefore === '0', `img1=${isolation.img1OpacityBefore}, img2=${isolation.img2OpacityBefore}`)
   check('draw-isolation: throw occurred in instance 1', isolation.throwCount > 0, `throwCount=${isolation.throwCount}`)
   check('draw-isolation: instance 1 opacity restored to visible on throw', isolation.img1OpacityAfter === '', `img1=${isolation.img1OpacityAfter}`)
-  check('draw-isolation: instance 2 remains hidden and drawing', isolation.img2OpacityAfter === '0', `img2=${isolation.img2OpacityAfter}`)
+  // Not "and drawing": img2 was already hidden before the injected throw, and the only thing that
+  // clears that is a *failed* draw, so a completely frozen loop passes this. It is worth keeping as
+  // the negative half — the throw next door did not un-hide it — but the evidence for "drawing" is
+  // the `inst2Drew` check below, and this one must not be read as a second vote for it.
+  check('draw-isolation: instance 2 was not un-hidden by its neighbour\'s throw', isolation.img2OpacityAfter === '0', `img2=${isolation.img2OpacityAfter}`)
   check('draw-isolation: rAF loop survived the throw', isolation.rafActive === true, `rafActive=${isolation.rafActive}`)
   check('draw-isolation: throwing instance was unregistered', isolation.inst1StillRegistered === false, `registered=${isolation.inst1StillRegistered}`)
   check('draw-isolation: surviving instance continues to draw', isolation.inst2Drew === true, `inst2Drew=${isolation.inst2Drew}`)
@@ -584,10 +592,22 @@ void main() { this is not valid glsl at all !! }
     const scrollYChildLate = await scrollTo(3500)
     const childProgressLate = computedProgress(childEl)
 
+    // The same read again, now that both elements have been scrolled through their whole span and
+    // drawn many frames. `childInlineAtStart` on its own only proved the *compile* step wrote
+    // nothing; the claim is that the shader never writes this property on the element it reads it
+    // from, and only a reading taken after the reads have happened can say that.
+    const childInlineAtEnd = childEl.style.getPropertyValue('--kui-progress')
+    // The positive control, and it is a different element for a reason: `#progress-same` carries
+    // `scroll-progress` itself, whose whole job is to write this property inline. It must read as
+    // non-empty, or `childInlineAtEnd === ''` is only evidence that this measurement cannot see an
+    // inline custom property on this page at all.
+    const sameInlineAtEnd = sameEl.style.getPropertyValue('--kui-progress')
+
     return {
       scrollYStart, scrollYSameEarly, scrollYSameLate, scrollYChildVisible, scrollYChildLate,
       sameProgressStart, sameProgressEarly, sameProgressLate, sameUniformLate,
-      childInlineAtStart, childProgressVisible, childUniformVisible, childProgressLate,
+      childInlineAtStart, childInlineAtEnd, sameInlineAtEnd,
+      childProgressVisible, childUniformVisible, childProgressLate,
     }
   })
 
@@ -606,7 +626,11 @@ void main() { this is not valid glsl at all !! }
     `uniform=${bridge.sameUniformLate}, cssProgress=${bridge.sameProgressLate}`,
   )
 
-  check('progress-bridge: the shader element never writes --kui-progress on its own inline style', bridge.childInlineAtStart === '', `inline=${JSON.stringify(bridge.childInlineAtStart)}`)
+  check(
+    'progress-bridge: an ancestor-driven shader never writes --kui-progress on its own inline style, before or after a full scroll',
+    bridge.childInlineAtStart === '' && bridge.childInlineAtEnd === '' && bridge.sameInlineAtEnd !== '',
+    `atStart=${JSON.stringify(bridge.childInlineAtStart)}, childAtEnd=${JSON.stringify(bridge.childInlineAtEnd)}, control=${JSON.stringify(bridge.sameInlineAtEnd)}`,
+  )
   check(
     'progress-bridge: an element with no scroll-progress of its own inherits a real, non-trivial value from its ancestor',
     bridge.childProgressVisible > 0 && bridge.childProgressVisible < 1,
@@ -900,6 +924,13 @@ async function runOverlayFidelity({ browser, check }) {
           dpr,
           canvasBacking: [canvas.width, canvas.height],
           canvasCssBox: [Math.round(canvas.getBoundingClientRect().width), Math.round(canvas.getBoundingClientRect().height)],
+          // The inline declaration, not the resolved box. Headless Chromium has no retracting URL
+          // bar, so `100vh` and `innerHeight` are the same number here and the measured box cannot
+          // tell the fixed version from the broken one — which made the first version of the check
+          // below unfalsifiable. The unit that was written is what is assertable: px, computed from
+          // the same `innerWidth`/`innerHeight` the backing store uses, rather than viewport units
+          // resolved against a different viewport than the one the draw was scissored into.
+          canvasCssDecl: [canvas.style.width, canvas.style.height],
           viewport: [window.innerWidth, window.innerHeight],
           // cover, object-position: top — near the bottom edge of a box half the image's height
           coverLow: px(70, 143),
@@ -940,9 +971,10 @@ async function runOverlayFidelity({ browser, check }) {
     `backing=${fidelity.canvasBacking}, viewport=${fidelity.viewport}`,
   )
   check(
-    'fidelity: the canvas CSS box measures the same viewport as its backing store (not 100vh)',
-    fidelity.canvasCssBox[0] === fidelity.viewport[0] && fidelity.canvasCssBox[1] === fidelity.viewport[1],
-    `cssBox=${fidelity.canvasCssBox}, viewport=${fidelity.viewport}`,
+    'fidelity: the canvas CSS box is declared in px from the same viewport as its backing store, not in vw/vh',
+    fidelity.canvasCssBox[0] === fidelity.viewport[0] && fidelity.canvasCssBox[1] === fidelity.viewport[1]
+      && fidelity.canvasCssDecl[0] === `${fidelity.viewport[0]}px` && fidelity.canvasCssDecl[1] === `${fidelity.viewport[1]}px`,
+    `cssBox=${fidelity.canvasCssBox}, decl=${JSON.stringify(fidelity.canvasCssDecl)}, viewport=${fidelity.viewport}`,
   )
 
   check(
