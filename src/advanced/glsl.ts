@@ -3,6 +3,24 @@
  * GLSL Shader Sources for kUInetic Advanced Modules
  */
 
+/**
+ * The audio-reactive term every program below shares.
+ *
+ * `u_audio` is one band of an `audio-source`'s output (0..1), uploaded every frame — 0 when the
+ * author selected no band, which is also what a silent driver reports. Clamped here as well as in
+ * JavaScript because the uniform is reachable directly (`uploadUniforms`) and a shader that
+ * multiplies by an unbounded number is one bad caller away from a white screen.
+ *
+ * The term is a *gain on what the program already does*, in 1..2: silence leaves each program
+ * exactly where it was (`x * 1.0` is exact in IEEE 754, so audio-off output is bit-identical to
+ * the version before this uniform existed) and a full-scale band at most doubles it. That is the
+ * whole reason it is a multiplier rather than an additive push — `strength` stays the author's
+ * amplitude control, and audio cannot take a scene anywhere `strength: <double>` could not.
+ */
+const AUDIO_GAIN_GLSL = `uniform float u_audio;
+float audioGain() { return 1.0 + clamp(u_audio, 0.0, 1.0); }
+`
+
 export const QUAD_VS = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_uvOrigin;
@@ -34,7 +52,7 @@ uniform float u_duotone;
 uniform vec4 u_color1;
 uniform vec4 u_color2;
 uniform float u_progress;
-
+${AUDIO_GAIN_GLSL}
 vec4 applyBlend(vec4 base, vec4 tint, int mode) {
   if (mode == 1) return 1.0 - (1.0 - base) * (1.0 - tint);
   if (mode == 2) return base * tint;
@@ -47,7 +65,8 @@ void main() {
   float d = distance(v_uv, m);
   float ripple = sin(d * u_frequency - u_time * 3.0) * exp(-d * 4.0);
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
-  vec2 disp = normalize(v_uv - m + 0.0001) * ripple * u_strength * 0.05 * pFactor;
+  // Audio widens the ripple's throw (up to 2x), leaving its shape and speed alone.
+  vec2 disp = normalize(v_uv - m + 0.0001) * ripple * u_strength * 0.05 * pFactor * audioGain();
 
   float cr = texture(u_image, v_uv + disp * (1.0 + u_chromatic)).r;
   float cg = texture(u_image, v_uv + disp).g;
@@ -74,13 +93,16 @@ uniform float u_strength;
 uniform vec2 u_mouse;
 uniform vec4 u_tint;
 uniform float u_progress;
-
+${AUDIO_GAIN_GLSL}
 void main() {
   vec2 uv = v_uv;
   vec2 m = u_mouse;
   float d = distance(uv, m);
-  float force = exp(-d * 6.0) * u_strength;
-  vec2 flow = vec2(sin(u_time + uv.y * 10.0), cos(u_time + uv.x * 10.0)) * 0.02;
+  // Audio scales both halves of the flow — the ambient drift and the pointer's push — so a beat
+  // reads as the whole surface moving faster, not just around the cursor.
+  float gain = audioGain();
+  float force = exp(-d * 6.0) * u_strength * gain;
+  vec2 flow = vec2(sin(u_time + uv.y * 10.0), cos(u_time + uv.x * 10.0)) * 0.02 * gain;
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
   vec2 offset = (flow + (uv - m) * force * 0.1) * pFactor;
   fragColor = texture(u_image, uv + offset) * u_tint;
@@ -96,13 +118,14 @@ uniform float u_time;
 uniform float u_strength;
 uniform vec4 u_tint;
 uniform float u_progress;
-
+${AUDIO_GAIN_GLSL}
 void main() {
   vec2 uv = v_uv;
   float w1 = sin(uv.y * 12.0 + u_time * 2.0) * 0.015;
   float w2 = cos(uv.x * 10.0 - u_time * 1.5) * 0.015;
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
-  vec2 offset = vec2(w1, w2) * u_strength * pFactor;
+  // Audio deepens the wave (up to 2x) without changing its wavelength or speed.
+  vec2 offset = vec2(w1, w2) * u_strength * pFactor * audioGain();
   fragColor = texture(u_image, uv + offset) * u_tint;
 }
 `
@@ -117,7 +140,7 @@ uniform float u_strength;
 uniform vec2 u_mouse;
 uniform vec4 u_tint;
 uniform float u_progress;
-
+${AUDIO_GAIN_GLSL}
 void main() {
   vec2 uv = v_uv;
   vec2 grid = fract(uv * 40.0) - 0.5;
@@ -126,7 +149,10 @@ void main() {
   vec4 tex = texture(u_image, uv);
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
   float dotMask = smoothstep(0.4, 0.2, dist) * u_strength * pFactor;
-  fragColor = mix(tex, tex * u_tint + sparkle * 0.3, dotMask);
+  // Audio brightens the sparkle (0.3 -> at most 0.6) rather than growing the dots: the mask is
+  // already multiplied by an unbounded u_strength and feeds a mix(), so widening it would
+  // extrapolate past the texture over a larger and larger area.
+  fragColor = mix(tex, tex * u_tint + sparkle * 0.3 * audioGain(), dotMask);
 }
 `
 
@@ -139,11 +165,14 @@ uniform sampler2D u_image_to;
 uniform float u_time;
 uniform float u_strength;
 uniform float u_progress;
-
+${AUDIO_GAIN_GLSL}
 void main() {
   vec2 uv = v_uv;
   float progress = u_progress >= 0.0 ? clamp(u_progress, 0.0, 1.0) : clamp(u_strength, 0.0, 1.0);
-  float noise = sin(uv.x * 20.0 + u_time) * cos(uv.y * 20.0 + u_time) * 0.05;
+  // Audio wobbles the crossfade harder. Deliberately not applied to u_progress: the morph's
+  // position between the two images belongs to the author (or to scroll), and letting a beat
+  // drive it would make the transition jump backwards on every quiet frame.
+  float noise = sin(uv.x * 20.0 + u_time) * cos(uv.y * 20.0 + u_time) * 0.05 * audioGain();
   vec4 c1 = texture(u_image, uv + vec2(noise * (1.0 - progress)));
   vec4 c2 = texture(u_image_to, uv - vec2(noise * progress));
   fragColor = mix(c1, c2, smoothstep(0.2, 0.8, progress));

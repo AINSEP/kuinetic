@@ -39,6 +39,72 @@ export interface AudioBands {
   level: number
 }
 
+/**
+ * The bands a *consumer* can subscribe to, and the custom property each one reads.
+ *
+ * The same names {@link AUDIO_CHANNELS} declares, minus the `--kui-audio` alias — an alias is a
+ * second spelling of `level`, not a fifth band, and offering both as separate choices would make
+ * two authored values mean exactly the same thing. `__tests__/audio.test.ts` asserts every
+ * property here is one this module actually writes, so the two cannot drift apart.
+ */
+export const AUDIO_BAND_PROPERTIES = {
+  bass: '--kui-audio-bass',
+  mid: '--kui-audio-mid',
+  treble: '--kui-audio-treble',
+  level: '--kui-audio-level',
+} as const
+
+export type AudioBand = keyof typeof AUDIO_BAND_PROPERTIES
+
+/** Band names, for a consumer's `keywords` list. */
+export const AUDIO_BANDS: readonly AudioBand[] = Object.keys(AUDIO_BAND_PROPERTIES) as AudioBand[]
+
+function parseBandValue(raw: string | null | undefined): number | null {
+  if (!raw) return null
+  const val = parseFloat(raw)
+  return Number.isFinite(val) ? clamp(val, 0, 1) : null
+}
+
+/**
+ * The band an authored keyword names, or `null` for "no band" — including `off` and any word that
+ * is not a band at all.
+ *
+ * `Object.hasOwn`, not `AUDIO_BANDS.includes`, for the same reason `readParams` uses it: a plain
+ * property read answers for `__proto__`/`constructor` too, and would report those as bands whose
+ * property is a function.
+ */
+export function parseAudioBand(raw: string | null | undefined): AudioBand | null {
+  if (!raw) return null
+  const name = raw.trim()
+  return Object.hasOwn(AUDIO_BAND_PROPERTIES, name) ? (name as AudioBand) : null
+}
+
+/**
+ * One band's current value for this element, as a consumer sees it.
+ *
+ * Inline first, then computed — the same two-step `shaders.ts`'s `readElementProgress` uses, and
+ * for the same reason: `--kui-audio-*` are ordinary unregistered custom properties (nothing in
+ * this codebase declares them with `@property`), so they inherit, and an `audio-source` on an
+ * *ancestor* is already visible through `getComputedStyle` without this module doing anything
+ * special. The inline read is the fast path for the common case — the driver on the element
+ * itself, where its own per-frame write lands.
+ *
+ * `0` when nothing has declared a value, which is also what a silent driver writes: a consumer
+ * that reads 0 behaves as if there were no audio, rather than having to distinguish the two.
+ *
+ * Callers on a shared render loop must read every element before any of them writes style; see
+ * `SharedShaderRenderer`'s `inputReaders` pass for why the ordering matters.
+ *
+ * @complexity O(1) time (one inline read, at most one computed-style read); O(1) space.
+ */
+export function readAudioBand(el: HTMLElement, band: AudioBand): number {
+  const prop = AUDIO_BAND_PROPERTIES[band]
+  const fromInline = parseBandValue(el.style?.getPropertyValue?.(prop))
+  if (fromInline !== null) return fromInline
+  const view = el.ownerDocument?.defaultView
+  return parseBandValue(view?.getComputedStyle?.(el).getPropertyValue(prop)) ?? 0
+}
+
 export interface AudioSourceOptions {
   source?: 'media' | 'mic'
   media?: string

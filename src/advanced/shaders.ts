@@ -15,6 +15,17 @@ import {
   clamp, createEffectInstance, createInertInstance, isReducedMotion, registerInto, resolveEnv, styleOf,
 } from './base.js'
 import { createProgram, extractLocations, disposeGLResources, createGLTexture, type ProgramLocations } from './gl-utils.js'
+import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './audio.js'
+
+/**
+ * `gl-utils.ts`'s location set plus the one uniform only this module's programs declare.
+ *
+ * Kept here rather than in `ProgramLocations` because `u_audio` is a `glsl.ts` uniform and this
+ * file is the only thing that uploads it; every field is optional there, so a plain
+ * `ProgramLocations` (an older cached program, or a caller that built one itself) still satisfies
+ * this type and simply has no audio location to upload to.
+ */
+export type ShaderProgramLocations = ProgramLocations & { u_audio?: WebGLUniformLocation | null }
 
 export interface ShaderUniformOptions {
   time?: number
@@ -24,6 +35,8 @@ export interface ShaderUniformOptions {
   chromatic?: number
   iridescence?: number
   progress?: number
+  /** One audio band's current value (0..1), or 0/absent for "no audio". */
+  audio?: number
   localMouse?: { x: number; y: number }
   tintRgba?: [number, number, number, number]
   blendMode?: number
@@ -49,6 +62,13 @@ export interface ShaderDrawOptions extends ShaderUniformOptions {
   texture?: WebGLTexture | null
   to?: string
   toTexture?: WebGLTexture | null
+  /**
+   * Which `audio-source` band this instance follows, or `null` for none.
+   *
+   * The authored choice, not a value: the value is read per frame off the element (see
+   * `readAudioBand`) and arrives at the draw as {@link ShaderUniformOptions.audio}.
+   */
+  audioBand?: AudioBand | null
 }
 
 export type ShaderProgramEntry = ProgramLocations | WebGLProgram | null | undefined
@@ -138,12 +158,12 @@ export const BLEND_MODES = {
   add: 3,
 }
 
-export type ProgramOrLocations = ProgramLocations | WebGLProgram | null
+export type ProgramOrLocations = ShaderProgramLocations | WebGLProgram | null
 
 function resolveLocations(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   progInfo: ProgramOrLocations,
-): ProgramLocations | null {
+): ShaderProgramLocations | null {
   if (!progInfo) return null
   if ('program' in progInfo && progInfo.program) return progInfo
   const p = progInfo as WebGLProgram
@@ -154,7 +174,7 @@ function resolveLocations(
     u_uvOrigin: g('u_uvOrigin'), u_uvScale: g('u_uvScale'), u_tint: g('u_tint'),
     u_blend: g('u_blend'), u_duotone: g('u_duotone'), u_color1: g('u_color1'),
     u_color2: g('u_color2'), u_image: g('u_image'), u_image_to: g('u_image_to'),
-    u_progress: g('u_progress'),
+    u_progress: g('u_progress'), u_audio: g('u_audio'),
   }
 }
 
@@ -190,6 +210,11 @@ export function uploadUniforms(
   uploadFloat(gl, locs.u_chromatic, opt.chromatic)
   uploadFloat(gl, locs.u_iridescence, opt.iridescence)
   uploadFloat(gl, locs.u_progress, opt.progress ?? -1.0)
+  // Always uploaded, never left to the program's initial state. The five programs are shared
+  // between every instance on the page, so a uniform this instance skips keeps whatever the last
+  // instance to draw with the same `mode` put there — an `audio:`-less shader would inherit a
+  // neighbour's beat.
+  uploadFloat(gl, locs.u_audio, opt.audio ?? 0)
   uploadCoordUniforms(gl, locs, opt)
 }
 
@@ -373,6 +398,9 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     blendMode: blendMap[params.text('blend', 'normal')] ?? 0,
     to: params.text('to', ''),
     progress: params.num ? params.num('progress', -1) : -1,
+    // `parseAudioBand` answers `null` for `off`, for an empty string, and for any word that is not
+    // a band, so a caller passing an unvalidated accessor cannot turn the feature on by accident.
+    audioBand: parseAudioBand(params.text ? params.text('audio', 'off') : 'off'),
   }
 }
 
@@ -458,11 +486,12 @@ export class SharedShaderRenderer {
   drawCalls = new Map<string, ShaderDrawFn>()
   contextCallbacks = new Map<string, { onLost: () => void; onRestored: () => void }>()
   /**
-   * One progress read per registered instance, run in full before any instance's draw call this
-   * frame. See `renderFrame` for why the ordering — not just the reads themselves — is the point.
+   * One style-reading pass per registered instance — scroll progress and, when the author asked
+   * for one, an audio band — run in full before any instance's draw call this frame. See
+   * `renderFrame` for why the ordering, not just the reads themselves, is the point.
    */
-  progressReaders = new Map<string, () => void>()
-  programs: Record<string, ProgramLocations | null> = {}
+  inputReaders = new Map<string, () => void>()
+  programs: Record<string, ShaderProgramLocations | null> = {}
   refCount = 0
   mouse = { x: 0, y: 0 }
   isContextLost = false
@@ -527,7 +556,10 @@ export class SharedShaderRenderer {
     this.programs = {}
     for (const [n, fs] of [['displace', DISPLACE_FS], ['fluid', FLUID_FS], ['liquid', LIQUID_FS], ['particles', PARTICLES_FS], ['morph', MORPH_FS]] as const) {
       const prog = createProgram(gl, FULLSCREEN_QUAD_VS, fs)
-      if (prog) this.programs[n] = extractLocations(gl, prog)
+      const locs = prog ? extractLocations(gl, prog) : null
+      // `u_audio` is looked up here rather than in `gl-utils.ts`: it belongs to this module's own
+      // programs, and `extractLocations` is the generic helper every other caller shares.
+      if (locs && prog) this.programs[n] = { ...locs, u_audio: gl.getUniformLocation(prog, 'u_audio') }
     }
   }
 
@@ -564,16 +596,16 @@ export class SharedShaderRenderer {
     id: string,
     fn: ShaderDrawFn,
     callbacks?: { onLost: () => void; onRestored: () => void },
-    readProgress?: () => void,
+    readInputs?: () => void,
   ): void {
     this.drawCalls.set(id, fn)
     if (callbacks) this.contextCallbacks.set(id, callbacks)
-    if (readProgress) this.progressReaders.set(id, readProgress)
+    if (readInputs) this.inputReaders.set(id, readInputs)
     if (!this.isContextLost) this.startLoop()
   }
 
   unregister(id: string): void {
-    this.drawCalls.delete(id); this.contextCallbacks.delete(id); this.progressReaders.delete(id)
+    this.drawCalls.delete(id); this.contextCallbacks.delete(id); this.inputReaders.delete(id)
   }
 
   startLoop(): void {
@@ -605,12 +637,13 @@ export class SharedShaderRenderer {
     gl.disable(gl.SCISSOR_TEST)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
-    // Every registered instance's progress is read before any of them draws (and, for a hidden
-    // instance, writes `opacity` — see `hideBehindRenderer`/`restoreInstanceOpacity`). A progress
-    // read can fall back to `getComputedStyle` (`readElementProgress`), and interleaving that with
+    // Every registered instance's inputs — scroll progress, and an audio band when one is
+    // selected — are read before any of them draws (and, for a hidden instance, writes `opacity`;
+    // see `hideBehindRenderer`/`restoreInstanceOpacity`). Both reads can fall back to
+    // `getComputedStyle` (`readElementProgress`, `readAudioBand`), and interleaving that with
     // another instance's style write in the same pass would force a style recalculation once per
     // instance instead of once per frame.
-    for (const readProgress of this.progressReaders.values()) invokeIsolated(readProgress)
+    for (const readInputs of this.inputReaders.values()) invokeIsolated(readInputs)
     for (const [id, drawCall] of Array.from(this.drawCalls.entries())) {
       try {
         drawCall(gl, timeSeconds)
@@ -635,7 +668,7 @@ export class SharedShaderRenderer {
     }
     disposeGLResources(this.gl, this.quadBuffer, this.programs)
     this.gl = null; this.quadBuffer = null; this.isContextLost = false
-    this.drawCalls.clear(); this.contextCallbacks.clear(); this.progressReaders.clear()
+    this.drawCalls.clear(); this.contextCallbacks.clear(); this.inputReaders.clear()
     this.programs = {}; this.refCount = 0
     shaderRenderers.delete(this.mapKey)
   }
@@ -737,7 +770,7 @@ function cleanupShaderTextures(texHolder: TextureHolder, toHolder: TextureHolder
  * captured by `set()` at the instant of the write and put back with its priority intact, instead
  * of in a string this module read off `style.opacity` and wrote back as a plain declaration.
  */
-interface ShaderInstanceState { ledgers: LedgerSet; hiddenByRenderer: boolean; progress: number }
+interface ShaderInstanceState { ledgers: LedgerSet; hiddenByRenderer: boolean; progress: number; audio: number }
 
 function hideBehindRenderer(el: HTMLElement, state: ShaderInstanceState): void {
   if (state.hiddenByRenderer) return
@@ -756,15 +789,20 @@ function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): vo
 function createShaderInstance(info: {
   id: string; el: HTMLElement; opt: ShaderDrawOptions; renderer: SharedShaderRenderer; tex: TextureHolder; to: TextureHolder
 }): EffectInstance {
-  const state: ShaderInstanceState = { ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1 }
+  const state: ShaderInstanceState = { ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1, audio: 0 }
   let isActive = false, isAcquired = false
 
   // Read once per frame, before this or any other instance draws — see `renderFrame`'s
-  // `progressReaders` pass. `drawCall` below only ever reads the cached value back.
-  const readProgress = () => {
+  // `inputReaders` pass. `drawCall` below only ever reads the cached values back.
+  //
+  // The audio read is skipped entirely with no `audio:` band authored, rather than reading and
+  // discarding: it is the half that can force a style recalculation, and an author who did not
+  // ask for audio should not pay for one.
+  const readInputs = () => {
     state.progress = info.opt.progress !== undefined && info.opt.progress >= 0
       ? info.opt.progress
       : readElementProgress(info.el)
+    state.audio = info.opt.audioBand ? readAudioBand(info.el, info.opt.audioBand) : 0
   }
 
   const drawCall: ShaderDrawFn = (_gl, time) => {
@@ -772,7 +810,7 @@ function createShaderInstance(info: {
     try {
       const texture = info.tex.get()
       drew = !!texture && drawElementQuad(info.renderer, info.el, {
-        ...info.opt, texture, toTexture: info.to.get(), time, progress: state.progress,
+        ...info.opt, texture, toTexture: info.to.get(), time, progress: state.progress, audio: state.audio,
       })
     } catch {
       restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
@@ -795,7 +833,7 @@ function createShaderInstance(info: {
       info.renderer.register(info.id, drawCall, {
         onLost() { info.tex.reset(); info.to.reset(); restoreInstanceOpacity(info.el, state) },
         onRestored() {},
-      }, readProgress)
+      }, readInputs)
       info.renderer.startLoop()
     },
     cancel: restoreState,
@@ -838,6 +876,19 @@ export const SHADER_PARAMETERS = {
   blend: { type: 'keyword' as const, default: 'normal', keywords: ['normal', 'screen', 'multiply', 'add'], cssProperty: '--kui-shader-blend' },
   to: { type: 'text' as const, default: '', cssProperty: '--kui-shader-to' },
   progress: { type: 'number' as const, default: '-1', minimum: -1, maximum: 1, cssProperty: '--kui-progress' },
+  /**
+   * Which `audio-source` band drives this shader, if any.
+   *
+   * Opt-in, and `off` by default: the value arrives as a custom property written by some *other*
+   * primitive, so a shader that read one unasked would change its own output the moment an
+   * unrelated `audio-source` appeared anywhere above it in the tree.
+   *
+   * `keyword`, so the list is closed — and `--kui-shader-audio` is a name, read by this module's
+   * JavaScript and by no stylesheet, so setting the custom property in CSS does nothing. The
+   * band values themselves are read from `--kui-audio-*`, which is a different contract entirely
+   * (`audio.ts`'s `AUDIO_BAND_PROPERTIES`).
+   */
+  audio: { type: 'keyword' as const, default: 'off', keywords: ['off', ...AUDIO_BANDS], cssProperty: '--kui-shader-audio' },
 }
 
 export const SHADERS_PRIMITIVE: Primitive = {
