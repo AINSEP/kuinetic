@@ -167,6 +167,186 @@ function safeDisconnect(node: { disconnect?: () => void } | null): void {
   }
 }
 
+/**
+ * Cut one edge and leave the node's other outputs alone.
+ *
+ * The distinction matters for exactly one node — see {@link mediaSourceFor}. A shared media source
+ * also feeds the speakers, so the bare `disconnect()` above would mute the page.
+ */
+function safeDisconnectFrom(
+  node: { disconnect?: (destination?: AudioNode) => void } | null,
+  destination: AudioNode | null,
+): void {
+  if (!node || typeof node.disconnect !== 'function' || !destination) return
+  try {
+    node.disconnect(destination)
+  } catch {
+    return
+  }
+}
+
+/** Legal `AnalyserNode.fftSize` values inside this parameter's declared range. */
+const FFT_SIZES = [32, 64, 128, 256, 512, 1024, 2048] as const
+
+/**
+ * The nearest legal `fftSize`.
+ *
+ * `AnalyserNode.fftSize` must be a power of two and throws `IndexSizeError` for anything else. The
+ * parameter schema bounds the range but `clamp` cannot snap, so an authored `fft:300` threw inside
+ * initialisation, left an open `AudioContext` with no analyser behind it, and then wrote `0.000`
+ * for all five properties every frame — a silent dead effect with a running audio thread.
+ */
+export function snapFftSize(requested: number): number {
+  let best: number = FFT_SIZES[0]
+  for (const size of FFT_SIZES) {
+    if (Math.abs(size - requested) < Math.abs(best - requested)) best = size
+  }
+  return best
+}
+
+type AudioWindow = (Window & {
+  AudioContext?: typeof AudioContext
+  webkitAudioContext?: typeof AudioContext
+}) | null
+
+/**
+ * One `AudioContext` per window, and the media sources living inside it.
+ *
+ * Two irreversible facts about the Web Audio API drive this whole shape:
+ *
+ * 1. `createMediaElementSource(el)` re-routes that element's output into the context **for the
+ *    lifetime of the element**, and it cannot be undone. From that moment the page's own
+ *    `<video>` is only audible because something in the graph carries it to the destination.
+ * 2. It may be called **once per element, ever**. A second call throws `InvalidStateError`.
+ *
+ * Together they mean the previous design — a context per instance, closed on `cancel()` — silenced
+ * the visitor's video permanently the first time an `on:enter` effect deactivated, and could never
+ * recover: re-activation's second `createMediaElementSource` threw, the throw was swallowed, and
+ * the effect wrote `0.000` forever. Two `audio-source` effects on one video hit the same wall.
+ *
+ * So the ownership rule is:
+ *
+ * - **Per window (shared, ref-counted):** the `AudioContext`, one
+ *   `MediaElementAudioSourceNode` per media element, and a muted sink. Once a media source exists
+ *   this context is never closed and never suspended, because doing either silences the page.
+ * - **Per instance:** the `AnalyserNode`, its byte buffer, the frame loop and the style writes.
+ *   `cancel()` gives all four back; the media element's own path to the speakers is untouched, and
+ *   a later `activate()` just builds a new analyser onto the source that is already there.
+ * - **Per instance, never shared:** a microphone's `MediaStream` and its source node. Those are
+ *   fully released on `cancel()`/`destroy()` — tracks stopped, node disconnected — and a graph
+ *   that only ever carried a microphone *is* closed when its last consumer leaves, since nothing
+ *   of the page's own audio runs through it.
+ */
+interface SharedAudioGraph {
+  ctx: AudioContext
+  /** The one source node each media element will ever have. */
+  sources: WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>
+  /** A gain-0 path to the destination. See {@link createMutedSink}. */
+  sink: AudioNode | null
+  /** Instances still holding this graph. */
+  consumers: number
+  /** Whether some media element's only path to the speakers now runs through this context. */
+  ownsMediaOutput: boolean
+}
+
+const sharedGraphs = new WeakMap<object, SharedAudioGraph>()
+
+/**
+ * A silent path from an analyser to the destination.
+ *
+ * An `AnalyserNode` left as a dead end is not guaranteed to receive anything: the spec only
+ * processes a node that reaches an `AudioDestinationNode`, and WebKit holds to that — which is
+ * this repo's main audience. Chaining every analyser through one gain-0 node gives each of them a
+ * live path without any of them being heard, and without the input arriving at the speakers twice.
+ */
+function createMutedSink(ctx: AudioContext): AudioNode | null {
+  if (typeof ctx.createGain !== 'function') return null
+  try {
+    const gain = ctx.createGain()
+    if (gain.gain) gain.gain.value = 0
+    gain.connect(ctx.destination)
+    return gain
+  } catch {
+    return null
+  }
+}
+
+/**
+ * This window's graph, building it on the first ask.
+ *
+ * Keyed on the window rather than the document because the `AudioContext` constructor is a
+ * property of the window, and a test double supplies one without supplying a matching document.
+ *
+ * @returns The graph with this caller counted, or `null` when the environment has no Web Audio.
+ * @complexity O(1).
+ */
+function acquireSharedGraph(win: AudioWindow): SharedAudioGraph | null {
+  if (!win) return null
+  const existing = sharedGraphs.get(win)
+  if (existing) {
+    existing.consumers++
+    return existing
+  }
+  const AudioCtxCtor = win.AudioContext || win.webkitAudioContext
+  if (!AudioCtxCtor) return null
+  try {
+    const ctx = new AudioCtxCtor()
+    const graph: SharedAudioGraph = {
+      ctx,
+      sources: new WeakMap(),
+      sink: createMutedSink(ctx),
+      consumers: 1,
+      ownsMediaOutput: false,
+    }
+    sharedGraphs.set(win, graph)
+    return graph
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Drop one consumer, closing the context only when nothing of the page's own audio depends on it.
+ *
+ * @complexity O(1).
+ */
+function releaseSharedGraph(win: AudioWindow): void {
+  if (!win) return
+  const graph = sharedGraphs.get(win)
+  if (!graph) return
+  graph.consumers--
+  if (graph.consumers > 0 || graph.ownsMediaOutput) return
+  sharedGraphs.delete(win)
+  const closing = graph.ctx.close?.()
+  if (closing) closing.catch(() => undefined)
+}
+
+/**
+ * This media element's source node, created once and reused forever after.
+ *
+ * The `connect(destination)` here is the line that keeps the page audible, and it is deliberately
+ * never undone: the element has no other route to the speakers from the moment the node exists.
+ *
+ * @complexity O(1).
+ */
+function mediaSourceFor(
+  graph: SharedAudioGraph,
+  mediaEl: HTMLMediaElement,
+): MediaElementAudioSourceNode | null {
+  const existing = graph.sources.get(mediaEl)
+  if (existing) return existing
+  if (typeof graph.ctx.createMediaElementSource !== 'function') return null
+  try {
+    const source = graph.ctx.createMediaElementSource(mediaEl)
+    source.connect(graph.ctx.destination)
+    graph.sources.set(mediaEl, source)
+    graph.ownsMediaOutput = true
+    return source
+  } catch {
+    return null
+  }
+}
+
 export class AudioSourceController {
   element: HTMLElement
   options: AudioSourceOptions
@@ -183,6 +363,17 @@ export class AudioSourceController {
   freqData: Uint8Array<ArrayBuffer> | null = null
   rafId: number | null = null
   isActive = false
+
+  /** The window-wide graph this instance is currently counted against. */
+  private graph: SharedAudioGraph | null = null
+  /**
+   * Whether `sourceNode` belongs to the shared graph rather than to this instance.
+   *
+   * True for `source: media` — the node feeds the page's speakers as well as this analyser, so
+   * teardown may only cut its edge to *this* analyser. False for `source: mic`, where the node and
+   * its stream are this instance's alone and must be released in full.
+   */
+  private sourceIsShared = false
 
   /**
    * The author's inline custom properties, and what this module replaced them with.
@@ -228,59 +419,83 @@ export class AudioSourceController {
     this.ledgers = createAdvancedLedgers(element, hostLedger)
   }
 
-  private connectMicSource(ctx: AudioContext, analyser: AnalyserNode, win: Window | null): void {
+  private connectMicSource(graph: SharedAudioGraph, analyser: AnalyserNode, win: Window | null): void {
     const nav = win?.navigator
     if (!nav?.mediaDevices?.getUserMedia) return
     const token = ++this.micRequestToken
     nav.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      if (token !== this.micRequestToken || !this.audioCtx || !this.analyser) {
+      // `this.analyser !== analyser`, not merely "is there an analyser": a cancel followed by a
+      // re-activation leaves a *different* analyser in place, and connecting a stream the visitor
+      // granted for the previous generation to it would leak this one's tracks.
+      if (token !== this.micRequestToken || this.analyser !== analyser) {
         for (const track of stream.getTracks()) track.stop()
         return
       }
       this.stream = stream
-      this.sourceNode = ctx.createMediaStreamSource(stream)
+      this.sourceNode = graph.ctx.createMediaStreamSource(stream)
+      this.sourceIsShared = false
       this.sourceNode.connect(analyser)
     }).catch(() => undefined)
   }
 
-  private connectMediaSource(ctx: AudioContext, analyser: AnalyserNode, win: Window | null): void {
+  private connectMediaSource(graph: SharedAudioGraph, analyser: AnalyserNode, win: Window | null): void {
     const doc = this.document as Document | null
     const selector = this.options.media || 'audio, video'
-    const mediaEl = findMediaElement(this.element, selector, win, doc)
-    if (!mediaEl || typeof ctx.createMediaElementSource !== 'function') return
     try {
-      this.sourceNode = ctx.createMediaElementSource(mediaEl)
-      this.sourceNode.connect(analyser)
-      analyser.connect(ctx.destination)
+      const mediaEl = findMediaElement(this.element, selector, win, doc)
+      if (!mediaEl) return
+      const source = mediaSourceFor(graph, mediaEl)
+      if (!source) return
+      source.connect(analyser)
+      this.sourceNode = source
+      this.sourceIsShared = true
     } catch {
       return
     }
   }
 
-  initAudio(): boolean {
-    if (this.audioCtx) return true
-    const win = this.window as (Window & { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }) | null
-    const AudioCtxCtor = win?.AudioContext || win?.webkitAudioContext
-    if (!AudioCtxCtor) return false
-
+  /**
+   * This instance's analyser, already on a live path to the destination.
+   *
+   * @returns The analyser, or `null` when the context refused to build one.
+   */
+  private buildAnalyser(graph: SharedAudioGraph): AnalyserNode | null {
     try {
-      const ctx = new AudioCtxCtor()
-      this.audioCtx = ctx
-      const analyser = ctx.createAnalyser()
-      analyser.fftSize = this.options.fftSize || 256
+      const analyser = graph.ctx.createAnalyser()
+      analyser.fftSize = snapFftSize(this.options.fftSize || 256)
       analyser.smoothingTimeConstant = this.options.smoothing ?? 0.8
-      this.analyser = analyser
-      this.freqData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
-
-      if (this.options.source === 'mic') {
-        this.connectMicSource(ctx, analyser, win as Window | null)
-      } else {
-        this.connectMediaSource(ctx, analyser, win as Window | null)
-      }
-      return true
+      if (graph.sink) analyser.connect(graph.sink)
+      return analyser
     } catch {
+      return null
+    }
+  }
+
+  /**
+   * Join the window's audio graph and give this instance an analyser on it.
+   *
+   * `this.analyser`, not `this.audioCtx`, is the "already initialised" test, and nothing is
+   * recorded on `this` until the analyser exists. Assigning the context first is what left a
+   * half-built instance behind — an open context, no analyser, and a loop writing zeros — whenever
+   * `createAnalyser` or `fftSize` threw.
+   */
+  initAudio(): boolean {
+    if (this.analyser) return true
+    const win = this.window as AudioWindow
+    const graph = acquireSharedGraph(win)
+    if (!graph) return false
+    const analyser = this.buildAnalyser(graph)
+    if (!analyser) {
+      releaseSharedGraph(win)
       return false
     }
+    this.graph = graph
+    this.audioCtx = graph.ctx
+    this.analyser = analyser
+    this.freqData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount))
+    if (this.options.source === 'mic') this.connectMicSource(graph, analyser, win)
+    else this.connectMediaSource(graph, analyser, win)
+    return true
   }
 
   start(): void {
@@ -324,20 +539,24 @@ export class AudioSourceController {
   }
 
   /**
-   * Give everything back: the frame loop, the audio graph, the microphone, the author's styles.
+   * Give back everything this instance owns: the frame loop, its analyser, the microphone.
    *
-   * This is what `cancel()` and `finish()` reach, and it is deliberately a full release rather
-   * than just cancelling rAF. A cancelled `audio-mic` that only stopped its loop left the stream
-   * connected and the recording indicator lit until the element was eventually destroyed — the
-   * visitor stopped the effect and the microphone stayed on. There is nothing worth keeping warm
-   * between a cancel and a later re-activation: `initAudio()` builds a fresh context on the next
-   * `start()`, and holding a suspended one open across an indefinite pause is the more expensive
-   * of the two mistakes.
+   * This is what `cancel()` and `finish()` reach, and it is deliberately a full release of the
+   * *instance's* half of the graph. A cancelled `audio-mic` that only stopped its loop left the
+   * stream connected and the recording indicator lit until the element was eventually destroyed —
+   * the visitor stopped the effect and the microphone stayed on.
+   *
+   * What it deliberately does **not** do is touch the page's own audio or the author's styles.
+   * The shared media source keeps its edge to the destination (see {@link SharedAudioGraph}), and
+   * the ledger is left as it is because `EffectInstance.cancel` means "stop where it is, leaving
+   * the element mid-effect" — unwinding the five custom properties here would snap every rule
+   * reading `var(--kui-audio-bass, 0)` back to its fallback on a pause, which is not what the
+   * other five modules in this directory do. `destroy()` is where the styles go back.
    *
    * Idempotent, and safe on a controller that was never started — every step below no-ops on an
-   * empty graph and an untouched ledger. It runs unguarded for that reason: the old `isActive`
-   * early-return meant a controller cancelled twice, or destroyed without ever activating, skipped
-   * the parts that had nothing to do with the loop.
+   * empty graph. It runs unguarded for that reason: the old `isActive` early-return meant a
+   * controller cancelled twice, or destroyed without ever activating, skipped the parts that had
+   * nothing to do with the loop.
    */
   stop(): void {
     this.isActive = false
@@ -349,7 +568,6 @@ export class AudioSourceController {
       this.rafId = null
     }
     this.disconnectAudioNodes()
-    this.ledgers.restore()
   }
 
   private disconnectAudioNodes(): void {
@@ -357,19 +575,35 @@ export class AudioSourceController {
       for (const track of this.stream.getTracks()) track.stop()
       this.stream = null
     }
-    safeDisconnect(this.sourceNode)
+    const analyser = this.analyser
+    if (this.sourceIsShared) safeDisconnectFrom(this.sourceNode, analyser)
+    else safeDisconnect(this.sourceNode)
     this.sourceNode = null
-    safeDisconnect(this.analyser)
+    this.sourceIsShared = false
+    safeDisconnect(analyser)
     this.analyser = null
-    if (this.audioCtx) {
-      this.audioCtx.close().catch(() => undefined)
-      this.audioCtx = null
+    this.freqData = null
+    this.audioCtx = null
+    if (this.graph) {
+      releaseSharedGraph(this.window as AudioWindow)
+      this.graph = null
     }
   }
 
-  /** Nothing survives a `stop()` that a destroy would still need to unwind. */
+  /**
+   * Everything `stop()` gives back, plus the author's inline styles.
+   *
+   * `try`/`finally` because the restore must not be hostage to the graph teardown: the animator
+   * swallows a throwing `instance.destroy()` (`runQuietly`), and an element this module reached on
+   * its own — a `camera-layer`, a `scene-step` — is in no ledger the animator will ever restore.
+   * A single throw on the way out would otherwise leave the library's values on it permanently.
+   */
   destroy(): void {
-    this.stop()
+    try {
+      this.stop()
+    } finally {
+      this.ledgers.restore()
+    }
   }
 }
 
@@ -385,7 +619,7 @@ export function prepareAudioSource(
   const source = rawSource === 'mic' ? 'mic' : 'media'
   const media = params.text ? params.text('media', '') : ''
   const smoothing = clamp(params.num ? params.num('smoothing', 0.8) : 0.8, 0, 0.99)
-  const fftSize = clamp(params.num ? params.num('fft', 256) : 256, 32, 2048)
+  const fftSize = snapFftSize(clamp(params.num ? params.num('fft', 256) : 256, 32, 2048))
 
   // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
   const controller = new AudioSourceController(

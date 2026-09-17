@@ -14,6 +14,7 @@ import {
   AUDIO_PARAMETERS,
   AUDIO_PRIMITIVES,
   AUDIO_PRESETS,
+  snapFftSize,
 } from '../audio.js'
 import { registerAdvanced } from '../index.js'
 import type { EffectParams } from '../../core/types.js'
@@ -129,9 +130,10 @@ describe('Audio-Reactive Source Module', () => {
       expect(fakeCaf).toHaveBeenCalledWith(777)
 
       ctrl.destroy()
-      expect(mockSourceNode.disconnect).toHaveBeenCalled()
+      // This instance's own edges go: the source is cut from *this* analyser, and the analyser is
+      // cut from the muted sink. The context is not closed — see the media-element cases below.
+      expect(mockSourceNode.disconnect).toHaveBeenCalledWith(mockAnalyser)
       expect(mockAnalyser.disconnect).toHaveBeenCalled()
-      expect(mockAudioCtx.close).toHaveBeenCalled()
       // Restored original value
       expect(container.style.getPropertyValue('--kui-audio-bass')).toBe('0.123')
     })
@@ -170,6 +172,161 @@ describe('Audio-Reactive Source Module', () => {
       ctrlNoAudio.start()
       ctrlNoAudio.updateFrame()
       ctrlNoAudio.destroy()
+    })
+  })
+
+  /**
+   * The media-element half of the lifecycle, against a context double that keeps the two rules the
+   * real API keeps: `createMediaElementSource` re-routes the element's output irreversibly, and it
+   * may be called once per element ever.
+   *
+   * The previous double returned a fresh node on every call and never threw, which is precisely
+   * why the worst bug in this module was invisible to the suite: cancelling closed the context that
+   * the visitor's own `<video>` now played through, and re-activating threw `InvalidStateError`
+   * into a swallowing `catch`, after which the effect wrote `0.000` for the rest of the session.
+   */
+  describe('the page keeps its own sound', () => {
+    function faithfulContext() {
+      const attached = new Set<unknown>()
+      const ctx: any = {
+        state: 'running',
+        sampleRate: 44100,
+        destination: { id: 'destination' },
+        createGain: vi.fn(() => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() })),
+        createAnalyser: vi.fn(() => ({
+          fftSize: 256,
+          frequencyBinCount: 128,
+          smoothingTimeConstant: 0.8,
+          getByteFrequencyData: vi.fn((arr: Uint8Array) => { arr.fill(100) }),
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        })),
+        createMediaElementSource: vi.fn((el: unknown) => {
+          if (attached.has(el)) throw new DOMException('one source per element', 'InvalidStateError')
+          attached.add(el)
+          return { connect: vi.fn(), disconnect: vi.fn() }
+        }),
+        createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
+        resume: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      }
+      const win = {
+        AudioContext: vi.fn().mockImplementation(() => ctx),
+        HTMLMediaElement: window.HTMLMediaElement,
+      } as unknown as Window
+      return {
+        ctx,
+        env: { window: win, document, raf: () => null, caf: () => null },
+      }
+    }
+
+    function hostWithVideo() {
+      const host = document.createElement('div')
+      host.appendChild(document.createElement('video'))
+      return host
+    }
+
+    const levelOf = (el: HTMLElement) => Number(el.style.getPropertyValue('--kui-audio-level'))
+
+    it('survives cancel and re-activation with the bands live and the context open', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+
+      ctrl.start()
+      ctrl.updateFrame()
+      expect(levelOf(host)).toBeGreaterThan(0)
+
+      ctrl.stop()
+      expect(ctx.close).not.toHaveBeenCalled()
+
+      ctrl.start()
+      // The shared node is reused, so this never reaches the second-call throw.
+      expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(1)
+      ctrl.updateFrame()
+      expect(levelOf(host)).toBeGreaterThan(0)
+
+      ctrl.destroy()
+      expect(ctx.close).not.toHaveBeenCalled()
+    })
+
+    it('two effects on one media element both read it, and the first teardown kills neither', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      const first = new AudioSourceController(host, { source: 'media' }, env)
+      const second = new AudioSourceController(host, { source: 'media' }, env)
+
+      first.start()
+      second.start()
+      expect(ctx.createMediaElementSource).toHaveBeenCalledTimes(1)
+
+      first.updateFrame()
+      expect(levelOf(host)).toBeGreaterThan(0)
+
+      first.destroy()
+      expect(ctx.close).not.toHaveBeenCalled()
+      second.updateFrame()
+      expect(levelOf(host)).toBeGreaterThan(0)
+      second.destroy()
+    })
+
+    it('cancel holds the last frame\'s value; destroy is what gives the author theirs back', () => {
+      const host = hostWithVideo()
+      const { env } = faithfulContext()
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+
+      host.style.setProperty('--kui-audio-level', '0.5')
+      ctrl.start()
+      ctrl.updateFrame()
+      const held = host.style.getPropertyValue('--kui-audio-level')
+      expect(held).not.toBe('0.5')
+
+      // `cancel` is "stop where it is": a rule reading `var(--kui-audio-level, 0)` must not snap
+      // to its fallback because the effect paused.
+      ctrl.stop()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe(held)
+
+      ctrl.destroy()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.5')
+    })
+
+    it('a microphone-only graph is closed on release, because no page audio runs through it', async () => {
+      const host = document.createElement('div')
+      const { ctx, env } = faithfulContext()
+      const track = { stop: vi.fn() }
+      const win = env.window as unknown as { navigator: unknown }
+      win.navigator = { mediaDevices: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [track] }) } }
+
+      const ctrl = new AudioSourceController(host, { source: 'mic' }, env)
+      ctrl.start()
+      await Promise.resolve()
+      expect(ctx.createMediaStreamSource).toHaveBeenCalled()
+
+      ctrl.stop()
+      expect(track.stop).toHaveBeenCalled()
+      expect(ctx.close).toHaveBeenCalled()
+      ctrl.destroy()
+    })
+
+    it('an analyser that refuses to be built leaves no half-initialised instance behind', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.createAnalyser = vi.fn(() => { throw new DOMException('bad fftSize', 'IndexSizeError') })
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+
+      expect(ctrl.initAudio()).toBe(false)
+      // Not an open context with no analyser behind it, writing 0.000 every frame forever.
+      expect(ctrl.audioCtx).toBeNull()
+      expect(ctrl.analyser).toBeNull()
+      expect(ctx.close).toHaveBeenCalled()
+    })
+
+    it('snaps fft to a legal power of two instead of throwing IndexSizeError', () => {
+      expect(snapFftSize(300)).toBe(256)
+      expect(snapFftSize(700)).toBe(512)
+      expect(snapFftSize(1500)).toBe(1024)
+      expect(snapFftSize(32)).toBe(32)
+      expect(snapFftSize(2048)).toBe(2048)
     })
   })
 
