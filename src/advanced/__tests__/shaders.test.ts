@@ -1141,8 +1141,10 @@ describe('Advanced Shaders Labs Module', () => {
       num: vi.fn().mockReturnValue(0.5),
       text: vi.fn().mockReturnValue(''),
     } as any
-    const instA = prepareShaders(authored, params, createRealPrepareContext(authored, { reducedMotion: false, createCanvas: () => mockCanvas }))
-    const instB = prepareShaders(bare, params, createRealPrepareContext(bare, { reducedMotion: false, createCanvas: () => mockCanvas }))
+    const ctxA = createRealPrepareContext(authored, { reducedMotion: false, createCanvas: () => mockCanvas })
+    const ctxB = createRealPrepareContext(bare, { reducedMotion: false, createCanvas: () => mockCanvas })
+    const instA = prepareShaders(authored, params, ctxA)
+    const instB = prepareShaders(bare, params, ctxB)
     instA.activate()
     instB.activate()
     frames[0]?.(1000)
@@ -1150,8 +1152,15 @@ describe('Advanced Shaders Labs Module', () => {
     expect(authored.style.opacity).toBe('0')
     expect(bare.style.opacity).toBe('0')
 
+    // Release, in the animator's order (`animator.ts` `release()`): every `instance.destroy()`
+    // first, then the host's ledger. The instance now writes to `ctx.style` rather than a private
+    // ledger of its own, so `ctx.style.restore()` is not test scaffolding — it is the second half
+    // of the teardown, and the half that owns the author's value. Skipping it here would assert a
+    // sequence production never runs.
     instA.destroy()
     instB.destroy()
+    ctxA.style.restore()
+    ctxB.style.restore()
 
     // The author wrote `!important`; a plain setProperty on the way back would silently drop it.
     expect(authored.style.opacity).toBe('0.4')
@@ -1159,6 +1168,63 @@ describe('Advanced Shaders Labs Module', () => {
     // And an element that had no `style` attribute must not be left carrying an empty one.
     expect(bare.style.opacity).toBe('')
     expect(bare.hasAttribute('style')).toBe(false)
+
+    renderer.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('shares one capture with the other writers on the element, and gives back only opacity', () => {
+    const el = document.createElement('img')
+    el.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    Object.defineProperty(el, 'complete', { value: true })
+    Object.defineProperty(el, 'naturalWidth', { value: 100 })
+    Object.defineProperty(el, 'naturalHeight', { value: 100 })
+    el.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
+    el.style.opacity = '0.4'
+
+    const mockCanvas = document.createElement('canvas')
+    mockCanvas.width = 1000
+    mockCanvas.height = 800
+    mockCanvas.getContext = vi.fn().mockReturnValue(createMockGL())
+    const frames: FrameRequestCallback[] = []
+    const renderer = new SharedShaderRenderer({
+      createCanvas: () => mockCanvas,
+      raf: (fn: FrameRequestCallback) => { frames.push(fn); return frames.length },
+    })
+    setSharedShaderRenderer(renderer)
+
+    const ctx = createRealPrepareContext(el, { reducedMotion: false, createCanvas: () => mockCanvas })
+    const inst = prepareShaders(el, {
+      keyword: vi.fn().mockReturnValue('displace'),
+      num: vi.fn().mockReturnValue(0.5),
+      text: vi.fn().mockReturnValue(''),
+    } as any, ctx)
+
+    // A CSS-rendered effect on the same element, through the animator's ledger, already mid-run:
+    // one writer on `opacity`, one on a property the shader never touches.
+    ctx.style.set('opacity', '0.9')
+    ctx.style.set('transform', 'scale(2)')
+
+    inst.activate()
+    frames[0]?.(1000)
+    expect(el.style.opacity).toBe('0')
+
+    // Mid-life give-back — a cancelled effect, not a teardown. The animator has not released the
+    // element and the co-writer is still running.
+    inst.cancel()
+
+    // One capture between the two writers: what comes back is the *author's* value. With a ledger
+    // of its own the shader would have captured `0.9` at its first write — the co-writer's frame
+    // value, read as the author's — and pinned the element to it.
+    expect(el.style.opacity).toBe('0.4')
+    // And only `opacity`: whole-ledger `restore()` over a shared ledger would have unwound the
+    // co-writer's transform at the same time, while it is still running.
+    expect(el.style.transform).toBe('scale(2)')
+
+    inst.destroy()
+    ctx.style.restore()
+    expect(el.style.opacity).toBe('0.4')
+    expect(el.style.transform).toBe('')
 
     renderer.destroy()
     setSharedShaderRenderer(null)

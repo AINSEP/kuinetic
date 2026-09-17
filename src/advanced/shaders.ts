@@ -9,10 +9,11 @@ import type { Animator } from '../core/animator.js'
 import {
   DISPLACE_FS, FLUID_FS, FULLSCREEN_QUAD_VS, LIQUID_FS, MORPH_FS, PARTICLES_FS,
 } from './glsl.js'
-import { createLedgerSet, type LedgerSet } from '../core/owned-styles.js'
+import type { StyleLedger } from '../core/owned-styles.js'
 import {
-  type AdvancedEnv, type AnyWindow, type AnyDocument, type RafFunction, type CafFunction,
-  clamp, createEffectInstance, createInertInstance, isReducedMotion, registerInto, resolveEnv, styleOf,
+  type AdvancedEnv, type AdvancedLedgers, type AnyWindow, type AnyDocument, type RafFunction,
+  type CafFunction, clamp, createAdvancedLedgers, createEffectInstance, createInertInstance,
+  isReducedMotion, registerInto, resolveEnv, styleOf,
 } from './base.js'
 import { createProgram, extractLocations, disposeGLResources, createGLTexture, type ProgramLocations } from './gl-utils.js'
 import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './audio.js'
@@ -1254,11 +1255,11 @@ function cleanupShaderTextures(texHolder: TextureHolder, toHolder: TextureHolder
  * The flag is the ownership record and stays exactly as it was — it is what keeps an author's own
  * `opacity: 0` from being read back as this module's write and cleared to `''` on the next failed
  * draw. What changed underneath it is the restore: the previous value now lives in the ledger,
- * captured by `set()` at the instant of the write and put back with its priority intact, instead
- * of in a string this module read off `style.opacity` and wrote back as a plain declaration.
+ * captured by `set()` at the instant of the write, instead of in a string this module read off
+ * `style.opacity`.
  */
 interface ShaderInstanceState {
-  ledgers: LedgerSet
+  ledgers: AdvancedLedgers
   hiddenByRenderer: boolean
   progress: number
   audio: number
@@ -1274,10 +1275,29 @@ function hideBehindRenderer(el: HTMLElement, state: ShaderInstanceState): void {
   state.hiddenByRenderer = true
 }
 
+/**
+ * Stop hiding the element, without unwinding anything else written through the same ledger.
+ *
+ * This is a *mid-life* give-back — a draw that failed this frame, a lost context, a cancelled
+ * effect — and the ledger it goes through is now shared with every other writer on this element,
+ * so whole-ledger `restore()` is no longer available: it would hand back a CSS effect's transform
+ * or a camera layer's `transform-style` at the same time, while both are still running.
+ * `StyleLedger` has no per-property give-back, but it does not need one. `peek()` is the value
+ * `restore()` would have written for `opacity` alone, and writing `''` through CSSOM's
+ * `setProperty` *removes* the declaration rather than setting an empty one, which is exactly what
+ * `undefined` ("there was nothing here before") has to mean.
+ *
+ * What is lost against the old whole-ledger call is an `!important` priority on an author's own
+ * inline `opacity`, which comes back plain until the real teardown restores it: `set()` writes
+ * without priority. The hide had already dropped it — `setProperty('opacity', '0')` replaces the
+ * whole declaration — so this narrows an existing gap rather than opening one. The ledger's own
+ * record is untouched either way, so teardown still puts the priority back.
+ */
 function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): void {
   if (!state.hiddenByRenderer) return
   state.hiddenByRenderer = false
-  styleOf(state.ledgers, el)?.restore()
+  const style = styleOf(state.ledgers, el)
+  if (style) style.set('opacity', style.peek('opacity') ?? '')
 }
 
 /**
@@ -1321,9 +1341,13 @@ function acquireRenderer(info: ShaderInstanceInfo, held: boolean): boolean {
   return true
 }
 
-function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
+function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger | null): EffectInstance {
   const state: ShaderInstanceState = {
-    ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1, audio: 0, geometry: null,
+    // Shared per element with every other writer, advanced or core — see `createAdvancedLedgers`.
+    // A private `createLedgerSet` here captured whatever a CSS effect on the same element had
+    // already written to `opacity` as the author's own value, and handed it back on teardown.
+    ledgers: createAdvancedLedgers(info.el, hostLedger),
+    hiddenByRenderer: false, progress: -1, audio: 0, geometry: null,
   }
   let isActive = false, isAcquired = false
 
@@ -1387,6 +1411,11 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     destroy() {
       restoreState()
       if (isAcquired) { cleanupShaderTextures(info.tex, info.to, info.renderer); isAcquired = false }
+      // Drop this instance's claim on the shared ledger. The last claim out restores the element —
+      // and for the authored host, where the claim is over `ctx.style`, nothing is restored here at
+      // all, because the animator owns `restore()` for its own set. Without this the owner count
+      // never reaches zero and the *next* writer's teardown is suppressed for the element's life.
+      state.ledgers.restore()
     },
   })
 }
@@ -1411,7 +1440,8 @@ export function prepareShaders(
   const holders = createShaderTextureHolders(el as HTMLElement, options, info)
   info.tex = holders.texHolder
   info.to = holders.toHolder
-  return createShaderInstance(info)
+  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
+  return createShaderInstance(info, ctx?.style)
 }
 
 export const SHADER_PARAMETERS = {
