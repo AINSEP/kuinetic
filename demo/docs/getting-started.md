@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-290 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+292 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -825,6 +825,85 @@ requestAnimationFrame(frame)
 
 ---
 
+## Theming — the three colours it reads from your page
+
+kUInetic ships with no colour palette of its own. A handful of effects — toggles, radios, the range
+fill, step indicators, focus rings, cursor glows — read three **generic, un-namespaced** custom
+properties straight off your page: `--accent`, `--muted`, `--border`. The library never defines any
+of the three; it only reads them, each behind its own hardcoded fallback, so nothing breaks if your
+page has none of them.
+
+This is deliberate — a zero-config theming seam. If your page already sets `--accent` for its own
+buttons and links, kUInetic's toggles and focus rings pick up the same colour automatically, with no
+opt-in on your part. It cuts the other way too: if `--accent` is set on a shared ancestor for
+something unrelated to branding, kUInetic's controls change colour along with it, with nothing in
+your markup asking for that.
+
+| Token | Fallback | Reads as |
+|---|---|---|
+| `--accent` | `#d2691e` | the "on" / filled / active colour |
+| `--muted` | `#9a8d80` | the "off" / unfilled colour |
+| `--border` | `#2a2422` | an unfilled track colour |
+
+### What changes if you set them
+
+`--accent` is read in 11 places across 9 effects:
+
+- **`toggle-morph`** — the checked track (`forms.css:239`)
+- **`radio-fill`** — the selected dot (`forms.css:263`)
+- **`range-fill`** — the native thumb/track via `accent-color` (`forms.css:275`), and the filled
+  portion of its own self-painted gradient (`forms.css:278`)
+- **`step-progress`**, and `scrollytelling-step` (they share the `data-kui-step-state` contract that
+  paints this) — the `before`/`active` segments (`forms.css:384`)
+- **`border-draw`** — the focus-visible ring, behind `--kui-border-draw-color` (`interaction.css:248`)
+- **`border-glow`** — the focus-visible and hover glow, behind `--kui-border-glow-color`
+  (`interaction.css:265`, `:831`)
+- **`cursor-spotlight`** — the pointer-follow glow, colour-mixed to 30% opacity (`interaction.css:894`)
+- **`cursor-follow`** / **`cursor-lag`** — the synthetic trailing dot's fill (`interaction.css:932`)
+- **`cursor-label`** — the label pill's background (`interaction.css:965`)
+- **`proximity-glow`** — the shared light source, behind `--kui-proximity-glow-color`
+  (`interaction.css:1122`)
+
+(`cursor-invert`'s dot shares that same `interaction.css:932` rule with `cursor-follow`/`cursor-lag`,
+but a more specific rule right after it overrides the fill back to a literal white via
+`--kui-invert-color` — its `mix-blend-mode: difference` trick needs exact white to hold its contrast
+guarantee, so `cursor-invert` is not actually affected by `--accent`.)
+
+`--muted` is read in 2 places: `toggle-morph`'s unchecked track (`forms.css:219`) and
+`step-progress`/`scrollytelling-step`'s unlit segments (`forms.css:374`).
+
+`--border` is read in 1 place: the unfilled portion of `range-fill`'s track (`forms.css:282`).
+
+### Which effects have an escape hatch, and which don't
+
+Of those 15 reads, 4 are wrapped in a library-owned `--kui-*` property that sits *between* the
+effect and the host token:
+
+- `--kui-border-draw-color` (`interaction.css:248`)
+- `--kui-border-glow-color` (`interaction.css:265`, `:831`)
+- `--kui-proximity-glow-color` (`interaction.css:1122`)
+
+Set one of those on the element and the effect stops consulting `--accent` at all.
+
+The other 11 read `--accent` / `--muted` / `--border` directly, with nothing in between: all 8 uses
+in `forms.css` (`toggle-morph`, `radio-fill`, `range-fill`, `step-progress`) and 3 more in
+`interaction.css` (`cursor-spotlight`, the `cursor-follow`/`cursor-lag` dot, `cursor-label`). None of
+these eleven has a per-effect knob. To keep one of them from picking up your page's token, either
+override the rule itself at the `file:line` above, or keep your token from reaching kUInetic's
+elements in the first place — define it on a narrower ancestor than the one your kUInetic controls
+live under, or give your design system's slot a different name and translate it only where you
+actually want kUInetic to pick it up.
+
+### Why `--muted` and `--border`, not `--dim` / `--line`
+
+The names were picked to match what the *demo* pages already call these slots. `demo/style.css` —
+the pre-consolidation demo stylesheet — used `--dim`/`--line`, but every other demo page
+(`system.css` and the standalone inline pages) calls the same two slots `--muted`/`--border`. Naming
+the read after the minority spelling would have made it resolve to the hardcoded fallback almost
+everywhere (`forms.css:214-218`, `:279-282`).
+
+---
+
 ## Common mistakes
 
 - **Mixing up `on:` and `timeline:`.** `on:enter` plays once and stays finished. `timeline: view()`
@@ -847,7 +926,7 @@ requestAnimationFrame(frame)
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 290 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 292 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.
