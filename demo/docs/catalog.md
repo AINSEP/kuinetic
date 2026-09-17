@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **290** named effects, over **38 primitive families**. Note that 48 names come from a
+**Counts:** **292** named effects, over **38 primitive families**. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
@@ -65,7 +65,7 @@ here that is not a named effect at all: it is how you animate something the cata
 | 28 | `flip-layout` | js | t,s | FLIP measure/invert/play |
 | 29 | `sequence-scrub` | js | x | image/video frame scrub |
 | 30 | `slat-assemble` | prep | — | image slats fly in and land assembled |
-| 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`) |
+| 31 | `background-media` | prep | — | full-bleed image/video backdrop behind an element's own children (`bg`, `background`, `video-backdrop`, `video-hero`) |
 | 32 | `tween` | css | per attribute | generic property tween — `tween`, `tween-from` |
 | 33 | `motion-path` | css | x | travel along an arbitrary curve (`offset-path`) |
 | 34 | `rotate-static` | js | r | fixed, persistent tilt on any element (`rotate-static`) |
@@ -384,14 +384,15 @@ Primitive 20, plus 15 and 26.
 
 ---
 
-## G. Media & images — 20 names
+## G. Media & images — 22 names
 
 Primitives 5, 6, 7, 4, 30, 31.
 
 `wipe-up` · `wipe-down` · `wipe-left` · `wipe-right` · `wipe-circle` · `wipe-diagonal` ·
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
-`before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background`
+`before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
+`video-backdrop` · `video-hero`
 
 > **`bg`** and **`background`** are two names for one effect: they turn an element into its own
 > full-bleed backdrop and leave every child the author wrote rendering on top of it, untouched.
@@ -457,6 +458,31 @@ Primitives 5, 6, 7, 4, 30, 31.
 > `layout` channel as well as `media`: composing it with another name that positions the same
 > element — `pin-section`, `scroll-snap-*` — is a reported conflict rather than two effects quietly
 > disagreeing about what `position` the host has.
+>
+> **`video-hero`** and **`video-backdrop`** are the same effect with the scrim already on —
+> `overlay:black overlay-opacity:45%` — because the point of a clip behind a section is text on top
+> of it, and that is the parameter the paragraph above says makes the effect usable. Reaching for
+> `bg` and discovering the legibility problem yourself is the step these two names delete; bare `bg`
+> is still there when you want unscrimmed footage.
+>
+> They differ from each other only in `autoplay:`. **`video-hero`** forces `always`, because the
+> first screen is exactly where a visibility heuristic catching the clip mid-stall is most visible,
+> and a short hero clip is cheap enough to leave running. **`video-backdrop`** keeps the default
+> `in-view`, so a clip further down the page stops costing decode budget once it is scrolled past.
+> Every other parameter is `background-media`'s own and is not restated by either name, so
+> `fit:cover` still fills a 390px phone without letterboxing or stretching (`focus:` picks which
+> part of the frame a narrow viewport keeps), `loop` still defaults to `true`, and the forced
+> `muted`/`playsinline` pair still has no switch — that is browser autoplay policy, not a choice,
+> and unmuting can only ever come from a real click. Neither name claims a height: a hero's box is
+> your layout, and a backdrop that forced `100svh` on its host would break every card-sized use of
+> the same name. Give both a `poster:`, which is what a reduced-motion visitor sees — a static
+> frame, not a blank box.
+>
+> ```html
+> <section data-kui="video-hero src:/media/hero.mp4 poster:/media/hero.jpg">
+>   <h1 data-kui="split-chars on:load">Animate anything</h1>
+> </section>
+> ```
 >
 > **`slat-assemble`** slices a wrapped `<img>` into `slats:` background-sliced strips and flies
 > them in staggered, landing assembled over the original picture — the one `prep` name in this
@@ -1359,7 +1385,7 @@ of, not something it does.
 | D Text & typography | 27 |
 | E SVG & icons | 17 |
 | F Numbers & data viz | 13 |
-| G Media & images | 20 |
+| G Media & images | 22 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 35 |
 | J Ambient backgrounds | 15 |
@@ -1373,7 +1399,7 @@ of, not something it does.
 | R Static transforms | 1 |
 | S Materials | 1 |
 | Generic tween | 2 |
-| **Total shipped** | **290** |
+| **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |
 
 Renderer split: **~175 `css`** · ~12 `prep` · ~69 `js`.
