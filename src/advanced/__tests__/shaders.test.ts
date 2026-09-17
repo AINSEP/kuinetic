@@ -26,6 +26,7 @@ import {
   SHADER_Z_PROPERTY,
   buildPalette,
   parseAngleRadians,
+  readElementProgress,
   readShaderZIndex,
   type ElementGeometry,
 } from '../shaders.js'
@@ -98,6 +99,20 @@ function createMockGL() {
     clear: vi.fn(),
     drawArrays: vi.fn(),
   } as unknown as WebGL2RenderingContext
+}
+
+/**
+ * A loaded 100x100 `<img>` with a real box, which is the minimum a shader instance needs before
+ * it will register a draw at all. Shared by the two per-frame-input blocks below (`audio:` and
+ * `scrub:`) — they ask different questions of the same element.
+ */
+function shaderImg(): HTMLImageElement {
+  const img = document.createElement('img')
+  Object.defineProperty(img, 'complete', { value: true })
+  Object.defineProperty(img, 'naturalWidth', { value: 100 })
+  Object.defineProperty(img, 'naturalHeight', { value: 100 })
+  img.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
+  return img
 }
 
 describe('Advanced Shaders Labs Module', () => {
@@ -1336,15 +1351,6 @@ describe('Advanced Shaders Labs Module', () => {
       return uploads
     }
 
-    function shaderImg(): HTMLImageElement {
-      const img = document.createElement('img')
-      Object.defineProperty(img, 'complete', { value: true })
-      Object.defineProperty(img, 'naturalWidth', { value: 100 })
-      Object.defineProperty(img, 'naturalHeight', { value: 100 })
-      img.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
-      return img
-    }
-
     it('declares one closed, off-by-default keyword list', () => {
       expect(SHADER_PARAMETERS.audio.type).toBe('keyword')
       expect(SHADER_PARAMETERS.audio.default).toBe('off')
@@ -1396,6 +1402,138 @@ describe('Advanced Shaders Labs Module', () => {
 
       computed.mockRestore()
       img.remove()
+    })
+  })
+
+  /**
+   * The scroll bridge, and the parameter that gates it.
+   *
+   * `--kui-progress` is what `scroll-progress` and the rest of the scroll family publish, and it
+   * is an ordinary inheriting custom property. This module used to read it unconditionally, so
+   * every shader anywhere inside a scrollytelling section was scrubbed by an ancestor it had
+   * never heard of — and because the published value at the top of a range is `0`, and every
+   * program multiplies its effect by it, the shader drew a pixel-faithful copy of its own source
+   * and looked dead. The pickup is now `scrub: scroll`, opt-in, mirroring `audio:` above.
+   *
+   * Both directions are asserted here, and the ancestor case twice over: the value a shader that
+   * did not opt in must ignore is exactly the value that used to kill it.
+   */
+  describe('the scroll progress a shader can follow', () => {
+    /** Params as the animator hands them over: every schema key present, `scrub`/`progress` chosen. */
+    function scrubParams(scrub: string, progress = -1): EffectParams {
+      return {
+        text: (name: string, fallback = '') => (name === 'scrub' ? scrub : fallback),
+        num: (name: string, fallback = 0) => (name === 'progress' ? progress : fallback),
+      } as unknown as EffectParams
+    }
+
+    /** Every value uploaded to `u_progress` across the frames this mock GL saw. */
+    function progressUploads(gl: WebGL2RenderingContext): unknown[] {
+      const calls = (gl.uniform1f as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      return calls.filter((c) => (c[0] as { name?: string })?.name === 'u_progress').map((c) => c[1])
+    }
+
+    function drawOneFrame(el: HTMLElement, params: EffectParams) {
+      const gl = createMockGL()
+      const mockCanvas = document.createElement('canvas')
+      mockCanvas.width = 1000
+      mockCanvas.height = 800
+      mockCanvas.getContext = vi.fn().mockReturnValue(gl)
+      const frames: FrameRequestCallback[] = []
+      const renderer = new SharedShaderRenderer({
+        createCanvas: () => mockCanvas,
+        raf: (fn: FrameRequestCallback) => { frames.push(fn); return frames.length },
+      })
+      setSharedShaderRenderer(renderer)
+      const inst = prepareShaders(el, params, createRealPrepareContext(el, { reducedMotion: false, createCanvas: () => mockCanvas }))
+      inst.activate()
+      frames[0]?.(1000)
+      const uploads = progressUploads(gl)
+      inst.destroy()
+      renderer.destroy()
+      setSharedShaderRenderer(null)
+      return uploads
+    }
+
+    it('declares one closed, off-by-default keyword list', () => {
+      expect(SHADER_PARAMETERS.scrub.type).toBe('keyword')
+      expect(SHADER_PARAMETERS.scrub.default).toBe('off')
+      expect(SHADER_PARAMETERS.scrub.keywords).toEqual(['off', 'scroll'])
+    })
+
+    it('takes the opt-in from the authored parameters and refuses anything else as one', () => {
+      expect(extractShaderOptions(scrubParams('scroll')).scrubsFromScroll).toBe(true)
+      expect(extractShaderOptions(scrubParams('off')).scrubsFromScroll).toBe(false)
+      expect(extractShaderOptions(scrubParams('')).scrubsFromScroll).toBe(false)
+      // A typo must not land on the enabling branch; the closed keyword list warns about it.
+      expect(extractShaderOptions(scrubParams('scrol')).scrubsFromScroll).toBe(false)
+    })
+
+    it('publishes its fixed progress under its own name, never the scroll family\'s', () => {
+      // `core/compile.ts`'s `buildPlan` runs `resolveParams` over JS-rendered entries too, so this
+      // string is what an authored `progress: 0.4` writes to `element.style`. Pointed at
+      // `--kui-progress` it raced `scroll-progress` on the same element and inherited down to
+      // every descendant — see `test/carousel-3d.test.ts` for the same rule on another primitive.
+      expect(SHADER_PARAMETERS.progress.cssProperty).toBe('--kui-shader-progress')
+    })
+
+    it('uploads the progress it read from the element once the author opted in', () => {
+      const img = shaderImg()
+      img.style.setProperty('--kui-progress', '0.5')
+      expect(drawOneFrame(img, scrubParams('scroll'))).toEqual([0.5])
+    })
+
+    it('uploads -1 with no scrub authored, even when the property is right there', () => {
+      const img = shaderImg()
+      // A `scroll-progress` on this very element, parked at the top of its range. Without
+      // `scrub:` the shader must draw exactly as it did before any scroll primitive existed —
+      // `-1`, the sentinel every program reads as "not scrubbed", and not the `0` that cancels it.
+      img.style.setProperty('--kui-progress', '0')
+      expect(drawOneFrame(img, scrubParams('off'))).toEqual([-1])
+    })
+
+    it('ignores an ancestor\'s progress when it did not opt in, which is the whole bug', () => {
+      const img = shaderImg()
+      document.body.appendChild(img)
+      // No inline property of its own: `0` reaches this element only by inheriting from a
+      // `scroll-progress` somewhere above it, which is precisely what `getComputedStyle` sees.
+      const computed = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+        getPropertyValue: (name: string) => (name === '--kui-progress' ? '0' : ''),
+      } as unknown as CSSStyleDeclaration)
+
+      expect(drawOneFrame(img, scrubParams('off'))).toEqual([-1])
+
+      computed.mockRestore()
+      img.remove()
+    })
+
+    it('reads an ancestor\'s progress once it did opt in', () => {
+      const img = shaderImg()
+      document.body.appendChild(img)
+      const computed = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+        getPropertyValue: (name: string) => (name === '--kui-progress' ? '0.75' : ''),
+      } as unknown as CSSStyleDeclaration)
+
+      expect(drawOneFrame(img, scrubParams('scroll'))).toEqual([0.75])
+
+      computed.mockRestore()
+      img.remove()
+    })
+
+    it('lets an authored number win over the bridge it opted into', () => {
+      const img = shaderImg()
+      img.style.setProperty('--kui-progress', '0.9')
+      expect(drawOneFrame(img, scrubParams('scroll', 0.25))).toEqual([0.25])
+      // And an authored number needs no opt-in at all: `scrub:` gates the *bridge*, not the knob.
+      expect(drawOneFrame(img, scrubParams('off', 0.25))).toEqual([0.25])
+    })
+
+    it('still reads inline before computed, and answers -1 for an element with neither', () => {
+      // The reader itself is unchanged and stays exported; what changed is who calls it.
+      const bare = shaderImg()
+      expect(readElementProgress(bare)).toBe(-1)
+      bare.style.setProperty('--kui-progress', '1.4')
+      expect(readElementProgress(bare)).toBe(1)
     })
   })
 

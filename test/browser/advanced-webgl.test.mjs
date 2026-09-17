@@ -22,9 +22,11 @@ import { createChecker, loadChromium } from '../../scripts/browser-harness.mjs'
  *    invalid GLSL, not just a mock told to say so.
  * 8. Real canvas-2D color resolution: `parseColor`'s canvas fallback against a CSS color outside
  *    its hardcoded name table — unreachable in jsdom, which has no canvas 2D context either.
- * 9. Scroll -> shader progress bridge: a `scroll-progress` primitive on the shader's own element,
- *    and on an ancestor (relying on `--kui-progress` inheriting through `getComputedStyle`), both
- *    drive the real `u_progress` uniform as the page actually scrolls.
+ * 9. Scroll -> shader progress bridge, and the `scrub: scroll` opt-in that gates it: a
+ *    `scroll-progress` primitive on the shader's own element, and on an ancestor (relying on
+ *    `--kui-progress` inheriting through `getComputedStyle`), both drive the real `u_progress`
+ *    uniform as the page actually scrolls — and a third shader under the same ancestor, with no
+ *    `scrub:` of its own, stays at the `-1` sentinel throughout.
  * 10. Audio -> shader and audio -> camera bridge: a `--kui-audio-*` band on the consumer's own
  *    element and on an ancestor drives the real `u_audio` uniform and the camera's real
  *    `translate3d`, and a consumer with no `audio:` stays at 0 with every band at full scale.
@@ -693,8 +695,17 @@ void main() { this is not valid glsl at all !! }
   await context.close()
 
   // -------------------------------------------------------------------------
-  // 9. Scroll -> shader progress bridge, same element and through an ancestor. A separate page and
-  //    fixture: this one needs the window to actually scroll, unlike the fixed-layout page above.
+  // 9. Scroll -> shader progress bridge, same element and through an ancestor, plus the shader
+  //    under that same ancestor that never asked for it. A separate page and fixture: this one
+  //    needs the window to actually scroll, unlike the fixed-layout page above.
+  //
+  //    The bridge is opt-in — `scrub: scroll` — and the negative half is the reason the parameter
+  //    exists. `--kui-progress` inherits, so before the opt-in every shader inside a
+  //    scrollytelling section was scrubbed by a driver it had never heard of; at the top of a
+  //    scroll range that driver publishes `0`, and `u_progress: 0` is how every program in
+  //    `glsl.ts` spells "no effect", so the shader drew an untouched copy of its source and
+  //    looked broken. `-1` is that same GLSL's sentinel for "not scrubbed, run at full effect",
+  //    which is what a shader that did not opt in must upload no matter where it sits.
   // -------------------------------------------------------------------------
   const BRIDGE_FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/advanced-progress-bridge.html', import.meta.url))}`
   const bridgeContext = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
@@ -717,6 +728,7 @@ void main() { this is not valid glsl at all !! }
 
     const sameEl = document.getElementById('progress-same')
     const childEl = document.getElementById('progress-child')
+    const unoptedEl = document.getElementById('progress-unopted')
     const computedProgress = (el) => parseFloat(getComputedStyle(el).getPropertyValue('--kui-progress'))
 
     // The value actually uploaded to the GPU for this frame's draw of `mode` — real GPU state,
@@ -753,10 +765,16 @@ void main() { this is not valid glsl at all !! }
     const sameUniformLate = readProgressUniform('displace')
 
     // #ancestor-driver spans document y 2300..3500; #progress-child sits 400..600px into it
-    // (y 2700..2900) and is only ever on screen (600px viewport) for scrollY roughly 2100..2900.
+    // (y 2700..2900) and #progress-unopted directly below it (y 2900..3100), so at scrollY 2750
+    // the 600px viewport (2750..3350) holds both of them at once and neither reading is taken
+    // from an element the shader had scissored away.
     const scrollYChildVisible = await scrollTo(2750)
     const childProgressVisible = computedProgress(childEl)
     const childUniformVisible = readProgressUniform('liquid')
+    // The same inherited value is sitting on this element too — `computedProgress(unoptedEl)`
+    // proves that rather than assuming it — and its shader must be uploading -1 regardless.
+    const unoptedProgressVisible = computedProgress(unoptedEl)
+    const unoptedUniformVisible = readProgressUniform('particles')
     const scrollYChildLate = await scrollTo(3500)
     const childProgressLate = computedProgress(childEl)
 
@@ -776,6 +794,7 @@ void main() { this is not valid glsl at all !! }
       sameProgressStart, sameProgressEarly, sameProgressLate, sameUniformLate,
       childInlineAtStart, childInlineAtEnd, sameInlineAtEnd,
       childProgressVisible, childUniformVisible, childProgressLate,
+      unoptedProgressVisible, unoptedUniformVisible,
     }
   })
 
@@ -805,7 +824,7 @@ void main() { this is not valid glsl at all !! }
     `progress=${bridge.childProgressVisible}`,
   )
   check(
-    "progress-bridge: the ancestor-driven shader's own uniform matches the inherited CSS value — proof the fix (not just the CSS cascade) reaches the draw",
+    "progress-bridge: an opted-in shader's own uniform matches the inherited CSS value — proof the bridge (not just the CSS cascade) reaches the draw",
     bridge.childUniformVisible !== null && Math.abs(bridge.childUniformVisible - bridge.childProgressVisible) < 0.01,
     `uniform=${bridge.childUniformVisible}, cssProgress=${bridge.childProgressVisible}`,
   )
@@ -813,6 +832,20 @@ void main() { this is not valid glsl at all !! }
     'progress-bridge: the inherited progress keeps advancing as the page scrolls further',
     bridge.childProgressLate > bridge.childProgressVisible,
     `visible=${bridge.childProgressVisible}, late=${bridge.childProgressLate}`,
+  )
+
+  // The opt-in's negative half, and the whole reason `scrub:` exists. Its own control comes
+  // first: if the inherited value were not there at all, `-1` would prove nothing.
+  check(
+    'progress-bridge: CONTROL — the shader that did not opt in has the same inherited value sitting on it',
+    bridge.unoptedProgressVisible > 0 && bridge.unoptedProgressVisible < 1,
+    `progress=${bridge.unoptedProgressVisible}`,
+  )
+  check(
+    'progress-bridge: a shader with no scrub: uploads the -1 sentinel, ignoring the ancestor entirely',
+    bridge.unoptedUniformVisible === -1,
+    `uniform=${bridge.unoptedUniformVisible}, inherited cssProgress=${bridge.unoptedProgressVisible} `
+      + '(the inherited value here means the implicit pickup is back; 0 means this element never drew)',
   )
 
   await bridgeContext.close()
@@ -1393,18 +1426,19 @@ async function runGenerativeField({ browser, check, label, viewport, deviceScale
       + '(both false with the default pair means u_colors never uploaded)',
   )
 
-  // ---- Block B: the two ways displace renders a faithful copy ---------------------------------
-  // Both of these produce a sharp, unshaded image that looks like a working shader over a working
-  // texture, which is why neither was caught by looking at the page.
+  // ---- Block B: the two ways displace used to render a faithful copy --------------------------
+  // Both of these produced a sharp, unshaded image that looks like a working shader over a working
+  // texture, which is why neither was caught by looking at the page. Both are fixed; what is left
+  // here is the guard, which in Cause A's case means the assertion has inverted.
   const displace = await page.evaluate(`(async () => {
     ${PROBES}
     const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
     const renderer = getSharedShaderRenderer()
     // The pointer is never moved anywhere in this block: this is the state every page is in on
     // load, and on a phone it is the state it stays in.
-    const read = async (id, strength) => {
+    const read = async (id, strength, extra = {}) => {
       const el = document.getElementById(id)
-      const inst = prepareShaders(el, createEffectParams({ mode: 'displace', speed: 0, frequency: 10, strength }))
+      const inst = prepareShaders(el, createEffectParams({ mode: 'displace', speed: 0, frequency: 10, strength, ...extra }))
       inst.activate()
       const gl = renderer.gl
       await settle()
@@ -1425,12 +1459,17 @@ async function runGenerativeField({ browser, check, label, viewport, deviceScale
     const weak = await read('disp', 0.3)
     const hard = await read('disp', 8)
     // \`#scrub\` is the same image at the same size, with --kui-progress: 0 set in the fixture's
-    // stylesheet — exactly what scroll-progress writes at the top of its range. No \`progress:\` is
-    // authored on it. Both readings are taken on that one element, so nothing but the strength
-    // differs between them.
+    // stylesheet — exactly what scroll-progress writes at the top of its range. No \`scrub:\` and
+    // no \`progress:\` is authored on it, so the property must not reach the shader at all. Both
+    // readings are taken on that one element, so nothing but the strength differs between them.
     const scrubFlat = await read('scrub', 0)
     const scrubHard = await read('scrub', 8)
-    return { flat, weak, hard, scrubFlat, scrubHard }
+    // And the same element again with the opt-in authored, which must bring the cancellation
+    // straight back: this is the half that proves the property is still wired up and that the
+    // pair above is measuring the gate rather than a broken custom property.
+    const optedFlat = await read('scrub', 0, { scrub: 'scroll' })
+    const optedHard = await read('scrub', 8, { scrub: 'scroll' })
+    return { flat, weak, hard, scrubFlat, scrubHard, optedFlat, optedHard }
   })()`)
 
   const moved = (a, b) => distance(a.all, b.all)
@@ -1452,14 +1491,25 @@ async function runGenerativeField({ browser, check, label, viewport, deviceScale
       + `corner moved ${movedAt(displace.hard, displace.flat, 'nearCorner').toFixed(1)} `
       + '(corner larger = the epicentre is back at the viewport origin)',
   )
-  // Cause A, and the reason the owner's plate rendered sharp. Asserted as an inequality between
-  // two readings of the *same* element, so no cross-element sampling difference can fake it.
+  // Cause A, fixed. This check used to assert the bug — that an unauthored `--kui-progress: 0`
+  // cancelled the displacement — because that is what the code did. The pickup is opt-in now, so
+  // the same element with the same property must displace exactly as an element with no property
+  // at all. Asserted as an inequality between two readings of the *same* element, so no
+  // cross-element sampling difference can fake it.
   check(
-    at('displace: an unauthored --kui-progress:0 cancels the displacement entirely'),
-    moved(displace.scrubHard, displace.scrubFlat) < 2 && moved(displace.hard, displace.flat) > 4,
-    `with --kui-progress:0 strength 8 moves ${moved(displace.scrubHard, displace.scrubFlat).toFixed(2)}, `
-      + `without it ${moved(displace.hard, displace.flat).toFixed(2)} — `
-      + 'a scroll-linked primitive anywhere up the tree silently scrubs the shader',
+    at('displace: an unauthored --kui-progress:0 no longer cancels the displacement'),
+    moved(displace.scrubHard, displace.scrubFlat) > 4,
+    `with --kui-progress:0 and no scrub: strength 8 moves ${moved(displace.scrubHard, displace.scrubFlat).toFixed(2)}, `
+      + `the same element's control without the property ${moved(displace.hard, displace.flat).toFixed(2)} — `
+      + 'a small number here means a scroll-linked primitive up the tree is still scrubbing it unasked',
+  )
+  // The other half of the same claim: `scrub: scroll` still reaches the uniform, so the check
+  // above is measuring the gate and not a `--kui-progress` that stopped being read at all.
+  check(
+    at('displace: authoring scrub:scroll puts the same --kui-progress:0 back in charge'),
+    moved(displace.optedHard, displace.optedFlat) < 2,
+    `opted in, strength 8 moves ${moved(displace.optedHard, displace.optedFlat).toFixed(2)} `
+      + `(must be ~0 — the property is 0), not opted in ${moved(displace.scrubHard, displace.scrubFlat).toFixed(2)}`,
   )
   // Recorded rather than diagnosed: `strength: 0.3` is genuinely subtle. `disp * 0.05` caps the
   // throw at 1.5% of the box, and `exp(-4d)` takes most of that back — under a device pixel on a

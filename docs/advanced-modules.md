@@ -221,6 +221,32 @@ author observes is unchanged. And the bake is capped at 640px on its longest sid
 attribute, which would be an expensive answer on the one code path whose purpose is to stop being
 expensive. A generated field is smooth, so scaling it back up loses nothing visible; grain softens.
 
+## The scroll bridge is opt-in — `scrub: scroll`
+
+`scroll-progress` writes `--kui-progress`. A `shaders` instance reads it as a scrub position, but
+**only when it authored `scrub: scroll`**. Default is `off`.
+
+```html
+<div data-kui="scroll-progress">
+  <!-- Scrubbed by the ancestor's progress. -->
+  <img data-kui="shaders mode:morph to:#b scrub:scroll" src="…" />
+  <!-- Not scrubbed. Runs at full effect regardless of where the page is. -->
+  <img data-kui="shaders mode:particles" src="…" />
+</div>
+```
+
+This is the same gate `audio:` already has, and for the same reason. `--kui-progress` is an
+ordinary inherited custom property, so the read falls back to `getComputedStyle` and an ancestor
+reaches it. Without a gate, every shader anywhere inside a scrollytelling section was scrubbed
+with no way out — and at the top of the range the multiplier is zero, which renders a
+pixel-faithful copy of the source. The effect did not look misconfigured; it looked dead.
+
+An authored `progress:` still wins over the bridge, so `scrub:scroll progress:0.4` is a fixed
+0.4. Note also that the `progress` parameter's backing property is `--kui-shader-progress`, not
+`--kui-progress`: every authored parameter is written to its `cssProperty`, so sharing the name
+would have had the consumer writing the driver's own channel onto the element and inheriting it
+to every descendant.
+
 ## Audio consumers
 
 `audio-source` is a driver: it writes `--kui-audio-bass` / `-mid` / `-treble` / `-level` (and
@@ -326,12 +352,11 @@ test run before quoting them elsewhere.
 
 ## Known limits
 
-- **No demo page.** These modules are not wired into any `demo/*.html` page. Verification is the two
-  test tiers above.
-- **Shader style reads are batched per frame, not per instance.** `SharedShaderRenderer` reads every
-  registered instance's `--kui-progress` (`readElementProgress`, which checks the element's own
-  inline style, then falls back to `getComputedStyle` so a `scroll-progress` primitive on an
-  *ancestor* also reaches it) and, for an instance with an `audio:` band, that band
+- **Shader style reads are batched per frame, not per instance.** `SharedShaderRenderer` reads the
+  `--kui-progress` of every instance that authored `scrub: scroll` (`readElementProgress`, which
+  checks the element's own inline style, then falls back to `getComputedStyle` so a
+  `scroll-progress` primitive on an *ancestor* also reaches it) and, for an instance with an
+  `audio:` band, that band
   (`readAudioBand`, same two steps) before any instance's draw call runs and can write a style this
   frame. Reading a computed style after another instance's write in the same pass would force a
   style recalculation per instance rather than at most once per frame — see the comment on

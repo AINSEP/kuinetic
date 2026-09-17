@@ -98,6 +98,14 @@ export interface ShaderDrawOptions extends ShaderUniformOptions {
    */
   audioBand?: AudioBand | null
   /**
+   * Whether this instance follows `--kui-progress`, the property the scroll primitives publish.
+   *
+   * The authored choice, not a value — the same shape as {@link audioBand} and for the same
+   * reason: the value is read per frame off the element (see `readElementProgress`) and arrives
+   * at the draw as {@link ShaderUniformOptions.progress}.
+   */
+  scrubsFromScroll?: boolean
+  /**
    * This element's already-measured box, or absent to measure it here.
    *
    * The render loop measures every registered instance in its read pass and passes the answer down
@@ -1032,6 +1040,10 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     blendMode: blendMap[params.text('blend', 'normal')] ?? 0,
     to: params.text('to', ''),
     progress: params.num ? params.num('progress', -1) : -1,
+    // Compared against the one enabling word rather than "not `off`", so — exactly as with
+    // `audioBand` below — a caller passing an unvalidated accessor, or an author who typed
+    // `scrub: scrol`, cannot turn the bridge on by accident.
+    scrubsFromScroll: params.text('scrub', 'off') === 'scroll',
     // `parseAudioBand` answers `null` for `off`, for an empty string, and for any word that is not
     // a band, so a caller passing an unvalidated accessor cannot turn the feature on by accident.
     audioBand: parseAudioBand(params.text('audio', 'off')),
@@ -1046,6 +1058,14 @@ function parseProgressValue(raw: string | undefined | null): number | null {
 
 /**
  * This element's scroll/scrub progress, or -1 when nothing has declared one.
+ *
+ * **Only called for an instance that authored `scrub: scroll`** — see `readInputs`. Reading it
+ * unasked is what the parameter exists to stop: the fallback below means an *ancestor's*
+ * `scroll-progress` reaches this element, and at the top of a scroll range that value is `0`,
+ * which every program treats as "no effect". A shader anywhere inside a scrollytelling section
+ * therefore rendered a pixel-faithful copy of its own source and looked dead, with no way to say
+ * no. The `audio:` parameter twelve lines below the schema entry had already been written against
+ * exactly this failure; the scroll channel simply never got the same gate.
  *
  * Checks the element's own inline style first — the fast path, and the only one that mattered
  * while a shader element could only ever read a scroll-mechanics primitive on itself. Falling back
@@ -1662,6 +1682,26 @@ function acquireRenderer(info: ShaderInstanceInfo, held: boolean): boolean {
   return true
 }
 
+/**
+ * The scrub position one instance draws at this frame.
+ *
+ * Three sources, in order. An authored `progress:` number wins outright — `-1`, the schema
+ * default, is precisely what marks it *unauthored*, which is what leaves room for the other two.
+ * Then `scrub: scroll`, the opt-in, reads `--kui-progress` off the element or an ancestor. Then
+ * `-1`, which every program in `glsl.ts` reads as "not scrubbed, run at full effect".
+ *
+ * So `scrub: scroll progress: 0.4` is a fixed 0.4 rather than a scrub. That precedence predates
+ * the opt-in and is left alone: a number the author wrote down is not something a driver
+ * elsewhere on the page should be able to overrule.
+ *
+ * @complexity O(1) time (at most one inline and one computed style read); O(1) space.
+ */
+function instanceProgress(info: ShaderInstanceInfo): number {
+  const authored = info.opt.progress
+  if (authored !== undefined && authored >= 0) return authored
+  return info.opt.scrubsFromScroll ? readElementProgress(info.el) : -1
+}
+
 function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger | null): EffectInstance {
   const state: ShaderInstanceState = {
     // Shared per element with every other writer, advanced or core — see `createAdvancedLedgers`.
@@ -1682,15 +1722,15 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
   //
   // The audio read is skipped entirely with no `audio:` band authored, rather than reading and
   // discarding: it is the half that can force a style recalculation, and an author who did not
-  // ask for audio should not pay for one.
+  // ask for audio should not pay for one. `scrub:` now buys the progress read the same gate, and
+  // for the stronger of the two reasons — an unasked-for progress does not merely cost a style
+  // read, it silently cancels the shader.
   //
   // The geometry measurement belongs here for the same reason and more so: it reads the element's
   // rect, its computed style and its clipping ancestors' (`measureElementGeometry`), all of which
   // a preceding instance's `opacity` write would have invalidated.
   const readInputs = () => {
-    state.progress = info.opt.progress !== undefined && info.opt.progress >= 0
-      ? info.opt.progress
-      : readElementProgress(info.el)
+    state.progress = instanceProgress(info)
     state.audio = info.opt.audioBand ? readAudioBand(info.el, info.opt.audioBand) : 0
     state.geometry = measureElementGeometry(info.el, info.renderer.window, isGenerative)
   }
@@ -2033,7 +2073,38 @@ export const SHADER_PARAMETERS = {
   mask: { type: 'keyword' as const, default: 'alpha', keywords: ['alpha', 'luma', 'luma-invert'], cssProperty: '--kui-shader-mask' },
   blend: { type: 'keyword' as const, default: 'normal', keywords: ['normal', 'screen', 'multiply', 'add'], cssProperty: '--kui-shader-blend' },
   to: { type: 'text' as const, default: '', cssProperty: '--kui-shader-to' },
-  progress: { type: 'number' as const, default: '-1', minimum: -1, maximum: 1, cssProperty: '--kui-progress' },
+  /**
+   * A fixed scrub position, 0..1. `-1` is the unauthored sentinel and means "no scrub".
+   *
+   * `--kui-shader-progress`, **not** `--kui-progress`. Every authored parameter reaches
+   * `element.style` as its custom property — `core/compile.ts`'s `buildPlan` runs `resolveParams`
+   * over JS-rendered entries too — so while this pointed at `--kui-progress` an authored
+   * `progress: 0.4` wrote the scroll primitives' own channel onto the element: it raced
+   * `scroll-progress` when the two were composed, and it inherited down to every descendant
+   * shader and pinned timeline underneath. `test/carousel-3d.test.ts` already carries a
+   * regression test that a primitive must not publish `--kui-progress` meaning something else.
+   * Nothing is lost by renaming — this module reads the authored value from the parameter, never
+   * back off the property.
+   */
+  progress: { type: 'number' as const, default: '-1', minimum: -1, maximum: 1, cssProperty: '--kui-shader-progress' },
+  /**
+   * Whether this shader is scrubbed by `--kui-progress` — the property `scroll-progress`,
+   * `timeline: pin` and the rest of the scroll family publish.
+   *
+   * Opt-in, and `off` by default, for the same reason `audio:` below is: the value arrives as a
+   * custom property written by some *other* primitive, and `--kui-progress` is an ordinary
+   * inheriting custom property, so a shader that read one unasked changed its own output the
+   * moment an unrelated `scroll-progress` appeared anywhere above it in the tree. That was not a
+   * subtle drift — at the top of a scroll range the published value is `0`, every program
+   * multiplies its effect by it, and the shader rendered an untouched copy of the source image.
+   * Dead, silently, with no way for the author to decline.
+   *
+   * `keyword`, so the list is closed and a typo warns instead of quietly doing nothing.
+   * `--kui-shader-scrub` is a name read by this module's JavaScript and by no stylesheet, so
+   * setting the custom property directly does nothing; the value itself is read from
+   * `--kui-progress`, which is a different contract entirely.
+   */
+  scrub: { type: 'keyword' as const, default: 'off', keywords: ['off', 'scroll'], cssProperty: '--kui-shader-scrub' },
   /**
    * Which `audio-source` band drives this shader, if any.
    *

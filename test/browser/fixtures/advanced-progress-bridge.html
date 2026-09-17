@@ -25,10 +25,14 @@
       Same-element case: `scroll-progress` and `shaders` composed on one element, via the same
       comma grammar any two primitives share (`data-kui="a, b"`). Own height (1200px, authored via
       CSS, independent of the SVG's intrinsic size) is `scroll-progress`'s default distance.
+
+      `scrub: scroll` is the opt-in. Composing the two primitives is not on its own a request to
+      be scrubbed — the shader has to say so — so it is authored here even though the driver is
+      the very same element.
     -->
     <img
       id="progress-same"
-      data-kui="scroll-progress, shaders mode:displace strength:0.3"
+      data-kui="scroll-progress, shaders mode:displace strength:0.3 scrub:scroll"
       style="display: block; width: 200px; height: 1200px"
       src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>"
     />
@@ -36,18 +40,34 @@
     <div class="spacer" style="height: 800px"></div>
 
     <!--
-      Ancestor case: `scroll-progress` sits on the (non-visual) container; the shader is three
-      levels below it and never writes `--kui-progress` itself. Only inheriting the ancestor's
-      inline write through `getComputedStyle` can make this element's shader track scroll.
+      Ancestor case: `scroll-progress` sits on the (non-visual) container; the shaders are three
+      levels below it and never write `--kui-progress` themselves. Only inheriting the ancestor's
+      inline write through `getComputedStyle` can make a shader in here track scroll.
+
+      Two of them, and the pair is the point. `#progress-child` authors `scrub: scroll` and must
+      follow the ancestor. `#progress-unopted` authors nothing and must ignore it completely —
+      that element is the bug: an ordinary shader dropped into a scrollytelling section used to
+      be scrubbed by a driver it had never heard of, and at the top of the range that driver
+      publishes `0`, which every program reads as "no effect at all".
+
+      Different modes on purpose: the uniform is read back per *program*, and the programs are
+      shared across every instance using a mode, so two elements on one mode would overwrite each
+      other's reading.
     -->
     <div id="ancestor-driver" data-kui="scroll-progress" style="height: 1200px; position: relative">
       <div style="height: 400px"></div>
       <div>
         <img
           id="progress-child"
-          data-kui="shaders mode:liquid strength:0.3"
+          data-kui="shaders mode:liquid strength:0.3 scrub:scroll"
           style="display: block; width: 200px; height: 200px"
           src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/></svg>"
+        />
+        <img
+          id="progress-unopted"
+          data-kui="shaders mode:particles strength:0.3"
+          style="display: block; width: 200px; height: 200px"
+          src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,255,0)'/></svg>"
         />
       </div>
     </div>
