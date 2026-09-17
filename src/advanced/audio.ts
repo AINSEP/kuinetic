@@ -746,7 +746,14 @@ export const AUDIO_PRIMITIVES: Primitive[] = [
     channels: [...AUDIO_CHANNELS],
     parameters: AUDIO_PARAMETERS,
     supportedTimelines: ['time'],
-    supportedActivations: ['load', 'enter', 'click'],
+    // `manual` alongside the existing three (same additive shape as `interaction-proximity.ts`
+    // and `interaction.ts`): `on:load` (the default) leaves `resumeContext`'s one-shot
+    // page-gesture listener as the fallback, but an author who wants the AudioContext to wake on
+    // one specific, deliberate gesture — a "start visualiser" button, not the visitor's next
+    // incidental tap anywhere on the page — can now write `on:manual` and call `.play()` from
+    // that button's own handler, which still lands inside the same user gesture the browser
+    // requires.
+    supportedActivations: ['load', 'enter', 'click', 'manual'],
     defaultActivation: 'load',
     perfClass: 'continuous',
     reducedMotion: 'disable',
