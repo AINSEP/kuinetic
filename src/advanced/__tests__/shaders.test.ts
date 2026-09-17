@@ -778,6 +778,32 @@ describe('Advanced Shaders Labs Module', () => {
     setSharedShaderRenderer(null)
   })
 
+  /**
+   * An initialised renderer over a mock canvas and GL, with a `raf` that never fires.
+   *
+   * jsdom's `getContext('webgl2')` is null, so `init()` fails and `renderFrame` returns at its
+   * first guard — every check below would pass on any implementation. The stubbed `raf` keeps
+   * `register()`'s `startLoop()` from queueing a frame the test did not ask for, so the only
+   * `renderFrame` that runs is the one the test calls.
+   */
+  function liveRenderer(): { renderer: SharedShaderRenderer; gl: ReturnType<typeof createMockGL> } {
+    const gl = createMockGL()
+    const mockCanvas = document.createElement('canvas')
+    mockCanvas.getContext = vi.fn().mockReturnValue(gl)
+    const renderer = new SharedShaderRenderer({
+      createCanvas: () => mockCanvas,
+      raf: vi.fn(() => 1),
+      caf: vi.fn(),
+      window: {
+        innerWidth: 100, innerHeight: 100, devicePixelRatio: 1,
+        addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      },
+    })
+    expect(renderer.init()).toBe(true)
+    expect(renderer.gl).toBe(gl)
+    return { renderer, gl }
+  }
+
   describe('renderer revival', () => {
     it('never brings a destroyed renderer back, and never evicts the live one', () => {
       const doc = document.implementation.createHTMLDocument('revival')
@@ -818,6 +844,52 @@ describe('Advanced Shaders Labs Module', () => {
       // Memoised again, so a per-frame caller is not re-resolving through the map.
       expect(ref.get()).toBe(live)
       live.destroy()
+    })
+
+    it('stops the frame when a draw call disposes the context under it', () => {
+      const control = liveRenderer()
+      const ranBoth: string[] = []
+      control.renderer.register('a', () => { ranBoth.push('a') })
+      control.renderer.register('b', () => { ranBoth.push('b') })
+      control.renderer.renderFrame(0)
+      // The control. Without it a loop that never ran anything would pass the real check below.
+      expect(ranBoth).toEqual(['a', 'b'])
+      control.renderer.destroy()
+
+      const { renderer, gl } = liveRenderer()
+      expect(renderer.acquire()).toBe(true)
+      const sawContext: Array<WebGLRenderingContext | WebGL2RenderingContext> = []
+      // `release()` from the last holder is `destroy()`: `gl` is nulled and the programs are gone.
+      // The second entry is still in the iterator's snapshot, and used to be handed the `gl` the
+      // frame captured before the loop — a disposed context, on a renderer already `isDestroyed`.
+      renderer.register('a', () => { renderer.release() })
+      renderer.register('b', (passed) => { sawContext.push(passed) })
+
+      renderer.renderFrame(0)
+
+      expect(renderer.isDestroyed).toBe(true)
+      expect(renderer.gl).toBeNull()
+      expect(sawContext).toEqual([])
+      // Specifically: not the dead handle. Distinguishes "did not run" from "ran with a live one".
+      expect(sawContext).not.toContain(gl)
+    })
+
+    it('stops the frame when a draw call loses the context under it', () => {
+      const { renderer } = liveRenderer()
+      expect(renderer.acquire()).toBe(true)
+      const ran: string[] = []
+      renderer.register('a', () => {
+        ran.push('a')
+        renderer.onContextLost?.({ preventDefault: () => {} } as unknown as Event)
+      })
+      renderer.register('b', () => { ran.push('b') })
+
+      renderer.renderFrame(0)
+
+      expect(renderer.isContextLost).toBe(true)
+      // `gl` is still non-null here — only the lost flag says the programs and buffers are gone.
+      expect(ran).toEqual(['a'])
+      renderer.destroy()
     })
   })
 

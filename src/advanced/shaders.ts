@@ -1067,9 +1067,30 @@ export class SharedShaderRenderer {
     // another instance's style write in the same pass would force a style recalculation once per
     // instance instead of once per frame.
     for (const readInputs of this.inputReaders.values()) invokeIsolated(readInputs)
+    this.runDrawCalls(timeSeconds)
+  }
+
+  /**
+   * Every registered instance's draw, in registration order, each one isolated from its neighbours.
+   *
+   * The snapshot is here because a draw call may unregister itself — the `catch` below does — and
+   * mutating `drawCalls` under a live iterator would skip its neighbour. But a snapshot of the
+   * *entries* must not become a snapshot of the *context*, which is why the `gl` is re-read per
+   * iteration rather than taken from `renderFrame`'s. `destroy()` nulls `gl` and deletes the
+   * programs, so a draw call that dropped the last reference mid-frame left every remaining entry
+   * in the snapshot drawing through a disposed context, on a renderer already `isDestroyed` with
+   * its `drawCalls` cleared. The same re-read covers a context lost mid-frame, where `gl` survives
+   * but the programs and buffers do not.
+   *
+   * @param timeSeconds - This frame's timestamp, passed to every draw call.
+   * @complexity O(n) in registered instances.
+   */
+  private runDrawCalls(timeSeconds: number): void {
     for (const [id, drawCall] of Array.from(this.drawCalls.entries())) {
+      const live = this.gl
+      if (!live || this.isContextLost) return
       try {
-        drawCall(gl, timeSeconds)
+        drawCall(live, timeSeconds)
       } catch {
         const callbacks = this.contextCallbacks.get(id)
         if (callbacks) invokeIsolated(() => callbacks.onLost())
