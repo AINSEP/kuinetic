@@ -9,9 +9,6 @@ demo/kuinetic.all.js
 # The advanced tier bundle, built by scripts/build-tiers.mjs alongside demo/kuinetic.js. Same
 # category as its neighbours: an esbuild artifact, not a source file.
 demo/kuinetic.advanced.js
-# Same category as demo/kuinetic.js: a hand-built esbuild artifact, not a source file. Built from
-# the tracked demo/kuinetic-advanced-entry.ts, which carries the command in its header.
-demo/kuinetic-advanced.js
 demo/showcase/tailwind.css
 .artifacts/
 .playwright-mcp/

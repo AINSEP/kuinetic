@@ -285,16 +285,30 @@
       <!-- LOADING IT -->
       <section id="load" data-od-id="load">
         <div class="section-head">
-          <h2 data-kui="fade-up on:enter">Nothing here is auto-registered</h2>
+          <h2 data-kui="fade-up on:enter">Opt-in, but no longer wire-it-up-yourself</h2>
         </div>
         <div class="load-snippet" data-kui="fade-up 700ms 190ms on:enter">
-<pre>import { kuinetic } from 'kuinetic'
+<pre>&lt;!-- Script tags: either order, no JavaScript. This page loads exactly this. --&gt;
+&lt;script src="kuinetic.js"&gt;&lt;/script&gt;
+&lt;script src="kuinetic.advanced.js"&gt;&lt;/script&gt;</pre>
+        </div>
+        <div class="load-snippet" data-kui="fade-up 700ms 240ms on:enter">
+<pre>// Bundler: still explicit, because importing must stay free of side effects.
+import { kuinetic } from 'kuinetic'
 import { registerAdvanced } from 'kuinetic/advanced'  // shaders, scene, camera, particles, cursor, audio
 
 const k = kuinetic({ observe: true })
 registerAdvanced(k)   // before start(), not after
 k.start()</pre>
         </div>
+        <p data-kui="fade-up 700ms 290ms on:enter">
+          Still opt-in: a page that never loads the second tag pays nothing for it, and core's
+          zero-dependency claims hold either way. What changed is that the two tags no longer have
+          to be one bundle. <code>registerAdvanced</code> used to gate on
+          <code>instanceof Registry</code> — class identity, not shape — so two separately-bundled
+          scripts each carrying their own copy of that class compared two different class objects
+          and threw on a perfectly valid animator. That check is duck-typed now.
+        </p>
       </section>
 
       <!-- THE FIVE MODES -->
@@ -585,16 +599,21 @@ k.start()</pre>
 
   <footer data-od-id="footer" data-footer-mount></footer>
 
-  <!-- ONE bundle, carrying core and advanced together, and deliberately not `./kuinetic.js` plus a
-       second script beside it. `registerInto` gates on `instanceof Registry`, and two independent
-       esbuild IIFE bundles each inline their own copy of that class — so the check compares two
-       different class objects and throws on a perfectly good animator. See
-       demo/kuinetic-advanced-entry.ts, and the #load section above. -->
-  <script src="./kuinetic-advanced.js"></script>
+  <!-- Two tags, in either order, and no registration call. Core creates the animator, the advanced
+       tier queues itself, and the boot in each bundle registers and starts at DOMContentLoaded.
+       This used to be one hand-built bundle carrying both halves, because `registerInto` gated on
+       `instanceof Registry` and two separately-bundled IIFEs each inline their own copy of that
+       class. That check is duck-typed now, so the workaround is gone. -->
+  <script src="./kuinetic.js"></script>
+  <script src="./kuinetic.advanced.js"></script>
   <script>
-    window.__kui = kuineticLab.kuinetic({ observe: true, reporter: kuineticLab.consoleReporter() })
-    kuineticLab.registerAdvanced(window.__kui)
-    window.__kui.start()
+    // Only here for the console reporter: the boot builds its animator with `{ observe: true }`
+    // and nothing else, and this page's whole job is showing an experimental tier, so the
+    // diagnostics are worth one line of script. Arriving before anything has started, this call
+    // is adopted as the page's one animator — options and all — and the advanced tier registers
+    // into it. Deliberately no `.start()`: leaving that to the boot means the tier is registered
+    // before the first scan, instead of forcing the post-scan `recompile()` path.
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() })
   </script>
   <script>
     // Media transport only — no animation is driven from here. The `audio-source` primitive is
