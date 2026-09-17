@@ -438,6 +438,29 @@ export const CAMERA_PARAMETERS = {
   },
 }
 
+/**
+ * `camera-layer`'s own parameters. `z` is read straight off the raw `data-kui` attribute by
+ * `prepareCameraScene`'s own regex (see its `layerEls` loop above), not through this primitive's
+ * `prepare` — declaring it here is only what lets the compiler accept `z:-400` on a layer element
+ * instead of warning "unknown parameter" once "unknown effect" (below) is fixed.
+ */
+export const CAMERA_LAYER_PARAMETERS = {
+  z: { type: 'number' as const, default: '0', minimum: -5000, maximum: 5000, cssProperty: '--kui-camera-layer-z' },
+}
+
+/**
+ * `camera-layer` never runs on its own: `prepareCameraScene`'s `[data-kui*="camera-layer"]` scan
+ * reads each layer's `z:` directly off its attribute, and the parent `CameraController` is what
+ * writes `transform`/`transform-style` to it every frame (`applyLayer3D`, `render`). Without a
+ * registered primitive for the name, every `camera-layer` element compiled as an unrecognised
+ * effect — the scene still positioned it correctly, but the console warned "unknown effect
+ * camera-layer" once per layer. This primitive exists only so the name resolves; it deliberately
+ * does nothing of its own.
+ */
+export function prepareCameraLayer(): EffectInstance {
+  return createInertInstance()
+}
+
 export const CAMERA_PRIMITIVES: Primitive[] = [
   {
     id: 'camera-scene',
@@ -451,10 +474,23 @@ export const CAMERA_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
     prepare: prepareCameraScene,
   },
+  {
+    id: 'camera-layer',
+    renderer: 'javascript',
+    channels: ['translate', 'rotate', 'transform-style'],
+    parameters: CAMERA_LAYER_PARAMETERS,
+    supportedTimelines: ['scroll', 'time'],
+    supportedActivations: ['load', 'enter'],
+    defaultActivation: 'load',
+    perfClass: 'dom-transform',
+    reducedMotion: 'disable',
+    prepare: prepareCameraLayer,
+  },
 ]
 
 export const CAMERA_PRESETS: Preset[] = [
   { name: 'camera-scene', primitive: 'camera-scene' },
+  { name: 'camera-layer', primitive: 'camera-layer' },
 ]
 
 export function registerCamera(target: unknown): Registry | Animator {
