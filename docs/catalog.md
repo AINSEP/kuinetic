@@ -8,7 +8,8 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **292** named effects, over **38 primitive families**. Note that 48 names come from a
+**Counts:** **292** named effects, **38 primitive families** — the table below enumerates all 38,
+so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
 family like `reveal` registers a few sibling primitives so that channel-conflict detection can tell
