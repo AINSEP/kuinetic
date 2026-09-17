@@ -674,6 +674,48 @@ describe('Advanced FX Modules: Particles and Fluid Cursor', () => {
       trail.destroy()
     })
 
+    it('the last client to stand down wipes the overlay instead of freezing it mid-splash', () => {
+      const clearRect = vi.fn()
+      const mockCanvas = document.createElement('canvas')
+      mockCanvas.getContext = vi.fn().mockReturnValue({
+        clearRect,
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+      }) as any
+      const trail = new FluidTrail({ size: 10 }, {
+        createCanvas: () => mockCanvas,
+        window: {
+          innerWidth: 1000,
+          innerHeight: 1000,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        } as any,
+      })
+      trail.init()
+
+      const host = document.createElement('div')
+      host.getBoundingClientRect = () => ({ left: 0, top: 0, right: 100, bottom: 100, width: 100, height: 100 } as DOMRect)
+      const id = trail.registerClient({ size: 15, color: '#f00' }, host)
+      trail.activateClient(id)
+      trail.onPointerMove?.({ clientX: 50, clientY: 50, target: host } as any)
+      expect(trail.drops.length).toBeGreaterThan(0)
+
+      clearRect.mockClear()
+      // `cancel()`/`finish()` reach this, not `destroy()`. `draw()` clears at the *start* of a
+      // frame, so stopping the loop left the drops in flight painted across a fixed, full-viewport,
+      // z-index 9998 overlay until something reactivated it.
+      trail.deactivateClient(id)
+      expect(trail.drops).toEqual([])
+      expect(clearRect).toHaveBeenCalled()
+      // And the overlay itself is still there: the last *unregister* owns that teardown.
+      expect(trail.canvas).toBe(mockCanvas)
+
+      trail.unregisterClient(id)
+    })
+
     it('getSharedFluidTrail isolates instances per document using WeakMap', () => {
       const docA = document.implementation.createHTMLDocument('FA')
       const docB = document.implementation.createHTMLDocument('FB')

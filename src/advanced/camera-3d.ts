@@ -343,10 +343,21 @@ export class CameraController {
     }
   }
 
+  /**
+   * `try`/`finally` because the restore must not be hostage to the listener teardown.
+   *
+   * The animator swallows a throwing instance teardown (`runQuietly(() => instance.destroy())`),
+   * and every element this controller reached on its own — the layers — is in no ledger core will
+   * ever restore. A `removeEventListener` the page has replaced, or a window torn down under a
+   * detached document, would otherwise leave `transform` on each layer permanently.
+   */
   destroy(): void {
-    this.stop()
-    this.ledgers.restore()
-    this.layers = []
+    try {
+      this.stop()
+    } finally {
+      this.ledgers.restore()
+      this.layers = []
+    }
   }
 }
 

@@ -224,6 +224,32 @@ describe('advanced modules restore what was there immediately before the first w
       expect(stage.style.transform).toBe('translateY(-20px)')
     })
 
+    it('a throwing teardown still gives the author\'s styles back', () => {
+      const stage = document.createElement('div')
+      const layer = document.createElement('div')
+      stage.appendChild(layer)
+
+      const controller = new CameraController(stage, { depth: 800, mouseTilt: false }, {
+        window: {
+          innerHeight: 800,
+          addEventListener: vi.fn(),
+          removeEventListener: () => { throw new Error('page code replaced removeEventListener') },
+        } as unknown as Window,
+      })
+      controller.addLayer(layer, 40)
+      layer.style.setProperty('transform', 'translateZ(5px)', 'important')
+
+      controller.start()
+      expect(layer.style.transform).not.toBe('translateZ(5px)')
+
+      // The animator swallows a throwing `instance.destroy()`, and the layer is in no ledger core
+      // will ever restore — so a throw on the way out used to leave this module's transform on it
+      // permanently. The throw still surfaces; the restore just is not hostage to it.
+      expect(() => controller.destroy()).toThrow()
+      expect(layer.style.transform).toBe('translateZ(5px)')
+      expect(layer.style.getPropertyPriority('transform')).toBe('important')
+    })
+
     it('renders the scene depth during start even with mouse-tilt off', () => {
       const stage = document.createElement('div')
       const layer = document.createElement('div')
@@ -282,18 +308,53 @@ describe('advanced modules restore what was there immediately before the first w
     })
   })
 
+  /**
+   * `setupPosition` only writes when the *computed* position is `static`, so every case here keeps
+   * the stub and the inline style consistent with each other. The single case this replaced stubbed
+   * `getComputedStyle` to answer `static` while the author's inline style said
+   * `position: relative !important` — a combination the real CSSOM cannot produce, so in a browser
+   * the early return fired and the module wrote nothing at all.
+   */
   describe('particles', () => {
+    const emitterFor = (host: HTMLElement, computed: string) => new ParticleEmitter(host, {}, {
+      window: { getComputedStyle: () => ({ position: computed }) } as unknown as Window,
+      document,
+    })
+
     it('restores an authored position with its priority', () => {
       const host = document.createElement('div')
-      const emitter = new ParticleEmitter(host, {}, {
-        window: { getComputedStyle: () => ({ position: 'static' }) } as unknown as Window,
-        document,
-      })
+      // Inline and computed agree: `static` is what the author declared and what resolves.
+      host.style.setProperty('position', 'static', 'important')
+      const emitter = emitterFor(host, 'static')
 
+      emitter.setupPosition()
+      expect(host.style.position).toBe('relative')
+
+      emitter.destroy()
+      expect(host.style.position).toBe('static')
+      expect(host.style.getPropertyPriority('position')).toBe('important')
+    })
+
+    it('leaves no position and no style attribute on a host that had neither', () => {
+      const host = document.createElement('div')
+      const emitter = emitterFor(host, 'static')
+      expect(host.hasAttribute('style')).toBe(false)
+
+      emitter.setupPosition()
+      expect(host.style.position).toBe('relative')
+
+      emitter.destroy()
+      expect(host.style.position).toBe('')
+      expect(host.hasAttribute('style')).toBe(false)
+    })
+
+    it('never touches a host that is already positioned', () => {
+      const host = document.createElement('div')
       host.style.setProperty('position', 'relative', 'important')
+      const emitter = emitterFor(host, 'relative')
+
       emitter.setupPosition()
       emitter.destroy()
-
       expect(host.style.position).toBe('relative')
       expect(host.style.getPropertyPriority('position')).toBe('important')
     })

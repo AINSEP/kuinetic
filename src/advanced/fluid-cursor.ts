@@ -139,10 +139,31 @@ export class FluidTrail {
 
   deactivateClient(id: number): void {
     this.activeClients.delete(id)
-    if (this.activeClients.size === 0 && this.refCount === 0) {
-      this.detachListeners()
-      this.stopLoop()
-    }
+    if (this.activeClients.size > 0 || this.refCount > 0) return
+    this.detachListeners()
+    this.stopLoop()
+    this.clearOverlay()
+  }
+
+  /**
+   * Wipe the overlay when the last client stands down.
+   *
+   * `draw()` clears the canvas at the *start* of a frame, so stopping the loop leaves whatever was
+   * in flight painted. The overlay is `position: fixed` at `z-index: 9998` across the whole
+   * viewport, so a `fluid-trail` on `on:pointerenter`/`pointerleave` — or an author's
+   * `control.cancel()` mid-move — left a frozen blob of drops over the entire page until something
+   * reactivated it or the element was destroyed.
+   *
+   * The canvas itself stays mounted on purpose: registration happens at prepare, so the last
+   * *unregister* owns the teardown and no client can have the canvas pulled from under it.
+   *
+   * @complexity O(1).
+   */
+  private clearOverlay(): void {
+    this.drops = []
+    const canvas = this.canvas
+    if (!canvas || typeof this.ctx?.clearRect !== 'function') return
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height)
   }
 
   unregisterClient(id: number): void {

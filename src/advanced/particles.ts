@@ -296,14 +296,20 @@ export class ParticleEmitter {
     }
   }
 
+  /** `try`/`finally` for the reason `camera-3d.ts`'s `destroy()` documents. */
   destroy(): void {
-    this.stopLoop()
-    this.unbindEvents()
-    this.ledgers.restore()
-    if (this.canvas) {
-      this.canvas.remove()
-      this.canvas = null
+    try {
+      this.stopLoop()
+      this.unbindEvents()
+    } finally {
+      this.ledgers.restore()
+      this.removeCanvas()
     }
+  }
+
+  private removeCanvas(): void {
+    this.canvas?.remove()
+    this.canvas = null
     this.ctx = null
     this.particles = []
   }

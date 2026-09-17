@@ -276,10 +276,14 @@ export class SceneController {
     if (t) style.set('transform', t)
   }
 
+  /** `try`/`finally` for the reason `camera-3d.ts`'s `destroy()` documents. */
   destroy(): void {
-    this.stop()
-    this.ledgers.restore()
-    this.steps = []
+    try {
+      this.stop()
+    } finally {
+      this.ledgers.restore()
+      this.steps = []
+    }
   }
 }
 
