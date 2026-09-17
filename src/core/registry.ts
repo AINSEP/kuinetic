@@ -8,9 +8,16 @@ export interface ResolvedEffect {
 /**
  * Name → primitive alias table.
  *
- * The catalog's 261 names come from 131 primitives; 130 of the names are aliases — the
+ * The catalog's 292 names come from 152 primitives; 140 of the names are aliases — the
  * same primitive with different parameter defaults. Presets are therefore data rows, not
  * code, and adding a name in a later release costs a table entry. See docs/catalog.md.
+ *
+ * Those two numbers are derived, never incremented by hand: `createRegistry().names().length`,
+ * and the count of distinct `resolve(name).primitive.id` across them. Do not add to a
+ * remembered total — the figures above were stale by 31 names and 21 primitives when last
+ * checked, because someone did. Note they count *primitives*, which is not the same thing as
+ * the "primitive families" docs/catalog.md tallies; that grouping is curatorial and has no
+ * registry equivalent.
  */
 export class Registry {
   private primitives = new Map<string, Primitive>()
