@@ -1554,6 +1554,17 @@
     --kui-var-width-ease: ease-out;
   }
 
+  [data-kui-fx~='video-backdrop'] {
+    --kui-overlay: black;
+    --kui-overlay-opacity: 45%;
+  }
+
+  [data-kui-fx~='video-hero'] {
+    --kui-overlay: black;
+    --kui-overlay-opacity: 45%;
+    --kui-autoplay: always;
+  }
+
   [data-kui-fx~='view-swap'] {
     --kui-view-swap-delay: 0ms;
   }

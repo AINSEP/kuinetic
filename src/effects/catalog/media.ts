@@ -157,10 +157,11 @@ export const MEDIA_CSS_PRESETS: Preset[] = [
    * already sets for a continuously-scrubbed effect — there is no "turn" to take with a neighbour,
    * because progress never stops being read off the scrollport.
    *
-   * `bg`/`background` also stay unphased: `background-media` is a permanent backdrop material, held
-   * unconditionally from `load` for as long as the element exists (see its own `continuousSetup`
-   * above) — it fits none of the four phases, and should keep conflicting with any other primitive
-   * that claims the same channel unconditionally, which is what "permanent" means here.
+   * All four `background-media` names — `bg`, `background`, `video-backdrop`, `video-hero` — also
+   * stay unphased: `background-media` is a permanent backdrop material, held unconditionally from
+   * `load` for as long as the element exists (see its own `continuousSetup` above) — it fits none of
+   * the four phases, and should keep conflicting with any other primitive that claims the same
+   * channel unconditionally, which is what "permanent" means here.
    */
   {
     name: 'image-parallax-frame',
@@ -559,6 +560,50 @@ export const MEDIA_JS_PRESETS: Preset[] = [
    */
   { name: 'bg', primitive: 'background-media' },
   { name: 'background', primitive: 'background-media' },
+  /*
+   * The two scrimmed names, for the case the bare aliases above leave to the author: a clip behind
+   * the page's own text.
+   *
+   * `bg src:/hero.mp4` alone is unscrimmed footage, and unmodified footage is illegible under text
+   * about half the time — a light frame arrives and the headline vanishes for those seconds. The
+   * fix has always existed (`overlay:` + `overlay-opacity:`, painted by `createOverlay`), and the
+   * `45%` black below is the exact pair `backgroundMediaParams` already names as the spelling
+   * someone reaches for while tuning legibility. What was missing was a *name* that arrives with it
+   * already on, so the legible case is the one you get by default and the bare clip is the opt-out.
+   *
+   * The pair splits on `autoplay:`, which is the primitive's own two-case division rather than a
+   * new one. `video-backdrop` keeps the default `in-view`, pairing a long section's clip with the
+   * viewport so it stops costing decode budget once scrolled past. `video-hero` overrides it to
+   * `always`, because the first screen is exactly where a visibility heuristic catching the clip
+   * mid-stall is most visible, and a short hero clip is cheap enough to simply leave running — this
+   * is the override the demo's own hand-rolled hero writes on all three of its slides.
+   *
+   * Nothing else is restated. `fit:cover`, `loop:true` and the forced `muted`/`playsinline` pair
+   * are already what the primitive does — `params` is for what differentiates a name from its
+   * primitive's defaults, and restating a default is how the two drift apart later. In particular
+   * there is no height claim: a hero's box is the page's layout, and a backdrop that forced
+   * `100svh` on its host would break every card-sized use of the same name. `fit:cover` is what
+   * makes this fill a 390px phone without letterboxing or stretching, and `focus:` is what decides
+   * which part of the frame a narrow viewport keeps.
+   *
+   * Reduced motion needs no declaration here either, and that is the primitive's `'shorten'` policy
+   * doing the right thing rather than an omission: the clip is still installed, its autoplay is
+   * suppressed inside `startPlayback`, and the poster still stands. A static frame, not a blank box.
+   *
+   * Unphased, for the same reason `bg`/`background` are (see the note in `MEDIA_CSS_PRESETS`): a
+   * backdrop is a permanent material held unconditionally from `load`, which fits none of the four
+   * phases and should keep conflicting with anything else that claims the same channels forever.
+   */
+  {
+    name: 'video-backdrop',
+    primitive: 'background-media',
+    params: { overlay: 'black', 'overlay-opacity': '45%' },
+  },
+  {
+    name: 'video-hero',
+    primitive: 'background-media',
+    params: { overlay: 'black', 'overlay-opacity': '45%', autoplay: 'always' },
+  },
 ]
 
 export const MEDIA_PRIMITIVES: Primitive[] = [...MEDIA_CSS_PRIMITIVES, ...MEDIA_JS_PRIMITIVES]
