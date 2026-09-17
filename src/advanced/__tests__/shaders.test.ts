@@ -12,6 +12,7 @@ import {
   drawElementQuad,
   extractShaderOptions,
   parseColor,
+  createRendererRef,
   measureElementGeometry,
   resolveDrawBox,
   setupScissor,
@@ -775,6 +776,49 @@ describe('Advanced Shaders Labs Module', () => {
     inst.destroy()
     renderer.destroy()
     setSharedShaderRenderer(null)
+  })
+
+  describe('renderer revival', () => {
+    it('never brings a destroyed renderer back, and never evicts the live one', () => {
+      const doc = document.implementation.createHTMLDocument('revival')
+      const env = { document: doc }
+      const first = getSharedShaderRenderer(env)
+
+      first.destroy()
+      expect(first.isDestroyed).toBe(true)
+      // The object a prepared-but-never-activated instance is still holding. `init()` here built a
+      // second full-viewport canvas and WebGL2 context on a renderer no longer in the map.
+      expect(first.acquire()).toBe(false)
+      expect(first.gl).toBeNull()
+      expect(first.canvas).toBeNull()
+
+      const second = getSharedShaderRenderer(env)
+      expect(second).not.toBe(first)
+
+      // A late second teardown of the dead one must not delete the *live* one's map entry, which
+      // is what let the count keep climbing on a page that cycles shader elements.
+      first.destroy()
+      expect(getSharedShaderRenderer(env)).toBe(second)
+
+      second.destroy()
+      expect(getSharedShaderRenderer(env)).not.toBe(second)
+    })
+
+    it('puts an orphaned reference back onto the live renderer', () => {
+      const doc = document.implementation.createHTMLDocument('ref')
+      const ref = createRendererRef({ document: doc })
+      const first = ref.get()
+
+      expect(ref.get()).toBe(first)
+      first.destroy()
+
+      const live = ref.get()
+      expect(live).not.toBe(first)
+      expect(live.isDestroyed).toBe(false)
+      // Memoised again, so a per-frame caller is not re-resolving through the map.
+      expect(ref.get()).toBe(live)
+      live.destroy()
+    })
   })
 
   it('isolates SharedShaderRenderer across documents using WeakMap', () => {

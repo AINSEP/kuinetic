@@ -919,7 +919,23 @@ export class SharedShaderRenderer {
     this.mapKey = (r.document ?? r.window ?? fallbackShaderKey) as object
   }
 
+  /**
+   * Whether `destroy()` has run. A destroyed renderer never comes back to life.
+   *
+   * `destroy()` un-maps itself, so the object an already-prepared instance is still holding is no
+   * longer the one `getSharedShaderRenderer` hands out. Letting `acquire()` re-`init()` that object
+   * therefore built a *second* full-viewport canvas and WebGL2 context in one document — and then
+   * a third, because the next element to be prepared found nothing in the map and made its own,
+   * and whichever of them tore down next deleted the shared document key from under the live one.
+   * Cycling shader elements on an SPA route walked straight into the browser's 8-16 context cap.
+   *
+   * So a teardown is final, and `RendererRef` is what gets an orphaned instance back onto the live
+   * renderer.
+   */
+  isDestroyed = false
+
   acquire(): boolean {
+    if (this.isDestroyed) return false
     if (this.canvas && this.isContextLost) { this.refCount++; return true }
     if (this.gl && !this.isContextLost) { this.refCount++; return true }
     const ok = this.init()
@@ -1063,6 +1079,8 @@ export class SharedShaderRenderer {
   }
 
   destroy(): void {
+    if (this.isDestroyed) return
+    this.isDestroyed = true
     this.stopLoop()
     if (this.window?.removeEventListener && this.onPointer) {
       this.window.removeEventListener('pointermove', this.onPointer as EventListener)
@@ -1077,7 +1095,10 @@ export class SharedShaderRenderer {
     this.gl = null; this.quadBuffer = null; this.isContextLost = false
     this.drawCalls.clear(); this.contextCallbacks.clear(); this.inputReaders.clear()
     this.programs = {}; this.refCount = 0
-    shaderRenderers.delete(this.mapKey)
+    // Only when the map still points at *us*. A renderer built after this one is stored under the
+    // same document key, so an unconditional delete evicted a live renderer and left the next
+    // element to be prepared building yet another canvas and context.
+    if (shaderRenderers.get(this.mapKey) === this) shaderRenderers.delete(this.mapKey)
   }
 }
 
@@ -1088,11 +1109,36 @@ export function getSharedShaderRenderer(env?: AdvancedEnv): SharedShaderRenderer
   const resolved = resolveEnv(null, env)
   const key = (resolved.document ?? resolved.window ?? fallbackShaderKey) as object
   let renderer = shaderRenderers.get(key)
-  if (!renderer) {
+  // `isDestroyed` as well as absent: `setSharedShaderRenderer` is free to install any instance,
+  // and handing a torn-down one to a caller who will `acquire()` it is the whole of finding GL-1.
+  if (!renderer || renderer.isDestroyed) {
     renderer = new SharedShaderRenderer(env)
     shaderRenderers.set(key, renderer)
   }
   return renderer
+}
+
+/**
+ * The live shared renderer for one document, across a teardown.
+ *
+ * `prepareShaders` runs during the animator's scan while `activate()` can be much later — a
+ * below-the-fold `on:enter` element is prepared on load and activated on scroll — so the renderer
+ * an instance was handed at prepare time can be destroyed before it is ever used. This re-resolves
+ * instead of reviving: `getSharedShaderRenderer` builds a fresh renderer, the map keeps pointing at
+ * the live one, and the document still has exactly one canvas and one context.
+ */
+export interface RendererRef {
+  get(): SharedShaderRenderer
+}
+
+export function createRendererRef(env?: AdvancedEnv): RendererRef {
+  let current = getSharedShaderRenderer(env)
+  return {
+    get() {
+      if (current.isDestroyed) current = getSharedShaderRenderer(env)
+      return current
+    },
+  }
 }
 
 /**
@@ -1121,22 +1167,33 @@ export function setSharedShaderRenderer(instance: SharedShaderRenderer | null, e
 
 interface TextureHolder {
   get: () => WebGLTexture | null
+  /** The texture if one was ever created, without creating one. */
+  peek: () => WebGLTexture | null
   reset: () => void
 }
 
+/**
+ * A texture for one source, created on first use against whichever renderer is live.
+ *
+ * `host.renderer` rather than a captured instance: a renderer that has been torn down took its
+ * textures with it, so a holder that kept answering with the old handle would hand a dead name to
+ * a new context. Asking the host every time means the switch is invisible from here.
+ */
 function initTextureHolder(
   getSource: () => TexImageSource | null,
-  renderer: SharedShaderRenderer,
+  host: { renderer: SharedShaderRenderer },
 ): TextureHolder {
   let tex: WebGLTexture | null = null
   return {
     get() {
+      const renderer = host.renderer
       if (!tex && !renderer.isContextLost) {
         const src = getSource()
         if (src) tex = renderer.createTexture(src)
       }
       return tex
     },
+    peek: () => tex,
     reset() { tex = null },
   }
 }
@@ -1144,25 +1201,27 @@ function initTextureHolder(
 function createShaderTextureHolders(
   htmlEl: HTMLElement,
   options: ShaderDrawOptions,
-  renderer: SharedShaderRenderer,
+  host: { renderer: SharedShaderRenderer },
 ): { texHolder: TextureHolder; toHolder: TextureHolder } {
   const isImg = (t: unknown): t is HTMLImageElement => t instanceof HTMLImageElement && t.complete && t.naturalWidth > 0
-  const texHolder = initTextureHolder(() => (isImg(htmlEl) ? htmlEl : null), renderer)
+  const texHolder = initTextureHolder(() => (isImg(htmlEl) ? htmlEl : null), host)
   const toHolder = initTextureHolder(() => {
-    if (!options.to || !renderer.document) return null
+    const doc = host.renderer.document as Document | null
+    if (!options.to || !doc) return null
     try {
-      const doc = renderer.document as Document
       const toEl = doc.querySelector?.(options.to) as HTMLElement | null
       return isImg(toEl) ? toEl : null
     } catch {
       return null
     }
-  }, renderer)
+  }, host)
   return { texHolder, toHolder }
 }
 
+/** `peek`, not `get`: `get` is the *creating* accessor, and destroy was uploading one or two
+ * textures to the GPU purely to delete them again for any instance that never drew. */
 function cleanupShaderTextures(texHolder: TextureHolder, toHolder: TextureHolder, renderer: SharedShaderRenderer): void {
-  const tex = texHolder.get(), toTex = toHolder.get()
+  const tex = texHolder.peek(), toTex = toHolder.peek()
   if (tex && renderer.gl) renderer.gl.deleteTexture(tex)
   if (toTex && toTex !== tex && renderer.gl) renderer.gl.deleteTexture(toTex)
   texHolder.reset(); toHolder.reset(); renderer.release()
@@ -1200,9 +1259,48 @@ function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): vo
   styleOf(state.ledgers, el)?.restore()
 }
 
-function createShaderInstance(info: {
-  id: string; el: HTMLElement; opt: ShaderDrawOptions; renderer: SharedShaderRenderer; tex: TextureHolder; to: TextureHolder
-}): EffectInstance {
+/**
+ * One instance's mutable handle on the shared renderer.
+ *
+ * `renderer` is the one this instance holds a refCount on and draws through; `ref` is how it finds
+ * the live one again if that gets torn down between prepare and activation. Everything else here
+ * reads `info.renderer` rather than closing over an instance, so re-pointing it in `activate()` is
+ * the whole of the switch.
+ */
+interface ShaderInstanceInfo {
+  id: string
+  el: HTMLElement
+  opt: ShaderDrawOptions
+  renderer: SharedShaderRenderer
+  ref: RendererRef
+  tex: TextureHolder
+  to: TextureHolder
+}
+
+/**
+ * Take — or keep — a refCount on the live renderer for this instance.
+ *
+ * A reference already held on a live renderer is kept as it was. Otherwise the reference goes on
+ * whatever is live *now*, which after a teardown is a different object than the one `prepare`
+ * handed out, with a context that never saw this instance's textures. Nothing is released on that
+ * path: a destroyed renderer is already at `refCount` 0 with its GL resources gone.
+ *
+ * @param info - The instance's handle, whose `renderer` this re-points.
+ * @param held - Whether this instance already counts against a renderer.
+ * @returns Whether a reference is now held. `false` leaves the instance inactive.
+ * @complexity O(1), plus one renderer `init()` when this is the first reference on it.
+ */
+function acquireRenderer(info: ShaderInstanceInfo, held: boolean): boolean {
+  if (held && !info.renderer.isDestroyed) return true
+  const live = info.ref.get()
+  if (!live.acquire()) return false
+  info.renderer = live
+  info.tex.reset()
+  info.to.reset()
+  return true
+}
+
+function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
   const state: ShaderInstanceState = {
     ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1, audio: 0, geometry: null,
   }
@@ -1255,7 +1353,7 @@ function createShaderInstance(info: {
     continuous: true,
     activate() {
       if (isActive) return
-      if (!isAcquired && !info.renderer.acquire()) return
+      if (!acquireRenderer(info, isAcquired)) return
       isAcquired = true; isActive = true
       info.renderer.register(info.id, drawCall, {
         onLost() { info.tex.reset(); info.to.reset(); restoreInstanceOpacity(info.el, state) },
@@ -1283,11 +1381,16 @@ export function prepareShaders(
 
   const hostDoc = el?.ownerDocument
   const resolvedEnv = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
-  const renderer = getSharedShaderRenderer(resolvedEnv)
+  const ref = createRendererRef(resolvedEnv)
   nextShaderId += 1
   const id = `kui-shader-instance-${nextShaderId}`
-  const { texHolder, toHolder } = createShaderTextureHolders(el as HTMLElement, options, renderer)
-  return createShaderInstance({ id, el: el as HTMLElement, opt: options, renderer, tex: texHolder, to: toHolder })
+  const info = {
+    id, el: el as HTMLElement, opt: options, renderer: ref.get(), ref,
+  } as ShaderInstanceInfo
+  const holders = createShaderTextureHolders(el as HTMLElement, options, info)
+  info.tex = holders.texHolder
+  info.to = holders.toHolder
+  return createShaderInstance(info)
 }
 
 export const SHADER_PARAMETERS = {
