@@ -328,6 +328,13 @@ export async function run({ browser }) {
     fail.renderer.gl.drawArrays = realDrawArrays
     const opacityAfterFailedDraw = fail.authored.style.opacity
     const bareAfterFailedDraw = fail.bare.style.opacity
+    // The instance's own catch unregisters the draw; if it does not also clear `isActive`, the two
+    // disagree forever and `activate()`'s re-entrancy guard swallows every later activation. An
+    // `on:hover` element that threw once would be dead for good.
+    for (const inst of fail.instances) inst.activate()
+    await twoFrames()
+    const bareAfterReactivate = fail.bare.style.opacity
+    const registeredAfterReactivate = fail.renderer.drawCalls.size
     for (const inst of fail.instances) inst.destroy()
 
     // (b) a lost context, with both instances still registered for the fan-out to reach.
@@ -359,6 +366,7 @@ export async function run({ browser }) {
     return {
       initialStyleOpacity, opacityDuringDraw, bareHiddenDuringDraw,
       registeredAtFail, drawArraysThrew, opacityAfterFailedDraw, bareAfterFailedDraw,
+      bareAfterReactivate, registeredAfterReactivate,
       registeredAtLoss, bareHiddenAtLoss, contextWasLost, opacityAfterContextLoss, bareAfterContextLoss,
       registeredAtDestroy, bareHiddenAtDestroy, opacityAfterDestroy, bareAfterDestroy,
     }
@@ -371,6 +379,11 @@ export async function run({ browser }) {
   check('authored-zero: the failed-draw path had a registered instance to fail', authoredZero.registeredAtFail > 0 && authoredZero.drawArraysThrew > 0, `registered=${authoredZero.registeredAtFail}, threw=${authoredZero.drawArraysThrew}`)
   check('authored-zero: remains 0 after a real failed draw (never \'\')', authoredZero.opacityAfterFailedDraw === '0', `opacity=${authoredZero.opacityAfterFailedDraw}`)
   check('authored-zero: the bare control was given back on the same failed draw', authoredZero.bareAfterFailedDraw === '', `bare=${JSON.stringify(authoredZero.bareAfterFailedDraw)}`)
+  check(
+    'authored-zero: an instance that failed a draw can be activated again',
+    authoredZero.registeredAfterReactivate === 2 && authoredZero.bareAfterReactivate === '0',
+    `registered=${authoredZero.registeredAfterReactivate}, bare=${JSON.stringify(authoredZero.bareAfterReactivate)}`,
+  )
 
   check('authored-zero: the context-loss fan-out had a registered instance to reach', authoredZero.registeredAtLoss > 0 && authoredZero.contextWasLost === true && authoredZero.bareHiddenAtLoss === '0', `callbacks=${authoredZero.registeredAtLoss}, lost=${authoredZero.contextWasLost}, bare=${authoredZero.bareHiddenAtLoss}`)
   check('authored-zero: remains 0 after context loss (never \'\')', authoredZero.opacityAfterContextLoss === '0', `opacity=${authoredZero.opacityAfterContextLoss}`)

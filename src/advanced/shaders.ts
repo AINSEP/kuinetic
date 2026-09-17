@@ -1383,6 +1383,13 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
         geometry: state.geometry,
       })
     } catch {
+      // `isActive` goes with the unregistration, or the two disagree for the rest of the
+      // instance's life: the draw is gone from the renderer while `activate()`'s own
+      // `if (isActive) return` still reads as running, so an `on:hover` element that threw once
+      // is dead until something calls `cancel()` or `finish()` on it first. Everything a
+      // re-activation needs survives — `isAcquired` still holds the renderer reference, so
+      // `acquireRenderer` keeps it and only re-registers.
+      isActive = false
       restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
     }
     if (drew) hideBehindRenderer(info.el, state)
