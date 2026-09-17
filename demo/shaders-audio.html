@@ -76,11 +76,12 @@
      full-viewport canvas at `z-index: 9999` and scissors it to each element's bounding rect
      (shaders.ts), so what you see is a replica drawn over the image, not the image itself. The
      geometry layer that teaches that replica about `object-fit`, `border-radius` and rectangular
-     clipping ancestors is being written as this page is built, so nothing here leans on it: every
-     plate gives its image the element box the image already has (`width:100%`, `height:auto`, so
-     the intrinsic aspect ratio decides and `object-fit` is never consulted), keeps the corners
-     square so there is no radius to reproduce, and puts no `overflow` clip between the image and
-     the page. That makes the plates correct whether or not the geometry layer has landed.
+     clipping ancestors landed in `af2e3cd` and is shipped and browser-tested, but nothing here
+     leans on it: every plate gives its image the element box the image already has (`width:100%`,
+     `height:auto`, so the intrinsic aspect ratio decides and `object-fit` is never consulted),
+     keeps the corners square so there is no radius to reproduce, and puts no `overflow` clip
+     between the image and the page. That keeps the plates correct regardless of what the geometry
+     layer supports.
 
      Square corners are not a new vocabulary either — index.html, scroll.html, interactive.html,
      tween.html and the motif pages all carry hard-edged media already.
@@ -99,15 +100,19 @@
   }
 
   /* Two plates on a wide screen, one on a phone.
-     Capped at 52rem rather than left to fill the 1200px wrap, because these plates are square and
-     an uncapped 1fr column makes each one ~525px tall — enough that a plate and its own caption
-     no longer fit on screen together, and the caption is where the `data-kui` string lives. At
-     52rem a plate is ~400px and you read the two as a pair. Explicit `repeat(2, …)` rather than
-     `auto-fit`, so a group holding one plate gets one column's width instead of stretching that
-     plate across the whole row. */
+     These are the portrait chrome renders (~0.56–0.75 width/height, not the square ~525px-tall
+     plates this cap was first tuned for), so the old "fits on screen with its caption" arithmetic
+     no longer holds — a portrait plate and a short caption below it were never going to compete
+     for the same screen height the way a square one did. What still matters is not letting a
+     column balloon: left to fill the ~1120px wrap, the tightest aspect on this page (chrome_08/09,
+     ~0.56) would put a column at ~975px tall, deep into a second screen of scroll before you even
+     reach its pair. 46rem holds that same worst case to ~630px, close enough to one viewport that
+     the two plates still read as a pair. Explicit `repeat(2, …)` rather than `auto-fit`, so a
+     group holding one plate gets one column's width instead of stretching that plate across the
+     whole row. */
   .gl-row { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
   @media (min-width: 900px) {
-    .gl-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem; max-width: 52rem; }
+    .gl-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem; max-width: 46rem; }
   }
   .matrix-group .gl-row { margin-top: 0; }
 
@@ -144,7 +149,13 @@
     position: sticky; top: var(--kui-pin-offset); height: var(--kui-pin-room);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
   }
-  .scrub-stage .gl-plate { width: min(100%, 60rem); }
+  /* scroll-range/scroll-valley are portrait now (see the chrome set swapped in below), so at the
+     old `60rem` cap alone the image runs taller than `--kui-pin-room` — and this stage has no
+     clipping ancestor to catch that overflow, so the plate would spill into the section below it.
+     Bounding the figure's width by the room's height too, using the swapped image's own ~0.56
+     aspect ratio the same way `60rem` above was already tuned to the image it sizes, keeps the
+     whole plate (image + caption) inside the pinned stage instead. */
+  .scrub-stage .gl-plate { width: min(100%, 60rem, calc((var(--kui-pin-room) - 8rem) * 0.56)); }
 
   /* ---------- audio ---------- */
   .audio-bar {
@@ -248,11 +259,9 @@
           <p class="lab-badge">Experimental — not in the shipped bundle</p>
           <h1 data-kui="fade-up 700ms">The five things CSS could not do.</h1>
           <p class="lede" data-kui="fade-up 700ms 90ms">
-            <code>src/advanced/</code> is a WebGL2 and Web-Audio tier that sits outside the catalog:
-            one shared canvas driving five fragment programs, and an audio driver that turns a
-            playing track into four CSS custom properties anything downstream can read. It is
-            <strong>unexported, unbuilt and unshipped</strong> — this page is the first time it has
-            run anywhere but a test fixture.
+            <code>src/advanced/</code> — one shared WebGL2 canvas running five fragment programs,
+            plus a Web-Audio driver that writes bass/mid/treble as custom properties anything
+            downstream can read.
           </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#modes" class="btn btn-primary">See the five modes</a>
@@ -264,8 +273,8 @@
                without needing a pointer or a scroll, so the page arrives already animating. -->
           <figure class="gl-plate" data-show-code>
             <img
-              src="./assets/shaders/fluid-aurora.jpg"
-              alt="Aurora borealis in green and violet bands over a dark mountain ridge, mirrored in still water"
+              src="./assets/chrome/chrome_04.jpg"
+              alt="Abstract liquid-chrome face dissolving into pale blue splashes and tendrils, eyes closed and mouth open, against white"
               data-kui="shaders mode:fluid strength:0.5 speed:0.6"
             />
             <figcaption>data-kui="shaders mode:fluid strength:0.5 speed:0.6"</figcaption>
@@ -277,17 +286,6 @@
       <section id="load" data-od-id="load">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Nothing here is auto-registered</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">
-            Every other page in this showcase needs one script tag and no JavaScript of its own.
-            This one needs two and a registration call, because <code>registerAdvanced</code> is
-            opt-in by design — a page that never asks for it pays nothing, and core's
-            zero-dependency, CSS-first claims stay true whether or not this tier ever ships.
-          </p>
-          <p data-kui="fade-up 700ms 140ms on:enter">
-            Registration has to happen <em>before</em> <code>.start()</code>. The animator resolves
-            every <code>data-kui</code> name against the registry as it processes the document, so a
-            primitive registered afterwards is a primitive the page has already failed to find.
-          </p>
         </div>
         <div class="load-snippet" data-kui="fade-up 700ms 190ms on:enter">
 <pre>import { kuinetic } from 'kuinetic'
@@ -297,62 +295,29 @@ const k = kuinetic({ observe: true })
 registerAdvanced(k)   // before start(), not after
 k.start()</pre>
         </div>
-        <div class="section-head" style="margin-top:2rem;">
-          <p data-kui="fade-up 700ms on:enter">
-            <strong>One module graph, not two script tags.</strong>
-            <code>registerAdvanced</code> checks its argument with
-            <code>instanceof Registry</code>. That is class identity, not shape — so if core and
-            this tier arrive as two separately-bundled scripts, each carrying its own inlined copy
-            of that class, the check compares two different class objects and throws
-            <code>requires a Registry or Animator instance</code> on an animator that is perfectly
-            valid. The import form above is fine, because a subpath of the same package resolves to
-            the same instance. This page therefore loads a single hand-built bundle with both
-            halves in it, which is the same thing
-            <code>test/browser/fixtures/advanced-webgl-entry.ts</code> does, for the same reason.
-          </p>
-        </div>
       </section>
 
       <!-- THE FIVE MODES -->
       <section id="modes" data-od-id="modes">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">One primitive, five programs</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">
-            <code>shaders</code> is a single primitive with a <code>mode:</code> keyword, and the
-            five modes are the five fragment programs in <code>glsl.ts</code>. Each one also has a
-            preset name — <code>shader-displace</code>, <code>fluid-pointer</code>,
-            <code>liquid-distort</code>, <code>particle-field</code>, <code>image-morph</code> — so
-            the common case needs no parameters at all.
-          </p>
-          <p data-kui="fade-up 700ms 140ms on:enter">
-            The source has to be a raster the page already has: an <code>&lt;img&gt;</code>,
-            <code>&lt;video&gt;</code> or <code>&lt;canvas&gt;</code>. There is no live-DOM capture,
-            which is the scope cut that keeps the renderer small.
-          </p>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">displace &amp; liquid — the two that bend the image</p>
-          <p class="matrix-group-note">
-            <code>strength</code> is the only amplitude knob, and it goes to 10 — both of these sit
-            at 0.45 because water already carries the distortion, and past roughly 0.6 the
-            displacement pushes the sample point off the edge of the texture and you get a smeared
-            border instead of refraction. <code>chromatic</code> splits the channels on the way,
-            which is what the faint colour fringe on the left edge is.
-          </p>
           <div class="gl-row" data-kui="cascade:90ms">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/displace-coast.jpg"
-                alt="Turquoise sea breaking over pale limestone rocks, shot from above"
+                src="./assets/chrome/chrome_13.jpg"
+                alt="Chrome face rising from still water, a crown of droplets scattering above it and two pale lotus flowers floating alongside"
                 data-kui="shaders mode:displace strength:0.45 frequency:14 chromatic:0.2"
               />
               <figcaption>data-kui="shaders mode:displace strength:0.45 frequency:14 chromatic:0.2"</figcaption>
             </figure>
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/liquid-fjord.jpg"
-                alt="Norwegian fjord in flat calm, steep green cliffs reflected in the water"
+                src="./assets/chrome/chrome_06.jpg"
+                alt="Chrome face with liquid metal dripping downward in thin vertical streams, eyes closed, against plain white"
                 data-kui="shaders mode:liquid strength:0.45 speed:0.8 frequency:8"
               />
               <figcaption>data-kui="shaders mode:liquid strength:0.45 speed:0.8 frequency:8"</figcaption>
@@ -362,25 +327,19 @@ k.start()</pre>
 
         <div class="matrix-group">
           <p class="matrix-group-label">fluid &amp; particles — the two that follow the pointer</p>
-          <p class="matrix-group-note">
-            <code>fluid</code> has an ambient flow of its own and adds a push where the cursor goes;
-            <code>particles</code> masks the image into a dot grid and sparkles it. Both need a
-            pointer to show their second half — on a touch screen you get the ambient half only,
-            which is a real limit of the effect and not a bug in this page.
-          </p>
           <div class="gl-row" data-kui="cascade:90ms">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/particles-city.jpg"
-                alt="City skyline at night, dense grid of window and street lights under a dark blue sky"
+                src="./assets/chrome/chrome_12.jpg"
+                alt="Rose-gold metallic face in profile beside a large sculpted metal flower, set against a dark charcoal background"
                 data-kui="shaders mode:particles strength:1.2 frequency:30 iridescence:0.4"
               />
               <figcaption>data-kui="shaders mode:particles strength:1.2 frequency:30 iridescence:0.4"</figcaption>
             </figure>
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/fluid-aurora.jpg"
-                alt="Aurora borealis in green and violet bands over a dark mountain ridge, mirrored in still water"
+                src="./assets/chrome/chrome_04.jpg"
+                alt="Abstract liquid-chrome face dissolving into pale blue splashes and tendrils, eyes closed and mouth open, against white"
                 data-kui="fluid-pointer strength:0.8 speed:1.4"
               />
               <figcaption>data-kui="fluid-pointer strength:0.8 speed:1.4" — the preset, same program</figcaption>
@@ -390,18 +349,11 @@ k.start()</pre>
 
         <div class="matrix-group">
           <p class="matrix-group-label">morph — the one that needs two images</p>
-          <p class="matrix-group-note">
-            <code>to:</code> takes a <strong>CSS selector</strong>, not a URL: the second texture is
-            another <code>&lt;img&gt;</code> already on the page, matched with
-            <code>querySelector</code>. With nothing driving <code>progress</code>, the crossfade
-            sits wherever <code>strength</code> puts it — so <code>strength:0.5</code> below is a
-            still, half-morphed frame. Scroll drives it properly in the next section.
-          </p>
           <div class="gl-row">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/morph-dunes.jpg"
-                alt="Rippled orange sand dunes in low sun, sharp shadow line along the crest"
+                src="./assets/chrome/chrome_01.jpg"
+                alt="Extreme close-up of a molten gold liquid-metal face, eyes open, glancing to the side, fluid highlights across the cheek and brow"
                 data-kui="shaders mode:morph to:#morph-b strength:0.5 frequency:6"
               />
               <figcaption>data-kui="shaders mode:morph to:#morph-b strength:0.5 frequency:6"</figcaption>
@@ -410,20 +362,14 @@ k.start()</pre>
               <p class="matrix-group-label">The two textures</p>
               <div class="ab-pair">
                 <div class="ab-item">
-                  <img src="./assets/shaders/morph-dunes.jpg" alt="" aria-hidden="true" />
+                  <img src="./assets/chrome/chrome_01.jpg" alt="" aria-hidden="true" />
                   <span>A — host</span>
                 </div>
                 <div class="ab-item">
-                  <img id="morph-b" src="./assets/shaders/morph-canyon.jpg" alt="Narrow slot canyon, banded orange sandstone walls curving overhead" />
+                  <img id="morph-b" src="./assets/chrome/chrome_02.jpg" alt="Polished chrome face in profile against a flat grey background, liquid-metal skin catching cool highlights along the cheekbone" />
                   <span>B — to:#morph-b</span>
                 </div>
               </div>
-              <p class="matrix-group-note" style="margin-top:1rem;">
-                B is a visible 96px thumbnail rather than a hidden node on purpose. The module only
-                accepts an <code>&lt;img&gt;</code> that has finished loading, and the texture is
-                uploaded at the file's intrinsic size — so the thumbnail feeds the shader the full
-                900px source while still showing a reader both ends of the morph.
-              </p>
             </div>
           </div>
         </div>
@@ -433,28 +379,17 @@ k.start()</pre>
       <section id="scroll-driven" data-od-id="scroll-driven">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Scroll drives the shader, through one custom property</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">
-            There is no shader-specific scroll plumbing. <code>scroll-progress</code> is the same
-            core primitive the progress bars on every other page use, and all it does is write
-            <code>--kui-progress</code>. The renderer reads that property back — off the element's
-            own inline style first, then off the computed style, so a driver on an
-            <em>ancestor</em> reaches down by plain CSS inheritance.
-          </p>
-          <p data-kui="fade-up 700ms 140ms on:enter">
-            Below, the driver is on the tall track and the shader is on the sticky image inside it,
-            which is the ancestor case. Scrub the page and the morph runs A→B.
-          </p>
         </div>
 
         <!-- The driver. `scroll-progress` needs real height to measure against, so the track is
-             240vh and the stage inside it is sticky — the same pin-offset/pin-room token pair
+             200vh and the stage inside it is sticky — the same pin-offset/pin-room token pair
              every other held thing in this showcase is sized with. -->
         <div class="scrub-track" data-kui="scroll-progress">
           <div class="scrub-stage">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/scroll-range.jpg"
-                alt="Snow-lined mountain range under cloud, seen across a broad valley"
+                src="./assets/chrome/chrome_08.jpg"
+                alt="Glossy white face with black liquid tears dripping from closed eyes and parted lips down a pale surface"
                 data-kui="shaders mode:morph to:#scrub-b frequency:5"
               />
               <figcaption>data-kui="shaders mode:morph to:#scrub-b frequency:5" — inside a div with data-kui="scroll-progress"</figcaption>
@@ -464,29 +399,22 @@ k.start()</pre>
 
         <div class="ab-pair">
           <div class="ab-item">
-            <img src="./assets/shaders/scroll-range.jpg" alt="" aria-hidden="true" />
+            <img src="./assets/chrome/chrome_08.jpg" alt="" aria-hidden="true" />
             <span>A — host</span>
           </div>
           <div class="ab-item">
-            <img id="scrub-b" src="./assets/shaders/scroll-valley.jpg" alt="Forested valley under low mist, ridgelines fading back into white" />
+            <img id="scrub-b" src="./assets/chrome/chrome_09.jpg" alt="Porcelain-white face half consumed by dripping black liquid hair spreading across one side" />
             <span>B — to:#scrub-b</span>
           </div>
         </div>
 
         <div class="matrix-group">
           <p class="matrix-group-label">Both primitives on one element</p>
-          <p class="matrix-group-note">
-            The same comma grammar any two primitives share. Here <code>scroll-progress</code>
-            writes <code>--kui-progress</code> as an inline style on the element the shader is also
-            on, so the renderer finds it on the first of its two lookups. For the four continuous
-            modes <code>progress</code> is not a position in a timeline — it scales the amplitude —
-            so this reads as the distortion fading up as the image crosses the viewport.
-          </p>
           <div class="gl-row">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/liquid-fjord.jpg"
-                alt="Norwegian fjord in flat calm, steep green cliffs reflected in the water"
+                src="./assets/chrome/chrome_06.jpg"
+                alt="Chrome face with liquid metal dripping downward in thin vertical streams, eyes closed, against plain white"
                 data-kui="scroll-progress, shaders mode:displace strength:0.3"
               />
               <figcaption>data-kui="scroll-progress, shaders mode:displace strength:0.3"</figcaption>
@@ -499,23 +427,6 @@ k.start()</pre>
       <section id="audio" data-od-id="audio">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Audio is a driver, not an effect</h2>
-          <p data-kui="fade-up 700ms 90ms on:enter">
-            <code>audio-source</code> renders nothing. It runs an <code>AnalyserNode</code> over a
-            playing media element and writes four bands —
-            <code>--kui-audio-bass</code>, <code>-mid</code>, <code>-treble</code>,
-            <code>-level</code> — onto its host every frame. They are ordinary unregistered custom
-            properties, so they inherit, and anything below can read one: two primitives in this
-            tier do, and so do the four bars under the button.
-          </p>
-          <p data-kui="fade-up 700ms 140ms on:enter">
-            <strong>A browser will not start an <code>AudioContext</code> without a real click</strong>,
-            so this section cannot start itself and does not try. The driver is declared
-            <code>on:click</code> on the block below —
-            <code>data-kui="audio-source media:#kui-audio-track on:click"</code> — so your press on
-            the button both starts the track and activates the analyser inside the same trusted
-            gesture. <code>media:</code> names the element explicitly, so the analyser cannot latch
-            onto some other media element elsewhere on the page.
-          </p>
         </div>
 
         <!-- The driver sits here, on the common ancestor of every consumer, and activates from the
@@ -531,14 +442,7 @@ k.start()</pre>
 
           <div class="audio-bar">
             <button type="button" class="btn btn-primary" data-audio-play aria-pressed="false">Play the test loop</button>
-            <p>
-              Eight seconds, generated with ffmpeg for this page: a 55&nbsp;Hz bass pulse, a
-              520&nbsp;Hz mid, and noise high-passed above 5&nbsp;kHz, each on its own tremolo. It
-              is a test tone, not music. The top end is <em>noise</em> rather than a third sine
-              because <code>treble</code> averages 4–16&nbsp;kHz — about 64 FFT bins at the default
-              <code>fft:256</code> — and one sine lands in two of them, which averages to almost
-              zero. A band is only as legible as the bandwidth feeding it.
-            </p>
+            <p>8s test tone — bass pulse, mid tone, high-passed noise, each on its own tremolo.</p>
           </div>
 
           <div class="band-readout" aria-hidden="true">
@@ -551,8 +455,8 @@ k.start()</pre>
           <div class="gl-row">
             <figure class="gl-plate" data-show-code>
               <img
-                src="./assets/shaders/audio-volcano.jpg"
-                alt="Volcanic fissure at night, orange lava fountaining against black rock and smoke"
+                src="./assets/chrome/chrome_16.jpg"
+                alt="Matte black face with a single streak of molten gold paint running from the forehead down past the lips and off the chin"
                 data-kui="shaders mode:liquid strength:0.4 speed:0.9 audio:bass"
               />
               <figcaption>data-kui="shaders mode:liquid strength:0.4 speed:0.9 audio:bass" — wave depth doubles at a full band</figcaption>
@@ -570,12 +474,7 @@ k.start()</pre>
 
         <div class="mic-optin">
           <button type="button" class="btn btn-ghost" data-mic-start>Use my microphone instead</button>
-          <p>
-            A separate, explicit opt-in. Nothing on this page touches
-            <code>getUserMedia</code> until you press this, and your browser will ask again before
-            it hands anything over. <code>audio-source source:mic</code> is the same driver reading
-            a live stream instead of a file.
-          </p>
+          <p><code>audio-source source:mic</code> — same driver, live stream, no <code>getUserMedia</code> until you press this.</p>
         </div>
         <!-- A <template>, not a `hidden` div, and the distinction is the whole opt-in.
              `audio-source` defaults to `on:load`, and `hidden` does not stop the animator from
@@ -587,8 +486,8 @@ k.start()</pre>
             <figure class="gl-plate" data-show-code>
               <div data-kui="audio-source source:mic">
                 <img
-                  src="./assets/shaders/particles-city.jpg"
-                  alt="City skyline at night, dense grid of window and street lights under a dark blue sky"
+                  src="./assets/chrome/chrome_12.jpg"
+                  alt="Rose-gold metallic face in profile beside a large sculpted metal flower, set against a dark charcoal background"
                   data-kui="shaders mode:particles strength:1.0 frequency:26 audio:level"
                 />
               </div>
