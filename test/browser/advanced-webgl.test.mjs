@@ -274,63 +274,103 @@ export async function run({ browser }) {
   check('draw-isolation: surviving instance continues to draw', isolation.inst2Drew === true, `inst2Drew=${isolation.inst2Drew}`)
 
   // -------------------------------------------------------------------------
-  // 4. Author-written opacity: 0 persistence
+  // 4. Author-written `opacity: 0` persistence, once per teardown path.
+  //
+  //    This block used to run all three paths over one element and one instance, which made two
+  //    of the three vacuous: the first step replaced the registered draw call with a thrower, and
+  //    `renderFrame`'s catch unregisters the throwing id from `drawCalls` *and*
+  //    `contextCallbacks`. By the time the context-loss step ran the fan-out had nothing to reach,
+  //    and by the destroy step `hiddenByRenderer` was already false — so both were asserting that
+  //    nothing had changed a value nothing read, and would have passed over a handler that
+  //    clobbered the author's `0`.
+  //
+  //    So: one element and one instance per path, and each paired with a bare control element
+  //    beside it. "Still 0" is also what a handler that never fired looks like; the control,
+  //    which has no authored opacity and must come back as no declaration at all, is what
+  //    distinguishes the two. Each path also records whether the instance was still registered
+  //    going in, so a future refactor cannot quietly re-introduce the original vacuity.
+  //
+  //    The failed draw is now a real one: `gl.drawArrays` is the last call `drawElementQuad`
+  //    makes, so throwing there runs the *module's own* catch (`shaders.ts`'s `drawCall`) rather
+  //    than proving `renderFrame` isolates a foreign callback substituted for it.
   // -------------------------------------------------------------------------
   const authoredZero = await page.evaluate(async () => {
     const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
-    const el = document.getElementById('authored-zero')
+    const twoFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const params = () => createEffectParams({ mode: 'displace' })
+    const hide = async (authoredId, bareId) => {
+      const authored = document.getElementById(authoredId)
+      const bare = document.getElementById(bareId)
+      const instances = [prepareShaders(authored, params()), prepareShaders(bare, params())]
+      for (const inst of instances) inst.activate()
+      await twoFrames()
+      return { authored, bare, instances, renderer: getSharedShaderRenderer() }
+    }
 
-    const initialStyleOpacity = el.style.opacity // authored '0'
-    const inst = prepareShaders(el, createEffectParams({ mode: 'displace' }))
-    inst.activate()
+    // (a) a draw that genuinely fails, inside the instance's own try/catch.
+    const fail = await hide('authored-zero', 'bare-fail')
+    const initialStyleOpacity = fail.authored.style.opacity
+    const opacityDuringDraw = fail.authored.style.opacity
+    const bareHiddenDuringDraw = fail.bare.style.opacity
+    const registeredAtFail = fail.renderer.drawCalls.size
+    const realDrawArrays = fail.renderer.gl.drawArrays
+    let drawArraysThrew = 0
+    fail.renderer.gl.drawArrays = () => { drawArraysThrew += 1; throw new Error('GL draw failure') }
+    await twoFrames()
+    fail.renderer.gl.drawArrays = realDrawArrays
+    const opacityAfterFailedDraw = fail.authored.style.opacity
+    const bareAfterFailedDraw = fail.bare.style.opacity
+    for (const inst of fail.instances) inst.destroy()
 
-    const renderer = getSharedShaderRenderer()
-    const gl = renderer.gl
-
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    const opacityDuringDraw = el.style.opacity
-
-    // 4a. Trigger failed draw
-    const keys = Array.from(renderer.drawCalls.keys())
-    const drawKey = keys[keys.length - 1]
-    renderer.drawCalls.set(drawKey, () => {
-      throw new Error('Failed draw')
-    })
-
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    const opacityAfterFailedDraw = el.style.opacity
-
-    // 4b. Trigger context loss
-    const ext = gl?.getExtension('WEBGL_lose_context')
+    // (b) a lost context, with both instances still registered for the fan-out to reach.
+    const loss = await hide('authored-zero-loss', 'bare-loss')
+    const registeredAtLoss = loss.renderer.contextCallbacks.size
+    const bareHiddenAtLoss = loss.bare.style.opacity
+    const ext = loss.renderer.gl?.getExtension('WEBGL_lose_context')
     if (ext) {
       ext.loseContext()
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    const opacityAfterContextLoss = el.style.opacity
-
+    const contextWasLost = loss.renderer.isContextLost
+    const opacityAfterContextLoss = loss.authored.style.opacity
+    const bareAfterContextLoss = loss.bare.style.opacity
     if (ext) {
       ext.restoreContext()
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
+    for (const inst of loss.instances) inst.destroy()
 
-    // 4c. Destroy
-    inst.destroy()
-    const opacityAfterDestroy = el.style.opacity
+    // (c) a destroy, with both instances still hidden.
+    const gone = await hide('authored-zero-destroy', 'bare-destroy')
+    const registeredAtDestroy = gone.renderer.drawCalls.size
+    const bareHiddenAtDestroy = gone.bare.style.opacity
+    for (const inst of gone.instances) inst.destroy()
+    const opacityAfterDestroy = gone.authored.style.opacity
+    const bareAfterDestroy = gone.bare.style.opacity
 
     return {
-      initialStyleOpacity,
-      opacityDuringDraw,
-      opacityAfterFailedDraw,
-      opacityAfterContextLoss,
-      opacityAfterDestroy,
+      initialStyleOpacity, opacityDuringDraw, bareHiddenDuringDraw,
+      registeredAtFail, drawArraysThrew, opacityAfterFailedDraw, bareAfterFailedDraw,
+      registeredAtLoss, bareHiddenAtLoss, contextWasLost, opacityAfterContextLoss, bareAfterContextLoss,
+      registeredAtDestroy, bareHiddenAtDestroy, opacityAfterDestroy, bareAfterDestroy,
     }
   })
 
   check('authored-zero: initial inline style is 0', authoredZero.initialStyleOpacity === '0', `opacity=${authoredZero.initialStyleOpacity}`)
   check('authored-zero: remains 0 during draw', authoredZero.opacityDuringDraw === '0', `opacity=${authoredZero.opacityDuringDraw}`)
-  check('authored-zero: remains 0 after failed draw (never \'\')', authoredZero.opacityAfterFailedDraw === '0', `opacity=${authoredZero.opacityAfterFailedDraw}`)
+  check('authored-zero: the bare control is hidden during draw', authoredZero.bareHiddenDuringDraw === '0', `bare=${authoredZero.bareHiddenDuringDraw}`)
+
+  check('authored-zero: the failed-draw path had a registered instance to fail', authoredZero.registeredAtFail > 0 && authoredZero.drawArraysThrew > 0, `registered=${authoredZero.registeredAtFail}, threw=${authoredZero.drawArraysThrew}`)
+  check('authored-zero: remains 0 after a real failed draw (never \'\')', authoredZero.opacityAfterFailedDraw === '0', `opacity=${authoredZero.opacityAfterFailedDraw}`)
+  check('authored-zero: the bare control was given back on the same failed draw', authoredZero.bareAfterFailedDraw === '', `bare=${JSON.stringify(authoredZero.bareAfterFailedDraw)}`)
+
+  check('authored-zero: the context-loss fan-out had a registered instance to reach', authoredZero.registeredAtLoss > 0 && authoredZero.contextWasLost === true && authoredZero.bareHiddenAtLoss === '0', `callbacks=${authoredZero.registeredAtLoss}, lost=${authoredZero.contextWasLost}, bare=${authoredZero.bareHiddenAtLoss}`)
   check('authored-zero: remains 0 after context loss (never \'\')', authoredZero.opacityAfterContextLoss === '0', `opacity=${authoredZero.opacityAfterContextLoss}`)
+  check('authored-zero: the bare control was given back on the same context loss', authoredZero.bareAfterContextLoss === '', `bare=${JSON.stringify(authoredZero.bareAfterContextLoss)}`)
+
+  check('authored-zero: the destroy path had a registered, hidden instance', authoredZero.registeredAtDestroy > 0 && authoredZero.bareHiddenAtDestroy === '0', `registered=${authoredZero.registeredAtDestroy}, bare=${authoredZero.bareHiddenAtDestroy}`)
   check('authored-zero: remains 0 after destroy (never \'\')', authoredZero.opacityAfterDestroy === '0', `opacity=${authoredZero.opacityAfterDestroy}`)
+  check('authored-zero: the bare control was given back on the same destroy', authoredZero.bareAfterDestroy === '', `bare=${JSON.stringify(authoredZero.bareAfterDestroy)}`)
 
   // -------------------------------------------------------------------------
   // 5. Double destroy with two instances sharing renderer
