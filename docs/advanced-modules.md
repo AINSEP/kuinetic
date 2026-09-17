@@ -42,8 +42,8 @@ Treat everything below as a description of what the code on disk does today.
 |---|---|
 | `index.ts` | Re-exports each module's public surface and `registerAdvanced(target)`, which registers all six primitives (shaders, scenes, camera, particles, fluid cursor, audio) onto one `Registry` or `Animator` in one call. |
 | `base.ts` | Shared runtime plumbing every module builds on: `resolveEnv()` (window/document/canvas/raf/caf injection, so the modules can run outside a real browser), `isReducedMotion()`, `createEffectInstance()`/`createInertInstance()` (the `EffectInstance` lifecycle contract: `activate`/`cancel`/`finish`/`destroy`/`finished`), `styleOf()` (looks up an element's `StyleLedger` from a `LedgerSet`, or `null` when the element can't carry one), and `registerInto()` (the primitive/preset registration used by every module's `register*` function). |
-| `shaders.ts` | A single shared WebGL2 renderer (`SharedShaderRenderer`) driving one fixed full-viewport canvas, ref-counted across every active `shaders` instance. Each instance scissors the canvas to its own element's bounding rect and draws one of five fragment programs (`displace`, `fluid`, `liquid`, `particles`, `morph`) sourced from `glsl.ts`. Handles WebGL context loss/restore, per-instance draw-error isolation (one instance throwing does not stop the others or the render loop), and hides the source element only after a real successful draw — never before, and never over an author-authored `opacity`. Its per-frame `inputReaders` pass reads each instance's scroll progress and (opt-in) audio band before any instance draws. |
-| `glsl.ts` | The GLSL ES 3.00 source strings for the five shader modes, plus the shared fullscreen-quad vertex shader and the shared `audioGain()` snippet interpolated into all five. Pure data — no logic. The sources are template literals, so a backtick in a GLSL comment is a TypeScript parse error. |
+| `shaders.ts` | A single shared WebGL2 renderer (`SharedShaderRenderer`) driving one fixed full-viewport canvas, ref-counted across every active `shaders` instance. Each instance scissors the canvas to its own element's bounding rect and draws one of seven modes (`displace`, `fluid`, `liquid`, `particles`, `morph`, `gradient`, `logo`) sourced from `glsl.ts` — six linked programs, because `gradient` and `logo` share one. Handles WebGL context loss/restore, per-instance draw-error isolation (one instance throwing does not stop the others or the render loop), and hides the source element only after a real successful draw — never before, and never over an author-authored `opacity`. Its per-frame `inputReaders` pass reads each instance's scroll progress and (opt-in) audio band before any instance draws. |
+| `glsl.ts` | The GLSL ES 3.00 source strings for the six shader programs, plus the shared fullscreen-quad vertex shader, the shared `audioGain()` and `shapeMask()` snippets interpolated into all of them, and the **procedural noise core** (`kuiHash`/`kuiGradient`/`kuiNoise`/`kuiFbm`) that `gradient` is built on. Pure data — no logic. The sources are template literals, so a backtick in a GLSL comment is a TypeScript parse error. |
 | `gl-utils.ts` | Low-level WebGL wrappers used by `shaders.ts`: `compileShader`, `createProgram`, `extractLocations` (uniform/attribute location lookup), `disposeGLResources`, `createGLTexture`. |
 | `scenes.ts` | `SceneController` — parses `scene-step` children of a `scene` container into opacity/x/y/scale keyframe ranges and interpolates them against either scroll progress or a fixed-duration timer. |
 | `camera-3d.ts` | `CameraController` — projects `camera-layer` children into CSS 3D space by depth (`translate3d`), tied to scroll progress, plus an optional pointer-tilt rig on the container itself and an optional audio band that pushes the camera forward (see "Audio consumers"). |
@@ -87,7 +87,139 @@ data, not prose, so it does not drift the way a hand-written parameter table doe
 are `shaders`, `scene`, `camera-scene`, `particle-dissolve`, `fluid-trail`, and `audio-source`.
 
 Every `prepare*` function bails out to an inert no-op instance under reduced motion
-(`isReducedMotion(ctx)`), matching every module's `reducedMotion: 'disable'` declaration.
+(`isReducedMotion(ctx)`), matching every module's `reducedMotion: 'disable'` declaration. The one
+exception is `shaders mode:gradient`, which bakes a still frame instead — see "The generative mode"
+below.
+
+## The generative modes — `shaders mode:gradient` and `shaders mode:logo`
+
+Five of the seven shader modes are **filters**: they sample `u_image`, a texture uploaded from a
+real, already-loaded `<img>`, and warp or blend pixels that already exist. The other two compute
+their image from mathematics instead.
+
+`gradient` computes a field and fills the element's box with it, so it works on any element — a
+`<div>` with nothing in it is the normal case.
+
+```html
+<div data-kui="shader-gradient color1:#ff0080 color2:#7928ca color3:#0070f3 warp:1.2"></div>
+```
+
+Four presets ship: `shader-gradient` (bare), `gradient-liquid`, `gradient-bands`, `gradient-holo`.
+
+`logo` computes the same field and paints it **only where the host image's mark is** — the `<img>`
+is the stencil, not the picture:
+
+```html
+<img src="mark.svg" data-kui="shader-logo" alt="…" />
+```
+
+Two presets ship: `shader-logo` (bare) and `logo-gradient`.
+
+All six are the same fragment program with different defaults — a preset here is a starting point
+in one parameter space, not a separate shader. `gradient` and `logo` are one *linked* program too,
+selected by a uniform: a second copy of the noise core is not worth the link.
+
+### The parameters that are new, and the three that sound alike
+
+`scale` zooms the field. `frequency` is the rate of the *warping* field that distorts it. `detail`
+is how many octaves of fine structure ride on top. Three knobs that sound similar and are not: one
+changes how big the shapes are, one how contorted, one how intricate.
+
+| Parameter | Range | What it does |
+|---|---|---|
+| `seed` | integer 0..9999 | Which pattern. The same seed gives the same image on every load. |
+| `scale` | 0.05..20 | How zoomed. Larger means smaller, more numerous shapes. |
+| `detail` | integer 1..6 | Octaves of detail. Capped at the shader's `KUI_MAX_OCTAVES`. |
+| `warp` | 0..2 | How far a second field distorts the first. The difference between contour rings and something that reads as liquid. |
+| `bands` | integer 0..32 | Posterise the ramp into this many steps. `0` is off. |
+| `grain` | 0..1 | Film grain. |
+| `hue` | an angle | Hue rotation — `hue:30deg`, `hue:0.25turn`, or a bare `hue:30`. |
+| `color1`..`color5` | colours | The palette. Fewer than two set falls back to a built-in pair, so a bare `shader-gradient` is never grey. |
+| `mask` | `alpha`\|`luma`\|`luma-invert` | `mode:logo` only — which part of the host image is the mark. Ignored everywhere else. |
+
+`mask` defaults to `alpha`, which is right for the usual transparent-ground SVG or PNG. A JPEG has
+no alpha at all, so `alpha` on one gives an all-opaque stencil and the field fills the whole
+rectangle; `luma` takes the **bright** pixels as the mark (white on black) and `luma-invert` the
+**dark** ones (black on white, which is the common logo file). Both directions are spelled out
+because guessing one produces a perfect negative of the mark — an image that looks deliberate and
+is exactly wrong.
+
+`iridescence` was widened from `0..1` to `0..8`: for a filter it was a mix amount, and for a
+generator it is **how many times the colour ramp wraps** — the shimmer count. It had never reached a
+shader before this mode existed. No fragment program declared `u_iridescence` at all, so the value
+was extracted and uploaded to a location that was `null` in all five programs.
+
+### The limit you will hit first — and the one mode that dodges it
+
+**The replica's place in the stacking order is the canvas's, not the element's.**
+`SharedShaderRenderer` is one `position: fixed` canvas for the whole page, at `z-index: 1` by
+default. So a *positioned* headline laid over a field paints on top of it, which is what you want;
+a *static* one does not, because the canvas is `fixed` and static content is not. `gradient`'s
+honest surface is therefore still an element nothing overlaps with ordinary flow content — a
+full-bleed band between sections, a card face, a footer strip.
+
+This is a change. The canvas used to sit at `z-index: 9999`, where a headline over a field
+disappeared *behind* it and, worse, so did the page's own modals, sticky headers and toasts. The
+defence written for 9999 — that anything lower hides the replica behind a positioned card — does not
+hold up: a positioned card over a shader element probably *should* paint on top. That is stacking
+working.
+
+What has **not** changed is the ceiling itself (see "Known limits"): a shader still cannot
+interleave with content the way a real element would, because there is one canvas for every replica
+on the page. A hero background with real text composited into it is not available today.
+
+**`logo` is not subject to this**, which is why it shipped alongside `gradient`. A mark *should*
+paint over the page, exactly as the five image filters already do, so a generated logo is the one
+generative surface that needs nothing lifted.
+
+Unlike the five filters, `gradient` does **not** hide its host: the element may have the author's
+own content in it, so hiding it would destroy that content without gaining anything — the canvas
+already covers the box either way. `logo` **does** hide its host, because there it is the correct
+thing to do: the field replaces the `<img>` rather than sitting over it.
+
+### `--kui-shader-z` — the escape hatch, and what it is not
+
+A page that opens a dialog, a sticky nav or a sheet over a shader element can move the shared canvas
+below that layer:
+
+```css
+:root { --kui-shader-z: 500; }   /* sit above a z-index: 100 card, below a 1000 modal */
+```
+
+It is read once off `:root` when the canvas is built, defaults to `1`, and ignores anything that is
+not a number rather than writing a broken `z-index`. Custom properties inherit, so a value on
+`:root` reaches a canvas this library created even though no stylesheet can name it — one line, no
+JS, no build step.
+
+There is deliberately **no `data-kui` parameter** for it. One canvas serves the whole page, so a
+per-element `zIndex:` would look per-element and silently not be: two shader elements asking for
+different values, last writer wins, and the loser has no way to tell.
+
+**This is a coping knob, not the composition fix.** There is one canvas for the whole page, so the
+number moves *every* replica at once, and anything positioned above the new value now covers the
+shaders instead. Lowering it does not let a shader sit behind content in general — that needs
+per-element canvases, which is the decision in "Known limits" that has not been made.
+
+### Reduced motion: a still frame, not nothing
+
+`gradient` is the one place in this directory where `prefers-reduced-motion` gets something rather
+than nothing. One frame of a procedural gradient is simply a good image, where one frame of a
+pointer-driven displacement is not an image at all.
+
+The frame is rendered once, read back with `toDataURL`, and written to the element's inline
+`background-image` (with `background-size: 100% 100%`), then the renderer is released. After that it
+costs nothing per frame, and because it is a real CSS background on the real element it sits in the
+page's own paint order — so it keeps the element's `border-radius` and clipping and *does* compose
+with content above it, which the live path cannot.
+
+Two details worth knowing. The bake happens in `prepareShaders`, not in the instance's `activate()`,
+because it has to: under reduced motion the animator's `openGate` marks the element finished, emits
+`kui:finish` with reason `reduced-motion`, and returns **without activating any instance** — an
+`activate()` body would be unreachable. The instance stays genuinely inert, so the lifecycle an
+author observes is unchanged. And the bake is capped at 640px on its longest side
+(`STATIC_BAKE_MAX`), because a full device-resolution hero is several megabytes of base64 in a style
+attribute, which would be an expensive answer on the one code path whose purpose is to stop being
+expensive. A generated field is smooth, so scaling it back up loses nothing visible; grain softens.
 
 ## Audio consumers
 
@@ -162,15 +294,21 @@ in place.
 - `test/browser/advanced-webgl.test.mjs` — real Chromium, real WebGL2, run via Playwright (63 checks
   as of this writing). Covers context loss/restore, partial-clip scissor correctness, cross-instance
   draw error isolation, authored-`opacity:0` persistence, double-destroy idempotency, real
-  shader-program compilation (the five programs in `glsl.ts` actually link, and a genuinely broken
+  shader-program compilation (the six programs in `glsl.ts` actually link, and a genuinely broken
   GLSL source is rejected — a mocked `getContext` can't tell either apart), real canvas-2D color
-  resolution, the scroll→shader progress bridge (see below), and the audio bridge: a band on the
+  resolution, the generative field (it draws with no texture at all; `speed:0` is byte-identical
+  across frames; a seed reproduces and a different one does not; `detail` changes structure without
+  changing mean brightness; an authored palette really reaches `u_colors`; `logo`'s stencil is
+  opaque inside the mark and empty in its hole) — **every one of those at 390px as well as
+  desktop** — the scroll→shader progress bridge (see below), and the audio bridge: a band on the
   consumer's own element and on an ancestor driving the real `u_audio` uniform (read back with
   `gl.getUniform`) and the camera's real `translate3d`, plus one end-to-end check that builds a
   120Hz WAV in the page and plays it through a real `audio-source` graph. This is the tier that
   exercises actual GPU/canvas behavior the jsdom unit tests mock away.
 - Fixtures: `advanced-webgl.html` (fixed layout), `advanced-progress-bridge.html` (a page that
-  really scrolls), `advanced-audio-bridge.html` (the audio consumers). The end-to-end audio check
+  really scrolls), `advanced-audio-bridge.html` (the audio consumers), `advanced-generative.html`
+  (plain `<div>`s with no image in them, and an original square-annulus mark whose hole is what
+  separates a real stencil from one that painted the bounding box). The end-to-end audio check
   needs two environment facts to work headless, and both are the browser's rules rather than this
   code's: a trusted click before anything starts, because Chromium will not let an `AudioContext`
   leave `suspended` without user activation, and a blob URL for the WAV, because a tainted

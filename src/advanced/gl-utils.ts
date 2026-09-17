@@ -26,6 +26,19 @@ export interface ProgramLocations {
   u_duotone?: WebGLUniformLocation | null
   u_blend?: WebGLUniformLocation | null
   u_progress?: WebGLUniformLocation | null
+  /* The generative mode's own uniforms. Absent (null) in every image-filter program. */
+  u_seed?: WebGLUniformLocation | null
+  u_scale?: WebGLUniformLocation | null
+  u_warp?: WebGLUniformLocation | null
+  u_grain?: WebGLUniformLocation | null
+  u_hue?: WebGLUniformLocation | null
+  u_detail?: WebGLUniformLocation | null
+  u_bands?: WebGLUniformLocation | null
+  u_colorCount?: WebGLUniformLocation | null
+  /** Element 0 of `vec4 u_colors[5]`; one `uniform4fv` of 20 floats fills the whole array. */
+  u_colors?: WebGLUniformLocation | null
+  /** Which stencil the generative program cuts its field with. See `glyphMask()` in `glsl.ts`. */
+  u_maskMode?: WebGLUniformLocation | null
 }
 
 export function compileShader(
@@ -102,6 +115,18 @@ export function extractLocations(
     u_duotone: gl.getUniformLocation(program, 'u_duotone'),
     u_blend: gl.getUniformLocation(program, 'u_blend'),
     u_progress: gl.getUniformLocation(program, 'u_progress'),
+    u_seed: gl.getUniformLocation(program, 'u_seed'),
+    u_scale: gl.getUniformLocation(program, 'u_scale'),
+    u_warp: gl.getUniformLocation(program, 'u_warp'),
+    u_grain: gl.getUniformLocation(program, 'u_grain'),
+    u_hue: gl.getUniformLocation(program, 'u_hue'),
+    u_detail: gl.getUniformLocation(program, 'u_detail'),
+    u_bands: gl.getUniformLocation(program, 'u_bands'),
+    u_colorCount: gl.getUniformLocation(program, 'u_colorCount'),
+    u_colors: gl.getUniformLocation(program, 'u_colors'),
+    // Which stencil the generative program applies: 0 none (`gradient`), 1 alpha, 2 luma,
+    // 3 inverted luma. See `glyphMask()` in `glsl.ts`.
+    u_maskMode: gl.getUniformLocation(program, 'u_maskMode'),
   }
 }
 

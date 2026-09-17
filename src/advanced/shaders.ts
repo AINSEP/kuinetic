@@ -7,7 +7,7 @@ import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } 
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
 import {
-  DISPLACE_FS, FLUID_FS, FULLSCREEN_QUAD_VS, LIQUID_FS, MORPH_FS, PARTICLES_FS,
+  DISPLACE_FS, FLUID_FS, FULLSCREEN_QUAD_VS, GRADIENT_FS, LIQUID_FS, MORPH_FS, PARTICLES_FS,
 } from './glsl.js'
 import type { StyleLedger } from '../core/owned-styles.js'
 import {
@@ -53,6 +53,26 @@ export interface ShaderUniformOptions {
   maskRy?: [number, number, number, number]
   /** What the ancestors' own opacity leaves this element painted at. */
   maskAlpha?: number
+  /* The generative mode's own uniforms — ignored by every image-filter program, which declares none
+   * of them, so `uploadFloat`/`uploadInt` find a null location and skip. */
+  seed?: number
+  scale?: number
+  warp?: number
+  grain?: number
+  /** Hue rotation in **radians**. The parameter is authored as an angle; `readAngleRadians` converts. */
+  hue?: number
+  detail?: number
+  bands?: number
+  /** How many of `color1`..`color5` the author actually set. Below 2 the palette falls back. */
+  colorCount?: number
+  /** The five palette stops, flattened to 20 floats for one `uniform4fv`. */
+  palette?: Float32Array
+  /**
+   * Which stencil `mode: logo` cuts the field with — 0 none, 1 alpha, 2 luma, 3 inverted luma.
+   *
+   * See {@link MASK_MODES} and `glyphMask()` in `glsl.ts`. `0` in every mode but `logo`.
+   */
+  maskMode?: number
 }
 
 export interface ShaderDrawOptions extends ShaderUniformOptions {
@@ -95,6 +115,14 @@ export interface ShaderRendererLike {
   canvas: HTMLCanvasElement | null
   window?: AnyWindow
   mouse: { x: number; y: number }
+  /**
+   * Whether `mouse` has ever been written by a real pointer event.
+   *
+   * `false` means it has not, and {@link computeMousePos} answers the element's centre instead of
+   * believing the initial `{0, 0}`. `undefined` — a caller that does not model this at all — is
+   * taken as "trust `mouse`", so nothing outside this module changes.
+   */
+  hasPointer?: boolean
   quadBuffer: WebGLBuffer | null
   programs: Record<string, ShaderProgramEntry>
 }
@@ -168,6 +196,73 @@ export function parseColor(str?: string): [number, number, number, number] {
   return [1, 1, 1, 1]
 }
 
+const ANGLE_UNITS: Record<string, number> = {
+  deg: Math.PI / 180,
+  grad: Math.PI / 200,
+  rad: 1,
+  turn: Math.PI * 2,
+}
+
+/**
+ * An authored `angle` parameter as radians, for a consumer that is GLSL rather than a stylesheet.
+ *
+ * `core/params.ts` normalises a bare `hue:30` to `30deg` but leaves an explicitly-united value
+ * alone, so all four CSS angle units can arrive here. Parsed rather than fed through `params.num`,
+ * which is documented as "bare number, or a percentage" and would answer the fallback for every
+ * spelling an angle parameter actually accepts.
+ *
+ * @param raw - The validated parameter string, e.g. `"30deg"`, `"0.5turn"`.
+ * @returns The angle in radians, or `0` for anything unparseable.
+ * @complexity O(n) in string length.
+ */
+export function parseAngleRadians(raw: string | undefined): number {
+  if (!raw) return 0
+  const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+))(deg|grad|rad|turn)?$/i.exec(raw.trim())
+  if (!match) return 0
+  const value = parseFloat(match[1]!)
+  if (!Number.isFinite(value)) return 0
+  return value * (ANGLE_UNITS[(match[2] ?? 'deg').toLowerCase()] ?? ANGLE_UNITS.deg!)
+}
+
+/** How many palette stops the generative program's `u_colors` array holds. */
+export const PALETTE_SIZE = 5
+
+/**
+ * The default palette, used when the author set fewer than two colours.
+ *
+ * A generator with no colours has to render *something*, and the honest choices are a grey ramp or
+ * a chosen pair. Grey is what a broken effect looks like, so a bare `shader-gradient` would read as
+ * a bug on first use — which is the one impression a new capability cannot afford. Two stops, so an
+ * author who sets `color1` alone still gets their colour against a neutral rather than a surprise.
+ */
+const DEFAULT_PALETTE: [number, number, number, number][] = [
+  [0.09, 0.11, 0.25, 1],
+  [0.45, 0.29, 0.78, 1],
+]
+
+/**
+ * The five palette stops as one flat `Float32Array`, plus how many are real.
+ *
+ * `colorCount` drives the ramp's segment count in GLSL, so the unset tail of the array is never
+ * read — it is filled with the last real stop anyway rather than left at zero, because a driver
+ * that clamps an index differently than expected should land on a colour that exists rather than
+ * on black.
+ *
+ * @param authored - The five parameter strings in order, empty for unset.
+ * @returns The flattened palette and the number of stops the ramp should span.
+ * @complexity O(1) — the array is a fixed five entries.
+ */
+export function buildPalette(authored: string[]): { palette: Float32Array; colorCount: number } {
+  const set = authored.filter((raw) => raw.trim() !== '').slice(0, PALETTE_SIZE)
+  const stops = set.length >= 2 ? set.map((raw) => parseColor(raw)) : [...DEFAULT_PALETTE]
+  const palette = new Float32Array(PALETTE_SIZE * 4)
+  for (let i = 0; i < PALETTE_SIZE; i += 1) {
+    const stop = stops[Math.min(i, stops.length - 1)]!
+    palette.set(stop, i * 4)
+  }
+  return { palette, colorCount: stops.length }
+}
+
 export const BLEND_MODES = {
   normal: 0,
   screen: 1,
@@ -212,6 +307,9 @@ function resolveLocations(
     u_progress: g('u_progress'), u_audio: g('u_audio'),
     u_maskBox: g('u_maskBox'), u_maskRx: g('u_maskRx'), u_maskRy: g('u_maskRy'),
     u_maskAlpha: g('u_maskAlpha'),
+    u_seed: g('u_seed'), u_scale: g('u_scale'), u_warp: g('u_warp'), u_grain: g('u_grain'),
+    u_hue: g('u_hue'), u_detail: g('u_detail'), u_bands: g('u_bands'),
+    u_colorCount: g('u_colorCount'), u_colors: g('u_colors'),
   }
 }
 
@@ -245,6 +343,40 @@ function uploadFloat(
   if (loc && val !== undefined) gl.uniform1f(loc, val)
 }
 
+function uploadInt(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  loc: WebGLUniformLocation | null | undefined,
+  val: number | undefined,
+): void {
+  if (loc && val !== undefined) gl.uniform1i(loc, Math.round(val))
+}
+
+/**
+ * The generative mode's uniforms, uploaded unconditionally for the same reason `u_audio` is.
+ *
+ * Every location here is `null` in all five image-filter programs, so this costs those modes
+ * nothing. Within the generative program it matters that these are never skipped: the program is
+ * shared by every `mode: gradient` instance on the page, so a uniform one instance left alone keeps
+ * whatever the last instance to draw put there — two gradients on one page would trade seeds.
+ */
+function uploadFieldUniforms(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  opt: ShaderUniformOptions,
+): void {
+  uploadFloat(gl, locs.u_seed, opt.seed ?? 0)
+  uploadFloat(gl, locs.u_scale, opt.scale ?? 1)
+  uploadFloat(gl, locs.u_warp, opt.warp ?? 0)
+  uploadFloat(gl, locs.u_grain, opt.grain ?? 0)
+  uploadFloat(gl, locs.u_hue, opt.hue ?? 0)
+  uploadInt(gl, locs.u_detail, opt.detail ?? 3)
+  uploadInt(gl, locs.u_bands, opt.bands ?? 0)
+  // Always uploaded, never left to the last instance that drew: `gradient` and `logo` share one
+  // program, so a `gradient` that skipped this would inherit the stencil a `logo` beside it set
+  // and sample a texture unit with nothing bound to it.
+  uploadInt(gl, locs.u_maskMode, opt.maskMode ?? 0)
+}
+
 function uploadCoordUniforms(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   locs: ProgramLocations,
@@ -276,6 +408,7 @@ export function uploadUniforms(
   uploadFloat(gl, locs.u_audio, opt.audio ?? 0)
   uploadCoordUniforms(gl, locs, opt)
   uploadMaskUniforms(gl, locs, opt)
+  uploadFieldUniforms(gl, locs, opt)
 }
 
 function uploadDuotoneUniforms(
@@ -299,6 +432,8 @@ export function uploadColorUniforms(
   if (locs.u_blend && opt.blendMode !== undefined) gl.uniform1i(locs.u_blend, opt.blendMode)
   if (locs.u_duotone) gl.uniform1f(locs.u_duotone, opt.isDuotone ? 1.0 : 0.0)
   uploadDuotoneUniforms(gl, locs, opt)
+  if (locs.u_colors && opt.palette) gl.uniform4fv(locs.u_colors, opt.palette)
+  uploadInt(gl, locs.u_colorCount, opt.colorCount)
 }
 
 function isRectVisible(rect: DOMRect, winHeight: number): boolean {
@@ -327,9 +462,19 @@ function getScissorEnv(win?: AnyWindow): { height: number; dpr: number } {
  * since one shared canvas cannot carry a per-element CSS radius), rectangular clipping ancestors,
  * and ancestor `opacity`.
  *
- * NOT reproduced, and not reproducible from a single fixed canvas: **stacking order** — the canvas
- * sits at `z-index: 9999` above the whole document, so a sticky header or an open modal that
- * overlaps the element is painted under the replica. Also unreproduced: a transformed ancestor
+ * NOT reproduced, and not reproducible from a single fixed canvas: **stacking order.** The canvas
+ * is one `position: fixed` layer for the whole page, so the replica cannot take the element's own
+ * place in the stacking order — it takes the canvas's. The default is `z-index: 1`, which keeps it
+ * above ordinary static content and below the page's own modals, sticky headers and toasts; a page
+ * that needs it somewhere else moves it with `--kui-shader-z` (see {@link readShaderZIndex}).
+ *
+ * That knob lets one page cope. It does not close the ceiling: there is one canvas, so the value
+ * moves every replica at once, and whatever is positioned above the new value now covers the
+ * shaders instead. **A shader still cannot sit behind content that overlaps it** — at `z-index: 1`
+ * a positioned card over a shader element paints on top of the replica, which is usually right and
+ * is occasionally not what the author wanted. Fixing that properly means per-element canvases.
+ *
+ * Also unreproduced: a transformed ancestor
  * (the replica is drawn axis-aligned into the bounding box), a non-rectangular ancestor clip
  * (`clip-path`, `mask`, an ancestor's own `border-radius`), and the spec's uniform down-scaling of
  * overlapping corner radii (each corner is clamped on its own instead).
@@ -546,20 +691,31 @@ function walkAncestors(el: HTMLElement, win: AnyWindow, start: Inset, subject: s
  *
  * @param el - The element the shader stands in for.
  * @param win - The window whose `innerHeight`/`devicePixelRatio`/`getComputedStyle` to use.
+ * @param fullBox - Paint to the border box instead of the content box. What a *generated* image
+ *   wants: it is a background, and backgrounds paint to the border box, so measuring the content
+ *   box would inset the field by the element's border and padding while `radiiOf` keeps measuring
+ *   the corner mask against the border box — visibly mismatched corners on any padded host.
+ *   The replaced-content path (every image filter) must keep the content box, because that is the
+ *   box `object-fit` resolves against.
  * @returns Its geometry, or `null` when it is not on screen at all.
  * @complexity O(d) in ancestor depth, capped at {@link ANCESTOR_WALK_LIMIT}.
  */
-export function measureElementGeometry(el: HTMLElement, win?: AnyWindow): ElementGeometry | null {
+export function measureElementGeometry(
+  el: HTMLElement,
+  win?: AnyWindow,
+  fullBox = false,
+): ElementGeometry | null {
   const rect = el.getBoundingClientRect()
   const { height } = getScissorEnv(win)
   if (!isRectVisible(rect, height)) return null
   const view = win ?? null
   const cs = cssStyleOf(el, view)
-  const content = contentBoxOf(rect, cs)
+  const border = boxOf(rect)
+  const content = fullBox ? border : contentBoxOf(rect, cs)
   const walked = walkAncestors(el, view, content, cs?.position || 'static')
   return {
-    border: boxOf(rect),
-    paint: paintBoxOf(content, naturalSizeOf(el), cs),
+    border,
+    paint: fullBox ? border : paintBoxOf(content, naturalSizeOf(el), cs),
     clip: walked.clip,
     radii: radiiOf(cs, rect),
     alpha: walked.alpha,
@@ -694,7 +850,24 @@ function getProgram(info: ProgramLocations | WebGLProgram | null | undefined): W
   return ('program' in info && info.program ? info.program : info) as WebGLProgram
 }
 
+/**
+ * The pointer in this element's own 0..1 space, or its centre while there has been no pointer.
+ *
+ * `renderer.mouse` starts at the **viewport origin**, which is not a neutral value: clamped into an
+ * element's box it lands on the top-left corner for every element on the page that is not touching
+ * `(0, 0)`. `displace` decays its ripple by `exp(-4 * d)` from that point, so before the first
+ * `pointermove` the entire visible effect was a few sub-pixel device pixels in one corner — on
+ * load, on a phone where no `pointermove` is ever coming, and in every screenshot. The mode read as
+ * dead, and `strength:` looked like it did nothing.
+ *
+ * The centre is the honest answer to "where is the pointer" when there isn't one, and it is the
+ * only one under which these programs show what they do. A real pointer event takes over from the
+ * first frame after it arrives.
+ *
+ * @complexity O(1).
+ */
 function computeMousePos(renderer: ShaderRendererLike, rect: DOMRect): { x: number; y: number } {
+  if (renderer.hasPointer === false) return { x: 0.5, y: 0.5 }
   const mx = renderer.mouse.x - rect.left
   const my = renderer.mouse.y - rect.top
   return {
@@ -734,7 +907,9 @@ export function drawElementQuad(
   // The measured geometry when the render loop already took it this frame (the normal path), or a
   // fresh measurement for a caller that has none. `null` is a measurement — "off screen, nothing
   // to draw" — and must not send us back to the DOM for the same answer every frame.
-  const geom = opt.geometry !== undefined ? opt.geometry : measureElementGeometry(el, renderer.window)
+  const geom = opt.geometry !== undefined
+    ? opt.geometry
+    : measureElementGeometry(el, renderer.window, GENERATIVE_MODES.has(mode))
   if (!geom) return false
   const scissor = applyDrawBox(gl, canvas, geom, getScissorEnv(renderer.window).dpr)
   if (!scissor) return false
@@ -765,6 +940,61 @@ export type ShaderParamAccessor = EffectParams | {
   num: (name: string, fallback?: number) => number
 }
 
+/**
+ * Modes that generate their image from mathematics rather than sampling a source.
+ *
+ * Three behaviours key off this set, and each one is a place the filter assumption is baked in:
+ *
+ * 1. **The texture requirement.** `drawCall`'s `drew = !!texture && …` is the single line that made
+ *    every mode a filter — no loaded `<img>`, no draw. A generator has no source to wait for.
+ * 2. **Hiding the host.** A filter stands in for the element it replaces, so hiding it is right. A
+ *    generator is drawn over an element the author may have put content in, so hiding it would
+ *    destroy that content to no purpose.
+ * 3. **The quad's box.** A generator is a background, and backgrounds paint to the border box; the
+ *    replaced-content path measures the content box, which insets by border and padding while the
+ *    corner mask still measures the border box.
+ */
+export const GENERATIVE_MODES = new Set(['gradient'])
+
+/**
+ * Every mode the `mode:` keyword accepts, in one list.
+ *
+ * The single source for `SHADER_PARAMETERS.mode.keywords` *and* for `prepareShaders`' gate; they
+ * were two literals before, which is one edit away from a keyword the gate rejects.
+ *
+ * `logo` is deliberately **not** in {@link GENERATIVE_MODES}. It generates its colour, but it
+ * behaves in every other respect exactly like the five filters: its texture is required (the
+ * image is the stencil), its host is hidden (the field replaces it), and it measures the content
+ * box so `object-fit` resolves the way it does for `displace`. That is what made it the mode that
+ * needed no structural change to ship.
+ */
+export const SHADER_MODES = ['displace', 'fluid', 'liquid', 'particles', 'morph', 'gradient', 'logo'] as const
+
+/**
+ * Which fragment source serves which modes.
+ *
+ * `gradient` and `logo` are one program reached by two names — `u_maskMode` is the entire
+ * difference, and a second copy of the noise core is how this directory acquired three
+ * near-identical fbm implementations the first time.
+ */
+const PROGRAM_SOURCES: readonly (readonly [readonly string[], string])[] = [
+  [['displace'], DISPLACE_FS],
+  [['fluid'], FLUID_FS],
+  [['liquid'], LIQUID_FS],
+  [['particles'], PARTICLES_FS],
+  [['morph'], MORPH_FS],
+  [['gradient', 'logo'], GRADIENT_FS],
+]
+
+/**
+ * `mask:` as the `u_maskMode` the generative program branches on. See `glyphMask()` in `glsl.ts`.
+ *
+ * `gradient` is pinned to `0` whatever the author wrote: there is no texture bound in that mode,
+ * so a stencil is not a thing it can have, and silently honouring `mask:` there would produce a
+ * black rectangle rather than a warning.
+ */
+export const MASK_MODES: Record<string, number> = { alpha: 1, luma: 2, 'luma-invert': 3 }
+
 export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOptions {
   const mode = ('keyword' in params && typeof params.keyword === 'function')
     ? params.keyword('mode')
@@ -772,9 +1002,24 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
   const c1Text = params.text('color1', '')
   const c2Text = params.text('color2', '')
   const blendMap: Record<string, number> = { normal: 0, screen: 1, multiply: 2, add: 3 }
+  const { palette, colorCount } = buildPalette([
+    c1Text, c2Text, params.text('color3', ''), params.text('color4', ''), params.text('color5', ''),
+  ])
 
   return {
     mode,
+    seed: params.num('seed', 0),
+    scale: params.num('scale', 1),
+    warp: params.num('warp', 0),
+    grain: params.num('grain', 0),
+    hue: parseAngleRadians(params.text('hue', '0deg')),
+    detail: params.num('detail', 3),
+    bands: params.num('bands', 0),
+    palette,
+    colorCount,
+    // Pinned off outside `logo`: `gradient` binds no texture, and every filter mode's program
+    // declares no `u_maskMode` at all, so honouring `mask:` there could only mislead.
+    maskMode: mode === 'logo' ? (MASK_MODES[params.text('mask', 'alpha')] ?? MASK_MODES.alpha!) : 0,
     strength: params.num('strength', 0.5),
     speed: params.num('speed', 1.0),
     frequency: params.num('frequency', 10.0),
@@ -876,6 +1121,73 @@ function syncCanvasDimensions(canvas: HTMLCanvasElement, win: AnyWindow, dpr: nu
   if (style.height !== cssH) style.height = cssH
 }
 
+/**
+ * Where the shared canvas sits in the page's stacking order when the author says nothing.
+ *
+ * **Deliberately low.** This was `9999` and the defence written for it — that anything lower hides
+ * the replica behind a positioned card — does not survive examination: a positioned card that
+ * overlaps a shader element probably *should* paint on top, which is stacking working rather than
+ * stacking broken. What `9999` actually bought was the shared canvas painting over the page's own
+ * modals, sticky headers and toasts, which is unambiguously wrong and is the bug that was filed.
+ *
+ * `1` rather than `0` or `auto` so the canvas still sits above the page's ordinary static content,
+ * which is the one thing it does have to do.
+ */
+export const DEFAULT_SHADER_Z_INDEX = 1
+
+/** The custom property an author sets to move the shared canvas. See {@link readShaderZIndex}. */
+export const SHADER_Z_PROPERTY = '--kui-shader-z'
+
+/**
+ * The author's stacking order for the shared canvas, or {@link DEFAULT_SHADER_Z_INDEX}.
+ *
+ * ```css
+ * :root { --kui-shader-z: 500; }
+ * ```
+ *
+ * One line in the page's own stylesheet, no JS and no build step — custom properties inherit, so a
+ * value on `:root` reaches a canvas this module created even though no stylesheet can name it.
+ *
+ * **Why not a `data-kui` parameter.** `SharedShaderRenderer` keeps *one* canvas for the whole page.
+ * A per-element `zIndex:` would look per-element and silently not be — two shader elements asking
+ * for different values, last writer wins, and the loser has no way to tell. That is the "one key,
+ * two meanings" failure `core/types.ts` already documents. A page-level object gets a page-level
+ * knob.
+ *
+ * **This does not close the architectural ceiling.** Moving the number lets *one page cope*; it
+ * still does not let a shader sit *behind* content in any general way. There is one canvas, so the
+ * value moves every replica on the page at once, and whatever is positioned above the new number
+ * now covers the shaders instead. A shader that genuinely composes with the content over it needs
+ * per-element canvases, which is a decision that has not been made. See `docs/advanced-modules.md`.
+ *
+ * Read the same shape as `readElementProgress`: inline first, computed as the fallback, so a value
+ * set in a stylesheet reaches it. Anything that is not a finite number — `auto`, a `var()` that
+ * resolved to nothing, junk — falls back to the default rather than writing a broken `z-index`.
+ *
+ * @complexity O(1): one inline read and at most one computed-style read, once per canvas.
+ */
+export function readShaderZIndex(doc: AnyDocument, win: AnyWindow): number {
+  // `DocumentLike` is the minimum this tier's test envs implement and does not carry
+  // `documentElement`; a real `Document` always does. Absent, the default stands.
+  const root = (doc as unknown as { documentElement?: HTMLElement | null } | null)?.documentElement
+  if (!root) return DEFAULT_SHADER_Z_INDEX
+  const inline = parseZIndexValue(root.style?.getPropertyValue?.(SHADER_Z_PROPERTY))
+  return inline ?? readComputedZIndex(root, win) ?? DEFAULT_SHADER_Z_INDEX
+}
+
+/** The stylesheet half of {@link readShaderZIndex} — the read that can force a style recalc. */
+function readComputedZIndex(root: HTMLElement, win: AnyWindow): number | null {
+  return parseZIndexValue(win?.getComputedStyle?.(root)?.getPropertyValue?.(SHADER_Z_PROPERTY))
+}
+
+/** A `z-index` an author wrote, or `null` for "nothing usable here". */
+function parseZIndexValue(raw: string | undefined | null): number | null {
+  const trimmed = raw?.trim()
+  if (!trimmed) return null
+  const n = Number(trimmed)
+  return Number.isFinite(n) ? Math.trunc(n) : null
+}
+
 export type ShaderDrawFn = (gl: WebGLRenderingContext | WebGL2RenderingContext, timeSeconds: number) => void
 
 /**
@@ -903,6 +1215,8 @@ export class SharedShaderRenderer {
   programs: Record<string, ShaderProgramLocations | null> = {}
   refCount = 0
   mouse = { x: 0, y: 0 }
+  /** Cleared until a real `pointermove` lands. See {@link computeMousePos}. */
+  hasPointer = false
   isContextLost = false
   mapKey: object
   onPointer?: (e: PointerEvent | { clientX: number; clientY: number }) => void
@@ -955,8 +1269,9 @@ export class SharedShaderRenderer {
     if (!this.canvas) return false
 
     this.canvas.className = 'kui-shader-canvas'
-    // No `width`/`height` here: `syncCanvasDimensions` owns both, in px, every frame.
-    this.canvas.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:9999;'
+    // No `width`/`height` here: `syncCanvasDimensions` owns both, in px, every frame. The
+    // `z-index` is the author's if they set `--kui-shader-z`; see `readShaderZIndex`.
+    this.canvas.style.cssText = `position:fixed;top:0;left:0;pointer-events:none;z-index:${readShaderZIndex(this.document, this.window)};`
     this.gl = this.canvas.getContext ? (this.canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true }) as WebGL2RenderingContext | null) : null
     if (!this.gl) return false
 
@@ -981,9 +1296,14 @@ export class SharedShaderRenderer {
     const gl = this.gl
     if (!gl) return
     this.programs = {}
-    for (const [n, fs] of [['displace', DISPLACE_FS], ['fluid', FLUID_FS], ['liquid', LIQUID_FS], ['particles', PARTICLES_FS], ['morph', MORPH_FS]] as const) {
+    for (const [modes, fs] of PROGRAM_SOURCES) {
       const prog = createProgram(gl, FULLSCREEN_QUAD_VS, fs)
-      if (prog) this.programs[n] = extractLocations(gl, prog)
+      if (!prog) continue
+      // One `extractLocations` result shared by every mode this source serves, rather than one per
+      // mode: two results would wrap the same `WebGLProgram` and `disposeGLResources` would delete
+      // it twice.
+      const locs = extractLocations(gl, prog)
+      for (const mode of modes) this.programs[mode] = locs
     }
   }
 
@@ -991,6 +1311,7 @@ export class SharedShaderRenderer {
     this.onPointer = (e: PointerEvent | { clientX: number; clientY: number }) => {
       this.mouse.x = e.clientX
       this.mouse.y = e.clientY
+      this.hasPointer = true
     }
     this.window?.addEventListener?.('pointermove', this.onPointer as EventListener, { passive: true })
     if (this.canvas) {
@@ -1351,6 +1672,11 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
   }
   let isActive = false, isAcquired = false
 
+  // A generator has no source image to wait for, so the texture requirement that gates every
+  // filter would gate it out of existence. `bindShaderTexture` already returns early on a falsy
+  // texture, and the generative program declares no sampler, so nothing downstream needs a guard.
+  const isGenerative = GENERATIVE_MODES.has(info.opt.mode)
+
   // Read once per frame, before this or any other instance draws — see `renderFrame`'s
   // `inputReaders` pass. `drawCall` below only ever reads the cached values back.
   //
@@ -1366,14 +1692,14 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
       ? info.opt.progress
       : readElementProgress(info.el)
     state.audio = info.opt.audioBand ? readAudioBand(info.el, info.opt.audioBand) : 0
-    state.geometry = measureElementGeometry(info.el, info.renderer.window)
+    state.geometry = measureElementGeometry(info.el, info.renderer.window, isGenerative)
   }
 
   const drawCall: ShaderDrawFn = (_gl, time) => {
     let drew = false
     try {
       const texture = info.tex.get()
-      drew = !!texture && drawElementQuad(info.renderer, info.el, {
+      drew = (!!texture || isGenerative) && drawElementQuad(info.renderer, info.el, {
         ...info.opt,
         texture,
         toTexture: info.to.get(),
@@ -1392,8 +1718,11 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
       isActive = false
       restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
     }
-    if (drew) hideBehindRenderer(info.el, state)
-    else restoreInstanceOpacity(info.el, state)
+    // A filter replaces the element, so hiding it once the replica is up is the whole mechanism.
+    // A generator draws *over* an element it does not replace and whose children are the author's,
+    // so hiding it would destroy content and gain nothing — the canvas already covers the box.
+    if (drew && !isGenerative) hideBehindRenderer(info.el, state)
+    else if (!isGenerative) restoreInstanceOpacity(info.el, state)
   }
 
   const restoreState = () => {
@@ -1427,14 +1756,193 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
   })
 }
 
+/**
+ * The longest side, in device pixels, of the image baked for a reduced-motion static frame.
+ *
+ * The frame is written into the element's inline `background-image` as a data URL, and a full
+ * device-resolution hero is several megabytes of base64 in a style attribute — which is a
+ * performance problem of its own, on the code path whose entire purpose is to stop doing expensive
+ * work. A generated field is smooth by construction and `background-size: 100% 100%` scales it back
+ * up with nothing visible lost; grain softens, which is a fair trade for a frame that never moves.
+ */
+const STATIC_BAKE_MAX = 640
+
+/**
+ * The size to bake at: the element's aspect, capped by {@link STATIC_BAKE_MAX} and by the canvas.
+ *
+ * Aspect has to be preserved rather than squashed to a square, because the field is authored in the
+ * quad's own 0..1 UV space — the picture genuinely stretches with the box, so a bake at the wrong
+ * aspect is a different image, not a smaller one.
+ */
+function bakeExtent(rect: DOMRect, canvas: HTMLCanvasElement, dpr: number): [number, number] | null {
+  // `Number.isFinite` rather than a bare `> 0`: a mock rect can answer `undefined` or `NaN`, and
+  // `NaN <= 0` is false, so a plain comparison lets it straight through into `Math.round`.
+  if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null
+  if (rect.width <= 0 || rect.height <= 0) return null
+  const longest = Math.max(rect.width, rect.height) * dpr
+  const budget = Math.min(STATIC_BAKE_MAX, canvas.width, canvas.height)
+  const factor = longest > budget ? budget / longest : dpr
+  const w = Math.max(1, Math.round(rect.width * factor))
+  const h = Math.max(1, Math.round(rect.height * factor))
+  return w <= canvas.width && h <= canvas.height ? [w, h] : null
+}
+
+/**
+ * The top-left `w`x`h` of a canvas, copied through a 2D context and encoded as a PNG data URL.
+ *
+ * Every step can legitimately fail — a runtime with no 2D context, a `toDataURL` refused on a
+ * tainted canvas — and every failure means the same thing to the caller: no static frame, leave the
+ * element alone.
+ *
+ * @complexity O(w·h).
+ */
+function readCanvasCorner(
+  canvas: HTMLCanvasElement,
+  w: number,
+  h: number,
+  createCanvas: () => HTMLCanvasElement | null,
+): string | null {
+  const out = createCanvas()
+  const out2d = out?.getContext?.('2d') as CanvasRenderingContext2D | null
+  if (!out || !out2d) return null
+  out.width = w
+  out.height = h
+  try {
+    out2d.drawImage(canvas, 0, 0, w, h, 0, 0, w, h)
+    return out.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Draw one frame of the field into the canvas's top-left corner and read it back as a data URL.
+ *
+ * Drawn at the origin rather than at the element's real position, which is what frees the bake from
+ * needing the element on screen at all: it completes on the first frame instead of waiting for a
+ * scroll, and nothing has to stay registered in the meantime. Safe here specifically because under
+ * reduced motion every image-filter instance is inert, so no other draw can be sharing the frame.
+ *
+ * The synthetic geometry carries zero corner radii on purpose. The live path masks corners in the
+ * fragment shader because a replica on a shared canvas has no CSS box of its own — but this result
+ * becomes a real `background-image` on the real element, which clips to its own `border-radius` for
+ * free. Masking here would round the corners twice.
+ *
+ * `drawImage` from the WebGL canvas rather than `readPixels`: the browser does the row flip and the
+ * un-premultiply, both of which a pixel-array path would have to redo by hand for every pixel.
+ *
+ * @returns A PNG data URL, or `null` if anything in the chain could not answer.
+ * @complexity O(w·h) in the baked extent, once.
+ */
+function bakeStaticFrame(
+  renderer: SharedShaderRenderer,
+  el: HTMLElement,
+  options: ShaderDrawOptions,
+  createCanvas: () => HTMLCanvasElement | null,
+): string | null {
+  const gl = renderer.gl
+  const canvas = renderer.canvas
+  if (!gl || !canvas || typeof el.getBoundingClientRect !== 'function') return null
+  const dpr = getScissorEnv(renderer.window).dpr
+  const extent = bakeExtent(el.getBoundingClientRect(), canvas, dpr)
+  if (!extent) return null
+  const [w, h] = extent
+
+  const box: Inset = { left: 0, top: 0, right: w / dpr, bottom: h / dpr }
+  const drew = drawElementQuad(renderer, el, {
+    ...options,
+    time: 0,
+    audio: 0,
+    texture: null,
+    geometry: { border: box, paint: box, clip: box, radii: [0, 0, 0, 0, 0, 0, 0, 0], alpha: 1 },
+  })
+  if (!drew) return null
+
+  const url = readCanvasCorner(canvas, w, h, createCanvas)
+
+  // Undo the draw before the frame is presented. Scissored to our own corner so that a second
+  // generative instance baking in the same frame is not wiped along with it.
+  gl.enable(gl.SCISSOR_TEST)
+  gl.scissor(0, canvas.height - h, w, h)
+  gl.clearColor(0, 0, 0, 0)
+  gl.clear(gl.COLOR_BUFFER_BIT)
+  return url
+}
+
+/**
+ * What a generative shader does for a visitor who asked for reduced motion: one still frame.
+ *
+ * The owner's decision is that the target is a static frame rather than "no effect", and a
+ * generator is the ideal first case — one frame of a procedural gradient is simply a good image,
+ * where one frame of a pointer-driven displacement is nothing at all. So the five image filters
+ * keep bailing to an inert instance and only the generative modes bake.
+ *
+ * **Why this runs in `prepare` rather than in the instance's `activate()`.** It has to. Under
+ * reduced motion the animator's `openGate` (`core/animator.ts`) sees `reducedMotion: 'disable'`,
+ * marks the element finished, emits `kui:finish` with reason `reduced-motion`, and returns —
+ * *without activating any instance*. An `activate()` body would be unreachable. Baking here keeps
+ * the instance genuinely inert, so the lifecycle an author observes is byte-for-byte what it is
+ * today, and the frame arrives anyway.
+ *
+ * The result is a real CSS background on the real element, which means it sits in the page's own
+ * paint order — so unlike the live path it composes with content above it, keeps the element's own
+ * `border-radius` and clipping, and costs nothing per frame once written.
+ *
+ * @returns An inert instance whose `destroy()` gives the author's background properties back.
+ * @complexity One frame's draw plus one readback, then nothing.
+ */
+function prepareReducedMotion(
+  el: HTMLElement,
+  options: ShaderDrawOptions,
+  ctx?: PrepareContext | null,
+): EffectInstance {
+  if (!GENERATIVE_MODES.has(options.mode)) return createInertInstance()
+  const hostDoc = el?.ownerDocument
+  const env = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
+  const renderer = getSharedShaderRenderer(env)
+  if (!renderer.acquire()) return createInertInstance()
+
+  const ledgers = createAdvancedLedgers(el, ctx?.style)
+  nextShaderId += 1
+  const id = `kui-shader-static-${nextShaderId}`
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    renderer.unregister(id)
+    renderer.release()
+  }
+
+  // Registered rather than drawn inline: `prepare` runs during the animator's scan, before layout
+  // has necessarily settled, and the renderer's own canvas is sized in its loop. A zero-sized
+  // element simply returns `null` and is tried again on the next frame.
+  renderer.register(id, () => {
+    const url = bakeStaticFrame(renderer, el, options, env.createCanvas)
+    if (!url) return
+    const style = styleOf(ledgers, el)
+    if (style) {
+      style.set('background-image', `url("${url}")`)
+      style.set('background-size', '100% 100%')
+      style.set('background-repeat', 'no-repeat')
+    }
+    release()
+  })
+  renderer.startLoop()
+
+  return createInertInstance(() => {
+    release()
+    ledgers.restore()
+  })
+}
+
 export function prepareShaders(
   el: Element,
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
-  if (isReducedMotion(ctx)) return createInertInstance()
   const options = extractShaderOptions(params)
-  if (!new Set(['displace', 'fluid', 'liquid', 'particles', 'morph']).has(options.mode)) return createInertInstance()
+  if (!(SHADER_MODES as readonly string[]).includes(options.mode)) return createInertInstance()
+  if (isReducedMotion(ctx)) return prepareReducedMotion(el as HTMLElement, options, ctx)
 
   const hostDoc = el?.ownerDocument
   const resolvedEnv = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
@@ -1452,15 +1960,77 @@ export function prepareShaders(
 }
 
 export const SHADER_PARAMETERS = {
-  mode: { type: 'keyword' as const, default: 'displace', keywords: ['displace', 'fluid', 'liquid', 'particles', 'morph'], cssProperty: '--kui-shader-mode' },
+  mode: { type: 'keyword' as const, default: 'displace', keywords: [...SHADER_MODES], cssProperty: '--kui-shader-mode' },
   strength: { type: 'number' as const, default: '0.5', minimum: 0, maximum: 10, cssProperty: '--kui-shader-strength' },
   speed: { type: 'number' as const, default: '1.0', minimum: 0, maximum: 10, cssProperty: '--kui-shader-speed' },
   frequency: { type: 'number' as const, default: '10.0', minimum: 0.1, maximum: 50, cssProperty: '--kui-shader-frequency' },
   chromatic: { type: 'number' as const, default: '0.0', minimum: 0, maximum: 1, cssProperty: '--kui-shader-chromatic' },
-  iridescence: { type: 'number' as const, default: '0.0', minimum: 0, maximum: 1, cssProperty: '--kui-shader-iridescence' },
+  /**
+   * How far the colour ramp is wrapped back on itself — the shimmer count.
+   *
+   * Ranged 0..8 rather than the 0..1 it carried before `mode: gradient` existed. The old bound was
+   * right for a mix amount and wrong for a wrap count, and it cost nothing to police because **no
+   * fragment program declared `u_iridescence` at all** — the value was extracted and uploaded to a
+   * location that was `null` in all five programs. It reaches a shader for the first time here.
+   */
+  iridescence: { type: 'number' as const, default: '0.0', minimum: 0, maximum: 8, cssProperty: '--kui-shader-iridescence' },
   tint: { type: 'color' as const, default: '#ffffff', cssProperty: '--kui-shader-tint' },
+  /*
+   * `color1`/`color2` keep their original meaning — the duotone pair `mode: displace` remaps a
+   * photo through — and `mode: gradient` reads the same two as the first stops of its palette.
+   * `color3`..`color5` extend that palette without touching the duotone contract.
+   *
+   * Five separate `color` parameters rather than one comma-separated list: the attribute grammar
+   * splits effect segments on top-level commas, so a list would have to be quoted, and the only
+   * type that could carry it (`text`) validates nothing — a mistyped stop would silently become
+   * white through `parseColor`'s fallback, which is the worst failure a colour input can have.
+   */
   color1: { type: 'color' as const, default: '', cssProperty: '--kui-shader-color1' },
   color2: { type: 'color' as const, default: '', cssProperty: '--kui-shader-color2' },
+  color3: { type: 'color' as const, default: '', cssProperty: '--kui-shader-color3' },
+  color4: { type: 'color' as const, default: '', cssProperty: '--kui-shader-color4' },
+  color5: { type: 'color' as const, default: '', cssProperty: '--kui-shader-color5' },
+  /*
+   * The generative field's own controls. Every one of these is read by this module's JavaScript and
+   * by no stylesheet, so — as `ParamSpecBase.cssProperty` warns — setting the custom property
+   * directly does nothing at all. Widening one means widening it here.
+   */
+  /** Which pattern. The same seed gives the same image on every load, which is the point of it. */
+  seed: { type: 'number' as const, default: '0', minimum: 0, maximum: 9999, integer: true, cssProperty: '--kui-shader-seed' },
+  /** How zoomed the field is. Larger means smaller, more numerous shapes. */
+  scale: { type: 'number' as const, default: '1', minimum: 0.05, maximum: 20, cssProperty: '--kui-shader-scale' },
+  /**
+   * How many octaves of detail ride on the base shapes.
+   *
+   * Named `detail` rather than the reference tools' "definition" — the plainer word for the same
+   * idea. Capped at 6, which is `KUI_MAX_OCTAVES` in the shader; a seventh would be accepted here
+   * and silently ignored there.
+   */
+  detail: { type: 'number' as const, default: '3', minimum: 1, maximum: 6, integer: true, cssProperty: '--kui-shader-detail' },
+  /** How far a second field distorts the first. The difference between contour rings and liquid. */
+  warp: { type: 'number' as const, default: '0', minimum: 0, maximum: 2, cssProperty: '--kui-shader-warp' },
+  /** Posterise the ramp into this many steps. `0` is off, as with `chromatic` and `iridescence`. */
+  bands: { type: 'number' as const, default: '0', minimum: 0, maximum: 32, integer: true, cssProperty: '--kui-shader-bands' },
+  /** Film grain amount. */
+  grain: { type: 'number' as const, default: '0', minimum: 0, maximum: 1, cssProperty: '--kui-shader-grain' },
+  /**
+   * Hue rotation, as a real angle (`hue: 30deg`, `hue: 0.25turn`).
+   *
+   * An `angle` rather than a normalised scalar, matching `carousel`'s `tilt:` and this repository's
+   * standing rejection of normalised ranges where a CSS unit exists. A bare `hue: 30` is accepted
+   * too — `core/params.ts` normalises it to `30deg`.
+   */
+  hue: { type: 'angle' as const, default: '0deg', cssProperty: '--kui-shader-hue' },
+  /**
+   * Which part of `mode: logo`'s host image is the mark. Ignored by every other mode.
+   *
+   * `alpha` for the usual transparent-ground SVG or PNG. `luma` and `luma-invert` are for a format
+   * that has no alpha to read — a JPEG under `alpha` gives an all-opaque stencil and fills the
+   * whole rectangle. `luma` takes the bright pixels as the mark, `luma-invert` the dark ones; both
+   * directions are spelled out because guessing produces a perfect negative of the mark, which
+   * looks deliberate and is exactly wrong.
+   */
+  mask: { type: 'keyword' as const, default: 'alpha', keywords: ['alpha', 'luma', 'luma-invert'], cssProperty: '--kui-shader-mask' },
   blend: { type: 'keyword' as const, default: 'normal', keywords: ['normal', 'screen', 'multiply', 'add'], cssProperty: '--kui-shader-blend' },
   to: { type: 'text' as const, default: '', cssProperty: '--kui-shader-to' },
   progress: { type: 'number' as const, default: '-1', minimum: -1, maximum: 1, cssProperty: '--kui-progress' },
@@ -1494,6 +2064,35 @@ export const SHADERS_PRESETS: Preset[] = [
   { name: 'shader-liquid', primitive: 'shaders', params: { mode: 'liquid' } }, { name: 'liquid-distort', primitive: 'shaders', params: { mode: 'liquid' } },
   { name: 'shader-particles', primitive: 'shaders', params: { mode: 'particles' } }, { name: 'particle-field', primitive: 'shaders', params: { mode: 'particles' } },
   { name: 'shader-morph', primitive: 'shaders', params: { mode: 'morph' } }, { name: 'image-morph', primitive: 'shaders', params: { mode: 'morph' } },
+  /*
+   * The generative family. One fragment program, four sets of defaults — a preset here is a
+   * starting point in the same parameter space, not a separate shader.
+   *
+   * These are the only presets in the catalog that work on an element with no image in it, and
+   * their honest surface is still an element nothing overlaps — but for a different reason than it
+   * used to be. The shared canvas now defaults to `z-index: 1`, so a positioned headline laid over
+   * one of these paints on top of it, where before the headline vanished behind it. Better, and
+   * still not composition: `border-radius`, ancestor clipping and ancestor opacity are reproduced
+   * in the fragment shader, but the replica's place in the stacking order is the *canvas's*, not
+   * the element's. `--kui-shader-z` moves that one canvas and every replica on it together. See
+   * `docs/advanced-modules.md`.
+   */
+  { name: 'shader-gradient', primitive: 'shaders', params: { mode: 'gradient' } },
+  { name: 'gradient-liquid', primitive: 'shaders', params: { mode: 'gradient', warp: '1.1', detail: '4', speed: '0.4' } },
+  { name: 'gradient-bands', primitive: 'shaders', params: { mode: 'gradient', bands: '8', warp: '0.6', speed: '0.3' } },
+  // No palette on purpose: with fewer than two colours set the ramp falls back to its default pair,
+  // and the sheen comes from wrapping it rather than from the stops themselves.
+  { name: 'gradient-holo', primitive: 'shaders', params: { mode: 'gradient', iridescence: '3', chromatic: '0.5', warp: '0.4', speed: '0.5' } },
+  /*
+   * `logo` is the one generative mode with no stacking caveat at all. It replaces an `<img>`
+   * exactly as the five filters do — the host image is the stencil, not the picture — so a mark
+   * painting over the page is what an author wants rather than the limitation above.
+   *
+   * `<img src="mark.svg" data-kui="shader-logo">` and nothing else: the asset already carries the
+   * shape, `object-fit` already decides where it sits, and the element is already the right size.
+   */
+  { name: 'shader-logo', primitive: 'shaders', params: { mode: 'logo' } },
+  { name: 'logo-gradient', primitive: 'shaders', params: { mode: 'logo', warp: '0.8', detail: '4', scale: '1.6', speed: '0.4' } },
 ]
 
 export function registerShaders(target: unknown): Registry | Animator {

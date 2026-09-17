@@ -19,6 +19,14 @@ import {
   uploadColorUniforms,
   uploadUniforms,
   BLEND_MODES,
+  DEFAULT_SHADER_Z_INDEX,
+  GENERATIVE_MODES,
+  PALETTE_SIZE,
+  SHADER_MODES,
+  SHADER_Z_PROPERTY,
+  buildPalette,
+  parseAngleRadians,
+  readShaderZIndex,
   type ElementGeometry,
 } from '../shaders.js'
 import {
@@ -1566,6 +1574,156 @@ describe('Advanced Shaders Labs Module', () => {
       // Always uploaded, never left to the last instance that drew with this shared program.
       expect(gl.uniform4fv).toHaveBeenCalledWith(locs.u_maskBox, [0, 0, 0, 0])
       expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_maskAlpha, 1)
+    })
+
+    it('measures a generator against the border box and a filter against the content box', () => {
+      // Padding on purpose: without it the two boxes are the same rectangle and the assertion
+      // below is true whichever branch ran.
+      const el = boxAt(10, 10, [100, 100])
+      const styles = new Map([[el as Element, styleMap({
+        paddingLeft: '10px', paddingTop: '10px', paddingRight: '10px', paddingBottom: '10px',
+      })]])
+      const win = fakeWin(styles)
+
+      // A generator has no texture and therefore no `object-fit` to resolve, so its field should
+      // fill the element the way a `background` would — padding included.
+      const generative = measureElementGeometry(el, win, true)
+      expect(generative?.paint).toEqual({ left: 10, top: 10, right: 110, bottom: 110 })
+
+      // A filter stands in for replaced content, which CSS lays out inside the content box.
+      const filtered = measureElementGeometry(el, win, false)
+      expect(filtered?.paint).toEqual({ left: 20, top: 20, right: 100, bottom: 100 })
+    })
+  })
+
+  /*
+   * The generative field's own surface, under jsdom — so: control flow, parameter handling and the
+   * two per-mode guards, and nothing about a pixel. Whether `GRADIENT_FS` links, whether the
+   * palette reaches `u_colors` and whether `detail` changes structure without changing brightness
+   * are all questions only `test/browser/advanced-webgl.test.mjs` can answer; the mock GL here
+   * reports success for every one of them regardless.
+   */
+  describe('the generative field', () => {
+    it('keeps one list of modes rather than two that can drift apart', () => {
+      expect(SHADER_MODES).toContain('gradient')
+      expect(SHADER_PARAMETERS.mode.keywords).toEqual([...SHADER_MODES])
+      // Every generative mode has to be a mode, or `prepareShaders` gates out something its own
+      // keyword list accepts.
+      for (const mode of GENERATIVE_MODES) expect(SHADER_MODES).toContain(mode)
+    })
+
+    it('falls back to the default pair below two colours, and clips above five', () => {
+      expect(buildPalette([]).colorCount).toBe(2)
+      // One authored colour is not a ramp. Honouring it alone would render a flat fill and read as
+      // a broken effect rather than as an unfinished parameter.
+      expect(buildPalette(['#ff0000']).colorCount).toBe(2)
+      expect(buildPalette(['#ff0000', '#0000ff']).colorCount).toBe(2)
+      expect(buildPalette(['#f00', '#0f0', '#00f', '#ff0', '#0ff']).colorCount).toBe(PALETTE_SIZE)
+      expect(buildPalette(['#f00', '#0f0', '#00f', '#ff0', '#0ff', '#f0f']).colorCount).toBe(PALETTE_SIZE)
+      // The unset tail carries the last real stop, not zero: a driver that clamps an out-of-range
+      // index differently than expected lands on a colour rather than on black.
+      const { palette } = buildPalette(['#ff0000', '#0000ff'])
+      expect(palette.length).toBe(PALETTE_SIZE * 4)
+      expect([...palette.slice(16, 20)]).toEqual([...palette.slice(4, 8)])
+    })
+
+    it('reads every CSS angle unit, and answers zero rather than NaN for junk', () => {
+      expect(parseAngleRadians('0deg')).toBe(0)
+      expect(parseAngleRadians('180deg')).toBeCloseTo(Math.PI, 6)
+      expect(parseAngleRadians('0.25turn')).toBeCloseTo(Math.PI / 2, 6)
+      expect(parseAngleRadians('1rad')).toBeCloseTo(1, 6)
+      expect(parseAngleRadians('200grad')).toBeCloseTo(Math.PI, 6)
+      // `core/params.ts` normalises a bare number to degrees before this ever sees it; accepting
+      // one here too means a hand-built accessor cannot silently land on 0.
+      expect(parseAngleRadians('30')).toBeCloseTo(Math.PI / 6, 6)
+      expect(parseAngleRadians('sideways')).toBe(0)
+      expect(parseAngleRadians('')).toBe(0)
+      expect(parseAngleRadians(undefined)).toBe(0)
+    })
+
+    it('registers a draw for a generator on an element with no image, and leaves the host visible', () => {
+      const gl = createMockGL()
+      const mockCanvas = document.createElement('canvas')
+      mockCanvas.getContext = vi.fn().mockReturnValue(gl)
+      const renderer = new SharedShaderRenderer({
+        createCanvas: () => mockCanvas,
+        raf: vi.fn(),
+        caf: vi.fn(),
+        window: { innerWidth: 1000, innerHeight: 800, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      })
+      setSharedShaderRenderer(renderer)
+
+      const params = (mode: string) => ({
+        text: vi.fn((k: string, def: string) => (k === 'mode' ? mode : def)),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams)
+
+      const div = document.createElement('div')
+      const gradient = prepareShaders(div, params('gradient'), createRealPrepareContext(div, { reducedMotion: false }))
+      gradient.activate()
+      // The per-mode texture guard. Before it, `!!texture &&` meant a mode with no sampler could
+      // never draw at all, whatever else was right.
+      expect(renderer.drawCalls.size).toBe(1)
+      renderer.renderFrame(1)
+      // And the per-mode hide guard: hiding an element the author may have put content inside is
+      // destructive, where hiding a filtered `<img>` is the entire mechanism.
+      expect(div.style.opacity).toBe('')
+      gradient.destroy()
+
+      // The contrast case, on the same renderer: a filter on an element with no texture registers
+      // its draw too, but the draw itself refuses — so the host is still never hidden.
+      const img = document.createElement('img')
+      Object.defineProperty(img, 'complete', { value: true })
+      Object.defineProperty(img, 'naturalWidth', { value: 0 })
+      const filter = prepareShaders(img, params('displace'), createRealPrepareContext(img, { reducedMotion: false }))
+      filter.activate()
+      renderer.renderFrame(1)
+      expect(img.style.opacity).toBe('')
+      filter.destroy()
+
+      setSharedShaderRenderer(null)
+    })
+  })
+
+  /*
+   * `--kui-shader-z`. One fixed canvas carries every replica on the page, so where it sits in the
+   * stacking order is a page-wide decision and lives on `:root` rather than in `SHADER_PARAMETERS`.
+   * Whether the canvas actually *moves* is a browser question; these are about the read.
+   */
+  describe('the shared canvas stacking order', () => {
+    /** The read, against a root element carrying `inline` and a stylesheet carrying `computed`. */
+    const zFor = (inline: string, computed: string): number => {
+      const pick = (want: string) => ({ getPropertyValue: (p: string) => (p === SHADER_Z_PROPERTY ? want : '') })
+      const doc = { documentElement: { style: pick(inline) } } as unknown as Document
+      const win = { getComputedStyle: () => pick(computed) } as unknown as Window
+      return readShaderZIndex(doc, win)
+    }
+
+    it('answers the documented default when the author has said nothing', () => {
+      expect(zFor('', '')).toBe(DEFAULT_SHADER_Z_INDEX)
+      // A document too minimal to have a root element is the unit tier's own envs; the default has
+      // to hold there rather than throw.
+      expect(readShaderZIndex({} as Document, null)).toBe(DEFAULT_SHADER_Z_INDEX)
+      expect(readShaderZIndex(null, null)).toBe(DEFAULT_SHADER_Z_INDEX)
+    })
+
+    it('prefers an inline value and falls back to the stylesheet', () => {
+      expect(zFor('42', '7')).toBe(42)
+      // The ordinary case: written in a stylesheet, not on the element.
+      expect(zFor('', '7')).toBe(7)
+      // A page that wants the canvas below everything is allowed to say so.
+      expect(zFor('', '-1')).toBe(-1)
+    })
+
+    it('refuses a value that is not a number rather than writing a broken z-index', () => {
+      // `auto` is a real `z-index` keyword and a meaningless one for a fixed full-page overlay.
+      expect(zFor('', 'auto')).toBe(DEFAULT_SHADER_Z_INDEX)
+      // An unresolved `var()` arrives as whitespace, which must not become 0 — 0 would be a
+      // silent, page-wide stacking change from a typo.
+      expect(zFor('', '  ')).toBe(DEFAULT_SHADER_Z_INDEX)
+      expect(zFor('', 'calc(1 + 1)')).toBe(DEFAULT_SHADER_Z_INDEX)
+      // `z-index` is an integer property; a fractional custom property is truncated, not rejected.
+      expect(zFor('', '12.7')).toBe(12)
     })
   })
 })

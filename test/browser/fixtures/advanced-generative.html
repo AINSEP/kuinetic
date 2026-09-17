@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — generative shader fixture</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #14110f; }
+      /* Everything fits inside 390px of width and 560px of height, because this fixture is run at
+         both 800x600 and 390x844 — a probe that falls outside the viewport on a phone reads the
+         cleared canvas and looks exactly like a dead shader. */
+      #stage { position: relative; width: 390px; height: 560px; }
+      #stage > * { position: absolute; width: 100px; height: 100px; }
+
+      /* Row 1: a plain div with no image in it at all — the whole point of a generative mode. */
+      #grad   { left: 10px;  top: 10px; }
+      #seed-a { left: 120px; top: 10px; }
+      #seed-b { left: 230px; top: 10px; }
+
+      /* Row 2: the same seed as #seed-a with a different one alongside, plus the octave pair. */
+      #seed-c { left: 10px;  top: 120px; }
+      #det-1  { left: 120px; top: 120px; }
+      #det-6  { left: 230px; top: 120px; }
+
+      /* Row 3: frozen, and a two-hue palette. */
+      #frozen  { left: 10px;  top: 230px; }
+      #palette { left: 120px; top: 230px; }
+
+      /* Row 4: the displace pair. `#scrub` carries a `--kui-progress` an unrelated primitive
+         would have written — no `progress:` is authored on either. */
+      #disp  { left: 10px;  top: 340px; }
+      #scrub { left: 120px; top: 340px; --kui-progress: 0; }
+
+      /* Row 5: the logo stencil. A light page behind them, so "the page shows through" is a
+         readable answer rather than one more dark pixel. */
+      #logo-alpha { left: 10px;  top: 450px; }
+      #logo-luma  { left: 120px; top: 450px; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div id="grad"></div>
+      <div id="seed-a"></div>
+      <div id="seed-b"></div>
+      <div id="seed-c"></div>
+      <div id="det-1"></div>
+      <div id="det-6"></div>
+      <div id="frozen"></div>
+      <div id="palette"></div>
+      <!-- Fine vertical stripes: 7px bars on a 14px period, across a 100px image. Deliberately
+           not a single split. The displace probes below sit at two *different* places in the box,
+           and with one boundary a probe far from it absorbs even a large displacement invisibly
+           and reads as a dead shader. Here every point is within 7px of a colour change, so a
+           probe anywhere registers a shift of a few pixels. -->
+      <img id="disp" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/><rect x='0' width='7' height='100' fill='rgb(255,0,0)'/><rect x='14' width='7' height='100' fill='rgb(255,0,0)'/><rect x='28' width='7' height='100' fill='rgb(255,0,0)'/><rect x='42' width='7' height='100' fill='rgb(255,0,0)'/><rect x='56' width='7' height='100' fill='rgb(255,0,0)'/><rect x='70' width='7' height='100' fill='rgb(255,0,0)'/><rect x='84' width='7' height='100' fill='rgb(255,0,0)'/><rect x='98' width='7' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <img id="scrub" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/><rect x='0' width='7' height='100' fill='rgb(255,0,0)'/><rect x='14' width='7' height='100' fill='rgb(255,0,0)'/><rect x='28' width='7' height='100' fill='rgb(255,0,0)'/><rect x='42' width='7' height='100' fill='rgb(255,0,0)'/><rect x='56' width='7' height='100' fill='rgb(255,0,0)'/><rect x='70' width='7' height='100' fill='rgb(255,0,0)'/><rect x='84' width='7' height='100' fill='rgb(255,0,0)'/><rect x='98' width='7' height='100' fill='rgb(255,0,0)'/></svg>" />
+
+      <!-- An original mark, drawn here and nowhere else: a square annulus. Three regions, which is
+           why this shape rather than a solid blob — the ring, the hole inside it, and the corner
+           outside it. A stencil that merely painted the element's bounding box passes a
+           "field appears inside the glyph" check and fails on the hole. -->
+      <img id="logo-alpha" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><path fill-rule='evenodd' fill='rgb(255,255,255)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+      <!-- The same mark with no alpha anywhere: black ink on an opaque white ground, i.e. what a
+           JPEG logo actually is. Under `mask: alpha` this is an all-opaque stencil and fills the
+           whole rectangle; `luma-invert` is the keyword that reads it. -->
+      <img id="logo-luma" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,255,255)'/><path fill-rule='evenodd' fill='rgb(0,0,0)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+    </div>
+
+    <!-- Built into the gitignored `.artifacts/`; see `advanced-webgl.html`. -->
+    <script src="../../../.artifacts/browser-fixtures/advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

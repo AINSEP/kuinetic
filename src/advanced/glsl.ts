@@ -62,6 +62,123 @@ float shapeMask() {
 }
 `
 
+/**
+ * The procedural noise core — the one place this tier generates a pattern from mathematics.
+ *
+ * Written as a shared block, spliced into programs the same way {@link AUDIO_GAIN_GLSL} and
+ * {@link SHAPE_MASK_GLSL} already are, because it is deliberately *not* the gradient mode's private
+ * helper. Four of the five programs above fake their noise with a single trigonometric term —
+ * `FLUID_FS`'s `vec2(sin(t + uv.y * 10.0), cos(...))`, `LIQUID_FS`'s two `sin`/`cos` waves,
+ * `PARTICLES_FS`'s `sin(t * 5.0 + dot(uv, vec2(100.0)))`, and `MORPH_FS`, which names its variable
+ * `noise` while computing `sin(x) * cos(y)`. Each of those is a candidate to adopt `kuiFbm` later;
+ * that is a visual change to shipped behaviour and belongs in its own change, but the function they
+ * would adopt should exist exactly once. (`DISPLACE_FS`'s term is a deliberate radial ripple, not
+ * fake noise, and is not a candidate.)
+ *
+ * Gradient noise on a cubic lattice rather than value noise: a value-noise lattice shows as
+ * square-ish blobs at the low frequencies a colour field runs at, which is the one artefact a
+ * generated gradient cannot afford. Rather than simplex, because the skewed-lattice unpacking is
+ * where hand-written implementations go wrong and the payoff is invisible under four octaves of
+ * blur.
+ *
+ * Time is the third axis rather than a translation of a 2D field. Translating reads as the pattern
+ * *sliding past* — legible as a cheat within a second or two — where a third axis is the pattern
+ * genuinely evolving in place. It costs eight corner hashes per octave instead of four.
+ */
+const NOISE_GLSL = `const int KUI_MAX_OCTAVES = 6;
+
+/**
+ * Integer avalanche over one lattice coordinate.
+ *
+ * Deliberately not the \`fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)\` idiom. That relies
+ * on the low bits of a large sine, which \`highp\` does not reliably have: on several mobile GPUs
+ * neighbouring cells stay correlated and the field bands visibly. GLSL ES 3.00 has real unsigned
+ * integer arithmetic, so a proper mix is both better distributed and cheaper.
+ */
+uint kuiHash(uvec3 v) {
+  uint h = v.x * 0x8da6b343u ^ v.y * 0xd8163841u ^ v.z * 0xcb1ab31fu;
+  h ^= h >> 15u; h *= 0x2c1b3c6du;
+  h ^= h >> 12u; h *= 0x297a2d39u;
+  h ^= h >> 15u;
+  return h;
+}
+
+/**
+ * A unit gradient vector for one lattice corner.
+ *
+ * The three components read *non-overlapping* 10-bit fields. Overlapping slices of one hash are
+ * correlated with each other, which shows up as gradients clustering around a diagonal and the
+ * noise developing a directional grain. The \`1e-5\` keeps \`normalize\` defined for the one input
+ * that hashes to exactly zero.
+ */
+vec3 kuiGradient(uvec3 cell) {
+  uint h = kuiHash(cell);
+  vec3 g = vec3(
+    float((h        ) & 1023u),
+    float((h >> 10u ) & 1023u),
+    float((h >> 20u ) & 1023u)
+  ) * (2.0 / 1023.0) - 1.0;
+  return normalize(g + vec3(1e-5));
+}
+
+/**
+ * One octave of gradient noise, approximately -1..1.
+ *
+ * The lattice index is biased into unsigned space before hashing: seeds, scroll and a centred UV
+ * field all reach negative coordinates, and \`uvec3\` of a negative \`ivec3\` wraps — which is
+ * harmless for a hash, but only once every negative input maps somewhere distinct rather than
+ * folding onto its positive twin.
+ */
+float kuiNoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = p - i;
+  vec3 w = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  uvec3 c = uvec3(ivec3(i) + 0x10000);
+  float n000 = dot(kuiGradient(c + uvec3(0u, 0u, 0u)), f - vec3(0.0, 0.0, 0.0));
+  float n100 = dot(kuiGradient(c + uvec3(1u, 0u, 0u)), f - vec3(1.0, 0.0, 0.0));
+  float n010 = dot(kuiGradient(c + uvec3(0u, 1u, 0u)), f - vec3(0.0, 1.0, 0.0));
+  float n110 = dot(kuiGradient(c + uvec3(1u, 1u, 0u)), f - vec3(1.0, 1.0, 0.0));
+  float n001 = dot(kuiGradient(c + uvec3(0u, 0u, 1u)), f - vec3(0.0, 0.0, 1.0));
+  float n101 = dot(kuiGradient(c + uvec3(1u, 0u, 1u)), f - vec3(1.0, 0.0, 1.0));
+  float n011 = dot(kuiGradient(c + uvec3(0u, 1u, 1u)), f - vec3(0.0, 1.0, 1.0));
+  float n111 = dot(kuiGradient(c + uvec3(1u, 1u, 1u)), f - vec3(1.0, 1.0, 1.0));
+  float nx00 = mix(n000, n100, w.x);
+  float nx10 = mix(n010, n110, w.x);
+  float nx01 = mix(n001, n101, w.x);
+  float nx11 = mix(n011, n111, w.x);
+  // 2/sqrt(3) — a 3D gradient-noise octave peaks near sqrt(3)/2, so this brings it to about -1..1.
+  return mix(mix(nx00, nx10, w.y), mix(nx01, nx11, w.y), w.z) * 1.1547;
+}
+
+/**
+ * Octaves summed and **normalised by the amplitude sum**, approximately -1..1 at every octave count.
+ *
+ * The division is the whole point of the function. Without it, raising the octave count raises the
+ * total amplitude, so the one authored knob that means "how much fine structure" would silently be
+ * a contrast control as well — two behaviours behind one parameter, which is the class of bug this
+ * repository keeps rediscovering. Gain and lacunarity stay fixed at 0.5 and 2.0: they are the two
+ * numbers that make layered noise look wrong in a hundred ways and right in one.
+ *
+ * The loop bound is a constant with an early break because a loop bound that is itself a uniform
+ * forces some drivers to unroll against the worst case anyway, and this way the cost of a low
+ * \`detail\` is genuinely low.
+ */
+float kuiFbm(vec3 p, int octaves) {
+  float amp = 1.0;
+  float freq = 1.0;
+  float sum = 0.0;
+  float norm = 0.0;
+  for (int i = 0; i < KUI_MAX_OCTAVES; i++) {
+    if (i >= octaves) break;
+    sum += amp * kuiNoise(p * freq);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2.0;
+  }
+  return sum / max(norm, 1e-5);
+}
+`
+
 export const FULLSCREEN_QUAD_VS = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_uvOrigin;
@@ -215,5 +332,192 @@ void main() {
   vec4 c1 = texture(u_image, uv + vec2(noise * (1.0 - progress)));
   vec4 c2 = texture(u_image_to, uv - vec2(noise * progress));
   fragColor = mix(c1, c2, smoothstep(0.2, 0.8, progress)) * shapeMask();
+}
+`
+
+/**
+ * The generative program: colour from mathematics rather than from a source image.
+ *
+ * **Two modes, one program.** `u_maskMode` is the whole difference between them:
+ *
+ * - `mode: gradient` (`u_maskMode 0`) — no texture is bound and the field fills the element's box.
+ *   Every program above samples `u_image`, which is why every one of them is a *filter* and why
+ *   the tier could not produce a background of its own until this one. `shaders.ts` skips the
+ *   texture requirement for it (see `GENERATIVE_MODES`) and does not hide the host, because hiding
+ *   an element the author may have put content in is destructive rather than merely useless.
+ * - `mode: logo` (`u_maskMode 1` or `2`) — the host `<img>`'s own pixels are the *stencil*, and the
+ *   field is painted only where the mark is. This is the ordinary filter path with nothing changed:
+ *   the texture is required, the host is hidden, `object-fit` resolves through `v_uv` exactly as it
+ *   does for `displace`. What arrives is not a recolour of the image but a generated field wearing
+ *   its shape.
+ *
+ * The sampler is declared unconditionally and read only inside the `u_maskMode > 0` branch. In
+ * `gradient` nothing is bound to the unit, which WebGL defines as sampling an incomplete texture —
+ * `(0, 0, 0, 1)`, no error — and the branch means even that is never reached.
+ *
+ * Splitting these into two programs would mean a second copy of the noise core, and three
+ * near-identical fbm implementations is the state this directory was already dug out of once.
+ *
+ * **`gradient`'s honest surface is still an element nothing overlaps**, though not for the reason
+ * it first shipped with. The shared canvas is one `position: fixed` layer at `z-index: 1` by
+ * default (movable page-wide with `--kui-shader-z`, which is a coping knob and not composition).
+ * A *positioned* headline laid over a field now paints on top of it rather than vanishing behind
+ * it; a static one still does not, because the canvas is `fixed` and it is not. So a full-bleed
+ * band, a card face or a footer strip work, and anything needing real interleaving does not.
+ * `logo` is the exception that needs nothing lifted: a mark *should* paint over the page, which is
+ * exactly what the five filters already do.
+ *
+ * The parameter split worth understanding: `scale` zooms the field, `frequency` is the rate of the
+ * *warping* field that distorts it, and `detail` is how many octaves ride on top. Three knobs that
+ * sound similar and are not — one changes how big the shapes are, one how contorted, one how
+ * intricate.
+ */
+export const GRADIENT_FS = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 fragColor;
+uniform float u_time;
+uniform float u_strength;
+uniform float u_frequency;
+uniform float u_chromatic;
+uniform float u_iridescence;
+uniform float u_progress;
+uniform float u_seed;
+uniform float u_scale;
+uniform float u_warp;
+uniform float u_grain;
+uniform float u_hue;
+uniform int u_detail;
+uniform int u_bands;
+uniform int u_colorCount;
+uniform vec4 u_colors[5];
+uniform vec4 u_tint;
+uniform sampler2D u_image;
+uniform int u_maskMode;
+${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}
+
+/**
+ * The host image read as a stencil: 1 where the mark is, 0 where the page should show through.
+ *
+ * Three ways to ask, because a logo file answers the question differently depending on what it is:
+ *
+ * - \`0\` — no stencil. \`mode: gradient\`; \`u_image\` is not sampled at all.
+ * - \`1\` (\`mask: alpha\`) — the image's own alpha. An SVG or PNG mark on a transparent ground,
+ *   which is what a logo asset usually is. The texture is uploaded premultiplied, so \`a\` is the
+ *   coverage and multiplying all four channels by it stays premultiplied-correct.
+ * - \`2\`/\`3\` (\`mask: luma\` / \`luma-invert\`) — luminance, for a format with no alpha to read. A
+ *   JPEG has none, so a black-on-white mark under \`alpha\` would give an all-opaque stencil and
+ *   fill the whole rectangle with field. \`luma\` takes the *bright* pixels as the mark (white on
+ *   black); \`luma-invert\` takes the dark ones (black on white, which is the common logo file).
+ *   Both directions exist because guessing one silently produces a perfect negative of the mark —
+ *   an image that looks deliberate and is exactly wrong.
+ *
+ * Luminance is taken from the premultiplied colour, so a transparent pixel is black. Under
+ * \`luma\` that reads as "not the mark", which is the sensible answer for a file that has alpha and
+ * was asked for a luma stencil anyway. Under \`luma-invert\` the same pixel reads as *solid* mark —
+ * correct for the opaque JPEG the keyword exists for, and wrong for anything with a transparent
+ * surround, which should be using \`alpha\`.
+ */
+float glyphMask() {
+  if (u_maskMode == 0) return 1.0;
+  vec4 src = texture(u_image, v_uv);
+  if (u_maskMode == 1) return src.a;
+  float lum = dot(src.rgb, vec3(0.299, 0.587, 0.114));
+  return u_maskMode == 2 ? lum : 1.0 - lum;
+}
+
+/**
+ * The palette ramp, interpolated in linear-light rather than straight sRGB.
+ *
+ * \`mix()\` between two sRGB triples passes through a desaturated middle — the classic muddy
+ * midpoint of a naive gradient, worst exactly where two saturated brand colours meet. Squaring
+ * into approximately linear light, mixing there, and taking the square root back is a two-operation
+ * approximation of a gamma-2.0 space that removes almost all of it.
+ *
+ * \`smoothstep\` on the segment fraction, not a straight lerp, so the ramp has no visible crease at
+ * each stop — a crease that banding (\`u_bands\`) would otherwise land on and amplify.
+ */
+vec3 kuiPalette(float t) {
+  int n = max(u_colorCount, 2);
+  float x = clamp(t, 0.0, 1.0) * float(n - 1);
+  int i = int(floor(x));
+  int j = min(i + 1, n - 1);
+  float f = smoothstep(0.0, 1.0, x - float(i));
+  vec3 a = u_colors[i].rgb;
+  vec3 b = u_colors[j].rgb;
+  return sqrt(mix(a * a, b * b, f));
+}
+
+/** Rotate a colour about the grey axis — Rodrigues' formula, which needs no colour-space change. */
+vec3 kuiHueRotate(vec3 c, float angle) {
+  const vec3 axis = vec3(0.57735026);
+  float s = sin(angle);
+  float k = cos(angle);
+  return c * k + cross(axis, c) * s + axis * dot(axis, c) * (1.0 - k);
+}
+
+/** Per-pixel film grain. Quantised in time so it flickers at ~60 steps a second rather than per frame. */
+float kuiGrain(vec2 fragCoord, float t) {
+  uint h = kuiHash(uvec3(uvec2(fragCoord), uint(int(t * 60.0) + 0x10000)));
+  return float(h & 0xffffu) / 65535.0 - 0.5;
+}
+
+void main() {
+  // Centred and aspect-free: the field is authored in the element's own UV space, so the same
+  // parameters give the same picture whatever size the box is.
+  vec2 p = (v_uv - 0.5) * max(u_scale, 0.05);
+  vec3 seed = vec3(u_seed * 137.31, u_seed * 71.17, u_seed * 29.73);
+  float t = u_time;
+  float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
+
+  // Domain warp: a second field displaces the sample point of the first. This is the whole
+  // difference between concentric fbm contours and something that reads as liquid.
+  vec2 q = p;
+  if (u_warp > 0.0) {
+    float wf = u_frequency * 0.1;
+    float wx = kuiFbm(vec3(p * wf, t * 0.35) + seed, u_detail);
+    float wy = kuiFbm(vec3(p * wf + 5.2, t * 0.35 + 1.3) + seed, u_detail);
+    q += vec2(wx, wy) * u_warp;
+  }
+
+  // Audio and progress scale the field's *amplitude*, leaving its shape and rate alone — so a
+  // beat swells the contrast and a scroll at 0 leaves a flat single colour rather than a jump cut.
+  float field = kuiFbm(vec3(q, t * 0.25) + seed, u_detail);
+  field *= u_strength * pFactor * audioGain();
+  float v = clamp(field * 0.5 + 0.5, 0.0, 1.0);
+
+  // Iridescence wraps the ramp back on itself, so one palette reads as many sheens across the box.
+  float wrapped = u_iridescence > 0.0 ? fract(v * u_iridescence) : v;
+
+  // Posterise. Divided by bands-1 so the top step reaches the end of the ramp; a plain /bands
+  // would stop one step short and quietly desaturate the brightest colour.
+  if (u_bands > 0) {
+    float steps = float(u_bands);
+    wrapped = floor(wrapped * steps) / max(steps - 1.0, 1.0);
+  }
+
+  // Fringing offsets the *ramp position* per channel rather than re-sampling the field three
+  // times: three palette lookups are nearly free, three more fbm evaluations would triple the
+  // program's cost for a decorative edge.
+  vec3 color;
+  if (u_chromatic > 0.0) {
+    float d = u_chromatic * 0.04;
+    color = vec3(
+      kuiPalette(wrapped + d).r,
+      kuiPalette(wrapped).g,
+      kuiPalette(wrapped - d).b
+    );
+  } else {
+    color = kuiPalette(wrapped);
+  }
+
+  if (u_hue != 0.0) color = kuiHueRotate(color, u_hue);
+  if (u_grain > 0.0) color += kuiGrain(gl_FragCoord.xy, t) * u_grain * 0.25;
+
+  // Opaque before masking, and premultiplied trivially because alpha is 1 — the element's own
+  // shape and its ancestors' opacity arrive through shapeMask(), the mark's shape through
+  // glyphMask(), and both multiply all four channels, which is the right operation on
+  // premultiplied colour and is what leaves the page visible around a logo.
+  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0) * u_tint * shapeMask() * glyphMask();
 }
 `

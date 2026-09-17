@@ -15,7 +15,8 @@ import { createChecker, loadChromium } from '../../scripts/browser-harness.mjs'
  *    on failed draw, context loss, or destroy.
  * 5. Double destroy: calling destroy twice on one instance leaves the surviving instance drawing
  *    without corrupted refCounts.
- * 6. Real shader compilation: the five production GLSL programs in `glsl.ts` actually link, with
+ * 6. Real shader compilation: the six production GLSL programs in `glsl.ts` (seven modes —
+ *    `gradient` and `logo` share one) actually link, with
  *    no leftover GL error — jsdom cannot check this at all (no real GL context).
  * 7. Real GLSL compile failure: `compileShader`/`createProgram` return null against genuinely
  *    invalid GLSL, not just a mock told to say so.
@@ -621,15 +622,27 @@ export async function run({ browser }) {
     const renderer = getSharedShaderRenderer()
     const acquired = renderer.acquire()
     const gl = renderer.gl
-    const modes = ['displace', 'fluid', 'liquid', 'particles', 'morph']
+    // `gradient` is the one that most needs this check: it is the only program carrying the noise
+    // core's integer hashing and its fbm loop, by some way the most complex GLSL in the tier, and
+    // a link failure here is *silent* — `createProgram` answers null and `initPrograms` simply
+    // omits the mode, so nothing draws and nothing reports an error anywhere.
+    const modes = ['displace', 'fluid', 'liquid', 'particles', 'morph', 'gradient', 'logo']
     const missing = modes.filter((mode) => !renderer.programs[mode] || !renderer.programs[mode].program)
+    // `gradient` and `logo` are deliberately one linked program under two names. Two separate
+    // entries here would mean a second copy of the noise core got compiled.
+    const shareOneProgram = renderer.programs.gradient?.program === renderer.programs.logo?.program
     const glError = gl ? gl.getError() : -1
     renderer.release()
-    return { acquired, missing, glError }
+    return { acquired, missing, glError, shareOneProgram }
   })
 
   check('shader-compile: renderer acquires a real WebGL2 context', shaderCompile.acquired === true, `acquired=${shaderCompile.acquired}`)
-  check('shader-compile: all five production shader programs link in real WebGL2', shaderCompile.missing.length === 0, `missing=${shaderCompile.missing.join(',') || 'none'}`)
+  check('shader-compile: all seven production shader modes link in real WebGL2', shaderCompile.missing.length === 0, `missing=${shaderCompile.missing.join(',') || 'none'}`)
+  check(
+    'shader-compile: gradient and logo are one linked program under two names, not two copies of the noise core',
+    shaderCompile.shareOneProgram === true,
+    `shareOneProgram=${shaderCompile.shareOneProgram}`,
+  )
   check('shader-compile: no leftover GL error after compiling the real catalog', shaderCompile.glError === 0, `glError=${shaderCompile.glError}`)
 
   // -------------------------------------------------------------------------
@@ -1022,6 +1035,10 @@ void main() { this is not valid glsl at all !! }
 
   await runOverlayFidelity({ browser, check })
 
+  // Both readings, every check. Nothing in this suite had ever run below 800px wide.
+  await runGenerativeField({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  await runGenerativeField({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+
   return results
 }
 
@@ -1158,12 +1175,383 @@ async function runOverlayFidelity({ browser, check }) {
     `inside=${show(fidelity.clipInside)}, outside=${show(fidelity.clipOutside)}`,
   )
   check(
-    'fidelity: KNOWN LIMIT — the shared canvas stacks above the whole page, so it paints over a z-index:10 fixed bar',
-    opaque(fidelity.underBar) && isYellow(fidelity.underBar)
-      && fidelity.canvasZIndex === '9999' && fidelity.canvasPosition === 'fixed' && fidelity.barZIndex === '10',
-    `drawnUnderBar=${show(fidelity.underBar)}, canvas=${fidelity.canvasPosition}/${fidelity.canvasZIndex}, bar=${fidelity.barZIndex}`,
+    'fidelity: the shared canvas defaults to z-index 1, so a z-index:10 fixed bar now paints OVER the replica',
+    fidelity.canvasZIndex === '1' && fidelity.canvasPosition === 'fixed' && fidelity.barZIndex === '10',
+    `canvas=${fidelity.canvasPosition}/${fidelity.canvasZIndex}, bar=${fidelity.barZIndex} `
+      + '(9999 = the old default, which painted over the page\'s own modals and headers)',
+  )
+  check(
+    'fidelity: KNOWN LIMIT — the replica is still DRAWN under that bar, it is only composited below it',
+    opaque(fidelity.underBar) && isYellow(fidelity.underBar),
+    `drawnUnderBar=${show(fidelity.underBar)} — the canvas has no idea anything covers it, `
+      + 'which is why stacking is the one thing the replica cannot reproduce',
   )
 
+  await context.close()
+}
+
+/**
+ * 13. The generative field, and the two ways a shader renders a picture of nothing happening.
+ *
+ * Everything below is a `readPixels` off the shared canvas. Nothing here can be proved by a
+ * screenshot that "looks right": the two failures this block exists for — a palette that never
+ * uploaded, and a displacement multiplied by zero — both produce an image that looks entirely
+ * plausible. Only a comparison between two readbacks that *must* differ can tell them apart.
+ *
+ * Run at 800x600 and at 390x844, because the tier had no reading below 800px at all and the
+ * device-pixel maths genuinely differs: `getScissorEnv` clamps DPR to 2 and `syncCanvasDimensions`
+ * sizes the backing store off `innerHeight`, neither of which is an identity operation on a phone.
+ *
+ * Two traps this block is written around. A readback taken before any frame has run is transparent
+ * black and is indistinguishable from a dead effect, so every read happens inside a rAF after two
+ * have already passed. And a comparison between two *frozen* images passes trivially if the whole
+ * canvas is frozen, so `#grad` runs at `speed: 8` purely as the control that proves this harness
+ * can see motion at all.
+ */
+async function runGenerativeField({ browser, check, label, viewport, deviceScaleFactor }) {
+  const url = `file://${fileURLToPath(new URL('./fixtures/advanced-generative.html', import.meta.url))}`
+  const context = await browser.newContext({ viewport, deviceScaleFactor })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+
+  // Serialised into the page once and shared by all three blocks below.
+  const PROBES = `
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const nextFrame = () => new Promise((r) => requestAnimationFrame(r))
+    // A 5x5 grid over the middle 70% of an element's box. Inset deliberately: the outermost
+    // device pixel of a scissored draw straddles the box edge, so an edge probe reads a blend of
+    // the field and the cleared canvas and drifts between DPRs for reasons that are not the shader.
+    const grid = (gl, canvas, el) => {
+      const r = el.getBoundingClientRect()
+      const out = []
+      for (let iy = 0; iy < 5; iy++) {
+        for (let ix = 0; ix < 5; ix++) {
+          const cssX = r.left + r.width * (0.15 + 0.175 * ix)
+          const cssY = r.top + r.height * (0.15 + 0.175 * iy)
+          const px = new Uint8Array(4)
+          gl.readPixels(Math.round(cssX * dpr), Math.round(canvas.height - cssY * dpr), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px)
+          out.push(px[0], px[1], px[2], px[3])
+        }
+      }
+      return out
+    }
+    // One probe at a named fraction of an element's box, for a shape whose interesting points are
+    // not on a grid.
+    const pt = (gl, canvas, el, fx, fy) => {
+      const r = el.getBoundingClientRect()
+      const px = new Uint8Array(4)
+      gl.readPixels(
+        Math.round((r.left + r.width * fx) * dpr),
+        Math.round(canvas.height - (r.top + r.height * fy) * dpr),
+        1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px,
+      )
+      return [px[0], px[1], px[2], px[3]]
+    }
+  `
+
+  // Hold one reference for the whole function. Without it the last `destroy()` in each block drops
+  // `refCount` to zero, which tears the WebGL2 context and the canvas down, and the next block
+  // builds both again — and headless Chromium's software GL crashes its renderer process on that
+  // churn ("Execution context was destroyed", with every check up to that point green). The
+  // create/destroy cycle itself is covered by the double-destroy and renderer-revival blocks; this
+  // one is about pixels and has no business exercising it.
+  // Set *before* anything builds a canvas: `readShaderZIndex` runs once, at canvas creation, so a
+  // value written afterwards moves nothing. That is fine for the real case — a page declares this
+  // in a stylesheet, which is in effect long before the first shader activates — but it is a trap
+  // for a test, and it is why the override is armed up here rather than down in block C.
+  await page.evaluate(() => document.documentElement.style.setProperty('--kui-shader-z', '42'))
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().acquire())
+
+  // ---- Block A: the field itself -------------------------------------------------------------
+  const field = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const P = (o) => createEffectParams({ mode: 'gradient', ...o })
+    const spec = {
+      // The motion control. Also the "draws with no texture at all" case.
+      grad:      { speed: 8, scale: 4, strength: 3 },
+      // Same seed, different box; then a different seed. \`speed: 0\` pins u_time at 0, so any
+      // difference between these is the seed and nothing else.
+      'seed-a':  { seed: 7,  speed: 0, scale: 3, strength: 2 },
+      'seed-c':  { seed: 7,  speed: 0, scale: 3, strength: 2 },
+      'seed-b':  { seed: 42, speed: 0, scale: 3, strength: 2 },
+      // One octave against six. Structure must change; average brightness must not — that is the
+      // fbm \`/norm\` divisor, the "one knob secretly changes two things" bug.
+      'det-1':   { seed: 3, detail: 1, speed: 0, scale: 3, strength: 2 },
+      'det-6':   { seed: 3, detail: 6, speed: 0, scale: 3, strength: 2 },
+      frozen:    { seed: 5, speed: 0, scale: 4, strength: 3 },
+      // Two hues as far apart as the ramp allows, driven hard enough that the field clamps to both
+      // ends of it. If \`u_colors\` never uploaded, every probe here is the default pair instead.
+      palette:   { seed: 9, speed: 0, scale: 3, strength: 4, color1: '#ff0000', color2: '#0000ff' },
+    }
+    const ids = Object.keys(spec)
+    const inst = {}
+    for (const id of ids) inst[id] = prepareShaders(document.getElementById(id), P(spec[id]))
+    for (const id of ids) inst[id].activate()
+
+    const renderer = getSharedShaderRenderer()
+    const gl = renderer.gl
+    if (!gl) return { error: 'no gl' }
+    const canvas = renderer.canvas
+    await settle()
+
+    const first = {}
+    await new Promise((resolve) => requestAnimationFrame(() => {
+      for (const id of ids) first[id] = grid(gl, canvas, document.getElementById(id))
+      resolve()
+    }))
+    for (let i = 0; i < 10; i++) await nextFrame()
+    const second = {}
+    await new Promise((resolve) => requestAnimationFrame(() => {
+      for (const id of ['grad', 'frozen']) second[id] = grid(gl, canvas, document.getElementById(id))
+      resolve()
+    }))
+
+    const hostOpacity = document.getElementById('grad').style.opacity
+    for (const id of ids) inst[id].destroy()
+    return { first, second, hostOpacity, canvasZIndex: getComputedStyle(canvas).zIndex, dpr }
+  })()`)
+
+  const bytes = (a) => a.join(',')
+  const alphaOf = (a) => { let n = 0; for (let i = 3; i < a.length; i += 4) n += a[i]; return n / (a.length / 4) }
+  const lumaOf = (a) => {
+    let n = 0
+    for (let i = 0; i < a.length; i += 4) n += 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]
+    return n / (a.length / 4)
+  }
+  // "Different" means different beyond readback noise, not different in one channel of one probe.
+  const distance = (a, b) => {
+    let n = 0
+    for (let i = 0; i < a.length; i++) n += Math.abs(a[i] - b[i])
+    return n / a.length
+  }
+  const redderThanBlue = (a) => { for (let i = 0; i < a.length; i += 4) if (a[i] > 180 && a[i + 2] < 70) return true; return false }
+  const bluerThanRed = (a) => { for (let i = 0; i < a.length; i += 4) if (a[i + 2] > 180 && a[i] < 70) return true; return false }
+  const show = (p) => `rgba(${p})`
+
+  const at = (name) => `${label}: ${name}`
+  if (field.error) {
+    check(at('generative: the fixture reached a real WebGL2 context'), false, field.error)
+    await context.close()
+    return
+  }
+
+  check(
+    at('generative: a gradient on a plain div with no image in it paints opaque pixels'),
+    alphaOf(field.first.grad) > 240,
+    `mean alpha=${alphaOf(field.first.grad).toFixed(1)} over 25 probes (0 = nothing drew)`,
+  )
+  check(
+    at('generative: the host div is NOT hidden — a generator adds to the page, it does not replace an element'),
+    field.hostOpacity === '',
+    `opacity=${JSON.stringify(field.hostOpacity)}`,
+  )
+  // The control. If this fails, every "identical" result below is meaningless.
+  check(
+    at('generative: HARNESS CONTROL — an animating field does change between two reads 10 frames apart'),
+    distance(field.first.grad, field.second.grad) > 2,
+    `distance=${distance(field.first.grad, field.second.grad).toFixed(2)}`,
+  )
+  check(
+    at('generative: speed:0 is genuinely frozen — the same 25 probes 10 frames later are byte-identical'),
+    bytes(field.first.frozen) === bytes(field.second.frozen),
+    `distance=${distance(field.first.frozen, field.second.frozen).toFixed(2)}`,
+  )
+  // Not byte-identical, and that is the harness rather than the shader. The field is authored in
+  // the element's own UV space, but two boxes at different page positions scissor onto different
+  // device-pixel boundaries, so the quad rasterises at a different subpixel offset and a probe
+  // lands a fraction of a texel away. Measured at 0.17/255 across 25 probes — under one LSB. The
+  // assertion that matters is that this is two orders of magnitude below the distance a *different*
+  // seed produces, which is checked immediately below.
+  check(
+    at('generative: the same seed in two different boxes gives the same field'),
+    distance(field.first['seed-a'], field.first['seed-c']) < 2,
+    `distance=${distance(field.first['seed-a'], field.first['seed-c']).toFixed(2)} `
+      + `vs ${distance(field.first['seed-a'], field.first['seed-b']).toFixed(2)} for a different seed`,
+  )
+  check(
+    at('generative: a different seed gives a different field'),
+    distance(field.first['seed-a'], field.first['seed-b']) > 4,
+    `distance=${distance(field.first['seed-a'], field.first['seed-b']).toFixed(2)}`,
+  )
+  check(
+    at('generative: detail 1 vs 6 changes the structure'),
+    distance(field.first['det-1'], field.first['det-6']) > 4,
+    `distance=${distance(field.first['det-1'], field.first['det-6']).toFixed(2)}`,
+  )
+  check(
+    at('generative: detail 1 vs 6 does NOT change mean brightness — the fbm /norm divisor holds'),
+    Math.abs(lumaOf(field.first['det-1']) - lumaOf(field.first['det-6'])) < 20,
+    `luma ${lumaOf(field.first['det-1']).toFixed(1)} vs ${lumaOf(field.first['det-6']).toFixed(1)} (a drift here means one knob moves two things)`,
+  )
+  check(
+    at('generative: an authored palette reaches the pixels — both u_colors entries appear'),
+    redderThanBlue(field.first.palette) && bluerThanRed(field.first.palette),
+    `red found=${redderThanBlue(field.first.palette)}, blue found=${bluerThanRed(field.first.palette)} `
+      + '(both false with the default pair means u_colors never uploaded)',
+  )
+
+  // ---- Block B: the two ways displace renders a faithful copy ---------------------------------
+  // Both of these produce a sharp, unshaded image that looks like a working shader over a working
+  // texture, which is why neither was caught by looking at the page.
+  const displace = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    // The pointer is never moved anywhere in this block: this is the state every page is in on
+    // load, and on a phone it is the state it stays in.
+    const read = async (id, strength) => {
+      const el = document.getElementById(id)
+      const inst = prepareShaders(el, createEffectParams({ mode: 'displace', speed: 0, frequency: 10, strength }))
+      inst.activate()
+      const gl = renderer.gl
+      await settle()
+      const out = await new Promise((resolve) => requestAnimationFrame(() => resolve({
+        all: grid(gl, renderer.canvas, el),
+        // \`ripple\` is sin(d * 10), so it is *zero* at the epicentre itself and peaks a sixth of
+        // the box away from it. These two probes sit at that peak distance from the box centre and
+        // from the box corner respectively, which is what makes them an epicentre test rather than
+        // a brightness test.
+        nearCentre: pt(gl, renderer.canvas, el, 0.66, 0.5),
+        nearCorner: pt(gl, renderer.canvas, el, 0.11, 0.11),
+      })))
+      inst.destroy()
+      await settle()
+      return out
+    }
+    const flat = await read('disp', 0)
+    const weak = await read('disp', 0.3)
+    const hard = await read('disp', 8)
+    // \`#scrub\` is the same image at the same size, with --kui-progress: 0 set in the fixture's
+    // stylesheet — exactly what scroll-progress writes at the top of its range. No \`progress:\` is
+    // authored on it. Both readings are taken on that one element, so nothing but the strength
+    // differs between them.
+    const scrubFlat = await read('scrub', 0)
+    const scrubHard = await read('scrub', 8)
+    return { flat, weak, hard, scrubFlat, scrubHard }
+  })()`)
+
+  const moved = (a, b) => distance(a.all, b.all)
+  const movedAt = (a, b, probe) => distance(a[probe], b[probe])
+
+  // The control everything else in this block leans on.
+  check(
+    at('displace: HARNESS CONTROL — the probes do see strength:8 move the image'),
+    moved(displace.hard, displace.flat) > 4,
+    `distance=${moved(displace.hard, displace.flat).toFixed(2)}`,
+  )
+  // Cause B. `renderer.mouse` starts at the viewport origin, which clamps into the element's
+  // top-left corner — so before this fix the ripple lived in the corner and `exp(-4d)` had killed
+  // it by the middle of the box. This comparison inverts if that regresses.
+  check(
+    at('displace: with no pointer yet the ripple is centred on the element, not stuck in its corner'),
+    movedAt(displace.hard, displace.flat, 'nearCentre') > movedAt(displace.hard, displace.flat, 'nearCorner'),
+    `centre moved ${movedAt(displace.hard, displace.flat, 'nearCentre').toFixed(1)}, `
+      + `corner moved ${movedAt(displace.hard, displace.flat, 'nearCorner').toFixed(1)} `
+      + '(corner larger = the epicentre is back at the viewport origin)',
+  )
+  // Cause A, and the reason the owner's plate rendered sharp. Asserted as an inequality between
+  // two readings of the *same* element, so no cross-element sampling difference can fake it.
+  check(
+    at('displace: an unauthored --kui-progress:0 cancels the displacement entirely'),
+    moved(displace.scrubHard, displace.scrubFlat) < 2 && moved(displace.hard, displace.flat) > 4,
+    `with --kui-progress:0 strength 8 moves ${moved(displace.scrubHard, displace.scrubFlat).toFixed(2)}, `
+      + `without it ${moved(displace.hard, displace.flat).toFixed(2)} — `
+      + 'a scroll-linked primitive anywhere up the tree silently scrubs the shader',
+  )
+  // Recorded rather than diagnosed: `strength: 0.3` is genuinely subtle. `disp * 0.05` caps the
+  // throw at 1.5% of the box, and `exp(-4d)` takes most of that back — under a device pixel on a
+  // 100px element even with the epicentre in the right place.
+  check(
+    at('displace: strength:0.3 is a different order of magnitude from strength:8, not merely smaller'),
+    moved(displace.weak, displace.flat) * 3 < moved(displace.hard, displace.flat),
+    `0.3 moves ${moved(displace.weak, displace.flat).toFixed(2)}, 8 moves ${moved(displace.hard, displace.flat).toFixed(2)}`,
+  )
+
+  // ---- Block B2: the logo stencil ------------------------------------------------------------
+  // The assertion that carries this mode: the field is opaque inside the mark and *nothing at all*
+  // outside it. The second half is simultaneously the stencil proof and the transparency proof —
+  // a canvas that cleared to opaque black, or a mask that painted the bounding box, fails it while
+  // still looking like a logo in a screenshot.
+  const logo = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    // The mark is a square annulus: the ring spans 10..35% of the box, the hole 35..65%, and the
+    // corner is outside the outer edge entirely.
+    const read = async (id, mask) => {
+      const el = document.getElementById(id)
+      const inst = prepareShaders(el, createEffectParams({ mode: 'logo', mask, speed: 0, seed: 4, scale: 3, strength: 2 }))
+      inst.activate()
+      const gl = renderer.gl
+      await settle()
+      const out = await new Promise((resolve) => requestAnimationFrame(() => resolve({
+        ring: pt(gl, renderer.canvas, el, 0.22, 0.5),
+        hole: pt(gl, renderer.canvas, el, 0.5, 0.5),
+        corner: pt(gl, renderer.canvas, el, 0.04, 0.04),
+        hostOpacity: el.style.opacity,
+      })))
+      inst.destroy()
+      await settle()
+      return out
+    }
+    const alpha = await read('logo-alpha', 'alpha')
+    const luma = await read('logo-luma', 'luma-invert')
+    // The trap the luma keywords exist for, asserted rather than described: the same alpha-free
+    // image read as an alpha stencil is opaque everywhere, so the field fills the whole rectangle.
+    const wrong = await read('logo-luma', 'alpha')
+    return { alpha, luma, wrong }
+  })()`)
+
+  const solid = (p) => p[3] > 200
+  const empty = (p) => p[3] < 20
+
+  check(
+    at('logo: the generated field fills the mark'),
+    solid(logo.alpha.ring),
+    `ring=${show(logo.alpha.ring)}`,
+  )
+  check(
+    at('logo: and nothing is painted outside it — the hole and the corner both leave the page showing'),
+    empty(logo.alpha.hole) && empty(logo.alpha.corner),
+    `hole=${show(logo.alpha.hole)}, corner=${show(logo.alpha.corner)} (opaque = the stencil painted the bounding box)`,
+  )
+  check(
+    at('logo: the host image is hidden — a logo replaces its <img>, it does not sit over one'),
+    logo.alpha.hostOpacity === '0',
+    `opacity=${JSON.stringify(logo.alpha.hostOpacity)}`,
+  )
+  check(
+    at('logo: mask:luma-invert reads black ink on an opaque white ground'),
+    solid(logo.luma.ring) && empty(logo.luma.hole) && empty(logo.luma.corner),
+    `ring=${show(logo.luma.ring)}, hole=${show(logo.luma.hole)}, corner=${show(logo.luma.corner)}`,
+  )
+  check(
+    at('logo: mask:alpha on the same alpha-free image fills the rectangle — the trap luma exists for'),
+    solid(logo.wrong.hole) && solid(logo.wrong.corner),
+    `hole=${show(logo.wrong.hole)}, corner=${show(logo.wrong.corner)}`,
+  )
+
+  // ---- Block C: the z-index escape hatch ----------------------------------------------------
+  // Last, because it needs a renderer that has not been built yet: `--kui-shader-z` is read once,
+  // when the canvas is created. Everything above released its instances, so the shared renderer
+  // has torn itself down and un-mapped.
+  const stacking = await page.evaluate(() => ({
+    // Read off a real computed style rather than off the exported constant, so a canvas built from
+    // a stale `cssText` is still caught.
+    z: getComputedStyle(window.kUIAdvanced.getSharedShaderRenderer().canvas).zIndex,
+  }))
+
+  check(
+    at('stacking: --kui-shader-z moves the shared canvas off its default'),
+    stacking.z === '42',
+    `z-index=${stacking.z} (1 means the property was never read; the default itself is asserted `
+      + 'in the overlay-fidelity block, where nothing authors one)',
+  )
+
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
   await context.close()
 }
 
