@@ -286,12 +286,45 @@ export class CameraController {
     const stage = styleOf(this.ledgers, this.container)
     if (!stage) return
     stage.claim('transform')
-    // Exactly-zero tilt writes the resting transform rather than removing the property, so a
-    // pointer settling back to centre lands on the author's own transform, not on nothing.
-    const resting = stage.peek('transform') || 'rotateX(0deg) rotateY(0deg)'
-    stage.set('transform', (tiltX !== 0 || tiltY !== 0)
-      ? `rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg)`
-      : resting)
+    if (tiltX !== 0 || tiltY !== 0) {
+      stage.set('transform', `rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg)`)
+      return
+    }
+    this.restStageTransform(stage)
+  }
+
+  /**
+   * Hand `transform` back when the tilt settles at exactly zero.
+   *
+   * `peek()` reports only what `restore()` would put back, which is the **inline** capture and
+   * nothing else — by design (`owned-styles.ts`, and `test/owned-styles.test.ts` asserts it). So
+   * `peek() || 'rotateX(0deg) rotateY(0deg)'` was right only for an author who had written the
+   * transform inline. For the ordinary case — `.hero { transform: translateY(-20px) }` in a
+   * stylesheet — `peek()` answers `''` and the fallback wrote a *fabricated* identity inline,
+   * which outranks the class and switches the author's own transform off the moment the effect
+   * activates. `start()` renders immediately with the pointer at the synthetic centre, so that is
+   * activation, not some edge case.
+   *
+   * Removing the declaration instead is what actually lands on "the author's own transform": their
+   * inline value if they had one, their stylesheet's if they did not, and nothing at all if
+   * neither. The `removeProperty` is not a ledger bypass — `claim()` above has already recorded
+   * the property, `peek()` answering `''` *is* the ledger saying it found no inline declaration
+   * here, and removal is precisely what its own `restore()` does for that capture.
+   *
+   * Not fixed here: an inline `transform: scale(1.2) !important` comes back through `peek()`
+   * without its priority, so while the effect is live at rest a competing `!important` rule the
+   * author had deliberately beaten wins again. `restore()` puts the priority back, so it ends at
+   * the right value. Closing that needs a per-property give-back on `StyleLedger` (core).
+   *
+   * @complexity O(1).
+   */
+  private restStageTransform(stage: StyleLedger): void {
+    const authored = stage.peek('transform')
+    if (authored) {
+      stage.set('transform', authored)
+      return
+    }
+    this.container.style.removeProperty('transform')
   }
 
   render(): void {

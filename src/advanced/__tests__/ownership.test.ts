@@ -182,6 +182,48 @@ describe('advanced modules restore what was there immediately before the first w
       expect(layer.hasAttribute('style')).toBe(false)
     })
 
+    /**
+     * The `peek()` resting branch, which is the whole reason `peek()` was added and had no test at
+     * all. Both halves matter, and each falsifies a different plausible wrong implementation: one
+     * fails if the module fabricates an identity transform, the other if it always removes.
+     */
+    it('a settled camera writes no transform of its own when the author had none inline', () => {
+      const stage = document.createElement('div')
+      const controller = new CameraController(stage, { depth: 800, mouseTilt: true }, { window: null })
+
+      // `start()` renders straight away with the pointer at the synthetic centre, so the tilt is
+      // exactly zero — the branch an author whose transform lives in a stylesheet always hits.
+      controller.start()
+
+      // An inline `rotateX(0deg) rotateY(0deg)` here would outrank `.hero { transform: ... }` and
+      // switch the author's own transform off for as long as the effect is live.
+      expect(stage.style.transform).toBe('')
+      // The rest of the stage setup is still there; only `transform` was handed back.
+      expect(stage.style.perspective).toBe('800px')
+      controller.destroy()
+    })
+
+    it('a settled camera lands back on the author\'s own inline transform after a real tilt', () => {
+      const stage = document.createElement('div')
+      const controller = new CameraController(stage, { depth: 800, mouseTilt: true }, { window: null })
+      stage.style.transform = 'translateY(-20px)'
+
+      controller.start()
+      expect(stage.style.transform).toBe('translateY(-20px)')
+
+      controller.onMouseMove({ clientX: 900, clientY: 700 } as MouseEvent)
+      controller.stepMouse()
+      controller.render()
+      expect(stage.style.transform).toContain('rotateX')
+
+      controller.mouse = { x: 0, y: 0, targetX: 0, targetY: 0 }
+      controller.render()
+      expect(stage.style.transform).toBe('translateY(-20px)')
+
+      controller.destroy()
+      expect(stage.style.transform).toBe('translateY(-20px)')
+    })
+
     it('renders the scene depth during start even with mouse-tilt off', () => {
       const stage = document.createElement('div')
       const layer = document.createElement('div')
