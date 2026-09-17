@@ -800,7 +800,144 @@ void main() { this is not valid glsl at all !! }
   )
 
   await e2eContext.close()
+
+  await runOverlayFidelity({ browser, check })
+
   return results
+}
+
+/**
+ * 12. Does the replica actually match the element it replaces?
+ *
+ * The overlay is one shared, full-viewport, fixed canvas standing in for an element the module
+ * hides, so every probe here is asking the same question from a different angle: is what the GPU
+ * drew what the page would have shown? A single `getBoundingClientRect` was the only geometry input
+ * before this block existed, which made all five answers below "no".
+ *
+ * Deliberately the only context in the suite at `deviceScaleFactor: 2` — every other one runs at 1,
+ * where `Math.min(devicePixelRatio, 2)`, the `* dpr` rounding in the scissor box and the canvas
+ * sizing are all identity operations, so no DPR bug of any kind could show up. Here a wrong dpr
+ * misses every probe.
+ */
+async function runOverlayFidelity({ browser, check }) {
+  const url = `file://${fileURLToPath(new URL('./fixtures/advanced-overlay-fidelity.html', import.meta.url))}`
+  const context = await browser.newContext({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 2 })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+
+  const fidelity = await page.evaluate(async () => {
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    // strength/speed 0 so `displace` samples the texture exactly, with no ripple offset: every
+    // probe below is about *where* a pixel came from, not what the shader did to it.
+    const flat = () => createEffectParams({ mode: 'displace', strength: 0, speed: 0 })
+    const ids = ['cover', 'contain', 'round', 'clipped', 'under']
+    const instances = ids.map((id) => prepareShaders(document.getElementById(id), flat()))
+    for (const inst of instances) inst.activate()
+
+    const renderer = getSharedShaderRenderer()
+    const gl = renderer.gl
+    if (!gl) return { error: 'no gl' }
+    const canvas = renderer.canvas
+
+    const settle = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    await settle()
+
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        // One CSS-pixel probe on the shared canvas. `devicePixelRatio` is the real thing here (2),
+        // and the y flip is the canvas's own height rather than a re-derived number, so a probe
+        // cannot silently agree with a wrong canvas size.
+        const dpr = Math.min(window.devicePixelRatio || 1, 2)
+        const px = (cssX, cssY) => {
+          const out = new Uint8Array(4)
+          gl.readPixels(Math.round(cssX * dpr), Math.round(canvas.height - cssY * dpr), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, out)
+          return [out[0], out[1], out[2], out[3]]
+        }
+        const barStyle = getComputedStyle(document.getElementById('bar'))
+        const canvasStyle = getComputedStyle(canvas)
+        const result = {
+          dpr,
+          canvasBacking: [canvas.width, canvas.height],
+          canvasCssBox: [Math.round(canvas.getBoundingClientRect().width), Math.round(canvas.getBoundingClientRect().height)],
+          viewport: [window.innerWidth, window.innerHeight],
+          // cover, object-position: top — near the bottom edge of a box half the image's height
+          coverLow: px(70, 143),
+          // contain — the empty gutter, then the image's own left and right halves
+          containGutter: px(220, 150),
+          containLeft: px(270, 150),
+          containRight: px(330, 150),
+          // a 50px radius on a 100px box: a circle, so the box corner is outside it
+          roundCorner: px(455, 105),
+          roundCentre: px(500, 150),
+          // a 100px image inside a 50px `overflow: hidden` box
+          clipInside: px(40, 350),
+          clipOutside: px(90, 350),
+          // the documented stacking limit: drawn where a z-index:10 fixed bar covers the element
+          underBar: px(650, 30),
+          barZIndex: barStyle.zIndex,
+          canvasZIndex: canvasStyle.zIndex,
+          canvasPosition: canvasStyle.position,
+        }
+        for (const inst of instances) inst.destroy()
+        resolve(result)
+      })
+    })
+  })
+
+  const opaque = (p) => p[3] > 200
+  const clear = (p) => p[3] < 20
+  const isRed = (p) => p[0] > 200 && p[1] < 60 && p[2] < 60
+  const isBlue = (p) => p[2] > 200 && p[0] < 60
+  const isGreen = (p) => p[1] > 200 && p[0] < 60
+  const isYellow = (p) => p[0] > 200 && p[1] > 200 && p[2] < 60
+  const show = (p) => `rgba(${p})`
+
+  check('fidelity: the context really is at devicePixelRatio 2', fidelity.dpr === 2, `dpr=${fidelity.dpr}`)
+  check(
+    'fidelity: the canvas backing store is the viewport times dpr',
+    fidelity.canvasBacking[0] === fidelity.viewport[0] * 2 && fidelity.canvasBacking[1] === fidelity.viewport[1] * 2,
+    `backing=${fidelity.canvasBacking}, viewport=${fidelity.viewport}`,
+  )
+  check(
+    'fidelity: the canvas CSS box measures the same viewport as its backing store (not 100vh)',
+    fidelity.canvasCssBox[0] === fidelity.viewport[0] && fidelity.canvasCssBox[1] === fidelity.viewport[1],
+    `cssBox=${fidelity.canvasCssBox}, viewport=${fidelity.viewport}`,
+  )
+
+  check(
+    'fidelity: object-fit cover with object-position top crops to the image top, not squashed to fit',
+    isRed(fidelity.coverLow),
+    `bottom of a 100x50 box over a 100x100 image = ${show(fidelity.coverLow)} (blue means stretched)`,
+  )
+  check(
+    "fidelity: object-fit contain leaves the letterbox gutter unpainted",
+    clear(fidelity.containGutter),
+    `gutter=${show(fidelity.containGutter)}`,
+  )
+  check(
+    'fidelity: object-fit contain still maps the image across the box it does fill',
+    isRed(fidelity.containLeft) && isBlue(fidelity.containRight),
+    `left=${show(fidelity.containLeft)}, right=${show(fidelity.containRight)}`,
+  )
+  check(
+    'fidelity: border-radius is masked — the corner of a circular element is not painted',
+    clear(fidelity.roundCorner) && isRed(fidelity.roundCentre),
+    `corner=${show(fidelity.roundCorner)}, centre=${show(fidelity.roundCentre)}`,
+  )
+  check(
+    'fidelity: an overflow:hidden ancestor clips the replica',
+    isGreen(fidelity.clipInside) && clear(fidelity.clipOutside),
+    `inside=${show(fidelity.clipInside)}, outside=${show(fidelity.clipOutside)}`,
+  )
+  check(
+    'fidelity: KNOWN LIMIT — the shared canvas stacks above the whole page, so it paints over a z-index:10 fixed bar',
+    opaque(fidelity.underBar) && isYellow(fidelity.underBar)
+      && fidelity.canvasZIndex === '9999' && fidelity.canvasPosition === 'fixed' && fidelity.barZIndex === '10',
+    `drawnUnderBar=${show(fidelity.underBar)}, canvas=${fidelity.canvasPosition}/${fidelity.canvasZIndex}, bar=${fidelity.barZIndex}`,
+  )
+
+  await context.close()
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

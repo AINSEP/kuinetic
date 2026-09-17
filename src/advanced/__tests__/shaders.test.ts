@@ -12,10 +12,13 @@ import {
   drawElementQuad,
   extractShaderOptions,
   parseColor,
+  measureElementGeometry,
+  resolveDrawBox,
   setupScissor,
   uploadColorUniforms,
   uploadUniforms,
   BLEND_MODES,
+  type ElementGeometry,
 } from '../shaders.js'
 import {
   compileShader,
@@ -1142,6 +1145,184 @@ describe('Advanced Shaders Labs Module', () => {
 
       computed.mockRestore()
       img.remove()
+    })
+  })
+
+  /**
+   * The overlay draws on one shared full-viewport canvas standing in for an element that has been
+   * hidden, so anything the page does to that element has to be reproduced or it is lost. These
+   * drive the maths with a hand-built computed style rather than jsdom's: the real CSS semantics
+   * are `test/browser/advanced-webgl.test.mjs`'s overlay-fidelity block, in a real engine with
+   * real pixels; what belongs here is that the crop, the clip and the mask are computed from the
+   * values the engine reports.
+   */
+  describe('overlay geometry', () => {
+    function styleMap(overrides: Record<string, string> = {}): CSSStyleDeclaration {
+      return {
+        position: 'static', objectFit: 'fill', objectPosition: '50% 50%', opacity: '1',
+        overflowX: 'visible', overflowY: 'visible', transform: 'none', filter: 'none', perspective: 'none',
+        borderLeftWidth: '0px', borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px',
+        paddingLeft: '0px', paddingTop: '0px', paddingRight: '0px', paddingBottom: '0px',
+        borderTopLeftRadius: '0px', borderTopRightRadius: '0px',
+        borderBottomRightRadius: '0px', borderBottomLeftRadius: '0px',
+        ...overrides,
+      } as unknown as CSSStyleDeclaration
+    }
+
+    function fakeWin(styles: Map<Element, CSSStyleDeclaration>, dpr = 1): Window {
+      return {
+        innerWidth: 1000,
+        innerHeight: 800,
+        devicePixelRatio: dpr,
+        getComputedStyle: (el: Element) => styles.get(el) ?? styleMap(),
+      } as unknown as Window
+    }
+
+    function imgAt(left: number, top: number, size: [number, number], natural: [number, number]): HTMLImageElement {
+      const el = document.createElement('img')
+      Object.defineProperty(el, 'naturalWidth', { value: natural[0] })
+      Object.defineProperty(el, 'naturalHeight', { value: natural[1] })
+      el.getBoundingClientRect = () => ({
+        left, top, width: size[0], height: size[1], right: left + size[0], bottom: top + size[1],
+      } as DOMRect)
+      return el
+    }
+
+    function boxAt(left: number, top: number, size: [number, number]): HTMLElement {
+      const el = document.createElement('div')
+      el.getBoundingClientRect = () => ({
+        left, top, width: size[0], height: size[1], right: left + size[0], bottom: top + size[1],
+      } as DOMRect)
+      return el
+    }
+
+    it('maps object-fit: cover with object-position: top onto the image top, not the whole image', () => {
+      const img = imgAt(20, 100, [100, 50], [100, 100])
+      const styles = new Map([[img as Element, styleMap({ objectFit: 'cover', objectPosition: '50% 0%' })]])
+
+      const geom = measureElementGeometry(img, fakeWin(styles))!
+      // A 100x100 image covering a 100x50 box is painted 100x100 and anchored at the top, so the
+      // box only ever shows its upper half. Stretching it to the box would paint all 100 rows.
+      expect(geom.paint).toEqual({ left: 20, top: 100, right: 120, bottom: 200 })
+      expect(geom.clip).toEqual({ left: 20, top: 100, right: 120, bottom: 150 })
+    })
+
+    it('letterboxes object-fit: contain, leaving the gutters outside the paint box', () => {
+      const img = imgAt(200, 100, [200, 100], [100, 100])
+      const styles = new Map([[img as Element, styleMap({ objectFit: 'contain' })]])
+
+      const geom = measureElementGeometry(img, fakeWin(styles))!
+      expect(geom.paint).toEqual({ left: 250, top: 100, right: 350, bottom: 200 })
+    })
+
+    it('takes border and padding off the content box, and resolves a percentage radius elliptically', () => {
+      const img = imgAt(0, 0, [100, 40], [100, 40])
+      const styles = new Map([[img as Element, styleMap({
+        borderLeftWidth: '5px', paddingLeft: '5px', borderTopWidth: '2px',
+        borderTopLeftRadius: '50%', borderTopRightRadius: '10px 4px',
+      })]])
+
+      const geom = measureElementGeometry(img, fakeWin(styles))!
+      expect(geom.clip).toEqual({ left: 10, top: 2, right: 100, bottom: 40 })
+      // Border-box basis, x against the width and y against the height — the ellipse CSS draws.
+      expect(geom.radii.slice(0, 4)).toEqual([50, 20, 10, 4])
+    })
+
+    it('lets a static overflow:hidden ancestor clip an in-flow element but not an absolute one', () => {
+      const parent = boxAt(0, 0, [50, 100])
+      const child = imgAt(0, 0, [100, 100], [100, 100])
+      parent.appendChild(child)
+      const hidden = styleMap({ overflowX: 'hidden', overflowY: 'hidden' })
+
+      const inFlow = measureElementGeometry(child, fakeWin(new Map([[parent as Element, hidden]])))!
+      expect(inFlow.clip.right).toBe(50)
+
+      // `overflow` only clips a descendant whose containing block it is. A static parent is not an
+      // absolute child's containing block, and treating it as one clipped every element in the GL
+      // fixture to a zero-height `body` and drew nothing at all.
+      const escaped = measureElementGeometry(child, fakeWin(new Map<Element, CSSStyleDeclaration>([
+        [parent, hidden],
+        [child, styleMap({ position: 'absolute' })],
+      ])))!
+      expect(escaped.clip.right).toBe(100)
+
+      const contained = measureElementGeometry(child, fakeWin(new Map<Element, CSSStyleDeclaration>([
+        [parent, styleMap({ overflowX: 'hidden', overflowY: 'hidden', position: 'relative' })],
+        [child, styleMap({ position: 'absolute' })],
+      ])))!
+      expect(contained.clip.right).toBe(50)
+    })
+
+    it('multiplies the ancestors\' opacity into the alpha the draw is masked with', () => {
+      const outer = boxAt(0, 0, [200, 200])
+      const inner = boxAt(0, 0, [200, 200])
+      const child = imgAt(0, 0, [100, 100], [100, 100])
+      outer.appendChild(inner)
+      inner.appendChild(child)
+
+      const geom = measureElementGeometry(child, fakeWin(new Map<Element, CSSStyleDeclaration>([
+        [outer, styleMap({ opacity: '0.5' })],
+        [inner, styleMap({ opacity: '0.4' })],
+      ])))!
+      expect(geom.alpha).toBeCloseTo(0.2, 5)
+    })
+
+    it('answers null for an element below the fold', () => {
+      const img = imgAt(0, 900, [100, 100], [100, 100])
+      expect(measureElementGeometry(img, fakeWin(new Map()))).toBeNull()
+    })
+
+    function geometry(over: Partial<ElementGeometry> = {}): ElementGeometry {
+      return {
+        border: { left: 0, top: 0, right: 100, bottom: 100 },
+        paint: { left: 0, top: 0, right: 100, bottom: 200 },
+        clip: { left: 0, top: 0, right: 100, bottom: 100 },
+        radii: [0, 0, 0, 0, 0, 0, 0, 0],
+        alpha: 1,
+        ...over,
+      }
+    }
+
+    it('turns a cropped paint box into a UV window, a scissor rect and mask uniforms in device px', () => {
+      const canvas = { width: 200, height: 200 } as HTMLCanvasElement
+      const box = resolveDrawBox(geometry({ radii: [10, 10, 0, 0, 0, 0, 5, 5] }), canvas, 2)!
+
+      // The bottom half of the painted image is clipped away, so the quad samples the top half.
+      expect(box.uvOrigin).toEqual([0, 0])
+      expect(box.uvScale).toEqual([1, 0.5])
+      expect([box.sx, box.sy, box.sw, box.sh]).toEqual([0, 0, 200, 200])
+      // Centre and half-extents of the *border* box, y up from the canvas bottom, times dpr.
+      expect(box.maskBox).toEqual([100, 100, 100, 100])
+      expect(box.maskRx).toEqual([20, 0, 0, 10])
+      expect(box.maskRy).toEqual([20, 0, 0, 10])
+    })
+
+    it('samples the visible part of a half-off-screen element rather than squeezing the whole image', () => {
+      const canvas = { width: 500, height: 500 } as HTMLCanvasElement
+      const box = resolveDrawBox(geometry({
+        border: { left: -50, top: 0, right: 50, bottom: 100 },
+        paint: { left: -50, top: 0, right: 50, bottom: 100 },
+        clip: { left: -50, top: 0, right: 50, bottom: 100 },
+      }), canvas, 1)!
+
+      expect(box.uvOrigin[0]).toBeCloseTo(0.5, 5)
+      expect(box.uvScale[0]).toBeCloseTo(0.5, 5)
+    })
+
+    it('answers null when nothing of the paint box survives the clip, and for a degenerate box', () => {
+      const canvas = { width: 500, height: 500 } as HTMLCanvasElement
+      expect(resolveDrawBox(geometry({ clip: { left: 200, top: 0, right: 300, bottom: 100 } }), canvas, 1)).toBeNull()
+      expect(resolveDrawBox(geometry({ paint: { left: 10, top: 10, right: 10, bottom: 10 } }), canvas, 1)).toBeNull()
+    })
+
+    it('leaves the mask uniforms at their no-box value for a caller that measured nothing', () => {
+      const gl = createMockGL()
+      const prog = createProgram(gl, 'void main(){}', 'void main(){}')
+      const locs = extractLocations(gl, prog!)!
+      uploadUniforms(gl, locs, {})
+      // Always uploaded, never left to the last instance that drew with this shared program.
+      expect(gl.uniform4fv).toHaveBeenCalledWith(locs.u_maskBox, [0, 0, 0, 0])
+      expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_maskAlpha, 1)
     })
   })
 })

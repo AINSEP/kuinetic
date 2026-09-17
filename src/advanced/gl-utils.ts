@@ -10,6 +10,10 @@ export interface ProgramLocations {
   u_image_to?: WebGLUniformLocation | null
   u_uvOrigin?: WebGLUniformLocation | null
   u_uvScale?: WebGLUniformLocation | null
+  u_maskBox?: WebGLUniformLocation | null
+  u_maskRx?: WebGLUniformLocation | null
+  u_maskRy?: WebGLUniformLocation | null
+  u_maskAlpha?: WebGLUniformLocation | null
   u_time?: WebGLUniformLocation | null
   u_strength?: WebGLUniformLocation | null
   u_frequency?: WebGLUniformLocation | null
@@ -82,6 +86,10 @@ export function extractLocations(
     u_image_to: gl.getUniformLocation(program, 'u_image_to'),
     u_uvOrigin: gl.getUniformLocation(program, 'u_uvOrigin'),
     u_uvScale: gl.getUniformLocation(program, 'u_uvScale'),
+    u_maskBox: gl.getUniformLocation(program, 'u_maskBox'),
+    u_maskRx: gl.getUniformLocation(program, 'u_maskRx'),
+    u_maskRy: gl.getUniformLocation(program, 'u_maskRy'),
+    u_maskAlpha: gl.getUniformLocation(program, 'u_maskAlpha'),
     u_time: gl.getUniformLocation(program, 'u_time'),
     u_strength: gl.getUniformLocation(program, 'u_strength'),
     u_frequency: gl.getUniformLocation(program, 'u_frequency'),
@@ -122,6 +130,16 @@ export function createGLTexture(
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    // The context is created `premultipliedAlpha: true`, so the framebuffer is read back as
+    // premultiplied — upload straight-alpha image data into it and every semi-transparent pixel
+    // composites too bright (the classic halo around an antialiased PNG edge). It is also what
+    // makes the corner mask exact: masking multiplies all four channels, which is only the right
+    // operation on premultiplied colour.
+    //
+    // Guarded because the unit suites' GL doubles declare neither the function nor the constant,
+    // and this whole body is inside a `try` that answers `null` — an unguarded call there would
+    // turn every mocked texture upload into "failed", i.e. into a dead effect.
+    if (typeof gl.pixelStorei === 'function') gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
     return tex
   } catch {

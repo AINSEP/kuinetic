@@ -45,6 +45,13 @@ export interface ShaderUniformOptions {
   c2Rgba?: [number, number, number, number]
   uvOrigin?: [number, number]
   uvScale?: [number, number]
+  /** Border-box centre and half-extents in device px, y up from the canvas bottom. */
+  maskBox?: [number, number, number, number]
+  /** Corner radii in device px, TL, TR, BR, BL. */
+  maskRx?: [number, number, number, number]
+  maskRy?: [number, number, number, number]
+  /** What the ancestors' own opacity leaves this element painted at. */
+  maskAlpha?: number
 }
 
 export interface ShaderDrawOptions extends ShaderUniformOptions {
@@ -69,6 +76,15 @@ export interface ShaderDrawOptions extends ShaderUniformOptions {
    * `readAudioBand`) and arrives at the draw as {@link ShaderUniformOptions.audio}.
    */
   audioBand?: AudioBand | null
+  /**
+   * This element's already-measured box, or absent to measure it here.
+   *
+   * The render loop measures every registered instance in its read pass and passes the answer down
+   * (see `renderFrame`); measuring inside the draw would interleave `getComputedStyle` and
+   * `getBoundingClientRect` with the previous instance's `opacity` write and force a style
+   * recalculation per element per frame.
+   */
+  geometry?: ElementGeometry | null
 }
 
 export type ShaderProgramEntry = ProgramLocations | WebGLProgram | null | undefined
@@ -193,7 +209,31 @@ function resolveLocations(
     u_blend: g('u_blend'), u_duotone: g('u_duotone'), u_color1: g('u_color1'),
     u_color2: g('u_color2'), u_image: g('u_image'), u_image_to: g('u_image_to'),
     u_progress: g('u_progress'), u_audio: g('u_audio'),
+    u_maskBox: g('u_maskBox'), u_maskRx: g('u_maskRx'), u_maskRy: g('u_maskRy'),
+    u_maskAlpha: g('u_maskAlpha'),
   }
+}
+
+/** A zero half-extent is `shapeMask()`'s "no box measured" signal — see `SHAPE_MASK_GLSL`. */
+const NO_MASK_BOX: [number, number, number, number] = [0, 0, 0, 0]
+
+/**
+ * The element's own shape, uploaded unconditionally.
+ *
+ * Like `u_audio`, never left to the program's initial state: the five programs are shared by every
+ * instance on the page, so a mask this instance skipped would keep whatever the last instance to
+ * draw with the same `mode` put there — one rounded hero would round the square one beside it, and
+ * one faded ancestor would fade a sibling that has none.
+ */
+function uploadMaskUniforms(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  opt: ShaderUniformOptions,
+): void {
+  if (locs.u_maskBox) gl.uniform4fv(locs.u_maskBox, opt.maskBox ?? NO_MASK_BOX)
+  if (locs.u_maskRx) gl.uniform4fv(locs.u_maskRx, opt.maskRx ?? NO_MASK_BOX)
+  if (locs.u_maskRy) gl.uniform4fv(locs.u_maskRy, opt.maskRy ?? NO_MASK_BOX)
+  uploadFloat(gl, locs.u_maskAlpha, opt.maskAlpha ?? 1)
 }
 
 function uploadFloat(
@@ -234,6 +274,7 @@ export function uploadUniforms(
   // neighbour's beat.
   uploadFloat(gl, locs.u_audio, opt.audio ?? 0)
   uploadCoordUniforms(gl, locs, opt)
+  uploadMaskUniforms(gl, locs, opt)
 }
 
 function uploadDuotoneUniforms(
@@ -271,42 +312,362 @@ function getScissorEnv(win?: AnyWindow): { height: number; dpr: number } {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Matching the element the overlay replaces.
+ *
+ * The draw happens on one shared, full-viewport, fixed canvas, and the element it stands in for is
+ * hidden — so everything the page does to that element has to be reproduced here or it is simply
+ * lost. Before this layer the only geometry input was the border-box rect, which meant an
+ * `object-fit: cover` hero was stretched the moment the shader turned on, rounded corners went
+ * square, and a replica inside `overflow: hidden` painted straight through the clip.
+ *
+ * Reproduced: `object-fit`/`object-position` (as a UV window over the texture, so `cover` crops
+ * exactly where CSS crops), border/padding insets, `border-radius` (masked in the fragment shader,
+ * since one shared canvas cannot carry a per-element CSS radius), rectangular clipping ancestors,
+ * and ancestor `opacity`.
+ *
+ * NOT reproduced, and not reproducible from a single fixed canvas: **stacking order** — the canvas
+ * sits at `z-index: 9999` above the whole document, so a sticky header or an open modal that
+ * overlaps the element is painted under the replica. Also unreproduced: a transformed ancestor
+ * (the replica is drawn axis-aligned into the bounding box), a non-rectangular ancestor clip
+ * (`clip-path`, `mask`, an ancestor's own `border-radius`), and the spec's uniform down-scaling of
+ * overlapping corner radii (each corner is clamped on its own instead).
+ * ------------------------------------------------------------------------- */
+
+/** An axis-aligned box in viewport-relative CSS pixels. */
+export interface Inset { left: number; top: number; right: number; bottom: number }
+
+export interface ElementGeometry {
+  /** Border box. What the corner mask is measured against. */
+  border: Inset
+  /** Where the replaced content would be painted if nothing clipped it. */
+  paint: Inset
+  /** Content box narrowed by every clipping ancestor. */
+  clip: Inset
+  /** Border-box corner radii, `[x, y]` per corner in TL, TR, BR, BL order. */
+  radii: [number, number, number, number, number, number, number, number]
+  /** The product of the ancestors' opacities. This element's own is this module's to write. */
+  alpha: number
+}
+
+function numOr(raw: string | undefined | null, fallback = 0): number {
+  const val = parseFloat(raw ?? '')
+  return Number.isFinite(val) ? val : fallback
+}
+
+/**
+ * `getComputedStyle` for one element, or `null` when this window cannot answer.
+ *
+ * Deliberately only the *passed* window: the unit suites hand the renderer plain
+ * `{ innerHeight, devicePixelRatio }` doubles and mock elements that are not in any document, and
+ * reaching past them to `el.ownerDocument.defaultView` would quietly put those cases on a code
+ * path the caller did not ask for. No computed style means "fall back to the border box", which is
+ * exactly the behaviour this layer replaced.
+ */
+function cssStyleOf(el: Element, win: AnyWindow): CSSStyleDeclaration | null {
+  const gcs = (win as Window | null)?.getComputedStyle
+  if (typeof gcs !== 'function') return null
+  try {
+    return gcs.call(win, el)
+  } catch {
+    return null
+  }
+}
+
+function boxOf(rect: DOMRect): Inset {
+  return { left: rect.left, top: rect.top, right: rect.left + rect.width, bottom: rect.top + rect.height }
+}
+
+function intersectBox(a: Inset, b: Inset): Inset {
+  return {
+    left: Math.max(a.left, b.left), top: Math.max(a.top, b.top),
+    right: Math.min(a.right, b.right), bottom: Math.min(a.bottom, b.bottom),
+  }
+}
+
+/** `box` pulled inward by `by`, whose four fields are edge thicknesses rather than coordinates. */
+function insetBox(box: Inset, by: Inset): Inset {
+  return {
+    left: box.left + by.left, top: box.top + by.top,
+    right: box.right - by.right, bottom: box.bottom - by.bottom,
+  }
+}
+
+function borderWidthsOf(cs: CSSStyleDeclaration): Inset {
+  return {
+    left: numOr(cs.borderLeftWidth), top: numOr(cs.borderTopWidth),
+    right: numOr(cs.borderRightWidth), bottom: numOr(cs.borderBottomWidth),
+  }
+}
+
+function contentBoxOf(rect: DOMRect, cs: CSSStyleDeclaration | null): Inset {
+  const border = boxOf(rect)
+  if (!cs) return border
+  const edges = borderWidthsOf(cs)
+  return insetBox(border, {
+    left: edges.left + numOr(cs.paddingLeft), top: edges.top + numOr(cs.paddingTop),
+    right: edges.right + numOr(cs.paddingRight), bottom: edges.bottom + numOr(cs.paddingBottom),
+  })
+}
+
+/** The size `object-fit` paints the intrinsic image at inside a `bw` x `bh` content box. */
+function fittedSize(fit: string, bw: number, bh: number, natural: [number, number]): [number, number] {
+  const [iw, ih] = natural
+  if (fit === 'cover') {
+    const s = Math.max(bw / iw, bh / ih)
+    return [iw * s, ih * s]
+  }
+  if (fit === 'none') return [iw, ih]
+  if (fit === 'contain' || fit === 'scale-down') {
+    const s = Math.min(bw / iw, bh / ih, fit === 'scale-down' ? 1 : Infinity)
+    return [iw * s, ih * s]
+  }
+  return [bw, bh]
+}
+
+const POSITION_KEYWORDS: Record<string, number> = { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 }
+
+/** One axis of `object-position`: how far the painted box sits inside the content box, in px. */
+function positionOffset(token: string, free: number): number {
+  const keyword = POSITION_KEYWORDS[token]
+  if (keyword !== undefined) return free * keyword
+  if (token.endsWith('%')) return free * (numOr(token) / 100)
+  return numOr(token, free * 0.5)
+}
+
+function paintBoxOf(content: Inset, natural: [number, number] | null, cs: CSSStyleDeclaration | null): Inset {
+  if (!natural || !cs) return content
+  const bw = content.right - content.left
+  const bh = content.bottom - content.top
+  if (bw <= 0 || bh <= 0) return content
+  const [dw, dh] = fittedSize(cs.objectFit || 'fill', bw, bh, natural)
+  const tokens = (cs.objectPosition || '50% 50%').trim().split(/\s+/)
+  const left = content.left + positionOffset(tokens[0] ?? '50%', bw - dw)
+  const top = content.top + positionOffset(tokens[1] ?? '50%', bh - dh)
+  return { left, top, right: left + dw, bottom: top + dh }
+}
+
+function radiusPart(token: string | undefined, basis: number): number {
+  if (!token) return 0
+  return token.endsWith('%') ? Math.max(0, basis * (numOr(token) / 100)) : Math.max(0, numOr(token))
+}
+
+/** One corner's `[x, y]` radii in px. A computed percentage resolves against the border box. */
+function cornerRadius(raw: string | undefined, bw: number, bh: number): [number, number] {
+  const parts = (raw ?? '').trim().split(/\s+/)
+  return [radiusPart(parts[0], bw), radiusPart(parts[1] ?? parts[0], bh)]
+}
+
+function radiiOf(cs: CSSStyleDeclaration | null, rect: DOMRect): ElementGeometry['radii'] {
+  if (!cs) return [0, 0, 0, 0, 0, 0, 0, 0]
+  const w = rect.width, h = rect.height
+  const tl = cornerRadius(cs.borderTopLeftRadius, w, h)
+  const tr = cornerRadius(cs.borderTopRightRadius, w, h)
+  const br = cornerRadius(cs.borderBottomRightRadius, w, h)
+  const bl = cornerRadius(cs.borderBottomLeftRadius, w, h)
+  return [tl[0], tl[1], tr[0], tr[1], br[0], br[1], bl[0], bl[1]]
+}
+
+function naturalSizeOf(el: HTMLElement): [number, number] | null {
+  const { naturalWidth: w, naturalHeight: h } = el as HTMLImageElement
+  if (typeof w !== 'number' || typeof h !== 'number' || w <= 0 || h <= 0) return null
+  return [w, h]
+}
+
+function isClipping(cs: CSSStyleDeclaration): boolean {
+  for (const overflow of [cs.overflowX, cs.overflowY]) {
+    if (overflow && overflow !== 'visible') return true
+  }
+  return false
+}
+
+/** How many levels of ancestor the clip/opacity walk climbs before giving up. */
+const ANCESTOR_WALK_LIMIT = 12
+
+/** Whether this element is a containing block for an out-of-flow descendant. */
+function isContainingBlock(cs: CSSStyleDeclaration): boolean {
+  if (cs.position && cs.position !== 'static') return true
+  return [cs.transform, cs.filter, cs.perspective].some((v) => v && v !== 'none')
+}
+
+/**
+ * Whether `position`'s overflow reaches a descendant whose own used `position` is `subject`.
+ *
+ * `overflow` clips a descendant only when the scroller is in that descendant's containing-block
+ * chain, which is what stopped the first version of this walk working at all: every element in the
+ * GL fixture is `position: absolute` under a `body { overflow: hidden }` whose height collapses to
+ * zero, so treating body as a clip left nothing to draw anywhere. Real browsers do not clip those
+ * elements, because a static body is not their containing block.
+ */
+function clipsSubject(subject: string, cs: CSSStyleDeclaration): boolean {
+  if (subject === 'fixed') return false
+  if (subject === 'absolute') return isContainingBlock(cs)
+  return true
+}
+
+function narrowByAncestor(acc: { clip: Inset; alpha: number; subject: string }, node: HTMLElement, win: AnyWindow): void {
+  const cs = cssStyleOf(node, win)
+  if (!cs) return
+  const opacity = numOr(cs.opacity, 1)
+  if (opacity < 1) acc.alpha *= Math.max(0, opacity)
+  if (clipsSubject(acc.subject, cs)) {
+    const rect = isClipping(cs) ? node.getBoundingClientRect?.() : null
+    if (rect) acc.clip = intersectBox(acc.clip, insetBox(boxOf(rect), borderWidthsOf(cs)))
+    // Past its containing block, the subject for the levels above is this element itself.
+    acc.subject = cs.position || 'static'
+  }
+}
+
+/**
+ * Narrow `start` by every clipping ancestor, and collect the opacity they are painted at.
+ *
+ * One `getComputedStyle` per ancestor per measurement, capped at {@link ANCESTOR_WALK_LIMIT}
+ * levels. Affordable only because every measurement happens in the renderer's read pass, before
+ * any instance writes a style (see `renderFrame`) — interleaved with writes this would force a
+ * style recalculation per level.
+ */
+function walkAncestors(el: HTMLElement, win: AnyWindow, start: Inset, subject: string): { clip: Inset; alpha: number } {
+  const acc = { clip: start, alpha: 1, subject }
+  let node: HTMLElement | null = el.parentElement ?? null
+  for (let depth = 0; node && depth < ANCESTOR_WALK_LIMIT; depth++) {
+    narrowByAncestor(acc, node, win)
+    node = node.parentElement ?? null
+  }
+  return acc
+}
+
+/**
+ * Everything about one element's box the draw has to reproduce, in CSS pixels.
+ *
+ * Pure reads, no GL and no canvas: the device-pixel conversion needs the canvas dimensions and
+ * happens later, in {@link resolveDrawBox}, so that a caller can measure once per frame in the
+ * read pass and draw from the cached answer.
+ *
+ * @param el - The element the shader stands in for.
+ * @param win - The window whose `innerHeight`/`devicePixelRatio`/`getComputedStyle` to use.
+ * @returns Its geometry, or `null` when it is not on screen at all.
+ * @complexity O(d) in ancestor depth, capped at {@link ANCESTOR_WALK_LIMIT}.
+ */
+export function measureElementGeometry(el: HTMLElement, win?: AnyWindow): ElementGeometry | null {
+  const rect = el.getBoundingClientRect()
+  const { height } = getScissorEnv(win)
+  if (!isRectVisible(rect, height)) return null
+  const view = win ?? null
+  const cs = cssStyleOf(el, view)
+  const content = contentBoxOf(rect, cs)
+  const walked = walkAncestors(el, view, content, cs?.position || 'static')
+  return {
+    border: boxOf(rect),
+    paint: paintBoxOf(content, naturalSizeOf(el), cs),
+    clip: walked.clip,
+    radii: radiiOf(cs, rect),
+    alpha: walked.alpha,
+  }
+}
+
 export interface ScissorResult {
   rect: DOMRect
   uvOrigin: [number, number]
   uvScale: [number, number]
+  /** Border-box centre and half-extents in device px, y measured up from the canvas bottom. */
+  maskBox: [number, number, number, number]
+  /** Corner x-radii in device px, TL, TR, BR, BL — matching `maskRy`. */
+  maskRx: [number, number, number, number]
+  maskRy: [number, number, number, number]
+  alpha: number
 }
 
+function maskUniformsOf(geom: ElementGeometry, canvasHeight: number, dpr: number): {
+  maskBox: [number, number, number, number]
+  maskRx: [number, number, number, number]
+  maskRy: [number, number, number, number]
+} {
+  const b = geom.border
+  const r = geom.radii
+  return {
+    maskBox: [
+      (b.left + b.right) * 0.5 * dpr,
+      canvasHeight - (b.top + b.bottom) * 0.5 * dpr,
+      (b.right - b.left) * 0.5 * dpr,
+      (b.bottom - b.top) * 0.5 * dpr,
+    ],
+    maskRx: [r[0] * dpr, r[2] * dpr, r[4] * dpr, r[6] * dpr],
+    maskRy: [r[1] * dpr, r[3] * dpr, r[5] * dpr, r[7] * dpr],
+  }
+}
+
+/**
+ * Turn one element's CSS-pixel geometry into a scissor rect and the UV window over its texture.
+ *
+ * The UV window is what makes `object-fit` work: the quad only ever covers the part of the painted
+ * box that survives clipping, and `uvOrigin`/`uvScale` say which part of the *image* that is. A
+ * `cover` hero therefore samples the same crop CSS shows, and a half-off-screen element samples
+ * its visible half, through one mechanism rather than two.
+ *
+ * @returns `null` when nothing of the element is left to draw.
+ * @complexity O(1).
+ */
+export function resolveDrawBox(
+  geom: ElementGeometry,
+  canvas: HTMLCanvasElement,
+  dpr: number,
+): (ScissorResult & { sx: number; sy: number; sw: number; sh: number }) | null {
+  const paintW = geom.paint.right - geom.paint.left
+  const paintH = geom.paint.bottom - geom.paint.top
+  if (paintW <= 0 || paintH <= 0) return null
+  const view: Inset = { left: 0, top: 0, right: canvas.width / dpr, bottom: canvas.height / dpr }
+  const draw = intersectBox(intersectBox(geom.paint, geom.clip), view)
+  const drawW = draw.right - draw.left
+  const drawH = draw.bottom - draw.top
+  if (drawW <= 0 || drawH <= 0) return null
+
+  const sx = Math.round(draw.left * dpr)
+  const sy = Math.round(canvas.height - draw.bottom * dpr)
+  const sw = Math.min(canvas.width - sx, Math.round(drawW * dpr))
+  const sh = Math.min(canvas.height - sy, Math.round(drawH * dpr))
+  if (sw <= 0 || sh <= 0) return null
+
+  const b = geom.border
+  return {
+    sx, sy, sw, sh,
+    rect: { left: b.left, top: b.top, width: b.right - b.left, height: b.bottom - b.top } as DOMRect,
+    uvOrigin: [(draw.left - geom.paint.left) / paintW, (draw.top - geom.paint.top) / paintH],
+    uvScale: [drawW / paintW, drawH / paintH],
+    alpha: geom.alpha,
+    ...maskUniformsOf(geom, canvas.height, dpr),
+  }
+}
+
+/**
+ * Measure `el`, point the viewport and scissor box at it, and hand back its UV window.
+ *
+ * Kept as one call for the unit suites and for any caller that has no cached geometry; the render
+ * loop measures in its read pass instead and passes the result in as
+ * {@link ShaderDrawOptions.geometry}.
+ */
 export function setupScissor(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   el: HTMLElement,
   canvas: HTMLCanvasElement,
   win?: AnyWindow,
 ): ScissorResult | null {
-  const rect = el.getBoundingClientRect()
-  const { height, dpr } = getScissorEnv(win)
-  if (!isRectVisible(rect, height)) return null
+  const geom = measureElementGeometry(el, win)
+  if (!geom) return null
+  return applyDrawBox(gl, canvas, geom, getScissorEnv(win).dpr)
+}
 
-  const x = Math.round(rect.left * dpr)
-  const y = Math.round(canvas.height - rect.bottom * dpr)
-  const w = Math.round(rect.width * dpr)
-  const h = Math.round(rect.height * dpr)
-
-  const sx = Math.max(0, x)
-  const sy = Math.max(0, y)
-  const sw = Math.max(0, Math.min(canvas.width - sx, w + Math.min(0, x)))
-  const sh = Math.max(0, Math.min(canvas.height - sy, h + Math.min(0, y)))
-  if (sw <= 0 || sh <= 0) return null
-
+function applyDrawBox(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  canvas: HTMLCanvasElement,
+  geom: ElementGeometry,
+  dpr: number,
+): ScissorResult | null {
+  const box = resolveDrawBox(geom, canvas, dpr)
+  if (!box) return null
   gl.enable(gl.SCISSOR_TEST)
-  gl.viewport(sx, sy, sw, sh)
-  gl.scissor(sx, sy, sw, sh)
-
-  const u0 = Math.max(0, Math.min(1, (sx - x) / w))
-  const us = Math.max(0, Math.min(1 - u0, sw / w))
-  const v0 = Math.max(0, Math.min(1, ((y + h) - (sy + sh)) / h))
-  const vs = Math.max(0, Math.min(1 - v0, sh / h))
-  return { rect, uvOrigin: [u0, v0], uvScale: [us, vs] }
+  gl.viewport(box.sx, box.sy, box.sw, box.sh)
+  gl.scissor(box.sx, box.sy, box.sw, box.sh)
+  return box
 }
 
 export function bindShaderTexture(
@@ -369,7 +730,12 @@ export function drawElementQuad(
   const program = getProgram(info)
   if (!program) return false
 
-  const scissor = setupScissor(gl, el, canvas, renderer.window)
+  // The measured geometry when the render loop already took it this frame (the normal path), or a
+  // fresh measurement for a caller that has none. `null` is a measurement — "off screen, nothing
+  // to draw" — and must not send us back to the DOM for the same answer every frame.
+  const geom = opt.geometry !== undefined ? opt.geometry : measureElementGeometry(el, renderer.window)
+  if (!geom) return false
+  const scissor = applyDrawBox(gl, canvas, geom, getScissorEnv(renderer.window).dpr)
   if (!scissor) return false
 
   const localMouse = computeMousePos(renderer, scissor.rect)
@@ -380,6 +746,10 @@ export function drawElementQuad(
     localMouse,
     uvOrigin: scissor.uvOrigin,
     uvScale: scissor.uvScale,
+    maskBox: scissor.maskBox,
+    maskRx: scissor.maskRx,
+    maskRy: scissor.maskRy,
+    maskAlpha: scissor.alpha,
   })
   uploadColorUniforms(gl, info, opt)
 
@@ -479,10 +849,30 @@ function invokeIsolated(fn: () => void): void {
   }
 }
 
+/**
+ * Keep the backing store and the CSS box measuring the same viewport.
+ *
+ * The backing store is sized from `innerWidth`/`innerHeight` — the same quantity
+ * `getBoundingClientRect` answers in — so the CSS box has to be pinned to those numbers too. It
+ * used to be `width:100vw;height:100vh` in the canvas's `cssText`, and on a phone `100vh` is the
+ * *large* viewport (URL bar hidden) while `innerHeight` is the *visual* one: the browser then
+ * scaled the backing store to fit, and a pixel written at `rect.top * dpr` landed at
+ * `rect.top * (100vh / innerHeight)`. On iOS Safari with the toolbar showing that is an element
+ * 600px down the viewport drawn ~80px below where it actually is, sliding as the toolbar collapses.
+ * Desktop never saw it, which is why it survived five reviews.
+ */
 function syncCanvasDimensions(canvas: HTMLCanvasElement, win: AnyWindow, dpr: number): void {
-  const cw = Math.round((win?.innerWidth ?? 1000) * dpr)
-  const ch = Math.round((win?.innerHeight ?? 800) * dpr)
+  const vw = win?.innerWidth ?? 1000
+  const vh = win?.innerHeight ?? 800
+  const cw = Math.round(vw * dpr)
+  const ch = Math.round(vh * dpr)
   if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch }
+  const style = canvas.style
+  if (!style) return
+  const cssW = `${vw}px`
+  const cssH = `${vh}px`
+  if (style.width !== cssW) style.width = cssW
+  if (style.height !== cssH) style.height = cssH
 }
 
 export type ShaderDrawFn = (gl: WebGLRenderingContext | WebGL2RenderingContext, timeSeconds: number) => void
@@ -548,10 +938,12 @@ export class SharedShaderRenderer {
     if (!this.canvas) return false
 
     this.canvas.className = 'kui-shader-canvas'
-    this.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;'
+    // No `width`/`height` here: `syncCanvasDimensions` owns both, in px, every frame.
+    this.canvas.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:9999;'
     this.gl = this.canvas.getContext ? (this.canvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true }) as WebGL2RenderingContext | null) : null
     if (!this.gl) return false
 
+    syncCanvasDimensions(this.canvas, this.window, getScissorEnv(this.window).dpr)
     this.document.body.appendChild(this.canvas)
     this.initQuad()
     this.initPrograms()
@@ -785,7 +1177,14 @@ function cleanupShaderTextures(texHolder: TextureHolder, toHolder: TextureHolder
  * captured by `set()` at the instant of the write and put back with its priority intact, instead
  * of in a string this module read off `style.opacity` and wrote back as a plain declaration.
  */
-interface ShaderInstanceState { ledgers: LedgerSet; hiddenByRenderer: boolean; progress: number; audio: number }
+interface ShaderInstanceState {
+  ledgers: LedgerSet
+  hiddenByRenderer: boolean
+  progress: number
+  audio: number
+  /** This frame's measured box, or `null` when the element is off screen. */
+  geometry: ElementGeometry | null
+}
 
 function hideBehindRenderer(el: HTMLElement, state: ShaderInstanceState): void {
   if (state.hiddenByRenderer) return
@@ -804,7 +1203,9 @@ function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): vo
 function createShaderInstance(info: {
   id: string; el: HTMLElement; opt: ShaderDrawOptions; renderer: SharedShaderRenderer; tex: TextureHolder; to: TextureHolder
 }): EffectInstance {
-  const state: ShaderInstanceState = { ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1, audio: 0 }
+  const state: ShaderInstanceState = {
+    ledgers: createLedgerSet(info.el), hiddenByRenderer: false, progress: -1, audio: 0, geometry: null,
+  }
   let isActive = false, isAcquired = false
 
   // Read once per frame, before this or any other instance draws — see `renderFrame`'s
@@ -813,11 +1214,16 @@ function createShaderInstance(info: {
   // The audio read is skipped entirely with no `audio:` band authored, rather than reading and
   // discarding: it is the half that can force a style recalculation, and an author who did not
   // ask for audio should not pay for one.
+  //
+  // The geometry measurement belongs here for the same reason and more so: it reads the element's
+  // rect, its computed style and its clipping ancestors' (`measureElementGeometry`), all of which
+  // a preceding instance's `opacity` write would have invalidated.
   const readInputs = () => {
     state.progress = info.opt.progress !== undefined && info.opt.progress >= 0
       ? info.opt.progress
       : readElementProgress(info.el)
     state.audio = info.opt.audioBand ? readAudioBand(info.el, info.opt.audioBand) : 0
+    state.geometry = measureElementGeometry(info.el, info.renderer.window)
   }
 
   const drawCall: ShaderDrawFn = (_gl, time) => {
@@ -825,7 +1231,13 @@ function createShaderInstance(info: {
     try {
       const texture = info.tex.get()
       drew = !!texture && drawElementQuad(info.renderer, info.el, {
-        ...info.opt, texture, toTexture: info.to.get(), time, progress: state.progress, audio: state.audio,
+        ...info.opt,
+        texture,
+        toTexture: info.to.get(),
+        time,
+        progress: state.progress,
+        audio: state.audio,
+        geometry: state.geometry,
       })
     } catch {
       restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return

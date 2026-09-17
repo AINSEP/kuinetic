@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — advanced shader overlay fidelity fixture</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #14110f; }
+      /* A positioned stage so the absolutely placed probes below have a containing block, and so
+         `#clip-box`'s `overflow: hidden` is a real clip for its absolute child rather than one the
+         browser ignores. */
+      #stage { position: relative; width: 800px; height: 600px; }
+
+      /* object-fit: cover, anchored to the top. A 100x100 image in a 100x50 box: honoured, the
+         visible band is the image's top half (all red); stretched, it is the whole image and the
+         bottom of the box reads blue. */
+      #cover { position: absolute; left: 20px; top: 100px; width: 100px; height: 50px; object-fit: cover; object-position: top; }
+
+      /* object-fit: contain. A 100x100 image in a 200x100 box: honoured, the image sits in the
+         middle 100px and the 50px gutters either side are empty; stretched, the gutters are
+         painted. */
+      #contain { position: absolute; left: 200px; top: 100px; width: 200px; height: 100px; object-fit: contain; }
+
+      /* A circle. Honoured, the box corners are empty. */
+      #round { position: absolute; left: 450px; top: 100px; width: 100px; height: 100px; border-radius: 50px; }
+
+      /* A clipping ancestor half the width of its child. */
+      #clip-box { position: absolute; left: 20px; top: 300px; width: 50px; height: 100px; overflow: hidden; }
+      #clipped { position: absolute; left: 0; top: 0; width: 100px; height: 100px; }
+
+      /* Overlapped by the fixed bar below — the documented stacking limit. */
+      #under { position: absolute; left: 600px; top: 10px; width: 100px; height: 100px; }
+      #bar { position: fixed; left: 0; top: 0; width: 100%; height: 60px; background: rgb(255, 0, 255); z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <!-- SVG data URIs load synchronously in Chromium, so naturalWidth/naturalHeight are non-zero
+         and `complete` is true by the time the suite runs. -->
+    <div id="stage">
+      <img id="cover" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='50' fill='rgb(255,0,0)'/><rect y='50' width='100' height='50' fill='rgb(0,0,255)'/></svg>" />
+      <img id="contain" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='50' height='100' fill='rgb(255,0,0)'/><rect x='50' width='50' height='100' fill='rgb(0,0,255)'/></svg>" />
+      <img id="round" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <div id="clip-box">
+        <img id="clipped" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='50' height='100' fill='rgb(0,255,0)'/><rect x='50' width='50' height='100' fill='rgb(255,255,255)'/></svg>" />
+      </div>
+      <img id="under" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,255,0)'/></svg>" />
+    </div>
+    <div id="bar"></div>
+
+    <script src="./advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>
