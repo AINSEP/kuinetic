@@ -243,6 +243,18 @@ type AudioWindow = (Window & {
 }) | null
 
 /**
+ * A window that is actually there — the key a graph can be stored under.
+ *
+ * The "is there a window at all" question is answered once, in {@link AudioSourceController.initAudio},
+ * and everything below it takes the narrowed type. The two helpers used to re-ask: `acquire` had its
+ * own `!win`, and `release` had both a `!win` and a `!graph` re-lookup of the entry its only callers
+ * were already holding. Neither of those two could ever be true — `release` is reached only from a
+ * site that has just acquired — so they were unreachable guards standing in for a type, which is
+ * what a type is for.
+ */
+type LiveAudioWindow = NonNullable<AudioWindow>
+
+/**
  * One `AudioContext` per window, and the media sources living inside it.
  *
  * Two irreversible facts about the Web Audio API drive this whole shape:
@@ -313,8 +325,7 @@ function createMutedSink(ctx: AudioContext): AudioNode | null {
  * @returns The graph with this caller counted, or `null` when the environment has no Web Audio.
  * @complexity O(1).
  */
-function acquireSharedGraph(win: AudioWindow): SharedAudioGraph | null {
-  if (!win) return null
+function acquireSharedGraph(win: LiveAudioWindow): SharedAudioGraph | null {
   const existing = sharedGraphs.get(win)
   if (existing) {
     existing.consumers++
@@ -341,12 +352,13 @@ function acquireSharedGraph(win: AudioWindow): SharedAudioGraph | null {
 /**
  * Drop one consumer, closing the context only when nothing of the page's own audio depends on it.
  *
+ * Takes the graph rather than looking it up: both call sites are holding the one they acquired, and
+ * a second `sharedGraphs.get` could only ever hand back that same object or — impossibly — nothing.
+ *
+ * @param win - The window the graph is keyed under, needed only to evict the entry.
  * @complexity O(1).
  */
-function releaseSharedGraph(win: AudioWindow): void {
-  if (!win) return
-  const graph = sharedGraphs.get(win)
-  if (!graph) return
+function releaseSharedGraph(win: LiveAudioWindow, graph: SharedAudioGraph): void {
   graph.consumers--
   if (graph.consumers > 0 || graph.ownsMediaOutput) return
   sharedGraphs.delete(win)
@@ -517,11 +529,14 @@ export class AudioSourceController {
   initAudio(): boolean {
     if (this.analyser) return true
     const win = this.window as AudioWindow
+    // The one place the environment is asked whether it has a window at all — server-rendered, a
+    // worker, or a suite handing in `{ window: null }`. Everything below takes it as given.
+    if (!win) return false
     const graph = acquireSharedGraph(win)
     if (!graph) return false
     const analyser = this.buildAnalyser(graph)
     if (!analyser) {
-      releaseSharedGraph(win)
+      releaseSharedGraph(win, graph)
       return false
     }
     this.graph = graph
@@ -533,11 +548,34 @@ export class AudioSourceController {
     return true
   }
 
+  /**
+   * Go live — but only run a frame loop once there is something for it to read.
+   *
+   * The loop used to start unconditionally, and both ways that can be wrong were reachable:
+   *
+   * - **Initialisation failed.** No Web Audio, or an `AudioContext` the browser refused to build.
+   *   `initAudio()` is only ever called from here and here early-returns on `isActive`, so there is
+   *   no retry path at all — the loop sampled nothing, wrote the same `0.000` forever and could
+   *   never recover.
+   * - **The context is suspended.** `defaultActivation` is `'load'`, so this normally runs before
+   *   the visitor has touched anything and the context starts suspended. The gesture retry below
+   *   is the fix for *that*, but the loop does not have to run while it waits: a suspended context
+   *   fills zeros, and {@link GESTURE_EVENTS} is `pointerdown`/`keydown`/`touchend` — a visitor who
+   *   only ever scrolls with a wheel fires none of them, so "while it waits" was the rest of the
+   *   session at 60fps.
+   *
+   * One frame of silence covers both, and it is all either case needs: nothing is going to change
+   * these five values until a resume lands, and writing them once still says "there is a driver on
+   * this element and it is silent" to a consumer that would otherwise inherit an ancestor's live
+   * band. The loop is then started by whichever `resume()` succeeds — see {@link startLoopIfActive}.
+   */
   start(): void {
     if (this.isActive) return
     this.isActive = true
-    this.initAudio()
-    this.resumeContext()
+    if (!this.initAudio() || !this.resumeContext()) {
+      this.updateFrame()
+      return
+    }
     this.startLoop()
   }
 
@@ -553,12 +591,31 @@ export class AudioSourceController {
    *
    * So: try immediately, and arm a one-shot retry on the visitor's first gesture. The `on:click`
    * path still succeeds on the first attempt and the listeners are never needed.
+   *
+   * @returns `true` when the context is already live and {@link start} may run its loop now,
+   *   `false` when a resume has been arranged and the loop is that resume's job to start.
    */
-  private resumeContext(): void {
+  private resumeContext(): boolean {
     const ctx = this.audioCtx
-    if (!ctx || ctx.state !== 'suspended') return
-    ctx.resume().catch(() => undefined)
+    if (!ctx || ctx.state !== 'suspended') return true
+    // Chained off *this* call rather than off the context's state, so a second instance arriving
+    // while a first instance's resume is still in flight gets its own answer instead of waiting on
+    // a gesture that has already been spent. `resume()` on a running context settles immediately.
+    ctx.resume().then(() => this.startLoopIfActive()).catch(() => undefined)
     this.armGestureResume()
+    return false
+  }
+
+  /**
+   * Start the loop, unless the effect was torn down while the context was still waking up.
+   *
+   * `resume()` settles whenever the browser gets to it, which can be long after a `cancel()` — the
+   * same race {@link micRequestToken} closes for `getUserMedia`, and with the same consequence if
+   * it is left open: a resume landing after teardown would start a frame loop on a stopped
+   * instance, and nothing would ever come back to stop it.
+   */
+  private startLoopIfActive(): void {
+    if (this.isActive) this.startLoop()
   }
 
   private armGestureResume(): void {
@@ -566,7 +623,7 @@ export class AudioSourceController {
     if (this.releaseGestureResume || !win?.addEventListener || !win.removeEventListener) return
     const onGesture = (): void => {
       this.releaseGestureResume?.()
-      this.audioCtx?.resume().catch(() => undefined)
+      this.audioCtx?.resume().then(() => this.startLoopIfActive()).catch(() => undefined)
     }
     this.releaseGestureResume = () => {
       this.releaseGestureResume = null
@@ -678,7 +735,9 @@ export class AudioSourceController {
     this.freqData = null
     this.audioCtx = null
     if (this.graph) {
-      releaseSharedGraph(this.window as AudioWindow)
+      // `this.window` is what `initAudio` proved non-null before it ever set `this.graph`, and it
+      // never changes after construction, so holding a graph is itself the proof of a live window.
+      releaseSharedGraph(this.window as LiveAudioWindow, this.graph)
       this.graph = null
     }
   }

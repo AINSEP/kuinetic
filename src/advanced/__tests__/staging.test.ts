@@ -18,12 +18,14 @@ import {
   SceneController,
 } from '../scenes.js'
 import {
+  CAMERA_LAYER_PARAMETERS,
   CAMERA_PARAMETERS,
   CAMERA_PRESETS,
   CAMERA_PRIMITIVES,
   CameraController,
   computeLayerTransform,
   parseDepth,
+  prepareCameraLayer,
   registerCamera,
 } from '../camera-3d.js'
 import { registerAdvanced } from '../index.js'
@@ -846,6 +848,122 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
         expect(CAMERA_PARAMETERS.audio.default).toBe('off')
         expect(CAMERA_PARAMETERS.audio.keywords).toEqual(['off', 'bass', 'mid', 'treble', 'level'])
       })
+    })
+
+    describe('camera-layer: registered so the name resolves, and nothing more', () => {
+      it('is a real primitive, which is what stops the compiler warning once per layer', () => {
+        const reg = new Registry()
+        registerCamera(reg)
+        const res = reg.resolve('camera-layer')
+
+        expect(res?.primitive.id).toBe('camera-layer')
+        // Declaring `z` is the whole reason these parameters exist: `prepareCameraScene` reads the
+        // value off the raw attribute with its own regex and never consults this, but without the
+        // declaration the compiler rejects `z:-400` as an unknown parameter.
+        expect(CAMERA_LAYER_PARAMETERS.z.cssProperty).toBe('--kui-camera-layer-z')
+        expect(res?.primitive.prepare).toBe(prepareCameraLayer)
+      })
+
+      it('does nothing of its own, because the scene above it owns every write', () => {
+        const layer = document.createElement('div')
+        layer.setAttribute('data-kui', 'camera-layer z:-400')
+        const inst = prepareCameraLayer()
+
+        expect(inst.continuous).toBe(false)
+        inst.activate()
+        inst.finish()
+        // Inert on purpose, not unfinished. `CameraController` writes this element's `transform`
+        // and `transform-style` every frame — under reduced motion too, see the still-frame test
+        // below — so a primitive that also wrote here would be a second author of one property,
+        // with the ledger capturing whichever of the two got there first as "the author's value".
+        expect(layer.hasAttribute('style')).toBe(false)
+        expect(() => inst.destroy()).not.toThrow()
+        expect(layer.hasAttribute('style')).toBe(false)
+      })
+    })
+
+    it('parks the reduced-motion still frame at the start of the travel, not the end', () => {
+      const stage = document.createElement('div')
+      const near = document.createElement('div')
+      near.setAttribute('data-kui', 'camera-layer z:400')
+      const far = document.createElement('div')
+      far.setAttribute('data-kui', 'camera-layer z:-400')
+      stage.append(near, far)
+
+      const params = {
+        text: vi.fn((_k: string, def: string) => def),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+      const inst = CAMERA_PRIMITIVES[0]!.prepare!(
+        stage,
+        params,
+        createRealPrepareContext(stage, { reducedMotion: true }),
+      )
+
+      // `cameraZ = 0`: every layer at exactly the depth its author wrote.
+      expect(stage.style.perspective).toBe('1000px')
+      expect(near.style.transform).toBe('translate3d(0, 0, 400px)')
+      expect(far.style.transform).toBe('translate3d(0, 0, -400px)')
+
+      // The trap this pins. Under this policy the animator leaves a CSS effect in its *end* state,
+      // and `scenes.ts` correctly uses its own last keyframe, because a keyframe end is a real
+      // design position. The end here is not: it is `cameraZ = depth`, the camera pushed all the
+      // way through the scene, which would have written these instead —
+      expect(computeLayerTransform(400, 1000)).toBe('translate3d(0, 0, 900px)')
+      expect(computeLayerTransform(0, 1000)).toBe('translate3d(0, 0, 500px)')
+      // — against a `perspective` of 1000px that is a 10x blow-up of the near layer and a 2x one
+      // of a layer at z:0, with anything nearer passing through the viewer. Same-looking question
+      // as `scenes.ts`, opposite answer. Do not "fix" this one to match it.
+
+      inst.destroy()
+    })
+
+    it('the tilt spring settles onto its target and the loop stands itself down', () => {
+      const stage = document.createElement('div')
+      let tick: FrameRequestCallback | null = null
+      const raf = vi.fn((fn: FrameRequestCallback) => { tick = fn; return 42 })
+      const c = new CameraController(stage, { mouseTilt: true }, { window: null, raf, caf: vi.fn() })
+
+      c.start()
+      c.onMouseMove({ clientX: 900, clientY: 700 } as MouseEvent)
+      expect(tick).not.toBeNull()
+
+      // The spring closes 8% of the remaining gap per frame, so it approaches its target without
+      // ever reaching it. Without a settle threshold one pointer move would leave the loop
+      // re-rendering an unchanged transform at 60fps for the life of the page.
+      let frames = 0
+      while (c.rafId !== null && frames < 400) {
+        frames++
+        tick!(frames * 16)
+      }
+
+      expect(frames).toBeLessThan(400)
+      expect(c.rafId).toBeNull()
+      // And it lands *exactly* on the target rather than a hair short of it, so the transform the
+      // loop stops on is the one the pointer actually asked for.
+      expect(c.mouse.x).toBe(c.mouse.targetX)
+      expect(c.mouse.y).toBe(c.mouse.targetY)
+      expect(c.stepMouse()).toBe(false)
+
+      c.destroy()
+    })
+
+    it('the reduced-motion entry point is as defensive as the live one', () => {
+      // `prepare` is handed whatever element the author wrote the attribute on, and this suite
+      // reaches the tier with degenerate ones. `start()` has always guarded for it; the still
+      // frame runs on the same elements with no activation behind it to catch anything.
+      const c = new CameraController(null as unknown as HTMLElement, { depth: 1000 }, { window: null })
+      expect(() => c.renderStatic()).not.toThrow()
+      expect(c.isListening).toBe(false)
+      c.destroy()
+    })
+
+    it('a stage that cannot carry inline style is tilted toward nothing', () => {
+      const c = new CameraController({} as HTMLElement, { mouseTilt: true }, { window: null })
+      c.mouse.x = 0.5
+      c.mouse.y = -0.5
+      expect(() => c.render()).not.toThrow()
+      c.destroy()
     })
 
     it('registerCamera throws on invalid registry target', () => {

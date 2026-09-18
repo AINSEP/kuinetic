@@ -51,6 +51,23 @@ describe('Audio-Reactive Source Module', () => {
       const bands = computeFrequencyBands(data, 0)
       expect(bands.level).toBeCloseTo(128 / 255)
     })
+
+    it('a band with no bins under it reads 0 rather than NaN', () => {
+      // An 8kHz voice stream — a phone call, a speech codec — has a nyquist of 4000Hz, so the
+      // treble band (4000..16000Hz) starts at the first bin past the end of the data and has
+      // nothing at all to average. `sum / (count * 255)` is 0/0 there, and `NaN.toFixed(3)` is the
+      // string `"NaN"`: every `calc()` and every colour reading `var(--kui-audio-treble)` would
+      // become invalid at parse time, so the consumer does not fall back — it stops rendering.
+      const data = new Uint8Array(128)
+      data.fill(200)
+      const bands = computeFrequencyBands(data, 8000)
+
+      expect(bands.treble).toBe(0)
+      expect(Number.isNaN(bands.treble)).toBe(false)
+      // The bands that do have bins are unaffected: this is an absent band, not a broken reading.
+      expect(bands.bass).toBeCloseTo(200 / 255)
+      expect(bands.mid).toBeCloseTo(200 / 255)
+    })
   })
 
   describe('AudioSourceController Lifecycle & DOM Writing', () => {
@@ -85,7 +102,7 @@ describe('Audio-Reactive Source Module', () => {
       }
     })
 
-    it('initializes audio with media element, writes CSS vars on frame, and restores on destroy', () => {
+    it('initializes audio with media element, writes CSS vars on frame, and restores on destroy', async () => {
       const container = document.createElement('div')
       container.style.setProperty('--kui-audio-bass', '0.123')
       const media = document.createElement('audio')
@@ -115,6 +132,11 @@ describe('Audio-Reactive Source Module', () => {
       expect(mockAudioCtx.resume).toHaveBeenCalled()
       expect(mockAudioCtx.createMediaElementSource).toHaveBeenCalledWith(media)
       expect(mockSourceNode.connect).toHaveBeenCalledWith(mockAnalyser)
+
+      // This context starts suspended, so the loop waits for the resume rather than spinning at
+      // 60fps over an analyser that can only report zeros.
+      expect(rafCb).toBeNull()
+      await Promise.resolve()
 
       // Loop execution
       expect(rafCb).not.toBeNull()
@@ -165,6 +187,27 @@ describe('Audio-Reactive Source Module', () => {
       expect(mockTrack.stop).toHaveBeenCalled()
     })
 
+    it('a microphone effect on an insecure page asks for nothing', () => {
+      const container = document.createElement('div')
+      // `navigator.mediaDevices` is undefined outside a secure context — every plain http:// page,
+      // which is exactly where an author is most likely to first try `audio-mic`. There is no
+      // prompt to raise and no stream to wait for, so the effect runs as a silent driver.
+      const fakeWin = {
+        AudioContext: vi.fn().mockImplementation(() => mockAudioCtx),
+        navigator: {},
+      } as unknown as Window
+
+      const ctrl = new AudioSourceController(container, { source: 'mic' }, { window: fakeWin, document })
+      expect(() => ctrl.start()).not.toThrow()
+      expect(ctrl.stream).toBeNull()
+      expect(ctrl.sourceNode).toBeNull()
+      // The analyser is still built and still read: nothing is feeding it, which is the same
+      // thing every other silent source looks like.
+      expect(ctrl.analyser).not.toBeNull()
+
+      ctrl.destroy()
+    })
+
     it('gracefully handles missing AudioContext and missing media elements', () => {
       const container = document.createElement('div')
       const ctrlNoAudio = new AudioSourceController(container, {}, { window: {} as any })
@@ -197,7 +240,10 @@ describe('Audio-Reactive Source Module', () => {
           fftSize: 256,
           frequencyBinCount: 128,
           smoothingTimeConstant: 0.8,
-          getByteFrequencyData: vi.fn((arr: Uint8Array) => { arr.fill(100) }),
+          // A suspended context is not processing anything, so its analyser hands back zeros. The
+          // double used to report a live signal in either state, which is exactly the lie that
+          // makes "we started a frame loop over a context that cannot produce data" invisible.
+          getByteFrequencyData: vi.fn((arr: Uint8Array) => { arr.fill(ctx.state === 'suspended' ? 0 : 100) }),
           connect: vi.fn(),
           disconnect: vi.fn(),
         })),
@@ -376,6 +422,236 @@ describe('Audio-Reactive Source Module', () => {
       setProperty.mockRestore()
       ctrl.destroy()
     })
+
+    it('a controller with no window builds no graph, and no loop behind it either', () => {
+      const host = hostWithVideo()
+      const raf = vi.fn(() => 5)
+      // Server-rendered, or a worker: `resolveEnv` hands back a null window and there is no
+      // `AudioContext` constructor to reach for in the first place.
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { window: null, document, raf, caf: vi.fn() })
+
+      expect(ctrl.initAudio()).toBe(false)
+      ctrl.start()
+
+      // One frame of silence, and nothing scheduled behind it. `initAudio` is only ever called
+      // from `start()`, and `start()` early-returns once active, so there is no retry this loop
+      // could have been waiting for — it would have sampled nothing at 60fps for the life of the
+      // page and never recovered.
+      expect(raf).not.toHaveBeenCalled()
+      expect(ctrl.rafId).toBeNull()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+
+      ctrl.destroy()
+      expect(host.hasAttribute('style')).toBe(false)
+    })
+
+    it('a suspended context writes one silent frame and leaves the loop to the gesture', async () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.state = 'suspended'
+      // WebKit outside a user gesture: the promise is simply never settled.
+      ctx.resume = vi.fn(() => new Promise<void>(() => {}))
+      const listeners = new Map<string, EventListener>()
+      const win = env.window as unknown as Record<string, unknown>
+      win.addEventListener = vi.fn((type: string, fn: EventListener) => { listeners.set(type, fn) })
+      win.removeEventListener = vi.fn((type: string) => { listeners.delete(type) })
+      const raf = vi.fn(() => 9)
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { ...env, raf, caf: vi.fn() })
+      ctrl.start()
+
+      // `defaultActivation` is `load`, so this is the ordinary case rather than an edge one: the
+      // context is built before the visitor has touched anything. And the three gesture events are
+      // `pointerdown`/`keydown`/`touchend` — a reader who only ever scrolls with a wheel fires
+      // none of them, so "until the gesture arrives" is otherwise the whole session at 60fps over
+      // an analyser that can report nothing but zeros.
+      expect(raf).not.toHaveBeenCalled()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+      expect(listeners.size).toBe(3)
+
+      // The gesture lands and its resume succeeds, and starting the loop is that resume's job.
+      ctx.resume = vi.fn(() => Promise.resolve())
+      listeners.get('pointerdown')!(new Event('pointerdown'))
+      await Promise.resolve()
+      expect(raf).toHaveBeenCalledTimes(1)
+
+      ctrl.destroy()
+    })
+
+    it('a resume that lands after the effect was cancelled starts no loop', async () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.state = 'suspended'
+      let settle: (() => void) | null = null
+      ctx.resume = vi.fn(() => new Promise<void>((resolve) => { settle = () => resolve() }))
+      const raf = vi.fn(() => 9)
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { ...env, raf, caf: vi.fn() })
+      ctrl.start()
+      expect(raf).not.toHaveBeenCalled()
+
+      // The effect scrolled back out, or the page tore down, while the context was still waking.
+      ctrl.stop()
+      expect(settle).not.toBeNull()
+      settle!()
+      await Promise.resolve()
+      await Promise.resolve()
+
+      // The same race `micRequestToken` closes for `getUserMedia`, with the same consequence if it
+      // were left open: a frame loop running on a stopped instance, with nothing left to stop it.
+      expect(raf).not.toHaveBeenCalled()
+      expect(ctrl.rafId).toBeNull()
+
+      ctrl.destroy()
+    })
+
+    it('an AudioContext the browser refuses to build leaves no half-initialised instance', () => {
+      const host = hostWithVideo()
+      // Chrome caps a document at six live AudioContexts and throws on the next one; WebKit throws
+      // when the audio hardware is unavailable. Either way the constructor is the thing that fails,
+      // before there is any context to clean up.
+      const win = {
+        AudioContext: vi.fn(() => { throw new DOMException('too many contexts', 'NotSupportedError') }),
+        HTMLMediaElement: window.HTMLMediaElement,
+      } as unknown as Window
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { window: win, document })
+      expect(ctrl.initAudio()).toBe(false)
+      expect(ctrl.audioCtx).toBeNull()
+      expect(ctrl.analyser).toBeNull()
+    })
+
+    it('a context that cannot build the muted sink still runs the analyser', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.createGain = vi.fn(() => { throw new DOMException('closing', 'InvalidStateError') })
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      expect(ctrl.initAudio()).toBe(true)
+      // No sink to chain onto, so the analyser is left a dead end rather than the whole effect
+      // refusing to start. It loses only WebKit's guarantee of being pulled, not its readings.
+      const analyser = ctrl.analyser as unknown as { connect: ReturnType<typeof vi.fn> }
+      expect(analyser.connect).not.toHaveBeenCalled()
+
+      ctrl.updateFrame()
+      expect(Number(host.style.getPropertyValue('--kui-audio-level'))).toBeGreaterThan(0)
+      ctrl.destroy()
+    })
+
+    it('a second start adds no second context, analyser or frame loop', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      const raf = vi.fn(() => 5)
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { ...env, raf, caf: vi.fn() })
+
+      ctrl.start()
+      // `on:enter` re-fires on every re-entry. Two analysers on one element would both write the
+      // same five inherited custom properties every frame, last one wins.
+      ctrl.start()
+      expect(ctx.createAnalyser).toHaveBeenCalledTimes(1)
+      expect(raf).toHaveBeenCalledTimes(1)
+
+      // The same answer from each of the two re-entry paths on its own.
+      expect(ctrl.initAudio()).toBe(true)
+      expect(ctx.createAnalyser).toHaveBeenCalledTimes(1)
+      ctrl.startLoop()
+      expect(raf).toHaveBeenCalledTimes(1)
+
+      ctrl.destroy()
+    })
+
+    it('a frame already in flight when the effect stops does not restart the loop', () => {
+      const host = hostWithVideo()
+      const { env } = faithfulContext()
+      let tick: FrameRequestCallback | null = null
+      const raf = vi.fn((fn: FrameRequestCallback) => { tick = fn; return 5 })
+      const ctrl = new AudioSourceController(host, { source: 'media' }, { ...env, raf, caf: vi.fn() })
+
+      ctrl.start()
+      expect(tick).not.toBeNull()
+      tick!(0)
+      expect(raf).toHaveBeenCalledTimes(2)
+
+      ctrl.stop()
+      // `cancelAnimationFrame` cannot recall a callback the browser has already committed to this
+      // frame, so the loop has to notice for itself that it was cancelled — otherwise a stopped
+      // effect keeps re-arming and runs for the life of the page.
+      tick!(16)
+      expect(raf).toHaveBeenCalledTimes(2)
+      expect(ctrl.rafId).toBeNull()
+
+      ctrl.destroy()
+    })
+
+    it('an element that cannot carry inline style is written nothing', () => {
+      const ctrl = new AudioSourceController({} as HTMLElement, { source: 'media' }, { window: null })
+      expect(() => ctrl.updateFrame()).not.toThrow()
+      expect(() => ctrl.destroy()).not.toThrow()
+    })
+
+    it('a stop before the visitor\'s first gesture takes the page-wide listeners back off', () => {
+      const host = hostWithVideo()
+      const { ctx, env } = faithfulContext()
+      ctx.state = 'suspended'
+      const listeners = new Map<string, EventListener>()
+      const win = env.window as unknown as Record<string, unknown>
+      win.addEventListener = vi.fn((type: string, fn: EventListener) => { listeners.set(type, fn) })
+      win.removeEventListener = vi.fn((type: string) => { listeners.delete(type) })
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      ctrl.start()
+      expect(listeners.size).toBe(3)
+
+      // The other half of the one-shot: the visitor never touched the page, the effect scrolled
+      // back out, and three listeners on the window must not outlive it.
+      ctrl.stop()
+      expect(listeners.size).toBe(0)
+      ctrl.destroy()
+    })
+
+    it('teardown survives nodes that refuse to be disconnected, and still gives the styles back', () => {
+      const host = hostWithVideo()
+      host.style.setProperty('--kui-audio-level', '0.5')
+      const { ctx, env } = faithfulContext()
+      // Web Audio throws `InvalidAccessError` for an edge that is not there, which is what a graph
+      // the page has already torn down looks like from here.
+      const refuse = () => { throw new DOMException('not connected', 'InvalidAccessError') }
+      ctx.createAnalyser = vi.fn(() => ({
+        fftSize: 256,
+        frequencyBinCount: 128,
+        smoothingTimeConstant: 0.8,
+        getByteFrequencyData: vi.fn((arr: Uint8Array) => { arr.fill(100) }),
+        connect: vi.fn(),
+        disconnect: vi.fn(refuse),
+      }))
+      ctx.createMediaElementSource = vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn(refuse) }))
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      ctrl.start()
+      ctrl.updateFrame()
+
+      expect(() => ctrl.destroy()).not.toThrow()
+      // The author's own value, not the last frame's: a throw on the way out must not cost them it.
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.5')
+    })
+
+    it('a torn-down analyser never turns into a full disconnect of the shared media source', () => {
+      const host = hostWithVideo()
+      const { env } = faithfulContext()
+      const ctrl = new AudioSourceController(host, { source: 'media' }, env)
+      ctrl.start()
+      const source = ctrl.sourceNode as unknown as { disconnect: ReturnType<typeof vi.fn> }
+
+      // The analyser is gone but the shared source is not. A bare `disconnect()` here cuts *every*
+      // one of that node's outputs, including the media element's only remaining path to the
+      // speakers — the visitor's video goes silent for the rest of the session, irreversibly. So
+      // with no edge to name, the right number of edges to cut is none.
+      ctrl.analyser = null
+      ctrl.stop()
+      expect(source.disconnect).not.toHaveBeenCalled()
+
+      ctrl.destroy()
+    })
   })
 
   describe('which media element an effect binds to', () => {
@@ -450,9 +726,182 @@ describe('Audio-Reactive Source Module', () => {
 
       ctrl.destroy()
     })
+
+    it('a media element carrying the effect itself is its own source', () => {
+      // `<video data-kui="audio-reactive">` — the shortest way to write this effect, and the one
+      // the search has to answer before it looks at any descendant or any selector.
+      const video = document.createElement('video')
+      const ctx = contextDouble()
+
+      const ctrl = new AudioSourceController(video, { source: 'media' }, envFor(ctx))
+      ctrl.start()
+      expect(ctx.createMediaElementSource).toHaveBeenCalledWith(video)
+
+      ctrl.destroy()
+    })
+
+    it('an authored selector that matches nothing binds to nothing', () => {
+      const host = document.createElement('div')
+      document.body.append(host)
+      const ctx = contextDouble()
+
+      const ctrl = new AudioSourceController(host, { source: 'media', target: '#no-such-media' }, envFor(ctx))
+      ctrl.start()
+      // A typo in `target:` is silence, not a fallback to whatever media the document happens to
+      // hold — the same rule the default selector follows one test above.
+      expect(ctx.createMediaElementSource).not.toHaveBeenCalled()
+
+      ctrl.destroy()
+      host.remove()
+    })
+
+    it('a malformed target selector is survived rather than thrown out of', () => {
+      const host = document.createElement('div')
+      const ctx = contextDouble()
+
+      // `querySelector` throws `SyntaxError` on this, and the throw happens during `activate()` —
+      // inside the animator, on the author's page. One unbalanced bracket in a `data-kui`
+      // attribute must cost that effect its audio, not the whole activation pass.
+      const ctrl = new AudioSourceController(host, { source: 'media', target: 'video[' }, envFor(ctx))
+      expect(() => ctrl.start()).not.toThrow()
+      expect(ctx.createMediaElementSource).not.toHaveBeenCalled()
+
+      ctrl.destroy()
+    })
+
+    it('with no HTMLMediaElement in the environment at all, nothing is treated as media', () => {
+      // A document built outside a browser — jsdom-less SSR, a worker — has no such constructor to
+      // test against. The check answers "no" rather than guessing, because the previous `?? Object`
+      // guessed "yes" and handed a plain `<div>` to `createMediaElementSource`.
+      vi.stubGlobal('HTMLMediaElement', undefined)
+      try {
+        const video = document.createElement('video')
+        const ctx = contextDouble()
+
+        const ctrl = new AudioSourceController(video, { source: 'media' }, envFor(ctx, false))
+        ctrl.start()
+        expect(ctx.createMediaElementSource).not.toHaveBeenCalled()
+        ctrl.destroy()
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it('a context with no createMediaElementSource leaves the bands silent instead of throwing', () => {
+      const host = document.createElement('div')
+      host.appendChild(document.createElement('video'))
+      const ctx = contextDouble()
+      delete ctx.createMediaElementSource
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, envFor(ctx))
+      expect(() => ctrl.start()).not.toThrow()
+      ctrl.updateFrame()
+      // Silence reads exactly as "no driver here" does — see `readAudioBand`'s 0.
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+
+      ctrl.destroy()
+    })
+
+    it('a media element another script already routed is given up on, not crashed on', () => {
+      const host = document.createElement('div')
+      host.appendChild(document.createElement('video'))
+      const ctx = contextDouble()
+      // `createMediaElementSource` may be called once per element *ever*, across every context on
+      // the page. If the site's own player claimed this `<video>` first, kUInetic's call throws
+      // `InvalidStateError` and there is no way back — so the effect goes quiet and the page,
+      // whose audio still runs through the other library's graph, keeps playing.
+      ctx.createMediaElementSource = vi.fn(() => {
+        throw new DOMException('one source per element', 'InvalidStateError')
+      })
+
+      const ctrl = new AudioSourceController(host, { source: 'media' }, envFor(ctx))
+      expect(() => ctrl.start()).not.toThrow()
+      ctrl.updateFrame()
+      expect(host.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+
+      ctrl.destroy()
+    })
   })
 
   describe('prepareAudioSource and Registry Integration', () => {
+    /** The smallest context that will let a controller reach the end of `initAudio`. */
+    function audioContextDouble() {
+      return {
+        state: 'running',
+        sampleRate: 44100,
+        destination: {},
+        createAnalyser: () => ({
+          fftSize: 256,
+          frequencyBinCount: 128,
+          smoothingTimeConstant: 0.8,
+          getByteFrequencyData: () => {},
+          connect: () => {},
+          disconnect: () => {},
+        }),
+        createMediaElementSource: vi.fn(() => ({ connect: () => {}, disconnect: () => {} })),
+        resume: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+      }
+    }
+
+    it('an accessor with no readers at all falls back to page media, never to the microphone', () => {
+      const host = document.createElement('div')
+      host.appendChild(document.createElement('video'))
+      const ctx = audioContextDouble()
+      const getUserMedia = vi.fn()
+      const win = {
+        AudioContext: vi.fn().mockImplementation(() => ctx),
+        HTMLMediaElement: window.HTMLMediaElement,
+        navigator: { mediaDevices: { getUserMedia } },
+      } as unknown as Window
+
+      // `{}` is what a caller with neither `text` nor `num` looks like, and every parameter here
+      // has to come from its own literal default instead.
+      const inst = prepareAudioSource(host, {} as EffectParams, createRealPrepareContext(host, { reducedMotion: false, win }))
+      expect(inst.continuous).toBe(true)
+      inst.activate()
+
+      // `source` defaults to `media`. Of the four defaults this is the one with a permission
+      // prompt behind it, so an accessor that answers nothing must not reach for the microphone.
+      expect(getUserMedia).not.toHaveBeenCalled()
+      expect(ctx.createMediaElementSource).toHaveBeenCalledOnce()
+
+      inst.destroy()
+    })
+
+    it('under reduced motion the effect is fully inert: no context, no listeners, no writes', () => {
+      const host = document.createElement('div')
+      host.appendChild(document.createElement('video'))
+      const AudioContextCtor = vi.fn()
+      const addEventListener = vi.fn()
+      const win = {
+        AudioContext: AudioContextCtor,
+        addEventListener,
+        removeEventListener: vi.fn(),
+        HTMLMediaElement: window.HTMLMediaElement,
+      } as unknown as Window
+      const params = {
+        text: (_k: string, d: string) => d,
+        num: (_k: string, d: number) => d,
+      } as unknown as EffectParams
+
+      const inst = prepareAudioSource(host, params, createRealPrepareContext(host, { reducedMotion: true, win }))
+      inst.activate()
+      inst.finish()
+
+      // Deliberately *not* a still frame, unlike the rest of this tier. Five channels of `0.000` is
+      // already what their absence means to `readAudioBand`, so writing them would buy nothing and
+      // would override an author's own inline `--kui-audio-*`. Inertness here is the whole
+      // behaviour, not an omission: no AudioContext, no frame loop, and no page-wide gesture
+      // listeners for a visitor who asked for less.
+      expect(AudioContextCtor).not.toHaveBeenCalled()
+      expect(addEventListener).not.toHaveBeenCalled()
+      expect(host.hasAttribute('style')).toBe(false)
+
+      inst.destroy()
+      expect(host.hasAttribute('style')).toBe(false)
+    })
+
     it('returns inert instance under reduced motion', () => {
       const el = document.createElement('div')
       const params = {
