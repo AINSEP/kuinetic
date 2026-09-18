@@ -716,7 +716,7 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
   })
 
   describe('Reduced Motion Handling', () => {
-    it('scene prepare hook returns safe no-op under reduced motion', () => {
+    it('scene prepare hook stays safe under reduced motion with nothing to hold', () => {
       const mockParams = {
         text: vi.fn().mockReturnValue('default'),
         num: vi.fn().mockReturnValue(1),
@@ -732,7 +732,37 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(() => sceneInst.destroy()).not.toThrow()
     })
 
-    it('camera prepare hook returns safe no-op under reduced motion', () => {
+    it('scene holds its last keyframe under reduced motion and gives the steps back', () => {
+      const root = document.createElement('div')
+      const step = document.createElement('div')
+      step.setAttribute('data-kui', 'scene-step at:0..0.5 opacity:0->1 y:40px->0')
+      root.appendChild(step)
+
+      const params = {
+        text: vi.fn((_k: string, def: string) => def),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+      const inst = SCENE_PRIMITIVES[0]!.prepare!(
+        root,
+        params,
+        createRealPrepareContext(root, { reducedMotion: true }),
+      )
+
+      // The end state, not nothing. A step the author styled `opacity: 0` in a stylesheet and
+      // expected this effect to fade in stayed invisible for the whole visit before this.
+      expect(step.style.opacity).toBe('1')
+      expect(step.style.transform).toBe('translateY(0px)')
+
+      // Nothing is activated under this policy; the instance is inert and the frame is already up.
+      expect(inst.continuous).toBe(false)
+      inst.activate()
+      expect(step.style.opacity).toBe('1')
+
+      inst.destroy()
+      expect(step.hasAttribute('style')).toBe(false)
+    })
+
+    it('camera prepare hook stays safe under reduced motion with no layers', () => {
       const mockParams = {
         text: vi.fn().mockReturnValue('default'),
         num: vi.fn().mockReturnValue(1),
@@ -746,6 +776,34 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       if (camInst.cancel) camInst.cancel()
       if (camInst.finish) camInst.finish()
       expect(() => camInst.destroy()).not.toThrow()
+    })
+
+    it('camera-scene composes its layers at rest under reduced motion', () => {
+      const stage = document.createElement('div')
+      const layer = document.createElement('div')
+      layer.setAttribute('data-kui', 'camera-layer z:-400')
+      stage.appendChild(layer)
+
+      const params = {
+        text: vi.fn((_k: string, def: string) => def),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+      const inst = CAMERA_PRIMITIVES[0]!.prepare!(
+        stage,
+        params,
+        createRealPrepareContext(stage, { reducedMotion: true }),
+      )
+
+      // The 3D space and every layer at its authored depth — the composition, minus the travel.
+      expect(stage.style.perspective).toBe('1000px')
+      expect(layer.style.transform).toBe('translate3d(0, 0, -400px)')
+      expect(layer.style.getPropertyValue('transform-style')).toBe('preserve-3d')
+      // `mouse-tilt` defaults to `on`, and a still frame does not tilt.
+      expect(stage.style.transform).toBe('')
+
+      // Only the layer: the stage's ledger is `ctx.style`, which the animator restores itself.
+      inst.destroy()
+      expect(layer.hasAttribute('style')).toBe(false)
     })
 
     it('resolveEnv resolves custom caf from context', () => {

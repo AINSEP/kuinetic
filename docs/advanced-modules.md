@@ -86,10 +86,9 @@ each file for the authoritative parameter names, defaults, and validation ranges
 data, not prose, so it does not drift the way a hand-written parameter table does. The primitive ids
 are `shaders`, `scene`, `camera-scene`, `particle-dissolve`, `fluid-trail`, and `audio-source`.
 
-Every `prepare*` function bails out to an inert no-op instance under reduced motion
-(`isReducedMotion(ctx)`), matching every module's `reducedMotion: 'disable'` declaration. The one
-exception is `shaders mode:gradient`, which bakes a still frame instead — see "The generative mode"
-below.
+Every module declares `reducedMotion: 'disable'`, which is what stops the animator activating any
+instance; what each `prepare*` then does with that is a per-module decision — see "Accessibility"
+at the end.
 
 ## The generative modes — `shaders mode:gradient` and `shaders mode:logo`
 
@@ -381,5 +380,19 @@ feature exists in this directory.
 ## Accessibility
 
 Every `prepare*` function checks `isReducedMotion(ctx)` before doing anything continuous (starting a
-render loop, an audio graph, a particle simulation) and returns `createInertInstance()` instead when
-the visitor prefers reduced motion.
+render loop, an audio graph, a particle simulation), and every primitive declares
+`reducedMotion: 'disable'` so the animator marks the element finished and activates nothing. What
+the module does instead is decided per module, because "a still frame" is only honest where a still
+frame exists. Every instance returned on this path is inert either way; where a frame is produced it
+is written during `prepare`, since `activate()` is never reached.
+
+| Primitive | Under reduced motion |
+|---|---|
+| `shaders` (generative modes) | One baked frame as an inline `background-image` — see above. |
+| `shaders` (the five image filters) | Nothing. A still frame of a pointer-driven displacement is the source image with extra steps. |
+| `camera-scene` | The scene composed once: the container's `perspective`, and every layer at its authored `z:` with the camera parked at the start of its travel. The depth arrangement *is* the design; the scroll only moves a camera through it. Not the end state, which is the camera pushed all the way through — a 2x to 10x blow-up with the nearer layers past the viewer. |
+| `camera-layer` | Nothing of its own, in either mode. The scene writes it. |
+| `scene` | The last keyframe, held (`progress = 1`) — the same thing `finish()` writes, and the same answer the policy layer gives a CSS effect. It also keeps content readable: a step the author styled `opacity: 0` in a stylesheet and expected this effect to fade in was invisible for the whole visit before. A step authored to fade *out* is correspondingly held faded out, which is the trade every CSS effect here already makes. |
+| `particle-dissolve` | Nothing. At rest it is a grid of identically-coloured dots sampled from nothing, and its default activation is `hover`, so the canvas does not exist until the pointer arrives — baking would add decoration no other visitor sees un-hovered. |
+| `fluid-trail` | Nothing. A pointer trail has no still form, and this primitive never writes to the host element at all (`channels: []`). |
+| `audio-source` | Nothing. It is a data source, not motion; its static value is `0.000` on all five channels, which is already what its absence means (`readAudioBand` answers 0 for an undeclared property). Writing them would only override an author's own inline value, and running the analyser would open an `AudioContext` and page-wide gesture listeners for a visitor who asked for less. |

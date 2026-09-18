@@ -320,6 +320,24 @@ export function prepareParticles(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
+  /*
+   * Inert, and that was a decision rather than the default. `shaders.ts` bakes a still frame for
+   * reduced motion and `camera-3d.ts`/`scenes.ts` now hold one too; this module was held to the
+   * same question and the honest answer is that it has no still frame to offer.
+   *
+   * A mounted emitter at rest is a grid of identically-coloured dots on a canvas over the host
+   * (`spawnParticlesGrid`), sampled from nothing — it carries no information about the element
+   * underneath it, unlike a generative shader frame, which *is* the image. Everything this effect
+   * means is in the displacement: `stepParticle` pushing the field away from the pointer and the
+   * spring pulling it home.
+   *
+   * And `defaultActivation` is `hover`, so `init()` — the call that creates the canvas at all —
+   * does not run until the pointer arrives. Baking would therefore put decoration on the page at
+   * load that no other visitor ever sees un-hovered: inventing content, not removing motion.
+   *
+   * Leaving the element as the author wrote it is the correct static representation of a
+   * pointer-driven overlay with no pointer.
+   */
   if (isReducedMotion(ctx)) return createInertInstance()
 
   const resolvedEnv = resolveEnv(ctx)

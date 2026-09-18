@@ -292,8 +292,6 @@ export function prepareScene(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
-  if (isReducedMotion(ctx)) return createInertInstance()
-
   const resolvedEnv = resolveEnv(ctx)
   const name = params.text ? params.text('name', 'default') : 'default'
   const progressMode = params.text ? params.text('progress', 'scroll') : 'scroll'
@@ -310,6 +308,36 @@ export function prepareScene(
   const childSteps = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="scene-step"]') : []
   for (const child of childSteps) {
     controller.addStep(child, parseChildStep(child))
+  }
+
+  /*
+   * Reduced motion: the last keyframe, held. What `finish()` below writes, and written here for
+   * the reason `shaders.ts`'s `prepareReducedMotion` documents — under this policy `openGate`
+   * (`core/animator.ts`) marks the element finished and activates nothing, so `prepare` is the
+   * only code that runs.
+   *
+   * The end state rather than some middle of the timeline because that is already the library's
+   * answer everywhere else: *"A CSS effect is left at its final state by the policy layer"*, and
+   * the `kui:finish` the animator then emits with reason `reduced-motion` claims exactly that —
+   * *"the element really is at its end state"*. A scene that produced nothing made that claim
+   * false for every author chaining a step off it.
+   *
+   * It is also the difference between a readable page and a blank one. A scene's steps get no
+   * start state from this module — `updateElement` is the only thing that ever writes them — so
+   * the common authoring shape, `.step { opacity: 0 }` in a stylesheet plus
+   * `scene-step at:0..0.4 opacity:0->1`, left the content *permanently invisible* to a visitor who
+   * asked for reduced motion. Holding progress 1 hands it to them.
+   *
+   * The converse — a step authored to fade *out* is held faded out — is the same trade every CSS
+   * effect in the library already makes under this policy, and choosing differently here would
+   * mean this one primitive disagreeing with all of them about what "finished" means.
+   */
+  if (isReducedMotion(ctx)) {
+    controller.progress = 1
+    controller.updateAll()
+    // The steps are elements this module found for itself, in no ledger the animator will ever
+    // restore; `destroy()` is what gives them back.
+    return createInertInstance(() => controller.destroy())
   }
 
   const inst: EffectInstance = createEffectInstance({
@@ -363,6 +391,8 @@ export const SCENE_PRIMITIVES: Primitive[] = [
     supportedActivations: ['load', 'enter'],
     defaultActivation: 'load',
     perfClass: 'continuous',
+    // Still `disable`: it is what stops `openGate` activating the instance, which is precisely
+    // what makes the held last keyframe in `prepareScene` the only thing that runs.
     reducedMotion: 'disable',
     prepare: prepareScene,
   },

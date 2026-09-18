@@ -139,14 +139,50 @@ export class CameraController {
     }
   }
 
-  start(): void {
-    if (this.isListening || !this.container) return
-
+  /**
+   * The 3D space itself: the container's perspective and every layer's `preserve-3d`.
+   *
+   * Separated from {@link start} because the reduced-motion path needs exactly this and none of
+   * the listeners or loops below it — see {@link renderStatic}.
+   */
+  private applyStage(): void {
     const stage = styleOf(this.ledgers, this.container)
     stage?.set('perspective', `${this.options.depth || 1000}px`)
     stage?.set('transform-style', 'preserve-3d')
-
     this.applyLayer3D()
+  }
+
+  /**
+   * The scene composed once, with the camera parked where its travel begins.
+   *
+   * What a visitor who asked for reduced motion gets instead of nothing, following the decision
+   * `shaders.ts` records: a static frame where one genuinely exists. Here it does, and it is most
+   * of the effect — `depth` and each layer's `z:` *are* the composition, and the scroll only moves
+   * a camera through an arrangement the author already described. One `render()` at `cameraZ = 0`
+   * puts every layer at its authored depth through the container's perspective, so the scene keeps
+   * its real scale hierarchy and simply does not travel. Without it the layers are written nothing
+   * at all and the whole scene collapses flat — the same bug `start()`'s own `render()` call fixed
+   * for the live path.
+   *
+   * Deliberately *not* the scene's end state, which is where the animator leaves a CSS effect under
+   * this policy (`openGate`, `core/animator.ts`). "The end" here is `cameraZ = depth`, i.e. the
+   * camera pushed all the way through: a layer then sits at `z = depthZ + depth / 2`, which against
+   * a `perspective` of `depth` is a 2x blow-up at `z:0` and 10x at `z:400px` of a 1000px scene, with
+   * nearer layers passing the viewer entirely. An end state nobody can see is not a still frame.
+   *
+   * Runs during `prepare`, because it has to — under reduced motion `openGate` marks the element
+   * finished and never activates any instance. See `prepareReducedMotion` in `shaders.ts`.
+   */
+  renderStatic(): void {
+    if (!this.container) return
+    this.applyStage()
+    this.render()
+  }
+
+  start(): void {
+    if (this.isListening || !this.container) return
+
+    this.applyStage()
     this.bindEvents()
     this.isListening = true
     this.updateScroll()
@@ -372,19 +408,26 @@ export function prepareCameraScene(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
-  if (isReducedMotion(ctx)) return createInertInstance()
-
   const resolvedEnv = resolveEnv(ctx)
   const depth = clamp(params.num ? params.num('depth', 1000) : 1000, 100, 5000)
   const mouseTilt = parseMouseTilt(params)
   // `off`, an unknown word and an accessor with no `text` at all all come back as `null`.
   const audio = parseAudioBand(params.text ? params.text('audio', 'off') : 'off')
 
+  // Both moving parts are switched off rather than left to a loop that never starts: `mouseTilt`
+  // is what `render()` reads to decide whether to write the stage's own `transform`, and `audio`
+  // is the band a *static* scene must not follow — the property it reads is written by another
+  // primitive and keeps changing whether or not this one is listening.
+  const reduced = isReducedMotion(ctx)
+  const options: CameraOptions = reduced
+    ? { depth, mouseTilt: false, audio: null }
+    : { depth, mouseTilt, audio }
+
   const htmlEl = el as HTMLElement
   // `ctx.style` is the host's entry in the animator's own `LedgerSet` (`animator.ts` hands every
   // JS primitive on an element the same one), so adopting it is what makes `camera-scene` and any
   // CSS-rendered effect on the same element share one capture instead of snapshotting each other.
-  const controller = new CameraController(htmlEl, { depth, mouseTilt, audio }, resolvedEnv, ctx?.style)
+  const controller = new CameraController(htmlEl, options, resolvedEnv, ctx?.style)
   const layerEls = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="camera-layer"]') : []
 
   for (const layer of layerEls) {
@@ -392,6 +435,14 @@ export function prepareCameraScene(
     const zMatch = /z:([+-]?[0-9.]+)(?:px)?/.exec(kui)
     const depthZ = zMatch ? parseDepth(zMatch[1]) : 0
     controller.addLayer(layer, depthZ)
+  }
+
+  if (reduced) {
+    controller.renderStatic()
+    // Inert, and still owning a teardown: the layers this reached on its own are in no ledger the
+    // animator will ever restore, so `destroy()` is the only thing that gives their transforms
+    // back. `stop()` inside it no-ops on a controller that never listened.
+    return createInertInstance(() => controller.destroy())
   }
 
   return createEffectInstance({
@@ -471,6 +522,9 @@ export const CAMERA_PRIMITIVES: Primitive[] = [
     supportedActivations: ['load', 'enter'],
     defaultActivation: 'load',
     perfClass: 'continuous',
+    // Still `disable`, and it has to be: it is what makes `openGate` refuse to activate this
+    // instance, and the still frame is baked in `prepare` precisely because nothing else runs.
+    // `shaders.ts` keeps its own for the same reason.
     reducedMotion: 'disable',
     prepare: prepareCameraScene,
   },
@@ -483,6 +537,9 @@ export const CAMERA_PRIMITIVES: Primitive[] = [
     supportedActivations: ['load', 'enter'],
     defaultActivation: 'load',
     perfClass: 'dom-transform',
+    // Nothing to reconsider here when `camera-scene` gained a still frame: this primitive animates
+    // nothing in either mode. The scene above writes every layer's transform, including the static
+    // one, so a layer is already covered by whatever its scene decided.
     reducedMotion: 'disable',
     prepare: prepareCameraLayer,
   },

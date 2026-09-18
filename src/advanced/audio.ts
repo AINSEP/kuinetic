@@ -705,6 +705,22 @@ export function prepareAudioSource(
 ): EffectInstance {
   if (isReducedMotion(ctx)) return createInertInstance()
 
+  /*
+   * Inert, and the still-frame question does not arise here the way it does for the rest of the
+   * tier. This primitive renders nothing: it is a data source that publishes five numbers as
+   * custom properties, and whatever motion an author builds on them belongs to the consumer —
+   * which is itself gated by this policy (`shaders`, `camera-scene`).
+   *
+   * Its static value would be `0.000` on all five channels, which is already what its absence
+   * means: `readAudioBand` answers 0 for a property nobody has declared, precisely so a consumer
+   * cannot tell "silent" from "no driver here". Writing the zeros would add nothing except an
+   * override of an author's own inline `--kui-audio-*`.
+   *
+   * Running the analyser anyway — a live band under reduced motion, on the theory that a consumer
+   * might drive colour rather than movement — was rejected: this module cannot see who reads it,
+   * and the cost of guessing wrong is an `AudioContext`, a frame loop and a set of page-wide
+   * gesture listeners for a visitor who asked for less.
+   */
   const resolvedEnv = resolveEnv(ctx)
   const rawSource = params.text ? params.text('source', 'media') : 'media'
   const source = rawSource === 'mic' ? 'mic' : 'media'

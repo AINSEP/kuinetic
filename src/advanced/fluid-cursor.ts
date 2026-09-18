@@ -385,6 +385,14 @@ export function prepareFluidCursor(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
+  /*
+   * Inert, considered and kept. The tier's reduced-motion target is a still frame where one
+   * exists (`shaders.ts`, and now `camera-3d.ts` and `scenes.ts`); a pointer trail has none. The
+   * effect is a shared canvas over the whole document whose entire content is where the cursor
+   * has just been — with no pointer there is no trail, only a blob parked at a position the
+   * visitor never chose. This primitive declares `channels: []` and never writes to the host at
+   * all, so "no effect" already leaves the author's page exactly as written.
+   */
   if (isReducedMotion(ctx)) return createInertInstance()
   const hostDoc = el?.ownerDocument
   const resolvedEnv = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
