@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — shader defect fixture</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #101010; }
+      /* Everything inside 390x560, so this fixture reads the same at 800x600 and on a phone. */
+      #stage { position: relative; width: 390px; height: 560px; }
+      #stage > * { position: absolute; width: 100px; height: 100px; }
+
+      /* Row 1: the three blend/duotone reads, all over the same transparent-ground mark. */
+      #blend-screen { left: 10px;  top: 10px; }
+      #blend-add    { left: 120px; top: 10px; }
+      #duotone      { left: 230px; top: 10px; }
+
+      /* Row 2: the host's own opacity. `#faded` and `#opaque` are the same image; the only
+         difference between them is this declaration, which is the whole of the measurement. */
+      #faded     { left: 10px;  top: 120px; opacity: 0.25; }
+      #opaque    { left: 120px; top: 120px; }
+      #faded-gen { left: 230px; top: 120px; opacity: 0.25; }
+
+      /* Row 3: the lifecycle pair. Nothing about these two is visual. */
+      #stale { left: 10px;  top: 230px; }
+      #nobuf { left: 120px; top: 230px; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <!-- A square annulus with a *transparent* ground: the ring spans 10..35% of the box, the
+           hole 35..65%, and the corner is outside the mark entirely. Three regions, two of which
+           have no coverage at all — which is the only way to read whether a blend invented
+           coverage where the source had none. Same mark as the logo stencil's, deliberately: one
+           shape whose regions are already documented and known to land where the probes look. -->
+      <img id="blend-screen" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><path fill-rule='evenodd' fill='rgb(255,255,255)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+      <img id="blend-add" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><path fill-rule='evenodd' fill='rgb(255,255,255)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+      <img id="duotone" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><path fill-rule='evenodd' fill='rgb(255,255,255)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+
+      <!-- Flat opaque red. Every probe over these is asking about alpha, so the colour only has to
+           be one the cleared canvas could not be mistaken for. -->
+      <img id="faded" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <img id="opaque" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <div id="faded-gen"></div>
+
+      <img id="stale" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <img id="nobuf" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(255,0,0)'/></svg>" />
+    </div>
+
+    <!-- Built into the gitignored `.artifacts/`; see `advanced-webgl.html`. -->
+    <script src="../../../.artifacts/browser-fixtures/advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

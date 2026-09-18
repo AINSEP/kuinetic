@@ -554,8 +554,27 @@ export interface ElementGeometry {
   clip: Inset
   /** Border-box corner radii, `[x, y]` per corner in TL, TR, BR, BL order. */
   radii: [number, number, number, number, number, number, number, number]
-  /** The product of the ancestors' opacities. This element's own is this module's to write. */
+  /**
+   * What the replica has to be painted at: the ancestors' opacities multiplied together, and the
+   * element's own on top of them.
+   *
+   * The host's own used to be left out, on the reasoning that `opacity` is this module's to write —
+   * but that confuses the property with the author's value for it. A `.hero { opacity: .25 }`
+   * carrying a shader had its original hidden by `hideBehindRenderer` and its replica drawn at 1,
+   * so the one element on the page that was meant to be a quarter visible was the only one at full
+   * strength. See {@link hostAlpha} for how the author's value survives being overwritten.
+   */
   alpha: number
+  /**
+   * The host's own opacity alone, already folded into {@link alpha}.
+   *
+   * Handed back so a caller can cache it. `hideBehindRenderer` writes `opacity: 0` on the very
+   * element this is measured from, so from the second frame onwards a live read answers 0 — fold
+   * that in and the replica vanishes, which leaves the host hidden behind nothing at all. The
+   * instance therefore keeps the last value read while the element was still visible and passes it
+   * back in; see `measureElementGeometry`'s `hostAlpha` parameter.
+   */
+  hostAlpha?: number
 }
 
 function numOr(raw: string | undefined | null, fallback = 0): number {
@@ -759,6 +778,10 @@ function walkAncestors(el: HTMLElement, win: AnyWindow, start: Inset, subject: s
  *   the corner mask against the border box — visibly mismatched corners on any padded host.
  *   The replaced-content path (every image filter) must keep the content box, because that is the
  *   box `object-fit` resolves against.
+ * @param hostAlpha - The element's own opacity, for a caller that already hid it. Omitted means
+ *   "read it live", which is right up to the first `hideBehindRenderer` and right forever for a
+ *   generative mode, which never hides its host. After that the live value is this module's own
+ *   `0` and the author's has to be supplied from the caller's cache.
  * @returns Its geometry, or `null` when it is not on screen at all.
  * @complexity O(d) in ancestor depth, capped at {@link ANCESTOR_WALK_LIMIT}.
  */
@@ -766,6 +789,7 @@ export function measureElementGeometry(
   el: HTMLElement,
   win?: AnyWindow,
   fullBox = false,
+  hostAlpha?: number,
 ): ElementGeometry | null {
   const rect = el.getBoundingClientRect()
   const { height } = getScissorEnv(win)
@@ -775,12 +799,14 @@ export function measureElementGeometry(
   const border = boxOf(rect)
   const content = fullBox ? border : contentBoxOf(rect, cs)
   const walked = walkAncestors(el, view, content, cs?.position || 'static')
+  const own = Math.max(0, Math.min(1, hostAlpha ?? numOr(cs?.opacity, 1)))
   return {
     border,
     paint: fullBox ? border : paintBoxOf(content, naturalSizeOf(el), cs),
     clip: walked.clip,
     radii: radiiOf(cs, rect),
-    alpha: walked.alpha,
+    alpha: walked.alpha * own,
+    hostAlpha: own,
   }
 }
 
@@ -951,14 +977,32 @@ function bindQuadAttrib(
   }
 }
 
+/**
+ * The three things a draw cannot start without, or `null`.
+ *
+ * `quadBuffer` belongs here with the context and the canvas, and used not to be checked at all. It
+ * is the six vertices every program in this module draws, and `gl.createBuffer()` answers `null`
+ * under memory pressure rather than throwing; without it `vertexAttribPointer` and `drawArrays`
+ * paint nothing and merely set a GL error, and `drawElementQuad` fell through to its unconditional
+ * `return true`. The caller reads that as "the replica is up" and hides the element — so a failed
+ * allocation did not cost a page its effect, it cost the page its images. `init()` now refuses to
+ * come up without the buffer; this covers a context restored into the same failure.
+ */
+function drawTargets(
+  renderer: ShaderRendererLike,
+): { gl: WebGLRenderingContext | WebGL2RenderingContext; canvas: HTMLCanvasElement } | null {
+  const { gl, canvas, quadBuffer } = renderer
+  return gl && canvas && quadBuffer ? { gl, canvas } : null
+}
+
 export function drawElementQuad(
   renderer: ShaderRendererLike,
   el: HTMLElement,
   opt: Partial<ShaderDrawOptions> = {},
 ): boolean {
-  const gl = renderer.gl
-  const canvas = renderer.canvas
-  if (!gl || !canvas) return false
+  const target = drawTargets(renderer)
+  if (!target) return false
+  const { gl, canvas } = target
 
   const mode = opt.mode ?? 'displace'
   const info = renderer.programs[mode]
@@ -1319,6 +1363,25 @@ export class SharedShaderRenderer {
   /** Cleared until a real `pointermove` lands. See {@link computeMousePos}. */
   hasPointer = false
   isContextLost = false
+  /**
+   * Bumped every time this renderer's GL objects stop being valid, i.e. on each context loss.
+   *
+   * It exists because "is this handle still real?" has no other answer. A `WebGLTexture` from a lost
+   * context is an ordinary live JavaScript object — binding it raises `INVALID_OPERATION` and
+   * samples nothing, and neither the draw nor `drawElementQuad`'s return value can tell.
+   *
+   * The hole it closes: `cancel()`/`finish()` unregister an instance, which takes its entry out of
+   * `contextCallbacks` with it, so an *inactive* instance is never told the context went away. Its
+   * texture holders kept answering with pre-loss handles, and `acquireRenderer` short-circuits on
+   * re-activation because the renderer itself was never destroyed — so a hover, a hover-out, a
+   * context loss and a second hover drew a blank replica over a hidden image, permanently.
+   *
+   * Stamping the holders rather than keeping every acquired instance registered for context events:
+   * the stamp is checked where the stale handle is actually read, so it holds however the instance
+   * came to miss the event, and it costs two compares per holder per frame. See
+   * {@link initTextureHolder}.
+   */
+  contextGeneration = 0
   mapKey: object
   onPointer?: (e: PointerEvent | { clientX: number; clientY: number }) => void
   onContextLost?: (e: Event) => void
@@ -1378,19 +1441,63 @@ export class SharedShaderRenderer {
 
     syncCanvasDimensions(this.canvas, this.window, getScissorEnv(this.window).dpr)
     this.document.body.appendChild(this.canvas)
-    this.initQuad()
+    if (!this.initQuad()) return this.abandonInit()
     this.initPrograms()
     this.bindEvents()
     this.startLoop()
     return true
   }
 
-  initQuad(): void {
+  /**
+   * Undo a half-built `init()` and report it as a failure.
+   *
+   * Not `destroy()`: nothing has acquired this renderer yet, so there is no teardown to broadcast,
+   * and marking it `isDestroyed` would retire an object that is free to try again the next time
+   * something acquires it. Under transient memory pressure that retry is the whole point — the
+   * alternative is a permanently dead renderer for a `createBuffer` that would succeed a second
+   * later. The canvas goes because it is already in the document by this point; leaving it would
+   * stack one invisible full-viewport canvas per attempt.
+   */
+  private abandonInit(): boolean {
+    disposeGLResources(this.gl, this.quadBuffer, this.programs)
+    this.canvas?.remove()
+    this.canvas = null
+    this.gl = null
+    this.quadBuffer = null
+    this.programs = {}
+    return false
+  }
+
+  /**
+   * Allocate and fill the one static buffer every draw in this module reads its vertices from.
+   *
+   * Returns whether it worked, and the caller has to care. `gl.createBuffer()` returns `null` under
+   * memory pressure rather than throwing, and so does nothing else downstream: `vertexAttribPointer`
+   * and `drawArrays` against a null binding only *set* a GL error, and `drawElementQuad` used to
+   * return `true` regardless. The visible result was the worst possible one — every affected
+   * element's `opacity` driven to 0 by `hideBehindRenderer` with nothing drawn over it, so the page
+   * lost its images rather than losing an effect. A renderer that cannot allocate this is not a
+   * renderer, so it fails here instead.
+   *
+   * `bufferData` is guarded too, and only for a host that throws rather than raising `OUT_OF_MEMORY`
+   * through the error queue. Reading the queue is deliberately not done: `getError` is a
+   * synchronous round-trip to the GPU process, and the allocation failure it would catch is already
+   * caught by the null above.
+   */
+  initQuad(): boolean {
     const gl = this.gl
-    if (!gl) return
+    if (!gl) return false
     this.quadBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
+    if (!this.quadBuffer) return false
+    try {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer)
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
+    } catch {
+      if (gl.deleteBuffer) gl.deleteBuffer(this.quadBuffer)
+      this.quadBuffer = null
+      return false
+    }
+    return true
   }
 
   initPrograms(): void {
@@ -1419,15 +1526,23 @@ export class SharedShaderRenderer {
       this.onContextLost = (e: Event) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault()
         this.isContextLost = true
+        // Before anything else: every texture, buffer and program this renderer handed out died
+        // with the context, and an instance that is not in `contextCallbacks` will only find that
+        // out by comparing this number against its own. See {@link contextGeneration}.
+        this.contextGeneration++
         this.stopLoop()
         for (const cb of this.contextCallbacks.values()) invokeIsolated(() => cb.onLost())
       }
       this.onContextRestored = () => {
         this.isContextLost = false
-        this.initQuad()
+        // A restore that cannot re-allocate the quad leaves the loop stopped rather than spinning
+        // it up to draw nothing: `onContextLost` already handed every hidden element back its
+        // opacity, so not restarting is the state where the page shows its own content. The
+        // callbacks still run — an instance has to learn its textures are gone either way.
+        const ok = this.initQuad()
         this.initPrograms()
         for (const cb of this.contextCallbacks.values()) invokeIsolated(() => cb.onRestored())
-        this.startLoop()
+        if (ok) this.startLoop()
       }
       this.canvas.addEventListener('webglcontextlost', this.onContextLost, false)
       this.canvas.addEventListener('webglcontextrestored', this.onContextRestored, false)
@@ -1622,22 +1737,44 @@ interface TextureHolder {
  * `host.renderer` rather than a captured instance: a renderer that has been torn down took its
  * textures with it, so a holder that kept answering with the old handle would hand a dead name to
  * a new context. Asking the host every time means the switch is invisible from here.
+ *
+ * The same question has a second half that asking the host does *not* answer: a renderer survives a
+ * context loss, and the textures it created do not. So the holder records which renderer and which
+ * {@link SharedShaderRenderer.contextGeneration} minted its handle, and treats a mismatch on either
+ * as having no texture — `get()` uploads a fresh one, `peek()` reports nothing to delete. That is
+ * what makes an *inactive* instance safe: it is unregistered, so no context callback reaches it, and
+ * without this it re-activated onto a `WebGLTexture` that had been invalid since before the page
+ * scrolled past it.
  */
 function initTextureHolder(
   getSource: () => TexImageSource | null,
   host: { renderer: SharedShaderRenderer },
 ): TextureHolder {
   let tex: WebGLTexture | null = null
+  let owner: SharedShaderRenderer | null = null
+  let generation = -1
+  /** Drop a handle minted by another renderer, or by this one before its context was lost. */
+  const dropIfStale = (renderer: SharedShaderRenderer): void => {
+    if (tex && (owner !== renderer || generation !== renderer.contextGeneration)) tex = null
+  }
   return {
     get() {
       const renderer = host.renderer
+      dropIfStale(renderer)
       if (!tex && !renderer.isContextLost) {
         const src = getSource()
-        if (src) tex = renderer.createTexture(src)
+        if (src) {
+          tex = renderer.createTexture(src)
+          owner = renderer
+          generation = renderer.contextGeneration
+        }
       }
       return tex
     },
-    peek: () => tex,
+    peek() {
+      dropIfStale(host.renderer)
+      return tex
+    },
     reset() { tex = null },
   }
 }
@@ -1687,6 +1824,14 @@ interface ShaderInstanceState {
   audio: number
   /** This frame's measured box, or `null` when the element is off screen. */
   geometry: ElementGeometry | null
+  /**
+   * The host's own `opacity`, as last read while this instance was not hiding it.
+   *
+   * The replica has to be painted at it — see {@link ElementGeometry.alpha} — and the one place it
+   * cannot be read from is the element itself once `hideBehindRenderer` has written `0` there. So
+   * it is tracked on every frame the element is visible and held across every frame it is not.
+   */
+  hostAlpha: number
 }
 
 function hideBehindRenderer(el: HTMLElement, state: ShaderInstanceState): void {
@@ -1789,7 +1934,7 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
     // A private `createLedgerSet` here captured whatever a CSS effect on the same element had
     // already written to `opacity` as the author's own value, and handed it back on teardown.
     ledgers: createAdvancedLedgers(info.el, hostLedger),
-    hiddenByRenderer: false, progress: -1, audio: 0, geometry: null,
+    hiddenByRenderer: false, progress: -1, audio: 0, geometry: null, hostAlpha: 1,
   }
   let isActive = false, isAcquired = false
 
@@ -1810,10 +1955,16 @@ function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger
   // The geometry measurement belongs here for the same reason and more so: it reads the element's
   // rect, its computed style and its clipping ancestors' (`measureElementGeometry`), all of which
   // a preceding instance's `opacity` write would have invalidated.
+  // The element's own `opacity` is part of that measurement, and it is the one input this module
+  // destroys by using it: `hideBehindRenderer` writes `0` to the very property being read. So the
+  // author's value is taken live while the element is visible and replayed from the cache while it
+  // is not. A generative mode never hides its host and is therefore always on the live read.
   const readInputs = () => {
     state.progress = instanceProgress(info)
     state.audio = info.opt.audioBand ? readAudioBand(info.el, info.opt.audioBand) : 0
-    state.geometry = measureElementGeometry(info.el, info.renderer.window, isGenerative)
+    const cached = state.hiddenByRenderer ? state.hostAlpha : undefined
+    state.geometry = measureElementGeometry(info.el, info.renderer.window, isGenerative, cached)
+    if (state.geometry?.hostAlpha !== undefined) state.hostAlpha = state.geometry.hostAlpha
   }
 
   const drawCall: ShaderDrawFn = (_gl, time) => {

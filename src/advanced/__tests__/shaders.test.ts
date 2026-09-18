@@ -2256,4 +2256,163 @@ describe('Advanced Shaders Labs Module', () => {
       expect(zFor('', '12.7')).toBe(12)
     })
   })
+
+  /**
+   * The two halves of "a failed quad allocation is not a working renderer" that the browser tier
+   * cannot reach.
+   *
+   * `test/browser/advanced-webgl.test.mjs` covers the one that matters most — a real
+   * `WebGL2RenderingContext` whose `createBuffer` answers `null`, and the element that must not be
+   * hidden behind it. What it cannot reach is the *second* line of defence: with `init()` refusing
+   * to come up, nothing in a real browser can hand `drawElementQuad` a live context with no quad
+   * buffer. Only a context restored into the same allocation failure can, and `WEBGL_lose_context`
+   * gives no way to fail the restore. So that guard is asserted here, against a double.
+   */
+  describe('a quad buffer that could not be allocated', () => {
+    /** A renderer wired to `gl`, with a canvas that hands it back. */
+    const rendererOn = (gl: WebGL2RenderingContext): SharedShaderRenderer => {
+      const canvas = document.createElement('canvas')
+      canvas.getContext = vi.fn().mockReturnValue(gl)
+      return new SharedShaderRenderer({
+        createCanvas: () => canvas,
+        raf: () => 1,
+        caf: () => {},
+        window: { innerWidth: 800, innerHeight: 600, devicePixelRatio: 1, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      })
+    }
+
+    it('reports the null `createBuffer` WebGL answers under memory pressure', () => {
+      const gl = createMockGL()
+      ;(gl.createBuffer as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null)
+      const renderer = rendererOn(gl)
+
+      expect(renderer.init()).toBe(false)
+      // Abandoned, not merely unhappy: a half-built renderer left holding a context and an
+      // appended canvas is the state the whole finding is about.
+      expect(renderer.gl).toBeNull()
+      expect(renderer.canvas).toBeNull()
+      expect(renderer.quadBuffer).toBeNull()
+      // `acquire()` must not count a reference against an init that failed, or the first
+      // `release()` from anywhere else drops a count that was never taken.
+      expect(renderer.acquire()).toBe(false)
+      expect(renderer.refCount).toBe(0)
+      // And it is not `destroy()`: nothing has acquired this renderer, so it stays eligible to try
+      // again — which is the point, because the failure it is recovering from is transient.
+      expect(renderer.isDestroyed).toBe(false)
+    })
+
+    it('treats a `bufferData` that throws the same way, and does not leave the dead buffer behind', () => {
+      const gl = createMockGL()
+      const renderer = rendererOn(gl)
+      expect(renderer.init()).toBe(true)
+
+      // `initQuad()` on its own, which is how `onContextRestored` calls it: there is no
+      // `abandonInit` on that path to sweep up afterwards, so the cleanup has to live in `initQuad`
+      // itself. A `quadBuffer` left pointing at the failed allocation is a renderer `drawTargets`
+      // waves straight through — the same defect one layer along.
+      const buffer = {} as WebGLBuffer
+      ;(gl.createBuffer as unknown as ReturnType<typeof vi.fn>).mockReturnValue(buffer)
+      ;(gl.bufferData as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error('OOM') })
+
+      expect(renderer.initQuad()).toBe(false)
+      expect(gl.deleteBuffer).toHaveBeenCalledWith(buffer)
+      expect(renderer.quadBuffer).toBeNull()
+      expect(drawElementQuad(renderer, shaderImg(), { mode: 'displace' })).toBe(false)
+    })
+
+    it('draws nothing through a live context that has no quad buffer', () => {
+      const gl = createMockGL()
+      const renderer = rendererOn(gl)
+      expect(renderer.init()).toBe(true)
+      expect(renderer.quadBuffer).not.toBeNull()
+
+      const el = shaderImg()
+      // The control: with the buffer present this same call draws and says so.
+      expect(drawElementQuad(renderer, el, { mode: 'displace' })).toBe(true)
+
+      // A context restored into a failed allocation. `true` here is the defect: the caller reads it
+      // as "the replica is up" and drives the element's opacity to zero over an empty canvas.
+      renderer.quadBuffer = null
+      expect(drawElementQuad(renderer, el, { mode: 'displace' })).toBe(false)
+    })
+
+    it('does not restart the render loop after a restore it could not re-allocate for', () => {
+      const gl = createMockGL()
+      const renderer = rendererOn(gl)
+      expect(renderer.init()).toBe(true)
+      renderer.onContextLost?.({ preventDefault: vi.fn() } as unknown as Event)
+      expect(renderer.isContextLost).toBe(true)
+
+      ;(gl.createBuffer as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null)
+      renderer.rafId = null
+      renderer.onContextRestored?.()
+      // The context is back — nothing here pretends otherwise — but there is nothing to draw with,
+      // so the loop stays down and `drawElementQuad`'s guard keeps every host visible.
+      expect(renderer.isContextLost).toBe(false)
+      expect(renderer.quadBuffer).toBeNull()
+      expect(renderer.rafId).toBeNull()
+    })
+
+    it('stamps a new context generation on every loss, so a handle can be dated', () => {
+      const gl = createMockGL()
+      const renderer = rendererOn(gl)
+      expect(renderer.init()).toBe(true)
+      expect(renderer.contextGeneration).toBe(0)
+
+      renderer.onContextLost?.({ preventDefault: vi.fn() } as unknown as Event)
+      expect(renderer.contextGeneration).toBe(1)
+      renderer.onContextRestored?.()
+      // Not bumped again by the restore: the generation counts the deaths, and a holder minted
+      // during generation 1 has to stay valid for the whole of it.
+      expect(renderer.contextGeneration).toBe(1)
+      renderer.onContextLost?.({ preventDefault: vi.fn() } as unknown as Event)
+      expect(renderer.contextGeneration).toBe(2)
+    })
+  })
+
+  /**
+   * The element's own `opacity`, which the replica has to be painted at and which the module
+   * overwrites in the course of using it.
+   *
+   * The browser tier reads the resulting pixels; this reads the measurement, including the override
+   * that exists because a live read answers `0` from the second frame onwards.
+   */
+  describe("the host element's own opacity", () => {
+    /** A window whose `getComputedStyle` answers one opacity for the host and 1 for everything else. */
+    const winWithOpacity = (host: Element, opacity: string): Window => ({
+      innerWidth: 800,
+      innerHeight: 600,
+      devicePixelRatio: 1,
+      getComputedStyle: (el: Element) => ({ opacity: el === host ? opacity : '1', position: 'static', overflow: 'visible' }),
+    } as unknown as Window)
+
+    it('is folded into the alpha the replica is drawn at, and handed back for caching', () => {
+      const el = shaderImg()
+      const geom = measureElementGeometry(el, winWithOpacity(el, '0.25'))
+      expect(geom).not.toBeNull()
+      // 1 here is the defect: the original is hidden and the copy renders at full strength, so the
+      // one element on the page meant to be a quarter visible is the only one that is not.
+      expect(geom!.alpha).toBeCloseTo(0.25, 5)
+      expect(geom!.hostAlpha).toBeCloseTo(0.25, 5)
+    })
+
+    it('is taken from the caller once the caller is the reason a live read says 0', () => {
+      const el = shaderImg()
+      const win = winWithOpacity(el, '0')
+      // What the element actually reports after `hideBehindRenderer` has written to it. Believing
+      // it paints the replica at zero, which leaves the host hidden behind nothing at all.
+      expect(measureElementGeometry(el, win)!.alpha).toBe(0)
+      // The author's value, replayed from the instance's cache.
+      expect(measureElementGeometry(el, win, false, 0.25)!.alpha).toBeCloseTo(0.25, 5)
+    })
+
+    it('clamps what it is given rather than trusting it into the uniform', () => {
+      const el = shaderImg()
+      const win = winWithOpacity(el, '1')
+      expect(measureElementGeometry(el, win, false, 4)!.alpha).toBe(1)
+      expect(measureElementGeometry(el, win, false, -2)!.alpha).toBe(0)
+      // A host with no computed style at all is opaque, exactly as before this existed.
+      expect(measureElementGeometry(el, { innerHeight: 600 } as unknown as Window)!.alpha).toBe(1)
+    })
+  })
 })

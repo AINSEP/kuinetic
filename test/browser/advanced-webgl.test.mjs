@@ -32,6 +32,10 @@ import { createChecker, loadChromium } from '../../scripts/browser-harness.mjs'
  *    `translate3d`, and a consumer with no `audio:` stays at 0 with every band at full scale.
  * 11. The same chain end to end with a real `audio-source`: a WAV built in the page, played
  *    through a real Web Audio graph, read back off the real uniform.
+ * 16. Four defects a WebGL mock cannot reach: `screen`/`add`/duotone inventing coverage a
+ *    transparent source never had, the replica ignoring its host's own `opacity`, an inactive
+ *    instance re-activating onto a texture from a lost context, and a `createBuffer` that returned
+ *    null coming up as a working renderer. See `runShaderDefects`.
  */
 export const name = 'advanced-webgl'
 
@@ -1077,6 +1081,9 @@ void main() { this is not valid glsl at all !! }
 
   await runGenerativeHover({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
   await runGenerativeHover({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+
+  await runShaderDefects({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  await runShaderDefects({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
 
   return results
 }
@@ -2325,6 +2332,364 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
     at('motion: angle still turns the field when it is animating, not only when frozen'),
     mo.angleSameFrame > 4,
     `0deg vs 90deg at speed 4, distance=${n(mo.angleSameFrame)}`,
+  )
+
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
+  await context.close()
+}
+
+/**
+ * 16. Four defects the unit suite structurally cannot see, because it mocks WebGL.
+ *
+ * Every one of them is invisible to a suite whose `gl` is a `vi.fn()` record: a texture handle from
+ * a lost context is a live JavaScript object to a mock, a blend is arithmetic no mock executes, a
+ * `createBuffer` that answers `null` is a mock that was told to, and an element's own `opacity` is
+ * a number nothing reads back. All four were reported as high or medium severity against source
+ * that had 100% line coverage, which is the reason this block is here and not there.
+ *
+ * What each one asserts, and the shape of the failure it catches:
+ *
+ * - **Blend alpha.** `screen` and `add` ran their arithmetic over all four *premultiplied*
+ *   components, so `screen((0,0,0,0), red)` was an opaque red pixel: a transparent PNG's surround
+ *   filled with a solid rectangle. Read as alpha at a point where the source has no coverage —
+ *   which is why the mark here is an annulus and not a blob, so there are two such points inside
+ *   the element's own box rather than only outside it. The duotone ramp had the same shape of bug
+ *   in a different place and is read the same way, on the red channel, because its wrong answer had
+ *   `a == 0` with `rgb > 0` — additive glow rather than a rectangle.
+ * - **The host's own opacity.** The replica was painted at the ancestors' opacity only, so a
+ *   `.hero { opacity: .25 }` had its original hidden and its copy drawn at full strength. The trap
+ *   in fixing it is that the module writes `opacity: 0` to the very element it must read, so the
+ *   `late` reading below — taken seven frames after the hide, with the computed value asserted to
+ *   be `0` — is the one that matters. `early` alone would pass against a live read.
+ * - **A stale texture across a context restore.** `cancel()` takes the instance out of
+ *   `contextCallbacks`, so nothing tells it the context died; `acquireRenderer` short-circuits on
+ *   re-activation because the renderer itself never was destroyed. Asserted on both halves: the
+ *   replica is red again (not the black an incomplete texture samples), and a *new* upload
+ *   happened, which is the mechanism rather than the symptom.
+ * - **A failed quad allocation.** `gl.createBuffer()` answers `null` under memory pressure and
+ *   nothing downstream throws, so the renderer came up, drew nothing, and reported success — and
+ *   the caller hid the element. The claim asserted is the user-visible one: the host keeps its
+ *   opacity. Run on its own page, because it needs a document whose shared renderer has never been
+ *   built.
+ */
+async function runShaderDefects({ browser, check, label, viewport, deviceScaleFactor }) {
+  const url = `file://${fileURLToPath(new URL('./fixtures/advanced-shader-defects.html', import.meta.url))}`
+  const context = await browser.newContext({ viewport, deviceScaleFactor })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+  // `isImg` in `createShaderTextureHolders` requires `complete && naturalWidth > 0`, and a holder
+  // that finds no source uploads no texture and draws nothing — which reads here as every defect
+  // being fixed at once. Wait for the decode rather than trusting `__kuiReady`.
+  await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete && i.naturalWidth > 0))
+
+  const at = (name) => `${label}: ${name}`
+  const show = (p) => `rgba(${p})`
+
+  const PROBES = `
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const pt = (gl, canvas, el, fx, fy) => {
+      const r = el.getBoundingClientRect()
+      const px = new Uint8Array(4)
+      gl.readPixels(
+        Math.round((r.left + r.width * fx) * dpr),
+        Math.round(canvas.height - (r.top + r.height * fy) * dpr),
+        1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px,
+      )
+      return [px[0], px[1], px[2], px[3]]
+    }
+  `
+
+  // One reference for the whole function, for the reason documented in `runGenerativeField`: the
+  // last `destroy()` of each block would otherwise tear the context down and the next block would
+  // build it again, which crashes headless Chromium's software GL.
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().acquire())
+
+  // ---- Block A: blend and duotone over a source with no coverage -----------------------------
+  const blend = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    // \`strength: 0, speed: 0\` pins the ripple at zero, so every probe samples the texel under it
+    // and a displaced edge cannot be mistaken for a coverage change.
+    const read = async (id, opts) => {
+      const el = document.getElementById(id)
+      const inst = prepareShaders(el, createEffectParams({ mode: 'displace', strength: 0, speed: 0, ...opts }))
+      inst.activate()
+      await settle()
+      const gl = renderer.gl
+      const out = await new Promise((resolve) => requestAnimationFrame(() => resolve({
+        ring: pt(gl, renderer.canvas, el, 0.22, 0.5),
+        hole: pt(gl, renderer.canvas, el, 0.5, 0.5),
+        corner: pt(gl, renderer.canvas, el, 0.04, 0.04),
+      })))
+      inst.destroy()
+      await settle()
+      return out
+    }
+    return {
+      screen: await read('blend-screen', { blend: 'screen', tint: '#ff0000' }),
+      add: await read('blend-add', { blend: 'add', tint: '#ff0000' }),
+      duo: await read('duotone', { color1: '#ff0000', color2: '#0000ff' }),
+    }
+  })()`)
+
+  const opaquePx = (p) => p[3] > 200
+  const clearPx = (p) => p[3] < 20
+
+  check(
+    at('blend: screen still paints the mark — the control for everything below it'),
+    opaquePx(blend.screen.ring),
+    `ring=${show(blend.screen.ring)}`,
+  )
+  check(
+    at('blend: screen leaves a transparent source transparent, inside the box and out'),
+    clearPx(blend.screen.hole) && clearPx(blend.screen.corner),
+    `hole=${show(blend.screen.hole)}, corner=${show(blend.screen.corner)} `
+      + '(an opaque red pixel here is the tint blended into the alpha channel)',
+  )
+  check(
+    at('blend: add paints the mark'),
+    opaquePx(blend.add.ring),
+    `ring=${show(blend.add.ring)}`,
+  )
+  check(
+    at('blend: add leaves a transparent source transparent'),
+    clearPx(blend.add.hole) && clearPx(blend.add.corner),
+    `hole=${show(blend.add.hole)}, corner=${show(blend.add.corner)}`,
+  )
+  check(
+    at('duotone: the ramp reaches color2 on a white source'),
+    blend.duo.ring[2] > 200 && opaquePx(blend.duo.ring),
+    `ring=${show(blend.duo.ring)} (blue = color2 at full luminance)`,
+  )
+  // Read on red, not on alpha: the duotone bug wrote `color1` into `rgb` and left `a` at 0, which a
+  // premultiplied canvas composites additively. An alpha-only check passes straight through it.
+  check(
+    at('duotone: and writes no colour at all where the source has no coverage'),
+    blend.duo.hole[0] < 20 && clearPx(blend.duo.hole) && blend.duo.corner[0] < 20,
+    `hole=${show(blend.duo.hole)}, corner=${show(blend.duo.corner)} `
+      + '(red with alpha 0 is color1 premultiplied by nothing — an additive glow, not a rectangle)',
+  )
+
+  // ---- Block B: the host element's own opacity -----------------------------------------------
+  const faded = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    const P = (o) => createEffectParams({ strength: 0, speed: 0, ...o })
+    const els = {
+      faded: document.getElementById('faded'),
+      opaque: document.getElementById('opaque'),
+      gen: document.getElementById('faded-gen'),
+    }
+    const inst = [
+      prepareShaders(els.faded, P({ mode: 'displace' })),
+      prepareShaders(els.opaque, P({ mode: 'displace' })),
+      prepareShaders(els.gen, P({ mode: 'gradient', seed: 3, scale: 3, strength: 2 })),
+    ]
+    for (const i of inst) i.activate()
+    await settle()
+    const gl = renderer.gl
+    const sample = () => ({
+      faded: pt(gl, renderer.canvas, els.faded, 0.5, 0.5),
+      opaque: pt(gl, renderer.canvas, els.opaque, 0.5, 0.5),
+      gen: pt(gl, renderer.canvas, els.gen, 0.5, 0.5),
+      computed: getComputedStyle(els.faded).opacity,
+    })
+    const early = await new Promise((r) => requestAnimationFrame(() => r(sample())))
+    // Seven more frames. By now \`hideBehindRenderer\` has written \`opacity: 0\` on the host, so a
+    // live read of its computed opacity answers 0 and only the instance's cache still holds .25.
+    for (let i = 0; i < 7; i++) await new Promise((r) => requestAnimationFrame(r))
+    const late = await new Promise((r) => requestAnimationFrame(() => r(sample())))
+    for (const i of inst) i.destroy()
+    await settle()
+    return { early, late, restored: getComputedStyle(els.faded).opacity }
+  })()`)
+
+  // .25 of 255 is 64. The window is wide because the source is premultiplied on upload and the
+  // read comes back through an 8-bit framebuffer, so a couple of levels either way is rounding.
+  const quarter = (p) => p[3] > 45 && p[3] < 85
+
+  check(
+    at('host-opacity: an opacity:.25 host gets a replica at a quarter, not at full strength'),
+    quarter(faded.late.faded),
+    `faded=${show(faded.late.faded)} — 255 means the copy ignored the host's own opacity `
+      + `while the original stayed hidden; expected alpha near 64`,
+  )
+  check(
+    at('host-opacity: the identical image without the declaration is still opaque'),
+    opaquePx(faded.late.opaque),
+    `opaque=${show(faded.late.opaque)}`,
+  )
+  check(
+    at('host-opacity: the cache is what is being read — the live computed value is 0 by now'),
+    faded.late.computed === '0',
+    `computed=${JSON.stringify(faded.late.computed)} (not 0 means the hide never happened and `
+      + 'this block proved nothing about the cache)',
+  )
+  check(
+    at('host-opacity: it held from the first frame, so no frame was drawn at the wrong alpha'),
+    quarter(faded.early.faded),
+    `early=${show(faded.early.faded)}, late=${show(faded.late.faded)}`,
+  )
+  check(
+    at('host-opacity: a generative field over an opacity:.25 host is faded too'),
+    quarter(faded.early.gen) && quarter(faded.late.gen),
+    `early=${show(faded.early.gen)}, late=${show(faded.late.gen)} `
+      + '(a generator never hides its host, so this one is always on the live read)',
+  )
+  check(
+    at('host-opacity: teardown gives the author their .25 back'),
+    faded.restored === '0.25',
+    `computed=${JSON.stringify(faded.restored)}`,
+  )
+
+  // ---- Block C: a context lost while the instance is inactive ---------------------------------
+  const stale = await page.evaluate(`(async () => {
+    ${PROBES}
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    const el = document.getElementById('stale')
+    const gl = renderer.gl
+    if (!gl) return { error: 'no gl' }
+    let uploads = 0
+    const origTexImage2D = gl.texImage2D
+    gl.texImage2D = function (...args) { uploads++; return origTexImage2D.apply(this, args) }
+
+    const inst = prepareShaders(el, createEffectParams({ mode: 'displace', strength: 0, speed: 0 }))
+    inst.activate()
+    await settle()
+    const first = pt(gl, renderer.canvas, el, 0.5, 0.5)
+    const hiddenWhileActive = el.style.opacity
+
+    // Inactive but still acquired. \`cancel()\` unregisters the draw *and* the context callbacks,
+    // which is precisely how this instance comes to miss what happens on the next two lines.
+    inst.cancel()
+    await settle()
+    const visibleAfterCancel = el.style.opacity
+    const registered = renderer.contextCallbacks.size
+
+    const ext = gl.getExtension('WEBGL_lose_context')
+    if (!ext) return { error: 'no WEBGL_lose_context' }
+    ext.loseContext()
+    await new Promise((r) => setTimeout(r, 60))
+    const lost = renderer.isContextLost
+    ext.restoreContext()
+    await new Promise((r) => setTimeout(r, 60))
+    await settle()
+
+    const uploadsBeforeRevive = uploads
+    inst.activate()
+    await settle()
+    const second = await new Promise((r) => requestAnimationFrame(() => r(pt(gl, renderer.canvas, el, 0.5, 0.5))))
+    const hiddenAfterRevive = el.style.opacity
+    const uploadsAfterRevive = uploads
+
+    gl.texImage2D = origTexImage2D
+    inst.destroy()
+    await settle()
+    return {
+      first, second, hiddenWhileActive, visibleAfterCancel, registered, lost,
+      hiddenAfterRevive, uploadsBeforeRevive, uploadsAfterRevive,
+      generation: renderer.contextGeneration,
+    }
+  })()`)
+
+  check(
+    at('stale-texture: the first activation draws the source and hides it'),
+    !stale.error && stale.first[0] > 200 && stale.hiddenWhileActive === '0',
+    `error=${stale.error}, first=${show(stale.first ?? [])}, opacity=${JSON.stringify(stale.hiddenWhileActive)}`,
+  )
+  check(
+    at('stale-texture: cancel gives the element back and leaves nothing listening for context loss'),
+    stale.visibleAfterCancel === '' && stale.registered === 0,
+    `opacity=${JSON.stringify(stale.visibleAfterCancel)}, contextCallbacks=${stale.registered} `
+      + '(a non-zero count means this block is not testing an unregistered instance)',
+  )
+  check(
+    at('stale-texture: the context really was lost and stamped while the instance was inactive'),
+    stale.lost === true && stale.generation === 1,
+    `isContextLost=${stale.lost}, contextGeneration=${stale.generation}`,
+  )
+  check(
+    at('stale-texture: re-activating after that loss draws the image, not a blank replica'),
+    stale.second[0] > 200,
+    `second=${show(stale.second ?? [])} — black here is the pre-loss WebGLTexture being bound again, `
+      + `with the host hidden at opacity=${JSON.stringify(stale.hiddenAfterRevive)} in front of it`,
+  )
+  check(
+    at('stale-texture: and it got there by uploading a new texture, not by luck'),
+    stale.uploadsAfterRevive > stale.uploadsBeforeRevive,
+    `before=${stale.uploadsBeforeRevive}, after=${stale.uploadsAfterRevive}`,
+  )
+
+  // ---- Block D: a quad buffer that cannot be allocated -----------------------------------------
+  // Its own page, because it needs a document whose shared renderer has never been built: the
+  // failure is in `init()`, which runs once.
+  const nobufPage = await context.newPage()
+  await nobufPage.goto(url)
+  await nobufPage.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+  await nobufPage.waitForFunction(() => Array.from(document.images).every((i) => i.complete && i.naturalWidth > 0))
+
+  const nobuf = await nobufPage.evaluate(async () => {
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const el = document.getElementById('nobuf')
+    const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    // The documented failure mode, reproduced at its source rather than simulated: WebGL reports a
+    // buffer it could not allocate by returning null, and nothing downstream of that throws.
+    const proto = window.WebGL2RenderingContext.prototype
+    const orig = proto.createBuffer
+    proto.createBuffer = () => null
+
+    const inst = prepareShaders(el, createEffectParams({ mode: 'displace', strength: 0, speed: 0 }))
+    inst.activate()
+    await frame()
+    const r = getSharedShaderRenderer()
+    const failed = {
+      gl: r.gl === null,
+      canvas: r.canvas === null,
+      quadBuffer: r.quadBuffer === null,
+      refCount: r.refCount,
+      opacity: el.style.opacity,
+      canvasesInDoc: document.querySelectorAll('.kui-shader-canvas').length,
+    }
+
+    proto.createBuffer = orig
+    inst.activate()
+    await frame()
+    const recovered = {
+      gl: getSharedShaderRenderer().gl !== null,
+      opacity: el.style.opacity,
+      canvasesInDoc: document.querySelectorAll('.kui-shader-canvas').length,
+    }
+    inst.destroy()
+    return { failed, recovered }
+  })
+
+  check(
+    at('quad-alloc: a renderer that cannot allocate its quad does not hide the element'),
+    nobuf.failed.opacity === '',
+    `opacity=${JSON.stringify(nobuf.failed.opacity)} — "0" is the host hidden behind a canvas that `
+      + 'drew nothing, i.e. the page losing its images rather than losing an effect',
+  )
+  check(
+    at('quad-alloc: the half-built renderer is torn back down rather than left live'),
+    nobuf.failed.gl && nobuf.failed.canvas && nobuf.failed.quadBuffer && nobuf.failed.refCount === 0,
+    `gl=${nobuf.failed.gl}, canvas=${nobuf.failed.canvas}, quadBuffer=${nobuf.failed.quadBuffer}, `
+      + `refCount=${nobuf.failed.refCount}`,
+  )
+  check(
+    at('quad-alloc: and its canvas does not stay in the document'),
+    nobuf.failed.canvasesInDoc === 0,
+    `canvases=${nobuf.failed.canvasesInDoc} (one per failed attempt is the leak this guards)`,
+  )
+  check(
+    at('quad-alloc: the next activation succeeds — a failed init is a retry, not a death sentence'),
+    nobuf.recovered.gl && nobuf.recovered.opacity === '0' && nobuf.recovered.canvasesInDoc === 1,
+    `gl=${nobuf.recovered.gl}, opacity=${JSON.stringify(nobuf.recovered.opacity)}, `
+      + `canvases=${nobuf.recovered.canvasesInDoc}`,
   )
 
   await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())

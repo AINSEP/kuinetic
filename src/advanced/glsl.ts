@@ -274,10 +274,24 @@ uniform vec4 u_color2;
 uniform float u_progress;
 ${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
 vec4 applyBlend(vec4 base, vec4 tint, int mode) {
-  if (mode == 1) return 1.0 - (1.0 - base) * (1.0 - tint);
-  if (mode == 2) return base * tint;
-  if (mode == 3) return min(base + tint, vec4(1.0));
-  return base * tint;
+  // Multiply, both as mode 2 and as the fallback. Already correct on premultiplied colour: a
+  // transparent \`base\` multiplies to transparent whatever the tint is, so it is left alone.
+  if (mode != 1 && mode != 3) return base * tint;
+  // Screen and add are not. \`base\` is premultiplied — \`createGLTexture\` uploads with
+  // \`UNPACK_PREMULTIPLY_ALPHA_WEBGL\` to match a \`premultipliedAlpha: true\` context — while
+  // \`tint\` is straight rgba out of \`parseColor\`. Both blends are defined on *straight* colour,
+  // so running them over all four premultiplied components took the alpha channel with them:
+  // \`screen((0,0,0,0), (1,0,0,1))\` is \`(1,0,0,1)\`, an opaque red pixel where the source had no
+  // coverage at all. \`blend: screen tint: red\` filled a transparent PNG's surround with a solid
+  // red rectangle, and \`add\` did the same.
+  //
+  // So: un-premultiply, blend the colour, and re-premultiply by this pixel's own coverage. Alpha
+  // is \`base.a * tint.a\` — the source's coverage, faded by a translucent tint exactly as the
+  // multiply path already fades it.
+  float a = base.a * tint.a;
+  vec3 s = base.a > 0.0 ? base.rgb / base.a : vec3(0.0);
+  vec3 c = mode == 1 ? 1.0 - (1.0 - s) * (1.0 - tint.rgb) : min(s + tint.rgb, vec3(1.0));
+  return vec4(c * a, a);
 }
 
 void main() {
@@ -296,7 +310,15 @@ void main() {
 
   if (u_duotone > 0.5) {
     float lum = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-    color.rgb = mix(u_color1.rgb, u_color2.rgb, lum);
+    // \`* color.a\` because the ramp's two colours are straight rgba and everything downstream of
+    // here is premultiplied. Assigning one of them to a transparent pixel's \`rgb\` left \`rgb > 0\`
+    // with \`a == 0\`, which a \`premultipliedAlpha: true\` canvas composites *additively* — a
+    // transparent PNG's surround glowing in \`color1\` over whatever the page put behind it.
+    //
+    // \`lum\` is still read off the premultiplied colour, which is deliberate and unchanged: it
+    // makes a half-covered pixel map nearer \`color1\`, matching how the alpha stencil in
+    // \`GENERATIVE_FS\` reads the same kind of edge.
+    color.rgb = mix(u_color1.rgb, u_color2.rgb, lum) * color.a;
   }
 
   fragColor = applyBlend(color, u_tint, u_blend) * shapeMask();
