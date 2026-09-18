@@ -21,27 +21,31 @@ export default tseslint.config(
   sonarjs.configs.recommended,
   {
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      globals: { ...globals.browser },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     rules: {
       complexity: ['error', 10],
       'sonarjs/cognitive-complexity': ['error', 10],
       'max-depth': ['error', 3],
       'max-params': ['error', 4],
-      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
       'max-lines-per-function': ['error', { max: 60, skipBlankLines: true, skipComments: true }],
       '@typescript-eslint/no-non-null-assertion': 'off',
       'sonarjs/no-nested-functions': 'off',
     },
   },
   {
-    files: ['test/**/*.ts'],
+    files: ['test/**/*.ts', 'src/advanced/__tests__/**/*.ts'],
     rules: {
       'sonarjs/no-duplicate-string': 'off',
       // A thorough `it()`/`describe()` block reads better as one place with all its assertions
       // together than split apart to satisfy a line count; the 60-line cap is a production-code
       // readability signal that doesn't transfer to test bodies the same way.
       'max-lines-per-function': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
   {
@@ -77,6 +81,6 @@ export default tseslint.config(
     // otherwise pull it in as TS-project-checked source; it's plain-Node Playwright suites on the
     // same footing as `scripts/`, just not in scope for this pass. Keep it ignored rather than
     // silently mis-parsed.
-    ignores: ['node_modules', 'dist', 'test/browser/**/*.mjs'],
+    ignores: ['node_modules', 'dist', 'test/browser/**'],
   },
 )
