@@ -6,8 +6,9 @@ that choice. Nothing here is built. Every convention below was read off disk tod
 ## The whole thing
 
 ```html
-<div data-kui="model-3d src:/models/robot.glb spin:360deg light:studio poster:/img/robot.jpg">
+<div data-kui="model-3d src:/models/robot.glb spin:360deg light:studio target:img">
   <h2>Meet the robot</h2>
+  <img src="/img/robot.jpg" srcset="/img/robot.jpg 1x, /img/robot@2x.jpg 2x" alt="A red toy robot" />
 </div>
 ```
 
@@ -49,7 +50,8 @@ keyword params and forbidden elsewhere — a word list on a value param is a com
 | `axis` | `keyword` | `y` | `x` / `y` / `z`. Closed list. |
 | `tilt` | `angle` | `0deg` | Camera elevation. **Positive means the camera is above, looking down** — the carousel's exact convention (`src/css/carousel.css:60-77`), and it is negated on the way into the matrix for the same reason. Clamp to ±80deg: past that the model is edge-on and the effect has silently become nothing. |
 | `light` | `keyword` | `studio` | `studio` / `key` / `rim` / `flat`. Named rigs, not coordinates. A designer says "studio lighting"; nobody hand-places three lights in an HTML attribute. |
-| `poster` | `text` | `''` | Still image URL. The no-WebGL and reduced-motion answer. See §4. |
+| `target` | `text` | `''` | Names an element already inside the host to use as the no-WebGL / reduced-motion fallback. The **preferred** way to supply one — see §4. Same convention as everywhere else this word is used (`src/core/target.ts`); quote a selector containing a space or comma (§5). |
+| `poster` | `text` | `''` | Still image URL, for when the author has no element to point at and just wants one made. The no-WebGL and reduced-motion answer when `target` is unset. See §4. |
 
 **No `zoom` / `distance` param in v1.** The scene auto-frames: measure the model's bounding box,
 fit it to the host. Model units mean nothing to an author, and "put an attribute on a div, get a 3D
@@ -108,19 +110,48 @@ channel model still arbitrates. One claimed channel, honestly declared, is the w
 
 ## 4. Reduced motion and no-WebGL — the same answer, deliberately
 
-**Both render `poster` as a still image. Not the end state.**
+**Both fall back to a still image. Not the end state.**
 
 The rule, stated in `camera-3d.ts:167-171` and worth quoting because it cuts the other way for
 `scene`: use the end state when the end is a position the **author designed**; do not, when the end
 is merely where a **camera finished travelling**. A spin's end is a camera position, not a design.
-So: no end state. A poster.
+So: no end state. A still image instead.
 
-With no `poster` authored, render nothing and leave the host's own children. A 3D model has no
+**`target:` is the preferred way to supply that image, `poster:` the fallback.** An author who
+already has an `<img>` in the div — `srcset`, a `loading="lazy"`, real `alt` text — should point at
+it with `target:img`, not hand over a bare URL string. A `poster:` URL throws all three away: the
+library would have to build a plain `<img>` from scratch, and a plain `<img>` cannot do what the
+author's own already does. `target:` names the element; the library shows and hides it, it does not
+create one. `poster:` stays for the case where the author has no element and just wants one made.
+
+**If both are authored, `target:` wins.** This is not a new rule — it is the same call this
+codebase already made for the identical shape of choice: `media-scrub`'s `src:`/`frames:` (a value
+the library turns into an element) versus its own `target:` (an element that already exists) are
+"mutually exclusive — one rewrites a single element's `src`, the other reveals one of several
+elements that already exist — so there is no coherent 'both' to honour" (`scroll-mechanics/
+primitives.ts:444`). Same shape here: `poster:` would have the library build an image, `target:`
+points at one already built. Silently doing the `poster:` thing while the author wrote a selector
+would be the more surprising of the two, so `target:` wins and `poster:` is dropped.
+
+With neither authored, render nothing and leave the host's own children. A 3D model has no
 meaningful CSS fallback — that is a **content requirement on the author**, not a library behaviour,
 and the docs must say so on day one.
 
 (Baking one frame via `toDataURL` is §10's option 3 — free, and the right reduced-motion path once
-the renderer exists. `poster` covers the case where WebGL never starts at all.)
+the renderer exists. `target`/`poster` cover the case where WebGL never starts at all.)
+
+### 4a. Why `target:` keeps this a one-div tier
+
+§0 rejected a child-per-part shape because those children "would not be content" — a mesh, a light,
+a camera render nothing and mean nothing to a screen reader. An `<img>` is the opposite case: it
+*is* content, the author already wrote it for a reason having nothing to do with this library, and
+demanding it move under a second `data-kui` element (or exist only as a URL string) would be asking
+the author to restructure their markup, or to downgrade real content to a string, just to hand it to
+a 3D effect. `target:` is how this codebase always names an inner element without inventing a second
+`data-kui` host for it (`src/core/target.ts`) — the same convention `carousel`'s `spatial-ring` uses
+to name its ring items and `step-progress` uses to name its steps. Using it here means "one div, all
+settings" survives contact with a real fallback image instead of being the one thing that forces an
+exception.
 
 ## 5. Traps this design has to survive
 
@@ -138,6 +169,14 @@ the renderer exists. `poster` covers the case where WebGL never starts at all.)
    scroll-bound 3D scene looks completely dead. Check `document.hidden` before filing a bug.
 5. **Demo pages run built bundles.** Opening Chrome without rebuilding tests stale code and yields
    a confident false PASS.
+6. ⚠ **A `target:` selector containing a space or comma must be quoted, or it silently breaks.**
+   This is the same trap as §1's "commas separate steps, spaces separate params," and the reason is
+   the interaction between the two: `target:.figure img` reads as *two* params (`target:.figure` and
+   a stray `img` token), and `target:h2, h3` reads as *two steps* (`data-kui="model-3d … target:h2"`
+   then a bogus `h3` effect) — both silently, no warning, same as the comma trap above. Quote it:
+   `target:".figure img"` or `target:'h2, h3'`. This is not new grammar — it is `core/parse.ts`'s
+   quote-aware tokenizer, the same one `path:"M 0 0 C 40 -70 120 -70 160 0"` already relies on for
+   motion-path data, and the parser strips the quotes before the primitive ever sees the value.
 
 ## 5b. The parking condition is substantially met
 
