@@ -71,6 +71,7 @@ const ADVANCED_PRIMITIVE_IDS = [
   'shaders',
   'scene',
   'camera-scene',
+  'camera-layer',
   'particle-dissolve',
   'fluid-trail',
   'audio-source',
