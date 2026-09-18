@@ -56,19 +56,84 @@ export interface SceneOptions {
   duration?: number
 }
 
-const AT_REGEX = /\bat:([0-9.]+)\.\.([0-9.]+)/
+/**
+ * The core's own number spelling — `NUM` in `core/params.ts`, kept character-for-character.
+ *
+ * Repeated here rather than imported because this module reads a step's window off the *raw*
+ * `data-kui` attribute rather than through the step's validated parameters (see
+ * {@link parseChildStep}). Two grammars read the same text, so they have to agree: a value the
+ * core accepts and this module cannot read would be validated and then silently ignored, which is
+ * the failure mode the whole `from:`/`to:` split exists to remove.
+ */
+const NUM = String.raw`-?(?:\d+(?:\.\d+)?|\.\d+)`
+
+/**
+ * A step's progress window, as two independent parameters.
+ *
+ * Spelled `from:`/`to:` rather than the `at:0..0.4` this module used to accept, for three reasons
+ * that all point the same way:
+ *
+ * - **`at:` is not this module's to take.** `core/parse.ts`'s `applyLifted` claims the key
+ *   unconditionally, before any parameter schema is consulted and with no registry in scope, and
+ *   hands it to `core/sequence.ts` as a *relative time position*. A registered `scene-step` that
+ *   still spelled its window `at:0..0.4` would have traded the old "unknown effect" warning for
+ *   `at:"0..0.4" is not a position` — a lecture telling the author to write `at:with`, which would
+ *   break their scene.
+ * - **`from:`/`to:` is what this repository already calls a pair.** It is one of the most common
+ *   parameter names in the catalog (see `core/stagger-config.ts`, which routes its *own* group
+ *   ordering to `order:` precisely so as not to collide with it).
+ * - **Two numbers can be validated; one range string cannot.** `0..0.4` is none of the ten
+ *   `ScalarParamType`s, so it could only ever be declared `text`, which validates nothing at all.
+ *   Declared as two bounded `number` parameters, the core rejects `from:banana` and `to:5` before
+ *   `prepare` ever runs — and `PrepareContext` carries no diagnostic sink, so a warning raised
+ *   there was never an option.
+ */
+const FROM_REGEX = new RegExp(String.raw`\bfrom:(${NUM})`)
+const TO_REGEX = new RegExp(String.raw`\bto:(${NUM})`)
 const OPACITY_REGEX = /\bopacity:([0-9.]+)->([0-9.]+)/
 const X_REGEX = /\bx:([+-]?[0-9.]+[a-z%]*)->([+-]?[0-9.]+[a-z%]*)/i
 const Y_REGEX = /\by:([+-]?[0-9.]+[a-z%]*)->([+-]?[0-9.]+[a-z%]*)/i
 const SCALE_REGEX = /\bscale:([0-9.]+)->([0-9.]+)/
 
 /**
- * Parse an interval range string "start..end" into [start, end].
+ * Read a step's progress window off its raw `data-kui`.
+ *
+ * Each end defaults independently — `from:` to 0, `to:` to 1 — so `scene-step to:0.4` means "from
+ * the start until 40%" and `scene-step from:0.6` means "from 60% to the end", with neither needing
+ * the other spelled out. The single-string form this replaced could not express that: a range
+ * missing one end was not a range at all, so the whole value fell back to the full `0..1` and the
+ * author was told nothing.
+ *
+ * Unreadable text can no longer reach here. `from:` and `to:` are declared `number` parameters
+ * bounded to 0..1 (see {@link SCENE_STEP_PARAMETERS}), so `core/params.ts` rejects anything else
+ * and substitutes the declared default *with a warning naming the parameter*, before `prepare`
+ * runs. {@link NUM} matching the core's own pattern is what keeps that true for this second read
+ * of the same attribute.
+ *
+ * @param kui - The step element's raw `data-kui` text.
+ * @returns `[start, end]`, each either an authored 0..1 value or its declared default.
  */
-export function parseRange(rangeStr?: string | null): [number, number] {
-  if (!rangeStr || !rangeStr.includes('..')) return [0, 1]
-  const [s, e] = rangeStr.split('..').map((v) => parseFloat(v.trim()))
-  return [Number.isNaN(s) ? 0 : s!, Number.isNaN(e) ? 1 : e!]
+export function parseWindow(kui: string): [number, number] {
+  return [readEnd(FROM_REGEX, kui, 0), readEnd(TO_REGEX, kui, 1)]
+}
+
+/**
+ * One end of a step's window, or its default.
+ *
+ * Out of range falls back to the default rather than clamping into range, because *falling back to
+ * the declared default is what `core/params.ts` already did to the same text* — `minimum`/`maximum`
+ * on a `number` parameter reject, they do not clamp (`checkNumericConstraints`). Clamping here
+ * would make the two readings of one attribute disagree: the core would hand `prepare` a `from` of
+ * `0` for `from:5` while this scan gave the controller `1`, which is the silent divergence the
+ * shared {@link NUM} spelling exists to prevent.
+ *
+ * @complexity O(n) time in the attribute's length; O(1) space.
+ */
+function readEnd(pattern: RegExp, kui: string, fallback: number): number {
+  const match = pattern.exec(kui)
+  if (!match) return fallback
+  const value = parseFloat(match[1]!)
+  return value >= 0 && value <= 1 ? value : fallback
 }
 
 /**
@@ -104,8 +169,7 @@ export function parseTransitionValue(str?: string | null): TransitionValue | nul
  */
 export function parseChildStep(child: Element | null): StepConfig {
   const kui = child?.getAttribute ? (child.getAttribute('data-kui') || '') : ''
-  const atMatch = AT_REGEX.exec(kui)
-  const range: [number, number] = atMatch ? [parseFloat(atMatch[1]!), parseFloat(atMatch[2]!)] : [0, 1]
+  const range = parseWindow(kui)
 
   const opMatch = OPACITY_REGEX.exec(kui)
   const opacity = opMatch ? parseTransitionValue(`${opMatch[1]}->${opMatch[2]}`) : null
@@ -325,7 +389,7 @@ export function prepareScene(
    * It is also the difference between a readable page and a blank one. A scene's steps get no
    * start state from this module — `updateElement` is the only thing that ever writes them — so
    * the common authoring shape, `.step { opacity: 0 }` in a stylesheet plus
-   * `scene-step at:0..0.4 opacity:0->1`, left the content *permanently invisible* to a visitor who
+   * `scene-step to:0.4 opacity:0->1`, left the content *permanently invisible* to a visitor who
    * asked for reduced motion. Holding progress 1 hands it to them.
    *
    * The converse — a step authored to fade *out* is held faded out — is the same trade every CSS
@@ -381,6 +445,47 @@ export const SCENE_PARAMETERS = {
   },
 }
 
+/**
+ * `scene-step`'s own parameters.
+ *
+ * Every one of these is read straight off the raw `data-kui` attribute by {@link parseChildStep},
+ * which the *parent* `scene` runs over its descendants — not by this primitive's `prepare`, which
+ * does nothing. Declaring them is what lets the compiler accept `from:0 to:0.4 opacity:0->1` on a
+ * step instead of warning "unknown parameter" once "unknown effect" is fixed, exactly as
+ * `camera-layer`'s `z` does in `camera-3d.ts`.
+ *
+ * `from`/`to` are real `number`s and are therefore genuinely validated — bounded to 0..1, rejected
+ * with a diagnostic naming the parameter, and defaulted per end. The four transition parameters
+ * cannot be: `0->1` and `40px->0px` are a pair grammar this module owns and no `ScalarParamType`
+ * describes, so they are `text`, which `core/params.ts` accepts unconditionally. `parseTransitionValue`
+ * returning `null` for unreadable text is all the safety they have, and a typo in one is still
+ * silent. Splitting them the way the window was split would be the fix, and is deliberately not
+ * done here — it is a second grammar change, and this one is already breaking.
+ */
+export const SCENE_STEP_PARAMETERS = {
+  from: { type: 'number' as const, default: '0', minimum: 0, maximum: 1, cssProperty: '--kui-scene-step-from' },
+  to: { type: 'number' as const, default: '1', minimum: 0, maximum: 1, cssProperty: '--kui-scene-step-to' },
+  opacity: { type: 'text' as const, default: '', cssProperty: '--kui-scene-step-opacity' },
+  x: { type: 'text' as const, default: '', cssProperty: '--kui-scene-step-x' },
+  y: { type: 'text' as const, default: '', cssProperty: '--kui-scene-step-y' },
+  scale: { type: 'text' as const, default: '', cssProperty: '--kui-scene-step-scale' },
+}
+
+/**
+ * `scene-step` never runs on its own: `prepareScene`'s `[data-kui*="scene-step"]` scan reads each
+ * step's window and transitions directly off its attribute, and the parent `SceneController` is
+ * what writes `opacity`/`transform` to it every frame (`updateElement`). Without a registered
+ * primitive for the name, every `scene-step` element compiled as an unrecognised effect — the
+ * scene still animated it correctly, but the console warned "unknown effect scene-step" once per
+ * step. This primitive exists only so the name resolves; it deliberately does nothing of its own.
+ *
+ * The same shape as `prepareCameraLayer` in `camera-3d.ts`, and fixed second because the key its
+ * window used to be spelled with, `at:`, is owned by `core/parse.ts` — see {@link FROM_REGEX}.
+ */
+export function prepareSceneStep(): EffectInstance {
+  return createInertInstance()
+}
+
 export const SCENE_PRIMITIVES: Primitive[] = [
   {
     id: 'scene',
@@ -396,10 +501,27 @@ export const SCENE_PRIMITIVES: Primitive[] = [
     reducedMotion: 'disable',
     prepare: prepareScene,
   },
+  {
+    id: 'scene-step',
+    renderer: 'javascript',
+    // The same pair the parent declares, and for the same reason: `updateElement` writes `opacity`
+    // and the `transform` *shorthand*, and per `core/types.ts`'s `CHANNEL` note anything writing
+    // the shorthand is on the `skew` channel whatever the transform is for. Not `translate`/`scale`
+    // — those are the independent transform properties, which this module never writes.
+    channels: ['opacity', 'skew'],
+    parameters: SCENE_STEP_PARAMETERS,
+    supportedTimelines: ['scroll', 'time'],
+    supportedActivations: ['load', 'enter'],
+    defaultActivation: 'load',
+    perfClass: 'dom-transform',
+    reducedMotion: 'disable',
+    prepare: prepareSceneStep,
+  },
 ]
 
 export const SCENE_PRESETS: Preset[] = [
   { name: 'scene', primitive: 'scene' },
+  { name: 'scene-step', primitive: 'scene-step' },
 ]
 
 export function registerScenes(target: unknown): Registry | Animator {

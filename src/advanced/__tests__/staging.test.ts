@@ -2,15 +2,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Registry } from '../../core/registry.js'
 import { Animator } from '../../core/animator.js'
+import { compile } from '../../core/compile.js'
+import { parse } from '../../core/parse.js'
 import {
   clamp,
   lerp,
   parseChildStep,
-  parseRange,
   parseTransitionValue,
+  parseWindow,
   registerScenes,
   SCENE_PRESETS,
   SCENE_PRIMITIVES,
+  SCENE_STEP_PARAMETERS,
   SceneController,
 } from '../scenes.js'
 import {
@@ -54,17 +57,123 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       }
     })
 
+    /*
+     * The regression test for the bug this module shipped with: `prepareScene` scanned for
+     * `[data-kui*="scene-step"]` while nothing ever registered that name, so every step element
+     * compiled as an unrecognised effect and warned "unknown effect" once per step — the scene
+     * still animated correctly, which is what kept it hidden.
+     *
+     * The `SCENE_PRESETS` loop above could not have caught it, and no loop over the module's own
+     * declarations ever can: it asks the registry about the names the module declares, so a name
+     * the module *forgot* to declare is precisely the name it never asks about. That is why
+     * `'scene-step'` is spelled here as a literal, the way an author spells it.
+     */
+    it('resolves scene-step as a registered primitive, not merely as a string the DOM scan finds', () => {
+      const reg = new Registry()
+      registerScenes(reg)
+
+      const res = reg.resolve('scene-step')
+      expect(res).toBeDefined()
+      expect(res?.primitive.id).toBe('scene-step')
+      // The parent's pair, because `updateElement` writes `opacity` and the `transform` shorthand.
+      expect(res?.primitive.channels).toEqual(['opacity', 'skew'])
+    })
+
+    /*
+     * Registration alone was never the whole fix, and this is the half that would have caught the
+     * trap: a `scene-step` that kept spelling its window `at:0..0.4` resolves as a primitive and
+     * still warns, because `core/parse.ts`'s `applyLifted` claims `at:` unconditionally — before
+     * any schema is consulted, with no registry in scope — and hands it to `core/sequence.ts`,
+     * which answers `at:"0..0.4" is not a position`. Asserting an empty warning list, rather than
+     * just "it resolved", is what pins both halves.
+     */
+    it('compiles a fully authored step with no warnings at all', () => {
+      const reg = new Registry()
+      registerScenes(reg)
+      const plan = compile(
+        parse('scene-step from:0.1 to:0.9 opacity:0->1 x:0px->50px y:-20px->20px scale:0.5->1.5'),
+        reg,
+        'time',
+      )
+      expect(plan.warnings).toEqual([])
+    })
+
+    /*
+     * Why the window is no longer spelled `at:`, pinned so nobody restores it as a convenience.
+     *
+     * Registering the name does not make `at:0.1..0.9` work — it makes it *fail differently*.
+     * `core/parse.ts` lifts `at:` onto the spec for every segment, and once the name resolves the
+     * entry reaches `core/sequence.ts`, which reads it as a relative time position and refuses it.
+     * Before registration the same attribute was silent here, because an unknown effect never
+     * becomes a sequence member at all.
+     */
+    it('does not accept the old at: window, and says so as a position error', () => {
+      const reg = new Registry()
+      registerScenes(reg)
+      const plan = compile(parse('scene-step at:0.1..0.9 opacity:0->1'), reg, 'time')
+
+      expect(plan.warnings).toHaveLength(1)
+      expect(plan.warnings[0]).toContain('scene-step')
+      expect(plan.warnings[0]).toContain('is not a position')
+    })
+
+    /*
+     * What the `from:`/`to:` split bought beyond silencing a warning. `0..0.4` is none of the ten
+     * `ScalarParamType`s, so a single range parameter could only ever have been declared `text`,
+     * which `core/params.ts` accepts unconditionally — a typo'd window would have been silently
+     * the whole timeline. Two bounded `number`s are checked by the core before `prepare` runs,
+     * which matters because `PrepareContext` carries no diagnostic sink for `prepare` to use.
+     */
+    it('bound-checks the window the core can now see, instead of taking it silently', () => {
+      const reg = new Registry()
+      registerScenes(reg)
+
+      const tooHigh = compile(parse('scene-step from:5'), reg, 'time')
+      expect(tooHigh.warnings).toHaveLength(1)
+      expect(tooHigh.warnings[0]).toContain('parameter "from"')
+      expect(tooHigh.warnings[0]).toContain('expected at most 1')
+
+      const notANumber = compile(parse('scene-step to:banana'), reg, 'time')
+      expect(notANumber.warnings).toHaveLength(1)
+      expect(notANumber.warnings[0]).toContain('parameter "to"')
+
+      // And the window still lands on its declared default rather than NaN.
+      const el = document.createElement('div')
+      el.setAttribute('data-kui', 'scene-step from:5 to:banana')
+      expect(parseChildStep(el).range).toEqual([0, 1])
+    })
+
     it('parses range and transition strings correctly', () => {
       expect(clamp(5, 0, 1)).toBe(1)
       expect(clamp(-1, 0, 1)).toBe(0)
       expect(clamp(0.5, 0, 1)).toBe(0.5)
       expect(lerp(10, 20, 0.5)).toBe(15)
 
-      expect(parseRange()).toEqual([0, 1])
-      expect(parseRange('0.2..0.8')).toEqual([0.2, 0.8])
-      expect(parseRange('nan..nan')).toEqual([0, 1])
-      expect(parseRange('')).toEqual([0, 1])
-      expect(parseRange('invalid')).toEqual([0, 1])
+      // Each end defaults on its own, which is the point of the `from:`/`to:` split — the old
+      // single-string form could not express "until 40%" without also writing the start.
+      expect(parseWindow('')).toEqual([0, 1])
+      expect(parseWindow('scene-step')).toEqual([0, 1])
+      expect(parseWindow('scene-step from:0.2 to:0.8')).toEqual([0.2, 0.8])
+      expect(parseWindow('scene-step to:0.4')).toEqual([0, 0.4])
+      expect(parseWindow('scene-step from:0.6')).toEqual([0.6, 1])
+      expect(parseWindow('scene-step from:.25 to:.75')).toEqual([0.25, 0.75])
+
+      // Unreadable text leaves that end at its default rather than producing NaN. The core has
+      // already rejected it with a diagnostic by the time an authored attribute reaches here;
+      // this is the direct-caller path.
+      expect(parseWindow('scene-step from:nan to:nan')).toEqual([0, 1])
+      expect(parseWindow('scene-step from: to:')).toEqual([0, 1])
+
+      // Out of range falls back to the declared default rather than clamping — the core rejects
+      // rather than clamps, and the two readings of one attribute have to agree.
+      expect(parseWindow('scene-step from:5 to:9')).toEqual([0, 1])
+      expect(parseWindow('scene-step from:-2')).toEqual([0, 1])
+
+      // The old `at:0.1..0.9` spelling is dead, not tolerated: `at:` belongs to `core/parse.ts`.
+      expect(parseWindow('scene-step at:0.1..0.9')).toEqual([0, 1])
+
+      // `\b` must not let a longer key end in `from`/`to` and be misread as one.
+      expect(parseWindow('scene-step into:0.3')).toEqual([0, 1])
 
       expect(parseTransitionValue()).toBeNull()
       expect(parseTransitionValue('')).toBeNull()
@@ -91,7 +200,7 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
 
     it('parses child step attributes comprehensively', () => {
       const el = document.createElement('div')
-      el.setAttribute('data-kui', 'scene-step at:0.1..0.9 opacity:0->1 x:0px->50px y:-20px->20px scale:0.5->1.5')
+      el.setAttribute('data-kui', 'scene-step from:0.1 to:0.9 opacity:0->1 x:0px->50px y:-20px->20px scale:0.5->1.5')
       const step = parseChildStep(el)
       expect(step.range).toEqual([0.1, 0.9])
       expect(step.opacity).toEqual({ from: 0, to: 1, unit: '' })
@@ -203,7 +312,7 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
     it('prepareScene binds children and returns active lifecycle instance', () => {
       const root = document.createElement('section')
       const child = document.createElement('h1')
-      child.setAttribute('data-kui', 'scene-step at:0.0..1.0 opacity:0->1')
+      child.setAttribute('data-kui', 'scene-step from:0 to:1 opacity:0->1')
       root.appendChild(child)
 
       const params = {
@@ -735,7 +844,7 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
     it('scene holds its last keyframe under reduced motion and gives the steps back', () => {
       const root = document.createElement('div')
       const step = document.createElement('div')
-      step.setAttribute('data-kui', 'scene-step at:0..0.5 opacity:0->1 y:40px->0')
+      step.setAttribute('data-kui', 'scene-step to:0.5 opacity:0->1 y:40px->0')
       root.appendChild(step)
 
       const params = {

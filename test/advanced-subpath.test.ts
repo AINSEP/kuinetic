@@ -70,6 +70,7 @@ import * as RootBarrel from 'kuinetic'
 const ADVANCED_PRIMITIVE_IDS = [
   'shaders',
   'scene',
+  'scene-step',
   'camera-scene',
   'camera-layer',
   'particle-dissolve',
