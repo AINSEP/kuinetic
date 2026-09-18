@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createAttributeLedger, createLedgerSet, createStyleLedger } from '../src/core/owned-styles.js'
+import { createAttributeLedger, createLedgerSet, createStyleClaim, createStyleLedger } from '../src/core/owned-styles.js'
 
 /*
  * Teardown's contract is the authored markup, byte for byte.
@@ -320,5 +320,168 @@ describe('createLedgerSet', () => {
     set.restore()
 
     expect(child.hasAttribute('aria-current')).toBe(false)
+  })
+
+  /**
+   * Two sets over one element, which memoising *within* a set cannot survive.
+   *
+   * One element really does get written by two hosts at once — two authored `data-kui` elements
+   * whose `target:` resolves to the same node, a stagger group and the child's own `ElementState`,
+   * a core effect and an advanced controller. Before the shared claim, the second set to write
+   * opened its own `createStyleLedger` and captured the *first set's frame value* as the author's,
+   * so whichever set restored last pinned the element to a library value forever.
+   */
+  it('two sets over one element share the capture, and the last one out restores', () => {
+    const first = document.createElement('div')
+    const second = document.createElement('div')
+    const shared = document.createElement('p')
+    first.append(shared)
+
+    shared.style.setProperty('opacity', '0.2', 'important')
+
+    const firstSet = createLedgerSet(first)
+    const secondSet = createLedgerSet(second)
+    firstSet.style(shared).set('opacity', '0.6')
+    // After the first set has already written — the ordering a private ledger cannot survive.
+    secondSet.style(shared).set('opacity', '0.9')
+    expect(shared.style.opacity).toBe('0.9')
+
+    firstSet.restore()
+    // The second host is still driving this element. Handing the author's value back here would
+    // put it underneath a live effect.
+    expect(shared.style.opacity).toBe('0.9')
+
+    secondSet.restore()
+    expect(shared.style.opacity).toBe('0.2')
+    expect(shared.style.getPropertyPriority('opacity')).toBe('important')
+  })
+})
+
+/**
+ * The shared per-element capture, asked directly rather than through a `LedgerSet`.
+ *
+ * `createLedgerSet` is one owner of it and `src/advanced/base.ts`'s `createAdvancedLedgers` is
+ * another, and the contract they share — one capture per element, ref-counted by owner, restored
+ * by whoever lets go last — belongs here rather than being inferred from either caller.
+ */
+describe('createStyleClaim', () => {
+  it('lets the last owner out restore, not the first', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('opacity', '0.2', 'important')
+    const first = createStyleClaim()
+    const second = createStyleClaim()
+
+    first.style(el).set('opacity', '0.6')
+    second.style(el).set('opacity', '0.9')
+    expect(el.style.opacity).toBe('0.9')
+
+    first.release(el)
+    expect(el.style.opacity).toBe('0.9')
+
+    second.release(el)
+    expect(el.style.opacity).toBe('0.2')
+    expect(el.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  it('hands one owner the same handle every time, and releases it once', () => {
+    const el = document.createElement('div')
+    const claim = createStyleClaim()
+
+    expect(claim.style(el)).toBe(claim.style(el))
+    expect(claim.elements()).toEqual([el])
+
+    claim.style(el).set('opacity', '0.6')
+    // `restore()` on the handle is this owner letting go, which is the same thing `release` does —
+    // not a second decrement of a claim already dropped.
+    claim.style(el).restore()
+    expect(el.hasAttribute('style')).toBe(false)
+    expect(claim.elements()).toEqual([])
+  })
+
+  it('ignores a release of an element this owner never claimed', () => {
+    const el = document.createElement('div')
+    const owner = createStyleClaim()
+    const bystander = createStyleClaim()
+
+    owner.style(el).set('opacity', '0.6')
+    // Reached on every `LedgerSet.restore()`: the walk covers the union of styled and
+    // attribute-stamped elements, and an attribute-only element has no style claim to drop.
+    bystander.release(el)
+    expect(el.style.opacity).toBe('0.6')
+    expect(bystander.elements()).toEqual([])
+
+    owner.release(el)
+    expect(el.hasAttribute('style')).toBe(false)
+  })
+
+  it('answers owned() and peek() from the shared capture rather than from one owner\'s writes', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('opacity', '0.2')
+    const first = createStyleClaim()
+    const second = createStyleClaim()
+
+    first.style(el).set('opacity', '0.6')
+    second.style(el).claim('color')
+
+    // Two private ledgers would each list one property, and `peek('opacity')` through the second
+    // owner would answer `undefined` — or, worse, `0.6`.
+    expect(first.style(el).owned()).toEqual(['opacity', 'color'])
+    expect(second.style(el).owned()).toEqual(['opacity', 'color'])
+    expect(second.style(el).peek('opacity')).toBe('0.2')
+
+    first.release(el)
+    second.release(el)
+    expect(el.style.opacity).toBe('0.2')
+    expect(el.style.color).toBe('')
+  })
+
+  /**
+   * Adoption is the bridge across a bundle boundary, not a second way to open a capture:
+   * `src/advanced/` inlines its own copy of this module and therefore its own registry, so a
+   * controller prepared by core is handed core's ledger for the host directly. Both halves below
+   * matter — the seed is used where there is nothing, and ignored where there is something.
+   */
+  it('writes through an adopted ledger where it has no capture of its own', () => {
+    const adopted = document.createElement('div')
+    const ours = document.createElement('div')
+    adopted.style.opacity = '0.2'
+    ours.style.opacity = '0.3'
+
+    const foreign = createStyleLedger(adopted)
+    const claim = createStyleClaim(new Map([[adopted, foreign]]))
+    claim.style(adopted).set('opacity', '0.6')
+    claim.style(ours).set('opacity', '0.7')
+
+    // The decisive assertion: the adopted ledger is the one holding the capture. A second ledger
+    // opened over the same element would leave this `undefined`.
+    expect(foreign.peek('opacity')).toBe('0.2')
+    // An element the seed says nothing about still gets a capture of its own.
+    expect(foreign.owned()).toEqual(['opacity'])
+
+    claim.release(adopted)
+    claim.release(ours)
+    expect(adopted.style.opacity).toBe('0.2')
+    expect(ours.style.opacity).toBe('0.3')
+  })
+
+  it('ignores an adopted ledger for an element the registry has already captured', () => {
+    const el = document.createElement('div')
+    el.style.opacity = '0.2'
+
+    const incumbent = createStyleClaim()
+    incumbent.style(el).set('opacity', '0.6')
+
+    const ignored = createStyleLedger(el)
+    const late = createStyleClaim(new Map([[el, ignored]]))
+    late.style(el).set('opacity', '0.9')
+
+    // Nothing was ever written through the seed, so it captured nothing — which is what stops it
+    // from putting `0.6`, this library's own frame value, back as the author's.
+    expect(ignored.owned()).toEqual([])
+
+    incumbent.release(el)
+    expect(el.style.opacity).toBe('0.9')
+    late.release(el)
+    expect(el.style.opacity).toBe('0.2')
   })
 })

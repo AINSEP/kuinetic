@@ -144,6 +144,144 @@ export function createAttributeLedger(el: Element): AttributeLedger {
 }
 
 /**
+ * One element's inline-style ledger, and every owner still writing through it.
+ *
+ * The memoisation `LedgerSet` does is per set, and that is not the unit the DOM works in. One
+ * element can be written by several independent owners at once: a `target:` parameter from two
+ * different authored hosts, a stagger group and the child's own `ElementState`, an advanced
+ * controller and a co-located CSS effect. Give each of those its own `createStyleLedger` over the
+ * same element and the second one to write captures the *first one's frame value* as the author's,
+ * then pins the element to it on teardown — the exact defect this module exists to prevent, moved
+ * up one level.
+ *
+ * So the capture is keyed by element and ref-counted by owner: the first owner to ask captures,
+ * every owner writes through that one ledger, and the **last** owner to let go restores. That
+ * extends `createStyleLedger`'s "what was there before" guarantee from "before this call" to
+ * "before any of us existed", which is the only reading that survives two owners.
+ *
+ * A `WeakMap` because the key is the author's element and nothing here should keep it alive; the
+ * entry dies with the element whether or not teardown ever ran.
+ */
+interface SharedStyleEntry {
+  ledger: StyleLedger
+  /** Owners still writing through this ledger. The last one out restores. */
+  owners: Set<object>
+}
+
+const sharedStyles = new WeakMap<Element, SharedStyleEntry>()
+
+/**
+ * One owner's claim on the shared per-element ledgers.
+ *
+ * Deliberately not "the registry" — there is exactly one registry, module-wide, and a claim is a
+ * handle onto it. Two claims over one element see one capture and two refcounts.
+ */
+export interface StyleClaim {
+  /**
+   * This element's shared ledger, claimed for this owner.
+   *
+   * The object handed back is this claim's own view of it: `set`/`claim`/`owned`/`peek` read and
+   * write the shared ledger, and `restore()` means *"this owner is done"* rather than *"unwind the
+   * element now"*. That distinction is what lets a caller holding only a `StyleLedger` — every
+   * primitive, via `PrepareContext.style` — participate in the refcount without knowing it exists.
+   */
+  style(el: Element): StyleLedger
+  /** Drop this owner's claim on `el`, restoring it when no other owner holds it. */
+  release(el: Element): void
+  /** Elements this claim currently holds, in the order it first asked for them. A snapshot. */
+  elements(): Element[]
+}
+
+/** What one claim holds for one element: the shared entry, and its own handle onto it. */
+interface HeldElement {
+  entry: SharedStyleEntry
+  handle: StyleLedger
+}
+
+/**
+ * The shared entry for `el`, opened on first ask by anyone.
+ *
+ * @param el - Element whose inline style is managed.
+ * @param adopted - A ledger already open over `el`, from a source this registry cannot see. Used
+ *   only when there is no entry yet; see {@link createStyleClaim}.
+ */
+function openSharedEntry(el: Element, adopted: StyleLedger | undefined): SharedStyleEntry {
+  let entry = sharedStyles.get(el)
+  if (!entry) {
+    entry = { ledger: adopted ?? createStyleLedger(el), owners: new Set() }
+    sharedStyles.set(el, entry)
+  }
+  return entry
+}
+
+/**
+ * One owner's view of a shared ledger.
+ *
+ * @param entry - The shared entry every owner of this element writes through.
+ * @param letGo - What `restore()` means for this owner: drop the claim, not unwind the element.
+ */
+function claimHandle(entry: SharedStyleEntry, letGo: () => void): StyleLedger {
+  return {
+    set: (property, value) => { entry.ledger.set(property, value) },
+    claim: (property) => { entry.ledger.claim(property) },
+    restore: letGo,
+    owned: () => entry.ledger.owned(),
+    peek: (property) => entry.ledger.peek(property),
+  }
+}
+
+/**
+ * Open one owner's claim on the shared ledgers.
+ *
+ * @param adopt - Ledgers already open over particular elements, to use instead of capturing afresh
+ *   *if this registry has never seen that element*. There is one case for it and it is a build one:
+ *   `src/advanced/` ships as its own `<script>` bundle, which inlines its own copy of this module
+ *   and therefore its own `sharedStyles`. An advanced controller prepared by core is handed core's
+ *   ledger for the host directly (`PrepareContext.style`), and adopting it is what keeps the two
+ *   bundles down to one capture. Inside a single bundle the entry already exists and this is never
+ *   consulted — which is the point: the shared registry is the mechanism, and adoption is only the
+ *   bridge across a boundary the registry cannot span.
+ * @returns A claim that hands out refcounted handles and releases them one element at a time.
+ * @complexity O(1) per lookup and per release; O(p) in properties written, on the last release.
+ * @overallScore 100
+ */
+export function createStyleClaim(adopt?: ReadonlyMap<Element, StyleLedger> | null): StyleClaim {
+  const owner = {}
+  const held = new Map<Element, HeldElement>()
+
+  function release(el: Element): void {
+    const holding = held.get(el)
+    // Not this claim's to release. Reached constantly and on purpose: `LedgerSet` walks the union
+    // of its style and attribute elements, and an element it only ever stamped an attribute on has
+    // no style claim to drop. It is also what makes a second `restore()` after one that threw
+    // partway skip the elements the first attempt already gave back, rather than unwinding this
+    // library's own values a second time as if they were the author's.
+    if (!holding) return
+    // Dropped from this claim *before* the restore that may throw, for that same reason.
+    held.delete(el)
+    holding.entry.owners.delete(owner)
+    if (holding.entry.owners.size > 0) return
+    sharedStyles.delete(el)
+    holding.entry.ledger.restore()
+  }
+
+  return {
+    style(el) {
+      let holding = held.get(el)
+      if (!holding) {
+        const entry = openSharedEntry(el, adopt?.get(el))
+        entry.owners.add(owner)
+        holding = { entry, handle: claimHandle(entry, () => { release(el) }) }
+        held.set(el, holding)
+      }
+      return holding.handle
+    },
+    release,
+    elements: () => [...held.keys()],
+  }
+}
+
+/**
  * Every element one authored `data-kui` wrote to, and the ledgers that unwind them.
  *
  * The host owns the lifecycle — one `InstanceState`, one gate, one event stream — but the *writes*
@@ -157,6 +295,14 @@ export function createAttributeLedger(el: Element): AttributeLedger {
  * element the first has already written to would snapshot *this library's* values as the author's
  * own and restore to them. Memoising per element is what makes "what was there before" mean before
  * this instance existed, rather than before this particular call.
+ *
+ * Styles go one level further out than that, through {@link createStyleClaim}: memoising *within*
+ * one set is not enough once two sets reach the same element — two authored hosts whose `target:`
+ * lands on one node, a stagger group and the child's own state, a core effect and an advanced
+ * controller. The set is one owner of a shared, ref-counted capture, so `restore()` here means
+ * "this host is finished with the element", and the element is unwound by whichever owner is last.
+ * Attributes are still per set: nothing outside core stamps them, and `LedgerSet` is already the
+ * only thing that hands them out.
  */
 export interface LedgerSet {
   /** This element's inline-style ledger, created on first ask. */
@@ -187,36 +333,33 @@ export interface LedgerSet {
  * @overallScore 100
  */
 export function createLedgerSet(host: Element): LedgerSet {
-  const styles = new Map<Element, StyleLedger>()
+  const styles = createStyleClaim()
   const attributes = new Map<Element, AttributeLedger>()
 
-  function memoise<T>(cache: Map<Element, T>, el: Element, make: (el: Element) => T): T {
-    let ledger = cache.get(el)
-    if (!ledger) {
-      ledger = make(el)
-      cache.set(el, ledger)
-    }
-    return ledger
-  }
-
   function restoreOne(el: Element): void {
-    styles.get(el)?.restore()
+    styles.release(el)
     attributes.get(el)?.restore()
   }
 
   return {
-    style: (el) => memoise(styles, el, createStyleLedger),
-    attributes: (el) => memoise(attributes, el, createAttributeLedger),
+    style: (el) => styles.style(el),
+    attributes(el) {
+      let ledger = attributes.get(el)
+      if (!ledger) {
+        ledger = createAttributeLedger(el)
+        attributes.set(el, ledger)
+      }
+      return ledger
+    },
     restore() {
       // Insertion order, minus the host, then the host — rather than trusting the host to have
       // been asked for first. It always is today (`install` writes the host's style plan before
       // anything else), but "restore order is correct because of the order an unrelated function
       // happens to call us in" is exactly the kind of invariant that breaks silently.
-      for (const el of new Set([...styles.keys(), ...attributes.keys()])) {
+      for (const el of new Set([...styles.elements(), ...attributes.keys()])) {
         if (el !== host) restoreOne(el)
       }
       restoreOne(host)
-      styles.clear()
       attributes.clear()
     },
   }

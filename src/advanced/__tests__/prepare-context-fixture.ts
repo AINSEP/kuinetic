@@ -1,5 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { createStyleLedger } from '../../core/owned-styles.js'
+import { createLedgerSet } from '../../core/owned-styles.js'
 import { defaultCapabilities } from '../../core/capabilities.js'
 import { createScrollScheduler, windowScrollRoot } from '../../core/scroll-scheduler.js'
 
@@ -43,6 +43,7 @@ export function createRealPrepareContext(
   const scheduler = createDefaultScheduler(overrides)
   const abortController = new AbortController()
   const reduced = Boolean(overrides?.reducedMotion)
+  const styleTarget = targetEl || document.createElement('div')
 
   const ctx: PrepareContext = {
     doc,
@@ -54,7 +55,14 @@ export function createRealPrepareContext(
     warn: () => {},
     reducedMotion: reduced,
     signal: abortController.signal,
-    style: createStyleLedger(targetEl || document.createElement('div')),
+    // Exactly what `animator.ts` does — `createLedgerSet(el)` then `ledgers.style(el)` — rather
+    // than a bare `createStyleLedger`. The difference is the whole subject of
+    // `ownership.test.ts`'s last two describes: a set's handle is a *claim* on the shared
+    // per-element ledger, so `ctx.style.restore()` here means "the animator has released the
+    // host", not "unwind the element now whoever else is still writing to it". A bare ledger
+    // cannot express that, and a fixture that hands one out quietly tests a context the animator
+    // never produces.
+    style: createLedgerSet(styleTarget).style(styleTarget),
   }
 
   if (overrides) Object.assign(ctx, overrides)

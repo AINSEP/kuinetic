@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createAdvancedLedgers, styleOf } from '../base.js'
 import type { ElementLedgers } from '../base.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
@@ -14,10 +14,11 @@ import { createStyleLedger } from '../../core/owned-styles.js'
  * what `elements()` reports, and what a `restore()` does when an earlier one threw partway.
  *
  * The third is the reason this file exists rather than three cases bolted onto `ownership.test.ts`.
- * `releaseSharedLedger` deletes an element's shared entry one line *before* it restores it, so a
- * ledger that throws on the way out leaves the registry holding a claim on an element whose entry
- * is already gone. That is a state no controller can produce on purpose and every controller can
- * land in by accident, and it is the single case the `if (!entry) return` guard exists for.
+ * `createStyleClaim`'s `release` drops the element from this owner's claim one line *before* the
+ * restore that may throw, so a ledger that blows up on the way out leaves a half-finished claim
+ * rather than one that will unwind the same element twice. That is a state no controller can
+ * produce on purpose and every controller can land in by accident, and it is what the
+ * `if (!holding) return` guard is for on the retry.
  */
 
 /** A registry that records what it was asked for, so "was a ledger opened at all" is observable. */
@@ -94,6 +95,65 @@ describe('the shared per-element registry', () => {
     host.remove()
     a.remove()
     b.remove()
+  })
+
+  /**
+   * The `hostLedger` parameter, which is the only thing this wrapper adds to
+   * `core/owned-styles.ts`'s registry — and which nothing else in the suite can observe, because
+   * everything else reaches it from inside one bundle, where core has already registered the host
+   * and the seed is correctly ignored.
+   */
+  it('adopts a ledger opened outside this tier when the registry has never seen the host', () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    host.style.setProperty('opacity', '0.2', 'important')
+
+    // Stands in for `ctx.style` arriving from a *separately bundled* core, whose copy of
+    // `owned-styles.ts` carries a `sharedStyles` registry this one cannot see. Adoption is the
+    // only thing that leaves the two bundles with one capture between them rather than two.
+    const fromCore = createStyleLedger(host)
+    const ledgers = createAdvancedLedgers(host, fromCore)
+    ledgers.style(host).set('opacity', '0.7')
+
+    // The decisive assertion: the write went through core's ledger. A capture of this tier's own
+    // would leave this `undefined`, and would hold a second, later snapshot of the same element.
+    expect(fromCore.peek('opacity')).toBe('0.2')
+    expect(host.style.opacity).toBe('0.7')
+
+    ledgers.restore()
+    expect(host.style.opacity).toBe('0.2')
+    expect(host.style.getPropertyPriority('opacity')).toBe('important')
+    host.remove()
+  })
+
+  /**
+   * Release order, asserted as *what the subtree looked like at the instant the host was let go*
+   * rather than as a call order — the same claim `createLedgerSet` makes and for the same reason.
+   * Controllers ask for the host first and their found elements afterwards, so a `restore()` that
+   * simply replays the order it was asked in passes every other case in this file.
+   */
+  it('gives the host back last, after every element it reached through it', () => {
+    const host = document.createElement('div')
+    const layer = document.createElement('div')
+    host.append(layer)
+    document.body.append(host)
+
+    const ledgers = createAdvancedLedgers(host)
+    ledgers.style(host).set('perspective', '800px')
+    ledgers.style(layer).set('transform', 'translateZ(5px)')
+
+    let layerAtHostRelease: string | null = 'never observed'
+    const realRemove = host.removeAttribute.bind(host)
+    vi.spyOn(host, 'removeAttribute').mockImplementation((name: string) => {
+      if (name === 'style') layerAtHostRelease = layer.getAttribute('style')
+      realRemove(name)
+    })
+
+    ledgers.restore()
+
+    expect(layerAtHostRelease).toBe(null)
+    expect(host.outerHTML).toBe('<div><div></div></div>')
+    host.remove()
   })
 
   it('finishes a restore that threw partway, instead of tripping over the element it already gave back', () => {

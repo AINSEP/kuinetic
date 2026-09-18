@@ -630,4 +630,58 @@ describe('restore responsibility for a context-provided host ledger', () => {
     expect(host.style.getPropertyPriority('perspective')).toBe('important')
     host.remove()
   })
+
+  /**
+   * The case the two above deliberately do not make: **one of the two owners is not the
+   * animator's.**
+   *
+   * Both cases above hand every controller `ctx.style`, so "the animator restores the host" is
+   * true of all of them and the registry never has to arbitrate. The registry used to decide that
+   * question exactly once, on whichever controller opened the element's entry first, and cache the
+   * answer as a per-entry `foreign` flag. A second controller arriving afterwards therefore had its
+   * own ledger — or its own *absence* of one — silently ignored, and an entry flagged foreign was
+   * never restored by that path at all.
+   *
+   * So: the first controller is the animator's and the second is not, the second outlives the
+   * animator's release, and it keeps writing afterwards. Under the flag, nothing is left that will
+   * ever unwind that last write: the animator restored before it happened and the registry refuses
+   * to, so the host keeps `perspective: 400px` with no effect running and the author's
+   * `1500px !important` gone for the life of the page. Ref-counting is what makes the *last owner
+   * out* responsible instead of the first owner in.
+   */
+  it('a controller outliving the animator still gives the host back', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const ctx = createRealPrepareContext(host, { win: null, reducedMotion: false })
+
+    // Prepared by the animator: writes through the host's entry in the animator's own `LedgerSet`.
+    const prepared = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null }, ctx.style)
+    // Constructed directly, with no ledger of the animator's to hand over — a consumer calling the
+    // module itself, or any effect the animator never prepared.
+    const standalone = new CameraController(host, { depth: 400, mouseTilt: false }, { window: null })
+
+    host.style.setProperty('perspective', '1500px', 'important')
+
+    prepared.start()
+    standalone.start()
+    expect(host.style.perspective).toBe('400px')
+
+    // What `Animator.release()` does, in order: destroy the instance, then restore the set.
+    prepared.destroy()
+    ctx.style.restore()
+    // The standalone controller is still live, so the host is still its business — restoring here
+    // would hand the author's value back underneath a running effect.
+    expect(host.style.perspective).toBe('400px')
+
+    // And it keeps writing, which is the half a "did anyone restore at the end" assertion misses:
+    // without this the animator's own restore would have left the element looking correct whatever
+    // the registry did next.
+    standalone.start()
+    expect(host.style.perspective).toBe('400px')
+
+    standalone.destroy()
+    expect(host.style.perspective).toBe('1500px')
+    expect(host.style.getPropertyPriority('perspective')).toBe('important')
+    host.remove()
+  })
 })

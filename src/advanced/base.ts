@@ -6,12 +6,13 @@
 import type { EffectInstance, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { StyleLedger } from '../core/owned-styles.js'
 // The one value this tier imports from core, and the one core module that therefore lands inside
-// `dist/kuinetic.advanced.js` (516 bytes of it, measured). `owned-styles.ts` has no imports of its
-// own, and `createStyleLedger` is deliberately absent from `src/core/index.ts`'s barrel, so sharing
-// it across the two bundles would mean widening core's public API to save half a kilobyte. Leave it
-// inlined. Everything else below is `import type`, which is what keeps the rest of core out — see
-// `asRegistry`.
-import { createStyleLedger } from '../core/owned-styles.js'
+// `dist/kuinetic.advanced.js`. `owned-styles.ts` has no imports of its own, and `createStyleClaim`
+// is deliberately absent from `src/core/index.ts`'s barrel, so sharing it across the two bundles
+// would mean widening core's public API to save well under a kilobyte. Leave it inlined — with the
+// consequence that the two bundles get one `sharedStyles` registry each, which is what the
+// `hostLedger` parameter below is for. Everything else here is `import type`, which is what keeps
+// the rest of core out — see `asRegistry`.
+import { createStyleClaim } from '../core/owned-styles.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
 
@@ -106,50 +107,6 @@ export function styleOf(ledgers: ElementLedgers, el: Element | null | undefined)
 }
 
 /**
- * One inline-style ledger per element, shared by every controller in this directory that writes
- * to that element — and, for the authored host, shared with core as well.
- *
- * `owned-styles.ts` says why this has to exist at all: *"a second ledger over an element the first
- * has already written to would snapshot this library's values as the author's own and restore to
- * them."* `createLedgerSet` memoises within one set, which is enough for core because the animator
- * builds exactly one set per authored element and hands every primitive on it the same one. It is
- * not enough here, because these controllers write to elements they merely *found* — a
- * `camera-layer` under a `camera-scene`, a `scene-step` under a `scene` — and one found element can
- * belong to two controllers. With a set each, the second to write captures the first's frame value
- * as the author's and pins the element to it forever on teardown.
- *
- * {@link ownedDescendants} has since removed the *same-kind* half of that overlap — a scene inside a
- * scene no longer claims the inner scene's steps. What it deliberately does not remove is the
- * cross-kind half: an element authored `camera-layer z:-100, scene-step from:0 to:1` genuinely has a
- * camera and a scene writing to it, and a controller constructed directly rather than through
- * `prepare` never went through the scan at all. Both still need one capture between them.
- *
- * So the ledger is keyed by element, not by controller, and ref-counted by controller: the first
- * controller to write captures, and the *last* one to let go restores. That is the same
- * "before this instance existed" guarantee `LedgerSet` gives, extended across instances.
- *
- * A `WeakMap` because the key is the author's element and nothing here should keep it alive; the
- * entry dies with the element whether or not teardown ever ran.
- */
-interface SharedStyleEntry {
-  ledger: StyleLedger
-  /** Controllers still writing through this ledger. The last one out restores. */
-  owners: Set<object>
-  /**
-   * Whether the ledger belongs to someone else — `ctx.style`, i.e. the animator's own set.
-   *
-   * The animator owns `restore()` for every ledger in that set (`animator.ts` `release()` runs
-   * `controller.abort()`, then each `instance.destroy()`, then `state.ledgers.restore()`), so a
-   * module that restored it too would unwind core's writes while the element is still live. We
-   * still register it here, because sharing it is the whole point: an advanced controller and a
-   * CSS-rendered effect on one host then have one capture between them.
-   */
-  foreign: boolean
-}
-
-const sharedStyleLedgers = new WeakMap<Element, SharedStyleEntry>()
-
-/**
  * A controller's claim on the shared per-element ledgers.
  *
  * `style` is not guarded — go through {@link styleOf}, which is the one place the "can this object
@@ -168,69 +125,57 @@ export interface AdvancedLedgers {
 }
 
 /**
- * Open one controller's claim on the shared ledgers.
+ * Open one controller's claim on the shared, ref-counted per-element ledgers.
  *
- * @param host - The authored element this controller was prepared on. Restored last, for the
+ * The registry itself lives in `core/owned-styles.ts` ({@link createStyleClaim}), and that is not
+ * an implementation detail — it is the fix. This tier used to keep a `WeakMap` of its own, holding
+ * one animator's private ledger on behalf of everybody, with a per-entry `foreign` flag deciding
+ * whether the entry was ever restored. Both halves were decided *once*, by whichever controller
+ * arrived first: a second controller's own `hostLedger` was silently ignored, and anything the
+ * first controller flagged foreign was never restored by this path at all, so a property written
+ * by a controller that outlived the animator outlived every restore that would have unwound it.
+ *
+ * Ref-counting removes the flag rather than fixing it. Core's `LedgerSet` is now an owner in the
+ * same registry, so "the animator will restore this one" is no longer a special case a boolean has
+ * to remember — it is simply another claim, and the element is unwound by whichever owner lets go
+ * last, controller or animator.
+ *
+ * What this tier still needs the registry *for* is what it always did. These controllers write to
+ * elements they merely **found** — a `camera-layer` under a `camera-scene`, a `scene-step` under a
+ * `scene` — and one found element can belong to two controllers. {@link ownedDescendants} removed
+ * the *same-kind* half of that overlap; the cross-kind half is a supported authoring shape (an
+ * element authored `camera-layer z:-100, scene-step from:0 to:1` genuinely has a camera and a scene
+ * writing to it), and a controller constructed directly rather than through `prepare` never went
+ * through the scan at all. Both still need one capture between them.
+ *
+ * @param host - The authored element this controller was prepared on. Released last, for the
  *   reason `createLedgerSet` documents: the host carries `data-kui-state`, which is the cloak
  *   layer's release key, so it must not become visible before the subtree under it is back to the
  *   author's markup.
  * @param hostLedger - `ctx.style` when the animator prepared this controller: the host's entry in
- *   the animator's own `LedgerSet`. Adopting it is what makes an advanced effect and a CSS effect
- *   on one element share a single capture. Omitted (tests, direct construction) means nobody else
- *   is restoring the host, so this registry does.
+ *   the animator's own `LedgerSet`. Passed straight through as an adoption seed, and consulted
+ *   only in the split-bundle build where this tier's copy of the registry cannot see core's — see
+ *   the import comment at the top of this file. Inside one bundle core has already registered that
+ *   element and this changes nothing, which is the intended shape: sharing is the registry's job,
+ *   and the seed is only a bridge across a boundary it cannot span.
  * @complexity O(1) per lookup; O(n) space and O(n) time to restore, in elements written to.
  */
 export function createAdvancedLedgers(
   host: Element,
   hostLedger?: StyleLedger | null,
 ): AdvancedLedgers {
-  const owner = {}
-  const claimed = new Set<Element>()
-
-  function entryFor(el: Element): SharedStyleEntry {
-    let entry = sharedStyleLedgers.get(el)
-    if (!entry) {
-      const foreign = el === host && Boolean(hostLedger)
-      entry = {
-        ledger: foreign ? hostLedger! : createStyleLedger(el),
-        owners: new Set(),
-        foreign,
-      }
-      sharedStyleLedgers.set(el, entry)
-    }
-    return entry
-  }
+  const claim = createStyleClaim(hostLedger ? new Map([[host, hostLedger]]) : null)
 
   return {
-    style(el) {
-      const entry = entryFor(el)
-      entry.owners.add(owner)
-      claimed.add(el)
-      return entry.ledger
-    },
+    style: (el) => claim.style(el),
     restore() {
-      for (const el of claimed) {
-        if (el !== host) releaseSharedLedger(el, owner)
+      for (const el of claim.elements()) {
+        if (el !== host) claim.release(el)
       }
-      if (claimed.has(host)) releaseSharedLedger(host, owner)
-      claimed.clear()
+      claim.release(host)
     },
-    elements: () => [...claimed],
+    elements: () => claim.elements(),
   }
-}
-
-/**
- * Drop one owner from an element's shared entry, restoring the element when it was the last.
- *
- * @complexity O(p) in properties written, only on the last release.
- */
-function releaseSharedLedger(el: Element, owner: object): void {
-  const entry = sharedStyleLedgers.get(el)
-  if (!entry) return
-  entry.owners.delete(owner)
-  if (entry.owners.size > 0) return
-  sharedStyleLedgers.delete(el)
-  if (!entry.foreign) entry.ledger.restore()
 }
 
 /**
