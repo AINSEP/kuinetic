@@ -15,7 +15,7 @@ rounds, and two further reviews on the day it was exported each found P1 bugs st
 parameter names, preset names, and module boundaries can change without a major version bump. It is
 **not covered by the core library's stability guarantees**, and none of core's "CSS-first, zero-JS,
 zero-dependency" claims describe it: every module here is JavaScript, and the shader modules need
-WebGL2. Nothing under `src/advanced/` is referenced by any page in `demo/`. Prefer a core effect
+WebGL2. `demo/shaders-audio.html` is the one page built on it. Prefer a core effect
 whenever one will do.
 
 It is opt-in in the strict sense — `src/index.ts` does not import it and nothing auto-registers, so
@@ -280,9 +280,9 @@ list is closed; an unknown word warns and falls back to `off`.
 
 Every shader response is a gain in 1..2 on the amplitude the program already had, uploaded as one
 `u_audio` float. Silence is a gain of exactly 1.0, so audio-off output is unchanged. `u_audio` is
-uploaded on **every** draw rather than only by instances that asked for a band: the five programs
-are shared across every instance on the page, so a skipped upload would leave a neighbour's value
-in place.
+uploaded on **every** draw rather than only by instances that asked for a band: the programs are
+shared across every instance on the page, so a skipped upload would leave a neighbour's value in
+place.
 
 **Honest limits**
 

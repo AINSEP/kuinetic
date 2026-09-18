@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — Shaders &amp; Audio</title>
-<meta name="description" content="Experimental WebGL shader modes and Web-Audio-reactive effects for kUInetic — displace, fluid, liquid, particles and morph on one shared WebGL2 context, plus an audio driver that writes bass/mid/treble as CSS custom properties." />
+<meta name="description" content="Experimental WebGL shader modes and Web-Audio-reactive effects for kUInetic — displace, fluid, liquid, particles, morph, gradient and logo on one shared WebGL2 context, plus an audio driver that writes bass/mid/treble as CSS custom properties." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -53,10 +53,12 @@
   .matrix-group-note { margin: 0 0 0.85rem; color: var(--muted); max-width: 58ch; line-height: 1.6; }
 
   /* ---------- the experimental marker ----------
-     Not a decorative badge: `src/advanced/` is unexported, unbuilt and unshipped
-     (docs/advanced-modules.md's own first line), and this page is the first time any of it has run
-     outside a test fixture. A reader who takes these effects for shipped catalog names will reach
-     for one and find nothing there, so the label carries real information and gets real weight. */
+     Not a decorative badge. `src/advanced/` now ships as the `kuinetic/advanced` subpath, so the
+     old reason for this marker — unexported, unbuilt, nothing to reach for — is gone. The reason it
+     stays is the other half of docs/advanced-modules.md's status line: parameter names, preset
+     names and module boundaries here can change without a major version bump, and none of core's
+     CSS-first, zero-JS, zero-dependency claims describe this tier. A reader who takes these for
+     ordinary catalog names will get a different set of guarantees than they expect. */
   /* `display: flex` with a width of its own, not `inline-flex`: system.css's `.kicker` is itself
      inline-flex, so an inline badge after it shares the kicker's line and two competing
      uppercase monospace labels end up fighting for the same rung of the hierarchy. */
@@ -73,7 +75,8 @@
      `.demo-card`'s rounded-and-clipped treatment everywhere else in the showcase.
 
      The shader does not paint inside the element. `SharedShaderRenderer` keeps ONE fixed
-     full-viewport canvas at `z-index: 9999` and scissors it to each element's bounding rect
+     full-viewport canvas at `z-index: 1` (the default; `--kui-shader-z` moves it, and is read once
+     at canvas creation) and scissors it to each element's bounding rect
      (shaders.ts), so what you see is a replica drawn over the image, not the image itself. The
      geometry layer that teaches that replica about `object-fit`, `border-radius` and rectangular
      clipping ancestors landed in `af2e3cd` and is shipped and browser-tested, but nothing here
@@ -86,8 +89,10 @@
      Square corners are not a new vocabulary either — index.html, scroll.html, interactive.html,
      tween.html and the motif pages all carry hard-edged media already.
 
-     The caption sits BELOW the image and outside its rect, which is also load-bearing: anything
-     that overlaps a shader element's bounding box is painted under the replica. */
+     The caption sits BELOW the image and outside its rect, which is also load-bearing: un-positioned
+     content overlapping a shader element's bounding box is painted under the replica. (Since the
+     canvas default dropped to `z-index: 1`, a positioned element above it composites correctly —
+     the code panel does — but a plain in-flow caption like this one still would not.) */
   .gl-plate { margin: 0; display: flex; flex-direction: column; border: 1px solid var(--border); background: var(--surface); }
   .gl-plate > img { display: block; width: 100%; height: auto; }
   .gl-plate figcaption {
@@ -256,15 +261,15 @@
       <section class="demo-hero" data-od-id="hero">
         <div class="hero-copy">
           <p class="kicker" data-kui="split-chars stagger:60ms on:load">Advanced · Shaders &amp; Audio</p>
-          <p class="lab-badge">Experimental — not in the shipped bundle</p>
+          <p class="lab-badge">Experimental — outside the stability guarantees</p>
           <h1 data-kui="fade-up 700ms">The five things CSS could not do.</h1>
           <p class="lede" data-kui="fade-up 700ms 90ms">
-            <code>src/advanced/</code> — one shared WebGL2 canvas running five fragment programs,
+            <code>src/advanced/</code> — one shared WebGL2 canvas running six fragment programs,
             plus a Web-Audio driver that writes bass/mid/treble as custom properties anything
             downstream can read.
           </p>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
-            <a href="#modes" class="btn btn-primary">See the five modes</a>
+            <a href="#modes" class="btn btn-primary">See the modes</a>
             <a href="#limits" class="btn btn-accent" data-kui="shine-sweep">Read what it is not →</a>
           </div>
         </div>
@@ -311,10 +316,15 @@ k.start()</pre>
         </p>
       </section>
 
-      <!-- THE FIVE MODES -->
+      <!-- THE MODES -->
       <section id="modes" data-od-id="modes">
         <div class="section-head">
-          <h2 data-kui="fade-up on:enter">One primitive, five programs</h2>
+          <h2 data-kui="fade-up on:enter">One primitive, seven modes</h2>
+          <p data-kui="fade-up 700ms 60ms on:enter">
+            The five below all take a source image and transform it. Two more —
+            <code>gradient</code> and <code>logo</code> — generate a field from noise with no source
+            image at all, and do not have plates on this page yet.
+          </p>
         </div>
 
         <div class="matrix-group">
@@ -532,12 +542,19 @@ k.start()</pre>
             </p>
           </li>
           <li>
-            <h3>The shader paints over the element, at <code>z-index: 9999</code></h3>
+            <h3>The shader paints over the element, at <code>z-index: 1</code></h3>
             <p>
-              One fixed full-viewport canvas, scissored to each element's rect. Stacking order is
-              the limit a single canvas cannot reproduce: anything that should sit
-              <em>above</em> a shader element — the header pill on this page, an open modal — is
-              painted under the replica while they overlap.
+              One fixed full-viewport canvas, scissored to each element's rect. The default used to
+              be <code>9999</code>, which put the replica over the page's own modals; at
+              <code>1</code> anything positioned above it — this page's code panel, the header —
+              composites correctly. <code>--kui-shader-z</code> moves it, page-wide, and is read
+              once when the canvas is created.
+            </p>
+            <p>
+              What a single canvas still cannot reproduce is per-element stacking. Un-positioned
+              content that overlaps a shader element is painted under the replica, because the
+              canvas is one layer for the whole document rather than a layer per element. A shader
+              cannot sit <em>behind</em> its own page content.
             </p>
           </li>
           <li>
@@ -583,12 +600,19 @@ k.start()</pre>
             </p>
           </li>
           <li>
-            <h3>Unexported, unbuilt, unshipped</h3>
+            <h3>Shipped, but opt-in and outside the guarantees</h3>
             <p>
-              <code>src/advanced/</code> is not in <code>src/index.ts</code>, not in
-              <code>package.json</code>'s exports map and not in <code>dist/</code>. The bundle this
-              page loads was built by hand. Treat all of it as a description of what the code does
-              today, not a commitment about what ships.
+              <code>src/advanced/</code> now ships: <code>package.json</code>'s exports map names
+              <code>./advanced</code>, <code>dist/</code> carries it, and this page loads the real
+              <code>kuinetic.advanced.js</code> tier bundle rather than a hand-built one. What has
+              not changed is that it stays out of <code>src/index.ts</code>, so a page that never
+              asks for it pays nothing.
+            </p>
+            <p>
+              Read "experimental" literally. Parameter names, preset names and module boundaries
+              here can change without a major version bump, and none of core's CSS-first,
+              zero-JS, zero-dependency claims describe this tier — every module is JavaScript and
+              the shader modes need WebGL2.
             </p>
           </li>
         </ul>
