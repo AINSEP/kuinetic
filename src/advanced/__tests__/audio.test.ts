@@ -430,7 +430,7 @@ describe('Audio-Reactive Source Module', () => {
       document.body.append(hero, host)
       const ctx = contextDouble()
 
-      const ctrl = new AudioSourceController(host, { source: 'media', media: '#hero-media' }, envFor(ctx))
+      const ctrl = new AudioSourceController(host, { source: 'media', target: '#hero-media' }, envFor(ctx))
       ctrl.start()
       expect(ctx.createMediaElementSource).toHaveBeenCalledWith(hero)
 
@@ -495,6 +495,11 @@ describe('Audio-Reactive Source Module', () => {
       registerAudio(anim)
       expect(anim.registry.resolve('audio-source')).toBeDefined()
       expect(AUDIO_PARAMETERS.source.default).toBe('media')
+      // Declared exactly as every other primitive that names another element declares it, down to
+      // the shared `--kui-target`. It is also load-bearing: `compile.ts`'s `liftTarget` relocates
+      // the whole effect onto the match for any primitive that does *not* declare this key, which
+      // would silently move the analyser onto the `<audio>` element itself.
+      expect(AUDIO_PARAMETERS.target).toEqual({ type: 'text', default: '', cssProperty: '--kui-target' })
       expect(AUDIO_PRIMITIVES[0]?.id).toBe('audio-source')
       expect(AUDIO_PRESETS.length).toBeGreaterThan(0)
     })

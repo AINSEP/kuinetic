@@ -254,11 +254,11 @@ in this directory can follow one of those bands, through the same parameter spel
 
 ```html
 <!-- Driver and consumer on one element, the comma grammar any two primitives share. -->
-<img data-kui="audio-source media:#track, shaders mode:liquid audio:bass" src="…" />
+<img data-kui="audio-source target:#track, shaders mode:liquid audio:bass" src="…" />
 
 <!-- Or the driver on an ancestor: the properties are ordinary unregistered custom properties, so
      they inherit, and a consumer below reads the inherited value through getComputedStyle. -->
-<section data-kui="audio-source media:#track">
+<section data-kui="audio-source target:#track">
   <img data-kui="shaders mode:displace audio:treble" src="…" />
   <div data-kui="camera-scene audio:bass depth:1200">…</div>
 </section>

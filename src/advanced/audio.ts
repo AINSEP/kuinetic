@@ -107,8 +107,10 @@ export function readAudioBand(el: HTMLElement, band: AudioBand): number {
 }
 
 export interface AudioSourceOptions {
+  /** Where the samples come from, not which element: the page's own media, or the microphone. */
   source?: 'media' | 'mic'
-  media?: string
+  /** The author's `target:` selector for the media element to analyse. */
+  target?: string
   fftSize?: number
   smoothing?: number
 }
@@ -146,7 +148,7 @@ export function computeFrequencyBands(
   }
 }
 
-/** What `media:` searches for when the author named nothing. */
+/** What the search falls back to when the author named no `target:`. */
 const DEFAULT_MEDIA_SELECTOR = 'audio, video'
 
 /**
@@ -167,7 +169,7 @@ function isMediaElement(el: Element, win: Window | null): boolean {
  * The media element this effect reads, or `null` when there is none to read.
  *
  * @param el - The authored element.
- * @param authored - The author's `media:` selector, or `null` when they wrote none.
+ * @param authored - The author's `target:` selector, or `null` when they wrote none.
  * @complexity O(n) in the subtree searched.
  */
 function findMediaElement(
@@ -475,7 +477,7 @@ export class AudioSourceController {
   private connectMediaSource(graph: SharedAudioGraph, analyser: AnalyserNode, win: Window | null): void {
     const doc = this.document as Document | null
     try {
-      const mediaEl = findMediaElement(this.element, this.options.media || null, win, doc)
+      const mediaEl = findMediaElement(this.element, this.options.target || null, win, doc)
       if (!mediaEl) return
       const source = mediaSourceFor(graph, mediaEl)
       if (!source) return
@@ -703,8 +705,6 @@ export function prepareAudioSource(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
-  if (isReducedMotion(ctx)) return createInertInstance()
-
   /*
    * Inert, and the still-frame question does not arise here the way it does for the rest of the
    * tier. This primitive renders nothing: it is a data source that publishes five numbers as
@@ -721,17 +721,19 @@ export function prepareAudioSource(
    * and the cost of guessing wrong is an `AudioContext`, a frame loop and a set of page-wide
    * gesture listeners for a visitor who asked for less.
    */
+  if (isReducedMotion(ctx)) return createInertInstance()
+
   const resolvedEnv = resolveEnv(ctx)
   const rawSource = params.text ? params.text('source', 'media') : 'media'
   const source = rawSource === 'mic' ? 'mic' : 'media'
-  const media = params.text ? params.text('media', '') : ''
+  const target = params.text ? params.text('target', '') : ''
   const smoothing = clamp(params.num ? params.num('smoothing', 0.8) : 0.8, 0, 0.99)
   const fftSize = snapFftSize(clamp(params.num ? params.num('fft', 256) : 256, 32, 2048))
 
   // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
   const controller = new AudioSourceController(
     el as HTMLElement,
-    { source, media, smoothing, fftSize },
+    { source, target, smoothing, fftSize },
     resolvedEnv,
     ctx?.style,
   )
@@ -747,7 +749,24 @@ export function prepareAudioSource(
 
 export const AUDIO_PARAMETERS = {
   source: { type: 'keyword' as const, default: 'media', keywords: ['media', 'mic'], cssProperty: '--kui-audio-source' },
-  media: { type: 'text' as const, default: '', cssProperty: '--kui-audio-media' },
+  /**
+   * Which media element to analyse — the library's one spelling for "this effect names another
+   * element", declared exactly as the six primitives that already own the key declare it
+   * (`effects/scroll-mechanics/primitives.ts`), down to the shared `--kui-target`.
+   *
+   * It was `media:`, which was both a second word for `target:`'s job and a live footgun:
+   * `compile.ts`'s `liftTarget` only leaves `target:` in a primitive's own parameters when that
+   * primitive declares it, and otherwise *relocates the whole effect* onto the elements the
+   * selector matched. So `audio-source target:#track` used to move the analyser onto the `<audio>`
+   * element itself — which happens to work, silently writing the five custom properties on the
+   * wrong element. Declaring the key here claims it and closes that.
+   *
+   * No `scope: SCOPE_PARAM` alongside it, unlike those six: this resolves its own two-step search
+   * (`findMediaElement` — the host's own subtree first, the document only for an authored
+   * selector), and importing core's shared declaration would be a value import from `src/effects`
+   * into a tier whose bundle weight is measured (see `base.ts`'s `asRegistry`).
+   */
+  target: { type: 'text' as const, default: '', cssProperty: '--kui-target' },
   smoothing: { type: 'number' as const, default: '0.8', minimum: 0, maximum: 0.99, cssProperty: '--kui-audio-smoothing' },
   fft: { type: 'number' as const, default: '256', minimum: 32, maximum: 2048, cssProperty: '--kui-audio-fft' },
 }

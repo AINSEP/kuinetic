@@ -444,14 +444,14 @@ k.start()</pre>
         </div>
 
         <!-- The driver sits here, on the common ancestor of every consumer, and activates from the
-             click that bubbles up out of the button. `media:` names the element explicitly so the
+             click that bubbles up out of the button. `target:` names the element explicitly so the
              analyser cannot latch onto some other media element elsewhere on the page. -->
         <!-- No `data-show-code` on this wrapper, deliberately. show-code.js mounts its chip into
              the first `figcaption` it finds *inside* the element it was given, so a
              `data-show-code` here would claim the volcano plate's caption and that caption would
              end up with two chips — one for the plate, one for the rig. The rig's own attribute is
              quoted in the copy above instead. -->
-        <div class="audio-rig" data-kui="audio-source media:#kui-audio-track on:click">
+        <div class="audio-rig" data-kui="audio-source target:#kui-audio-track on:click">
           <audio id="kui-audio-track" src="./assets/shaders/audio-bands-loop.m4a" loop preload="auto"></audio>
 
           <div class="audio-bar">
