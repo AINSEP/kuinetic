@@ -81,10 +81,14 @@ stylesheet.
 
 ## Authoring surface
 
-Each module registers one primitive and a small set of presets; see `*_PARAMETERS` / `*_PRESETS` in
-each file for the authoritative parameter names, defaults, and validation ranges — that is generated
-data, not prose, so it does not drift the way a hand-written parameter table does. The primitive ids
-are `shaders`, `scene`, `camera-scene`, `particle-dissolve`, `fluid-trail`, and `audio-source`.
+Each module registers at least one primitive and a small set of presets; see `*_PARAMETERS` /
+`*_PRESETS` in each file for the authoritative parameter names, defaults, and validation ranges —
+that is generated data, not prose, so it does not drift the way a hand-written parameter table does.
+The six modules register **eight** primitive ids between them: `shaders`, `scene`, `scene-step`,
+`camera-scene`, `camera-layer`, `particle-dissolve`, `fluid-trail`, and `audio-source`. Two of them
+are children of another — `scene-step` inside a `scene`, `camera-layer` inside a `camera-scene` —
+which is why an earlier version of this line listed six and missed both. Derived from the `id:`
+declarations in `src/advanced/*.ts`; `test/advanced-subpath.test.ts` asserts the same list.
 
 Every module declares `reducedMotion: 'disable'`, which is what stops the animator activating any
 instance; what each `prepare*` then does with that is a per-module decision — see "Accessibility"
@@ -129,12 +133,29 @@ changes how big the shapes are, one how contorted, one how intricate.
 | `seed` | integer 0..9999 | Which pattern. The same seed gives the same image on every load. |
 | `scale` | 0.05..20 | How zoomed. Larger means smaller, more numerous shapes. |
 | `detail` | integer 1..6 | Octaves of detail. Capped at the shader's `KUI_MAX_OCTAVES`. |
-| `warp` | 0..2 | How far a second field distorts the first. The difference between contour rings and something that reads as liquid. |
+| `warp` | 0..2 | How far a second field distorts the first. The difference between contour rings and something that reads as liquid. Defaults to `0`. |
+| `frequency` | 0.1..50 | The rate of that distorting field. **Does nothing until `warp` is above `0`** — see below. |
 | `bands` | integer 0..32 | Posterise the ramp into this many steps. `0` is off. |
 | `grain` | 0..1 | Film grain. |
 | `hue` | an angle | Hue rotation — `hue:30deg`, `hue:0.25turn`, or a bare `hue:30`. |
 | `color1`..`color5` | colours | The palette. Fewer than two set falls back to a built-in pair, so a bare `shader-gradient` is never grey. |
 | `mask` | `alpha`\|`luma`\|`luma-invert` | `mode:logo` only — which part of the host image is the mark. Ignored everywhere else. |
+| `angle` | an angle | Which way the field runs. `transform: rotate()`'s convention, and the axis `motion:drift` travels along. Defaults to `0deg`. |
+| `motion` | `evolve`\|`drift`\|`swirl` | How the field moves. `evolve` (the default) is the behaviour these two modes have always had. |
+| `hover` | `none`\|`stir`\|`light`\|`both` | What the pointer does to the field. Defaults to `none`. Ignored by the five filter modes. |
+| `backdrop` | a colour | What the field is composited *over*, inside the element's own shape. Unset by default. |
+
+**`frequency` needs `warp`, and `warp` is `0` by default.** On these two modes `u_frequency` is read
+in exactly one place — inside `if (u_warp > 0.0)`, at `glsl.ts:699-704` — and `warp`'s default is
+`'0'` (`shaders.ts:2132`). So a bare `shader-gradient frequency:40` is the same image as a bare
+`shader-gradient`, and the knob only comes alive once there is a warping field for it to set the
+rate of. Two fixes were considered and both rejected: defaulting `warp` above `0` restyles every
+page already running these modes, and giving `frequency` a second job outside the warp branch is the
+one-knob-two-behaviours trap `noise` is written around. So it is documented instead. This is not a
+new shape of problem here — `mask` means nothing outside `mode:logo`, and `seed`, `scale` and
+`detail` mean nothing on the four filter modes until `noise` is above `0`. A parameter that requires
+its companion is a normal thing in this parameter space; one that requires a companion *silently* is
+the part that needed writing down.
 
 `mask` defaults to `alpha`, which is right for the usual transparent-ground SVG or PNG. A JPEG has
 no alpha at all, so `alpha` on one gives an all-opaque stencil and the field fills the whole
@@ -147,6 +168,68 @@ is exactly wrong.
 generator it is **how many times the colour ramp wraps** — the shimmer count. It had never reached a
 shader before this mode existed. No fragment program declared `u_iridescence` at all, so the value
 was extracted and uploaded to a location that was `null` in all five programs.
+
+**`hover:` — the pointer, which is the thing a video cannot do**
+
+These are the two modes built to stand in for a video background, and until `hover:` they were also
+the only two in the tier with no pointer response at all. `displace` and `fluid` have read `u_mouse`
+since they were written; `particles` declared one and never read it, and that declaration has now
+been deleted rather than wired, so `particles` pages render exactly what they rendered before.
+
+`stir` drags the field's sample point around the cursor, like stirring thick paint. `light` holds a
+torch over it: the colour under the pointer is *multiplied* up, which raises its saturation instead
+of washing it toward white, so what appears is the author's own colour going vivid. `both` runs the
+two at once, and they compose rather than cancel because they act at different stages — `stir` on
+the coordinate the field is sampled at, `light` on the colour that coordinate produced.
+
+On `mode:logo`, `stir` cannot move the mark. `glyphMask()` reads the host image at the *undistorted*
+coordinate and multiplies the finished colour, so the fill swirls inside a stencil that stays
+exactly where it was.
+
+The pointer's pool of influence is aspect-corrected against the element's own box (`u_maskBox.zw`,
+the half-extents already uploaded for the corner mask). Without that it would be a circle in UV
+space and therefore an **ellipse** on screen as soon as the box is not square — and the boxes these
+modes are documented for are full-bleed bands, card faces and footer strips, which is to say the
+widest boxes in the system. On a square box the correction is exactly 1 and this degenerates to the
+plain UV distance `displace` uses.
+
+Worth knowing before you judge a screenshot: with no pointer movement yet, `computeMousePos` answers
+the **element's centre**. That is the state of every page on load, every phone, and every screenshot
+this repository takes — so `light` rests as a centred glow and `stir` as a centred swirl. Both are
+compositions someone might have authored deliberately, which is the bar a resting state has to
+clear. `none` is still the default, and `none` means `u_mouse` is never read at all rather than read
+and multiplied by zero.
+
+**`backdrop:` — invisible on a bare `gradient`, and that is arithmetic**
+
+`backdrop` is the colour the field is composited *over*, inside the element's own shape —
+premultiplied "over", guarded on the backdrop's own alpha so the unset case is untouched.
+
+What it is **for** is `mode:logo`: outside the mark the field has no coverage, so the backdrop is
+the plate the mark sits on instead of the page showing through. On a bare `mode:gradient` it is
+invisible, and that is by construction rather than by oversight — the field there is opaque, so
+there is nothing behind it to see. It becomes visible on a `gradient` through a `tint` whose alpha
+is below 1, which is how a field is made to sit *on* a page colour rather than replace it. Expect
+this to be reported as a bug otherwise; it is the arithmetic working.
+
+**`angle:` and `motion:` — and why the default is a word for "what it already did"**
+
+`angle` is the field's orientation: which way it runs. It follows `transform: rotate()`'s
+convention — clockwise-positive, `0deg` pointing right — because that is the intuition an author
+already has, and it turns the field's whole domain, so unlike `frequency` it is visible at the
+library defaults with nothing else set. It is also the axis `motion:drift` travels along. One idea
+with two consequences rather than two behaviours: the field has an axis, `angle` names it, and
+`drift` slides along the thing it named.
+
+`motion` has three values and the default one is the interesting decision. `drift` (travels along
+`angle`) and `swirl` (turns about the element's centre) are both new looks, so either as the default
+would restyle every page already running `gradient` or `logo` on the next release. `evolve` exists
+so the default can be inert: it is a name for the behaviour these modes already had — time as the
+noise function's third axis, the pattern changing in place rather than sliding past — and a page
+that says nothing renders bit for bit what it rendered before. That is the same trap `noise:` is
+written around, and the same reason `hover:` defaults to `none`. `drift` and `swirl` *add* to
+`evolve` rather than replacing it, so a travelling field is still changing as it goes rather than one
+frozen picture towed across the box.
 
 ### The limit you will hit first — and the one mode that dodges it
 
@@ -189,6 +272,16 @@ It is read once off `:root` when the canvas is built, defaults to `1`, and ignor
 not a number rather than writing a broken `z-index`. Custom properties inherit, so a value on
 `:root` reaches a canvas this library created even though no stylesheet can name it — one line, no
 JS, no build step.
+
+**"Read once" is literal, and it is a trap.** The value is read at `shaders.ts:1375`, inside
+`SharedShaderRenderer.init()`, and baked straight into the canvas's `cssText` at the moment the
+element is created. `init()` runs only from `acquire()`, and only when there is no live canvas
+already; `syncCanvasDimensions` rewrites `width`/`height` every frame and never touches `z-index`.
+So changing `--kui-shader-z` *after* the first shader instance has started does nothing at all —
+not "eventually", not "on the next frame". The property has to carry its value before the first
+`acquire()`, or the renderer has to be fully destroyed and re-acquired, which happens when the last
+instance releases it. A dialog that sets the property when it opens is therefore setting it too
+late. Put it in the page's own stylesheet.
 
 There is deliberately **no `data-kui` parameter** for it. One canvas serves the whole page, so a
 per-element `zIndex:` would look per-element and silently not be: two shader elements asking for
@@ -311,20 +404,31 @@ place.
 ## Tests
 
 - `src/advanced/__tests__/` — jsdom unit tests: `audio.test.ts`, `contracts.test.ts`, `fx.test.ts`,
-  `ownership.test.ts`, `shaders.test.ts`, `staging.test.ts` (plus `prepare-context-fixture.ts`, a
-  shared fixture, not a test file). 140 tests across those 6 files as of this writing. Run with
+  `ownership.test.ts`, `register-gate.test.ts`, `shaders.test.ts`, `staging.test.ts` (plus
+  `prepare-context-fixture.ts`, a shared fixture, not a test file). Seven test files. No test count
+  here on purpose: the line this replaced said "140 tests across those 6 files", and by the time
+  anyone noticed, the file list had also missed `register-gate.test.ts` — take the number from the
+  run, per the note below. Run with
   `npx vitest run src/advanced/__tests__`. WebGL is mocked
   here — jsdom has no real GL context — so these tests cover control flow, lifecycle, and ledger
   restoration, not real GPU behavior.
-- `test/browser/advanced-webgl.test.mjs` — real Chromium, real WebGL2, run via Playwright (63 checks
-  as of this writing). Covers context loss/restore, partial-clip scissor correctness, cross-instance
+- `test/browser/advanced-webgl.test.mjs` — real Chromium, real WebGL2, run via Playwright (248
+  checks on the run of 2026-09-18; this line read "63" for long after that stopped being true, so
+  treat it the same way as every other number here). Covers
+  context loss/restore, partial-clip scissor correctness, cross-instance
   draw error isolation, authored-`opacity:0` persistence, double-destroy idempotency, real
   shader-program compilation (the six programs in `glsl.ts` actually link, and a genuinely broken
   GLSL source is rejected — a mocked `getContext` can't tell either apart), real canvas-2D color
   resolution, the generative field (it draws with no texture at all; `speed:0` is byte-identical
   across frames; a seed reproduces and a different one does not; `detail` changes structure without
   changing mean brightness; an authored palette really reaches `u_colors`; `logo`'s stencil is
-  opaque inside the mark and empty in its hole) — **every one of those at 390px as well as
+  opaque inside the mark and empty in its hole), the four generative parameters above (that
+  `hover:none`, `angle:0deg` and `motion:evolve` are byte-identical to a page that never named
+  them — the inertness claims those defaults are *for* — that `stir` and `light` reach pixels and
+  reach them *locally*, that `stir` leaves `logo`'s alpha channel bit-identical while moving the
+  fill, that the hover pool is round on an 8:5 box, and that `backdrop` fills a logo's hole,
+  shows through a translucent `tint`, and changes nothing on an opaque `gradient`) — **every one of
+  those at 390px as well as
   desktop** — the scroll→shader progress bridge (see below), and the audio bridge: a band on the
   consumer's own element and on an ancestor driving the real `u_audio` uniform (read back with
   `gl.getUniform`) and the camera's real `translate3d`, plus one end-to-end check that builds a
@@ -333,7 +437,12 @@ place.
 - Fixtures: `advanced-webgl.html` (fixed layout), `advanced-progress-bridge.html` (a page that
   really scrolls), `advanced-audio-bridge.html` (the audio consumers), `advanced-generative.html`
   (plain `<div>`s with no image in them, and an original square-annulus mark whose hole is what
-  separates a real stencil from one that painted the bounding box). The end-to-end audio check
+  separates a real stencil from one that painted the bounding box), `advanced-hover.html` (the four
+  generative parameters: a deliberately 8:5 box, because a wrong aspect correction and no aspect
+  correction give the same answer on a square one; the same square annulus, whose hole is where
+  `backdrop`'s plate is read; and a row of identical boxes two of which carry identical parameters,
+  so the harness measures what "the same field in two different boxes" costs and every threshold
+  has to clear that floor). The end-to-end audio check
   needs two environment facts to work headless, and both are the browser's rules rather than this
   code's: a trusted click before anything starts, because Chromium will not let an `AudioContext`
   leave `suspended` without user activation, and a blob URL for the WAV, because a tainted
