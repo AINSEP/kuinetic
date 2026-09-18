@@ -71,7 +71,8 @@ export interface Entry {
    * Selector this entry retargets to, lifted out of `spec.params` by `resolveEntries` for any
    * primitive that does not declare a `target` parameter of its own. Undefined means "compiles on
    * the host", which is every entry today and every entry whose primitive owns `target:` itself
-   * (the six scroll-mechanics/forms primitives — they read the key from `spec.params`, unchanged).
+   * (see `liftTarget`'s comment for the current set — they read the key from `spec.params`,
+   * unchanged).
    */
   target?: string
   /** Which tree {@link target} is searched in. Only meaningful when `target` is set. */
@@ -479,11 +480,16 @@ function warnUnknownEffect(name: string, registry: Registry, warnings: string[])
  * Pull `target:`/`scope:` off a spec's params for any primitive that does not declare a `target`
  * parameter of its own.
  *
- * The six scroll-mechanics/forms primitives that do declare `target` (`scroll-progress`,
- * `horizontal-track`, `media-scrub`, `scroll-spy`, `scroll-snap`, `step-progress`) read the key
- * themselves through `EffectParams` inside their own `prepare` — see `effects/step-marking.ts`'s
- * module comment. Lifting it here too would be lifting nothing, since `Object.hasOwn` below is
- * false for none of them; the early return is what keeps their existing behaviour untouched.
+ * Some primitives declare `target` themselves — `scroll-progress`, `horizontal-track`,
+ * `media-scrub`, `scroll-spy` and `scroll-snap` in `effects/scroll-mechanics/primitives.ts`,
+ * `step-progress` in `effects/forms/primitives.ts`, `spatial-ring` in `effects/carousel/index.ts`,
+ * `audio-source` in `advanced/audio.ts` — and read the key themselves through `EffectParams` inside
+ * their own `prepare`; see `effects/step-marking.ts`'s module comment for where the shared
+ * `target:`/`scope:` grammar lives. Lifting it here too would be lifting nothing, since
+ * `Object.hasOwn` below is false for none of them; the early return is what keeps their existing
+ * behaviour untouched. This list is not the source of truth and will drift the next time a
+ * primitive opts in — re-derive it with `grep -rn "'--kui-target'" src/ --include=*.ts` (excluding
+ * `__tests__`) rather than trusting a remembered count.
  *
  * For every other primitive, `target:h1` is not a parameter that primitive has ever heard of, so
  * it must be gone from `spec.params` before `resolveParams`/`readParams` validate the rest — left

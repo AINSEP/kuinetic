@@ -810,8 +810,8 @@ export const AUDIO_PARAMETERS = {
   source: { type: 'keyword' as const, default: 'media', keywords: ['media', 'mic'], cssProperty: '--kui-audio-source' },
   /**
    * Which media element to analyse — the library's one spelling for "this effect names another
-   * element", declared exactly as the six primitives that already own the key declare it
-   * (`effects/scroll-mechanics/primitives.ts`), down to the shared `--kui-target`.
+   * element", declared exactly as every other primitive that owns the key declares it — see
+   * `compile.ts`'s `liftTarget` for the current set — down to the shared `--kui-target`.
    *
    * It was `media:`, which was both a second word for `target:`'s job and a live footgun:
    * `compile.ts`'s `liftTarget` only leaves `target:` in a primitive's own parameters when that
@@ -820,7 +820,7 @@ export const AUDIO_PARAMETERS = {
    * element itself — which happens to work, silently writing the five custom properties on the
    * wrong element. Declaring the key here claims it and closes that.
    *
-   * No `scope: SCOPE_PARAM` alongside it, unlike those six: this resolves its own two-step search
+   * No `scope: SCOPE_PARAM` alongside it, unlike its peers: this resolves its own two-step search
    * (`findMediaElement` — the host's own subtree first, the document only for an authored
    * selector), and importing core's shared declaration would be a value import from `src/effects`
    * into a tier whose bundle weight is measured (see `base.ts`'s `asRegistry`).

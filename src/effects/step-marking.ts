@@ -43,9 +43,10 @@ export type StepState = 'before' | 'active' | 'after'
 /**
  * `target:`/`scope:` resolution — `resolveTarget`, `queryScoped`, `TargetScope`, `SCOPE_PARAM`,
  * `scopeParam` — moved to `core/target.ts`. `core/compile.ts` and `core/animator.ts` need the same
- * resolution for the *universal* `target:` (any effect, not just the six primitives that used to be
- * the only place this grammar existed), and `core` must not depend on `effects`. Import from
- * `../core/target.js` here as everywhere else; this module keeps only the step-index-specific half.
+ * resolution for the *universal* `target:` (any effect, not just the handful of primitives that
+ * used to be the only place this grammar existed — see `compile.ts`'s `liftTarget` for who those
+ * are today), and `core` must not depend on `effects`. Import from `../core/target.js` here as
+ * everywhere else; this module keeps only the step-index-specific half.
  */
 
 /**
