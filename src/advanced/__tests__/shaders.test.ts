@@ -1977,12 +1977,85 @@ describe('Advanced Shaders Labs Module', () => {
       expect(main).toContain('(u_hover & KUI_HOVER_LIGHT) != 0')
       expect(main).toContain('if (u_backdrop.a > 0.0)')
 
-      // Orientation: a guard inside the shared helper, so both the fragment and the pointer take
-      // the same exact-zero path at `angle: 0deg`.
-      expect(GRADIENT_FS).toContain('if (orient != 0.0) v = kuiRotate(v, -orient);')
+      /*
+       * Orientation: a guard inside the shared helper, so both the fragment and the pointer take
+       * the same exact-zero path at `angle: 0deg`.
+       *
+       * This asserts the *requirement* and not the body. The body is allowed to change — it
+       * already has once, when the turn became a screen-rigid conjugation — and an assertion that
+       * merely quoted whatever was written last would have been rewritten along with it and proved
+       * nothing. The guard is the part that may not change, and it is load-bearing in a way that
+       * is easy to miss: `kuiRotateScreen` is `A⁻¹ · R(a) · A` and at `a == 0` that is
+       * `diag(k * (1/k), (1/k) * k)`, about an ulp off the identity per axis rather than exactly
+       * it. Byte-identity at the library defaults therefore rests on *nothing here executing*.
+       * Delete the guard because "a rotation is cheap" and every generative pixel on the web
+       * moves its last bit.
+       */
+      const fpAt = GRADIENT_FS.indexOf('vec2 kuiFieldPoint(')
+      // The body alone — the doc comment above it names the rotation helper in prose, and a
+      // structural claim must not be satisfiable by a sentence.
+      const fieldPoint = GRADIENT_FS.slice(fpAt, GRADIENT_FS.indexOf('\n}', fpAt))
+      // An exact-zero comparison, not a tolerance: `abs(orient) > 1e-6` would be a weaker promise
+      // wearing the same shape.
+      expect(fieldPoint).toContain('if (orient != 0.0)')
+      // And every line that turns anything is inside it. A rotation term that escaped the guard
+      // would still pass the assertion above.
+      const turning = fieldPoint.split('\n').filter((l) => /kuiRotate|cos\(|sin\(/.test(l))
+      expect(turning.length).toBeGreaterThan(0)
+      for (const line of turning) expect(line.trim()).toMatch(/^if \(orient != 0\.0\) /)
       // And `motion: evolve` is a comparison against a constant, not an arithmetic `* 0.0`.
       expect(main).toContain('u_motion == KUI_MOTION_SWIRL ? t * 0.2 : 0.0')
       expect(main).toContain('u_motion == KUI_MOTION_DRIFT ? t * 0.12 * zoom : 0.0')
+    })
+
+    /*
+     * The aspect correction, as a contract rather than as three copies of one expression.
+     *
+     * `v_uv` is normalised per axis, so everything authored in it is stretched on screen the moment
+     * the box stops being square. Three things in this program must not be: the pointer's pool
+     * (round), the field's orientation (rigid), and the `stir` vortex (round, and driven by that
+     * same pool). They all read one term now. The browser tier proves the *behaviour* on a 160x100
+     * box; this proves there is one term to be wrong in rather than three to drift apart.
+     */
+    it('measures the pool, the orientation and the stir vortex in one screen-isotropic space', () => {
+      const axesAt = GRADIENT_FS.indexOf('vec2 kuiAspectAxes()')
+      expect(axesAt).toBeGreaterThan(-1)
+      const axes = GRADIENT_FS.slice(axesAt, GRADIENT_FS.indexOf('\n}', axesAt))
+      // A ratio of the two half-extents, so it cancels device pixel ratio instead of tracking it.
+      expect(axes).toContain('sqrt(u_maskBox.z / u_maskBox.w)')
+      // `shapeMask()`'s "no box measured" signal, read the same way: fall back, never divide by it.
+      expect(axes).toContain('if (u_maskBox.z > 0.0 && u_maskBox.w > 0.0)')
+      expect(axes).toContain('return vec2(1.0);')
+
+      // All three users go through it, and none of them re-derives `k` for itself.
+      for (const fn of ['float kuiHoverFalloff()', 'vec2 kuiRotateScreen(', 'vec2 kuiStirPoint(']) {
+        const at = GRADIENT_FS.indexOf(fn)
+        expect(at, fn).toBeGreaterThan(-1)
+        const body = GRADIENT_FS.slice(at, GRADIENT_FS.indexOf('\n}', at))
+        expect(body, fn).toContain('kuiAspectAxes()')
+        expect(body, fn).not.toContain('u_maskBox')
+      }
+
+      // Both halves of the vortex — the turn AND the outward push — are inside the correction. A
+      // round falloff driving an elliptical gesture is the state this replaced.
+      const stirAt = GRADIENT_FS.indexOf('vec2 kuiStirPoint(')
+      const stir = GRADIENT_FS.slice(stirAt, GRADIENT_FS.indexOf('\n}', stirAt))
+      expect(stir).toContain('vec2 rel = (pt - centre) * s;')
+      expect(stir).toContain('kuiRotate(rel, 1.6 * fall) + rel / (length(rel) + 1e-4)')
+      expect(stir).toContain('return centre + turned / s;')
+
+      /*
+       * And the one deliberate exception. `warp` is shipped and in use, so correcting its domain
+       * displacement would restyle live pages — the asymmetry is a decision, not an oversight, and
+       * it is asserted here so that "finishing the job" has to argue with a failing test first.
+       */
+      const main = gradientMain()
+      const warpAt = main.indexOf('if (u_warp > 0.0)')
+      const warp = main.slice(warpAt, main.indexOf('\n  }', warpAt))
+      expect(warp).toContain('q += vec2(wx, wy) * u_warp;')
+      expect(warp).not.toContain('kuiAspectAxes')
+      // The reason has to be readable where a reader hits it, not only in a commit message.
+      expect(main.slice(0, warpAt)).toContain('orientation and the pointer vortex are screen-true')
     })
 
     it('leaves the finished-colour expression in its original order, so an unset backdrop is bit-identical', () => {

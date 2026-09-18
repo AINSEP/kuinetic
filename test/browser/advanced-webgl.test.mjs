@@ -1945,6 +1945,47 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
       return px
     }
 
+    /*
+     * The largest odd square of device pixels centred on the element's centre that fits inside it
+     * with room to spare — the shape a *rotation* has to be read in.
+     *
+     * \`block\` reads a rectangle, which is the right shape for "did the picture change" and the
+     * wrong one for "did it turn": a quarter turn of a 96x60 rectangle is a 60x96 rectangle and
+     * there is nothing left to compare it to. A centred square turns onto itself, and with an odd
+     * side the centre is one exact pixel, so the remap below is integer indexing with no
+     * interpolation error for a real defect to hide in.
+     */
+    const squareRadius = (el) => {
+      const r = el.getBoundingClientRect()
+      return Math.floor(Math.min(r.width, r.height) * dpr * 0.35)
+    }
+    const square = (el, rad) => {
+      const r = el.getBoundingClientRect()
+      const cx = Math.round((r.left + r.width / 2) * dpr)
+      const cy = Math.round(canvas.height - (r.top + r.height / 2) * dpr)
+      const n = 2 * rad + 1
+      const px = new Uint8Array(n * n * 4)
+      gl.readPixels(cx - rad, cy - rad, n, n, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      return px
+    }
+
+    /** Turn a centred odd square a quarter turn about its middle pixel. \`sign\` picks which way. */
+    const rot90 = (px, sign) => {
+      const n = Math.round(Math.sqrt(px.length / 4))
+      const c = (n - 1) / 2
+      const out = new Uint8Array(px.length)
+      for (let y = 0; y < n; y++) {
+        for (let x = 0; x < n; x++) {
+          const sx = c + sign * (y - c)
+          const sy = c - sign * (x - c)
+          const si = (sy * n + sx) * 4
+          const di = (y * n + x) * 4
+          out[di] = px[si]; out[di + 1] = px[si + 1]; out[di + 2] = px[si + 2]; out[di + 3] = px[si + 3]
+        }
+      }
+      return out
+    }
+
     const dist = (a, b) => {
       if (a.length !== b.length) return NaN
       let n = 0
@@ -1975,7 +2016,7 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
     }
 
     /** Activate one instance on one element, read it on a single frame, tear it down. */
-    const read = async (id, extra, mouse, probes) => {
+    const read = async (id, extra, mouse, probes, wantSquare) => {
       const el = document.getElementById(id)
       if (mouse) point(el, mouse[0], mouse[1])
       const inst = prepareShaders(el, createEffectParams({ mode: 'gradient', speed: 0, seed: 3, scale: 3, strength: 2, ...extra }))
@@ -1983,6 +2024,7 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
       await settle()
       const out = await new Promise((resolve) => requestAnimationFrame(() => {
         const o = { block: block(el) }
+        if (wantSquare) o.square = square(el, squareRadius(el))
         for (const [name, fx, fy] of (probes || [])) o[name] = patch(el, fx, fy)
         resolve(o)
       }))
@@ -2104,6 +2146,57 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
       // and not being read as a bare number.
       turnMatchesDeg: same(ang90.block, angTurn.block),
       evolveIsDefaultExact: same(motUnset.block, motEvolve.block),
+    }
+
+    /*
+     * ---- angle turns RIGIDLY, on a box that is not square ---------------------------------
+     *
+     * The check above says \`90deg\` is a different picture from \`0deg\`. It cannot say whether it
+     * is the *right* different picture, and for a year it was not: the rotation was applied to
+     * \`(v_uv - 0.5)\`, a per-axis-normalised coordinate, so on a non-square box the field turned
+     * **and sheared**. On this 160x100 box an authored \`angle: 45deg\` actually travelled at 32
+     * degrees. A regression test on a square box could never have caught it — at 1:1 the shear is
+     * the identity and the broken maths and the correct maths agree exactly.
+     *
+     * What makes it measurable: writing \`s\` for a screen offset from the box's centre and
+     * \`A = diag(k, 1/k)\`, \`A · diag(W, H)⁻¹\` is \`(1 / sqrt(W*H)) · I\`, so the corrected field is
+     *
+     *     picture_theta(s) = f( (scale / sqrt(W*H)) · A⁻¹ · R(-theta) · s )
+     *
+     * and therefore **picture_theta(s) == picture_0(R(-theta) · s)** for a box of any shape: a
+     * rigid turn of the same picture about the same centre. At theta = 90deg that remap is exact
+     * integer pixel indexing, (dx, dy) -> (dy, -dx), so this compares device pixels with no
+     * resampling at all.
+     *
+     * Under the old maths it does not hold and cannot be made to: picture_90 reads the field at
+     * \`(sy/H, -sx/W)\` where the remapped picture_0 reads it at \`(sy/W, -sx/H)\` — the two axes
+     * scaled apart by the aspect ratio, which on 8:5 is a different crop of the noise and scores
+     * like an unrelated picture.
+     *
+     * The bar is a ratio rather than an absolute, because the absolute depends on the seed: the
+     * remapped distance must be a small fraction of the un-remapped one. Both signs of the quarter
+     * turn are tried, so the check does not rest on which way round GL's bottom-up readback puts
+     * y — the wrong sign is the 270-degree turn and is wrong under either maths.
+     */
+    const sqUnrot = await read('hv', { hover: 'none', angle: '0deg' }, [0.5, 0.5], [], true)
+    const sq90 = await read('hv', { hover: 'none', angle: '90deg' }, [0.5, 0.5], [], true)
+    // The control, and the whole point of it: the same comparison on an 80x80 box passes under
+    // BOTH the old maths and the new. It proves the remap and the probe geometry, not the fix.
+    const sqSqUnrot = await read('m-a', { hover: 'none', angle: '0deg' }, [0.5, 0.5], [], true)
+    const sqSq90 = await read('m-a', { hover: 'none', angle: '90deg' }, [0.5, 0.5], [], true)
+    const rigidity = (zero, turned) => Math.min(
+      dist(turned.square, rot90(zero.square, 1)),
+      dist(turned.square, rot90(zero.square, -1)),
+    )
+    out.rigid = {
+      nonSquare: rigidity(sqUnrot, sq90),
+      // The scale the number above is small *relative to*: what 90deg costs when it is not
+      // un-turned first. If angle were silently ignored this would be 0 and the ratio bar would
+      // fail, so the check cannot be passed by doing nothing.
+      nonSquareTurned: dist(sq90.square, sqUnrot.square),
+      square: rigidity(sqSqUnrot, sqSq90),
+      squareTurned: dist(sqSq90.square, sqSqUnrot.square),
+      px: sqUnrot.square.length / 4,
     }
 
     // ---- motion, which needs a clock, so: several boxes read on ONE frame ------------------
@@ -2303,6 +2396,35 @@ async function runGenerativeHover({ browser, check, label, viewport, deviceScale
     at('motion: evolve is the shipped behaviour under a name — the same bytes as an unset motion'),
     an.evolveIsDefaultExact,
     'byte-identical',
+  )
+
+  // ---- angle turns rigidly on a NON-SQUARE box (the shear regression) --------------------------
+  const rg = readings.rigid
+  /*
+   * The bar is one fifth, and the number is measured rather than chosen. Swept over 40 noise seeds
+   * off-GPU (both coordinate chains reimplemented against a stand-in fbm), the ratio comes out:
+   *
+   *     old maths, 8:5 box            0.306 .. 0.851   <- the bug
+   *     corrected maths, 8:5 box      0.000
+   *     corrected, centre off by 0.5px  <= 0.089       <- the worst rounding can cost this probe
+   *
+   * **A bar of one third would have sat inside the old maths' own floor of 0.306**, so a `/3` test
+   * could have passed against the very defect it exists for. One fifth clears 0.089 from below and
+   * 0.306 from above. That is the whole reason the constant is 5 and not 3 — do not "simplify" it
+   * back without re-running that sweep. Every other knob is at its zero default here, so nothing
+   * per-pixel and rotation-hostile (`grain`, `bands`, `chromatic`, `warp`) is in the picture.
+   */
+  check(
+    at('angle: HARNESS CONTROL — the quarter-turn remap lines up on a square 80x80 box'),
+    rg.square < rg.squareTurned / 5,
+    `remapped=${n(rg.square)} vs turned-but-not-remapped=${n(rg.squareTurned)}`
+      + ' (this passes under the old maths too — it proves the probe, not the fix)',
+  )
+  check(
+    at('angle: turns RIGIDLY on a 160x100 box — 90deg is 0deg rotated, not 0deg rotated and sheared'),
+    rg.nonSquare < rg.nonSquareTurned / 5,
+    `${rg.px} px read; remapped=${n(rg.nonSquare)} vs turned-but-not-remapped=${n(rg.nonSquareTurned)}`
+      + ' (a ratio near 1 is the per-axis-normalised rotation that made angle:45deg travel at 32deg)',
   )
 
   // ---- motion ---------------------------------------------------------------------------------

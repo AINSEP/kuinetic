@@ -579,30 +579,70 @@ vec2 kuiRotate(vec2 v, float a) {
 }
 
 /**
+ * The pair of factors that carry a centred UV offset into a space that is isotropic **on screen**,
+ * and back out again by dividing.
+ *
+ * \`v_uv\` is normalised per axis, so one unit of \`v_uv.x\` is the box's whole width and one unit of
+ * \`v_uv.y\` is its whole height — two different numbers of screen pixels as soon as the box is not
+ * square. Anything round or rigid has to leave that space first. Scaling by \`(k, 1/k)\` for
+ * \`k = sqrt(halfWidth / halfHeight)\` puts both axes in units of \`sqrt(width * height)\`: a circle
+ * stays a circle, a rotation stays a rotation, and the unit tracks the box's overall size rather
+ * than one of its two dimensions. On a square box the pair is exactly \`(1, 1)\` and every user of
+ * it degenerates to the plain UV arithmetic it had before.
+ *
+ * It is a *ratio* of the two half-extents, so it is DPR-invariant — device pixel ratio scales
+ * \`u_maskBox.z\` and \`u_maskBox.w\` together and cancels.
+ *
+ * A zero half-extent is \`shapeMask()\`'s "no box measured" signal and is read the same way here:
+ * fall back to \`(1, 1)\` rather than divide by it.
+ */
+vec2 kuiAspectAxes() {
+  if (u_maskBox.z > 0.0 && u_maskBox.w > 0.0) {
+    float k = sqrt(u_maskBox.z / u_maskBox.w);
+    return vec2(k, 1.0 / k);
+  }
+  return vec2(1.0);
+}
+
+/**
+ * Turn a centred UV offset by \`a\`, rigidly **on screen** rather than in the field's own stretched
+ * space.
+ *
+ * \`A^-1 · R(a) · A\`, with \`A = diag(kuiAspectAxes())\`: leave the per-axis-normalised space, turn
+ * there, come back. Rotating without the conjugation turns *and shears* — on a 160x100 box an
+ * authored \`angle: 45deg\` actually travels at 32 degrees, an error that grows with how far from
+ * square the box is. \`angle\` is documented as \`transform: rotate()\`'s convention, and this is what
+ * makes that true of a wide box and not only of a square one.
+ *
+ * **Not bit-identical at \`a == 0\`**, and that matters: \`A^-1 · I · A\` is \`diag(k * (1/k), (1/k) * k)\`,
+ * which in IEEE 754 is about an ulp away from the identity per axis rather than exactly it. Every
+ * caller must therefore keep its existing exact-zero guard — the defaults are unchanged because
+ * nothing here executes at them, not because this collapses.
+ *
+ * \`scale\` is a scalar and commutes with all three matrices, so a zoomed offset can be passed
+ * straight in: \`A^-1 R A (zoom * d)\` is \`zoom * (A^-1 R A d)\`.
+ */
+vec2 kuiRotateScreen(vec2 v, float a) {
+  vec2 s = kuiAspectAxes();
+  return kuiRotate(v * s, a) / s;
+}
+
+/**
  * How strongly the pointer reaches this fragment: 1 under it, falling to nothing at the edge of a
  * **round** pool.
  *
  * Round is the whole difficulty. \`v_uv\` and \`u_mouse\` are both normalised per axis, so the
  * obvious \`distance(v_uv, u_mouse)\` draws an *ellipse* as soon as the box is not square — and the
  * boxes this mode is documented for are full-bleed bands, card faces and footer strips, i.e.
- * precisely the wide ones. \`u_maskBox.zw\` is the box's half-extents in device pixels, already
- * uploaded for the corner mask, so the correction is free: scaling the offset by
- * \`(sqrt(a), 1/sqrt(a))\` for \`a = halfWidth / halfHeight\` puts both axes in units of
- * \`sqrt(width * height)\`. The pool is then a circle on screen whose size tracks the box's overall
- * scale rather than one of its two dimensions, and on a square box the correction is exactly 1 and
- * this degenerates to the plain UV distance \`displace\` already uses.
- *
- * A zero half-extent is \`shapeMask()\`'s "no box measured" signal and is read the same way here:
- * fall back to raw UV rather than divide by it.
+ * precisely the wide ones. \`kuiAspectAxes()\` is the correction, and measuring the offset there
+ * makes the pool a circle on screen whose size tracks the box's overall scale rather than one of
+ * its two dimensions. On a square box the pair is exactly \`(1, 1)\` and this degenerates to the
+ * plain UV distance \`displace\` already uses.
  *
  * Gaussian rather than \`smoothstep\`, because a pool of light has no edge to see.
  */
 float kuiHoverFalloff() {
-  vec2 d = v_uv - u_mouse;
-  if (u_maskBox.z > 0.0 && u_maskBox.w > 0.0) {
-    float a = sqrt(u_maskBox.z / u_maskBox.w);
-    d *= vec2(a, 1.0 / a);
-  }
+  vec2 d = (v_uv - u_mouse) * kuiAspectAxes();
   return exp(-dot(d, d) * 6.0);
 }
 
@@ -614,15 +654,42 @@ float kuiHoverFalloff() {
  * what lets \`stir\` swirl the field about a centre the cursor is actually sitting on, at any
  * \`angle\`, mid-\`drift\`, mid-\`swirl\`.
  *
+ * The turn is \`kuiRotateScreen\`, so it is rigid **on screen** on a box of any shape: \`angle: 45deg\`
+ * points at 45 degrees on a 160x100 band, and \`motion: drift\` travels along exactly the axis the
+ * author named instead of a sheared one.
+ *
  * Inert at the defaults by construction: \`orient\` of zero skips the rotation entirely and
  * \`travel\` of zero subtracts an exact zero, so \`motion: evolve\` at \`angle: 0deg\` computes the
- * same \`(v_uv - 0.5) * scale\` this program has always computed, bit for bit.
+ * same \`(v_uv - 0.5) * scale\` this program has always computed, bit for bit. **The guard is the
+ * whole of that promise** — \`kuiRotateScreen\` does not collapse to the identity at zero, it only
+ * gets within an ulp, so deleting the guard because "a rotation is cheap" would silently move the
+ * last bit of every generative pixel already on the web.
  */
 vec2 kuiFieldPoint(vec2 uv, float zoom, float orient, float travel) {
   vec2 v = (uv - 0.5) * zoom;
-  if (orient != 0.0) v = kuiRotate(v, -orient);
+  if (orient != 0.0) v = kuiRotateScreen(v, -orient);
   v.x -= travel;
   return v;
+}
+
+/**
+ * \`hover: stir\` — one vortex of the sample point about the pointer.
+ *
+ * A turn that dies away from the cursor, plus a push of the *sample point* outward, which is the
+ * field spiralling inward and is the whole difference between a rotating disc and a stir.
+ * \`rel / (length(rel) + eps)\` rather than \`normalize\`, so the push fades to nothing at the centre
+ * instead of kicking the one pixel under the cursor in whatever direction the epsilon points.
+ *
+ * Both halves run inside \`kuiAspectAxes()\`, for the same reason \`kuiHoverFalloff\` does: the
+ * falloff that drives this is already a circle on screen, so a vortex measured in raw UV would be
+ * a round pool turning an elliptical gesture — two different ideas of "the same distance from the
+ * cursor" in one effect.
+ */
+vec2 kuiStirPoint(vec2 pt, vec2 centre, float zoom, float fall) {
+  vec2 s = kuiAspectAxes();
+  vec2 rel = (pt - centre) * s;
+  vec2 turned = kuiRotate(rel, 1.6 * fall) + rel / (length(rel) + 1e-4) * (0.10 * zoom * fall);
+  return centre + turned / s;
 }
 
 /**
@@ -717,6 +784,16 @@ void main() {
 
   // Domain warp: a second field displaces the sample point of the first. This is the whole
   // difference between concentric fbm contours and something that reads as liquid.
+  //
+  // **This displacement is deliberately NOT aspect-corrected, and it is the one thing here that
+  // is not.** \`vec2(wx, wy)\` is isotropic in the field's own normalised space, which means it is
+  // anisotropic on screen — the same flaw \`kuiRotateScreen\` exists to fix for \`angle\`, \`motion\`
+  // and the \`stir\` vortex. It is left alone because \`warp\` is *shipped and in use*: multiplying
+  // it through \`kuiAspectAxes()\` would restyle every live page that authored one, which is a
+  // price a correctness argument does not get to charge. The rule the rest of this program follows
+  // and this line does not: **orientation and the pointer vortex are screen-true; the domain warp
+  // is field-true.** If you are here to "finish the job", that is a behaviour change to real
+  // sites and it needs the owner, not a tidy-up commit.
   vec2 q = p;
   if (u_warp > 0.0) {
     float wf = u_frequency * 0.1;
@@ -731,19 +808,15 @@ void main() {
   // already there, not re-warping the field before it exists. It also means \`stir\` works at the
   // library defaults, where \`warp\` is 0 and there is no domain warp to ride on.
   //
-  // A vortex, which is one gesture and not two: a turn that dies away from the cursor, plus a push
-  // of the *sample point* outward — which is the field spiralling inward, and is the whole
-  // difference between a rotating disc and a stir. \`rel / (length(rel) + eps)\` rather than
-  // \`normalize\`, so the push fades to nothing at the centre instead of kicking the one pixel under
-  // the cursor in whatever direction the epsilon points.
+  // A vortex, which is one gesture and not two — see \`kuiStirPoint\`, which also explains why both
+  // halves of it are measured in the same screen-isotropic space as the falloff that drives them.
   //
   // On \`mode: logo\` this cannot touch the mark's edges: \`glyphMask()\` samples \`u_image\` at the
   // undistorted \`v_uv\` and multiplies the finished colour, so stirring \`q\` swirls the fill and
   // leaves the stencil exactly where it was.
   if ((u_hover & KUI_HOVER_STIR) != 0) {
     vec2 pm = kuiFieldPoint(u_mouse, zoom, orient, travel);
-    vec2 rel = q - pm;
-    q = pm + kuiRotate(rel, 1.6 * hoverFall) + rel / (length(rel) + 1e-4) * (0.10 * zoom * hoverFall);
+    q = kuiStirPoint(q, pm, zoom, hoverFall);
   }
 
   // Audio and progress scale the field's *amplitude*, leaving its shape and rate alone — so a
