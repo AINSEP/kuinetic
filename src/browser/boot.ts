@@ -198,7 +198,8 @@ function installGuard(runtime: Runtime, core: CoreNamespace, globalName?: string
  * no-op. All they get is one line telling them the call is now redundant.
  *
  * Only a call arriving *after* the document has been scanned is a genuine conflict, and only then
- * does this hand back the existing animator (for an option-free call, whose intent is unambiguous)
+ * does this hand back the existing animator — for a call that asks for nothing, or for exactly the
+ * `{ observe: true }` the boot already built, both of which are unambiguously the same request —
  * or build a real second one and say plainly that two are now live.
  */
 function guarded(
@@ -219,7 +220,13 @@ function guarded(
   }
 
   const shared = runtime.animator
-  const wantsShared = !options || Object.keys(options).every((key) => key === 'observe')
+  // Values, not just key names. The boot built its animator with exactly `{ observe: true }`, so
+  // that is the one option a call can name and still be asking for the same thing. `observe`
+  // defaults to *false* (`shouldObserve` in `src/core/animator.ts`), which makes an explicit
+  // `{ observe: false }` a request for the opposite of what the shared animator is — handing that
+  // caller a `MutationObserver`-backed animator would be answering a different question.
+  const wantsShared =
+    !options || Object.entries(options).every(([key, value]) => key === 'observe' && value === true)
   if (shared && wantsShared) {
     warnManualCall(runtime, 'you have been handed the one it already made, so this call is safe to delete')
     return shared
