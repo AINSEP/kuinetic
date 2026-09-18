@@ -80,6 +80,9 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(res?.primitive.id).toBe('scene-step')
       // The parent's pair, because `updateElement` writes `opacity` and the `transform` shorthand.
       expect(res?.primitive.channels).toEqual(['opacity', 'skew'])
+      // Declaring `from` as a bounded `number` parameter is what lets `core/params.ts` reject
+      // `from:5` before `prepare` ever runs — see the `bound-checks the window` test below.
+      expect(SCENE_STEP_PARAMETERS.from.cssProperty).toBe('--kui-scene-step-from')
     })
 
     /*

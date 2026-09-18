@@ -431,9 +431,8 @@ export function prepareScene(
    * `keyword` schema's list is closed, so `core/params.ts` has already rejected a typo and
    * substituted `scroll` before this runs.
    */
-  const progressMode = (params.text ? params.text('progress', 'scroll') : 'scroll') === 'time'
-    ? 'time'
-    : 'scroll'
+  const authoredProgress = params.text ? params.text('progress', 'scroll') : 'scroll'
+  const progressMode = authoredProgress === 'time' ? 'time' : 'scroll'
   const duration = clamp(params.num ? params.num('duration', 1000) : 1000, 100, 60000)
 
   const htmlEl = el as HTMLElement
