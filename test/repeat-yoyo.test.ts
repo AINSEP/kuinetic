@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
+import { resolvePlayback } from '../src/core/repeat.js'
 import type { Timeline } from '../src/core/types.js'
 import { catalogRegistry } from './support/registry.js'
 
@@ -182,6 +183,18 @@ describe('repeat: — refusals the renderer forces', () => {
 
   it('says nothing when neither key was written', () => {
     expect(warnings('count-up')).toBe('')
+  })
+
+  it('refuses nothing when neither key was written, asked directly', () => {
+    // The one claim in this file that cannot be driven through parse + compile. `refusePlayback`
+    // in `compile.ts` guards the call with the same `repeat === undefined && yoyo === undefined`
+    // test, so the compiler never asks this question — but `resolvePlayback` is exported, and the
+    // very next line of it refuses every renderer that is not `css-keyframes` outright. Without
+    // this early return, an unrepeated JavaScript-rendered effect would be handed a refusal naming
+    // two keys nobody wrote, which is the test above failing one layer down.
+    expect(resolvePlayback({ name: 'count-up', renderer: 'javascript', timeline: 'time' })).toEqual(
+      { warnings: [] },
+    )
   })
 })
 

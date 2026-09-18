@@ -139,8 +139,24 @@ export function mergeHostFacts(
   const mergedChannels = [...channels]
   for (const { plan } of targets) {
     plan.reducedMotion = reducedMotion
-    plan.supportedActivations = activations ?? []
-    plan.supportedTimelines = timelines ?? []
+    /*
+     * Asserted rather than restructured, and the two obvious restructurings are worse.
+     *
+     * Both hold because this loop and the one above walk the same `targets`: one iteration of the
+     * first makes each local an array — {@link intersect} returns `[...supported]` when handed
+     * `undefined` — and an empty `targets` never reaches here, because this loop does not run
+     * either.
+     *
+     * Hoisting the declarations to `= []` is the restructuring that suggests itself, and it is a
+     * bug: `intersect` treats `undefined` ("nobody has contributed yet") and `[]` ("the composed
+     * primitives share nothing") as different states on purpose — see its own note for the shipped
+     * defect that collapsing them caused. Seeding from `targets[0]` instead needs an emptiness
+     * guard, which would duplicate one the caller already makes: `compile.ts:341` reads
+     * `targets[0]!.plan` two lines after calling this. So the invariant is the caller's, it is
+     * already spelled `!` there, and it is spelled `!` here for the same reason.
+     */
+    plan.supportedActivations = activations!
+    plan.supportedTimelines = timelines!
     plan.defaultActivation = defaultActivation
     plan.channels = mergedChannels
   }

@@ -89,6 +89,38 @@ describe('horizontal-scroll, managed by target:', () => {
     expect(reporter.messages.join(' ')).toContain('matched nothing')
   })
 
+  it('refuses the extra matches out loud when target: names more than one row, and drives the first', () => {
+    /*
+     * One window, one row. The host is the sticky, clipping, spacer-reserved window, and two rows
+     * inside it would each measure their own travel while sharing that one window — they would
+     * translate at different rates behind a single clip, which is not "all matches" behaviour, it
+     * is a plural selector quietly producing a bug. Before the warning, a too-broad selector simply
+     * *looked* like it had worked, because the first row moved.
+     */
+    const animator = build(
+      '<div data-kui="horizontal-scroll distance:400px travel:1000px target:.rail">' +
+        '<div class="rail" id="first"><i></i></div>' +
+        '<div class="rail" id="second"><i></i></div></div>',
+    )
+    const host = el()
+    animator.start()
+    stubRectWithSpacer(host, -200)
+    scheduler.emit(200)
+
+    const messages = reporter.messages.join(' ')
+    expect(messages).toContain('matched 2 elements')
+    expect(messages).toContain('only the first is used')
+    // Said, not silently obeyed and not silently dropped: the first row is still driven, so the
+    // page the author has is the page they see, with a diagnostic pointing at the selector.
+    const first = document.getElementById('first') as HTMLElement
+    const second = document.getElementById('second') as HTMLElement
+    expect(first.style.translate).not.toBe('')
+    // The second row is not this instance's to touch — laying it out too would give the clip two
+    // rows to hold at once.
+    expect(second.style.translate).toBe('')
+    expect(second.style.width).toBe('')
+  })
+
   it('still prepares cleanly on an element with no parent at all', () => {
     const registry = catalogRegistry()
     const resolved = registry.resolve('horizontal-scroll')!

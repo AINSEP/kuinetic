@@ -1,11 +1,3 @@
-/* eslint-disable max-lines --
- * One concern, one test file. `activation.ts` is the vocabulary, the binder and the diagnostics in
- * one module, and these suites were split across three files only because they were written in
- * three sittings. Merging them puts this file over the 400-line cap, which is a production-code
- * readability signal — a long source file hides its own structure — whereas a test file is read
- * one `describe` at a time and gains nothing from being cut at an arbitrary line. Same argument
- * the `max-lines-per-function` override in `eslint.config.js` already makes for test bodies.
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   authorisingActivations,
@@ -819,6 +811,23 @@ describe('an unreachable visibility threshold', () => {
 
     expect(activate).toHaveBeenCalledOnce()
     expect(reporter.messages).toEqual([])
+  })
+
+  it('says nothing when the entry carries no geometry to measure a ceiling from', () => {
+    // `rootBounds` is null whenever the root is a cross-origin iframe's viewport, and a box
+    // measures 0x0 whenever the element is `display: none` at the moment the entry is queued. In
+    // both cases the ratio's ceiling is simply unknown — and "unknown" must not be spent as
+    // "unreachable", because this diagnostic accuses the author's own `threshold:` of being
+    // impossible and cannot be unsaid once printed.
+    const nullRoot = harness('50%', { box: oversized.box, root: null as unknown as Rect })
+    nullRoot.send(true, 0.01)
+    nullRoot.send(false, 0)
+    expect(nullRoot.reporter.messages).toEqual([])
+
+    const collapsed = harness('50%', { box: { width: 0, height: 0 }, root: oversized.root })
+    collapsed.send(true, 0.01)
+    collapsed.send(false, 0)
+    expect(collapsed.reporter.messages).toEqual([])
   })
 
   it('stays silent with no reporter to tell', () => {

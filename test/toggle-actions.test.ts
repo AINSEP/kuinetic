@@ -204,6 +204,16 @@ describe('warnAboutToggleActions', () => {
     expect(problems.join()).toContain('rendered in JavaScript')
   })
 
+  it('reads the sentence as a plural when more than one JS effect is named', () => {
+    // One message for the whole list rather than one per effect, so the grammar has to agree with
+    // the list it was handed. "split-flap count-up is rendered ... does nothing for it" names two
+    // effects and then talks about one of them.
+    const problems = warnAboutToggleActions({ ...base, jsEffectNames: ['split-flap', 'count-up'] })
+    expect(problems.join()).toContain('"split-flap count-up" are rendered in JavaScript')
+    expect(problems.join()).toContain('expose none')
+    expect(problems.join()).toContain('does nothing for them')
+  })
+
   it('names a scroll-driven element, whose playhead belongs to the scroller', () => {
     const problems = warnAboutToggleActions({ ...base, progressDriven: true })
     expect(problems.join()).toContain('driven by scroll position')

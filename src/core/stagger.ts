@@ -313,6 +313,18 @@ function randomRanks(count: number): number[] {
   // comparator that returns 0 for them would leave their relative order to the engine's sort — the
   // one place a "deterministic" shuffle could still differ between browsers. With the tie-break the
   // comparator is a total order and the result is fixed no matter how the sort is implemented.
+  //
+  // The `|| a - b` arm is the one branch in this file with no test behind it, and the marker below
+  // says *unprovable*, not *dead*. It is genuinely reachable — `scatterKey` is a 32-bit hash, so a
+  // large enough `count` collides — but no test can discriminate it **on V8**, which is the only
+  // engine the suite runs on: `Array#sort` has been required to be stable since ES2019, so with two
+  // equal keys V8 already preserves the original relative order, which is exactly what `a - b`
+  // produces. Delete the tie-break and every assertion still passes; write a test for it and that
+  // test survives its own mutation. What it guards is an engine whose sort is *not* stable, and the
+  // suite has no such engine to run against. Covering it would mean asserting an answer the broken
+  // code also gives, so it is marked rather than faked. If this ever gains a non-V8 target, delete
+  // the marker and write the real test.
+  /* v8 ignore next */
   order.sort((a, b) => scatterKey(a, count) - scatterKey(b, count) || a - b)
 
   const ranks = new Array<number>(count)
@@ -380,7 +392,11 @@ export function indexStaggerGroup(group: Element, reporter?: Reporter): void {
   const ranks = staggerRanks(children.length, config.from, warnings, resolveLayout(config, children, warnings))
   let maxRank = 0
   for (const [index, child] of children.entries()) {
-    const rank = ranks[index] ?? 0
+    // Asserted, not defaulted: `ranks` was built from `children.length` and every return path of
+    // {@link staggerRanks} yields exactly that many defined numbers, so an index drawn from the
+    // same array is always in range. A `?? 0` here would be a `noUncheckedIndexedAccess` artifact
+    // wearing the costume of a fallback — and a silent 0 is a *wrong* rank, not a safe one.
+    const rank = ranks[index]!
     ledgers.style(child).set('--kui-i', String(rank))
     // Recorded on every child, not only ones a removal will ever touch: cheaper to write here,
     // once, than to ask "could this ever need re-ranking" up front. See `GROUP_OF_CHILD`.
@@ -697,7 +713,9 @@ function rankBuckets(
     const layout = resolveLayout(config, siblings, warnings)
     const ranks = staggerRanks(siblings.length, config.from, warnings, layout)
     for (const [index, match] of siblings.entries()) {
-      const rank = ranks[index] ?? 0
+      // Same invariant as `indexStaggerGroup`'s write above: `ranks` is `siblings.length` long by
+      // construction, so an index from `siblings.entries()` cannot miss.
+      const rank = ranks[index]!
       ledgers.style(match).set('--kui-i', String(rank))
       if (rank > maxRank) maxRank = rank
     }

@@ -466,4 +466,15 @@ describe('parseActivationAttribute', () => {
     expect(result.activation).toBeUndefined()
     expect(result.warnings.join()).toContain('activation option')
   })
+
+  it('names a second from: rather than letting either one win silently', () => {
+    // Two sources is not a thing the binder can honour — `resolveEventSources` takes one selector —
+    // so quietly keeping the first (or the last) would bind the listener to a form the author did
+    // not write and give no hint which. The whole attribute is refused, like every other malformed
+    // token here.
+    const result = parseActivationAttribute('submit from:"#signup form" from:"#newsletter form"')
+    expect(result.activation).toBeUndefined()
+    expect(result.from).toBeUndefined()
+    expect(result.warnings.join()).toContain('duplicate activation option "from"')
+  })
 })

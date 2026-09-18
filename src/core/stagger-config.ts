@@ -246,7 +246,11 @@ function parseStaggerTokens(
   // this attribute has always accepted.
   for (const token of splitTopLevel(value, ' ', warnings)) {
     const pair = PAIR_RE.exec(token)
-    if (pair) applyStaggerPair(pair[1] ?? '', pair[2] ?? '', { config, seen, warnings })
+    // Both captures are asserted rather than defaulted: {@link PAIR_RE}'s two groups are
+    // unconditional and neither is optional, so on a successful `exec` both participated —
+    // `([a-zA-Z-]+)` matched at least one character and `(.*)` matched at worst the empty string.
+    // The `?? ''` these replace were `noUncheckedIndexedAccess` artifacts, not real fallbacks.
+    if (pair) applyStaggerPair(pair[1]!, pair[2]!, { config, seen, warnings })
     else config.step = keepFirstStep(config.step, token, warnings)
   }
   return { config, sawFrom: seen.from }

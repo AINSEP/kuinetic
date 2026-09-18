@@ -167,6 +167,49 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     expect(el.innerHTML).toBe(authored)
   })
 
+  it('gives the author their children back when the setup throws after the layers are installed', () => {
+    /*
+     * The other half of the case above, and the one the `withCountLayers` wrapper exists for.
+     * There the formatter throws *before* anything is taken, which is `prepareCount` validating
+     * early. This is the backstop underneath that: a throw from anywhere inside `populate`, once
+     * the two accessible layers are already in the DOM.
+     *
+     * It cannot be left to `destroy()`. `deferredInstance` (instances.ts) registers a primitive's
+     * `cleanup` only when the whole setup returns *normally*, so a throw partway leaves `destroy()`
+     * with nothing to call — the restore happens on the way out of the throw or it never happens,
+     * and the element is left carrying two permanently empty spans where the author's markup was.
+     *
+     * A host with no timers is the injection, because the tween's last act is to arm one. Nothing
+     * in `populate` throws today — the formatter, the one thing that could, is constructed before
+     * the call — which is exactly why this guarantee needs a test that does not depend on that
+     * staying true.
+     */
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('div')
+    el.innerHTML = '<b>123</b>'
+    const authored = el.innerHTML
+    const timerless = {
+      win: {},
+      doc: window.document,
+      reducedMotion: false,
+    } as unknown as PrepareContext
+
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '0', to: '10' }),
+      timerless,
+    )
+
+    expect(() => instance.activate()).toThrow()
+    // Byte for byte, and with neither layer stranded behind.
+    expect(el.innerHTML).toBe(authored)
+    expect(el.querySelector('.kui-count-decorative')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+
+    expect(() => instance.destroy()).not.toThrow()
+    expect(el.innerHTML).toBe(authored)
+  })
+
   it('jumps straight to the final value on the first tick when duration is zero', () => {
     const resolved = registry().resolve('count-up')!
     const el = document.createElement('span')

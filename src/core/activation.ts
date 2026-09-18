@@ -553,7 +553,10 @@ function deliverCrossing(
   binding.entered = true
   binding.outside = undefined
   binding.onCross?.(crossing)
-  if (binding.oneShot) binding.release()
+  // No `oneShot` release here, unlike `deliverEntry`'s ordinary `enter`. Nothing reaches this
+  // function unless `binding.onCross` is set, and `bind()` sets `onCross` and `oneShot: false` from
+  // the same `request.cross` in one object literal — a four-way binding is never one-shot, by
+  // construction rather than by convention. A guard here would be permanently false.
 }
 
 /**

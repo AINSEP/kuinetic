@@ -86,6 +86,56 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
     })
 
     /*
+     * The other half of registering the name, and the half most likely to be "fixed" by a later
+     * reader who notices the primitive does nothing.
+     *
+     * It does nothing **on purpose**. The parent `SceneController` is what writes `opacity` and the
+     * `transform` shorthand onto every step, every frame, from `updateElement` — the same two
+     * channels this primitive declares. An instance of its own that animated anything would be a
+     * *second* writer on those properties, racing the scene that already owns them. Registration
+     * bought one thing and one thing only: the name resolves, so the step stops compiling as an
+     * unknown effect and warning once per step.
+     *
+     * So this asserts the absence, and asserts it through the whole lifecycle rather than by
+     * reading the source: a step carrying a full window and a full transition goes through
+     * activate, finish and destroy, and its markup has to come back byte for byte.
+     */
+    it('prepares scene-step to an instance that never touches the step — the scene owns those writes', async () => {
+      const reg = new Registry()
+      registerScenes(reg)
+      const primitive = reg.resolve('scene-step')!.primitive
+
+      const step = document.createElement('div')
+      step.setAttribute('data-kui', 'scene-step from:0 to:1 opacity:0->1 y:40px->0px')
+      // An authored inline style, so "wrote nothing" is distinguishable from "wrote, then cleaned
+      // up by removing the attribute the author put there".
+      step.setAttribute('style', 'opacity: 0.3')
+      document.body.appendChild(step)
+      const authored = step.outerHTML
+
+      const inst = primitive.prepare!(
+        step,
+        {} as EffectParams,
+        createRealPrepareContext(step, { reducedMotion: false }),
+      )
+
+      // Not continuous: a continuous instance is enrolled in the frame loop, and this one has no
+      // frame of its own to render.
+      expect(inst.continuous).toBe(false)
+      inst.activate()
+      expect(step.outerHTML).toBe(authored)
+      inst.finish()
+      expect(step.outerHTML).toBe(authored)
+      // Already resolved, so `data-kui-state` never waits on a step that will not report.
+      await expect(inst.finished).resolves.toBeUndefined()
+      inst.destroy()
+      inst.destroy()
+      expect(step.outerHTML).toBe(authored)
+
+      step.remove()
+    })
+
+    /*
      * Registration alone was never the whole fix, and this is the half that would have caught the
      * trap: a `scene-step` that kept spelling its window `at:0..0.4` resolves as a primitive and
      * still warns, because `core/parse.ts`'s `applyLifted` claims `at:` unconditionally — before

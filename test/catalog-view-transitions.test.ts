@@ -373,6 +373,23 @@ describe('view-swap starts a same-document transition', () => {
     expect(panel.hasAttribute('data-open')).toBe(false)
   })
 
+  it('falls back to data-open when the attribute the author named is all whitespace', () => {
+    // A blank attribute name is not a name: `setAttribute('')` is an `InvalidCharacterError`, so
+    // taking the author's text literally here turns the first click into an exception swallowed by
+    // the listener and a control that silently does nothing. `attribute:'  '` reaches this point
+    // intact — the quote-aware tokenizer keeps the spaces — so the trim needs an answer, and the
+    // family default is the only one that leaves the button working.
+    stubApi(false)
+    const { control, panel } = swapPage()
+    run('view-swap', control, { attribute: '   ' })
+
+    control.click()
+    expect(panel.hasAttribute('data-open')).toBe(true)
+    expect(control.getAttribute('aria-expanded')).toBe('true')
+    control.click()
+    expect(panel.hasAttribute('data-open')).toBe(false)
+  })
+
   it('warns instead of installing a listener when there is nothing to swap', () => {
     stubApi(false)
     const control = mount('<button></button>')

@@ -108,6 +108,18 @@ describe('tween — values reaching CSS', () => {
     expect(withImpliedUnit('-0', 'length')).toBe('-0px')
   })
 
+  it('hands a malformed percentage straight back, rather than inventing a ratio for it', () => {
+    // The `%` branch strips the sign and asks `decimalNumber` to read the rest as a ratio. When the
+    // rest is not a number there is no ratio to write, and the answer has to be the author's own
+    // text: that is what lets `params.ts` refuse the key by name further down. Anything else —
+    // `''`, `'0'`, the stripped body — would put a value nobody wrote into `--kui-tween-*` and
+    // animate to it silently. `50%%` is the shape of a real typo; `%` is the degenerate end of it.
+    expect(withImpliedUnit('50%%', 'number')).toBe('50%%')
+    expect(withImpliedUnit('%', 'number')).toBe('%')
+    // And the authored path, which is what the pass-through buys: nothing reaches CSS.
+    expect(run('tween opacity:50%%').vars['--kui-tween-opacity']).toBeUndefined()
+  })
+
   it('adds the missing filter functions to the existing single filter track', () => {
     const compiled = run('tween contrast:150% hue-rotate:180 invert:25% sepia:1')
     expect(compiled.vars).toMatchObject({

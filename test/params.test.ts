@@ -423,6 +423,17 @@ describe('union parameter types', () => {
     it('names both halves of the union in the rejection', () => {
       expect(validate('red', alpha).reason).toBe('not a valid number or percentage')
     })
+
+    it('keeps a percentage the lexical shift refuses to expand, rather than dropping it', () => {
+      // `decimalNumber` gives up when the padded form would run past its 190-digit ceiling, and a
+      // hundred-digit percentage is over it. The conversion is a *tidying* step, not a validation
+      // step — the value is still a legal `number|percentage`, so the only honest answer is to pass
+      // it through as written and let CSS hold it. Returning `undefined` here instead would hand
+      // `isAcceptable` an empty string and reject a value the grammar accepts.
+      const huge = `1${'0'.repeat(99)}%`
+      expect(decimalNumber(huge.slice(0, -1), -2)).toBeUndefined()
+      expect(validate(huge, alpha)).toEqual({ value: huge, ok: true })
+    })
   })
 
   describe('length|percentage', () => {

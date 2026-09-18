@@ -125,6 +125,23 @@ describe('waapiEasingValue', () => {
     el.remove()
   })
 
+  it('degrades in a document with no view rather than throwing on the cascade read', () => {
+    // `document.implementation.createHTMLDocument()` — what `DOMParser.parseFromString` and a
+    // `<template>`'s content own — has a null `defaultView`: an inert tree with no
+    // `getComputedStyle` to ask. The inline definition is set here deliberately, so what is being
+    // shown is that the *view* is missing rather than the property: a token that would resolve in a
+    // live document still degrades to the caller's fallback, and does not throw reaching for a
+    // `getComputedStyle` that is not there.
+    const inert = document.implementation.createHTMLDocument()
+    expect(inert.defaultView).toBeNull()
+    const el = inert.createElement('div')
+    el.style.setProperty('--kui-ease-swift-out', 'cubic-bezier(0.11, 0.22, 0.33, 0.99)')
+    const warn = vi.fn()
+
+    expect(waapiEasingValue('swift-out', el, warn)).toBe('ease-out')
+    expect(warn).toHaveBeenCalledOnce()
+  })
+
   it('names an undefined keyword rather than passing a value that would throw', () => {
     const el = document.createElement('div')
     document.body.append(el)

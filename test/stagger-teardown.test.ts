@@ -64,6 +64,23 @@ describe('indexStaggerGroup — what an index can be undone back to', () => {
     }
   })
 
+  it('unwinds a group that *is* the root it was handed, not only ones beneath it', () => {
+    // `applyStagger` indexes the root itself when the root is a group — an `Animator` scoped to one
+    // list rather than to the document is the ordinary way that happens — so the teardown has to
+    // look in the same two places. Matching only descendants leaves every `--kui-i` on such a list
+    // behind after `destroy()`, along with the author's own overwritten value.
+    const group = ul(list('data-kui-stagger="90ms"'))
+
+    applyStagger(group)
+    expect(ranksOf(group)).toEqual(['0', '1', '2', '3', '4'])
+    expect(group.style.getPropertyValue('--kui-stagger')).toBe('90ms')
+
+    releaseStagger(group)
+    expect(ranksOf(group)).toEqual(['', '', '', '', ''])
+    expect(group.style.getPropertyValue('--kui-stagger')).toBe('')
+    expect(group.style.getPropertyValue('--kui-stagger-count')).toBe('')
+  })
+
   it('takes the group’s published properties off the host again', () => {
     const root = list('data-kui-stagger="90ms"')
     applyStagger(root)

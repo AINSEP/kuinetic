@@ -71,7 +71,18 @@ const hoverTiming: ParameterSchema = {
  * other curve makes a loop visibly stutter at the seam. They still declare `duration` (how long
  * one revolution takes) and now `delay`, so the honest report is "two of the three", not "none".
  */
-const LINEAR_HOVER: TimingContract = {
+/**
+ * A hover primitive's timing contract, with `honours` **required**.
+ *
+ * `TimingContract` leaves the field optional for a primitive that honours none of the three tokens.
+ * No hover primitive is one — every name in this family acts on at least `duration` — so requiring
+ * it here is what lets {@link hoverPrimitive} read it straight, with no fallback standing in for a
+ * case that cannot arise. A contract that genuinely omitted it would fail to compile rather than
+ * reach `honours.includes` as `undefined` at runtime, which is the answer a `?? []` would hide.
+ */
+type HoverTiming = TimingContract & { honours: readonly TimingToken[] }
+
+const LINEAR_HOVER: HoverTiming = {
   honours: ['duration', 'delay'],
   because:
     'it is a continuous rotation and interaction.css runs it linear, so a curve would visibly ' +
@@ -113,9 +124,9 @@ function hoverPrimitive(
   id: string,
   channels: string[],
   extraParams: ParameterSchema = {},
-  timing: TimingContract = { honours: ALL_TIMING_TOKENS, because: PINNED_REASON },
+  timing: HoverTiming = { honours: ALL_TIMING_TOKENS, because: PINNED_REASON },
 ): Primitive {
-  const honours = timing.honours ?? []
+  const honours = timing.honours
   return {
     id,
     renderer: 'javascript' as Renderer,

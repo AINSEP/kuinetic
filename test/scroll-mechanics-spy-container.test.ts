@@ -210,6 +210,39 @@ describe('scroll-spy, container form', () => {
     expect(reporter.messages.join()).toContain('"offset-top" has no effect without sections:')
   })
 
+  it('reaches a nav outside the container only when scope:page says to', () => {
+    // The container form scopes `target:` to `'self'` by default, and the comment at its
+    // `scopeParam` call gives the reason: the element is authored on the shared ancestor of the
+    // sections *and* the nav, so "inside myself" already reaches the links, and widening it by
+    // default would let one container's spy stamp another's nav. A page whose nav is a sibling of
+    // the sections container instead is the shape that needs the widening said out loud — and
+    // asking for it must actually change which elements are found, or `scope:` on this form is a
+    // parameter that validates and does nothing.
+    const outsideNav = (scope: string): string => `
+      <nav class="spy-nav"><a id="out-1" href="#s1">One</a></nav>
+      <div data-kui="scroll-spy sections:'.sec' target:'.spy-nav a'${scope}">
+        <section id="s1" class="sec"></section>
+      </div>
+    `
+
+    const scoped = build(outsideNav(' scope:page'))
+    stubRect(section('s1'), -50, 300)
+    scoped.start()
+    scheduler.emit(50)
+    expect(section('s1').getAttribute('data-kui-active')).toBe('true')
+    expect(link('out-1').getAttribute('data-kui-active')).toBe('true')
+
+    // The discriminator: the same markup without `scope:page` never finds the link at all, so the
+    // section still lights up and nothing in the nav does.
+    document.body.innerHTML = ''
+    const unscoped = build(outsideNav(''))
+    stubRect(section('s1'), -50, 300)
+    unscoped.start()
+    scheduler.emit(50)
+    expect(section('s1').getAttribute('data-kui-active')).toBe('true')
+    expect(link('out-1').hasAttribute('data-kui-active')).toBe(false)
+  })
+
   it('restores every section and link it touched on teardown', () => {
     const animator = build(THREE_SECTIONS)
     stubRect(section('s1'), -50, 300)

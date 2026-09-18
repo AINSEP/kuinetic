@@ -284,6 +284,48 @@ describe('step-progress', () => {
     expect(states()).toEqual([null, null, null])
   })
 
+  it('drops a click whose target is not an element without even looking at the DOM for it', () => {
+    /*
+     * The delegated listener sits on the host and sees every click inside it, so the first thing it
+     * has to answer is "is this target something I can walk up at all". `instanceof Element` is the
+     * wrong question — the document a primitive is handed need not be this realm's, and a
+     * cross-realm `instanceof` is false for a perfectly good element — so it duck-types `closest`
+     * instead. A text node has none.
+     *
+     * Asserting on `querySelectorAll` rather than only on the step index is deliberate: the match
+     * set is looked up *on the press* and never captured (that is what lets a deck's controls be
+     * rendered after setup), so without the early-out every stray click in the subtree costs one
+     * query per control group. Both halves are checked — nothing happens, and nothing was asked.
+     */
+    document.body.innerHTML = '<div id="bar">copy<button class="next">next</button></div>'
+    const el = document.getElementById('bar')!
+    const instance = STEP_PROGRESS_PRIMITIVE.prepare!(
+      el,
+      // `scope:self` so the lookup the guard skips is the host's own, which is directly spyable.
+      // The guard runs before the scope is consulted, so it is the same guard either way.
+      createParams({ steps: '3', next: '.next', scope: 'self' }),
+      fakeCtx(el),
+    )
+    instance.activate()
+    expect(el.getAttribute('data-kui-step')).toBe('0')
+
+    const copy = el.firstChild as Text
+    expect(copy.nodeType).toBe(3)
+    const queries = vi.spyOn(el, 'querySelectorAll')
+    expect(() => copy.dispatchEvent(new Event('click', { bubbles: true }))).not.toThrow()
+    expect(el.getAttribute('data-kui-step')).toBe('0')
+    expect(queries).not.toHaveBeenCalled()
+
+    // And the control the author did name still advances, so the guard is a filter rather than an
+    // off switch.
+    el.querySelector('.next')!.dispatchEvent(new Event('click', { bubbles: true }))
+    expect(queries).toHaveBeenCalled()
+    expect(el.getAttribute('data-kui-step')).toBe('1')
+
+    queries.mockRestore()
+    instance.destroy()
+  })
+
   it('marks a named target when the segments live outside the control', () => {
     document.body.innerHTML = '<button id="bar"></button><ol class="legend"><li></li><li></li></ol>'
     const el = document.getElementById('bar')!

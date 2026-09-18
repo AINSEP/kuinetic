@@ -108,11 +108,22 @@ function placeInGroups(nodes: Iterable<Element>): { order: Placed[]; sizes: Map<
  * and there it is what keeps a group's two published facts from contradicting each other: see
  * {@link createStepMarker}.
  *
+ * **No `size > 0` guard, and it is not missing.** The one call site takes `size` straight out of
+ * {@link placeInGroups}'s `sizes` map, whose values are `position + 1` on a 0-based `position` —
+ * so the smallest value that can arrive is 1 and the guard would be permanently true. That is a
+ * runtime invariant, not a type-level one: `sizes.get(parent)!` at the call site proves only that
+ * the value is *defined*, so the `>= 1` half was proved separately, by running the whole suite
+ * with `if (size === undefined || size < 1) throw` in its place and seeing nothing throw.
+ *
+ * The guard is worth removing rather than leaving as insurance because its false arm returned the
+ * *raw* `index` — the very number wrapping exists to replace — so it never failed loudly either.
+ *
+ * @param size - The group's own length, `>= 1`.
  * @complexity O(1) time and space.
  * @overallScore 100
  */
 function indexWithin(index: number, size: number): number {
-  return size > 0 ? ((index % size) + size) % size : index
+  return ((index % size) + size) % size
 }
 
 /**
@@ -152,7 +163,21 @@ export function createStepMarker(
       }
 
       for (const { node, parent, position } of order) {
-        const size = sizes.get(parent) ?? 0
+        /*
+         * Two separate invariants ride on this line, and `!` only carries the first of them.
+         *
+         * **Defined.** `placeInGroups` writes `sizes.set(parent, position + 1)` immediately before
+         * every `order.push({ node, parent, position })`, so a parent reached here is already a
+         * key. `Map#get`'s `| undefined` is the only reason a fallback was ever written.
+         *
+         * **At least 1.** The value stored is `position + 1`, and `position` is a 0-based index
+         * (`sizes.get(parent) ?? 0` at the top of that loop, so the first member of a group is 0).
+         * So the smallest number that can be here is 1. TypeScript cannot check that half, which
+         * is why it is written down: {@link indexWithin} below has no `size > 0` guard, and a 0
+         * arriving here would make it `((index % 0) + 0) % 0` — `NaN`, a silently wrong ring
+         * position rather than a crash. Measured, not assumed: see that function's note.
+         */
+        const size = sizes.get(parent)!
         /*
          * Both facts below are derived from this one number, and that is the point.
          *

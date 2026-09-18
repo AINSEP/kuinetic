@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
+import { bindCallback } from '../src/core/callback.js'
 import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { Capabilities } from '../src/core/capabilities.js'
 import { KUI_EVENT } from '../src/core/control.js'
@@ -174,6 +175,28 @@ describe('func: — a named global as the finish callback', () => {
     // functions that no page ever put there — `typeof` says 'function' and calling one would run
     // something nobody declared. The own-property check is what makes this a miss instead.
     expect(reporter.messages.join('\n')).toContain('func:valueOf')
+  })
+
+  it('falls back to the ambient global for an element whose document has no window', () => {
+    // The name is looked up on `el.ownerDocument.defaultView` rather than on the ambient global so
+    // that an animator driving a document inside an `<iframe>` finds the function *that* document's
+    // scripts defined. A document with no view at all — what
+    // `document.implementation.createHTMLDocument()` and `DOMParser.parseFromString` produce, and
+    // what a `<template>`'s content belongs to — has no scripts and no window to consult, so the
+    // only answer left is the ambient one. Without the fallback this is not a miss, it is a throw:
+    // `Object.hasOwn(undefined, name)` raises a TypeError out of an event listener.
+    const onReveal = vi.fn()
+    vi.stubGlobal('onReveal', onReveal)
+    const inert = document.implementation.createHTMLDocument()
+    expect(inert.defaultView).toBeNull()
+    const el = inert.createElement('div')
+    const reporter = collectingReporter()
+
+    bindCallback({ el, name: 'onReveal', reporter, signal: new AbortController().signal })
+    el.dispatchEvent(new Event(KUI_EVENT.finish))
+
+    expect(onReveal).toHaveBeenCalledOnce()
+    expect(reporter.messages).toEqual([])
   })
 
   it('refuses a global that is not callable rather than throwing on it', async () => {

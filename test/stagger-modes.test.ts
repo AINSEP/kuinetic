@@ -226,6 +226,20 @@ describe('cols: — ranking by distance through a grid', () => {
     expect(parse('fade-up cols:3 order:1/0').order).toBe('1/0')
   })
 
+  it('reads a numeric order: as a cell of the grid, not as an index along the list', () => {
+    // The one origin that keeps its DOM spelling and changes its meaning: `order:4` flat means
+    // "child four", and every rank is `|i - 4|` along a line. On a 3-wide grid the same token
+    // means the cell child four occupies — column 1, row 1 — and its neighbours rank by distance
+    // through the block, so child 1 (directly above it) ranks the same as child 3 (directly left).
+    const grid = group(6, '60ms cols:3 order:4')
+    indexStaggerGroup(grid)
+    expect(ranksOf(grid)).toEqual(['1.414', '1', '1.414', '1', '0', '1'])
+
+    const flat = group(6, '60ms order:4')
+    indexStaggerGroup(flat)
+    expect(ranksOf(flat)).toEqual(['4', '3', '2', '1', '0', '1'])
+  })
+
   it('turns edges inside out from center, so the block closes on its middle', () => {
     const ul = group(6, '60ms cols:3 order:edges')
     indexStaggerGroup(ul)
@@ -275,6 +289,20 @@ describe('cols:auto', () => {
     layOut(ul, 1)
     indexStaggerGroup(ul)
     expect(ranksOf(ul)).toEqual(['0', '1', '2', '3'])
+  })
+
+  it('calls a group of one a single column without asking layout about it', () => {
+    // A filtered grid down to its last card is the ordinary way this happens, and it reaches the
+    // measurement with exactly the same zero rects as the `display: none` case below — jsdom's,
+    // or a real browser's for an element not yet laid out. Falling through to that path would warn
+    // "could not measure this group" at a group with nothing to measure and one child that can
+    // only ever rank 0. One item is one column by arithmetic, not by measurement.
+    const reporter = collectingReporter()
+    const ul = group(1, '60ms cols:auto')
+    indexStaggerGroup(ul, reporter)
+
+    expect(reporter.messages).toEqual([])
+    expect(ranksOf(ul)).toEqual(['0'])
   })
 
   it('falls back to DOM order and says so when nothing has been laid out', () => {
@@ -359,5 +387,31 @@ describe('cols:/along: hoisted into data-kui', () => {
     // A typo in one attribute must not silently discard a working declaration in the other.
     const config = resolveStaggerConfig('60ms cols:2', 'fade-up cols:wide', [])
     expect(config?.cols).toBe(2)
+  })
+
+  it('give the axis the same treatment as the column count, not a quieter one', () => {
+    // `along:` is merged by the same function as `cols:` and has to behave the same way in both
+    // directions, because the two are authored together: a grid declared in one attribute and
+    // re-aimed in the other is one statement, and silently keeping either half would produce a
+    // wave running down a grid the author asked to run across it.
+    const overridden: string[] = []
+    expect(resolveStaggerConfig('60ms cols:3 along:y', 'fade-up along:x', overridden)?.along).toBe('x')
+    expect(overridden.join()).toContain('conflicting stagger axis')
+
+    const typoed: string[] = []
+    expect(resolveStaggerConfig('60ms cols:3 along:y', 'fade-up along:sideways', typoed)?.along).toBe('y')
+    expect(typoed.join()).toContain('expected x or y')
+  })
+
+  it('publish the default ordering for an element that declares no group in either attribute', () => {
+    // `applyStagger` never routes a non-group here, but the function is exported and a direct call
+    // on any element still has to publish what it always did rather than throw on a config that
+    // was never parsed: DOM order, a count, and no step.
+    const ul = group(3, null)
+    indexStaggerGroup(ul)
+
+    expect(ranksOf(ul)).toEqual(['0', '1', '2'])
+    expect(stepOf(ul)).toBe('')
+    expect(ul.style.getPropertyValue('--kui-stagger-count')).toBe('3')
   })
 })

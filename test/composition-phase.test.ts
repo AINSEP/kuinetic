@@ -379,6 +379,19 @@ describe('the additive rescue', () => {
     expect(plan('fade-up, lift').composition).toBeUndefined()
   })
 
+  it('marks only the claims that were actually contested, and leaves the rest replacing', () => {
+    // All-or-nothing applies to the *contested set*, not to the whole attribute.
+    // `additiveResolution` returns the indices that claimed a contested channel, and a third
+    // effect sharing no channel with the clash is not one of them. Writing `add` onto it anyway
+    // would sum its keyframe into whatever the cascade beneath it holds — `icon-spin`'s rotation
+    // added to the element's own transform rather than replacing it — which is the exact failure
+    // `additiveChannels`' `every` guard exists to prevent one list over.
+    const { fx, composition, refused } = plan('parallax-y, depth-layer, blur-in')
+    expect(refused).toEqual([])
+    expect(fx).toEqual(['parallax-y', 'depth-layer', 'blur-in'])
+    expect(composition).toBe('add, add, replace')
+  })
+
   it('refuses a channel that is not on the additive allowlist', () => {
     // `parallax-scale`/`parallax-rotate` are the shape-matched controls for the pair above: same
     // family, same single-channel css-keyframes rendering, same unphased status. Only the channel

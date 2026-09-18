@@ -156,6 +156,56 @@ describe('four-way crossing delivery after a crossing the observer never deliver
     box.remove()
     expect(seen).toEqual(['enter-back'])
   })
+
+  /**
+   * Leaving with no side in the geometry either.
+   *
+   * The mirror of everything above: those are *arrivals* the geometry cannot classify, these are
+   * *departures* it cannot. An element clipped away by an ancestor — `overflow: hidden`,
+   * `content-visibility`, a `<details>` closing — stops intersecting without moving, so the entry
+   * reports `isIntersecting: false` while the element's own border box still straddles the root
+   * edge. `sideOf` answers `undefined` for that box, and the direction of travel is the only thing
+   * left that knows whether the reader was heading down the page or back up it.
+   */
+  // The element has not moved; the ancestor stopped painting it. Its box still overlaps the root,
+  // so it is on neither side of it.
+  const clippedAway = { intersecting: false, top: 700, bottom: 900 }
+
+  it('reads a clipped-away element as a forward leave when the reader is going down', () => {
+    const { seen, deliver } = harness()
+    deliver(below)
+    deliver(inside)
+    expect(seen).toEqual(['enter'])
+
+    scrollPageTo(3000)
+    deliver(clippedAway)
+    // Travelling forwards, an element entering right now would arrive from `after`, so one
+    // leaving is on its way to `before` — the side already scrolled past, which is a plain `leave`.
+    expect(seen).toEqual(['enter', 'leave'])
+  })
+
+  it('reads the same disappearance as leave-back when the reader is going back up', () => {
+    // The discriminator for the test above. Identical entries, opposite reader: the crossing an
+    // author wired `actions:` to is decided entirely by the travel, because the box says nothing.
+    const { seen, deliver } = harness()
+    deliver(below)
+    deliver(inside)
+    scrollPageTo(6000)
+    scrollPageTo(3000)
+    deliver(clippedAway)
+    expect(seen).toEqual(['enter', 'leave-back'])
+  })
+
+  it('calls it a plain leave when neither the box nor the reader says which way', () => {
+    // No scroll at all — a `<details>` collapsing under a reader who is sitting still. There is
+    // nothing to read, and `leave` is the answer that matches what the two-way binding would have
+    // delivered before four crossings existed.
+    const { seen, deliver } = harness()
+    deliver(below)
+    deliver(inside)
+    deliver(clippedAway)
+    expect(seen).toEqual(['enter', 'leave'])
+  })
 })
 
 describe('the travel listener’s lifetime', () => {
