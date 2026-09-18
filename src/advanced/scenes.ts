@@ -19,6 +19,7 @@ import {
   createInertInstance,
   isReducedMotion,
   lerp,
+  ownedDescendants,
   registerInto,
   resolveEnv,
   styleOf,
@@ -264,9 +265,11 @@ export class SceneController {
    * into view. Recording opacity and transform *there* meant destroy restored the markup as it
    * looked at preparation time, discarding anything the author wrote in between.
    *
-   * Sharing is what makes a nested `scene` safe: `prepareScene`'s `[data-kui*="scene-step"]` query
-   * is descendant-wide and does not stop at an inner `scene`, so a step inside two scenes is
-   * claimed by both and written by both, every frame.
+   * Sharing is also what keeps two *legitimate* owners of one element honest. A nested `scene` is
+   * no longer one of them — `prepareScene` scopes its scan with {@link ownedDescendants}, so an
+   * outer scene stops at an inner one instead of claiming its steps — but an element authored as
+   * both a `scene-step` and a `camera-layer` still has two, because those are different kinds of
+   * host, and so does any controller constructed directly rather than through `prepare`.
    */
   private ledgers: AdvancedLedgers
 
@@ -460,7 +463,7 @@ export function prepareScene(
    * holding its author's value. The supported answer today is to re-run `Animator.scan(container)`
    * after the markup changes, which rebuilds the scene from the DOM as it now is.
    */
-  const childSteps = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="scene-step"]') : []
+  const childSteps = ownedDescendants<HTMLElement>(htmlEl, 'scene', 'scene-step')
   for (const child of childSteps) {
     const config = parseChildStep(child)
     const [start, end] = config.range

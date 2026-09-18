@@ -377,14 +377,27 @@ describe('advanced modules restore what was there immediately before the first w
  * Two owners of one element.
  *
  * The invariant above is per module; this is the one *between* modules, and it is the one a private
- * `LedgerSet` per controller cannot hold. `prepareScene` and `prepareCameraScene` both query
- * descendant-wide (`[data-kui*="scene-step"]`, `[data-kui*="camera-layer"]`) and neither query stops
- * at a nested host, so a step or a layer can genuinely belong to two controllers at once — and then
- * the second controller's own ledger captures the first controller's frame value as "the author's".
+ * `LedgerSet` per controller cannot hold. A step or a layer can genuinely belong to two controllers
+ * at once, and then the second controller's own ledger captures the first controller's frame value
+ * as "the author's".
  *
  * Every case below is ordered so the second owner writes *after* the first, which is exactly what a
  * per-controller ledger cannot survive: it would restore to the first owner's library value, without
  * its priority, and leave the element pinned there with nothing running.
+ *
+ * Two of the three cases are now **unit-level only**, and deliberately kept that way. Each wires its
+ * controllers with `addStep`/`addLayer` rather than through `prepareScene`/`prepareCameraScene`, so
+ * none of them goes anywhere near the descendant scan — which is why they were untouched when
+ * `ownedDescendants` (`base.ts`) taught that scan to stop at a nested host of the same kind. After
+ * that fix, markup can no longer produce a scene inside a scene sharing a step, or a camera inside a
+ * camera sharing a layer: `__tests__/nested-ownership.test.ts` is what asserts it cannot. Direct
+ * construction still can, and so can anything else that hands two controllers the same element, and
+ * the ledger has to hold either way — so these stay as what they always were, unit tests of the
+ * ledger's ref-counting.
+ *
+ * The third — 'an element that is both a scene step and a camera layer' — is not in that category.
+ * Two owners of different *kinds* is a supported authoring shape that the scan still produces, and
+ * `nested-ownership.test.ts` asserts the scan's half of it from real markup.
  */
 describe('two controllers writing to one element share a single capture', () => {
   it('a nested scene does not pin its parent scene\'s step to a frame value', () => {

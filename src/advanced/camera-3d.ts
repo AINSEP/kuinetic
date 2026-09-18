@@ -18,6 +18,7 @@ import {
   createEffectInstance,
   createInertInstance,
   isReducedMotion,
+  ownedDescendants,
   registerInto,
   resolveEnv,
   styleOf,
@@ -96,9 +97,15 @@ export class CameraController {
    * Container and every depth layer, each ledger opened at that element's first write and shared
    * with every other controller writing to the same element — see `createAdvancedLedgers`.
    *
-   * A nested `camera-scene` matters here: `prepareCameraScene`'s `[data-kui*="camera-layer"]` query
-   * is descendant-wide, so an inner scene claims the outer scene's layers too, and both write
-   * `transform` to them.
+   * This used to say "an inner scene claims the outer scene's layers", which is backwards: an
+   * inner `querySelectorAll` only ever sees its own descendants, so it is the **outer** scene that
+   * over-reaches into the inner one. `prepareCameraScene` now scopes the scan with
+   * {@link ownedDescendants}, so an outer camera stops at a nested `camera-scene` and the two no
+   * longer write one layer's `transform` on alternate frames.
+   *
+   * Sharing still matters after that fix, and not only for the controllers built directly by the
+   * suites: a `camera-layer` that is *also* a `scene-step` has two owners by design, because they
+   * are different kinds of host. The ledger is what keeps that case honest.
    */
   private ledgers: AdvancedLedgers
 
@@ -428,7 +435,7 @@ export function prepareCameraScene(
   // JS primitive on an element the same one), so adopting it is what makes `camera-scene` and any
   // CSS-rendered effect on the same element share one capture instead of snapshotting each other.
   const controller = new CameraController(htmlEl, options, resolvedEnv, ctx?.style)
-  const layerEls = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="camera-layer"]') : []
+  const layerEls = ownedDescendants<HTMLElement>(htmlEl, 'camera-scene', 'camera-layer')
 
   for (const layer of layerEls) {
     const kui = layer.getAttribute('data-kui') || ''

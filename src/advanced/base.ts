@@ -114,10 +114,15 @@ export function styleOf(ledgers: ElementLedgers, el: Element | null | undefined)
  * them."* `createLedgerSet` memoises within one set, which is enough for core because the animator
  * builds exactly one set per authored element and hands every primitive on it the same one. It is
  * not enough here, because these controllers write to elements they merely *found* — a
- * `camera-layer` under a `camera-scene`, a `scene-step` under a `scene` — and those descendant
- * queries are not scoped to stop at a nested host. A `scene` inside a `scene` therefore claims the
- * same step, and with a set each the inner one captures the outer one's frame value as the
- * author's and pins the element to it forever on teardown.
+ * `camera-layer` under a `camera-scene`, a `scene-step` under a `scene` — and one found element can
+ * belong to two controllers. With a set each, the second to write captures the first's frame value
+ * as the author's and pins the element to it forever on teardown.
+ *
+ * {@link ownedDescendants} has since removed the *same-kind* half of that overlap — a scene inside a
+ * scene no longer claims the inner scene's steps. What it deliberately does not remove is the
+ * cross-kind half: an element authored `camera-layer z:-100, scene-step from:0 to:1` genuinely has a
+ * camera and a scene writing to it, and a controller constructed directly rather than through
+ * `prepare` never went through the scan at all. Both still need one capture between them.
  *
  * So the ledger is keyed by element, not by controller, and ref-counted by controller: the first
  * controller to write captures, and the *last* one to let go restores. That is the same
@@ -226,6 +231,130 @@ function releaseSharedLedger(el: Element, owner: object): void {
   if (entry.owners.size > 0) return
   sharedStyleLedgers.delete(el)
   if (!entry.foreign) entry.ledger.restore()
+}
+
+/**
+ * One compiled matcher per effect name. The names are module constants at the two call sites, so
+ * the map has exactly two entries in practice and never grows with the document.
+ */
+const effectNamePatterns = new Map<string, RegExp>()
+
+/**
+ * Match `name` where the `data-kui` grammar allows an *effect name*: first token of a
+ * comma-separated segment.
+ *
+ * `parse.ts` is the definition — `parse` splits the attribute on top-level commas and
+ * `parseSegment` takes the first space-separated token of each segment as the effect name. This
+ * mirrors that rule rather than importing it, because a value import from `src/core/parse.ts`
+ * would drag the transitively-reachable core graph into this bundle; see `asRegistry` and the
+ * 45.6 KB → 17.4 KB gzip figure it records. Two lines of duplication against 28 KB of bundle.
+ *
+ * What the anchors buy, and the whole reason this is not `attr.includes(name)`:
+ * - `camera-scene` does **not** match `scene` — the `-` before it is neither `^` nor `,` — so a
+ *   nested camera scene cannot block an outer scene from claiming its own steps.
+ * - `scene-step` does **not** match `scene` — the `-` after it is neither whitespace, `,` nor end
+ *   — so a step nested in another step is not silently orphaned onto the outer step.
+ * - `delay:scene` does not match: a parameter value is not an effect name.
+ *
+ * Not quote-aware, unlike `splitTopLevel`: a comma inside a quoted parameter value (`target:"a,
+ * scene b"`) is data there and syntax here, so such an attribute could read as declaring an
+ * effect it does not. It costs a false *block* on an element that both sits between a host and
+ * its descendant and quotes a comma followed by a host name — at which point the descendant is
+ * left unclaimed rather than claimed twice, i.e. it fails toward the safer half.
+ *
+ * @complexity O(n) time in attribute length, amortised O(1) to compile.
+ */
+function effectNamePattern(name: string): RegExp {
+  let pattern = effectNamePatterns.get(name)
+  if (!pattern) {
+    pattern = new RegExp(String.raw`(?:^|,)\s*${name}(?=[\s,]|$)`)
+    effectNamePatterns.set(name, pattern)
+  }
+  return pattern
+}
+
+/**
+ * Does this element's authored `data-kui` name the effect `name`?
+ *
+ * Guarded rather than assumed: this walks arbitrary ancestors, and the suites reach this tier with
+ * `{} as HTMLElement` and with hand-rolled stand-ins carrying nothing but `getAttribute`.
+ *
+ * @complexity O(n) in attribute length.
+ */
+function declaresEffect(el: Element, name: string): boolean {
+  if (typeof el.getAttribute !== 'function') return false
+  const attr = el.getAttribute('data-kui')
+  return Boolean(attr) && effectNamePattern(name).test(attr!)
+}
+
+/**
+ * Is `host` the nearest enclosing host *of its own kind* above `el`?
+ *
+ * A parent walk, terminating on `node === host` — deliberately not
+ * `el.parentElement.closest(sel) === host`. Two reasons, and both have tests standing on them:
+ *
+ * - `closest()` needs the host to carry a matching attribute, and the host frequently carries no
+ *   `data-kui` at all. Five existing cases construct one that way (four in `staging.test.ts`
+ *   around `prepareCameraScene`, one in `ownership.test.ts`'s 'activate, cancel, re-activate and
+ *   destroy'), and every layer under them would be dropped. The same is true of any effect the
+ *   Animator applies programmatically rather than from markup. Identity does not care.
+ * - Termination on identity also means the walk cannot be confused by what the host *does* carry.
+ *
+ * The chain running out before reaching `host` is the degenerate case, not a real one: a node
+ * `querySelectorAll` returned is by definition a descendant, so in a real tree the walk always
+ * arrives. The suites pass objects with no `parentElement` at all, and those are claimed — with no
+ * chain to inspect there is no nearer host to find.
+ *
+ * @complexity O(d) in depth between `el` and `host`.
+ */
+function isNearestHostOfKind(host: Element, el: Element, hostEffect: string): boolean {
+  let node = el?.parentElement
+  while (node && node !== host) {
+    if (declaresEffect(node, hostEffect)) return false
+    node = node.parentElement
+  }
+  return true
+}
+
+/**
+ * The descendants carrying `descendantEffect` that `host` actually owns.
+ *
+ * > A host claims a descendant only when no nearer host **of the same kind** sits between them.
+ *
+ * `prepareScene` and `prepareCameraScene` used the raw `[data-kui*="…"]` query, which is
+ * descendant-wide and does not stop at a nested host — so an **outer** host over-reached into an
+ * inner one and both controllers wrote the inner host's children every frame, with different
+ * progress values. Listener and rAF order decided which write survived, which is to say nothing
+ * decided it. {@link createAdvancedLedgers} made that survivable on *teardown* by sharing one
+ * capture per element; it never arbitrated the writes themselves, because `ledger.set()` writes
+ * straight through. This is the other half.
+ *
+ * "Of the same kind" is load-bearing and is not a tidy-up of the rule. An element authored
+ * `camera-layer z:-100, scene-step from:0 to:1` under a `camera-scene` under a `scene` genuinely
+ * has two owners afterwards — a scene and a camera, writing different properties for different
+ * reasons — and `ownership.test.ts`'s 'an element that is both a scene step and a camera layer'
+ * is the standing proof that it still does.
+ *
+ * The `*=` query survives as a native prefilter and the precise predicate runs only over what it
+ * returned, so the cost is O(matched descendants × depth), not a walk of the subtree.
+ *
+ * @param host - The authored element the controller was prepared on.
+ * @param hostEffect - The host's own primitive name, e.g. `scene`. A nearer element declaring it
+ *   is what blocks the claim.
+ * @param descendantEffect - The primitive name to collect, e.g. `scene-step`.
+ * @returns The owned descendants, in document order. Empty when `host` cannot be queried.
+ */
+export function ownedDescendants<T extends Element>(
+  host: Element,
+  hostEffect: string,
+  descendantEffect: string,
+): T[] {
+  if (typeof host.querySelectorAll !== 'function') return []
+  const owned: T[] = []
+  for (const el of host.querySelectorAll<T>(`[data-kui*="${descendantEffect}"]`)) {
+    if (isNearestHostOfKind(host, el, hostEffect)) owned.push(el)
+  }
+  return owned
 }
 
 export function lerp(start: number, end: number, progress: number): number {
