@@ -412,7 +412,8 @@ function uploadInt(
  * there — two gradients on one page would trade seeds, and one `liquid` with `noise: 1` would hand
  * its field to the plain `liquid` next to it.
  */
-function uploadFieldUniforms(
+/** Where in the noise field this instance samples, and how hard. */
+function uploadFieldSamplingUniforms(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   locs: ShaderProgramLocations,
   opt: ShaderUniformOptions,
@@ -421,10 +422,30 @@ function uploadFieldUniforms(
   uploadFloat(gl, locs.u_scale, opt.scale ?? 1)
   uploadFloat(gl, locs.u_warp, opt.warp ?? 0)
   uploadFloat(gl, locs.u_noise, opt.noise ?? 0)
+}
+
+/** How much texture the sampled field carries, and what colour it comes out. */
+function uploadFieldTextureUniforms(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  opt: ShaderUniformOptions,
+): void {
   uploadFloat(gl, locs.u_grain, opt.grain ?? 0)
   uploadFloat(gl, locs.u_hue, opt.hue ?? 0)
   uploadInt(gl, locs.u_detail, opt.detail ?? 3)
   uploadInt(gl, locs.u_bands, opt.bands ?? 0)
+}
+
+/**
+ * The four the program itself branches on: the stencil, the pointer gesture, and the direction and
+ * kind of its motion. Each is a `if (u_x …)` or a `switch`-shaped test inside the shader, not a
+ * scalar that scales something — see `glyphMask()` and the `u_motion` block in `glsl.ts`.
+ */
+function uploadFieldBranchUniforms(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  opt: ShaderUniformOptions,
+): void {
   // Always uploaded, never left to the last instance that drew: `gradient` and `logo` share one
   // program, so a `gradient` that skipped this would inherit the stencil a `logo` beside it set
   // and sample a texture unit with nothing bound to it.
@@ -432,6 +453,16 @@ function uploadFieldUniforms(
   uploadInt(gl, locs.u_hover, opt.hover ?? 0)
   uploadFloat(gl, locs.u_angle, opt.angle ?? 0)
   uploadInt(gl, locs.u_motion, opt.motion ?? 0)
+}
+
+function uploadFieldUniforms(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  locs: ShaderProgramLocations,
+  opt: ShaderUniformOptions,
+): void {
+  uploadFieldSamplingUniforms(gl, locs, opt)
+  uploadFieldTextureUniforms(gl, locs, opt)
+  uploadFieldBranchUniforms(gl, locs, opt)
   // Here rather than in `uploadColorUniforms` with the palette, and unconditionally, for the same
   // reason as everything above it: one shared program means a skipped uniform keeps whatever the
   // last instance to draw left in it, so a `logo` with a plate would hand that plate to the bare
@@ -1119,10 +1150,44 @@ export const HOVER_MODES: Record<string, number> = { none: 0, stir: 1, light: 2,
  */
 export const MOTION_MODES: Record<string, number> = { evolve: 0, drift: 1, swirl: 2 }
 
-export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOptions {
-  const mode = ('keyword' in params && typeof params.keyword === 'function')
+/**
+ * `mode:` read through the validating accessor when there is one, and off the raw text when there
+ * is not — an external caller may hand this module the bare `{ text, num }` shape.
+ */
+function readShaderMode(params: ShaderParamAccessor): string {
+  return ('keyword' in params && typeof params.keyword === 'function')
     ? params.keyword('mode')
     : params.text('mode', 'displace')
+}
+
+/**
+ * `mask:` as `u_maskMode`, pinned off outside `logo`: `gradient` binds no texture, and every filter
+ * mode's program declares no `u_maskMode` at all, so honouring `mask:` there could only mislead.
+ */
+function readMaskMode(params: ShaderParamAccessor, mode: string): number {
+  return mode === 'logo' ? (MASK_MODES[params.text('mask', 'alpha')] ?? MASK_MODES.alpha!) : 0
+}
+
+/**
+ * The duotone pair, and whether the author authored one at all.
+ *
+ * Duotone is on only when *both* stops were written — one colour is a tint, not a pair — but each
+ * stop still parses against its own fallback so the uniforms are never left undefined.
+ */
+function readDuotoneColors(c1Text: string, c2Text: string): {
+  isDuotone: boolean
+  c1Rgba: [number, number, number, number]
+  c2Rgba: [number, number, number, number]
+} {
+  return {
+    isDuotone: Boolean(c1Text && c2Text),
+    c1Rgba: parseColor(c1Text || '#000000'),
+    c2Rgba: parseColor(c2Text || '#ffffff'),
+  }
+}
+
+export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOptions {
+  const mode = readShaderMode(params)
   const c1Text = params.text('color1', '')
   const c2Text = params.text('color2', '')
   const backdropText = params.text('backdrop', '').trim()
@@ -1143,9 +1208,7 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     bands: params.num('bands', 0),
     palette,
     colorCount,
-    // Pinned off outside `logo`: `gradient` binds no texture, and every filter mode's program
-    // declares no `u_maskMode` at all, so honouring `mask:` there could only mislead.
-    maskMode: mode === 'logo' ? (MASK_MODES[params.text('mask', 'alpha')] ?? MASK_MODES.alpha!) : 0,
+    maskMode: readMaskMode(params, mode),
     hover: HOVER_MODES[params.text('hover', 'none')] ?? 0,
     angle: parseAngleRadians(params.text('angle', '0deg')),
     motion: MOTION_MODES[params.text('motion', 'evolve')] ?? 0,
@@ -1159,9 +1222,7 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     chromatic: params.num('chromatic', 0.0),
     iridescence: params.num('iridescence', 0.0),
     tintRgba: parseColor(params.text('tint', '#ffffff')),
-    isDuotone: Boolean(c1Text && c2Text),
-    c1Rgba: parseColor(c1Text || '#000000'),
-    c2Rgba: parseColor(c2Text || '#ffffff'),
+    ...readDuotoneColors(c1Text, c2Text),
     blendMode: blendMap[params.text('blend', 'normal')] ?? 0,
     to: params.text('to', ''),
     progress: params.num ? params.num('progress', -1) : -1,
