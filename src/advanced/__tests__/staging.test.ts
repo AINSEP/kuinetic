@@ -10,6 +10,7 @@ import {
   parseChildStep,
   parseTransitionValue,
   parseWindow,
+  prepareScene,
   registerScenes,
   SCENE_PRESETS,
   SCENE_PRIMITIVES,
@@ -216,6 +217,100 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(parseChildStep(null as unknown as HTMLElement).opacity).toBeNull()
       expect(parseChildStep({} as HTMLElement).opacity).toBeNull()
       expect(parseChildStep({ getAttribute: () => null } as unknown as HTMLElement).opacity).toBeNull()
+    })
+
+    /**
+     * `from:` and `to:` are validated one at a time and can both pass while the pair is nonsense.
+     * `from:0.8 to:0.2` is two legal 0..1 numbers describing a window that never opens, and
+     * `updateElement` answers it by returning — so before this the step simply never moved and was
+     * indistinguishable from one the author had written no transition for. A `keyword`/`number`
+     * schema cannot express a constraint *between* two parameters, so `prepare` is the first place
+     * the fault is visible, and `PrepareContext.warn` is the sink that makes it sayable there.
+     */
+    it('names an empty step window instead of animating nothing in silence', () => {
+      const warn = vi.fn()
+      const stage = document.createElement('div')
+      const inverted = document.createElement('div')
+      inverted.setAttribute('data-kui', 'scene-step from:0.8 to:0.2 opacity:0->1')
+      const wellFormed = document.createElement('div')
+      wellFormed.setAttribute('data-kui', 'scene-step from:0.2 to:0.8 opacity:0->1')
+      stage.appendChild(inverted)
+      stage.appendChild(wellFormed)
+
+      const inst = prepareScene(stage, {} as EffectParams, createRealPrepareContext(stage, {
+        reducedMotion: false,
+        warn,
+      }))
+
+      // Exactly one message, naming the resolved window rather than "a step is wrong" — and the
+      // well-formed sibling scanned in the same pass stays silent.
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(
+        'scene-step from:0.8 to:0.2 is an empty window — from: must be less than to:, so this step never animates',
+      )
+
+      // Still a no-op, not a throw: the warning explains the dead step, it does not revive it.
+      inst.activate()
+      expect(inverted.style.opacity).toBe('')
+      inst.destroy()
+    })
+
+    it('prepares with no context at all, warning nowhere rather than throwing', () => {
+      const stage = document.createElement('div')
+      const inverted = document.createElement('div')
+      inverted.setAttribute('data-kui', 'scene-step from:0.8 to:0.2 opacity:0->1')
+      stage.appendChild(inverted)
+
+      // `prepareScene` takes `PrepareContext | null` and every other read of it is optional —
+      // `resolveEnv`, `isReducedMotion`, `ctx?.style` — so the diagnostic has to be optional too.
+      // An empty window with nobody to tell is still a no-op.
+      const inst = prepareScene(stage, {} as EffectParams, null)
+      expect(inst).toBeDefined()
+      inst.destroy()
+    })
+
+    /**
+     * `stop()` clears `isListening` and cancels the pending frame, but the frame can still land:
+     * a `caf` that does not really cancel, or a host that had already dispatched the callback,
+     * delivers it anyway. That run used to fall into the completion branch and call `onComplete`,
+     * which `prepareScene` wires to `inst.finish()` — telling the animator an effect had finished
+     * when the caller had just cancelled it, and resolving `EffectInstance.finished` as a success.
+     */
+    it('a time scene stopped mid-flight stays cancelled and does not report completion', () => {
+      let now = 1000
+      let tickCb: FrameRequestCallback | null = null
+      const onComplete = vi.fn()
+      const root = document.createElement('div')
+
+      const controller = new SceneController(root, { progress: 'time', duration: 200 }, {
+        window: { performance: { now: () => now } } as any,
+        raf: vi.fn((cb: FrameRequestCallback) => {
+          tickCb = cb
+          return 7
+        }),
+        // The `caf` that does not cancel. This is the case, not a convenience.
+        caf: vi.fn(),
+      })
+
+      const step = document.createElement('div')
+      controller.addStep(step, { range: [0, 1], opacity: { from: 0, to: 1, unit: '' } })
+
+      controller.start(onComplete)
+      expect(tickCb).not.toBeNull()
+
+      controller.stop()
+      expect(controller.isListening).toBe(false)
+
+      // The in-flight frame arrives after the stop. It must claim nothing — and must not paint
+      // one more frame on the way out either, which is why the guard sits above the write.
+      now = 1100
+      tickCb!(now)
+      expect(onComplete).not.toHaveBeenCalled()
+      expect(controller.progress).toBe(0)
+      expect(step.style.opacity).toBe('')
+      expect(controller.rafId).toBeNull()
+
+      controller.destroy()
     })
 
     it('SceneController tracks steps, updates styles, and handles all branches', () => {

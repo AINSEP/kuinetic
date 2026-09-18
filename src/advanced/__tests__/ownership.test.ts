@@ -271,7 +271,12 @@ describe('advanced modules restore what was there immediately before the first w
     it('restores the step value the author wrote after preparation', () => {
       const stage = document.createElement('div')
       const step = document.createElement('div')
-      step.setAttribute('data-kui', 'scene-step at:0..1 opacity:0->1')
+      // `to:0.5`, not the full window, and `from:` left to default. The subject here is ledger
+      // ownership, but an identity window is a silent-pass trap: with `[0, 1]` the local progress
+      // equals the global one, so the assertion below held whether or not the window was read at
+      // all. Half a window makes the two differ — global 0.5 is local 1 — so a `from:`/`to:` that
+      // stopped being honoured fails this case instead of sailing through it.
+      step.setAttribute('data-kui', 'scene-step to:0.5 opacity:0->1')
       stage.appendChild(step)
 
       const controller = new SceneController(stage, { progress: 'scroll' }, { window: null })
@@ -282,7 +287,9 @@ describe('advanced modules restore what was there immediately before the first w
 
       controller.progress = 0.5
       controller.updateAll()
-      expect(step.style.opacity).toBe('0.5')
+      // (0.5 - 0) / (0.5 - 0) = 1, so the step is at the end of its own transition while the
+      // scene is only halfway. Ignoring the window would read '0.5'.
+      expect(step.style.opacity).toBe('1')
 
       controller.destroy()
       expect(step.style.opacity).toBe('0.3')
@@ -292,16 +299,21 @@ describe('advanced modules restore what was there immediately before the first w
     it('leaves no style attribute on a step that never had one', () => {
       const stage = document.createElement('div')
       const step = document.createElement('div')
-      step.setAttribute('data-kui', 'scene-step at:0..1 opacity:0->1 y:40px->0px')
+      // The other half of the window, `from:`, for the reason the case above gives — and the
+      // transform assertion is an exact value rather than `toBeTruthy()`, which accepted any
+      // non-empty string and so could not tell a correct translate from a wrong one.
+      step.setAttribute('data-kui', 'scene-step from:0.5 opacity:0->1 y:40px->0px')
       stage.appendChild(step)
 
       const controller = new SceneController(stage, { progress: 'scroll' }, { window: null })
       controller.addStep(step, parseChildStep(step))
       expect(step.hasAttribute('style')).toBe(false)
 
-      controller.progress = 0.5
+      controller.progress = 0.75
       controller.updateAll()
-      expect(step.style.transform).toBeTruthy()
+      // (0.75 - 0.5) / (1 - 0.5) = 0.5, so y is halfway from 40px to 0px. Ignoring `from:` would
+      // make the local progress 0.75 and write translateY(10px).
+      expect(step.style.transform).toBe('translateY(20px)')
 
       controller.destroy()
       expect(step.hasAttribute('style')).toBe(false)
@@ -379,7 +391,12 @@ describe('two controllers writing to one element share a single capture', () => 
     const outerStage = document.createElement('div')
     const innerStage = document.createElement('div')
     const step = document.createElement('div')
-    step.setAttribute('data-kui', 'scene-step at:0..1 opacity:0->1')
+    // The identity window is the point here, not an oversight: the two assertions below read the
+    // two controllers' `progress` values back as written, which is what makes "the second owner
+    // overwrote the first" legible. A partial window would put arithmetic between the input and
+    // the assertion and obscure the actual subject. The window's own coverage is in
+    // `staging.test.ts`; spelled `from:0 to:1` because `at:` is no longer this module's key.
+    step.setAttribute('data-kui', 'scene-step from:0 to:1 opacity:0->1')
     outerStage.appendChild(innerStage)
     innerStage.appendChild(step)
 
@@ -440,7 +457,9 @@ describe('two controllers writing to one element share a single capture', () => 
     const sceneStage = document.createElement('div')
     const cameraStage = document.createElement('div')
     const both = document.createElement('div')
-    both.setAttribute('data-kui', 'camera-layer z:-100, scene-step at:0..1 y:40px->0px')
+    // Identity window for the reason the case above gives — the scene's write is read back
+    // directly from its `progress`. `from:0 to:1`, since `at:` is no longer this module's key.
+    both.setAttribute('data-kui', 'camera-layer z:-100, scene-step from:0 to:1 y:40px->0px')
     sceneStage.appendChild(cameraStage)
     cameraStage.appendChild(both)
 
@@ -453,8 +472,16 @@ describe('two controllers writing to one element share a single capture', () => 
 
     scene.progress = 0.5
     scene.updateAll()
+    // Named exactly, and asserted here rather than only after the camera writes. The scene's
+    // transform is the *first* of the two writes and the camera overwrites it wholesale, so
+    // without this line nothing in the case ever checked that the scene wrote at all.
+    expect(both.style.transform).toBe('translateY(20px)')
+
     camera.render()
-    expect(both.style.transform).not.toBe('rotate(3deg)')
+    // Was `not.toBe('rotate(3deg)')` — a "something changed" check that any non-authored string
+    // satisfied, including a wrong one. `cameraZ` is 0 (nothing drives it here) and the layer's
+    // depth is -100, so `computeLayerTransform` gives exactly this.
+    expect(both.style.transform).toBe('translate3d(0, 0, -100px)')
 
     scene.destroy()
     camera.destroy()

@@ -51,8 +51,20 @@ export interface StepRecord {
 }
 
 export interface SceneOptions {
-  name?: string
-  progress?: 'scroll' | 'time' | string
+  /**
+   * Which clock drives `progress`. The two keywords, and nothing else.
+   *
+   * This carried a `| string` arm, which defeated the union entirely. `SCENE_PARAMETERS.progress`
+   * is a `keyword` spec with a closed list, so `core/params.ts` already rejects `progress:tiem`
+   * before `prepare` runs — but the *type* said any string was a mode, so a typo written in
+   * library code type-checked and then silently behaved as `scroll`, because every read of this
+   * field is `=== 'time'`. The same spirit as `ValueParamSpec` declaring `keywords?: never`: where
+   * the schema closes a set, the type has to close it too, or one of the two is lying.
+   *
+   * {@link prepareScene} is what makes the narrowing honest rather than asserted — it maps the
+   * authored text onto these two rather than casting it.
+   */
+  progress?: 'scroll' | 'time'
   duration?: number
 }
 
@@ -85,8 +97,15 @@ const NUM = String.raw`-?(?:\d+(?:\.\d+)?|\.\d+)`
  * - **Two numbers can be validated; one range string cannot.** `0..0.4` is none of the ten
  *   `ScalarParamType`s, so it could only ever be declared `text`, which validates nothing at all.
  *   Declared as two bounded `number` parameters, the core rejects `from:banana` and `to:5` before
- *   `prepare` ever runs — and `PrepareContext` carries no diagnostic sink, so a warning raised
- *   there was never an option.
+ *   `prepare` ever runs, in a diagnostic that names the parameter.
+ *
+ * That last point is about *timing*, not about there being nowhere to complain — `PrepareContext`
+ * does carry a diagnostic sink (`warn`, wired to the reporter in `core/js-effect-preparer.ts`),
+ * and {@link prepareScene} uses it for the one fault only `prepare` can see. The division of
+ * labour is: `core/params.ts` catches text that is not a number, because by the time `prepare`
+ * runs the value has already been replaced by the declared default and the author's typo is gone;
+ * `prepare` catches a window that is two perfectly valid numbers in the wrong order, which no
+ * per-parameter schema can express.
  */
 const FROM_REGEX = new RegExp(String.raw`\bfrom:(${NUM})`)
 const TO_REGEX = new RegExp(String.raw`\bto:(${NUM})`)
@@ -203,6 +222,27 @@ function buildStepTransforms(cfg: StepConfig, localT: number): string {
   return transforms.join(' ')
 }
 
+/**
+ * The viewport height {@link SceneController.calculateProgress} assumes when the environment
+ * cannot supply one.
+ *
+ * Narrow, but reachable. The live scroll path never gets here without a window — `start()`'s first
+ * guard returns outright — and a real `Window` always answers `innerHeight` with a number. What is
+ * left is a caller stepping the controller by hand, and an `AdvancedEnv` whose `WindowLike` omits
+ * the field; both land on this number.
+ *
+ * It is a guess and is deliberately still a guess. The tempting alternative, `0`, is the honest
+ * "no viewport" and the worse answer: it collapses `totalDist` to `rect.height` and `currentDist`
+ * to `-rect.top`, so every element below the fold gets a progress that runs *backwards* —
+ * plausible values, wrong in a direction nobody would think to question. A fixed 800 is wrong by a
+ * scale factor instead, which at least moves the right way. Note `??` does not catch a window that
+ * genuinely answers `innerHeight: 0`; that case falls to the `totalDist > 0` guard and reads 0.
+ *
+ * `camera-3d.ts`'s `updateScroll` carries the same constant for the same reason — they are two
+ * readings of one viewport, so if either ever stops guessing, both must.
+ */
+const FALLBACK_VIEWPORT_HEIGHT = 800
+
 export class SceneController {
   container: HTMLElement
   options: SceneOptions
@@ -284,16 +324,33 @@ export class SceneController {
     this.timeStart = now()
 
     const tick = () => {
+      /*
+       * Cancelled is not finished, and this is where the two used to be one branch.
+       *
+       * `stop()` clears `isListening` and cancels the pending frame, but the frame can still
+       * arrive: a `caf` that does not really cancel (an `AdvancedEnv` double, or a host that has
+       * already dispatched the callback) delivers it anyway. That run reaching the completion
+       * branch below called `onComplete`, which `prepareScene` wires to `inst.finish()` — so the
+       * animator was told an effect had *finished* when the caller had just stopped it, and
+       * `EffectInstance.finished` resolved as a success. Two different facts, so two exits.
+       *
+       * Returning before the write, not after it, for the same reason: a stopped scene should not
+       * paint one more frame on its way out.
+       */
+      if (!this.isListening) {
+        this.rafId = null
+        return
+      }
       const elapsed = now() - this.timeStart
       this.progress = clamp(elapsed / duration, 0, 1)
       this.updateAll()
-      if (this.isListening && this.progress < 1) {
+      if (this.progress < 1) {
         this.rafId = this.raf(tick)
-      } else {
-        this.rafId = null
-        this.isListening = false
-        if (onComplete) onComplete()
+        return
       }
+      this.rafId = null
+      this.isListening = false
+      if (onComplete) onComplete()
     }
     this.rafId = this.raf(tick)
   }
@@ -312,7 +369,7 @@ export class SceneController {
       this.progress = 0
       return
     }
-    const winHeight = this.window?.innerHeight ?? 800
+    const winHeight = this.window?.innerHeight ?? FALLBACK_VIEWPORT_HEIGHT
     const rect = this.container.getBoundingClientRect()
     const totalDist = winHeight + rect.height
     const currentDist = winHeight - rect.top
@@ -327,6 +384,11 @@ export class SceneController {
 
   updateElement(el: HTMLElement, cfg: StepConfig, globalProgress: number): void {
     const [start, end] = cfg.range
+    // An empty or inverted window has no interpolation to do: `end - start` is zero (NaN) or
+    // negative (a step that runs backwards through its own transitions). Returning is right, and
+    // returning *silently* is right here — this is a per-frame hot path and a programmatic entry
+    // point, not an authoring surface. `prepareScene` is where an authored `from:`/`to:` is read,
+    // so that is where the author is told, once, that they wrote a window that never opens.
     if (start >= end) return
     const style = styleOf(this.ledgers, el)
     if (!style) return
@@ -357,21 +419,71 @@ export function prepareScene(
   ctx?: PrepareContext | null,
 ): EffectInstance {
   const resolvedEnv = resolveEnv(ctx)
-  const name = params.text ? params.text('name', 'default') : 'default'
-  const progressMode = params.text ? params.text('progress', 'scroll') : 'scroll'
+  /*
+   * Narrowed here rather than cast, which is what lets {@link SceneOptions.progress} be the closed
+   * pair it declares. `params.text` is typed `string` and this is the boundary the authored value
+   * crosses, so the mapping belongs at the boundary. Anything that is not `time` becoming `scroll`
+   * is not a new decision, it is the one the controller already made — every read of the field is
+   * `=== 'time'` — written down instead of implied. In practice nothing else can arrive: the
+   * `keyword` schema's list is closed, so `core/params.ts` has already rejected a typo and
+   * substituted `scroll` before this runs.
+   */
+  const progressMode = (params.text ? params.text('progress', 'scroll') : 'scroll') === 'time'
+    ? 'time'
+    : 'scroll'
   const duration = clamp(params.num ? params.num('duration', 1000) : 1000, 100, 60000)
 
   const htmlEl = el as HTMLElement
   // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
   const controller = new SceneController(
     htmlEl,
-    { name, progress: progressMode, duration },
+    { progress: progressMode, duration },
     resolvedEnv,
     ctx?.style,
   )
+  /*
+   * The steps are scanned once, here, and never again — there is no `MutationObserver` on the
+   * container.
+   *
+   * A step element added to the subtree after this runs is never found, never added to the
+   * controller, and never animates; nothing is watching for it, so nothing says so. And "after
+   * this runs" is most of the page's life rather than a sliver at load: `prepare` can happen a
+   * long way before the scene is ever on screen, for the reason the note on
+   * {@link SceneController.ledgers} gives. On a statically authored scene — the shape this module
+   * is written for — that costs nothing. On a list rendered by a framework after hydration it
+   * presents as a completely dead effect, which is worth naming here rather than leaving someone
+   * to find in a console that says nothing.
+   *
+   * Deliberately not fixed with an observer. Watching the subtree is a feature, not a tidy-up: an
+   * observer per scene and a teardown for it, a rescan that re-derives each new step's window, and
+   * a decision about what a step *removed* mid-flight does to the ledger entry that is currently
+   * holding its author's value. The supported answer today is to re-run `Animator.scan(container)`
+   * after the markup changes, which rebuilds the scene from the DOM as it now is.
+   */
   const childSteps = htmlEl.querySelectorAll ? htmlEl.querySelectorAll<HTMLElement>('[data-kui*="scene-step"]') : []
   for (const child of childSteps) {
-    controller.addStep(child, parseChildStep(child))
+    const config = parseChildStep(child)
+    const [start, end] = config.range
+    /*
+     * The one fault only `prepare` can see, reported at the one place that can see it.
+     *
+     * `from:` and `to:` are each validated alone — both bounded to 0..1, both defaulted — and both
+     * can pass while the pair they form is nonsense. `from:0.8 to:0.2` is two perfectly legal
+     * numbers describing a window that never opens, and `updateElement` answers it by returning,
+     * so the step simply never moves. Before this warning that was indistinguishable from a step
+     * the author had not written a transition for.
+     *
+     * Reported against the *resolved* window rather than the raw attribute text, so the numbers
+     * named are the ones the controller will actually use — `readEnd` substitutes the declared
+     * default for an out-of-range end, and a message quoting the author's rejected value instead
+     * would send them looking at the wrong number.
+     */
+    if (start >= end) {
+      ctx?.warn(
+        `scene-step from:${start} to:${end} is an empty window — from: must be less than to:, so this step never animates`,
+      )
+    }
+    controller.addStep(child, config)
   }
 
   /*
@@ -428,8 +540,19 @@ export function prepareScene(
   return inst
 }
 
+/**
+ * `scene`'s own parameters.
+ *
+ * There used to be a third, `name`, and it did nothing at all. It was declared `text`, read into
+ * `SceneOptions.name` by `prepareScene`, carried on every controller — and never read again by
+ * anything: no branch, no diagnostic, no selector. Nor could its `cssProperty` save it, because
+ * `resolveParams` drops every `text` parameter before the stylesheet by design (`core/params.ts`
+ * — a `text` value reaching CSS is the injection surface that rule exists to close), so
+ * `--kui-scene-name` was never written either. A parameter that is declared, validated, plumbed
+ * and inert is a documented lie: it tells an author the scene can be named and then ignores the
+ * name. Deleted rather than wired up, because nothing in the module ever wanted it.
+ */
 export const SCENE_PARAMETERS = {
-  name: { type: 'text' as const, default: 'default', cssProperty: '--kui-scene-name' },
   progress: {
     type: 'keyword' as const,
     default: 'scroll',
