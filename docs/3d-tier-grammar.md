@@ -82,12 +82,39 @@ share a context anywhere near as cheaply.
 
 ## 3. Channels — what it claims
 
-It writes `position: relative` to the host (the canvas needs a positioned parent), so it must
-**claim that as a channel**. Declaring the property you write is not optional here: "host writes
-`perspective`/`transform-style` without claiming them as channels" was audit finding A2 against
-`camera-3d.ts`, and the fix was to add them to the list (`camera-3d.ts:519`).
+It writes **two** properties to the host, so it must **claim both as channels**. Declaring the
+property you write is not optional here: "host writes `perspective`/`transform-style` without
+claiming them as channels" was audit finding A2 against `camera-3d.ts`, and the fix was to add them
+to the list (`camera-3d.ts:519`).
 
-Proposed: `channels: ['position']`.
+```ts
+channels: ['position', 'isolation']
+```
+
+**`position: relative`** because the canvas is absolutely positioned and needs a positioned parent.
+
+**`isolation: isolate`**, and this one is not obvious, so here is the reason before someone
+simplifies it away. The canvas carries `z-index: -1` — that is what puts it *behind* the host's own
+`<h2>` instead of over it, which §2 is entirely about. But a negative z-index only reaches the bottom
+of its **own stacking context**. If the host is not one, that context belongs to some ancestor, and
+the canvas does not stop at the host: it slides behind the host's background, then behind a
+section's, then behind `<body>`'s, and vanishes. That is §2's rejected `z-index:-1` fixed-canvas
+failure, reproduced one element down — the *same* failure, not a similar one. `isolation: isolate`
+on the host contains the negative index inside it, so the canvas paints above the host's background
+and below every one of the host's children, on any page. It is the right property for the job rather
+than a `z-index` or a `transform` on the host because creating a stacking context is the **only**
+thing `isolation` does; the other two also change layout or painting.
+
+This section originally proposed `['position']` alone. That was written before anyone had written
+the canvas's own style, and building the tier is what found the second property. It is corrected
+here rather than noted elsewhere, because a spec that disagrees with the code is worse than a spec
+that is merely incomplete.
+
+**`display` is deliberately NOT claimed**, even though the primitive writes it. It lands on the
+`target:`-named *descendant*, never on the host, and `findConflicts` (`src/core/channels.ts:223`)
+groups claims per compiled **host** element. Claiming it would therefore make `model-3d` conflict
+with any host-level effect that claims `display`, over a write that never touches the host — a false
+positive, which is the opposite failure from A2's and just as much a bug.
 
 Channel strings are not limited to the `CHANNEL` constant — `camera-3d` already declares the custom
 `'perspective'` and `'transform-style'`. Naming the actual property is the established pattern.
@@ -188,6 +215,81 @@ say, but the grammar — the blocker item 24 actually names — is no longer mis
 
 ## 6. What is still open
 
-- The name. `model-3d` is proposed for consistency with `carousel-3d`. Not confirmed.
-- Whether `light`'s four rigs are the right four.
+The skeleton is built — `src/3d/`, everything above except the drawing. What that settled, and what
+it opened, is below. Anything not listed here survived contact unchanged.
+
+### Settled by building it
+
+- **`channels` is `['position', 'isolation']`.** §3 proposed `['position']` alone, one property
+  short, because it was written before anyone had written the canvas's own style. **§3 has been
+  corrected in place** — the stacking-context reasoning lives there, where someone about to delete
+  the `isolation` write will actually read it, along with why `display` is deliberately not claimed.
+- **Every custom property is namespaced `--kui-model-*`.** §5's trap 3 said to grep the names
+  first; three of the plain ones are already taken. `--kui-tilt` is read by `src/css/carousel.css:77`,
+  so a model containing a carousel would tilt the ring. `--kui-axis` is read by `src/css/text.css:360`
+  as a `font-variation-settings` tag, so `axis:y` would hand every variable-font descendant
+  `font-variation-settings: y 100`. `--kui-poster` belongs to `effects/catalog/media.ts:325`.
+  `target:` keeps the shared `--kui-target` spelling: it is one convention across the library, and
+  being `text` it is dropped before the stylesheet and can collide with nothing.
+- **The `createAdvancedLedgers` defect §3 warns about is avoided, not inherited.** The tier writes
+  to at most two elements and its ledgers are per-instance, so there is no module-level cache to go
+  stale. The host goes through `ctx.style` — the animator's own entry for it — and is deliberately
+  *not* restored here, because `animator.ts`'s `release()` owns that ledger. The `target:` element
+  gets a ledger of the controller's own, restored on `destroy()`, because core's `LedgerSet` only
+  covers elements *core* retargeted and a per-primitive `target:` never goes through that path.
+- **§5's trap 1 gets a copy, with a narrower table.** `warnClippingAncestor` in `src/3d/flattening.ts`
+  tests `overflow` and `clip-path` only. The carousel's five include `opacity`, `filter` and
+  `backdrop-filter` because all five defeat `preserve-3d`; none of those three clips a canvas. A
+  dimmed 3D hero is a design, not a bug, and firing on it is how a diagnostic teaches people to
+  ignore it — the same reasoning the original gives for stopping at `<body>`.
+- **The tier depends on nothing but `core`.** Not on `src/advanced/`, not on `src/effects/`. The
+  registry shape gate, the angle parser and the ancestor diagnostic are tier-local copies with
+  attribution, so `kuinetic/3d` and `kuinetic/advanced` each ship without the other.
+
+### ⚠ `register3D` is not `registerThreeD`, and `src/3d/` is not `src/effects/three-d/`
+
+Two unrelated modules, near-identical names. Get this wrong once and the mistake propagates,
+because a grep for either name cross-hits the other.
+
+| | `src/effects/three-d/` | `src/3d/` |
+| --- | --- | --- |
+| Registrar | `registerThreeD` | `register3D` |
+| What it is | CSS transforms — `card-flip-x`, `cube-rotate`, `fold-panel`, `flip-card` | WebGL, real geometry — `model-3d` |
+| How you get it | ships in the **default catalog**, via `createRegistry()` (`src/effects/index.ts:11`) | **opt-in subpath only**; the default entry never imports it |
+| Renderer | `css-keyframes` | `javascript`, with a `<canvas>` |
+
+`registerThreeD` was already taken, which is why the new one is `register3D` rather than the name
+consistency would otherwise have suggested. The two never meet: the default entry does not import
+`src/3d/`, and `test/3d-contract.test.ts`'s "does not collide with the CSS-transform catalog that
+shares its name" registers the 3D tier onto a full default-catalog animator and asserts the only
+names added are `model-3d`'s own. That test exists precisely because the failure mode — an
+`"already registered"` throw on any page that opts in — would otherwise surface on a consumer's
+page rather than in CI.
+
+When writing about either, name the directory as well as the function. "The 3D tier" is ambiguous
+on its own.
+
+### Still open
+
+- The name. `model-3d` / `register3D` is what is built. Still not confirmed — see the table above
+  for why `registerThreeD` was not available.
+- Whether `light`'s four rigs are the right four. Nothing about building the skeleton tested this;
+  the rigs are a closed `keywords` list and nothing consumes them yet.
+- `supportedTimelines` is `['view', 'scroll', 'time']`. `view` is first and is the one that matches
+  §1: a **total** turn across the element's scroll pass — entering the viewport to leaving it — is
+  what a view timeline measures, not what a scroll timeline does. **Provisional until something
+  actually animates**, and the renderer chunk owes honouring it. Declared now rather than later on
+  purpose: widening a timeline list afterwards is safe, whereas discovering that the spec and the
+  declaration had disagreed all along is the kind of gap this file exists to close. Nobody has yet
+  checked what `view` costs a `renderer: 'javascript'` primitive.
 - Whether this draft gets written into `todo.md` item 24 as the answer to its named blocker.
+
+### Not this chunk, but named so nobody designs it twice
+
+`kuinetic/3d` is not a published subpath yet: `package.json`'s `exports` has no `./3d` entry and
+`build:dist`'s esbuild invocation has no `src/3d/index.ts` entry point. Until both exist, the tier's
+contract test (`test/3d-contract.test.ts`) imports the source barrel relatively and makes every
+assertion `test/advanced-subpath.test.ts` makes **except** the "resolves through `exports` into
+`dist/`" half. The chunk that wires those two should re-point that file's imports at `'kuinetic/3d'`
+and add nothing else. `src/browser/boot.ts` already needs no change — its `BootOptions.tier` is a
+bare `string` and names `'3d'` as an example.
