@@ -26,7 +26,10 @@ import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './au
  * `ProgramLocations` (an older cached program, or a caller that built one itself) still satisfies
  * this type and simply has no audio location to upload to.
  */
-export type ShaderProgramLocations = ProgramLocations & { u_audio?: WebGLUniformLocation | null }
+export type ShaderProgramLocations = ProgramLocations & {
+  u_audio?: WebGLUniformLocation | null
+  u_noise?: WebGLUniformLocation | null
+}
 
 export interface ShaderUniformOptions {
   time?: number
@@ -53,11 +56,20 @@ export interface ShaderUniformOptions {
   maskRy?: [number, number, number, number]
   /** What the ancestors' own opacity leaves this element painted at. */
   maskAlpha?: number
-  /* The generative mode's own uniforms — ignored by every image-filter program, which declares none
-   * of them, so `uploadFloat`/`uploadInt` find a null location and skip. */
+  /* The field's own uniforms. `grain`, `hue`, `bands` and the palette are generative-only and find
+   * a null location in every filter program, so `uploadFloat`/`uploadInt` skip them there. `seed`,
+   * `scale`, `warp` and `detail` are no longer in that set: the four filter programs that adopted
+   * the noise core declare them too, and read them once `noise` is above zero. */
   seed?: number
   scale?: number
   warp?: number
+  /**
+   * How much of `fluid`/`liquid`/`particles`/`morph`'s trig stand-in is replaced by real noise.
+   *
+   * Zero in the six programs that do not declare it, and zero by default in the four that do, which
+   * is what keeps every page already running these modes rendering exactly what it rendered before.
+   */
+  noise?: number
   grain?: number
   /** Hue rotation in **radians**. The parameter is authored as an angle; `readAngleRadians` converts. */
   hue?: number
@@ -281,20 +293,24 @@ export const BLEND_MODES = {
 export type ProgramOrLocations = ShaderProgramLocations | WebGLProgram | null
 
 /**
- * Fill in `u_audio`'s location on first use, and remember the answer.
+ * Fill in this module's own uniform locations on first use, and remember the answers.
  *
  * `gl-utils.ts`'s `extractLocations` is the generic helper every caller shares and knows nothing
  * about this module's own uniforms, so the lookup happens here instead — once per program rather
  * than once per draw, with `undefined` meaning "not looked up yet" and `null` meaning "looked up,
  * the program does not declare it". Safe to cache on the record: a lost context rebuilds the
  * programs from scratch (`initPrograms`), so a stale location cannot outlive its program.
+ *
+ * `u_noise` joined `u_audio` here rather than in `extractLocations` for the same reason: it is
+ * declared by four of the seven programs and means nothing to any other caller of the helper.
  */
-function cacheAudioLocation(
+function cacheLocalLocations(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
   locs: ShaderProgramLocations,
   program: WebGLProgram,
 ): ShaderProgramLocations {
   if (locs.u_audio === undefined) locs.u_audio = gl.getUniformLocation(program, 'u_audio')
+  if (locs.u_noise === undefined) locs.u_noise = gl.getUniformLocation(program, 'u_noise')
   return locs
 }
 
@@ -303,7 +319,7 @@ function resolveLocations(
   progInfo: ProgramOrLocations,
 ): ShaderProgramLocations | null {
   if (!progInfo) return null
-  if ('program' in progInfo && progInfo.program) return cacheAudioLocation(gl, progInfo, progInfo.program)
+  if ('program' in progInfo && progInfo.program) return cacheLocalLocations(gl, progInfo, progInfo.program)
   const p = progInfo as WebGLProgram
   const g = (n: string) => gl.getUniformLocation(p, n)
   return {
@@ -312,7 +328,7 @@ function resolveLocations(
     u_uvOrigin: g('u_uvOrigin'), u_uvScale: g('u_uvScale'), u_tint: g('u_tint'),
     u_blend: g('u_blend'), u_duotone: g('u_duotone'), u_color1: g('u_color1'),
     u_color2: g('u_color2'), u_image: g('u_image'), u_image_to: g('u_image_to'),
-    u_progress: g('u_progress'), u_audio: g('u_audio'),
+    u_progress: g('u_progress'), u_audio: g('u_audio'), u_noise: g('u_noise'),
     u_maskBox: g('u_maskBox'), u_maskRx: g('u_maskRx'), u_maskRy: g('u_maskRy'),
     u_maskAlpha: g('u_maskAlpha'),
     u_seed: g('u_seed'), u_scale: g('u_scale'), u_warp: g('u_warp'), u_grain: g('u_grain'),
@@ -360,12 +376,16 @@ function uploadInt(
 }
 
 /**
- * The generative mode's uniforms, uploaded unconditionally for the same reason `u_audio` is.
+ * The field's uniforms, uploaded unconditionally for the same reason `u_audio` is.
  *
- * Every location here is `null` in all five image-filter programs, so this costs those modes
- * nothing. Within the generative program it matters that these are never skipped: the program is
- * shared by every `mode: gradient` instance on the page, so a uniform one instance left alone keeps
- * whatever the last instance to draw put there — two gradients on one page would trade seeds.
+ * `grain`, `hue`, `bands` and `maskMode` are still generative-only and find a `null` location in
+ * every filter program, so they cost those modes nothing. `seed`, `scale`, `warp`, `detail` and
+ * `noise` now land in `fluid`, `liquid`, `particles` and `morph` as well.
+ *
+ * It matters that none of these is ever skipped: a program is shared by every instance on the page
+ * that uses it, so a uniform one instance left alone keeps whatever the last instance to draw put
+ * there — two gradients on one page would trade seeds, and one `liquid` with `noise: 1` would hand
+ * its field to the plain `liquid` next to it.
  */
 function uploadFieldUniforms(
   gl: WebGLRenderingContext | WebGL2RenderingContext,
@@ -375,6 +395,7 @@ function uploadFieldUniforms(
   uploadFloat(gl, locs.u_seed, opt.seed ?? 0)
   uploadFloat(gl, locs.u_scale, opt.scale ?? 1)
   uploadFloat(gl, locs.u_warp, opt.warp ?? 0)
+  uploadFloat(gl, locs.u_noise, opt.noise ?? 0)
   uploadFloat(gl, locs.u_grain, opt.grain ?? 0)
   uploadFloat(gl, locs.u_hue, opt.hue ?? 0)
   uploadInt(gl, locs.u_detail, opt.detail ?? 3)
@@ -1019,6 +1040,7 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     seed: params.num('seed', 0),
     scale: params.num('scale', 1),
     warp: params.num('warp', 0),
+    noise: params.num('noise', 0),
     grain: params.num('grain', 0),
     hue: parseAngleRadians(params.text('hue', '0deg')),
     detail: params.num('detail', 3),
@@ -2049,6 +2071,24 @@ export const SHADER_PARAMETERS = {
   detail: { type: 'number' as const, default: '3', minimum: 1, maximum: 6, integer: true, cssProperty: '--kui-shader-detail' },
   /** How far a second field distorts the first. The difference between contour rings and liquid. */
   warp: { type: 'number' as const, default: '0', minimum: 0, maximum: 2, cssProperty: '--kui-shader-warp' },
+  /**
+   * How much of `fluid`, `liquid`, `particles` and `morph`'s motion comes from real noise.
+   *
+   * Those four shipped with a single trigonometric term standing in for noise, which bands and
+   * repeats visibly. This crossfades that term into the same `kuiFbm` field `mode: gradient`
+   * generates from — `0` is the shipped picture exactly, `1` is the field on its own, and the
+   * values between are a genuine dial rather than a rounded switch.
+   *
+   * **It is off by default and must stay that way.** Four modes are already in use; turning this
+   * on for them without being asked would restyle live pages. See `FILTER_NOISE_GLSL` in
+   * `glsl.ts` for why it is a parameter of its own rather than `warp` doing double duty.
+   *
+   * Above `0` it is also what gives `seed`, `scale`, `warp` and `detail` a meaning on these four
+   * modes; below it they are read and uploaded but nothing samples them. `mode: displace`'s ripple
+   * is a deliberate radial wave rather than fake noise, and `gradient`/`logo` are already nothing
+   * but the noise core, so all three ignore this.
+   */
+  noise: { type: 'number' as const, default: '0', minimum: 0, maximum: 1, cssProperty: '--kui-shader-noise' },
   /** Posterise the ramp into this many steps. `0` is off, as with `chromatic` and `iridescence`. */
   bands: { type: 'number' as const, default: '0', minimum: 0, maximum: 32, integer: true, cssProperty: '--kui-shader-bands' },
   /** Film grain amount. */

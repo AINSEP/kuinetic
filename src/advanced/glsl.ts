@@ -67,13 +67,13 @@ float shapeMask() {
  *
  * Written as a shared block, spliced into programs the same way {@link AUDIO_GAIN_GLSL} and
  * {@link SHAPE_MASK_GLSL} already are, because it is deliberately *not* the gradient mode's private
- * helper. Four of the five programs above fake their noise with a single trigonometric term —
+ * helper. Four of the five filter programs fake their noise with a single trigonometric term —
  * `FLUID_FS`'s `vec2(sin(t + uv.y * 10.0), cos(...))`, `LIQUID_FS`'s two `sin`/`cos` waves,
  * `PARTICLES_FS`'s `sin(t * 5.0 + dot(uv, vec2(100.0)))`, and `MORPH_FS`, which names its variable
- * `noise` while computing `sin(x) * cos(y)`. Each of those is a candidate to adopt `kuiFbm` later;
- * that is a visual change to shipped behaviour and belongs in its own change, but the function they
- * would adopt should exist exactly once. (`DISPLACE_FS`'s term is a deliberate radial ripple, not
- * fake noise, and is not a candidate.)
+ * `noise` while computing `sin(x) * cos(y)`. All four now reach this function through
+ * {@link FILTER_NOISE_GLSL}, under the `noise:` parameter. (`DISPLACE_FS`'s term is a deliberate
+ * radial ripple, not fake noise, and is not a candidate — it is the one filter that does not
+ * splice this block in.)
  *
  * Gradient noise on a cubic lattice rather than value noise: a value-noise lattice shows as
  * square-ish blobs at the low frequencies a colour field runs at, which is the one artefact a
@@ -179,6 +179,70 @@ float kuiFbm(vec3 p, int octaves) {
 }
 `
 
+/**
+ * The four filter programs' bridge to the noise core, under one authored amount.
+ *
+ * **Why a parameter and not a straight swap.** `fluid`, `liquid`, `particles` and `morph` shipped
+ * with a trigonometric stand-in for noise, and pages are running on them today. Replacing the term
+ * outright would restyle four modes for everyone on the next release. Making `scale`/`detail`/
+ * `warp`/`seed` simply *apply* to these programs has the same problem by another route: `detail`
+ * defaults to `3`, not to off, so a filter page would pick up the new field the moment the code
+ * landed. The only existing knob whose default is already off is `warp: 0` — and overloading it to
+ * mean both "use the noise core" and "how much to domain-warp" is two behaviours behind one
+ * parameter, which is precisely what {@link NOISE_GLSL}'s `kuiFbm` comment records this directory
+ * getting wrong before. So the switch is its own parameter.
+ *
+ * It is a 0..1 *amount* rather than an on/off keyword, matching `chromatic`, `iridescence`, `grain`
+ * and `warp`, where `0` is off and the values between are a real dial: `u_noise` crossfades each
+ * program's existing trig term into the fbm field, so an author can keep the shipped picture, take
+ * the new one whole, or sit anywhere between. Above `0` is also what makes `seed`, `scale`, `warp`
+ * and `detail` mean something on these four modes — the alternative was four more knobs.
+ *
+ * **Bit-identical at the default.** Every call site guards on `u_noise > 0.0`, so at `0` the fbm is
+ * not merely mixed out, it is never evaluated: the trig path runs unchanged and costs what it
+ * always did. The guard is on a uniform, so it is coherent across the warp and not a divergence
+ * cost either.
+ */
+const FILTER_NOISE_GLSL = `uniform float u_noise;
+uniform float u_seed;
+uniform float u_scale;
+uniform float u_warp;
+uniform int u_detail;
+
+/**
+ * A sine's RMS is 0.707. Amplitude-normalised fbm's is about 0.23 — it reaches its \`1.0\` peak
+ * rarely, which is what makes it look like noise rather than a wave. Handing the programs the raw
+ * field would therefore read as the *effect being turned down*, not as it being re-textured, and
+ * the first thing anyone trying \`noise: 1\` would do is reach for \`strength\`. This brings the two
+ * to the same typical magnitude so the amount is a change of texture and nothing else.
+ */
+const float KUI_FBM_SINE_RMS = 3.0;
+
+/**
+ * One scalar of animated noise, scaled to stand in for a unit sine at a stated rate.
+ *
+ * \`cycles\` and \`rate\` are the spatial and temporal frequency of the term being replaced, in
+ * cycles rather than radians — each call site divides its own trig coefficients by 2*pi and passes
+ * the result, so \`noise: 1\` lands on the same feature size and the same speed as the wave it took
+ * over from. That is the entire mechanism keeping this from being a new look.
+ *
+ * \`phase\` decorrelates sibling calls: two components of one flow vector must not be the same
+ * field, and offsetting the seed is cheaper than hashing a second one.
+ *
+ * \`u_warp\` costs two further fbm evaluations and is skipped entirely when it is zero.
+ */
+float kuiFilterField(vec2 uv, float t, float cycles, float rate, float phase) {
+  vec3 s = vec3(u_seed * 137.31, u_seed * 71.17, u_seed * 29.73) + phase;
+  vec3 q = vec3((uv - 0.5) * cycles * max(u_scale, 0.05), t * rate) + s;
+  if (u_warp > 0.0) {
+    float wx = kuiFbm(q * 0.5 + vec3(5.2, 1.3, 7.1), u_detail);
+    float wy = kuiFbm(q * 0.5 + vec3(19.7, 11.1, 3.7), u_detail);
+    q.xy += vec2(wx, wy) * u_warp;
+  }
+  return kuiFbm(q, u_detail) * KUI_FBM_SINE_RMS;
+}
+`
+
 export const FULLSCREEN_QUAD_VS = `#version 300 es
 in vec2 a_position;
 uniform vec2 u_uvOrigin;
@@ -249,7 +313,7 @@ uniform float u_strength;
 uniform vec2 u_mouse;
 uniform vec4 u_tint;
 uniform float u_progress;
-${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
+${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}${FILTER_NOISE_GLSL}
 void main() {
   vec2 uv = v_uv;
   vec2 m = u_mouse;
@@ -258,7 +322,19 @@ void main() {
   // reads as the whole surface moving faster, not just around the cursor.
   float gain = audioGain();
   float force = exp(-d * 6.0) * u_strength * gain;
-  vec2 flow = vec2(sin(u_time + uv.y * 10.0), cos(u_time + uv.x * 10.0)) * 0.02 * gain;
+  // The ambient drift. Two perpendicular waves at 10 rad across the box and 1 rad/s, which is
+  // 10/2pi = 1.5915 cycles and 1/2pi = 0.1592 cycles a second — the numbers kuiFilterField needs
+  // to put its field at the same size and speed. The drift is the whole of the ambient motion
+  // here, so this is the mode where the noise core reads most strongly: a regular cross-hatched
+  // sway becomes an irregular current.
+  vec2 wave = vec2(sin(u_time + uv.y * 10.0), cos(u_time + uv.x * 10.0));
+  if (u_noise > 0.0) {
+    wave = mix(wave, vec2(
+      kuiFilterField(uv, u_time, 1.5915, 0.1592, 0.0),
+      kuiFilterField(uv, u_time, 1.5915, 0.1592, 31.4)
+    ), u_noise);
+  }
+  vec2 flow = wave * 0.02 * gain;
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
   vec2 offset = (flow + (uv - m) * force * 0.1) * pFactor;
   fragColor = texture(u_image, uv + offset) * u_tint * shapeMask();
@@ -274,11 +350,21 @@ uniform float u_time;
 uniform float u_strength;
 uniform vec4 u_tint;
 uniform float u_progress;
-${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
+${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}${FILTER_NOISE_GLSL}
 void main() {
   vec2 uv = v_uv;
-  float w1 = sin(uv.y * 12.0 + u_time * 2.0) * 0.015;
-  float w2 = cos(uv.x * 10.0 - u_time * 1.5) * 0.015;
+  // 12 rad and 2 rad/s is 1.9099 cycles at 0.3183 a second; 10 rad and 1.5 rad/s is 1.5915 at
+  // 0.2387. The two waves keep their own rates under noise rather than being merged into one
+  // field, because the difference between them is what stops the surface reading as a single
+  // sheet sliding.
+  float w1 = sin(uv.y * 12.0 + u_time * 2.0);
+  float w2 = cos(uv.x * 10.0 - u_time * 1.5);
+  if (u_noise > 0.0) {
+    w1 = mix(w1, kuiFilterField(uv, u_time, 1.9099, 0.3183, 0.0), u_noise);
+    w2 = mix(w2, kuiFilterField(uv, u_time, 1.5915, 0.2387, 47.3), u_noise);
+  }
+  w1 *= 0.015;
+  w2 *= 0.015;
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
   // Audio deepens the wave (up to 2x) without changing its wavelength or speed.
   vec2 offset = vec2(w1, w2) * u_strength * pFactor * audioGain();
@@ -296,12 +382,30 @@ uniform float u_strength;
 uniform vec2 u_mouse;
 uniform vec4 u_tint;
 uniform float u_progress;
-${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
+${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}${FILTER_NOISE_GLSL}
 void main() {
   vec2 uv = v_uv;
   vec2 grid = fract(uv * 40.0) - 0.5;
   float dist = length(grid);
+  // 100 rad across the box and 5 rad/s is 15.915 cycles at 0.7958 a second. That is by far the
+  // highest frequency of the four, and deliberately so: the trig term here is a diagonal travelling
+  // stripe, which is the most visible of the four repeats. Under noise the stripe becomes a
+  // scintillation, which is the largest change of the set and is the reason the parameter exists
+  // rather than the swap being unconditional.
+  //
+  // The clamp is not damage control. Mapped through KUI_FBM_SINE_RMS the field reaches 0 and 1
+  // often, which is what a sine does too — sin()*0.5+0.5 is arcsine-distributed and spends most of
+  // its time at the extremes. Clamping reproduces that; a soft field would give a duller sparkle
+  // than the one being replaced.
+  //
+  // Cost: this is one fbm per pixel, three with warp on, over the whole quad. At detail 6 the
+  // finest octave here sits near 509 cycles across the box, which is sub-pixel on a small element
+  // and will alias — high detail belongs on the low-frequency modes.
   float sparkle = sin(u_time * 5.0 + dot(uv, vec2(100.0))) * 0.5 + 0.5;
+  if (u_noise > 0.0) {
+    float n = clamp(kuiFilterField(uv, u_time, 15.915, 0.7958, 0.0) * 0.5 + 0.5, 0.0, 1.0);
+    sparkle = mix(sparkle, n, u_noise);
+  }
   vec4 tex = texture(u_image, uv);
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
   float dotMask = smoothstep(0.4, 0.2, dist) * u_strength * pFactor;
@@ -321,14 +425,24 @@ uniform sampler2D u_image_to;
 uniform float u_time;
 uniform float u_strength;
 uniform float u_progress;
-${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
+${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}${FILTER_NOISE_GLSL}
 void main() {
   vec2 uv = v_uv;
   float progress = u_progress >= 0.0 ? clamp(u_progress, 0.0, 1.0) : clamp(u_strength, 0.0, 1.0);
   // Audio wobbles the crossfade harder. Deliberately not applied to u_progress: the morph's
   // position between the two images belongs to the author (or to scroll), and letting a beat
   // drive it would make the transition jump backwards on every quiet frame.
-  float noise = sin(uv.x * 20.0 + u_time) * cos(uv.y * 20.0 + u_time) * 0.05 * audioGain();
+  //
+  // 20 rad and 1 rad/s is 3.1831 cycles at 0.1592 a second. The 0.7071 is the one place the shared
+  // RMS gain is wrong by construction: the term being replaced is a *product* of two unit sines,
+  // whose RMS is 0.5 rather than a single sine's 0.7071, so matching it means taking the field
+  // down by that ratio. Without it the displacement under noise would be about 40% deeper than
+  // the one it stands in for — a visibly stronger morph, not the same one better textured.
+  float noise = sin(uv.x * 20.0 + u_time) * cos(uv.y * 20.0 + u_time);
+  if (u_noise > 0.0) {
+    noise = mix(noise, kuiFilterField(uv, u_time, 3.1831, 0.1592, 0.0) * 0.7071, u_noise);
+  }
+  noise = noise * 0.05 * audioGain();
   vec4 c1 = texture(u_image, uv + vec2(noise * (1.0 - progress)));
   vec4 c2 = texture(u_image_to, uv - vec2(noise * progress));
   fragColor = mix(c1, c2, smoothstep(0.2, 0.8, progress)) * shapeMask();

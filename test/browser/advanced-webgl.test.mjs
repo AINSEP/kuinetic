@@ -1072,6 +1072,9 @@ void main() { this is not valid glsl at all !! }
   await runGenerativeField({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
   await runGenerativeField({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
 
+  await runFilterNoise({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  await runFilterNoise({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+
   return results
 }
 
@@ -1600,6 +1603,267 @@ async function runGenerativeField({ browser, check, label, viewport, deviceScale
     `z-index=${stacking.z} (1 means the property was never read; the default itself is asserted `
       + 'in the overlay-fidelity block, where nothing authors one)',
   )
+
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
+  await context.close()
+}
+
+/**
+ * 14. `noise:` — the four filter modes' adoption of the noise core.
+ *
+ * `fluid`, `liquid`, `particles` and `morph` each shipped with one trigonometric term standing in
+ * for noise. `noise:` crossfades that term into the same `kuiFbm` field `mode: gradient` generates
+ * from, and it is `0` by default because those four modes are already in use.
+ *
+ * **What this block has to prove, and what would fake it.** "The program still draws" proves
+ * nothing at all here — every one of these modes drew perfectly well before the change, and a
+ * `u_noise` that never reached the shader, a `kuiFilterField` multiplied by zero, and a `seed` that
+ * resolves to a null location all leave an image that looks entirely correct. Only a comparison
+ * between two readbacks off one element can separate them, which is why every reading below is the
+ * *same* element prepared twice with one parameter changed: no cross-element sampling difference
+ * exists to muddy a distance, the way it does between two boxes at different page positions.
+ *
+ * `speed: 0` throughout, which pins `u_time` at 0 — so a difference between two readings is the
+ * parameter and not the frame they landed on. Two traps that costs: a readback before any frame has
+ * run is transparent black and looks like a dead effect (so every read sits inside a rAF after two
+ * have passed), and a frozen canvas makes any "identical" assertion pass for free (so each mode
+ * reads the *same* parameters twice as its floor before any "differs" claim is believed).
+ *
+ * Per-mode strengths are chosen to isolate the term that changed:
+ * - `fluid` at `strength: 0` kills the pointer force entirely, leaving the ambient drift — which is
+ *   the only thing this change touches — as the whole of the offset.
+ * - `morph` at `strength: 0` puts `progress` at 0, so the crossfade is pure source image displaced
+ *   by the full noise term rather than half of two.
+ * - `liquid` at 4 and `particles` at 1 simply drive their terms hard enough to read.
+ */
+async function runFilterNoise({ browser, check, label, viewport, deviceScaleFactor }) {
+  const url = `file://${fileURLToPath(new URL('./fixtures/advanced-filter-noise.html', import.meta.url))}`
+  const context = await browser.newContext({ viewport, deviceScaleFactor })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+
+  // Held for the whole function: the last `destroy()` would otherwise drop `refCount` to zero and
+  // tear down the context between reads, which crashes headless Chromium's software GL renderer.
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().acquire())
+
+  const readings = await page.evaluate(`(async () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    /*
+     * The middle 60% of the element, every device pixel of it, in one readPixels.
+     *
+     * Deliberately not the inset 5x5 grid of point probes the generative block uses, and the
+     * reason is worth keeping: \`particles\` lays its dots on a \`fract(uv * 40.0)\` lattice, and
+     * that grid's fractions — 0.15 + 0.175 * i — are 6/40 and 7/40 exactly. Every probe landed on
+     * a lattice *corner*, where the dot mask is zero and the sparkle term is multiplied out
+     * entirely. The result was a clean 0.00 distance for every parameter of that mode at DPR 2:
+     * a perfect, entirely false "the noise core never reached the shader". Reading the whole
+     * block cannot be aligned out of existence by any lattice the shader happens to use.
+     *
+     * Inset by 20% because the outermost device pixel of a scissored draw straddles the box edge
+     * and blends with the cleared canvas.
+     */
+    const block = (gl, canvas, el) => {
+      const r = el.getBoundingClientRect()
+      const x = Math.round((r.left + r.width * 0.2) * dpr)
+      const y = Math.round(canvas.height - (r.top + r.height * 0.8) * dpr)
+      const w = Math.max(1, Math.round(r.width * 0.6 * dpr))
+      const h = Math.max(1, Math.round(r.height * 0.6 * dpr))
+      const px = new Uint8Array(w * h * 4)
+      gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      return px
+    }
+
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    if (!renderer.gl) return { error: 'no gl' }
+
+    const read = async (id, base, extra) => {
+      const el = document.getElementById(id)
+      const inst = prepareShaders(el, createEffectParams({ speed: 0, ...base, ...extra }))
+      inst.activate()
+      await settle()
+      const out = await new Promise((resolve) => requestAnimationFrame(() => {
+        resolve(block(renderer.gl, renderer.canvas, el))
+      }))
+      inst.destroy()
+      await settle()
+      return out
+    }
+
+    // A full block is ~58k bytes at DPR 2, and ten of them per mode is far too much to hand back
+    // across the bridge. The comparison is reduced here; the thresholds stay in Node, where the
+    // assertions are.
+    const dist = (a, b) => {
+      if (a.length !== b.length) return NaN
+      let n = 0
+      for (let i = 0; i < a.length; i++) n += Math.abs(a[i] - b[i])
+      return n / a.length
+    }
+    const same = (a, b) => dist(a, b) === 0
+    // Mean luminance and its spread. Across the noise crossfade these are the numbers that say
+    // whether the swap kept the *character* of the mode or merely changed it: a field whose
+    // amplitude does not match the term it replaced shows up here as a drift in spread — a larger
+    // sample offset smears a striped source and flattens it — long before it shows up as a
+    // different picture.
+    const stats = (a) => {
+      let sum = 0
+      const lum = new Float32Array(a.length / 4)
+      for (let i = 0, j = 0; i < a.length; i += 4, j++) {
+        lum[j] = 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]
+        sum += lum[j]
+      }
+      const mean = sum / lum.length
+      let v = 0
+      for (let j = 0; j < lum.length; j++) v += (lum[j] - mean) ** 2
+      return { mean, sd: Math.sqrt(v / lum.length) }
+    }
+
+    const MODES = {
+      fluid:     { id: 'fluid',     base: { mode: 'fluid',     strength: 0 } },
+      liquid:    { id: 'liquid',    base: { mode: 'liquid',    strength: 4 } },
+      particles: { id: 'particles', base: { mode: 'particles', strength: 1 } },
+      morph:     { id: 'morph',     base: { mode: 'morph',     strength: 0, to: '#morph-to' } },
+    }
+
+    const out = {}
+    for (const [name, { id, base }] of Object.entries(MODES)) {
+      const off = await read(id, base, { noise: 0 })
+      // The same parameters again, and then a seed authored with noise still off: the first is the
+      // floor every "differs" below is measured against, the second is the claim that the default
+      // is genuinely inert rather than merely quiet.
+      const offAgain = await read(id, base, { noise: 0 })
+      const offSeed = await read(id, base, { noise: 0, seed: 42 })
+      const on = await read(id, base, { noise: 1 })
+      const onAgain = await read(id, base, { noise: 1 })
+      const half = await read(id, base, { noise: 0.5 })
+      const onSeed = await read(id, base, { noise: 1, seed: 42 })
+      const onScale = await read(id, base, { noise: 1, scale: 4 })
+      const onWarp = await read(id, base, { noise: 1, warp: 1.5 })
+      // One octave against six, as the generative block does it. Not 3 against 6: the fbm is
+      // normalised by its amplitude sum, so octaves 4-6 carry 1/8, 1/16 and 1/32 of the first and
+      // the honest difference between them is under a level on two of these modes. A threshold
+      // tuned to catch that would be measuring rounding.
+      const det1 = await read(id, base, { noise: 1, detail: 1 })
+      const det6 = await read(id, base, { noise: 1, detail: 6 })
+      out[name] = {
+        pixels: off.length / 4,
+        statsOff: stats(off),
+        statsOn: stats(on),
+        exactOffRepeat: same(off, offAgain),
+        exactOnRepeat: same(on, onAgain),
+        exactOffSeed: same(off, offSeed),
+        offRepeat: dist(off, offAgain),
+        onRepeat: dist(on, onAgain),
+        offSeed: dist(off, offSeed),
+        offVsOn: dist(off, on),
+        halfVsOff: dist(half, off),
+        halfVsOn: dist(half, on),
+        seed: dist(on, onSeed),
+        scale: dist(on, onScale),
+        warp: dist(on, onWarp),
+        detail: dist(det1, det6),
+      }
+    }
+    return out
+  })()`)
+
+  const at = (name) => `${label}: ${name}`
+  if (readings.error) {
+    check(at('noise: the fixture reached a real WebGL2 context'), false, readings.error)
+    await context.close()
+    return
+  }
+
+  /*
+   * `particles` is the one mode whose term is not a sample offset. Its sparkle is mixed into the
+   * colour at at most 0.3 of full scale, under a dot mask covering about half the box, so its
+   * entire dynamic range is a fifth of what the three displacement modes have — the strongest
+   * signal it can produce (`noise: 0` against `noise: 1`) measured 5.7 where `liquid`'s is 68.
+   * Holding it to the others' floor would be a threshold tuned to the mode's amplitude rather
+   * than to whether the parameter works.
+   *
+   * These are margins against a driver difference, not against readback noise: at `speed: 0`
+   * every mode's repeat distance measured exactly 0, so there is no noise floor here to clear.
+   */
+  const FLOOR = { fluid: 2, liquid: 2, morph: 2, particles: 1 }
+
+  for (const mode of ['fluid', 'liquid', 'particles', 'morph']) {
+    const r = readings[mode]
+    const n = (v) => v.toFixed(3)
+    const floor = FLOOR[mode]
+
+    // The floor. Everything below is a claim about a distance, and without this there is no
+    // evidence that "identical" means anything or that a nonzero distance means the parameter.
+    check(
+      at(`noise/${mode}: HARNESS FLOOR — the same parameters read twice are byte-identical`),
+      r.exactOffRepeat && r.exactOnRepeat,
+      `${r.pixels} px read; off repeat=${n(r.offRepeat)}, on repeat=${n(r.onRepeat)}`,
+    )
+
+    // The headline claim: the noise core is genuinely in the program's output, not merely compiled
+    // into it. A `u_noise` that never uploaded, a location that resolved to null, or a
+    // `kuiFilterField` whose result is discarded all land here as ~0.
+    check(
+      at(`noise/${mode}: noise:1 renders a different field from the shipped trig term`),
+      r.offVsOn > floor,
+      `distance=${n(r.offVsOn)} (~0 means u_noise never reached the shader)`,
+    )
+
+    // The default is inert, and provably so rather than by inspection: a seed is the one parameter
+    // that could only come from the noise path, so if it moves a pixel at `noise: 0` then the
+    // field is being sampled on pages that never asked for it.
+    check(
+      at(`noise/${mode}: noise:0 is untouched — even an authored seed changes nothing`),
+      r.exactOffSeed,
+      `distance=${n(r.offSeed)} (nonzero means the noise path runs at the default)`,
+    )
+
+    // A crossfade rather than a rounded switch: the midpoint is its own picture, not one of the
+    // two ends. Asserted as "differs from both" rather than as an ordering, because the sampled
+    // colour is not linear in the sample offset and an interpolation claim would be false for the
+    // wrong reason.
+    check(
+      at(`noise/${mode}: noise:0.5 is a real midpoint, not a rounded switch`),
+      r.halfVsOff > floor / 2 && r.halfVsOn > floor / 2,
+      `to off=${n(r.halfVsOff)}, to on=${n(r.halfVsOn)}`,
+    )
+
+    // The four knobs that meant nothing to these modes until now. Each is a separate upload path
+    // and a separate use inside `kuiFilterField`, so one of them being dead is a live possibility
+    // that a single combined check would hide.
+    check(at(`noise/${mode}: seed reaches the filter field`), r.seed > floor, `distance=${n(r.seed)}`)
+    check(at(`noise/${mode}: scale reaches the filter field`), r.scale > floor, `distance=${n(r.scale)}`)
+    check(at(`noise/${mode}: warp reaches the filter field`), r.warp > floor, `distance=${n(r.warp)}`)
+    check(
+      at(`noise/${mode}: detail reaches the filter field`),
+      r.detail > floor / 2,
+      `octave 1 vs 6 distance=${n(r.detail)}`,
+    )
+
+    /*
+     * The claim the whole design rests on: `noise: 1` is the same effect better textured, not a
+     * different one. Each call site is handed the spatial and temporal frequency of the wave it
+     * replaced, and the shared `KUI_FBM_SINE_RMS` brings amplitude-normalised fbm up to a sine's
+     * RMS — get either wrong and the mode is visibly stronger or weaker, which is the outcome an
+     * opt-in parameter is supposed to make impossible to arrive at by accident.
+     *
+     * Mean luminance and its spread, because "a different picture" and "a different amount" are
+     * exactly the two things a distance cannot tell apart: a correctly re-textured mode and one
+     * whose displacement doubled both read as a large distance from the original.
+     */
+    const dMean = Math.abs(r.statsOff.mean - r.statsOn.mean)
+    const dSd = Math.abs(r.statsOff.sd - r.statsOn.sd)
+    check(
+      at(`noise/${mode}: noise:1 is the same effect re-textured, not a louder one`),
+      dMean < 8 && dSd < 12,
+      `mean ${r.statsOff.mean.toFixed(1)} -> ${r.statsOn.mean.toFixed(1)} (d=${dMean.toFixed(1)}), `
+        + `spread ${r.statsOff.sd.toFixed(1)} -> ${r.statsOn.sd.toFixed(1)} (d=${dSd.toFixed(1)}) — `
+        + 'a spread drift means the field amplitude does not match the term it replaced',
+    )
+  }
 
   await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
   await context.close()

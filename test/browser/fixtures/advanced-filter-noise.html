@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — filter-mode noise fixture</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #14110f; }
+      /* Fits inside 390x844 as well as 800x600, because this fixture runs at both. A probe outside
+         the viewport reads the cleared canvas and is indistinguishable from a dead shader. */
+      #stage { position: relative; width: 390px; height: 340px; }
+      #stage > * { position: absolute; width: 100px; height: 100px; }
+
+      #fluid     { left: 10px;  top: 10px; }
+      #liquid    { left: 120px; top: 10px; }
+      #particles { left: 230px; top: 10px; }
+      #morph     { left: 10px;  top: 120px; }
+      /* The second image `#morph` crossfades towards. No shader is ever put on it; it exists only
+         as a texture source, and it is parked where no probe reads. */
+      #morph-to  { left: 120px; top: 120px; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <!--
+        Four copies of one image, and the choice of image is the whole sensitivity of this block.
+
+        Fine vertical stripes — 7px bars on a 14px period — because every assertion here is
+        "did the sampled offset change", and a smooth image answers that with a couple of levels
+        while a striped one answers it with a full channel swing. `fluid`'s ambient drift is the
+        weakest term of the four and is fixed at 0.02 of the box (2px here) with no parameter that
+        scales it, so the image has to be able to register 2px. On a 14px period it does: roughly
+        a third of the box is within 2px of an edge.
+
+        Deliberately not one split down the middle. With a single boundary a probe far from it
+        absorbs even a large displacement invisibly and reads as a dead shader.
+      -->
+      <img id="fluid" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/><rect x='0' width='7' height='100' fill='rgb(255,0,0)'/><rect x='14' width='7' height='100' fill='rgb(255,0,0)'/><rect x='28' width='7' height='100' fill='rgb(255,0,0)'/><rect x='42' width='7' height='100' fill='rgb(255,0,0)'/><rect x='56' width='7' height='100' fill='rgb(255,0,0)'/><rect x='70' width='7' height='100' fill='rgb(255,0,0)'/><rect x='84' width='7' height='100' fill='rgb(255,0,0)'/><rect x='98' width='7' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <img id="liquid" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/><rect x='0' width='7' height='100' fill='rgb(255,0,0)'/><rect x='14' width='7' height='100' fill='rgb(255,0,0)'/><rect x='28' width='7' height='100' fill='rgb(255,0,0)'/><rect x='42' width='7' height='100' fill='rgb(255,0,0)'/><rect x='56' width='7' height='100' fill='rgb(255,0,0)'/><rect x='70' width='7' height='100' fill='rgb(255,0,0)'/><rect x='84' width='7' height='100' fill='rgb(255,0,0)'/><rect x='98' width='7' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <!--
+        `particles` reads its own image differently from the other three: it does not displace the
+        sample point at all, it mixes a sparkle *into* the colour under a dot mask. A mid grey, so
+        the added sparkle moves every channel by the same amount and a probe cannot register a
+        change that is really the stripes moving.
+      -->
+      <img id="particles" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(128,128,128)'/></svg>" />
+      <img id="morph" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,0,255)'/><rect x='0' width='7' height='100' fill='rgb(255,0,0)'/><rect x='14' width='7' height='100' fill='rgb(255,0,0)'/><rect x='28' width='7' height='100' fill='rgb(255,0,0)'/><rect x='42' width='7' height='100' fill='rgb(255,0,0)'/><rect x='56' width='7' height='100' fill='rgb(255,0,0)'/><rect x='70' width='7' height='100' fill='rgb(255,0,0)'/><rect x='84' width='7' height='100' fill='rgb(255,0,0)'/><rect x='98' width='7' height='100' fill='rgb(255,0,0)'/></svg>" />
+      <!-- Horizontal bars, so the two morph textures are never confusable with each other. -->
+      <img id="morph-to" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='rgb(0,255,0)'/><rect y='0' width='100' height='7' fill='rgb(255,255,0)'/><rect y='14' width='100' height='7' fill='rgb(255,255,0)'/><rect y='28' width='100' height='7' fill='rgb(255,255,0)'/><rect y='42' width='100' height='7' fill='rgb(255,255,0)'/><rect y='56' width='100' height='7' fill='rgb(255,255,0)'/><rect y='70' width='100' height='7' fill='rgb(255,255,0)'/><rect y='84' width='100' height='7' fill='rgb(255,255,0)'/><rect y='98' width='100' height='7' fill='rgb(255,255,0)'/></svg>" />
+    </div>
+
+    <!-- Built into the gitignored `.artifacts/`; see `advanced-webgl.html`. -->
+    <script src="../../../.artifacts/browser-fixtures/advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

@@ -29,6 +29,7 @@ import {
   readElementProgress,
   readShaderZIndex,
   type ElementGeometry,
+  type ShaderProgramLocations,
 } from '../shaders.js'
 import {
   compileShader,
@@ -36,6 +37,14 @@ import {
   extractLocations,
   createGLTexture,
 } from '../gl-utils.js'
+import {
+  DISPLACE_FS,
+  FLUID_FS,
+  GRADIENT_FS,
+  LIQUID_FS,
+  MORPH_FS,
+  PARTICLES_FS,
+} from '../glsl.js'
 import { createInertInstance as inertInstance } from '../base.js'
 import type { EffectParams } from '../../core/types.js'
 import { createRealPrepareContext } from './prepare-context-fixture.js'
@@ -1828,6 +1837,175 @@ describe('Advanced Shaders Labs Module', () => {
    * stacking order is a page-wide decision and lives on `:root` rather than in `SHADER_PARAMETERS`.
    * Whether the canvas actually *moves* is a browser question; these are about the read.
    */
+  /*
+   * `noise:` — the filter programs' adoption of the noise core.
+   *
+   * Under jsdom this is source text and upload calls, which is exactly the half that can be
+   * settled here: whether the block is spliced in, whether the default keeps the shipped picture,
+   * and whether each call site was given the frequency of the term it replaced. Whether the field
+   * that reaches the screen actually differs is `test/browser/advanced-webgl.test.mjs`'s question
+   * — the mock GL below reports success for a program that draws nothing.
+   */
+  describe('the filter modes’ noise core', () => {
+    const ADOPTERS = [
+      ['fluid', FLUID_FS], ['liquid', LIQUID_FS],
+      ['particles', PARTICLES_FS], ['morph', MORPH_FS],
+    ] as const
+
+    it('splices the noise core and its uniforms into exactly the four modes that fake noise', () => {
+      for (const [mode, src] of ADOPTERS) {
+        expect(src, mode).toContain('float kuiFbm(')
+        expect(src, mode).toContain('float kuiFilterField(')
+        expect(src, mode).toContain('uniform float u_noise;')
+        // The four knobs that only meant something to `gradient` before.
+        for (const u of ['u_seed', 'u_scale', 'u_warp', 'u_detail']) {
+          expect(src, `${mode} ${u}`).toContain(u)
+        }
+      }
+
+      // `displace`'s ripple is a deliberate radial wave, not a stand-in for noise, so it stays out
+      // of this entirely — and paying for the noise core in a program that never samples it would
+      // be a compile cost for nothing.
+      expect(DISPLACE_FS).not.toContain('kuiFbm')
+      expect(DISPLACE_FS).not.toContain('u_noise')
+
+      // The generative program is already nothing but the noise core, so a crossfade has no
+      // meaning there — and a second `uniform float u_seed;` would be a redeclaration.
+      expect(GRADIENT_FS).toContain('float kuiFbm(')
+      expect(GRADIENT_FS).not.toContain('u_noise')
+      expect(GRADIENT_FS).not.toContain('kuiFilterField')
+    })
+
+    it('declares no uniform twice in any program, which would fail to compile', () => {
+      for (const [mode, src] of [...ADOPTERS, ['gradient', GRADIENT_FS], ['displace', DISPLACE_FS]] as const) {
+        const names = [...src.matchAll(/^uniform\s+\w+\s+(\w+)/gm)].map((m) => m[1])
+        expect(new Set(names).size, `${mode}: ${names.join(', ')}`).toBe(names.length)
+      }
+    })
+
+    it('never evaluates the field at the default, so a shipped page renders what it always did', () => {
+      // The guard, not the mix, is the contract: `mix(trig, fbm, 0.0)` would still pay for the fbm
+      // on every pixel of every `liquid` on the web, and would not be bit-identical either.
+      for (const [mode, src] of ADOPTERS) {
+        expect(src, mode).toContain('if (u_noise > 0.0)')
+        const guardAt = src.indexOf('if (u_noise > 0.0)')
+        const firstCall = src.indexOf('kuiFilterField(uv')
+        expect(firstCall, `${mode}: a call outside the guard`).toBeGreaterThan(guardAt)
+      }
+      expect(SHADER_PARAMETERS.noise.default).toBe('0')
+      expect(SHADER_PARAMETERS.noise.minimum).toBe(0)
+      expect(SHADER_PARAMETERS.noise.maximum).toBe(1)
+    })
+
+    /*
+     * The one test that says the result is the *same effect* rather than a new one.
+     *
+     * Each call site hands `kuiFilterField` the spatial and temporal frequency of the wave it took
+     * over from, converted from radians to cycles. Get those wrong and `noise: 1` is a different
+     * animation at a different scale — which is the failure this whole parameter exists to avoid,
+     * and which no "it still draws" assertion would catch.
+     */
+    it('gives each call site the frequency of the trig term it replaced', () => {
+      const TAU = Math.PI * 2
+      const calls = (src: string) =>
+        [...src.matchAll(/kuiFilterField\(uv, u_time, ([\d.]+), ([\d.]+),/g)]
+          .map((m) => [parseFloat(m[1]!), parseFloat(m[2]!)] as const)
+
+      // `sin(u_time + uv.y * 10.0)` and its cos twin: 10 rad across the box, 1 rad/s.
+      expect(calls(FLUID_FS)).toHaveLength(2)
+      for (const [cycles, rate] of calls(FLUID_FS)) {
+        expect(cycles).toBeCloseTo(10 / TAU, 3)
+        expect(rate).toBeCloseTo(1 / TAU, 3)
+      }
+
+      // Two waves at their own rates: 12 rad / 2 rad-s, and 10 rad / 1.5 rad-s.
+      expect(calls(LIQUID_FS)).toEqual([
+        [expect.closeTo(12 / TAU, 3), expect.closeTo(2 / TAU, 3)],
+        [expect.closeTo(10 / TAU, 3), expect.closeTo(1.5 / TAU, 3)],
+      ])
+
+      // `sin(u_time * 5.0 + dot(uv, vec2(100.0)))` — the fastest and finest of the four.
+      expect(calls(PARTICLES_FS)).toEqual([
+        [expect.closeTo(100 / TAU, 2), expect.closeTo(5 / TAU, 3)],
+      ])
+
+      // `sin(uv.x * 20.0 + u_time) * cos(uv.y * 20.0 + u_time)`.
+      expect(calls(MORPH_FS)).toEqual([
+        [expect.closeTo(20 / TAU, 3), expect.closeTo(1 / TAU, 3)],
+      ])
+    })
+
+    it('matches amplitude rather than handing the programs the raw field', () => {
+      // Amplitude-normalised fbm sits well below a sine's RMS, so a straight swap reads as the
+      // effect being turned down. The gain lives once, in the shared block.
+      for (const [mode, src] of ADOPTERS) {
+        expect(src, mode).toContain('KUI_FBM_SINE_RMS')
+      }
+      // `morph`'s term is a product of two sines (RMS 0.5), not one (0.7071), so its call site
+      // takes the shared gain back down by that ratio.
+      expect(MORPH_FS).toContain('* 0.7071')
+      // `particles` feeds a 0..1 sparkle, so its field is remapped and clamped rather than used
+      // signed the way the three displacement terms are.
+      expect(PARTICLES_FS).toMatch(/clamp\(kuiFilterField\(uv, u_time, [\d.]+, [\d.]+, [\d.]+\) \* 0\.5 \+ 0\.5, 0\.0, 1\.0\)/)
+    })
+
+    it('reads the parameter and uploads zero when it is unauthored', () => {
+      const params = {
+        text: vi.fn((_k: string, def: string) => def),
+        num: vi.fn((k: string, def: number) => (k === 'noise' ? 0.75 : def)),
+      } as unknown as EffectParams
+      expect(extractShaderOptions(params).noise).toBe(0.75)
+
+      const defaults = {
+        text: vi.fn((_k: string, def: string) => def),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+      expect(extractShaderOptions(defaults).noise).toBe(0)
+    })
+
+    it('always uploads u_noise, so one noisy instance cannot leak into a plain neighbour', () => {
+      const gl = createMockGL()
+      const prog = createProgram(gl, 'void main(){}', 'void main(){}')!
+      // `extractLocations` is the generic helper and does not know this module's own uniforms;
+      // `uploadUniforms` fills `u_noise` in lazily on the record it is handed, which is exactly
+      // what this asserts.
+      const locs = extractLocations(gl, prog)! as ShaderProgramLocations
+
+      uploadUniforms(gl, locs, { noise: 0.5 })
+      expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_noise, 0.5)
+
+      // The second instance authored nothing. Skipping the upload would leave the 0.5 above on a
+      // program both share — the exact failure `u_audio` and the mask uniforms are written this
+      // way to avoid.
+      ;(gl.uniform1f as ReturnType<typeof vi.fn>).mockClear()
+      uploadUniforms(gl, locs, {})
+      expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_noise, 0)
+    })
+
+    it('looks u_noise up lazily for a cached program that predates it, and only once', () => {
+      const gl = createMockGL()
+      const prog = createProgram(gl, 'void main(){}', 'void main(){}')!
+      // A locations record built before this parameter existed: `u_noise` is absent, not null.
+      const stale = { program: prog, u_time: { name: 'u_time' } } as unknown as Parameters<typeof uploadUniforms>[1]
+
+      uploadUniforms(gl, stale, { noise: 1 })
+      const lookups = (gl.getUniformLocation as ReturnType<typeof vi.fn>).mock.calls
+        .filter((c) => c[1] === 'u_noise')
+      expect(lookups).toHaveLength(1)
+
+      uploadUniforms(gl, stale, { noise: 1 })
+      expect((gl.getUniformLocation as ReturnType<typeof vi.fn>).mock.calls
+        .filter((c) => c[1] === 'u_noise')).toHaveLength(1)
+    })
+
+    it('resolves u_noise on the raw-WebGLProgram path too', () => {
+      const gl = createMockGL()
+      const prog = createProgram(gl, 'void main(){}', 'void main(){}')!
+      uploadUniforms(gl, prog, { noise: 0.25 })
+      expect(gl.uniform1f).toHaveBeenCalledWith({ name: 'u_noise' }, 0.25)
+    })
+  })
+
   describe('the shared canvas stacking order', () => {
     /** The read, against a root element carrying `inline` and a stylesheet carrying `computed`. */
     const zFor = (inline: string, computed: string): number => {
