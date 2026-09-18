@@ -13,6 +13,30 @@ that choice. Nothing here is built. Every convention below was read off disk tod
 
 The host's own children stay visible, on top of the render. That is not a nicety — see §3.
 
+## 0. Why one div — the argument that decided it
+
+The alternative was a host with a child per part, the `camera-scene` / `camera-layer` shape:
+`<div data-kui="scene-3d">` wrapping `<div data-kui="model …">` and `<div data-kui="light …">`.
+
+It lost on two counts.
+
+**Those children would not be content.** Tier 1 earns that shape honestly — a `camera-layer` *is* a
+real div with real text that moves in depth. A three.js mesh is not. Child elements that render
+nothing, size nothing and mean nothing to a screen reader are DOM as bookkeeping.
+
+**And the shape has a defect the test suite structurally cannot see.** Discovering virtual parts by
+descendant query is how a nested scene came to claim its outer scene's children — fixed today in
+`b1b1708`, "a nested scene keeps its own steps, and a nested camera its own layers", which added a
+shared `ownedDescendants` helper across `base.ts`, `camera-3d.ts` and `scenes.ts` plus a new
+243-line `nested-ownership.test.ts`.
+
+That it is now fixed makes the argument *stronger*, not weaker. Relayed first-hand by the session
+that fixed it: **the whole advanced suite passed before the fix and would have passed after it**,
+with `camera-3d.ts` at 100% line and branch coverage throughout. The scan loop is covered;
+*ownership* is not a branch. So this is not merely a bug-prone shape — it is bug-prone in a way
+100% coverage reports as healthy. Building it a second time, for a tier whose parts are not even
+real elements, buys nothing and re-buys that.
+
 ## 1. Parameters
 
 Every entry is a real `ParamSpec` shape (`src/core/types.ts:218-300`). `keywords` is required on
@@ -66,6 +90,17 @@ Proposed: `channels: ['position']`.
 Channel strings are not limited to the `CHANNEL` constant — `camera-3d` already declares the custom
 `'perspective'` and `'transform-style'`. Naming the actual property is the established pattern.
 
+⚠ **Writing to a host you do not otherwise own has a known open defect.** `createAdvancedLedgers`
+in `src/advanced/base.ts:193-197` decides an element's `foreign` flag **once**, when the first
+controller opens the entry, and caches it in a module-level `WeakMap`. A second controller arriving
+later reuses that cached entry, so its own `hostLedger` is silently ignored, and
+`releaseSharedLedger` (`base.ts:233`) then skips the restore for anything flagged `foreign` — which
+is how a written property can outlive every animator that wrote it. Today's audit rates this medium
+and unfixed, and reads the real seam as belonging in `core/owned-styles.ts` as a per-element,
+refcounted ledger rather than an advanced module borrowing one animator's private one. **A brand-new
+tier writing `position` to a host it does not otherwise own is precisely the case that hits this.**
+Do not rediscover it as a ghost-style bug.
+
 **It is not otherwise opaque.** Item 23 asked whether a GPU effect participates in the channel model
 at all. For this shape the answer falls out: the render lives inside a canvas that composes with
 nothing, but the *host* is an ordinary element, so a `fade-up` on the same div still works and the
@@ -103,6 +138,14 @@ the renderer exists. `poster` covers the case where WebGL never starts at all.)
    scroll-bound 3D scene looks completely dead. Check `document.hidden` before filing a bug.
 5. **Demo pages run built bundles.** Opening Chrome without rebuilding tests stale code and yields
    a confident false PASS.
+
+## 5b. The parking condition is substantially met
+
+Item 24 was parked 2026-09-10 on one condition: repair `src/advanced/` first. That repair is the
+work of the last week and is substantially done — nine audit defects found today, five fixed, three
+in `shaders.ts` / `glsl.ts` in flight as this was written. **Do not describe Tier 2 as blocked on
+`src/advanced/` any more.** Whether the owner calls the condition closed is still the owner's to
+say, but the grammar — the blocker item 24 actually names — is no longer missing. It is this file.
 
 ## 6. What is still open
 
