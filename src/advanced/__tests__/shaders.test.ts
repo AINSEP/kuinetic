@@ -1846,6 +1846,220 @@ describe('Advanced Shaders Labs Module', () => {
    * that reaches the screen actually differs is `test/browser/advanced-webgl.test.mjs`'s question
    * — the mock GL below reports success for a program that draws nothing.
    */
+  /*
+   * `hover:`, `backdrop:`, `angle:` and `motion:` — the generative program's four new knobs.
+   *
+   * The same split as the noise core's block below: what can be settled under jsdom is the
+   * schema, the extraction, the upload calls, and the *shape* of the shader source — which
+   * guard wraps which read. Whether stirring actually swirls a pixel is
+   * `test/browser/advanced-webgl.test.mjs`'s question, and it is asked there.
+   */
+  describe('the generative field’s pointer, plate, orientation and motion', () => {
+    const defaultParams = () => ({
+      text: vi.fn((_k: string, def: string) => def),
+      num: vi.fn((_k: string, def: number) => def),
+    } as unknown as EffectParams)
+
+    const withText = (overrides: Record<string, string>) => ({
+      text: vi.fn((k: string, def: string) => overrides[k] ?? def),
+      num: vi.fn((_k: string, def: number) => def),
+    } as unknown as EffectParams)
+
+    /** The body of `main()`, which is where "is this read behind a guard" is actually decided. */
+    const gradientMain = () => GRADIENT_FS.slice(GRADIENT_FS.indexOf('void main()'))
+
+    it('declares the four parameters with closed value sets where the value set is closed', () => {
+      // `keyword`, not `text`. A `text` parameter with a `values` list validates nothing in this
+      // repository's schema, so a typo would pass through and land as a silently wrong mode.
+      expect(SHADER_PARAMETERS.hover.type).toBe('keyword')
+      expect(SHADER_PARAMETERS.hover.default).toBe('none')
+      expect(SHADER_PARAMETERS.hover.keywords).toEqual(['none', 'stir', 'light', 'both'])
+      expect(SHADER_PARAMETERS.hover.cssProperty).toBe('--kui-shader-hover')
+
+      expect(SHADER_PARAMETERS.motion.type).toBe('keyword')
+      expect(SHADER_PARAMETERS.motion.default).toBe('evolve')
+      expect(SHADER_PARAMETERS.motion.keywords).toEqual(['evolve', 'drift', 'swirl'])
+      expect(SHADER_PARAMETERS.motion.cssProperty).toBe('--kui-shader-motion')
+
+      // An angle, not a normalised 0..1 scalar — matching `hue` and this repository's standing
+      // rejection of normalised ranges where a real CSS unit exists.
+      expect(SHADER_PARAMETERS.angle.type).toBe('angle')
+      expect(SHADER_PARAMETERS.angle.default).toBe('0deg')
+      expect(SHADER_PARAMETERS.angle.cssProperty).toBe('--kui-shader-angle')
+
+      // A colour, unset by default, exactly like `color1`..`color5`.
+      expect(SHADER_PARAMETERS.backdrop.type).toBe('color')
+      expect(SHADER_PARAMETERS.backdrop.default).toBe('')
+      expect(SHADER_PARAMETERS.backdrop.cssProperty).toBe('--kui-shader-backdrop')
+    })
+
+    it('reads every default as the inert value, so a shipped page is untouched', () => {
+      const opt = extractShaderOptions(defaultParams())
+      expect(opt.hover).toBe(0)
+      expect(opt.angle).toBe(0)
+      expect(opt.motion).toBe(0)
+      // Not `[1, 1, 1, 1]`. `parseColor('')` answers opaque white — the fallback that makes an
+      // unset `color1` harmless would make an unset `backdrop` a white plate behind every logo.
+      expect(opt.backdropRgba).toEqual([0, 0, 0, 0])
+    })
+
+    it('maps hover to bits, so `both` is `stir | light` and not a third code path', () => {
+      expect(extractShaderOptions(withText({ hover: 'none' })).hover).toBe(0)
+      expect(extractShaderOptions(withText({ hover: 'stir' })).hover).toBe(1)
+      expect(extractShaderOptions(withText({ hover: 'light' })).hover).toBe(2)
+      expect(extractShaderOptions(withText({ hover: 'both' })).hover).toBe(3)
+      expect(extractShaderOptions(withText({ hover: 'stir' })).hover! | extractShaderOptions(withText({ hover: 'light' })).hover!)
+        .toBe(extractShaderOptions(withText({ hover: 'both' })).hover)
+      // A word that is not a keyword lands on the inert value rather than on whichever branch
+      // `??` happened to reach — the same gate `scrub:` and `audio:` carry.
+      expect(extractShaderOptions(withText({ hover: 'hoover' })).hover).toBe(0)
+      expect(extractShaderOptions(withText({ hover: '' })).hover).toBe(0)
+    })
+
+    it('maps motion to an int and falls back to `evolve`, the shipped behaviour', () => {
+      expect(extractShaderOptions(withText({ motion: 'evolve' })).motion).toBe(0)
+      expect(extractShaderOptions(withText({ motion: 'drift' })).motion).toBe(1)
+      expect(extractShaderOptions(withText({ motion: 'swirl' })).motion).toBe(2)
+      expect(extractShaderOptions(withText({ motion: 'drif' })).motion).toBe(0)
+    })
+
+    it('reads angle through parseAngleRadians, so every CSS angle unit arrives', () => {
+      expect(extractShaderOptions(withText({ angle: '180deg' })).angle).toBeCloseTo(Math.PI, 6)
+      expect(extractShaderOptions(withText({ angle: '0.25turn' })).angle).toBeCloseTo(Math.PI / 2, 6)
+      expect(extractShaderOptions(withText({ angle: '1rad' })).angle).toBeCloseTo(1, 6)
+      // `core/params.ts` normalises a bare number to degrees before this ever sees it; the parser
+      // accepts one anyway rather than answering the fallback for a spelling that does arrive.
+      expect(extractShaderOptions(withText({ angle: '90' })).angle).toBeCloseTo(Math.PI / 2, 6)
+    })
+
+    it('parses an authored backdrop and keeps whitespace from becoming a white plate', () => {
+      expect(extractShaderOptions(withText({ backdrop: '#ff0000' })).backdropRgba).toEqual([1, 0, 0, 1])
+      expect(extractShaderOptions(withText({ backdrop: '   ' })).backdropRgba).toEqual([0, 0, 0, 0])
+    })
+
+    it('declares the four uniforms on the generative program and nowhere else', () => {
+      for (const u of ['uniform vec2 u_mouse;', 'uniform int u_hover;', 'uniform vec4 u_backdrop;',
+        'uniform float u_angle;', 'uniform int u_motion;']) {
+        expect(GRADIENT_FS, u).toContain(u)
+      }
+      // Generative-only: a filter program that declared these would pay for uniforms nothing in
+      // it samples, and `uploadFieldUniforms` would have a location to write to that means nothing.
+      for (const [mode, src] of [['displace', DISPLACE_FS], ['fluid', FLUID_FS], ['liquid', LIQUID_FS],
+        ['particles', PARTICLES_FS], ['morph', MORPH_FS]] as const) {
+        for (const u of ['u_hover', 'u_backdrop', 'u_angle', 'u_motion']) {
+          expect(src, `${mode} ${u}`).not.toContain(u)
+        }
+      }
+    })
+
+    /*
+     * The inertness proof, in the one form jsdom can give: the *guard*, not a mix by zero.
+     *
+     * `mix(picture, hovered, 0.0)` would be the easy way to write all four of these and would be
+     * wrong twice over — it pays for the whole gesture on every pixel of every gradient on the
+     * web, and it is not bit-identical either. Whether the pixels really are unchanged is proved
+     * in the browser, by moving a real pointer at `hover: none`.
+     */
+    it('puts every new read behind a guard rather than mixing it out by zero', () => {
+      const main = gradientMain()
+
+      // The pointer. `u_mouse` reaches `main()` in exactly one place — inside the stir branch —
+      // and the falloff is evaluated once, behind `u_hover != 0`.
+      expect(main).toContain('float hoverFall = u_hover != 0 ? kuiHoverFalloff() : 0.0;')
+      expect(main.match(/kuiHoverFalloff\(\)/g)).toHaveLength(1)
+      const stirGuard = main.indexOf('(u_hover & KUI_HOVER_STIR) != 0')
+      expect(stirGuard).toBeGreaterThan(-1)
+      const mouseReads = [...main.matchAll(/u_mouse/g)].map((m) => m.index!)
+      expect(mouseReads).toHaveLength(1)
+      expect(mouseReads[0]).toBeGreaterThan(stirGuard)
+
+      // The torch, and the plate.
+      expect(main).toContain('(u_hover & KUI_HOVER_LIGHT) != 0')
+      expect(main).toContain('if (u_backdrop.a > 0.0)')
+
+      // Orientation: a guard inside the shared helper, so both the fragment and the pointer take
+      // the same exact-zero path at `angle: 0deg`.
+      expect(GRADIENT_FS).toContain('if (orient != 0.0) v = kuiRotate(v, -orient);')
+      // And `motion: evolve` is a comparison against a constant, not an arithmetic `* 0.0`.
+      expect(main).toContain('u_motion == KUI_MOTION_SWIRL ? t * 0.2 : 0.0')
+      expect(main).toContain('u_motion == KUI_MOTION_DRIFT ? t * 0.12 * zoom : 0.0')
+    })
+
+    it('leaves the finished-colour expression in its original order, so an unset backdrop is bit-identical', () => {
+      // The backdrop is *added to* the original product rather than composed into it. Floating
+      // point multiplication is commutative but not associative, so re-ordering these four terms
+      // to make room would move the last bit of every generative pixel on the web.
+      expect(gradientMain()).toContain('vec4 px = vec4(clamp(color, 0.0, 1.0), 1.0) * u_tint * sm * gm;')
+    })
+
+    it('leaves the logo stencil on the undistorted coordinate, so `stir` cannot smudge a mark', () => {
+      // This is the whole reason `stir` is safe on `mode: logo`: the stencil is sampled at `v_uv`,
+      // never at `q`, and multiplies the finished colour. Stirring moves `q` and only `q`, so the
+      // fill swirls inside edges that have not moved. If this ever samples the stirred coordinate,
+      // `stir` starts dissolving logos.
+      expect(GRADIENT_FS).toContain('vec4 src = texture(u_image, v_uv);')
+      const glyph = GRADIENT_FS.slice(GRADIENT_FS.indexOf('float glyphMask()'), GRADIENT_FS.indexOf('vec3 kuiPalette'))
+      expect(glyph.match(/texture\([^)]*\)/g)).toEqual(['texture(u_image, v_uv)'])
+      expect(glyph).not.toContain('u_hover')
+      expect(glyph).not.toContain('u_mouse')
+    })
+
+    it('uploads all four unconditionally, so one instance cannot leak into its neighbour', () => {
+      // `gradient` and `logo` share one program with every other instance of them on the page. A
+      // uniform this instance skipped would keep whatever the last one to draw left in it — the
+      // bug class where two gradients trade seeds, here as one logo handing its plate to the bare
+      // gradient beside it.
+      const gl = createMockGL()
+      const prog = createProgram(gl, 'void main(){}', 'void main(){}')!
+      const locs = extractLocations(gl, prog)! as ShaderProgramLocations
+
+      uploadUniforms(gl, locs, {})
+      expect(gl.uniform1i).toHaveBeenCalledWith(locs.u_hover, 0)
+      expect(gl.uniform1i).toHaveBeenCalledWith(locs.u_motion, 0)
+      expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_angle, 0)
+      expect(gl.uniform4fv).toHaveBeenCalledWith(locs.u_backdrop, [0, 0, 0, 0])
+
+      uploadUniforms(gl, locs, { hover: 3, motion: 2, angle: 1.5, backdropRgba: [0.2, 0.4, 0.6, 1] })
+      expect(gl.uniform1i).toHaveBeenCalledWith(locs.u_hover, 3)
+      expect(gl.uniform1i).toHaveBeenCalledWith(locs.u_motion, 2)
+      expect(gl.uniform1f).toHaveBeenCalledWith(locs.u_angle, 1.5)
+      expect(gl.uniform4fv).toHaveBeenCalledWith(locs.u_backdrop, [0.2, 0.4, 0.6, 1])
+    })
+
+    it('looks the four up in both location lists, which are supposed to answer the same question', () => {
+      // `extractLocations` is the path everything inside this module takes; the hand-rolled map in
+      // `resolveLocations` is what an external caller handing over a bare `WebGLProgram` gets.
+      // They had already drifted — `u_maskMode` was in one and not the other — which is a
+      // generative draw with no stencil for anyone on that path.
+      const viaHelper = createMockGL()
+      extractLocations(viaHelper, createProgram(viaHelper, 'void main(){}', 'void main(){}')!)
+      const viaFallback = createMockGL()
+      uploadUniforms(viaFallback, createProgram(viaFallback, 'void main(){}', 'void main(){}')!, {})
+
+      for (const name of ['u_hover', 'u_backdrop', 'u_angle', 'u_motion', 'u_maskMode']) {
+        expect(viaHelper.getUniformLocation, `extractLocations ${name}`)
+          .toHaveBeenCalledWith(expect.anything(), name)
+        expect(viaFallback.getUniformLocation, `resolveLocations ${name}`)
+          .toHaveBeenCalledWith(expect.anything(), name)
+      }
+    })
+
+    it('drops the dead u_mouse `particles` declared and never read', () => {
+      // Declared from the day the program was written and never sampled. Deleted rather than
+      // wired: wiring it would restyle a mode that is already in use without anyone asking, which
+      // is the same argument `noise:` is opt-in for. The two filters that genuinely use the
+      // pointer keep theirs.
+      // The declaration is what mattered; the source still names it, in the comment recording
+      // that it was removed on purpose and why.
+      expect(PARTICLES_FS).not.toContain('uniform vec2 u_mouse;')
+      expect(PARTICLES_FS.slice(PARTICLES_FS.indexOf('void main()'))).not.toContain('u_mouse')
+      expect(DISPLACE_FS).toContain('uniform vec2 u_mouse;')
+      expect(FLUID_FS).toContain('uniform vec2 u_mouse;')
+      expect(LIQUID_FS).not.toContain('u_mouse')
+      expect(MORPH_FS).not.toContain('u_mouse')
+    })
+  })
+
   describe('the filter modes’ noise core', () => {
     const ADOPTERS = [
       ['fluid', FLUID_FS], ['liquid', LIQUID_FS],

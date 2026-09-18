@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — generative hover / backdrop / angle / motion fixture</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #14110f; }
+      /* Everything fits inside 390px of width and 560px of height, because this fixture is run at
+         both 800x600 and 390x844 — a probe that falls outside the viewport on a phone reads the
+         cleared canvas and looks exactly like a dead shader. */
+      #stage { position: relative; width: 390px; height: 400px; }
+      #stage > * { position: absolute; }
+
+      /* Deliberately NOT square, and deliberately 8:5. `hover`'s falloff has to be a circle on
+         screen, and on a square box a wrong aspect correction and no aspect correction give the
+         same answer — this box is where the difference shows. */
+      #hv { left: 10px; top: 10px; width: 160px; height: 100px; }
+
+      /* The logo stencil: `stir` must not move its edges, and `backdrop` paints its plate. */
+      #logo { left: 190px; top: 10px; width: 100px; height: 100px; }
+
+      /* Seven identical boxes, so that any difference between them is the parameter under test and
+         not the geometry. Two of them carry identical parameters and are the harness control: they
+         measure what "the same field in two different boxes" costs, which is a fraction of a level
+         and is the floor every threshold below has to clear. */
+      #m-a       { left: 10px;  top: 130px; width: 80px; height: 80px; }
+      #m-b       { left: 100px; top: 130px; width: 80px; height: 80px; }
+      #m-drift   { left: 190px; top: 130px; width: 80px; height: 80px; }
+      #m-drift180{ left: 280px; top: 130px; width: 80px; height: 80px; }
+      #m-swirl   { left: 10px;  top: 220px; width: 80px; height: 80px; }
+      #a-0       { left: 100px; top: 220px; width: 80px; height: 80px; }
+      #a-90      { left: 190px; top: 220px; width: 80px; height: 80px; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div id="hv"></div>
+      <!-- The same square annulus `advanced-generative.html` uses, and for the same reason: three
+           regions, so a stencil that merely painted the bounding box fails on the hole. Here the
+           hole is also where `backdrop`'s plate is read. -->
+      <img id="logo" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><path fill-rule='evenodd' fill='rgb(255,255,255)' d='M10 10 H90 V90 H10 Z M35 35 V65 H65 V35 Z'/></svg>" />
+      <div id="m-a"></div>
+      <div id="m-b"></div>
+      <div id="m-drift"></div>
+      <div id="m-drift180"></div>
+      <div id="m-swirl"></div>
+      <div id="a-0"></div>
+      <div id="a-90"></div>
+    </div>
+
+    <!-- Built into the gitignored `.artifacts/`; see `advanced-webgl.html`. -->
+    <script src="../../../.artifacts/browser-fixtures/advanced-webgl.bundle.js"></script>
+    <script>
+      window.__kuiReady = true
+    </script>
+  </body>
+</html>

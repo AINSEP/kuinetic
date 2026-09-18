@@ -1075,6 +1075,9 @@ void main() { this is not valid glsl at all !! }
   await runFilterNoise({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
   await runFilterNoise({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
 
+  await runGenerativeHover({ browser, check, label: 'desktop', viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 })
+  await runGenerativeHover({ browser, check, label: '390px', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+
   return results
 }
 
@@ -1259,6 +1262,16 @@ async function runGenerativeField({ browser, check, label, viewport, deviceScale
     // A 5x5 grid over the middle 70% of an element's box. Inset deliberately: the outermost
     // device pixel of a scissored draw straddles the box edge, so an edge probe reads a blend of
     // the field and the cleared canvas and drifts between DPRs for reasons that are not the shader.
+    //
+    // WARNING for whoever adds a mode here next: these fractions are exactly 6/40 and 7/40, so
+    // every probe lands on a corner of any lattice the shader lays out at a multiple of 40 cells
+    // — which is where \`particles\`' dot mask is zero. A lattice-based mode read through this grid
+    // comes back with a clean 0.00 distance for every parameter and looks like a dead effect. The
+    // answer is a full-block \`readPixels\` over the element instead; \`runFilterNoise\` in this file
+    // is the worked example, including how to move the comparison into the page so the bridge is
+    // not handed 58k numbers a reading. None of the modes below uses a lattice, so the grid is
+    // correct as it stands — do not swap it speculatively, the \`pt\` helper's epicentre check
+    // depends on point probes and every threshold here would need re-measuring against a mean.
     const grid = (gl, canvas, el) => {
       const r = el.getBoundingClientRect()
       const out = []
@@ -1864,6 +1877,455 @@ async function runFilterNoise({ browser, check, label, viewport, deviceScaleFact
         + 'a spread drift means the field amplitude does not match the term it replaced',
     )
   }
+
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
+  await context.close()
+}
+
+/**
+ * 15. `hover`, `backdrop`, `angle`, `motion` — the generative program's pointer and its motion.
+ *
+ * Four parameters, and the hardest thing to prove about three of them is that they do *nothing*
+ * when unauthored. Everything in this tier draws onto one shared canvas through one shared
+ * program, so "inert" has to mean byte-identical output and not merely a small distance — and the
+ * only honest way to say it is with an input that could not have reached a pixel through any older
+ * path. For `noise` that was an authored `seed`; here it is **the pointer itself**, which
+ * `GRADIENT_FS` did not declare a `u_mouse` for until `hover:` existed. Moving a real pointer
+ * across the box at `hover: none` and getting the same bytes back is the whole proof.
+ */
+async function runGenerativeHover({ browser, check, label, viewport, deviceScaleFactor }) {
+  const url = `file://${fileURLToPath(new URL('./fixtures/advanced-hover.html', import.meta.url))}`
+  const context = await browser.newContext({ viewport, deviceScaleFactor })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForFunction(() => window.__kuiReady === true && window.kUIAdvanced !== undefined)
+
+  // Held for the whole function: the last `destroy()` would otherwise drop `refCount` to zero and
+  // tear the context down between reads, which crashes headless Chromium's software GL renderer.
+  await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().acquire())
+
+  const readings = await page.evaluate(`(async () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const settle = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    const { prepareShaders, getSharedShaderRenderer, createEffectParams } = window.kUIAdvanced
+    const renderer = getSharedShaderRenderer()
+    if (!renderer.gl) return { error: 'no gl' }
+    const gl = renderer.gl
+    const canvas = renderer.canvas
+
+    // The middle 60% of the element, every device pixel of it — the same shape \`runFilterNoise\`
+    // reads and for the same reason. See the note at its \`grid\` sibling in the generative block:
+    // a sparse probe lattice can be aligned out of existence by whatever lattice the shader uses.
+    const block = (el) => {
+      const r = el.getBoundingClientRect()
+      const x = Math.round((r.left + r.width * 0.2) * dpr)
+      const y = Math.round(canvas.height - (r.top + r.height * 0.8) * dpr)
+      const w = Math.max(1, Math.round(r.width * 0.6 * dpr))
+      const h = Math.max(1, Math.round(r.height * 0.6 * dpr))
+      const px = new Uint8Array(w * h * 4)
+      gl.readPixels(x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      return px
+    }
+
+    // A 9x9 device-pixel patch centred on a named fraction of the box, for the questions that are
+    // about *where* in the element something happened rather than whether it happened.
+    const patch = (el, fx, fy) => {
+      const r = el.getBoundingClientRect()
+      const cx = Math.round((r.left + r.width * fx) * dpr)
+      const cy = Math.round(canvas.height - (r.top + r.height * fy) * dpr)
+      const px = new Uint8Array(9 * 9 * 4)
+      gl.readPixels(cx - 4, cy - 4, 9, 9, gl.RGBA, gl.UNSIGNED_BYTE, px)
+      return px
+    }
+
+    const dist = (a, b) => {
+      if (a.length !== b.length) return NaN
+      let n = 0
+      for (let i = 0; i < a.length; i++) n += Math.abs(a[i] - b[i])
+      return n / a.length
+    }
+    const same = (a, b) => dist(a, b) === 0
+    const lum = (a) => {
+      let n = 0
+      for (let i = 0; i < a.length; i += 4) n += 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]
+      return n / (a.length / 4)
+    }
+    const alpha = (a) => { let n = 0; for (let i = 3; i < a.length; i += 4) n += a[i]; return n / (a.length / 4) }
+    // Only the alpha channel, byte for byte. On \`mode: logo\` alpha *is* the stencil, so this is
+    // the exact question "did the mark's shape move".
+    const alphaBytes = (a) => { const o = new Uint8Array(a.length / 4); for (let i = 0, j = 0; i < a.length; i += 4, j++) o[j] = a[i + 3]; return o }
+
+    // Put a real pointer somewhere inside an element. \`renderer.mouse\` is written by a
+    // \`pointermove\` on the window and nothing else, and \`hasPointer\` latches on the first one —
+    // which is why every read below sets it explicitly rather than relying on the resting centre.
+    const point = (el, fx, fy) => {
+      const r = el.getBoundingClientRect()
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        clientX: r.left + r.width * fx,
+        clientY: r.top + r.height * fy,
+        bubbles: true,
+      }))
+    }
+
+    /** Activate one instance on one element, read it on a single frame, tear it down. */
+    const read = async (id, extra, mouse, probes) => {
+      const el = document.getElementById(id)
+      if (mouse) point(el, mouse[0], mouse[1])
+      const inst = prepareShaders(el, createEffectParams({ mode: 'gradient', speed: 0, seed: 3, scale: 3, strength: 2, ...extra }))
+      inst.activate()
+      await settle()
+      const out = await new Promise((resolve) => requestAnimationFrame(() => {
+        const o = { block: block(el) }
+        for (const [name, fx, fy] of (probes || [])) o[name] = patch(el, fx, fy)
+        resolve(o)
+      }))
+      inst.destroy()
+      await settle()
+      return out
+    }
+
+    const out = {}
+
+    // ---- hover: does the pointer reach a pixel, and only where it should? -------------------
+    // Left and right of an 8:5 box. Both well inside it, and far enough apart that one pool of
+    // light cannot cover both.
+    const L = [0.2, 0.5]
+    const R = [0.85, 0.5]
+    const P = [['near', 0.2, 0.5], ['far', 0.85, 0.5]]
+    const noneL = await read('hv', { hover: 'none' }, L, P)
+    const noneR = await read('hv', { hover: 'none' }, R, P)
+    const stirL = await read('hv', { hover: 'stir' }, L, P)
+    const stirR = await read('hv', { hover: 'stir' }, R, P)
+    const lightL = await read('hv', { hover: 'light' }, L, P)
+    const lightR = await read('hv', { hover: 'light' }, R, P)
+    const bothL = await read('hv', { hover: 'both' }, L, P)
+
+    out.hover = {
+      pixels: noneL.block.length / 4,
+      // THE inertness proof. The pointer is the one input that could not reach this program at all
+      // before \`hover:\` existed, so a single differing byte here means every gradient on the web
+      // just started following the mouse.
+      noneExact: same(noneL.block, noneR.block),
+      noneMoved: dist(noneL.block, noneR.block),
+      stirMoved: dist(stirL.block, stirR.block),
+      lightMoved: dist(lightL.block, lightR.block),
+      stirVsNone: dist(stirL.block, noneL.block),
+      lightVsNone: dist(lightL.block, noneL.block),
+      bothVsNone: dist(bothL.block, noneL.block),
+      bothVsStir: dist(bothL.block, stirL.block),
+      bothVsLight: dist(bothL.block, lightL.block),
+      // Locality: with the pointer on the left, the right-hand end of the box must be left alone.
+      // A gesture that moved the whole field would be a restyling wearing a pointer's clothes.
+      stirNear: dist(stirL.near, noneL.near),
+      stirFar: dist(stirL.far, noneL.far),
+      lightNear: dist(lightL.near, noneL.near),
+      lightFar: dist(lightL.far, noneL.far),
+      unusedR: dist(stirR.block, lightR.block) >= 0,
+    }
+
+    // ---- hover: light — is the pool a circle on screen, on a box that is not square? --------
+    // \`strength: 0\` flattens the field to the exact midpoint of the ramp, so the element is one
+    // uniform colour and the only thing varying across it is the light. Without that the field's
+    // own structure swamps a 40-pixel comparison.
+    //
+    // The two probes are the same number of *screen* pixels from the centre of a 160x100 box: 40px
+    // right, and 40px down. Equal gains means the falloff was corrected for the box's aspect;
+    // uncorrected, the vertical probe sits at 0.8 of a UV unit against the horizontal one's 0.5
+    // and comes back nearly dark.
+    const FLAT = { strength: 0, color1: '#303030', color2: '#6060a0' }
+    const flatProbes = [['ctr', 0.5, 0.5], ['h', 0.75, 0.5], ['v', 0.5, 0.9], ['corner', 0.95, 0.95]]
+    const flatNone = await read('hv', { ...FLAT, hover: 'none' }, [0.5, 0.5], flatProbes)
+    const flatLight = await read('hv', { ...FLAT, hover: 'light' }, [0.5, 0.5], flatProbes)
+    const gain = (k) => lum(flatLight[k]) / Math.max(lum(flatNone[k]), 1e-6)
+    out.light = {
+      flat: lum(flatNone.ctr),
+      flatSpread: Math.abs(lum(flatNone.h) - lum(flatNone.v)),
+      centre: gain('ctr'),
+      h: gain('h'),
+      v: gain('v'),
+      corner: gain('corner'),
+    }
+
+    // ---- stir on a logo: the fill swirls, the stencil does not move ------------------------
+    // The mark's edges live in the alpha channel, which \`glyphMask()\` writes from the undistorted
+    // \`v_uv\`. If \`stir\` ever reached that sample the alpha would blur and a logo would dissolve.
+    const LOGO = { mode: 'logo', mask: 'alpha', seed: 3, scale: 3, strength: 2, speed: 0 }
+    const logoNone = await read('logo', { ...LOGO, hover: 'none' }, [0.25, 0.5], [])
+    const logoStir = await read('logo', { ...LOGO, hover: 'stir' }, [0.25, 0.5], [])
+    out.logo = {
+      stencilExact: same(alphaBytes(logoNone.block), alphaBytes(logoStir.block)),
+      stencilMoved: dist(alphaBytes(logoNone.block), alphaBytes(logoStir.block)),
+      fillMoved: dist(logoNone.block, logoStir.block),
+      coverage: alpha(logoNone.block),
+    }
+
+    // ---- backdrop -------------------------------------------------------------------------
+    const bdNone = await read('logo', { ...LOGO }, [0.5, 0.5], [['hole', 0.5, 0.5], ['ring', 0.2, 0.5]])
+    const bdRed = await read('logo', { ...LOGO, backdrop: '#ff0000' }, [0.5, 0.5], [['hole', 0.5, 0.5], ['ring', 0.2, 0.5]])
+    // On a bare \`gradient\` the field is opaque, so there is nothing behind it to see. Asserted as
+    // byte-identical rather than left undocumented: it is arithmetic, not an oversight, and the
+    // way to make it visible there is a \`tint\` whose alpha is below 1.
+    const gradNoBd = await read('hv', { hover: 'none' }, [0.5, 0.5], [])
+    const gradBd = await read('hv', { hover: 'none', backdrop: '#ff0000' }, [0.5, 0.5], [])
+    const gradFadeNoBd = await read('hv', { hover: 'none', tint: '#ffffff80' }, [0.5, 0.5], [])
+    const gradFadeBd = await read('hv', { hover: 'none', tint: '#ffffff80', backdrop: '#ff0000' }, [0.5, 0.5], [])
+    const red = (a) => { let r = 0, g = 0, b = 0; for (let i = 0; i < a.length; i += 4) { r += a[i]; g += a[i + 1]; b += a[i + 2] } const n = a.length / 4; return [r / n, g / n, b / n] }
+    out.backdrop = {
+      holeAlphaOff: alpha(bdNone.hole),
+      holeAlphaOn: alpha(bdRed.hole),
+      holeRgbOn: red(bdRed.hole),
+      ringMoved: dist(bdNone.ring, bdRed.ring),
+      opaqueGradientExact: same(gradNoBd.block, gradBd.block),
+      opaqueGradientMoved: dist(gradNoBd.block, gradBd.block),
+      translucentMoved: dist(gradFadeNoBd.block, gradFadeBd.block),
+    }
+
+    // ---- angle, on the same box so "unset" can be asserted byte-for-byte -------------------
+    const angUnset = await read('hv', { hover: 'none' }, [0.5, 0.5], [])
+    const ang0 = await read('hv', { hover: 'none', angle: '0deg' }, [0.5, 0.5], [])
+    const ang90 = await read('hv', { hover: 'none', angle: '90deg' }, [0.5, 0.5], [])
+    const angTurn = await read('hv', { hover: 'none', angle: '0.25turn' }, [0.5, 0.5], [])
+    // \`motion: evolve\` is the shipped behaviour under an accurate name, so it must be the same
+    // bytes as not authoring the parameter at all.
+    const motUnset = await read('hv', { hover: 'none' }, [0.5, 0.5], [])
+    const motEvolve = await read('hv', { hover: 'none', motion: 'evolve' }, [0.5, 0.5], [])
+    out.angle = {
+      unsetIsZeroExact: same(angUnset.block, ang0.block),
+      unsetIsZeroMoved: dist(angUnset.block, ang0.block),
+      rotated: dist(ang0.block, ang90.block),
+      // Same angle, two spellings — the parameter really is going through \`parseAngleRadians\`
+      // and not being read as a bare number.
+      turnMatchesDeg: same(ang90.block, angTurn.block),
+      evolveIsDefaultExact: same(motUnset.block, motEvolve.block),
+    }
+
+    // ---- motion, which needs a clock, so: several boxes read on ONE frame ------------------
+    // \`speed: 0\` freezes \`u_time\` and with it \`drift\` and \`swirl\`, which are both functions of
+    // it — so the sequential same-box reads above cannot ask this question at all. Seven identical
+    // boxes activated together and read on the same frame share one \`u_time\`; the only difference
+    // between two of them is where they sit, and the control pair measures exactly that.
+    const BASE = { mode: 'gradient', seed: 3, scale: 3, strength: 2, speed: 4 }
+    const spec = {
+      'm-a': {}, 'm-b': {},
+      'm-drift': { motion: 'drift' },
+      'm-drift180': { motion: 'drift', angle: '180deg' },
+      'm-swirl': { motion: 'swirl' },
+      'a-0': { angle: '0deg' }, 'a-90': { angle: '90deg' },
+    }
+    const ids = Object.keys(spec)
+    const inst = {}
+    for (const id of ids) inst[id] = prepareShaders(document.getElementById(id), createEffectParams({ ...BASE, ...spec[id] }))
+    for (const id of ids) inst[id].activate()
+    await settle()
+    /*
+     * Read on a frame whose swirl phase is chosen, not whichever one the page happened to reach.
+     *
+     * \`u_time\` is \`performance.now() / 1000\` — a page-lifetime clock (\`startLoop\` in
+     * \`shaders.ts\`) — so \`swirl\`'s rotation is \`clock * speed * 0.2\` radians and **the distance
+     * between a swirling field and a still one is periodic in it**: at a whole number of turns the
+     * rotation is the identity and the two are the same picture. Measured across 5.3 periods, the
+     * distance means 10-17 through the middle of a turn and drops to 4.2 in the bins either side of
+     * 2pi, with a floor of 0.50.
+     *
+     * That is not a weak effect, it is a comparison of a thing against itself, and which one a run
+     * lands on is decided by how fast the page happens to be: at 800x600 DPR 1 a frame here costs
+     * 24ms and the block arrives at ~2.5s of page clock; at 390x844 DPR 2 it costs 65ms and the
+     * block arrives near 10s, a completely different phase. Waiting a fixed ten frames measured
+     * whichever phase the machine dealt.
+     *
+     * So the loop below advances until the phase is at least a radian away from a whole turn at
+     * both ends, and reads on that frame. Every rAF callback in one frame is handed the same
+     * timestamp and the renderer's own tick is registered ahead of this one, so the \`ts\` seen here
+     * is exactly the \`u_time\` that drew the pixels being read. \`drift\` needs none of this — its
+     * travel is unbounded rather than periodic, which is why it measured a flat 12.5-15.9 across
+     * every one of those same bins.
+     */
+    const TAU = Math.PI * 2
+    const spinAt = (ts) => (ts / 1000) * BASE.speed * 0.2
+    const frame = await new Promise((resolve) => {
+      let tries = 0
+      const tick = (ts) => {
+        const phase = ((spinAt(ts) % TAU) + TAU) % TAU
+        // The bound is a safety net, not the mechanism: at speed 4 a full turn is 7.9s of page
+        // clock, so the window opens within about 80 frames even on the slowest of these runs.
+        if ((phase > 1 && phase < TAU - 1) || tries++ > 400) {
+          const o = { spin: spinAt(ts), phase }
+          for (const id of ids) o[id] = block(document.getElementById(id))
+          resolve(o)
+        } else requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
+    for (const id of ids) inst[id].destroy()
+    out.motion = {
+      control: dist(frame['m-a'], frame['m-b']),
+      drift: dist(frame['m-a'], frame['m-drift']),
+      swirl: dist(frame['m-a'], frame['m-swirl']),
+      driftDirection: dist(frame['m-drift'], frame['m-drift180']),
+      driftVsSwirl: dist(frame['m-drift'], frame['m-swirl']),
+      angleSameFrame: dist(frame['a-0'], frame['a-90']),
+      spin: frame.spin, phase: frame.phase,
+    }
+    return out
+  })()`)
+
+  const at = (name) => `${label}: ${name}`
+  if (readings.error) {
+    check(at('hover: the fixture reached a real WebGL2 context'), false, readings.error)
+    await context.close()
+    return
+  }
+  const n = (v) => (typeof v === 'number' ? v.toFixed(3) : String(v))
+  const h = readings.hover
+
+  // ---- hover ---------------------------------------------------------------------------------
+  check(
+    at('hover: INERTNESS — at hover:none a real pointer moved across the box changes nothing, byte for byte'),
+    h.noneExact,
+    `${h.pixels} px read; distance=${n(h.noneMoved)} between a pointer at 20% and at 85% `
+      + '(nonzero means every gradient already on the web now follows the mouse)',
+  )
+  check(
+    at('hover: stir — moving the pointer moves the field'),
+    h.stirMoved > 2 && h.stirVsNone > 2,
+    `pointer L vs R=${n(h.stirMoved)}, vs hover:none=${n(h.stirVsNone)} (~0 means u_mouse never reached the shader)`,
+  )
+  check(
+    at('hover: light — moving the pointer moves the highlight'),
+    h.lightMoved > 2 && h.lightVsNone > 2,
+    `pointer L vs R=${n(h.lightMoved)}, vs hover:none=${n(h.lightVsNone)}`,
+  )
+  check(
+    at('hover: both is genuinely both — its own picture, not either half'),
+    h.bothVsNone > 2 && h.bothVsStir > 1 && h.bothVsLight > 1,
+    `vs none=${n(h.bothVsNone)}, vs stir=${n(h.bothVsStir)}, vs light=${n(h.bothVsLight)} `
+      + '(a zero against stir or light would mean one gesture is being dropped)',
+  )
+  // The gesture is local, which is what makes it a *pointer* response rather than a restyling.
+  check(
+    at('hover: stir is local — the far end of the box is left where it was'),
+    h.stirNear > h.stirFar * 3 && h.stirNear > 2,
+    `near the pointer=${n(h.stirNear)}, far from it=${n(h.stirFar)}`,
+  )
+  check(
+    at('hover: light is local — the far end of the box keeps its own brightness'),
+    h.lightNear > h.lightFar * 3 && h.lightNear > 2,
+    `near the pointer=${n(h.lightNear)}, far from it=${n(h.lightFar)}`,
+  )
+
+  // ---- the shape of the pool -----------------------------------------------------------------
+  const li = readings.light
+  check(
+    at('hover: HARNESS CONTROL — strength:0 really is a flat field, so the light is all that varies'),
+    li.flatSpread < 1.5 && li.flat > 20,
+    `luma=${n(li.flat)}, spread between two probes=${n(li.flatSpread)}`,
+  )
+  check(
+    at('hover: light brightens under the pointer and leaves the far corner alone'),
+    li.centre > 1.5 && li.corner < 1.05,
+    `gain at the pointer=${n(li.centre)}x, at the far corner=${n(li.corner)}x`,
+  )
+  // The aspect correction. Both probes are 40 screen pixels from the pointer on a 160x100 box —
+  // one horizontally, one vertically. Uncorrected they sit at 0.5 and 0.8 of a UV unit and the
+  // vertical one comes back at about 1.01x against the horizontal one's 1.15x.
+  check(
+    at('hover: the pool is a circle on screen, not an ellipse stretched by the box'),
+    Math.abs(li.h - li.v) < 0.06 && li.h > 1.15,
+    `40px right=${n(li.h)}x, 40px down=${n(li.v)}x on an 8:5 box `
+      + '(a gap here means the falloff was measured in UV and not corrected for the aspect)',
+  )
+
+  // ---- the logo edge finding ------------------------------------------------------------------
+  const lg = readings.logo
+  check(
+    at('logo: HARNESS CONTROL — the stencil really is cutting the field'),
+    lg.coverage > 20 && lg.coverage < 250,
+    `mean alpha=${n(lg.coverage)} (0 or 255 means there is no mark to smudge)`,
+  )
+  check(
+    at('logo: stir swirls the fill and does NOT move the mark — the alpha channel is byte-identical'),
+    lg.stencilExact && lg.fillMoved > 2,
+    `stencil distance=${n(lg.stencilMoved)} (must be exactly 0), fill distance=${n(lg.fillMoved)} `
+      + '(glyphMask samples the undistorted v_uv; if it ever samples the stirred coordinate, logos dissolve)',
+  )
+
+  // ---- backdrop -------------------------------------------------------------------------------
+  const bd = readings.backdrop
+  check(
+    at('backdrop: fills the hole in a logo — the plate a mark sits on'),
+    bd.holeAlphaOff < 20 && bd.holeAlphaOn > 240
+      && bd.holeRgbOn[0] > 200 && bd.holeRgbOn[1] < 60 && bd.holeRgbOn[2] < 60,
+    `hole alpha ${n(bd.holeAlphaOff)} -> ${n(bd.holeAlphaOn)}, rgb=${bd.holeRgbOn.map(n).join(',')}`,
+  )
+  check(
+    at('backdrop: does not touch the mark itself — it is behind the field, not mixed into it'),
+    bd.ringMoved < 2,
+    `distance inside the mark=${n(bd.ringMoved)}`,
+  )
+  // Stated as a tested fact rather than left for someone to discover: on an opaque field there is
+  // nothing behind it to see, and the way through is a tint alpha.
+  check(
+    at('backdrop: invisible on an opaque gradient, byte for byte — arithmetic, not an oversight'),
+    bd.opaqueGradientExact,
+    `distance=${n(bd.opaqueGradientMoved)} on an opaque field`,
+  )
+  check(
+    at('backdrop: visible on a gradient once the tint is translucent'),
+    bd.translucentMoved > 4,
+    `distance=${n(bd.translucentMoved)} at tint alpha 0.5 (~0 means the composite path is dead)`,
+  )
+
+  // ---- angle ----------------------------------------------------------------------------------
+  const an = readings.angle
+  check(
+    at('angle: 0deg is the same bytes as not authoring it at all'),
+    an.unsetIsZeroExact,
+    `distance=${n(an.unsetIsZeroMoved)}`,
+  )
+  check(
+    at('angle: turns the field at the library defaults — no warp, no motion, nothing else authored'),
+    an.rotated > 4,
+    `0deg vs 90deg distance=${n(an.rotated)} (~0 means the rotation never reached the sample point)`,
+  )
+  check(
+    at('angle: 0.25turn is 90deg — the value goes through parseAngleRadians, not through num()'),
+    an.turnMatchesDeg,
+    'byte-identical to 90deg',
+  )
+  check(
+    at('motion: evolve is the shipped behaviour under a name — the same bytes as an unset motion'),
+    an.evolveIsDefaultExact,
+    'byte-identical',
+  )
+
+  // ---- motion ---------------------------------------------------------------------------------
+  const mo = readings.motion
+  check(
+    at('motion: HARNESS CONTROL — two identical fields in two boxes on one frame are the same picture'),
+    mo.control < 2,
+    `distance=${n(mo.control)} (this is the floor every threshold below clears)`,
+  )
+  check(
+    at('motion: drift travels — a drifting field is a different picture from one evolving in place'),
+    mo.drift > 4,
+    `distance=${n(mo.drift)} vs a control floor of ${n(mo.control)}`,
+  )
+  check(
+    at('motion: angle is the direction it travels — 0deg and 180deg are different journeys'),
+    mo.driftDirection > 4,
+    `distance=${n(mo.driftDirection)} (~0 would mean angle is read but the travel ignores it)`,
+  )
+  check(
+    at('motion: swirl turns, and is its own mode rather than drift by another name'),
+    mo.swirl > 4 && mo.driftVsSwirl > 4,
+    `vs evolve=${n(mo.swirl)}, vs drift=${n(mo.driftVsSwirl)} at ${n(mo.phase)} rad into the turn `
+      + `(${n(mo.spin)} rad total) — a phase near 0 or 6.28 would be the identity rotation, not a weak effect`,
+  )
+  check(
+    at('motion: angle still turns the field when it is animating, not only when frozen'),
+    mo.angleSameFrame > 4,
+    `0deg vs 90deg at speed 4, distance=${n(mo.angleSameFrame)}`,
+  )
 
   await page.evaluate(() => window.kUIAdvanced.getSharedShaderRenderer().release())
   await context.close()

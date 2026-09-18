@@ -39,6 +39,14 @@ export interface ProgramLocations {
   u_colors?: WebGLUniformLocation | null
   /** Which stencil the generative program cuts its field with. See `glyphMask()` in `glsl.ts`. */
   u_maskMode?: WebGLUniformLocation | null
+  /** `hover:` as bits — 1 stir, 2 light, 3 both. See `kuiHoverFalloff()` in `glsl.ts`. */
+  u_hover?: WebGLUniformLocation | null
+  /** The colour the generative field is composited over, straight (non-premultiplied) RGBA. */
+  u_backdrop?: WebGLUniformLocation | null
+  /** The field's orientation in **radians**; also the axis `motion: drift` travels along. */
+  u_angle?: WebGLUniformLocation | null
+  /** `motion:` — 0 evolve, 1 drift, 2 swirl. */
+  u_motion?: WebGLUniformLocation | null
 }
 
 export function compileShader(
@@ -127,6 +135,10 @@ export function extractLocations(
     // Which stencil the generative program applies: 0 none (`gradient`), 1 alpha, 2 luma,
     // 3 inverted luma. See `glyphMask()` in `glsl.ts`.
     u_maskMode: gl.getUniformLocation(program, 'u_maskMode'),
+    u_hover: gl.getUniformLocation(program, 'u_hover'),
+    u_backdrop: gl.getUniformLocation(program, 'u_backdrop'),
+    u_angle: gl.getUniformLocation(program, 'u_angle'),
+    u_motion: gl.getUniformLocation(program, 'u_motion'),
   }
 }
 

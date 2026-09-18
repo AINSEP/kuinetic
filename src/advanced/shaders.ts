@@ -85,6 +85,21 @@ export interface ShaderUniformOptions {
    * See {@link MASK_MODES} and `glyphMask()` in `glsl.ts`. `0` in every mode but `logo`.
    */
   maskMode?: number
+  /**
+   * Which pointer gestures the generative field responds to, as bits — see {@link HOVER_MODES}.
+   *
+   * The pointer position itself already arrives as {@link localMouse}, which every program that
+   * declares `u_mouse` has been receiving all along; this is only the switch that decides whether
+   * `GRADIENT_FS` reads it. `0` — the default — is the one value under which the pointer cannot
+   * reach a pixel at all.
+   */
+  hover?: number
+  /** The colour the generative field is composited over, straight RGBA. Alpha `0` is "unset". */
+  backdropRgba?: [number, number, number, number]
+  /** The field's orientation in **radians**. Authored as an angle; `parseAngleRadians` converts. */
+  angle?: number
+  /** How the generative field moves — see {@link MOTION_MODES}. `0` (`evolve`) is the default. */
+  motion?: number
 }
 
 export interface ShaderDrawOptions extends ShaderUniformOptions {
@@ -334,11 +349,21 @@ function resolveLocations(
     u_seed: g('u_seed'), u_scale: g('u_scale'), u_warp: g('u_warp'), u_grain: g('u_grain'),
     u_hue: g('u_hue'), u_detail: g('u_detail'), u_bands: g('u_bands'),
     u_colorCount: g('u_colorCount'), u_colors: g('u_colors'),
+    // `u_maskMode` was missing from this branch while `extractLocations` looked it up, so an
+    // external caller handing this module a bare `WebGLProgram` got a generative draw with no
+    // stencil. Latent — everything inside this file goes through `extractLocations` — but the two
+    // lists are supposed to answer the same question, and one of them was a stop short.
+    u_maskMode: g('u_maskMode'),
+    u_hover: g('u_hover'), u_backdrop: g('u_backdrop'),
+    u_angle: g('u_angle'), u_motion: g('u_motion'),
   }
 }
 
 /** A zero half-extent is `shapeMask()`'s "no box measured" signal — see `SHAPE_MASK_GLSL`. */
 const NO_MASK_BOX: [number, number, number, number] = [0, 0, 0, 0]
+
+/** A zero alpha is the generative program's "no backdrop authored" test. */
+const NO_BACKDROP: [number, number, number, number] = [0, 0, 0, 0]
 
 /**
  * The element's own shape, uploaded unconditionally.
@@ -404,6 +429,14 @@ function uploadFieldUniforms(
   // program, so a `gradient` that skipped this would inherit the stencil a `logo` beside it set
   // and sample a texture unit with nothing bound to it.
   uploadInt(gl, locs.u_maskMode, opt.maskMode ?? 0)
+  uploadInt(gl, locs.u_hover, opt.hover ?? 0)
+  uploadFloat(gl, locs.u_angle, opt.angle ?? 0)
+  uploadInt(gl, locs.u_motion, opt.motion ?? 0)
+  // Here rather than in `uploadColorUniforms` with the palette, and unconditionally, for the same
+  // reason as everything above it: one shared program means a skipped uniform keeps whatever the
+  // last instance to draw left in it, so a `logo` with a plate would hand that plate to the bare
+  // `gradient` beside it. `NO_BACKDROP`'s zero alpha is the shader's own "unset" test.
+  if (locs.u_backdrop) gl.uniform4fv(locs.u_backdrop, opt.backdropRgba ?? NO_BACKDROP)
 }
 
 function uploadCoordUniforms(
@@ -1024,12 +1057,31 @@ const PROGRAM_SOURCES: readonly (readonly [readonly string[], string])[] = [
  */
 export const MASK_MODES: Record<string, number> = { alpha: 1, luma: 2, 'luma-invert': 3 }
 
+/**
+ * `hover:` as the bitfield `u_hover` tests — `both` is `stir | light` and not a third code path.
+ *
+ * Bits rather than four ordinals because the shader's two gestures act at different stages (one on
+ * the sample coordinate, one on the colour that coordinate produced), so `both` is genuinely the
+ * two of them and there is nothing for a third branch to say.
+ */
+export const HOVER_MODES: Record<string, number> = { none: 0, stir: 1, light: 2, both: 3 }
+
+/**
+ * `motion:` as the int `u_motion` branches on.
+ *
+ * `evolve` is `0` and is the default, because it is what this program has always done: time as the
+ * noise field's third axis, the pattern changing in place. `drift` and `swirl` are additions on
+ * top of it. See {@link SHADER_PARAMETERS.motion} for why the inert keyword had to exist.
+ */
+export const MOTION_MODES: Record<string, number> = { evolve: 0, drift: 1, swirl: 2 }
+
 export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOptions {
   const mode = ('keyword' in params && typeof params.keyword === 'function')
     ? params.keyword('mode')
     : params.text('mode', 'displace')
   const c1Text = params.text('color1', '')
   const c2Text = params.text('color2', '')
+  const backdropText = params.text('backdrop', '').trim()
   const blendMap: Record<string, number> = { normal: 0, screen: 1, multiply: 2, add: 3 }
   const { palette, colorCount } = buildPalette([
     c1Text, c2Text, params.text('color3', ''), params.text('color4', ''), params.text('color5', ''),
@@ -1050,6 +1102,13 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     // Pinned off outside `logo`: `gradient` binds no texture, and every filter mode's program
     // declares no `u_maskMode` at all, so honouring `mask:` there could only mislead.
     maskMode: mode === 'logo' ? (MASK_MODES[params.text('mask', 'alpha')] ?? MASK_MODES.alpha!) : 0,
+    hover: HOVER_MODES[params.text('hover', 'none')] ?? 0,
+    angle: parseAngleRadians(params.text('angle', '0deg')),
+    motion: MOTION_MODES[params.text('motion', 'evolve')] ?? 0,
+    // Read through the raw string rather than straight into `parseColor`, which answers opaque
+    // white for an empty input — the fallback that makes an unset `color1` harmless would make an
+    // unset `backdrop` a white plate behind every logo on the page.
+    backdropRgba: backdropText ? parseColor(backdropText) : [0, 0, 0, 0],
     strength: params.num('strength', 0.5),
     speed: params.num('speed', 1.0),
     frequency: params.num('frequency', 10.0),
@@ -2111,6 +2170,80 @@ export const SHADER_PARAMETERS = {
    * looks deliberate and is exactly wrong.
    */
   mask: { type: 'keyword' as const, default: 'alpha', keywords: ['alpha', 'luma', 'luma-invert'], cssProperty: '--kui-shader-mask' },
+  /**
+   * How `mode: gradient` and `mode: logo` answer the pointer. Ignored by the five filter modes.
+   *
+   * Being *responsive to the pointer* is the one thing a shader background does that a video of a
+   * shader cannot, and these two modes — the two built to stand in for a video background — were
+   * the only ones in the tier with no pointer response at all. `displace` and `fluid` have read
+   * `u_mouse` since they were written.
+   *
+   * - `stir` — the cursor drags the colour flow around it, like stirring thick paint. It moves the
+   *   field's *sample point*, so on `mode: logo` the mark's edges do not move: `glyphMask()` reads
+   *   the host image at the undistorted coordinate and multiplies the finished colour, which means
+   *   the fill swirls inside a stencil that stays exactly where it was.
+   * - `light` — the cursor is a torch held over the surface. Nothing moves; the colour under the
+   *   pointer is multiplied up, which raises its saturation rather than washing it toward white.
+   * - `both` — the two together. They compose cleanly because they act at different stages, one on
+   *   the coordinate and one on the colour that coordinate produced.
+   *
+   * `none` by default, and `none` means the shader never reads `u_mouse` at all — not that it
+   * reads it and multiplies by zero. Every page already running these modes renders what it always
+   * rendered, byte for byte.
+   *
+   * With no pointer yet — the state of every page on load, every phone, and every screenshot —
+   * `computeMousePos` answers the element's centre, so `light` rests as a centred glow and `stir`
+   * as a centred swirl. Both are compositions someone might have authored on purpose, which is the
+   * bar a resting state has to clear.
+   */
+  hover: { type: 'keyword' as const, default: 'none', keywords: ['none', 'stir', 'light', 'both'], cssProperty: '--kui-shader-hover' },
+  /**
+   * A colour painted behind the generative field, inside the element's own shape.
+   *
+   * What it is for is `mode: logo`: outside the mark the field has no coverage, so this is the
+   * plate the mark sits on instead of the page showing through.
+   *
+   * On a bare `mode: gradient` it is **invisible**, and that is arithmetic rather than an
+   * oversight — the field is opaque, so there is nothing behind it to see. It becomes visible
+   * there through a `tint` whose alpha is below 1, which is how a field is made to sit *on* a page
+   * colour rather than replace it. Unset by default, and read through the raw parameter string
+   * rather than `parseColor`, whose empty-input fallback is opaque white.
+   */
+  backdrop: { type: 'color' as const, default: '', cssProperty: '--kui-shader-backdrop' },
+  /**
+   * The generative field's orientation: the axis it runs along.
+   *
+   * `transform: rotate()`'s convention — clockwise-positive, `0deg` pointing right — because that
+   * is the one an author already has. It turns the field's whole domain, so it is visible at the
+   * library defaults rather than only in company with another parameter, and it is the axis
+   * `motion: drift` travels along. One idea with two consequences, not two behaviours: the field
+   * has an axis, this names it, and `drift` slides along the thing it named.
+   *
+   * An `angle` rather than a normalised scalar, matching `hue` above and this repository's
+   * standing rejection of 0..1 ranges where a CSS unit exists. A bare `angle: 30` is accepted —
+   * `core/params.ts` normalises it to `30deg`.
+   */
+  angle: { type: 'angle' as const, default: '0deg', cssProperty: '--kui-shader-angle' },
+  /**
+   * How the generative field moves. Ignored by the five filter modes.
+   *
+   * - `evolve` — the field changes *in place*. Time is the noise function's third axis rather than
+   *   a translation of a 2D field, which is why it reads as the pattern genuinely evolving instead
+   *   of sliding past. See `NOISE_GLSL` in `glsl.ts`.
+   * - `drift` — it also travels along `angle`, at a rate proportional to `scale` so the visual
+   *   speed is the same at any zoom.
+   * - `swirl` — it also turns about the element's centre.
+   *
+   * **`evolve` exists so that the default can be inert.** `drift` would have been the natural
+   * default name, and it is what this parameter's brief asked for — but `drift` is a new look, and
+   * defaulting to it would restyle every page already running `gradient` or `logo` on the next
+   * release. That is the same trap `noise:` above is written around, and the reason `hover:`
+   * defaults to `none`. So the shipped behaviour keeps the default and gets an accurate name, and
+   * the two new ones are opt-in. `drift` and `swirl` add to `evolve` rather than replacing it, so
+   * a travelling field is still changing as it goes rather than one frozen picture towed across
+   * the box.
+   */
+  motion: { type: 'keyword' as const, default: 'evolve', keywords: ['evolve', 'drift', 'swirl'], cssProperty: '--kui-shader-motion' },
   blend: { type: 'keyword' as const, default: 'normal', keywords: ['normal', 'screen', 'multiply', 'add'], cssProperty: '--kui-shader-blend' },
   to: { type: 'text' as const, default: '', cssProperty: '--kui-shader-to' },
   /**

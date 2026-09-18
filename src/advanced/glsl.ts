@@ -379,10 +379,16 @@ out vec4 fragColor;
 uniform sampler2D u_image;
 uniform float u_time;
 uniform float u_strength;
-uniform vec2 u_mouse;
 uniform vec4 u_tint;
 uniform float u_progress;
 ${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}${FILTER_NOISE_GLSL}
+// No u_mouse here, deliberately. This program declared one from the day it was written and never
+// read it, so particles has never responded to the pointer — the declaration was a promise the
+// body did not keep, and the compiler dropped it anyway (an unused uniform gets no location, so
+// uploadCoordUniforms was already skipping it and removing it changes no pixel). It is deleted
+// rather than wired because wiring it would restyle a mode that is already in use without anyone
+// asking, which is the same argument FILTER_NOISE_GLSL's doc makes for noise: being opt-in. The
+// pointer gesture that *was* asked for lives on the generative program below, under hover:.
 void main() {
   vec2 uv = v_uv;
   vec2 grid = fract(uv * 40.0) - 0.5;
@@ -485,6 +491,19 @@ void main() {
  * *warping* field that distorts it, and `detail` is how many octaves ride on top. Three knobs that
  * sound similar and are not — one changes how big the shapes are, one how contorted, one how
  * intricate.
+ *
+ * **The pointer.** This is the one program in the tier built to be a background rather than a
+ * filter, and until `hover:` it was also the only one with no pointer response at all — which is
+ * awkward, because responding to the pointer is the single thing a shader background can do that a
+ * video cannot. `hover: stir` drags the field's sample point around the cursor; `hover: light`
+ * raises the colour under it; `both` runs the two together, which they can do without fighting
+ * because one acts on the coordinate and the other on the colour that coordinate produced. All of
+ * it is off at `hover: none`, the default, where `u_mouse` is never read and the pointer cannot
+ * reach a pixel.
+ *
+ * **Motion.** `motion: evolve` — the default — is the behaviour described above: time as the third
+ * noise axis, the pattern changing in place. `drift` and `swirl` add a rigid motion of the domain
+ * on top of it, along and about the axis `angle` names.
  */
 export const GRADIENT_FS = `#version 300 es
 precision highp float;
@@ -508,7 +527,81 @@ uniform vec4 u_colors[5];
 uniform vec4 u_tint;
 uniform sampler2D u_image;
 uniform int u_maskMode;
+uniform vec2 u_mouse;
+uniform int u_hover;
+uniform vec4 u_backdrop;
+uniform float u_angle;
+uniform int u_motion;
 ${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}${NOISE_GLSL}
+
+/** \`hover:\` as bits, so \`both\` is \`stir | light\` rather than a third code path. */
+const int KUI_HOVER_STIR = 1;
+const int KUI_HOVER_LIGHT = 2;
+
+/** \`motion:\` — \`0\` is \`evolve\`, which is this program's original behaviour and its default. */
+const int KUI_MOTION_DRIFT = 1;
+const int KUI_MOTION_SWIRL = 2;
+
+/**
+ * Rotate a point of the field's domain.
+ *
+ * \`v_uv\` is y-down, so this matrix — the ordinary counter-clockwise one — turns the *picture*
+ * clockwise, which is \`transform: rotate()\`'s direction and therefore the one an author already
+ * has an intuition for. Every call site passes \`-angle\`: rotating the sample point one way is
+ * what rotates what you see the other.
+ */
+vec2 kuiRotate(vec2 v, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return vec2(v.x * c - v.y * s, v.x * s + v.y * c);
+}
+
+/**
+ * How strongly the pointer reaches this fragment: 1 under it, falling to nothing at the edge of a
+ * **round** pool.
+ *
+ * Round is the whole difficulty. \`v_uv\` and \`u_mouse\` are both normalised per axis, so the
+ * obvious \`distance(v_uv, u_mouse)\` draws an *ellipse* as soon as the box is not square — and the
+ * boxes this mode is documented for are full-bleed bands, card faces and footer strips, i.e.
+ * precisely the wide ones. \`u_maskBox.zw\` is the box's half-extents in device pixels, already
+ * uploaded for the corner mask, so the correction is free: scaling the offset by
+ * \`(sqrt(a), 1/sqrt(a))\` for \`a = halfWidth / halfHeight\` puts both axes in units of
+ * \`sqrt(width * height)\`. The pool is then a circle on screen whose size tracks the box's overall
+ * scale rather than one of its two dimensions, and on a square box the correction is exactly 1 and
+ * this degenerates to the plain UV distance \`displace\` already uses.
+ *
+ * A zero half-extent is \`shapeMask()\`'s "no box measured" signal and is read the same way here:
+ * fall back to raw UV rather than divide by it.
+ *
+ * Gaussian rather than \`smoothstep\`, because a pool of light has no edge to see.
+ */
+float kuiHoverFalloff() {
+  vec2 d = v_uv - u_mouse;
+  if (u_maskBox.z > 0.0 && u_maskBox.w > 0.0) {
+    float a = sqrt(u_maskBox.z / u_maskBox.w);
+    d *= vec2(a, 1.0 / a);
+  }
+  return exp(-dot(d, d) * 6.0);
+}
+
+/**
+ * One point of the element's UV square, in the field's own frame.
+ *
+ * A rigid motion — one rotation and one translation — so that carrying the pointer through the
+ * same call puts it at the same place relative to the field that it occupies on screen. That is
+ * what lets \`stir\` swirl the field about a centre the cursor is actually sitting on, at any
+ * \`angle\`, mid-\`drift\`, mid-\`swirl\`.
+ *
+ * Inert at the defaults by construction: \`orient\` of zero skips the rotation entirely and
+ * \`travel\` of zero subtracts an exact zero, so \`motion: evolve\` at \`angle: 0deg\` computes the
+ * same \`(v_uv - 0.5) * scale\` this program has always computed, bit for bit.
+ */
+vec2 kuiFieldPoint(vec2 uv, float zoom, float orient, float travel) {
+  vec2 v = (uv - 0.5) * zoom;
+  if (orient != 0.0) v = kuiRotate(v, -orient);
+  v.x -= travel;
+  return v;
+}
 
 /**
  * The host image read as a stencil: 1 where the mark is, 0 where the page should show through.
@@ -579,10 +672,26 @@ float kuiGrain(vec2 fragCoord, float t) {
 void main() {
   // Centred and aspect-free: the field is authored in the element's own UV space, so the same
   // parameters give the same picture whatever size the box is.
-  vec2 p = (v_uv - 0.5) * max(u_scale, 0.05);
+  float zoom = max(u_scale, 0.05);
   vec3 seed = vec3(u_seed * 137.31, u_seed * 71.17, u_seed * 29.73);
   float t = u_time;
   float pFactor = u_progress >= 0.0 ? u_progress : 1.0;
+
+  // Orientation and travel, as one rigid motion of the domain. \`angle\` names the field's axis;
+  // \`motion: swirl\` turns that axis over time; \`motion: drift\` slides along it. Both are *added
+  // to* the third-axis evolution below rather than replacing it, so a drifting field is still
+  // changing as it goes rather than being one frozen picture towed across the box.
+  float spin = u_motion == KUI_MOTION_SWIRL ? t * 0.2 : 0.0;
+  float orient = u_angle + spin;
+  // Multiplied by the zoom, so \`drift\` crosses the box at the same visual rate whatever \`scale\`
+  // is. Without it, zooming in would slow the travel down — one knob quietly moving two things,
+  // which is the bug kuiFbm's \`/norm\` divisor exists to avoid on the octave count.
+  float travel = u_motion == KUI_MOTION_DRIFT ? t * 0.12 * zoom : 0.0;
+
+  vec2 p = kuiFieldPoint(v_uv, zoom, orient, travel);
+  // One evaluation, shared by both gestures, and skipped entirely when there is no pointer
+  // response authored.
+  float hoverFall = u_hover != 0 ? kuiHoverFalloff() : 0.0;
 
   // Domain warp: a second field displaces the sample point of the first. This is the whole
   // difference between concentric fbm contours and something that reads as liquid.
@@ -592,6 +701,27 @@ void main() {
     float wx = kuiFbm(vec3(p * wf, t * 0.35) + seed, u_detail);
     float wy = kuiFbm(vec3(p * wf + 5.2, t * 0.35 + 1.3) + seed, u_detail);
     q += vec2(wx, wy) * u_warp;
+  }
+
+  // \`hover: stir\` — the cursor dragged through the colour, like stirring thick paint.
+  //
+  // Applied here, last, to the finished sample point: the gesture is dragging paint that is
+  // already there, not re-warping the field before it exists. It also means \`stir\` works at the
+  // library defaults, where \`warp\` is 0 and there is no domain warp to ride on.
+  //
+  // A vortex, which is one gesture and not two: a turn that dies away from the cursor, plus a push
+  // of the *sample point* outward — which is the field spiralling inward, and is the whole
+  // difference between a rotating disc and a stir. \`rel / (length(rel) + eps)\` rather than
+  // \`normalize\`, so the push fades to nothing at the centre instead of kicking the one pixel under
+  // the cursor in whatever direction the epsilon points.
+  //
+  // On \`mode: logo\` this cannot touch the mark's edges: \`glyphMask()\` samples \`u_image\` at the
+  // undistorted \`v_uv\` and multiplies the finished colour, so stirring \`q\` swirls the fill and
+  // leaves the stencil exactly where it was.
+  if ((u_hover & KUI_HOVER_STIR) != 0) {
+    vec2 pm = kuiFieldPoint(u_mouse, zoom, orient, travel);
+    vec2 rel = q - pm;
+    q = pm + kuiRotate(rel, 1.6 * hoverFall) + rel / (length(rel) + 1e-4) * (0.10 * zoom * hoverFall);
   }
 
   // Audio and progress scale the field's *amplitude*, leaving its shape and rate alone — so a
@@ -626,12 +756,40 @@ void main() {
   }
 
   if (u_hue != 0.0) color = kuiHueRotate(color, u_hue);
+
+  // \`hover: light\` — a torch held over the surface.
+  //
+  // A multiply rather than a blend toward white. Multiplying preserves the hue and *raises* the
+  // saturation, so what appears under the pointer is the author's own colour becoming vivid;
+  // mixing toward white would wash the palette out at exactly the point the eye is on. The gain is
+  // 1.0 in the far field, which is what makes this a highlight rather than a restyling — a palette
+  // already at the top of the range has nowhere to go, and that is the honest behaviour of a torch.
+  if ((u_hover & KUI_HOVER_LIGHT) != 0) color *= 1.0 + 0.7 * hoverFall;
+
   if (u_grain > 0.0) color += kuiGrain(gl_FragCoord.xy, t) * u_grain * 0.25;
 
   // Opaque before masking, and premultiplied trivially because alpha is 1 — the element's own
   // shape and its ancestors' opacity arrive through shapeMask(), the mark's shape through
   // glyphMask(), and both multiply all four channels, which is the right operation on
   // premultiplied colour and is what leaves the page visible around a logo.
-  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0) * u_tint * shapeMask() * glyphMask();
+  float sm = shapeMask();
+  float gm = glyphMask();
+  vec4 px = vec4(clamp(color, 0.0, 1.0), 1.0) * u_tint * sm * gm;
+
+  // \`backdrop\` — the colour the field is composited *over*, inside the element's own shape.
+  //
+  // Premultiplied "over", because everything in this program already is. \`u_tint.a * gm\` is the
+  // field's coverage before the shape mask, so the backdrop is pulled through the same \`sm\` as the
+  // field rather than being masked twice — which would otherwise thin the backdrop along an
+  // antialiased rounded corner.
+  //
+  // What it is *for*: \`mode: logo\`'s plate. Outside the mark the coverage is zero and the backdrop
+  // is all there is, so a mark gets a solid ground instead of the page showing through. A bare
+  // \`gradient\` is opaque, so there this is a no-op by construction — visible only through a \`tint\`
+  // whose alpha is below 1. That is a property of an opaque field, not an oversight.
+  if (u_backdrop.a > 0.0) {
+    px += vec4(u_backdrop.rgb * u_backdrop.a, u_backdrop.a) * sm * (1.0 - u_tint.a * gm);
+  }
+  fragColor = px;
 }
 `
