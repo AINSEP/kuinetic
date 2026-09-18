@@ -58,15 +58,45 @@ export function stepFluidDrop(drop: FluidDrop, friction: number): boolean {
   return drop.alpha < 0.02
 }
 
+/**
+ * Pin the canvas's CSS box, in px, to the exact `vw`/`vh` its backing store was just sized from.
+ *
+ * Split out of {@link syncCanvasSize} to keep that function's cyclomatic complexity under the
+ * repo's cap — the two nullish-coalescing reads of `win` already spend most of the budget there.
+ * `style` can be absent on a test double, same guard as `shaders.ts`'s `syncCanvasDimensions`.
+ */
+function syncCanvasStyleBox(canvas: HTMLCanvasElement, vw: number, vh: number): void {
+  const style = canvas.style
+  if (!style) return
+  const cssW = `${vw}px`
+  const cssH = `${vh}px`
+  if (style.width !== cssW) style.width = cssW
+  if (style.height !== cssH) style.height = cssH
+}
+
+/**
+ * Size the canvas backing store *and* its CSS box from the same numbers.
+ *
+ * The CSS box used to be a fixed `100vw`/`100vh` in {@link FluidTrail.setupCanvas}, which reads
+ * from the visual/layout viewport rather than `window.innerWidth`/`innerHeight`. On iOS Safari with
+ * the address bar visible those two disagree, so the browser scales the backing store to fit the
+ * CSS box and a drop spawned at `clientY` renders off from the pointer — the same defect
+ * `syncCanvasDimensions` (`shaders.ts`) fixes for the shader tier, by the same move: pin the CSS box
+ * to the exact `innerWidth`/`innerHeight` the backing store is derived from, every time either is
+ * synced (see {@link syncCanvasStyleBox}).
+ */
 export function syncCanvasSize(canvas: HTMLCanvasElement | null, win: Window | WindowLike | null): number {
   if (!canvas) return 1
   const dpr = Math.min(win?.devicePixelRatio ?? 1, 2)
-  const w = Math.round((win?.innerWidth ?? 1000) * dpr)
-  const h = Math.round((win?.innerHeight ?? 800) * dpr)
+  const vw = win?.innerWidth ?? 1000
+  const vh = win?.innerHeight ?? 800
+  const w = Math.round(vw * dpr)
+  const h = Math.round(vh * dpr)
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w
     canvas.height = h
   }
+  syncCanvasStyleBox(canvas, vw, vh)
   return dpr
 }
 
@@ -181,7 +211,8 @@ export class FluidTrail {
     if (!this.canvas) return false
 
     this.canvas.className = 'kui-fluid-canvas'
-    this.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9998;'
+    // No `width`/`height` here: `syncCanvasSize` owns both, in px, every frame (see its doc comment).
+    this.canvas.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:9998;'
     this.ctx = this.canvas.getContext ? (this.canvas.getContext('2d') as CanvasRenderingContext2D | null) : null
     if (!this.ctx) {
       this.canvas = null

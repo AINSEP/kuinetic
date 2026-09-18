@@ -361,6 +361,35 @@ describe('Advanced FX Modules: Particles and Fluid Cursor', () => {
       expect(trail.canvas).toBeNull()
     })
 
+    it('syncCanvasSize pins the CSS box in px to the same innerWidth/innerHeight the backing store uses, so a clientY lands on-screen where the pointer actually is', () => {
+      const canvas = document.createElement('canvas')
+      // Seed a CSS box that disagrees with `innerHeight` below -- what the old hardcoded
+      // `width:100vw;height:100vh` rule would leave standing on iOS Safari, where `100vh`
+      // resolves against the large/visual viewport (address bar retracted) while
+      // `window.innerHeight` reports the smaller layout viewport (address bar showing).
+      canvas.style.width = '390px'
+      canvas.style.height = '750px'
+
+      const fakeWin = { innerWidth: 390, innerHeight: 650, devicePixelRatio: 1 } as unknown as Window
+      const dpr = syncCanvasSize(canvas, fakeWin)
+
+      expect(canvas.width).toBe(390 * dpr)
+      expect(canvas.height).toBe(650 * dpr)
+      // The stale, disagreeing box must be overwritten to match what the backing store used.
+      expect(canvas.style.width).toBe('390px')
+      expect(canvas.style.height).toBe('650px')
+
+      // A drop is drawn at `clientY * dpr` in backing-store space (see `draw()`). The browser
+      // stretches backing-store pixels to fill the CSS box to paint them on screen; when the box
+      // disagreed with the backing store that stretch was non-uniform and the drop painted below
+      // the finger. With the box pinned to the same numbers, the stretch is 1:1 and clientY comes
+      // back out unchanged.
+      const clientY = 645
+      const drawnY = clientY * dpr
+      const screenY = (drawnY / canvas.height) * parseFloat(canvas.style.height)
+      expect(screenY).toBeCloseTo(clientY, 5)
+    })
+
     it('FluidTrail handles failure branches and null environments', () => {
       const tNullDoc = new FluidTrail({}, { document: null })
       expect(tNullDoc.init()).toBe(false)
