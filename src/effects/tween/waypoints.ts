@@ -142,9 +142,12 @@ function padToCount(
  */
 function clampCount(key: string, values: string[], warn: (message: string) => void): string[] {
   if (values.length <= MAX_WAYPOINTS) return values
+  // `!`, not `?? ''`: the early return above means this line is only reached with *more* than
+  // `MAX_WAYPOINTS` values, so the last surviving one always exists. A fallback here would be a
+  // branch nothing can take, and a `""` in the message would be a lie the day one could.
   warn(
     `"${key}" has ${String(values.length)} waypoints — at most ${String(MAX_WAYPOINTS)} are ` +
-      `supported, so the animation now ends at "${values[MAX_WAYPOINTS - 1] ?? ''}"`,
+      `supported, so the animation now ends at "${values[MAX_WAYPOINTS - 1]!}"`,
   )
   return values.slice(0, MAX_WAYPOINTS)
 }

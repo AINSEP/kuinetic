@@ -127,7 +127,12 @@ const FLATTENING: readonly [string, (value: string) => boolean][] = [
  * @complexity O(d) time in tree depth, once per instance; O(1) space.
  */
 function warnFlatteningAncestor(el: Element, ctx: PrepareContext): void {
-  const body = el.ownerDocument?.body ?? null
+  // `Node.ownerDocument` is typed nullable because it is null for a `Document`, which cannot reach
+  // here — an Element always has one. `body`, on the other hand, genuinely can be absent (an XML
+  // document has none), and the walk below needs no default for that: a `body` of `null` simply
+  // never matches, so the walk runs to the root, which is the right answer when there is no body to
+  // stop at.
+  const body: Element | null = (el.ownerDocument as Document).body
   let node = el.parentElement
   while (node && node !== body) {
     const found = flatteningDeclaration(node, ctx)
@@ -430,9 +435,15 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
     // Read back off the marker's own output rather than recomputed from each node's position: the
     // marker numbers per parent group and wraps per group, and a second numbering here would be a
     // second answer to "which place is this" that could disagree with the one CSS is placing from.
-    const spacing = count > 0 ? arcDeg / count : arcDeg
+    // No `count > 0` guard: `countSteps` floors its answer at 1 (`Math.max(1, ...)`), and this
+    // primitive declares no `steps:` parameter for an author to override that with, so a ring with
+    // no slots at all still counts one place. There is no division by zero to defend against.
+    const spacing = arcDeg / count
     for (const node of slotNodes) {
-      const offset = Number(node.getAttribute('data-kui-step-offset') ?? '0')
+      // No `?? '0'`: `marker.mark` two statements above writes this attribute onto every node
+      // `resolveSlots` returns, so a missing one is already unreachable — and `Number(null)` is `0`
+      // regardless, so the fallback was not even defending the arithmetic it appeared to.
+      const offset = Number(node.getAttribute('data-kui-step-offset'))
       const angle = (offset - drift) * spacing
       ledgersFor(slots, node).attributes.set(FACE_ATTR, faceAt(angle))
     }

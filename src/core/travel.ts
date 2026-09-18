@@ -78,8 +78,11 @@ export function createTravelTracker(): TravelTracker {
   let holders = 0
 
   const onScroll = (event: Event): void => {
-    const target = event.target
-    if (!target) return
+    // `Event.target` is typed nullable because it is null *before* dispatch — a state no listener
+    // can observe, since dispatch is the only thing that runs one. The cast says that, in place of
+    // an `if (!target) return` guard that no test could ever reach. The real "nothing to read here"
+    // case is a target that is not a scroller at all, which `scrollPositionOf` answers below.
+    const target = event.target as EventTarget
     const now = scrollPositionOf(target)
     if (!now) return
     const last = positions.get(target)
@@ -131,14 +134,18 @@ export function createTravelTracker(): TravelTracker {
  * Where a scroll event's target currently sits, on both axes.
  *
  * The viewport reports its scroll on `document` rather than on an element, so the two cases read
- * from different properties; anything else (a `scroll` on some non-element target) has no position
- * to speak of.
+ * from different properties; anything else (a `scroll` delivered on a text node, or on a document
+ * other than this window's) has no position to speak of.
+ *
+ * No `typeof window === 'undefined'` guard of its own, unlike `retain`/`stop` above. Both call sites
+ * have already established that there is a window: `retain` checks before it reads, and `onScroll`
+ * only ever runs as a listener `retain` installed *on* `window`. A guard here would be a branch no
+ * test could reach without deleting the two that make it unreachable.
  *
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
 function scrollPositionOf(target: EventTarget): { x: number; y: number } | undefined {
-  if (typeof window === 'undefined') return undefined
   if (target === window || target === window.document) {
     return { x: window.scrollX, y: window.scrollY }
   }

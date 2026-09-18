@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import type { ActivationBinder, ActivationRequest } from '../src/core/activation.js'
 import type { Crossing } from '../src/core/toggle-actions.js'
+import { createTravelTracker } from '../src/core/travel.js'
 
 /**
  * Classifying a crossing when the observer never delivered the one before it.
@@ -222,5 +223,56 @@ describe('the travel listener’s lifetime', () => {
       binder.destroy()
     })
     expect(counts).toEqual({ added: 1, removed: 1 })
+  })
+})
+
+/**
+ * The tracker directly, for the one thing the binder cannot put in front of it: what arrives on a
+ * capture listener attached to `window`.
+ *
+ * That listener sees *every* `scroll` dispatched anywhere in the document, including ones from
+ * targets this library knows nothing about and never asked for — a text node, a document from
+ * another realm. `scrollPositionOf` answers `undefined` for all of them, and the tempting wrong
+ * answer is to fall back to the *window's* position instead of declining: the call is already
+ * reading `window.scrollX/scrollY` one branch above, so the fallback looks free. It is not. The
+ * page moves for all sorts of reasons that never produce a `scroll` event on `document`, and
+ * attributing that movement to whichever foreign event happened to arrive next manufactures a
+ * direction of travel out of nothing — which then reclassifies the next real crossing.
+ */
+describe('createTravelTracker against foreign scroll events', () => {
+  const scrollAt = (target: EventTarget, at: number): void => {
+    const event = new Event('scroll')
+    Object.defineProperty(event, 'timeStamp', { value: at })
+    target.dispatchEvent(event)
+  }
+
+  const pageAt = (y: number): void => {
+    Object.defineProperty(window, 'scrollY', { value: y, configurable: true })
+  }
+
+  it('reads no direction at all from a scroll whose target has no scroll position of its own', () => {
+    pageAt(0)
+    const tracker = createTravelTracker()
+    tracker.retain()
+    const text = document.body.appendChild(document.createTextNode('not a scroller'))
+
+    try {
+      scrollAt(text, 1000)
+      // The page really did move between the two — the point being that it moved without saying so
+      // on any target this tracker can read. Positions are remembered per target, so reading the
+      // window's for a text node would make these two events look like 900px of forward travel.
+      pageAt(900)
+      scrollAt(text, 1001)
+      expect(tracker.arrivedFrom(1001)).toBeUndefined()
+
+      // Nothing was poisoned: the same movement, reported on a target that does have a position,
+      // still reads as travel.
+      scrollAt(document, 1002)
+      expect(tracker.arrivedFrom(1002)).toBe('after')
+    } finally {
+      text.remove()
+      tracker.reset()
+      pageAt(0)
+    }
   })
 })

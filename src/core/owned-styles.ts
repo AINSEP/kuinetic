@@ -165,8 +165,6 @@ export interface LedgerSet {
   attributes(el: Element): AttributeLedger
   /** Unwind every element this set ever handed out a ledger for. Host last — see below. */
   restore(): void
-  /** Every element with a ledger, host first. Diagnostics and leak assertions. */
-  elements(): Element[]
 }
 
 /**
@@ -220,12 +218,6 @@ export function createLedgerSet(host: Element): LedgerSet {
       restoreOne(host)
       styles.clear()
       attributes.clear()
-    },
-    elements() {
-      const all = new Set<Element>([host])
-      for (const el of styles.keys()) all.add(el)
-      for (const el of attributes.keys()) all.add(el)
-      return [...all]
     },
   }
 }

@@ -137,6 +137,23 @@ describe('lists that disagree', () => {
     expect(readWaypoints('"a,\\"b",100')).toEqual(['"a,\\"b"', '100'])
   })
 
+  /**
+   * A quote the author never closed — the realistic typo in a hand-edited attribute. The scanner
+   * runs to the end of the string looking for the partner and stops there, which keeps everything
+   * after the stray quote as one value and sends it to ordinary parameter validation to be rejected
+   * by name.
+   *
+   * The alternative reading — "no close, so it was never a quote" — is the one worth ruling out:
+   * it splits on the commas *inside* what the author was plainly quoting, so a single bad value
+   * silently becomes a three-waypoint animation that compiles, runs, and is wrong.
+   */
+  it('runs an unterminated quote to the end of the value instead of splitting inside it', () => {
+    expect(readWaypoints('0,"100,40')).toEqual(['0', '"100,40'])
+    expect(readWaypoints("'0,100,40")).toEqual(["'0,100,40"])
+    // A trailing backslash inside the unterminated run must not read past the end either.
+    expect(readWaypoints('0,"a,b\\')).toEqual(['0', '"a,b\\'])
+  })
+
   it('keeps expansion bounded for a very long list', () => {
     const compiled = plan(`tween x:'${Array.from({ length: 2000 }, (_, i) => i).join(',')}'`)
     expect(compiled.vars['--kui-tween-x-5']).toBe('4px')
