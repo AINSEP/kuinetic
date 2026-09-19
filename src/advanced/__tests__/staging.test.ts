@@ -26,6 +26,7 @@ import {
   computeLayerTransform,
   parseDepth,
   prepareCameraLayer,
+  prepareCameraScene,
   registerCamera,
 } from '../camera-3d.js'
 import { registerAdvanced } from '../index.js'
@@ -43,6 +44,10 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(reg.resolve('camera-scene')).toBeDefined()
       expect(reg.resolve('particle-dissolve')).toBeDefined()
       expect(reg.resolve('fluid-trail')).toBeDefined()
+      // Six registrars, not five: a dropped `registerAudio` left every name above resolving.
+      expect(reg.resolve('audio-source')).toBeDefined()
+      expect(reg.resolve('camera-layer')).toBeDefined()
+      expect(reg.resolve('scene-step')).toBeDefined()
     })
   })
 
@@ -246,8 +251,30 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
     it('exercises default raf and caf without injected env', () => {
       const container = document.createElement('div')
       const controller = new SceneController(container)
-      const id = controller.raf(() => {})
-      controller.caf(id)
+      // The default wrappers are thin, and that is the contract: the frame callback reaches the
+      // window's own scheduler unchanged, the id comes back unchanged, and the cancel carries it.
+      const origRaf = window.requestAnimationFrame
+      const origCaf = window.cancelAnimationFrame
+      const rafSpy = vi.fn(() => 42)
+      const cafSpy = vi.fn()
+      window.requestAnimationFrame = rafSpy as unknown as typeof window.requestAnimationFrame
+      window.cancelAnimationFrame = cafSpy as unknown as typeof window.cancelAnimationFrame
+      try {
+        const frame = () => {}
+        const id = controller.raf(frame)
+        expect(rafSpy).toHaveBeenCalledTimes(1)
+        expect(rafSpy).toHaveBeenCalledWith(frame)
+        expect(id).toBe(42)
+        expect(controller.caf(id)).toBeNull()
+        expect(cafSpy).toHaveBeenCalledTimes(1)
+        expect(cafSpy).toHaveBeenCalledWith(42)
+        // A null id has nothing to cancel, and must not reach the window as `cancelAnimationFrame(null)`.
+        controller.caf(null)
+        expect(cafSpy).toHaveBeenCalledTimes(1)
+      } finally {
+        window.requestAnimationFrame = origRaf
+        window.cancelAnimationFrame = origCaf
+      }
 
       const cNull = new SceneController(container, {}, { window: null })
       expect(cNull.raf(() => {})).toBeNull()
@@ -469,12 +496,34 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
         text: vi.fn().mockReturnValue('hero'),
       } as unknown as EffectParams
 
-      const inst = SCENE_PRIMITIVES[0]!.prepare!(root, params, createRealPrepareContext(root, { reducedMotion: false }))
+      // Parked with its top at the viewport's top, so the scroll progress is a known fraction
+      // of the travel (`winHeight + height`) rather than whatever jsdom's zero rect gives.
+      root.getBoundingClientRect = () => ({ top: 0, height: 800 } as DOMRect)
+      let frame: FrameRequestCallback | null = null
+      const ctx = createRealPrepareContext(root, {
+        reducedMotion: false,
+        raf: (fn) => { frame = fn; return 1 },
+        caf: vi.fn(),
+      })
+      const inst = SCENE_PRIMITIVES[0]!.prepare!(root, params, ctx)
       expect(inst).toBeDefined()
+      // 'hero' is not 'time', so this is a scroll scene, which is what `continuous` reports.
+      expect(inst.continuous).toBe(true)
       inst.activate()
+      // `start()` schedules the first frame; nothing is written until it runs.
+      expect(child.style.opacity).toBe('')
+      expect(frame).not.toBeNull()
+      frame!(0)
+      const progress = window.innerHeight / (window.innerHeight + 800)
+      // The bound step is what received the write: `opacity:0->1` at the scene's progress.
+      expect(child.style.opacity).toBe(String(lerp(0, 1, progress)))
       inst.cancel()
       inst.finish()
+      // `finish()` holds the last keyframe.
+      expect(child.style.opacity).toBe('1')
       inst.destroy()
+      // …and `destroy()` gives the step back to its author.
+      expect(child.style.opacity).toBe('')
     })
 
     it('SceneController coordinates time-based progression and handles empty prepare params', () => {
@@ -551,9 +600,20 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(res).toBeDefined()
       expect(res?.primitive.id).toBe('camera-scene')
       expect(res?.primitive.channels).toEqual(['skew', 'perspective', 'transform-style'])
+      // The registration is the wiring, not the name: the compiler hands *this* prepare *these*
+      // parameters, and a registry entry that resolved but carried the wrong pair would pass every
+      // assertion above it.
+      expect(res?.primitive.prepare).toBe(prepareCameraScene)
+      // `toEqual`, not `toBe`: registration namespaces timing params through a shallow copy.
+      expect(res?.primitive.parameters).toEqual(CAMERA_PARAMETERS)
+      expect(CAMERA_PARAMETERS.depth.cssProperty).toBe('--kui-camera-depth')
+      expect(CAMERA_PARAMETERS['mouse-tilt'].keywords).toEqual(['on', 'off'])
+      expect(CAMERA_PARAMETERS.audio.keywords[0]).toBe('off')
 
+      // Both camera presets are bare names for the primitive of the same name — `preset.name`,
+      // not `preset.primitive`, which would only re-read the table under test.
       for (const preset of CAMERA_PRESETS) {
-        expect(reg.resolve(preset.name)).toBeDefined()
+        expect(reg.resolve(preset.name)?.primitive.id).toBe(preset.name)
       }
     })
 
@@ -561,10 +621,14 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       expect(parseDepth()).toBe(0)
       expect(parseDepth('invalid')).toBe(0)
       expect(parseDepth('250px')).toBe(250)
+      expect(parseDepth('-40px')).toBe(-40)
+      expect(parseDepth(null)).toBe(0)
 
-      const t = computeLayerTransform(100, 50, 4, -4)
-      expect(t).toContain('translate3d(0, 0, 125px)')
-      expect(t).toContain('rotateX(4deg)')
+      // The whole string, in order: a camera at z=50 adds half its travel to a layer at 100.
+      expect(computeLayerTransform(100, 50, 4, -4)).toBe('translate3d(0, 0, 125px) rotateX(4deg) rotateY(-4deg)')
+      // With no tilt there is no rotate at all — not `rotateX(0deg) rotateY(0deg)`.
+      expect(computeLayerTransform(100, 50)).toBe('translate3d(0, 0, 125px)')
+      expect(computeLayerTransform(-200, 0)).toBe('translate3d(0, 0, -200px)')
     })
 
     it('CameraController handles mouse tilt, scroll, rendering, and lifecycle', () => {
@@ -668,12 +732,37 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
         text: vi.fn().mockReturnValue('on'),
       } as unknown as EffectParams
 
-      const inst = CAMERA_PRIMITIVES[0]!.prepare!(root, params, createRealPrepareContext(root, { reducedMotion: false }))
+      // Parked just below the fold: `dist = winHeight - top` is negative, so the camera sits at
+      // z=0 and each layer's transform is its authored depth alone.
+      root.getBoundingClientRect = () => ({ top: window.innerHeight + 32, height: 400 } as DOMRect)
+      const ctx = createRealPrepareContext(root, { reducedMotion: false, raf: () => 1, caf: vi.fn() })
+      const inst = CAMERA_PRIMITIVES[0]!.prepare!(root, params, ctx)
       expect(inst).toBeDefined()
       inst.activate()
+      // `start()` renders once, so the composition is on screen before the first scroll.
+      expect(root.style.perspective).toBe('1200px')
+      expect(root.style.transformStyle).toBe('preserve-3d')
+      expect(layer1.style.transform).toBe('translate3d(0, 0, 150px)')
+      expect(layer1.style.transformStyle).toBe('preserve-3d')
+      // `z:none` is not a number, so the layer sits at the camera's own depth.
+      expect(layer2.style.transform).toBe('translate3d(0, 0, 0px)')
+      expect(layer2.style.transformStyle).toBe('preserve-3d')
+      // A child with no `data-kui` is not a layer, and the scene must not touch it.
+      expect(layer3.style.transform).toBe('')
+      expect(layer3.style.transformStyle).toBe('')
       inst.cancel()
       inst.finish()
       inst.destroy()
+      // The layers had one owner, so `destroy()` gives them back…
+      expect(layer1.style.transform).toBe('')
+      expect(layer1.style.transformStyle).toBe('')
+      expect(layer2.style.transform).toBe('')
+      // …but the host has two: this scene and the animator's own ledger (`ctx.style`, exactly
+      // as the fixture documents). The last owner out restores it, not the first.
+      expect(root.style.perspective).toBe('1200px')
+      ctx.style.restore()
+      expect(root.style.perspective).toBe('')
+      expect(root.style.transformStyle).toBe('')
 
       // Empty params prepare test
       const emptyEl = {} as HTMLElement
@@ -695,7 +784,15 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       const controller = new CameraController(stage, { mouseTilt: false }, { window: null })
       controller.start()
       expect(controller.isListening).toBe(true)
+      // A pointer move on a scene that opted out neither aims the spring nor starts the loop…
+      controller.onMouseMove({ clientX: 900, clientY: 900 })
+      expect(controller.mouse.targetX).toBe(0)
+      expect(controller.mouse.targetY).toBe(0)
+      expect(controller.rafId).toBeNull()
+      // …and even a stale spring value never reaches the stage's transform.
+      controller.mouse.x = 0.5
       controller.render()
+      expect(stage.style.transform).toBe('')
 
       // Loop re-entry when rafId already active
       controller.rafId = 123
@@ -744,39 +841,59 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
     it('CameraController handles onScroll RAF coalescing and cancellation', () => {
       const stage = document.createElement('div')
       stage.getBoundingClientRect = () => ({ top: 100, height: 200 } as DOMRect)
-      const c = new CameraController(stage, { depth: 1000 }, {
-        raf: () => 77,
-        caf: vi.fn(),
-      })
+      // Each request gets a fresh id, so a second frame scheduled where one is pending shows up
+      // as a changed id, not as the same 77 twice.
+      let frames = 0
+      const raf = vi.fn(() => ++frames)
+      const caf = vi.fn()
+      const c = new CameraController(stage, { depth: 1000 }, { raf, caf })
       c.start()
+      expect(raf).not.toHaveBeenCalled()
       c.onScroll()
-      expect(c.scrollRafId).toBe(77)
+      expect(c.scrollRafId).toBe(1)
       c.onScroll()
-      expect(c.scrollRafId).toBe(77)
+      expect(raf).toHaveBeenCalledTimes(1)
+      expect(c.scrollRafId).toBe(1)
       c.stop()
+      expect(caf).toHaveBeenCalledWith(1)
       expect(c.scrollRafId).toBeNull()
       c.destroy()
     })
 
     it('parseMouseTilt parses text fallback when is() is not provided', () => {
       const stage = document.createElement('div')
+      // The parse is observable through what `start()` subscribes to: a scene with tilt on
+      // listens for the pointer, a scene with it off listens to scroll alone.
+      function subscriptions(params: EffectParams): string[] {
+        const win = { innerWidth: 1000, innerHeight: 800, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+        const ctx = createRealPrepareContext(stage, { reducedMotion: false, win, raf: () => 1, caf: vi.fn() })
+        const inst = CAMERA_PRIMITIVES[0]!.prepare!(stage, params, ctx)
+        inst.activate()
+        inst.destroy()
+        return win.addEventListener.mock.calls.map(([type]) => type as string)
+      }
+
       const paramsWithTextOnly = {
         num: () => 1000,
         text: (name: string) => name === 'mouse-tilt' ? 'off' : '',
       } as any
-      const noCtx = createRealPrepareContext(stage, { reducedMotion: false })
-      const inst = CAMERA_PRIMITIVES[0]!.prepare!(stage, paramsWithTextOnly, noCtx)
-      expect(inst).toBeDefined()
-      inst.destroy()
+      expect(subscriptions(paramsWithTextOnly)).toEqual(['scroll'])
+
+      const paramsWithTextOn = {
+        num: () => 1000,
+        text: (name: string) => name === 'mouse-tilt' ? 'on' : '',
+      } as any
+      expect(subscriptions(paramsWithTextOn)).toEqual(['scroll', 'pointermove'])
 
       const paramsIsFalse = { num: () => 1000, is: () => false } as any
-      const inst2 = CAMERA_PRIMITIVES[0]!.prepare!(stage, paramsIsFalse, noCtx)
-      expect(inst2).toBeDefined()
-      inst2.destroy()
+      expect(subscriptions(paramsIsFalse)).toEqual(['scroll'])
 
-      const inst3 = CAMERA_PRIMITIVES[0]!.prepare!(stage, {} as any, noCtx)
-      expect(inst3).toBeDefined()
-      inst3.destroy()
+      // `is()` outranks `text()`: an accessor answering both is read through `is`.
+      const paramsIsTrueTextOff = { num: () => 1000, is: () => true, text: () => 'off' } as any
+      expect(subscriptions(paramsIsTrueTextOff)).toEqual(['scroll', 'pointermove'])
+
+      // No accessor at all defaults the tilt on, the same as the schema's `default: 'on'`.
+      expect(subscriptions({} as any)).toEqual(['scroll', 'pointermove'])
     })
 
     describe('the audio band a camera scene can follow', () => {

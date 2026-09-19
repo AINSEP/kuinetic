@@ -39,10 +39,16 @@ describe('Audio-Reactive Source Module', () => {
       data[30] = 64
 
       const bands = computeFrequencyBands(data, 44100)
-      expect(bands.bass).toBeGreaterThan(0.5)
-      expect(bands.mid).toBeGreaterThan(0)
-      expect(bands.treble).toBeGreaterThan(0)
-      expect(bands.level).toBeGreaterThan(0)
+      // Exact bin windows, so a shifted boundary reads as a different average rather than as a
+      // number that is merely still positive:
+      //   bass   20..250Hz   -> bins 0..1   (2 bins)  : (255 + 255) / (2 * 255)
+      //   mid    250..4000Hz -> bins 1..23  (23 bins) : (255 + 128) / (23 * 255)
+      //   treble 4k..16kHz   -> bins 23..92 (70 bins) : 64 / (70 * 255)
+      //   level  every bin   -> 128 bins             : (255 + 255 + 128 + 64) / (128 * 255)
+      expect(bands.bass).toBeCloseTo(1, 10)
+      expect(bands.mid).toBeCloseTo(383 / (23 * 255), 10)
+      expect(bands.treble).toBeCloseTo(64 / (70 * 255), 10)
+      expect(bands.level).toBeCloseTo(702 / (128 * 255), 10)
     })
 
     it('falls back to default nyquist when sampleRate <= 0', () => {
@@ -141,10 +147,13 @@ describe('Audio-Reactive Source Module', () => {
       // Loop execution
       expect(rafCb).not.toBeNull()
       rafCb!(16)
-      expect(container.style.getPropertyValue('--kui-audio-bass')).not.toBe('0.123')
-      expect(container.style.getPropertyValue('--kui-audio-mid')).toBeTruthy()
-      expect(container.style.getPropertyValue('--kui-audio-treble')).toBeTruthy()
-      expect(container.style.getPropertyValue('--kui-audio-level')).toBeTruthy()
+      // The analyser fills every bin with 100, so every band is 100/255 to three places — the
+      // exact string each channel carries, alias included.
+      expect(container.style.getPropertyValue('--kui-audio-bass')).toBe('0.392')
+      expect(container.style.getPropertyValue('--kui-audio-mid')).toBe('0.392')
+      expect(container.style.getPropertyValue('--kui-audio-treble')).toBe('0.392')
+      expect(container.style.getPropertyValue('--kui-audio-level')).toBe('0.392')
+      expect(container.style.getPropertyValue('--kui-audio')).toBe('0.392')
 
       // Stop & Destroy
       ctrl.stop()
@@ -1020,20 +1029,52 @@ describe('Audio-Reactive Source Module', () => {
 
     it('returns working effect instance with activate, cancel, finish, destroy', () => {
       const el = document.createElement('div')
+      el.appendChild(document.createElement('video'))
       const params = {
         text: vi.fn((k, def) => (k === 'source' ? 'media' : def)),
         num: vi.fn((k, def) => def),
       } as unknown as EffectParams
-      const ctx = createRealPrepareContext(el, { reducedMotion: false })
+      const win = {
+        AudioContext: vi.fn().mockImplementation(() => audioContextDouble()),
+        HTMLMediaElement: window.HTMLMediaElement,
+      } as unknown as Window
+      const raf = vi.fn<(fn: FrameRequestCallback) => number>(() => 5)
+      const caf = vi.fn()
+      const ctx = createRealPrepareContext(el, { reducedMotion: false, win, raf, caf })
 
       const inst = prepareAudioSource(el, params, ctx)
       expect(inst).toBeDefined()
       expect(inst.continuous).toBe(true)
 
+      // A running context over a bound media element starts the loop at once; the first write
+      // is the first frame's, not `activate()`'s.
       inst.activate()
+      expect(raf).toHaveBeenCalledTimes(1)
+      expect(el.style.getPropertyValue('--kui-audio-level')).toBe('')
+      raf.mock.calls[0]![0]!(16)
+      expect(el.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+      expect(raf).toHaveBeenCalledTimes(2)
+
+      // `cancel` stops the loop by its id and holds the last frame's value.
       inst.cancel()
+      expect(caf).toHaveBeenCalledTimes(1)
+      expect(caf).toHaveBeenCalledWith(5)
+      expect(el.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+
+      // Re-activation rebuilds the graph and asks for a frame again; `finish` cancels it too.
+      inst.activate()
+      expect(raf).toHaveBeenCalledTimes(3)
       inst.finish()
+      expect(caf).toHaveBeenCalledTimes(2)
+
+      // `destroy` releases this effect's claim. The host is *also* held by the animator's own
+      // ledger (`ctx.style`, as the fixture documents), so the value stays until that last owner
+      // lets go — and then, and only then, the author's element comes back clean.
       inst.destroy()
+      expect(el.style.getPropertyValue('--kui-audio-level')).toBe('0.000')
+      ctx.style.restore()
+      expect(el.style.getPropertyValue('--kui-audio-level')).toBe('')
+      expect(el.style.getPropertyValue('--kui-audio')).toBe('')
     })
 
     it('registers into Registry and Animator', () => {

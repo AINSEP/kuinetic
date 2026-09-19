@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import { readEffectParams } from '../src/core/js-params.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
-import type { EffectInstance } from '../src/core/types.js'
+import type { EffectInstance, EffectParams } from '../src/core/types.js'
 import { SPATIAL_RING_PRIMITIVE, degreesOf } from '../src/effects/carousel/index.js'
+import { countSteps } from '../src/effects/forms/primitives.js'
 
 /**
  * The spatial carousel's *index* half: the controls that move it, the default slot set, the
@@ -203,6 +204,13 @@ describe('the ring’s slots when no target: was authored', () => {
     expect(host.style.getPropertyValue('--kui-step-position')).toBe('0.0000')
     // Nothing measured, because there was no first slot to measure.
     expect(host.style.getPropertyValue('--kui-item-width')).toBe('')
+
+    // The division itself is unobservable through the ring, by construction: `arcDeg / count` is
+    // only ever multiplied into a slot's angle, and an empty ring has no slot to receive one. The
+    // controls do not see it either — `nextStep`/`prevStep` guard `total > 0` on their own. What
+    // *is* observable is the floor the render leans on instead of a guard (`carousel/index.ts`,
+    // "No `count > 0` guard"): `countSteps` answers 1 for no slots, and that is the contract.
+    expect(countSteps({ num: () => 0 } as unknown as EffectParams, () => [])).toBe(1)
 
     instance.destroy()
   })

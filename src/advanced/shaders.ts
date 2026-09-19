@@ -2062,24 +2062,6 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     isActive = false; info.renderer.unregister(info.id); restoreInstanceOpacity(info.el, state)
   }
 
-  /**
-   * Everything `activate()` took, given back: the draw registration and the hide, then the
-   * textures and the renderer reference.
-   *
-   * The second half used to wait for `destroy()`. `cancel()` and `finish()` only unregistered, so
-   * a hover-out left this instance's textures on the GPU and its refCount on the renderer — a
-   * gallery of `on:hover` shaders retained every image it had ever drawn, and the shared canvas
-   * and context never reached refCount 0 until the whole animator was torn down. Nothing about a
-   * re-activation needs any of it kept: `acquireRenderer` takes a fresh reference for an instance
-   * holding none, on whatever renderer is live by then, and the holders upload again on the next
-   * `get()`. It is the same path a first activation takes after a teardown between prepare and
-   * activate, and the textures were always going to be rebuilt on that path.
-   */
-  const release = () => {
-    restoreState()
-    if (isAcquired) { cleanupShaderTextures(info.tex, info.to, info.renderer); isAcquired = false }
-  }
-
   return createEffectInstance({
     continuous: true,
     activate() {
@@ -2092,14 +2074,25 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
       }, readInputs)
       info.renderer.startLoop()
     },
-    cancel: release,
-    finish: release,
-    // Then drop this instance's claim on the shared ledger. The last claim out restores the
-    // element — and for the authored host, where the claim is over `ctx.style`, nothing is
-    // restored here at all, because the animator owns `restore()` for its own set. Without this
-    // the owner count never reaches zero and the *next* writer's teardown is suppressed for the
-    // element's life.
-    destroy() { release(); state.ledgers.restore() },
+    // Unregister and un-hide, but keep the textures and the renderer reference. That retention is
+    // a deliberate trade, made in `e49d517` and re-affirmed after a later audit read it as an
+    // oversight: `release()` tears down the canvas, the context and all six linked programs, so
+    // dropping `refCount` to zero on every hover-out makes the next hover pay a rebuild and six
+    // recompiles. On a hover effect that stall is worse than holding a texture roughly the size of
+    // the decoded image the browser already has. Reversing it is a real option — a grace timer
+    // before teardown would recover most of the memory without the stall — but it is a decision to
+    // take deliberately and cost, not a gap to close on the way past.
+    cancel: restoreState,
+    finish: restoreState,
+    destroy() {
+      restoreState()
+      if (isAcquired) { cleanupShaderTextures(info.tex, info.to, info.renderer); isAcquired = false }
+      // Drop this instance's claim on the shared ledger. The last claim out restores the element —
+      // and for the authored host, where the claim is over `ctx.style`, nothing is restored here at
+      // all, because the animator owns `restore()` for its own set. Without this the owner count
+      // never reaches zero and the *next* writer's teardown is suppressed for the element's life.
+      state.ledgers.restore()
+    },
   })
 }
 

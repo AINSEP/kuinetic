@@ -523,34 +523,37 @@ describe('Advanced Shaders Labs Module', () => {
     customRenderer.renderFrame(1)
     expect(gl.createTexture).toHaveBeenCalledTimes(1)
 
-    // A cancel gives back everything `activate()` took — the texture and the renderer reference,
-    // not only the draw registration. With nothing else holding it, the renderer goes with them.
-    // Left in place, a gallery of `on:hover` shaders retained every image it had ever drawn.
+    // A cancel gives back the draw registration and the hide, and **keeps** the texture and the
+    // renderer reference. That is a deliberate trade, not an unfinished teardown: `release()`
+    // tears down the canvas, the context and all six linked programs, so freeing here would make
+    // every hover-in pay a rebuild and six recompiles — worse, on a hover effect, than holding a
+    // texture the size of an image the browser has already decoded. Asserted positively so that
+    // "free it on cancel" cannot be reintroduced as a tidy-up by someone reading the retention as
+    // an oversight; see `e49d517`. The memory is reclaimed at `destroy()`, below.
     inst.cancel()
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+    expect(customRenderer.refCount).toBe(1)
+    expect(customRenderer.isDestroyed).toBe(false)
+    inst.cancel() // already cancelled return
+    inst.finish() // not active return
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+
+    // So a re-activation is cheap: the same renderer, and the texture the holder still has. No
+    // second upload — which is the whole point of keeping it.
+    inst.activate()
+    expect(getSharedShaderRenderer()).toBe(customRenderer)
+    expect(customRenderer.refCount).toBe(1)
+    customRenderer.renderFrame(2)
+    expect(gl.createTexture).toHaveBeenCalledTimes(1)
+
+    inst.finish() // finish while active
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+    inst.activate()
+
+    // `destroy()` is where it is all given back — the one exit that means "this instance is over".
+    inst.destroy()
     expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
     expect(customRenderer.refCount).toBe(0)
-    expect(customRenderer.isDestroyed).toBe(true)
-    inst.cancel() // already cancelled: nothing to give back twice
-    inst.finish() // not active return
-    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
-
-    // Re-activation acquires whatever is live now — not the torn-down renderer, and not the
-    // deleted texture: the next frame uploads a fresh one.
-    inst.activate()
-    const revived = getSharedShaderRenderer()
-    expect(revived).not.toBe(customRenderer)
-    expect(revived.isDestroyed).toBe(false)
-    expect(revived.refCount).toBe(1)
-    revived.renderFrame(2)
-    expect(gl.createTexture).toHaveBeenCalledTimes(2)
-
-    // `finish` is the same give-back as `cancel`.
-    inst.finish() // finish while active
-    expect(gl.deleteTexture).toHaveBeenCalledTimes(2)
-    expect(revived.refCount).toBe(0)
-    inst.activate()
-    inst.destroy() // destroy while active
-    expect(gl.deleteTexture).toHaveBeenCalledTimes(2) // nothing was drawn, so nothing to delete
 
     // Test keyword parameter mode
     const kwParams = {
@@ -882,23 +885,61 @@ describe('Advanced Shaders Labs Module', () => {
   it('preserves authored opacity: 0 across false draw, context loss, and destruction', () => {
     const img = document.createElement('img')
     img.style.opacity = '0'
+    Object.defineProperty(img, 'complete', { value: true })
     Object.defineProperty(img, 'naturalWidth', { value: 100 })
     Object.defineProperty(img, 'naturalHeight', { value: 100 })
-    img.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
+    let isVisible = true
+    img.getBoundingClientRect = () => isVisible
+      ? ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
+      : ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 } as DOMRect)
     const mockCanvas = document.createElement('canvas')
+    mockCanvas.width = 1000
+    mockCanvas.height = 800
     mockCanvas.getContext = vi.fn().mockReturnValue(createMockGL())
-    const renderer = new SharedShaderRenderer({ createCanvas: () => mockCanvas })
+    let rafCb: FrameRequestCallback | null = null
+    const renderer = new SharedShaderRenderer({
+      createCanvas: () => mockCanvas,
+      raf: (fn: FrameRequestCallback) => { rafCb = fn; return 55 },
+    })
+    setSharedShaderRenderer(renderer)
+    const ctx = createRealPrepareContext(img, { reducedMotion: false, createCanvas: () => mockCanvas })
     const inst = prepareShaders(img, {
       keyword: vi.fn().mockReturnValue('displace'),
       num: vi.fn().mockReturnValue(0.5),
       text: vi.fn().mockReturnValue(''),
-    } as any, createRealPrepareContext(img, { reducedMotion: false, createCanvas: () => mockCanvas }))
+    } as any, ctx)
     inst.activate()
+
+    // An authored `opacity: 0` still draws — the alpha is a shader input, not a reason to skip —
+    // so the first frame hides the host behind the replica like any other. That write is invisible
+    // on the element (`'0'` over `'0'`), so the proof it happened is the ledger: the shared handle
+    // now owns `opacity`, which it never does for an element the renderer left alone.
+    expect(ctx.style.owned()).not.toContain('opacity')
+    rafCb!(1000)
+    expect(img.style.opacity).toBe('0')
+    expect(ctx.style.owned()).toContain('opacity')
+
+    // A false draw hands back the *author's* value. `peek()` answers `'0'` here; writing `''`
+    // instead would remove the declaration and reveal an element the author hid on purpose.
+    isVisible = false
+    rafCb!(1016)
+    expect(img.style.opacity).toBe('0')
+
+    // Hidden again, then the context goes: the lost-context give-back walks the same path.
+    isVisible = true
+    rafCb!(1032)
+    mockCanvas.dispatchEvent(new Event('webglcontextlost'))
+    expect(img.style.opacity).toBe('0')
+
     inst.cancel()
     expect(img.style.opacity).toBe('0')
     inst.destroy()
     expect(img.style.opacity).toBe('0')
+    // The animator's own release is the last owner out, and it puts back the same `'0'`.
+    ctx.style.restore()
+    expect(img.style.opacity).toBe('0')
     renderer.destroy()
+    setSharedShaderRenderer(null)
   })
 
   it('handles webglcontextrestored and calls callbacks on shader instance', () => {
@@ -909,9 +950,15 @@ describe('Advanced Shaders Labs Module', () => {
     Object.defineProperty(img, 'naturalHeight', { value: 100 })
     img.getBoundingClientRect = () => ({ left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100 } as DOMRect)
     const mockCanvas = document.createElement('canvas')
+    mockCanvas.width = 1000
+    mockCanvas.height = 800
     const mockGL = createMockGL()
     mockCanvas.getContext = vi.fn().mockReturnValue(mockGL)
-    const renderer = new SharedShaderRenderer({ createCanvas: () => mockCanvas })
+    let rafCb: FrameRequestCallback | null = null
+    const renderer = new SharedShaderRenderer({
+      createCanvas: () => mockCanvas,
+      raf: (fn: FrameRequestCallback) => { rafCb = fn; return 55 },
+    })
     setSharedShaderRenderer(renderer)
     const inst = prepareShaders(img, {
       keyword: vi.fn().mockReturnValue('displace'),
@@ -919,11 +966,42 @@ describe('Advanced Shaders Labs Module', () => {
       text: vi.fn().mockReturnValue(''),
     } as any, createRealPrepareContext(img, { reducedMotion: false, createCanvas: () => mockCanvas }))
     inst.activate()
+    // A second registrant on the same renderer, so the fan-out is observable: the shader
+    // instance's own `onRestored` is a no-op by design, and `onLost` leaves no mark on an element
+    // that was never hidden.
+    const probe = { onLost: vi.fn(), onRestored: vi.fn() }
+    renderer.register('probe', vi.fn(), probe)
+    const generation = renderer.contextGeneration
+
+    // One frame: the image is uploaded and its host hidden behind the replica.
+    const uploadsBefore = vi.mocked(mockGL.createTexture).mock.calls.length
+    rafCb!(1000)
+    expect(mockGL.createTexture).toHaveBeenCalledTimes(uploadsBefore + 1)
+    expect(img.style.opacity).toBe('0')
+
     mockCanvas.dispatchEvent(new Event('webglcontextlost'))
     expect(renderer.isContextLost).toBe(true)
+    // Every registrant hears it exactly once, the generation moves on, and the hidden host is
+    // handed back: while there is no context to draw with, the page shows its own content.
+    expect(probe.onLost).toHaveBeenCalledTimes(1)
+    expect(probe.onRestored).not.toHaveBeenCalled()
+    expect(renderer.contextGeneration).toBe(generation + 1)
+    expect(img.style.opacity).toBe('')
+
     mockCanvas.dispatchEvent(new Event('webglcontextrestored'))
     expect(renderer.isContextLost).toBe(false)
+    expect(probe.onRestored).toHaveBeenCalledTimes(1)
+    expect(probe.onLost).toHaveBeenCalledTimes(1)
+    // The texture minted before the loss died with the context, so the next frame uploads a
+    // fresh one rather than binding a dead handle — and hides the host again.
+    const uploadsAfterRestore = vi.mocked(mockGL.createTexture).mock.calls.length
+    rafCb!(1016)
+    expect(mockGL.createTexture).toHaveBeenCalledTimes(uploadsAfterRestore + 1)
+    expect(img.style.opacity).toBe('0')
+
+    renderer.unregister('probe')
     inst.destroy()
+    expect(img.style.opacity).toBe('')
     renderer.destroy()
     setSharedShaderRenderer(null)
   })
