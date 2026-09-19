@@ -73,6 +73,8 @@ interface ManualTimers {
   flush: () => void
   /** Every callback runs, cancelled or not — the host that does not really cancel. */
   flushLeaky: () => void
+  /** Run one callback by id, even if it was cancelled, without advancing any newer timer. */
+  fire: (id: number) => void
 }
 
 function createManualTimers(): ManualTimers {
@@ -90,6 +92,7 @@ function createManualTimers(): ManualTimers {
     pending: () => Array.from(armed.entries()).filter(([, t]) => !t.cancelled).map(([id]) => id),
     flush: () => drain(false),
     flushLeaky: () => drain(true),
+    fire: (id) => { const timer = armed.get(id); armed.delete(id); timer?.fn() },
   }
 }
 
@@ -735,6 +738,20 @@ describe('Advanced Shaders Labs Module', () => {
     setSharedShaderRenderer(null)
   })
 
+  it('accepts timer adapters only as a complete scheduler pair', () => {
+    const customSet: SetTimerFunction = vi.fn(() => 41)
+    const customClear: ClearTimerFunction = vi.fn()
+
+    // Timer ids are opaque to the scheduler that issued them. Supplying half a pair must not send
+    // a custom id to global clearTimeout, or a global id to a custom cancellation implementation.
+    expect(resolveEnv(null, { setTimer: customSet }).setTimer).not.toBe(customSet)
+    expect(resolveEnv(null, { clearTimer: customClear }).clearTimer).not.toBe(customClear)
+
+    const paired = resolveEnv(null, { setTimer: customSet, clearTimer: customClear })
+    expect(paired.setTimer).toBe(customSet)
+    expect(paired.clearTimer).toBe(customClear)
+  })
+
   it('a re-activation inside the grace window keeps the textures and the renderer warm', () => {
     const timers = createManualTimers()
     const { gl, renderer, img, params, overrides } = createGraceFixture()
@@ -766,6 +783,34 @@ describe('Advanced Shaders Labs Module', () => {
     expect(renderer.refCount).toBe(1)
 
     inst.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('a stale grace callback cannot release or forget a newer grace timer', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+    const inst = prepareWithTimers(img, params, overrides, timers)
+
+    inst.activate()
+    renderer.renderFrame(1)
+    inst.cancel()
+    const stale = timers.pending()[0]!
+
+    // Re-entry cancels A, then a second suspension arms B. A hostile scheduler now runs A anyway,
+    // while the instance is inactive; only the timer generation distinguishes it from B.
+    inst.activate()
+    inst.cancel()
+    const current = timers.pending()[0]!
+    expect(current).not.toBe(stale)
+    timers.fire(stale)
+
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+    expect(renderer.refCount).toBe(1)
+    expect(timers.pending()).toEqual([current])
+
+    // The stale callback must not have nulled B's handle: destroy still has to cancel B.
+    inst.destroy()
+    expect(timers.pending()).toHaveLength(0)
     setSharedShaderRenderer(null)
   })
 
@@ -1080,6 +1125,52 @@ describe('Advanced Shaders Labs Module', () => {
     expect(img.style.opacity).toBe('1')
     inst.destroy()
     renderer.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('a throwing shader draw enters the grace window and releases its resources', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+    img.getBoundingClientRect = () => ({
+      left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100,
+    } as DOMRect)
+    gl.drawArrays = vi.fn(() => { throw new Error('GL draw failure') })
+    const inst = prepareWithTimers(img, params, overrides, timers)
+
+    inst.activate()
+    renderer.renderFrame(1)
+    expect(gl.drawArrays).toHaveBeenCalled()
+    expect(timers.pending()).toHaveLength(1)
+
+    timers.flush()
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(renderer.refCount).toBe(0)
+    inst.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('a throwing opacity restore still arms the grace release', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+    img.getBoundingClientRect = () => ({
+      left: 10, top: 10, right: 110, bottom: 110, width: 100, height: 100,
+    } as DOMRect)
+    const inst = prepareWithTimers(img, params, overrides, timers)
+
+    inst.activate()
+    renderer.renderFrame(1)
+    expect(img.style.opacity).toBe('0')
+    const setProperty = vi.spyOn(img.style, 'setProperty').mockImplementation(() => {
+      throw new Error('CSSOM restore failure')
+    })
+
+    expect(() => inst.cancel()).toThrow('CSSOM restore failure')
+    expect(timers.pending()).toHaveLength(1)
+    setProperty.mockRestore()
+    timers.flush()
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(renderer.refCount).toBe(0)
+    inst.destroy()
     setSharedShaderRenderer(null)
   })
 
@@ -2998,10 +3089,22 @@ describe('the colour parser takes its canvas from the environment', () => {
     parseColor('hsl(120 100% 50%)', createCanvas)
     parseColor('oklch(0.7 0.1 200)', createCanvas)
     parseColor('rebeccapurple', createCanvas)
-    // Cached on the factory, so three unlisted colours cost one canvas — and an environment with
-    // no 2D context at all logs its failure once rather than once per colour parsed.
+    // Successful contexts are cached on the factory, so three unlisted colours cost one canvas.
+    // Misses deliberately are not cached; the next test covers that late-capability path.
     expect(createCanvas).toHaveBeenCalledTimes(1)
     expect(getContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a missing colour context after a partial document gains canvas capability', () => {
+    const partialDocument = {} as Document
+    const createCanvas = resolveEnv(null, { document: partialDocument }).createCanvas
+
+    expect(parseColor('hsl(120 100% 50%)', createCanvas)).toEqual([1, 1, 1, 1])
+
+    const capable = stubColorCanvas([0, 255, 0, 255])
+    partialDocument.createElement = vi.fn(() => capable.createCanvas()!) as typeof partialDocument.createElement
+    expect(parseColor('hsl(120 100% 50%)', createCanvas)).toEqual([0, 1, 0, 1])
+    expect(capable.createCanvas).toHaveBeenCalledTimes(1)
   })
 
   it('keeps one default factory per document, so the uninjected path caches too', () => {

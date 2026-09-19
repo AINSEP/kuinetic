@@ -484,6 +484,16 @@ function resolveCaf(
   return (id: number | null) => defaultCaf(win, id)
 }
 
+function resolveTimers(c: ContextWithEnv | null, env: AdvancedEnv): [SetTimerFunction, ClearTimerFunction] {
+  // Timer handles are scheduler-owned tokens, so a partial adapter cannot safely borrow its other
+  // half from `globalThis`. RAF/CAF keep their longstanding independent resolution: partial frame
+  // adapters are already supported by callers, while the newer grace-timer contract requires a
+  // complete pair and can safely fall through to the next complete source.
+  if (c?.setTimer && c.clearTimer) return [c.setTimer, c.clearTimer]
+  if (env.setTimer && env.clearTimer) return [env.setTimer, env.clearTimer]
+  return [defaultSetTimer, defaultClearTimer]
+}
+
 export function resolveEnv(
   ctx: ContextWithEnv | PrepareContext | null = null,
   env: AdvancedEnv = {},
@@ -491,14 +501,15 @@ export function resolveEnv(
   const c = ctx as ContextWithEnv | null
   const win = resolveWindow(c, env)
   const doc = resolveDocument(c, env)
+  const [setTimer, clearTimer] = resolveTimers(c, env)
   return {
     window: win,
     document: doc,
     createCanvas: resolveCreateCanvas(c, env, doc),
     raf: resolveRaf(c, env, win),
     caf: resolveCaf(c, env, win),
-    setTimer: c?.setTimer ?? env.setTimer ?? defaultSetTimer,
-    clearTimer: c?.clearTimer ?? env.clearTimer ?? defaultClearTimer,
+    setTimer,
+    clearTimer,
   }
 }
 

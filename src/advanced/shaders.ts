@@ -211,11 +211,11 @@ export type ColorCanvasFactory = () => HTMLCanvasElement | null
  * never hit; `resolveCreateCanvas` in `base.ts` memoises the default factory per document so the
  * uninjected path has a stable identity too.
  *
- * A `null` result is cached like any other. An environment with no 2D context does not grow one
- * between two colours on the same page, and retrying meant jsdom logging
- * `Not implemented: HTMLCanvasElement.prototype.getContext` once per colour parsed.
+ * Only a successful context is cached. A factory backed by a partial document may initially return
+ * `null` and gain `createElement` or a 2D implementation later; caching that miss would contradict
+ * `resolveCreateCanvas`'s deliberately late capability check and freeze the factory at `null`.
  */
-const colorContexts = new WeakMap<ColorCanvasFactory, CanvasRenderingContext2D | null>()
+const colorContexts = new WeakMap<ColorCanvasFactory, CanvasRenderingContext2D>()
 
 function colorContextFor(createCanvas: ColorCanvasFactory): CanvasRenderingContext2D | null {
   const cached = colorContexts.get(createCanvas)
@@ -231,7 +231,7 @@ function colorContextFor(createCanvas: ColorCanvasFactory): CanvasRenderingConte
   } catch {
     ctx = null
   }
-  colorContexts.set(createCanvas, ctx)
+  if (ctx) colorContexts.set(createCanvas, ctx)
   return ctx
 }
 
@@ -2095,21 +2095,21 @@ function instanceProgress(info: ShaderInstanceInfo): number {
  * One instance's per-frame draw, as the renderer will call it.
  *
  * Lifted out of `createShaderInstance` whole, so that function reads as the lifecycle wiring it is
- * rather than lifecycle and one frame's worth of drawing interleaved. `deactivate` is the one thing
- * it cannot do for itself: the `isActive` flag belongs to the instance, and a draw that throws has
- * to put it down — see the `catch`.
+ * rather than lifecycle and one frame's worth of drawing interleaved. `onFailure` is the one thing
+ * it cannot do for itself: the lifecycle flags and grace timer belong to the instance, and a draw
+ * that throws has to transition both — see the `catch`.
  *
  * @param info - The instance's handle; `info.renderer` is re-read per draw, never captured.
  * @param state - This instance's mutable per-frame state, written by `readInputs` before any draw.
  * @param isGenerative - Whether the mode draws *over* the host instead of replacing it.
- * @param deactivate - Puts down the instance's `isActive` flag after a draw that threw.
+ * @param onFailure - Moves the instance into its grace window after a draw that threw.
  * @complexity O(1) per frame, plus one `drawElementQuad`.
  */
 function createShaderDrawCall(
   info: ShaderInstanceInfo,
   state: ShaderInstanceState,
   isGenerative: boolean,
-  deactivate: () => void,
+  onFailure: () => void,
 ): ShaderDrawFn {
   return (_gl, time) => {
     let drew = false
@@ -2131,7 +2131,7 @@ function createShaderDrawCall(
       // is dead until something calls `cancel()` or `finish()` on it first. Everything a
       // re-activation needs survives — `isAcquired` still holds the renderer reference, so
       // `acquireRenderer` keeps it and only re-registers.
-      deactivate()
+      onFailure()
       restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
     }
     // A filter replaces the element, so hiding it once the replica is up is the whole mechanism.
@@ -2147,6 +2147,17 @@ interface GraceTimer {
   arm(): void
   /** Stop it. A no-op when nothing is armed. */
   cancel(): void
+}
+
+function createGraceTransition(
+  grace: GraceTimer,
+  deactivate: () => void,
+  isAcquired: () => boolean,
+): () => void {
+  return () => {
+    deactivate()
+    if (isAcquired()) grace.arm()
+  }
 }
 
 /**
@@ -2169,18 +2180,25 @@ interface GraceTimer {
  */
 function createGraceTimer(info: ShaderInstanceInfo, onExpire: () => void, isBusy: () => boolean): GraceTimer {
   let handle: number | null = null
+  let generation = 0
   const cancel = () => {
-    if (handle === null) return
-    info.clearTimer(handle); handle = null
+    generation += 1
+    const cancelled = handle
+    handle = null
+    if (cancelled !== null) info.clearTimer(cancelled)
   }
   return {
     cancel,
     arm() {
       cancel()
-      handle = info.setTimer(() => {
+      const armedGeneration = generation
+      const armedHandle = info.setTimer(() => {
+        if (generation !== armedGeneration) return
+        generation += 1
         handle = null
         if (!isBusy()) onExpire()
       }, SHADER_TEXTURE_GRACE_MS)
+      if (generation === armedGeneration) handle = armedHandle
     },
   }
 }
@@ -2224,8 +2242,6 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     if (state.geometry?.hostAlpha !== undefined) state.hostAlpha = state.geometry.hostAlpha
   }
 
-  const drawCall = createShaderDrawCall(info, state, isGenerative, () => { isActive = false })
-
   const restoreState = () => {
     if (!isActive) return
     isActive = false; info.renderer.unregister(info.id); restoreInstanceOpacity(info.el, state)
@@ -2239,12 +2255,13 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
   }
 
   const grace = createGraceTimer(info, releaseResources, () => isActive)
+  const enterGrace = createGraceTransition(grace, () => { isActive = false }, () => isAcquired)
+  const drawCall = createShaderDrawCall(info, state, isGenerative, enterGrace)
 
   /** Stop drawing, un-hide, and start counting down to the give-back. */
   const suspend = () => {
     if (!isActive) return
-    restoreState()
-    if (isAcquired) grace.arm()
+    try { restoreState() } finally { enterGrace() }
   }
 
   return createEffectInstance({
@@ -2252,9 +2269,9 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     activate() {
       if (isActive) return
       if (!acquireRenderer(info, isAcquired)) return
-      // After the acquire, never before. An acquire that fails leaves the instance inactive with
-      // its resources still held, and a timer cancelled on the way in would then be the *only*
-      // thing that was ever going to release them — so the failure path has to keep counting down.
+      // A pending timer already means `isAcquired`, so this normally follows the cheap held-renderer
+      // path. Cancel at the successful inactive-to-active transition, before the draw is exposed;
+      // generation invalidation then makes even a leaky old callback harmless.
       grace.cancel()
       isAcquired = true; isActive = true
       info.renderer.register(info.id, drawCall, {
