@@ -45,7 +45,7 @@ import {
   MORPH_FS,
   PARTICLES_FS,
 } from '../glsl.js'
-import { createInertInstance as inertInstance, type ClearTimerFunction, type SetTimerFunction } from '../base.js'
+import { createInertInstance as inertInstance, resolveEnv, type ClearTimerFunction, type SetTimerFunction } from '../base.js'
 import type { EffectParams } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { createRealPrepareContext, type PrepareContextOverrides } from './prepare-context-fixture.js'
@@ -908,17 +908,15 @@ describe('Advanced Shaders Labs Module', () => {
       fillRect: vi.fn(),
       getImageData: vi.fn().mockImplementation(() => { throw new Error('CORS') }),
     }
-    const origCreate = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      const el = origCreate(tag)
-      if (tag === 'canvas') {
-        (el as any).getContext = vi.fn().mockReturnValue(mock2dThrow)
-      }
-      return el
-    })
-    const c = parseColor('invalid-color-that-throws')
+    // The canvas arrives through the parameter rather than through a spy on the global
+    // `document` — which is the whole point of the boundary: this parse never reads an ambient
+    // document, so there is nothing global to stub.
+    const createCanvas = () => ({
+      width: 0, height: 0, getContext: vi.fn().mockReturnValue(mock2dThrow),
+    }) as unknown as HTMLCanvasElement
+    const c = parseColor('invalid-color-that-throws', createCanvas)
     expect(c).toEqual([1, 1, 1, 1])
-    vi.restoreAllMocks()
+    expect(mock2dThrow.getImageData).toHaveBeenCalled()
   })
 
   it('restores original opacity when subsequent draw pass returns false', () => {
@@ -2945,5 +2943,141 @@ describe('Advanced Shaders Labs Module', () => {
       // A host with no computed style at all is opaque, exactly as before this existed.
       expect(measureElementGeometry(el, { innerHeight: 600 } as unknown as Window)!.alpha).toBe(1)
     })
+  })
+})
+
+/**
+ * The colour parser's canvas comes from the injected environment, not from an ambient `document`.
+ *
+ * Everything above hex, `rgb()` and the short named table is resolved by handing the string to a
+ * 1x1 canvas, which is the browser's own parser. Where that canvas comes from decides the answer,
+ * so it is part of the environment like `raf` or `createCanvas` for the renderer — and a context
+ * cached at module scope hands the first document's answer to every document after it.
+ */
+describe('the colour parser takes its canvas from the environment', () => {
+  /** A 1x1 canvas whose 2D context reports one fixed pixel, whatever colour it is asked to fill. */
+  function stubColorCanvas(pixel: [number, number, number, number]) {
+    const getContext = vi.fn().mockReturnValue({
+      clearRect: vi.fn(),
+      fillStyle: '',
+      fillRect: vi.fn(),
+      getImageData: () => ({ data: Uint8ClampedArray.from(pixel) }),
+    })
+    const createCanvas = vi.fn(() => ({ width: 0, height: 0, getContext }) as unknown as HTMLCanvasElement)
+    return { createCanvas, getContext }
+  }
+
+  it('resolves an unlisted colour through the injected canvas, never the global document', () => {
+    const { createCanvas } = stubColorCanvas([0, 255, 0, 255])
+    const globalCreate = vi.spyOn(document, 'createElement')
+
+    // `hsl()` matches neither the hex nor the `rgb()` regex and is not in `NAMED_COLORS`, so this
+    // answer can only have come from a canvas.
+    expect(parseColor('hsl(120 100% 50%)', createCanvas)).toEqual([0, 1, 0, 1])
+    expect(createCanvas).toHaveBeenCalled()
+    expect(globalCreate.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(0)
+    globalCreate.mockRestore()
+  })
+
+  it('gives each environment its own context rather than sharing one at module scope', () => {
+    const first = stubColorCanvas([255, 0, 0, 255])
+    const second = stubColorCanvas([0, 0, 255, 255])
+
+    // The same input string, two environments, two answers. A module-level context built for the
+    // first document would answer red for both — which is the defect: a second jsdom document, an
+    // iframe host, or a suite that replaced the global inherits the first one's canvas.
+    expect(parseColor('hsl(0 100% 50%)', first.createCanvas)).toEqual([1, 0, 0, 1])
+    expect(parseColor('hsl(0 100% 50%)', second.createCanvas)).toEqual([0, 0, 1, 1])
+    expect(first.getContext).toHaveBeenCalledTimes(1)
+    expect(second.getContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('builds one context per environment and reuses it across colours', () => {
+    const { createCanvas, getContext } = stubColorCanvas([0, 255, 0, 255])
+    parseColor('hsl(120 100% 50%)', createCanvas)
+    parseColor('oklch(0.7 0.1 200)', createCanvas)
+    parseColor('rebeccapurple', createCanvas)
+    // Cached on the factory, so three unlisted colours cost one canvas — and an environment with
+    // no 2D context at all logs its failure once rather than once per colour parsed.
+    expect(createCanvas).toHaveBeenCalledTimes(1)
+    expect(getContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps one default factory per document, so the uninjected path caches too', () => {
+    // `resolveEnv` builds a fresh `ResolvedEnv` object on every call, so the colour cache cannot
+    // be keyed on that object. It is keyed on `createCanvas`, which `base.ts` memoises per
+    // document — without that, an uninjected parse would build a canvas for every colour.
+    expect(resolveEnv(null).createCanvas).toBe(resolveEnv(null).createCanvas)
+    // A different document is a different factory, which is exactly the separation the cache wants.
+    const other = document.implementation.createHTMLDocument('other')
+    expect(resolveEnv(null, { document: other }).createCanvas).not.toBe(resolveEnv(null).createCanvas)
+  })
+
+  it('parses hex, rgb() and the named table with no environment at all', () => {
+    const createCanvas = vi.fn(() => null)
+    expect(parseColor('#00ff00', createCanvas)).toEqual([0, 1, 0, 1])
+    expect(parseColor('rgba(0, 0, 255, 0.5)', createCanvas)).toEqual([0, 0, 1, 0.5])
+    expect(parseColor('magenta', createCanvas)).toEqual([1, 0, 1, 1])
+    // The pure path never reaches for a canvas, so it is callable with no browser whatsoever.
+    expect(createCanvas).not.toHaveBeenCalled()
+    // And a canvas-less environment answers the documented fallback instead of throwing.
+    expect(parseColor('hsl(120 100% 50%)', createCanvas)).toEqual([1, 1, 1, 1])
+  })
+
+  it('threads the environment through extractShaderOptions to every colour parameter', () => {
+    const { createCanvas } = stubColorCanvas([0, 255, 0, 255])
+    const unlisted = new Set(['color1', 'color2', 'backdrop', 'tint'])
+    const params = {
+      keyword: vi.fn().mockReturnValue('gradient'),
+      text: vi.fn((k: string, d = '') => (unlisted.has(k) ? 'hsl(120 100% 50%)' : d)),
+      num: vi.fn((_k: string, d = 0) => d),
+    } as unknown as EffectParams
+
+    const opt = extractShaderOptions(params, createCanvas)
+    expect(opt.c1Rgba).toEqual([0, 1, 0, 1])
+    expect(opt.c2Rgba).toEqual([0, 1, 0, 1])
+    expect(opt.backdropRgba).toEqual([0, 1, 0, 1])
+    expect(opt.tintRgba).toEqual([0, 1, 0, 1])
+    // `buildPalette` too — the two authored stops are the same unlisted colour.
+    expect([...opt.palette!.slice(0, 4)]).toEqual([0, 1, 0, 1])
+  })
+
+  it('prepareShaders hands its own resolved environment to the colour parser', () => {
+    const gl = createMockGL()
+    let colorReads = 0
+    // One factory, exactly as a host injecting `createCanvas` has: the renderer asks it for a
+    // `webgl` context and the colour parser for a `2d` one, and the canvas answers both. Which
+    // call comes first is the module's business, not this test's.
+    const createCanvas = vi.fn(() => ({
+      width: 0,
+      height: 0,
+      getContext: vi.fn((type: string) => (type === '2d' ? {
+        clearRect: vi.fn(),
+        fillStyle: '',
+        fillRect: vi.fn(),
+        getImageData: () => {
+          colorReads += 1
+          return { data: Uint8ClampedArray.from([0, 255, 0, 255]) }
+        },
+      } : gl)),
+    }) as unknown as HTMLCanvasElement)
+
+    const globalCreate = vi.spyOn(document, 'createElement')
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const inst = prepareShaders(el, {
+      keyword: vi.fn().mockReturnValue('gradient'),
+      text: vi.fn((k: string, d = '') => (k === 'color1' || k === 'color2' ? 'hsl(120 100% 50%)' : d)),
+      num: vi.fn((_k: string, d = 0) => d),
+    } as unknown as EffectParams, createRealPrepareContext(el, {
+      reducedMotion: false, createCanvas, raf: vi.fn(), caf: vi.fn(),
+    }))
+
+    // The parser read the injected canvas, and nothing asked the ambient document for one.
+    expect(colorReads).toBeGreaterThan(0)
+    expect(globalCreate.mock.calls.filter(([tag]) => tag === 'canvas')).toHaveLength(0)
+    globalCreate.mockRestore()
+    inst.destroy?.()
+    el.remove()
   })
 })

@@ -192,29 +192,88 @@ const NAMED_COLORS: Record<string, [number, number, number, number]> = {
   magenta: [1, 0, 1, 1], gray: [0.5, 0.5, 0.5, 1], grey: [0.5, 0.5, 0.5, 1], orange: [1, 0.647, 0, 1], purple: [0.5, 0, 0.5, 1],
 }
 
-let colorCtx: CanvasRenderingContext2D | null = null
+/**
+ * Where a colour parse gets its canvas from — the injected adapter, not a global.
+ *
+ * Structurally `ResolvedEnv['createCanvas']`, named here because that is the *only* part of the
+ * environment the parser wants: everything above this line (hex, `rgb()`, {@link NAMED_COLORS}) is
+ * pure string work that must stay callable with no browser at all.
+ */
+export type ColorCanvasFactory = () => HTMLCanvasElement | null
 
-function parseColorWithCanvas(val: string): [number, number, number, number] | null {
+/**
+ * One 1x1 colour context per canvas source, rather than one per module.
+ *
+ * Keyed on the *factory function*, because that is what decides which document the canvas comes
+ * from: two jsdom documents, a page and an iframe, or a suite that swapped the global each get
+ * their own entry, and a module-level `let` would hand the first one's context to all of them. Not
+ * keyed on the `ResolvedEnv` object — `resolveEnv` builds a fresh one per call, so that key would
+ * never hit; `resolveCreateCanvas` in `base.ts` memoises the default factory per document so the
+ * uninjected path has a stable identity too.
+ *
+ * A `null` result is cached like any other. An environment with no 2D context does not grow one
+ * between two colours on the same page, and retrying meant jsdom logging
+ * `Not implemented: HTMLCanvasElement.prototype.getContext` once per colour parsed.
+ */
+const colorContexts = new WeakMap<ColorCanvasFactory, CanvasRenderingContext2D | null>()
+
+function colorContextFor(createCanvas: ColorCanvasFactory): CanvasRenderingContext2D | null {
+  const cached = colorContexts.get(createCanvas)
+  if (cached !== undefined) return cached
+  let ctx: CanvasRenderingContext2D | null = null
   try {
-    if (!colorCtx && document?.createElement) {
-      const canvas = document.createElement('canvas')
+    const canvas = createCanvas()
+    if (canvas) {
       canvas.width = 1
       canvas.height = 1
-      colorCtx = (canvas.getContext?.('2d', { willReadFrequently: true }) as CanvasRenderingContext2D | null) ?? null
+      ctx = (canvas.getContext?.('2d', { willReadFrequently: true }) as CanvasRenderingContext2D | null) ?? null
     }
-    if (!colorCtx) return null
-    colorCtx.clearRect(0, 0, 1, 1)
-    colorCtx.fillStyle = '#000000'
-    colorCtx.fillStyle = val
-    colorCtx.fillRect(0, 0, 1, 1)
-    const data = colorCtx.getImageData(0, 0, 1, 1).data
+  } catch {
+    ctx = null
+  }
+  colorContexts.set(createCanvas, ctx)
+  return ctx
+}
+
+function parseColorWithCanvas(
+  val: string,
+  createCanvas: ColorCanvasFactory,
+): [number, number, number, number] | null {
+  try {
+    const ctx = colorContextFor(createCanvas)
+    if (!ctx) return null
+    ctx.clearRect(0, 0, 1, 1)
+    ctx.fillStyle = '#000000'
+    ctx.fillStyle = val
+    ctx.fillRect(0, 0, 1, 1)
+    const data = ctx.getImageData(0, 0, 1, 1).data
     return [data[0]! / 255, data[1]! / 255, data[2]! / 255, data[3]! / 255]
   } catch {
     return null
   }
 }
 
-export function parseColor(str?: string): [number, number, number, number] {
+/**
+ * An authored colour as premultiplied-free RGBA in 0..1.
+ *
+ * Hex, `rgb()`/`rgba()` and the small {@link NAMED_COLORS} table are parsed here. Anything else —
+ * `hsl()`, `oklch()`, `rebeccapurple`, a `color-mix()` — is handed to a 1x1 canvas, which is the
+ * browser's own parser and the only complete one.
+ *
+ * @param str - The authored value. Empty or unset answers opaque white, the harmless fallback for
+ *   an unset `color1`; `backdrop` reads the raw string first precisely because white is *not*
+ *   harmless there.
+ * @param createCanvas - Where the fallback canvas comes from. Defaults to the ambient document's,
+ *   resolved through `resolveEnv` rather than off a bare global, so a host with no document
+ *   answers `null` instead of throwing a `ReferenceError` into the `catch` above — which is what
+ *   reading `document` directly did, and it made the result silently environment-dependent.
+ *   `prepareShaders` passes its own resolved env, so an injected canvas always wins.
+ * @complexity O(n) in string length, plus one cached context construction per canvas source.
+ */
+export function parseColor(
+  str?: string,
+  createCanvas: ColorCanvasFactory = resolveEnv(null).createCanvas,
+): [number, number, number, number] {
   if (!str) return [1, 1, 1, 1]
   const val = str.trim()
   if (val.startsWith('#')) {
@@ -225,7 +284,7 @@ export function parseColor(str?: string): [number, number, number, number] {
   if (rgb) return rgb
   const lower = val.toLowerCase()
   if (lower in NAMED_COLORS) return NAMED_COLORS[lower]!
-  const canvasColor = parseColorWithCanvas(val)
+  const canvasColor = parseColorWithCanvas(val, createCanvas)
   if (canvasColor) return canvasColor
   return [1, 1, 1, 1]
 }
@@ -283,12 +342,16 @@ const DEFAULT_PALETTE: [number, number, number, number][] = [
  * on black.
  *
  * @param authored - The five parameter strings in order, empty for unset.
+ * @param createCanvas - Passed straight through to {@link parseColor}; see the note there.
  * @returns The flattened palette and the number of stops the ramp should span.
  * @complexity O(1) — the array is a fixed five entries.
  */
-export function buildPalette(authored: string[]): { palette: Float32Array; colorCount: number } {
+export function buildPalette(
+  authored: string[],
+  createCanvas?: ColorCanvasFactory,
+): { palette: Float32Array; colorCount: number } {
   const set = authored.filter((raw) => raw.trim() !== '').slice(0, PALETTE_SIZE)
-  const stops = set.length >= 2 ? set.map((raw) => parseColor(raw)) : [...DEFAULT_PALETTE]
+  const stops = set.length >= 2 ? set.map((raw) => parseColor(raw, createCanvas)) : [...DEFAULT_PALETTE]
   const palette = new Float32Array(PALETTE_SIZE * 4)
   for (let i = 0; i < PALETTE_SIZE; i += 1) {
     const stop = stops[Math.min(i, stops.length - 1)]!
@@ -1173,19 +1236,29 @@ function readMaskMode(params: ShaderParamAccessor, mode: string): number {
  * Duotone is on only when *both* stops were written — one colour is a tint, not a pair — but each
  * stop still parses against its own fallback so the uniforms are never left undefined.
  */
-function readDuotoneColors(c1Text: string, c2Text: string): {
+function readDuotoneColors(c1Text: string, c2Text: string, createCanvas?: ColorCanvasFactory): {
   isDuotone: boolean
   c1Rgba: [number, number, number, number]
   c2Rgba: [number, number, number, number]
 } {
   return {
     isDuotone: Boolean(c1Text && c2Text),
-    c1Rgba: parseColor(c1Text || '#000000'),
-    c2Rgba: parseColor(c2Text || '#ffffff'),
+    c1Rgba: parseColor(c1Text || '#000000', createCanvas),
+    c2Rgba: parseColor(c2Text || '#ffffff', createCanvas),
   }
 }
 
-export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOptions {
+/**
+ * @param params - The authored parameters.
+ * @param createCanvas - The env's canvas source, threaded to every colour parse below. Optional
+ *   because a caller holding nothing but an accessor is a supported shape, and the colours it
+ *   authored are overwhelmingly hex; `prepareShaders` resolves its env first and passes it, so the
+ *   one path that reaches a real page never falls back.
+ */
+export function extractShaderOptions(
+  params: ShaderParamAccessor,
+  createCanvas?: ColorCanvasFactory,
+): ShaderDrawOptions {
   const mode = readShaderMode(params)
   const c1Text = params.text('color1', '')
   const c2Text = params.text('color2', '')
@@ -1193,7 +1266,7 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
   const blendMap: Record<string, number> = { normal: 0, screen: 1, multiply: 2, add: 3 }
   const { palette, colorCount } = buildPalette([
     c1Text, c2Text, params.text('color3', ''), params.text('color4', ''), params.text('color5', ''),
-  ])
+  ], createCanvas)
 
   return {
     mode,
@@ -1214,14 +1287,14 @@ export function extractShaderOptions(params: ShaderParamAccessor): ShaderDrawOpt
     // Read through the raw string rather than straight into `parseColor`, which answers opaque
     // white for an empty input — the fallback that makes an unset `color1` harmless would make an
     // unset `backdrop` a white plate behind every logo on the page.
-    backdropRgba: backdropText ? parseColor(backdropText) : [0, 0, 0, 0],
+    backdropRgba: backdropText ? parseColor(backdropText, createCanvas) : [0, 0, 0, 0],
     strength: params.num('strength', 0.5),
     speed: params.num('speed', 1.0),
     frequency: params.num('frequency', 10.0),
     chromatic: params.num('chromatic', 0.0),
     iridescence: params.num('iridescence', 0.0),
-    tintRgba: parseColor(params.text('tint', '#ffffff')),
-    ...readDuotoneColors(c1Text, c2Text),
+    tintRgba: parseColor(params.text('tint', '#ffffff'), createCanvas),
+    ...readDuotoneColors(c1Text, c2Text, createCanvas),
     blendMode: blendMap[params.text('blend', 'normal')] ?? 0,
     to: params.text('to', ''),
     progress: params.num ? params.num('progress', -1) : -1,
@@ -2409,12 +2482,17 @@ export function prepareShaders(
   params: EffectParams,
   ctx?: PrepareContext | null,
 ): EffectInstance {
-  const options = extractShaderOptions(params)
+  // Resolved before the options are read, not after: the colour parser's canvas fallback is part
+  // of the environment like everything else here, and `extractShaderOptions` needs it in hand to
+  // resolve a colour this module's own hex/rgb/named parsing cannot — `hsl()`, `oklch()`, any CSS
+  // named colour outside the short table. Reading it off the global instead is what made a
+  // colour's value depend on which document happened to be ambient.
+  const hostDoc = el?.ownerDocument
+  const resolvedEnv = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
+  const options = extractShaderOptions(params, resolvedEnv.createCanvas)
   if (!(SHADER_MODES as readonly string[]).includes(options.mode)) return createInertInstance()
   if (isReducedMotion(ctx)) return prepareReducedMotion(el as HTMLElement, options, ctx)
 
-  const hostDoc = el?.ownerDocument
-  const resolvedEnv = resolveEnv(ctx, hostDoc ? { document: hostDoc, window: hostDoc.defaultView } : undefined)
   const ref = createRendererRef(resolvedEnv)
   nextShaderId += 1
   const id = `kui-shader-instance-${nextShaderId}`

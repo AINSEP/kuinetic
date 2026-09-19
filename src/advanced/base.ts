@@ -430,6 +430,19 @@ function resolveDocument(ctx: ContextWithEnv | null, env: AdvancedEnv): AnyDocum
   return typeof document !== 'undefined' ? document : null
 }
 
+/**
+ * The default canvas factories, one per document, so the default path has a *stable identity*.
+ *
+ * `resolveEnv` builds a fresh `ResolvedEnv` on every call, so an unmemoised default would hand back
+ * a new closure each time and anything keyed on `createCanvas` — `shaders.ts` caches its 1x1 colour
+ * context that way — would miss on every lookup and allocate per call. The closure body is
+ * identical either way; only its identity is reused, so nothing observable changes.
+ */
+const defaultCanvasFactories = new WeakMap<object, () => HTMLCanvasElement | null>()
+
+/** The no-document default: there is one answer, so one closure serves every caller. */
+const noDocumentCanvas = (): HTMLCanvasElement | null => null
+
 function resolveCreateCanvas(
   c: ContextWithEnv | null,
   env: AdvancedEnv,
@@ -437,10 +450,18 @@ function resolveCreateCanvas(
 ): () => HTMLCanvasElement | null {
   if (c?.createCanvas) return c.createCanvas
   if (env.createCanvas) return env.createCanvas
-  return () =>
-    doc && typeof (doc as Document).createElement === 'function'
+  if (!doc) return noDocumentCanvas
+  const cached = defaultCanvasFactories.get(doc as object)
+  if (cached) return cached
+  // The `createElement` check stays *inside* the closure, exactly where it was: a partial document
+  // double may gain the method after the env is resolved, and a resolve-time check would freeze
+  // that double at `null` forever.
+  const factory = () =>
+    typeof (doc as Document).createElement === 'function'
       ? (doc as Document).createElement('canvas')
       : null
+  defaultCanvasFactories.set(doc as object, factory)
+  return factory
 }
 
 function resolveRaf(
