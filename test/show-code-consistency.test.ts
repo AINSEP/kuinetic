@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 // Consistency check on the demo pages' "Show code" contracts — nothing renders, nothing animates,
-// no browser starts. It runs under the default jsdom environment rather than the `node` one the
-// other static demo checks use, for two reasons: the static half parses each page with `DOMParser`,
+// no browser starts. It opts into jsdom rather than taking the default `node` the other static
+// demo checks run under, for two reasons: the static half parses each page with `DOMParser`,
 // the same parser `demo/show-code.js` runs a page through before printing it, so the tree asserted
 // on and the tree a reader sees come out of one parse rather than two hand-rolled approximations of
 // one; and the behavioural half at the bottom actually executes that script. `process.cwd()`

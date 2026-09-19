@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of the shipped stylesheets — no DOM required. The node environment is not
 // optional here: under jsdom, `import.meta.url` is an http: URL and `fileURLToPath` throws.

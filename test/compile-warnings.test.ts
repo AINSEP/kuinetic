@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Two invariants about what an author is *told* about one `data-kui` attribute, which is why they
 // share a file rather than sitting in `compile.test.ts` and `animator.test.ts` separately:
 //

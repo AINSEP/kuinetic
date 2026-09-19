@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Materials (catalog section S) — `effects/catalog/materials.ts` and `src/css/glass.css`, plus the
 // two parameter additions in section I that exist to serve them (`beam-border`'s `arc`/`softness`

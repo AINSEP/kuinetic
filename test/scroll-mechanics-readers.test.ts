@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { domOffsetTop, domPosition } from '../src/effects/scroll-mechanics/tracker.js'
 

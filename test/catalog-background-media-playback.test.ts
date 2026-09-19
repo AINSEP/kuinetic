@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { autoplayInView, startPlayback } from '../src/effects/catalog/background-media.js'
 import type {

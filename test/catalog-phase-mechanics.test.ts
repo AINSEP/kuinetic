@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Three families the phase census found with zero `phase:`/`transitions:` tokens at all, the same
 // shape `gestures/index.ts` and `interaction-reveal.ts` had before they were fixed: an undeclared

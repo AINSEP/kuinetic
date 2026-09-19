@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of the v3 stylesheet plus registry checks. No DOM needed, and under jsdom
 // `import.meta.url` is an http: URL that `fileURLToPath` rejects.

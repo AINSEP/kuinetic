@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Animator } from '../src/core/animator.js'
 import { ATTR } from '../src/core/attrs.js'

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // `src/effects/gestures/index.ts`'s thirteen presets shipped with no `Preset.phase` at all, which
 // is not a permissive default — `compile.ts`'s `phaseOf` treats an undeclared phase as a fact

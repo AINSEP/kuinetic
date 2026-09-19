@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Created by Gemini 3.8 Flash
 import { describe, expect, it, vi } from 'vitest'
 import { Registry } from '../../core/registry.js'

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Split out of `animator.test.ts` when that file crossed the 400-line budget. The seam is the
 // collaborator: everything here drives a *real* `createDomWatcher` over a real MutationObserver,
 // with `requestAnimationFrame` stubbed synchronous so the watcher's rAF-scheduled flush lands in

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static check that every docs tab has a file where the *deployed* site will look for it — no DOM,
 // no browser. The node environment is not optional: under jsdom, `import.meta.url` is an http: URL

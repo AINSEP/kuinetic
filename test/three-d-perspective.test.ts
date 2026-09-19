@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of `three-d.css`'s 3D-flip keyframes — no DOM required, same reason as
 // `css-invariants.test.ts`: `import.meta.url` needs to stay a `file:` URL.

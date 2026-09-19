@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Two composition-safety audits that share one shape: a box or mechanism the `channels` model
 // does not describe, shared by two presets the compiler treats as freely composable because their

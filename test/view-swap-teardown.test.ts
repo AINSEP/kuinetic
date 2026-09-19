@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { PrepareContext } from '../src/core/effect-context.js'

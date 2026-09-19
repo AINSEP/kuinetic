@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Split out of `css-invariants.test.ts` when that file crossed the 400-line budget, and along a
 // seam of kind rather than size: every other suite in that file asserts an invariant *of the CSS*

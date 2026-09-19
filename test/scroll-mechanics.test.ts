@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { progressFrom, trackProgress } from '../src/effects/scroll-mechanics/tracker.js'
 import type { PrepareContext } from '../src/core/effect-context.js'

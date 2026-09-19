@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { build, el, reporter } from './support/scroll-mechanics-harness.js'
 

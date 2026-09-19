@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of `bounce-in` vs `pop-in` and of the `--kui-ease-bounce` token they now tell
 // apart — no DOM required, same reason as `css-invariants.test.ts`.

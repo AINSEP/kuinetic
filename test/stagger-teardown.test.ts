@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { ATTR } from '../src/core/attrs.js'
 import {

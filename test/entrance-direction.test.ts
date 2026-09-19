@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of `entrance.css`'s directional slide/fade keyframes — no DOM required, for the
 // same reason `css-invariants.test.ts` runs in `node`: `import.meta.url` needs to be a `file:` URL.

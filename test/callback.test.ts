@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'

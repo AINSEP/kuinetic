@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Multi-waypoint tweening — `tween x:'0,100,40'`. `compile` is a pure function, so no DOM is in
 // play; the stylesheet invariants for the blocks this selects live in `tween.test.ts`, next to the

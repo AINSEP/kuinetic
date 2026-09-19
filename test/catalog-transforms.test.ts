@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Static transforms (catalog section R) — `effects/catalog/transforms.ts`. Same three questions
 // `catalog-background-media.test.ts` asks of its own closest-precedent primitive: does `prepare`
 // write what it claims and nothing else, does it refuse timing by name instead of silently

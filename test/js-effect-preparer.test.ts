@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { createJsEffectPreparer } from '../src/core/js-effect-preparer.js'
 import { collectingReporter } from '../src/core/reporter.js'

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GESTURE_PRIMITIVES } from '../src/effects/gestures/primitives.js'
 import { createParams } from '../src/core/js-params.js'

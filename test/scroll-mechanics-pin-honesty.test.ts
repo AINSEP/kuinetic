@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { build, el, scheduler, stubRect } from './support/scroll-mechanics-harness.js'
 

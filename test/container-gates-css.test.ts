@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of the `@container` half of `wide:`/`narrow:` gates — split out of
 // `css-invariants.test.ts` rather than added to it, once the file's own `max-lines` cap made a

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // The generic tween: `data-kui="tween x:100 opacity:0 800ms"`. `compile` is a pure function and
 // this file also parses `src/css/tween.css` off disk, so there is no DOM in play — and under jsdom

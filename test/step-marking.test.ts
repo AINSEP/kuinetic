@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { resolveTarget, selectorBreadth } from '../src/core/target.js'

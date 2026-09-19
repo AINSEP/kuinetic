@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // `@starting-style` discrete-open family (catalog section Q) — `effects/catalog/discrete.ts` and
 // `css/discrete.css`. Same three questions `catalog-interaction.test.ts` asks of the hover family
 // this is modelled on (registration shape, CSS shape, inert `prepare`), plus the two questions

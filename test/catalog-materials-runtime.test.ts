@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Materials (catalog section S) — the runtime half of `effects/catalog/materials.ts`.
 //
 // `catalog-materials.test.ts` is a node-environment suite: it reads the registry row and the text of

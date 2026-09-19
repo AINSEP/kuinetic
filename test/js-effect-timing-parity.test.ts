@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { collectingReporter } from '../src/core/reporter.js'
 import { animatorOverBody, build, el } from './support/js-effect-harness.js'

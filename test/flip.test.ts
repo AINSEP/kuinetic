@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../src/core/flip.js'
 import type { Box, FlipDeps } from '../src/core/flip.js'

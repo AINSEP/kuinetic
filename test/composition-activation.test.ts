@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Which trigger a composed comma list ends up bound to.
 //

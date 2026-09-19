@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // The phase decisions for the three families `src/effects/forms/index.ts`,
 // `src/effects/layout/presets.ts`, and `src/effects/catalog/numbers.ts` own: 13 + 9 + 13 = 35

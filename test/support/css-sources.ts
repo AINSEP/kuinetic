@@ -1,7 +1,9 @@
-// @vitest-environment node
-//
 // Every stylesheet is read at module scope, so any suite importing this file must run under the
-// node environment: under jsdom `import.meta.url` is an http: URL and `fileURLToPath` throws.
+// node environment — which is now the default, so importing it is enough. What a suite must *not*
+// do is opt into jsdom: there `import.meta.url` is an http: URL and `fileURLToPath` throws.
+//
+// (A `@vitest-environment` docblock only takes effect in a file vitest collects as a test, so the
+// one that used to sit here never selected anything; the rule it documented is real, and stands.)
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PRESETS } from '../../src/effects/catalog/core.js'

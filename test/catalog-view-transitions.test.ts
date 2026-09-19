@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // View Transitions family (catalog section L) — `effects/catalog/view-transitions.ts` and
 // `css/view-transitions.css`.
 //

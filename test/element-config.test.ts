@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { readAttributes, resolveConfig } from '../src/core/element-config.js'
 import { parse } from '../src/core/parse.js'

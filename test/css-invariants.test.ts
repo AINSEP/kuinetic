@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of the shipped stylesheets — no DOM required. The node environment is not
 // optional here: `./support/css-sources.js` reads them at module scope, and under jsdom

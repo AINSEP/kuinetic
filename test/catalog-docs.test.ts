@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of docs/catalog.md against the live registry — no DOM required. The node
 // environment is not optional: under jsdom, `import.meta.url` is an http: URL and `fileURLToPath`

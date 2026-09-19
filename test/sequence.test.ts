@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { createJsEffectPreparer } from '../src/core/js-effect-preparer.js'

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static structural check on the demo pages — no DOM, no browser. The node environment is not
 // optional: under jsdom, `import.meta.url` is an http: URL and `fileURLToPath` throws.

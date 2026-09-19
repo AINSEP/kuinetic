@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // The third axis of composition safety: *when* two effects hold a channel they both claim.
 //

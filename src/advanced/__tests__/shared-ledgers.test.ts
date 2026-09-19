@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { createAdvancedLedgers, styleOf } from '../base.js'
 import type { ElementLedgers } from '../base.js'

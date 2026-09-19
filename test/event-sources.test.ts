@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Foreign event sources — `core/event-sources.ts`.
 //
 // The module has two halves and this file is one suite per half. `createEventSourceBindings` is a

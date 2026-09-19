@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { createParams, readEffectParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import type { EffectParams } from '../../core/types.js'
 import { prepareScene } from '../scenes.js'

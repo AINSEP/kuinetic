@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // The phase gap in `src/effects/catalog/media.ts` (three names) and `src/effects/navigation/index.ts`
 // (four names): an undeclared `Preset.phase` is not a permissive default, `compile.ts`'s `phaseOf`

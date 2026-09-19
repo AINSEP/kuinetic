@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'

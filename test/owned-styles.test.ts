@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { createAttributeClaim, createAttributeLedger, createLedgerSet, createStyleClaim, createStyleLedger } from '../src/core/owned-styles.js'
 

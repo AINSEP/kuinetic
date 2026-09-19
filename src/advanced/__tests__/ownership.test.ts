@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The ownership invariant, module by module.
  *

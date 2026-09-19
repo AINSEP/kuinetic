@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import type { ActivationBinder, ActivationRequest } from '../src/core/activation.js'

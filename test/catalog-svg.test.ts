@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Registry } from '../src/core/registry.js'
 import { createParams } from '../src/core/js-params.js'

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static analysis of `entrance.css`'s `flip-in-x`/`-y` and `flip-out-x`/`-y` keyframes — no DOM
 // required, same reason as `css-invariants.test.ts`.

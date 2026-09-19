@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Advanced Modules Contracts & Invariants Verification Tests
  * Verifies all lifecycle, channels, activation, and fallback contracts.

@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // The phase decision for the three presets `catalog/materials.ts` and
 // `catalog/view-transitions.ts` own: `glass`, `page-morph` (primitive `view-morph`), and

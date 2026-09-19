@@ -1,4 +1,3 @@
-// @vitest-environment node
 //
 // Static backstop for the defect `fix(effects): six presets waited out their entrance with no box
 // at all` fixed (commit dd1f770): `fold-panel`, `flip-in-x`, `flip-in-y`, `loading-bar`,
