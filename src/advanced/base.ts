@@ -40,12 +40,32 @@ export type AnyDocument = Document | DocumentLike | null
 export type RafFunction = (fn: FrameRequestCallback) => number | null
 export type CafFunction = (id: number | null) => void | null
 
+/**
+ * A wall-clock delay, and its cancel — the env's answer to "later, once".
+ *
+ * Separate from {@link RafFunction} because the two answer different questions: `raf` schedules the
+ * *next frame*, which is what a loop wants, while this schedules a fixed duration, which is what a
+ * grace period wants. A grace period counted in frames is a grace period that never elapses in a
+ * background tab — the one place where holding the resource costs the most.
+ *
+ * It is injectable for the same reason `raf` is: it is a timing decision the host can own, and a
+ * suite that cannot drive it either waits out the real duration or leaves the timer pending. Do
+ * *not* reach for `window.setTimeout` instead — {@link WindowLike} does not declare it, and the
+ * partial window doubles these suites inject would silently never fire.
+ *
+ * Named to match `defaultGestureDeps` in `core/gesture.ts`, which is the same pattern in core.
+ */
+export type SetTimerFunction = (fn: () => void, ms: number) => number | null
+export type ClearTimerFunction = (id: number | null) => void
+
 export interface AdvancedEnv {
   window?: AnyWindow
   document?: AnyDocument
   createCanvas?: () => HTMLCanvasElement | null
   raf?: RafFunction
   caf?: CafFunction
+  setTimer?: SetTimerFunction
+  clearTimer?: ClearTimerFunction
 }
 
 export interface ResolvedEnv {
@@ -54,6 +74,8 @@ export interface ResolvedEnv {
   createCanvas: () => HTMLCanvasElement | null
   raf: RafFunction
   caf: CafFunction
+  setTimer: SetTimerFunction
+  clearTimer: ClearTimerFunction
 }
 
 export interface EffectInstanceOptions {
@@ -365,6 +387,26 @@ export function defaultCaf(win: Window | WindowLike | null | undefined, id: numb
   return null
 }
 
+/**
+ * `globalThis` rather than the resolved window: the window here is routinely a `WindowLike` double
+ * with four properties on it, and `setTimeout` is not one of them. Falling back to the real global
+ * keeps the default working in every host that has one and leaves injection as the way to control
+ * it, instead of making the default depend on how complete the caller's window happens to be.
+ *
+ * The `as unknown as number` is the usual Node-vs-DOM split — Node's `setTimeout` answers a
+ * `Timeout` object, the DOM's a number — and only the round trip back through `clearTimer` cares.
+ */
+export function defaultSetTimer(fn: () => void, ms: number): number | null {
+  if (typeof globalThis.setTimeout !== 'function') return null
+  return globalThis.setTimeout(fn, ms) as unknown as number
+}
+
+export function defaultClearTimer(id: number | null | undefined): void {
+  if (typeof globalThis.clearTimeout === 'function' && id != null) {
+    globalThis.clearTimeout(id as unknown as ReturnType<typeof setTimeout>)
+  }
+}
+
 interface ContextWithEnv {
   win?: AnyWindow
   doc?: AnyDocument
@@ -372,6 +414,8 @@ interface ContextWithEnv {
   createCanvas?: () => HTMLCanvasElement | null
   raf?: RafFunction
   caf?: CafFunction
+  setTimer?: SetTimerFunction
+  clearTimer?: ClearTimerFunction
 }
 
 function resolveWindow(ctx: ContextWithEnv | null, env: AdvancedEnv): AnyWindow {
@@ -432,6 +476,8 @@ export function resolveEnv(
     createCanvas: resolveCreateCanvas(c, env, doc),
     raf: resolveRaf(c, env, win),
     caf: resolveCaf(c, env, win),
+    setTimer: c?.setTimer ?? env.setTimer ?? defaultSetTimer,
+    clearTimer: c?.clearTimer ?? env.clearTimer ?? defaultClearTimer,
   }
 }
 

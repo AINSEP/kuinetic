@@ -11,8 +11,8 @@ import {
 } from './glsl.js'
 import {
   type AdvancedEnv, type AdvancedLedgers, type AnyWindow, type AnyDocument, type RafFunction,
-  type CafFunction, clamp, createAdvancedLedgers, createEffectInstance, createInertInstance,
-  isReducedMotion, registerInto, resolveEnv, styleOf,
+  type CafFunction, type SetTimerFunction, type ClearTimerFunction, clamp, createAdvancedLedgers,
+  createEffectInstance, createInertInstance, isReducedMotion, registerInto, resolveEnv, styleOf,
 } from './base.js'
 import { createProgram, extractLocations, disposeGLResources, createGLTexture, type ProgramLocations } from './gl-utils.js'
 import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './audio.js'
@@ -1934,6 +1934,12 @@ function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): vo
  * the live one again if that gets torn down between prepare and activation. Everything else here
  * reads `info.renderer` rather than closing over an instance, so re-pointing it in `activate()` is
  * the whole of the switch.
+ *
+ * `setTimer`/`clearTimer` are held *here*, on the instance, and deliberately not read off
+ * `info.renderer` — which does carry the rest of the resolved env. `acquireRenderer` re-points
+ * `renderer` at whatever is live now, so a grace timer scheduled through one renderer could be
+ * cancelled through another's. These are fixed for the instance's life, which is the only scope in
+ * which "cancel the thing I scheduled" is meaningful.
  */
 interface ShaderInstanceInfo {
   id: string
@@ -1943,7 +1949,31 @@ interface ShaderInstanceInfo {
   ref: RendererRef
   tex: TextureHolder
   to: TextureHolder
+  setTimer: SetTimerFunction
+  clearTimer: ClearTimerFunction
 }
+
+/**
+ * How long an inactive shader keeps its textures and its renderer reference before giving them up.
+ *
+ * The window exists to survive an *accidental* give-back: a pointer clipping the corner of a card,
+ * a scroll moving the element out from under a stationary cursor, a glance at a caption and back.
+ * Those re-enter in well under a second, and paying a canvas rebuild plus six program recompiles
+ * for one is the stall this module spent `e49d517` avoiding. It exists *not* to survive the user
+ * moving on to another part of the page, which is the only case where the held memory buys nothing.
+ * Five seconds sits above the first distribution and far below the second.
+ *
+ * It is cheap to be generous here, and the reason is easy to miss: `restoreState()` unregisters the
+ * draw call, and `startLoop`'s `tick` stops rescheduling itself the moment `drawCalls` empties. A
+ * waiting instance therefore costs GPU memory and nothing else — no frames, no style reads, no CPU.
+ * That is also why the delay is counted in wall-clock rather than frames: a backgrounded tab gets
+ * no frames at all, and a frame-counted window there would never elapse.
+ *
+ * Not author-facing. The number encodes how people move a pointer, which is not something an author
+ * of one page knows better than this module does, and a knob nobody can set correctly is a knob
+ * that only ever gets set wrong.
+ */
+const SHADER_TEXTURE_GRACE_MS = 5000
 
 /**
  * Take — or keep — a refCount on the live renderer for this instance.
@@ -1988,6 +2018,100 @@ function instanceProgress(info: ShaderInstanceInfo): number {
   return info.opt.scrubsFromScroll ? readElementProgress(info.el) : -1
 }
 
+/**
+ * One instance's per-frame draw, as the renderer will call it.
+ *
+ * Lifted out of `createShaderInstance` whole, so that function reads as the lifecycle wiring it is
+ * rather than lifecycle and one frame's worth of drawing interleaved. `deactivate` is the one thing
+ * it cannot do for itself: the `isActive` flag belongs to the instance, and a draw that throws has
+ * to put it down — see the `catch`.
+ *
+ * @param info - The instance's handle; `info.renderer` is re-read per draw, never captured.
+ * @param state - This instance's mutable per-frame state, written by `readInputs` before any draw.
+ * @param isGenerative - Whether the mode draws *over* the host instead of replacing it.
+ * @param deactivate - Puts down the instance's `isActive` flag after a draw that threw.
+ * @complexity O(1) per frame, plus one `drawElementQuad`.
+ */
+function createShaderDrawCall(
+  info: ShaderInstanceInfo,
+  state: ShaderInstanceState,
+  isGenerative: boolean,
+  deactivate: () => void,
+): ShaderDrawFn {
+  return (_gl, time) => {
+    let drew = false
+    try {
+      const texture = info.tex.get()
+      drew = (!!texture || isGenerative) && drawElementQuad(info.renderer, info.el, {
+        ...info.opt,
+        texture,
+        toTexture: info.to.get(),
+        time,
+        progress: state.progress,
+        audio: state.audio,
+        geometry: state.geometry,
+      })
+    } catch {
+      // `isActive` goes with the unregistration, or the two disagree for the rest of the
+      // instance's life: the draw is gone from the renderer while `activate()`'s own
+      // `if (isActive) return` still reads as running, so an `on:hover` element that threw once
+      // is dead until something calls `cancel()` or `finish()` on it first. Everything a
+      // re-activation needs survives — `isAcquired` still holds the renderer reference, so
+      // `acquireRenderer` keeps it and only re-registers.
+      deactivate()
+      restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
+    }
+    // A filter replaces the element, so hiding it once the replica is up is the whole mechanism.
+    // A generator draws *over* an element it does not replace and whose children are the author's,
+    // so hiding it would destroy content and gain nothing — the canvas already covers the box.
+    if (drew && !isGenerative) hideBehindRenderer(info.el, state)
+    else if (!isGenerative) restoreInstanceOpacity(info.el, state)
+  }
+}
+
+interface GraceTimer {
+  /** Start the countdown, replacing any already running. */
+  arm(): void
+  /** Stop it. A no-op when nothing is armed. */
+  cancel(): void
+}
+
+/**
+ * One instance's countdown from "no longer drawing" to "give the GPU resources back".
+ *
+ * Scheduled through `info.setTimer` rather than a bare `setTimeout` so a host — and a suite — can
+ * own it; see {@link ShaderInstanceInfo} for why the functions are held on the instance and not
+ * read back off `info.renderer`, which moves.
+ *
+ * `isBusy` is re-checked inside the callback, and that is not belt-and-braces. A `clearTimer` that
+ * does not really cancel is a real shape — `scenes.ts` documents the same one for `caf` — and
+ * without the check such a host deletes the textures out from under a re-activated instance that is
+ * drawing through them. The symptom would be a shader that dies a few seconds after a re-hover,
+ * which is about as hard to trace back to here as a symptom gets.
+ *
+ * @param info - The instance's handle, for its timer functions.
+ * @param onExpire - Called once the window closes with the instance still idle.
+ * @param isBusy - Whether the instance has become active again since the timer was armed.
+ * @complexity O(1) per call.
+ */
+function createGraceTimer(info: ShaderInstanceInfo, onExpire: () => void, isBusy: () => boolean): GraceTimer {
+  let handle: number | null = null
+  const cancel = () => {
+    if (handle === null) return
+    info.clearTimer(handle); handle = null
+  }
+  return {
+    cancel,
+    arm() {
+      cancel()
+      handle = info.setTimer(() => {
+        handle = null
+        if (!isBusy()) onExpire()
+      }, SHADER_TEXTURE_GRACE_MS)
+    },
+  }
+}
+
 function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
   const state: ShaderInstanceState = {
     // Shared per element with every other writer, advanced or core — see `createAdvancedLedgers`.
@@ -2027,39 +2151,27 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     if (state.geometry?.hostAlpha !== undefined) state.hostAlpha = state.geometry.hostAlpha
   }
 
-  const drawCall: ShaderDrawFn = (_gl, time) => {
-    let drew = false
-    try {
-      const texture = info.tex.get()
-      drew = (!!texture || isGenerative) && drawElementQuad(info.renderer, info.el, {
-        ...info.opt,
-        texture,
-        toTexture: info.to.get(),
-        time,
-        progress: state.progress,
-        audio: state.audio,
-        geometry: state.geometry,
-      })
-    } catch {
-      // `isActive` goes with the unregistration, or the two disagree for the rest of the
-      // instance's life: the draw is gone from the renderer while `activate()`'s own
-      // `if (isActive) return` still reads as running, so an `on:hover` element that threw once
-      // is dead until something calls `cancel()` or `finish()` on it first. Everything a
-      // re-activation needs survives — `isAcquired` still holds the renderer reference, so
-      // `acquireRenderer` keeps it and only re-registers.
-      isActive = false
-      restoreInstanceOpacity(info.el, state); info.renderer.unregister(info.id); return
-    }
-    // A filter replaces the element, so hiding it once the replica is up is the whole mechanism.
-    // A generator draws *over* an element it does not replace and whose children are the author's,
-    // so hiding it would destroy content and gain nothing — the canvas already covers the box.
-    if (drew && !isGenerative) hideBehindRenderer(info.el, state)
-    else if (!isGenerative) restoreInstanceOpacity(info.el, state)
-  }
+  const drawCall = createShaderDrawCall(info, state, isGenerative, () => { isActive = false })
 
   const restoreState = () => {
     if (!isActive) return
     isActive = false; info.renderer.unregister(info.id); restoreInstanceOpacity(info.el, state)
+  }
+
+  /** Give the GPU resources back. Idempotent, because three paths can reach it. */
+  const releaseResources = () => {
+    if (!isAcquired) return
+    isAcquired = false
+    cleanupShaderTextures(info.tex, info.to, info.renderer)
+  }
+
+  const grace = createGraceTimer(info, releaseResources, () => isActive)
+
+  /** Stop drawing, un-hide, and start counting down to the give-back. */
+  const suspend = () => {
+    if (!isActive) return
+    restoreState()
+    if (isAcquired) grace.arm()
   }
 
   return createEffectInstance({
@@ -2067,6 +2179,10 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
     activate() {
       if (isActive) return
       if (!acquireRenderer(info, isAcquired)) return
+      // After the acquire, never before. An acquire that fails leaves the instance inactive with
+      // its resources still held, and a timer cancelled on the way in would then be the *only*
+      // thing that was ever going to release them — so the failure path has to keep counting down.
+      grace.cancel()
       isAcquired = true; isActive = true
       info.renderer.register(info.id, drawCall, {
         onLost() { info.tex.reset(); info.to.reset(); restoreInstanceOpacity(info.el, state) },
@@ -2074,19 +2190,32 @@ function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
       }, readInputs)
       info.renderer.startLoop()
     },
-    // Unregister and un-hide, but keep the textures and the renderer reference. That retention is
-    // a deliberate trade, made in `e49d517` and re-affirmed after a later audit read it as an
-    // oversight: `release()` tears down the canvas, the context and all six linked programs, so
-    // dropping `refCount` to zero on every hover-out makes the next hover pay a rebuild and six
-    // recompiles. On a hover effect that stall is worse than holding a texture roughly the size of
-    // the decoded image the browser already has. Reversing it is a real option — a grace timer
-    // before teardown would recover most of the memory without the stall — but it is a decision to
-    // take deliberately and cost, not a gap to close on the way past.
-    cancel: restoreState,
-    finish: restoreState,
+    // Unregister and un-hide, then hold the textures and the renderer reference for
+    // {@link SHADER_TEXTURE_GRACE_MS} before giving them up.
+    //
+    // This is the grace-timer half of the trade `e49d517` set up and left open, taken deliberately
+    // rather than closed as a tidy-up. That commit chose to retain until `destroy()` because
+    // `release()` tears down the canvas, the context and all six linked programs, so dropping
+    // `refCount` to zero on every hover-out makes the next hover pay a rebuild and six recompiles —
+    // a stall worse, on a hover effect, than holding a texture roughly the size of the decoded
+    // image the browser already has. It named a grace timer as the way to get the memory back
+    // without the stall, and this is it. A give-back inside the window costs nothing: the instance
+    // never let go, so `acquireRenderer` short-circuits and the texture holders still have their
+    // handles. Past it the memory goes back, and a later `activate()` rebuilds against a live
+    // renderer — `RendererRef.get()` re-resolves once the old one reports `isDestroyed`.
+    //
+    // A later audit read the original retention as an oversight and an agent "fixed" it; that was
+    // reverted in `eccb8e5`, because releasing on *every* give-back with no window is the stall,
+    // not the fix. The window is the whole difference.
+    cancel: suspend,
+    finish: suspend,
     destroy() {
       restoreState()
-      if (isAcquired) { cleanupShaderTextures(info.tex, info.to, info.renderer); isAcquired = false }
+      // Immediately, and the timer with it: `destroy()` means the instance is over, so there is
+      // nothing left for a grace window to protect, and a timer that outlived it would fire against
+      // a renderer some other instance may since have re-acquired.
+      grace.cancel()
+      releaseResources()
       // Drop this instance's claim on the shared ledger. The last claim out restores the element —
       // and for the authored host, where the claim is over `ctx.style`, nothing is restored here at
       // all, because the animator owns `restore()` for its own set. Without this the owner count
@@ -2291,6 +2420,7 @@ export function prepareShaders(
   const id = `kui-shader-instance-${nextShaderId}`
   const info = {
     id, el: el as HTMLElement, opt: options, renderer: ref.get(), ref,
+    setTimer: resolvedEnv.setTimer, clearTimer: resolvedEnv.clearTimer,
   } as ShaderInstanceInfo
   const holders = createShaderTextureHolders(el as HTMLElement, options, info)
   info.tex = holders.texHolder

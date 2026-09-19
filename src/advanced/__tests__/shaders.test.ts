@@ -45,9 +45,106 @@ import {
   MORPH_FS,
   PARTICLES_FS,
 } from '../glsl.js'
-import { createInertInstance as inertInstance } from '../base.js'
+import { createInertInstance as inertInstance, type ClearTimerFunction, type SetTimerFunction } from '../base.js'
 import type { EffectParams } from '../../core/types.js'
-import { createRealPrepareContext } from './prepare-context-fixture.js'
+import type { PrepareContext } from '../../core/effect-context.js'
+import { createRealPrepareContext, type PrepareContextOverrides } from './prepare-context-fixture.js'
+
+/**
+ * A hand-driven `setTimer`/`clearTimer` pair, so the grace window elapses when a test says so.
+ *
+ * `vi.useFakeTimers()` would also work, but it would only test the module's *default* timer. This
+ * goes through the injected one, which is the path a host controls — and the assertion that matters
+ * most here is not "the callback ran" but "a timer is, or is not, still armed". That question has
+ * no answer from a fake clock and a direct one from {@link ManualTimers.pending}.
+ *
+ * Cancellation marks rather than deletes, which is what makes {@link ManualTimers.flushLeaky}
+ * possible: a host whose `clearTimeout` does not really cancel is a real shape — `scenes.ts`
+ * documents the same one for `caf` — and the instance's re-entry guard is the only thing standing
+ * between it and a texture deleted out from under a live draw.
+ */
+interface ManualTimers {
+  setTimer: SetTimerFunction
+  clearTimer: ClearTimerFunction
+  /** Timers still counting down; a cancelled one is not one of them. */
+  pending: () => number[]
+  /** The clock reaching every deadline. Cancelled timers do not run. */
+  flush: () => void
+  /** Every callback runs, cancelled or not — the host that does not really cancel. */
+  flushLeaky: () => void
+}
+
+function createManualTimers(): ManualTimers {
+  let nextId = 0
+  const armed = new Map<number, { fn: () => void; ms: number; cancelled: boolean }>()
+  const drain = (runCancelled: boolean) => {
+    for (const [id, timer] of Array.from(armed.entries())) {
+      armed.delete(id)
+      if (runCancelled || !timer.cancelled) timer.fn()
+    }
+  }
+  return {
+    setTimer: (fn, ms) => { nextId += 1; armed.set(nextId, { fn, ms, cancelled: false }); return nextId },
+    clearTimer: (id) => { const timer = id == null ? undefined : armed.get(id); if (timer) timer.cancelled = true },
+    pending: () => Array.from(armed.entries()).filter(([, t]) => !t.cancelled).map(([id]) => id),
+    flush: () => drain(false),
+    flushLeaky: () => drain(true),
+  }
+}
+
+/**
+ * `prepareShaders` against a context carrying an injected timer.
+ *
+ * The assignment is after the fixture rather than an override because `setTimer`/`clearTimer` are
+ * read off the context by `resolveEnv` but are not part of `PrepareContext` — the fixture's
+ * `Object.assign` would carry them, the type would not.
+ */
+function prepareWithTimers(
+  el: Element,
+  params: EffectParams,
+  overrides: PrepareContextOverrides,
+  timers: ManualTimers,
+) {
+  const ctx = createRealPrepareContext(el, overrides) as PrepareContext & {
+    setTimer?: SetTimerFunction
+    clearTimer?: ClearTimerFunction
+  }
+  ctx.setTimer = timers.setTimer
+  ctx.clearTimer = timers.clearTimer
+  return prepareShaders(el, params, ctx)
+}
+
+/** A renderer whose canvas and GL are the test's mocks, plus the image and params to drive it. */
+function createGraceFixture() {
+  const gl = createMockGL()
+  const mockCanvas = document.createElement('canvas')
+  mockCanvas.getContext = vi.fn().mockReturnValue(gl)
+
+  const renderer = new SharedShaderRenderer({
+    createCanvas: () => mockCanvas,
+    raf: vi.fn(),
+    caf: vi.fn(),
+    window: { innerWidth: 1000, innerHeight: 800, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+  })
+  setSharedShaderRenderer(renderer)
+
+  const img = document.createElement('img')
+  Object.defineProperty(img, 'complete', { value: true })
+  Object.defineProperty(img, 'naturalWidth', { value: 200 })
+
+  const params = {
+    text: vi.fn((k, def) => def),
+    num: vi.fn((k, def) => def),
+  } as unknown as EffectParams
+
+  // `createCanvas` on the context too: once the grace window drives the renderer to refCount 0 it
+  // is torn down, and a re-activation past that point has to be able to build the live one it
+  // lands on.
+  const overrides: PrepareContextOverrides = {
+    reducedMotion: false, createCanvas: () => mockCanvas, raf: vi.fn(), caf: vi.fn(),
+  }
+  return { gl, renderer, img, params, overrides }
+}
 
 function createMockGL() {
   return {
@@ -524,12 +621,15 @@ describe('Advanced Shaders Labs Module', () => {
     expect(gl.createTexture).toHaveBeenCalledTimes(1)
 
     // A cancel gives back the draw registration and the hide, and **keeps** the texture and the
-    // renderer reference. That is a deliberate trade, not an unfinished teardown: `release()`
-    // tears down the canvas, the context and all six linked programs, so freeing here would make
-    // every hover-in pay a rebuild and six recompiles — worse, on a hover effect, than holding a
-    // texture the size of an image the browser has already decoded. Asserted positively so that
-    // "free it on cancel" cannot be reintroduced as a tidy-up by someone reading the retention as
-    // an oversight; see `e49d517`. The memory is reclaimed at `destroy()`, below.
+    // renderer reference — now for a bounded window rather than until `destroy()`. Still asserted
+    // positively, and for the same reason it always was: `release()` tears down the canvas, the
+    // context and all six linked programs, so freeing *synchronously* here would make every
+    // hover-in pay a rebuild and six recompiles — worse, on a hover effect, than holding a texture
+    // the size of an image the browser has already decoded. That is `e49d517`'s trade and it still
+    // stands; what changed is that the retention now ends on a timer instead of never, which is the
+    // option `e49d517` named and left open. "Free it on cancel", with no window, remains wrong.
+    // This test uses the default timer, so nothing here elapses; the window itself is driven
+    // deliberately in the two grace tests below.
     inst.cancel()
     expect(gl.deleteTexture).not.toHaveBeenCalled()
     expect(customRenderer.refCount).toBe(1)
@@ -538,8 +638,8 @@ describe('Advanced Shaders Labs Module', () => {
     inst.finish() // not active return
     expect(gl.deleteTexture).not.toHaveBeenCalled()
 
-    // So a re-activation is cheap: the same renderer, and the texture the holder still has. No
-    // second upload — which is the whole point of keeping it.
+    // So a re-activation inside the window is cheap: the same renderer, and the texture the holder
+    // still has. No second upload — which is the whole point of keeping it.
     inst.activate()
     expect(getSharedShaderRenderer()).toBe(customRenderer)
     expect(customRenderer.refCount).toBe(1)
@@ -591,6 +691,108 @@ describe('Advanced Shaders Labs Module', () => {
     instReduced.destroy()
 
     // Reset shared renderer
+    setSharedShaderRenderer(null)
+  })
+
+  it('releases shader textures after the grace window expires', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+
+    const inst = prepareWithTimers(img, params, overrides, timers)
+    inst.activate()
+    renderer.renderFrame(1)
+    expect(gl.createTexture).toHaveBeenCalledTimes(1)
+    expect(renderer.refCount).toBe(1)
+
+    // The give-back arms the window and changes nothing else. This is the half `e49d517` had.
+    inst.cancel()
+    expect(timers.pending()).toHaveLength(1)
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+    expect(renderer.refCount).toBe(1)
+
+    // ...and this is the half it left open. The window elapses with the instance still inactive,
+    // so the texture goes back and the last reference on the renderer with it — which takes it to
+    // refCount 0, and a renderer at zero tears itself down.
+    timers.flush()
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(renderer.refCount).toBe(0)
+    expect(renderer.isDestroyed).toBe(true)
+
+    // A re-activation past the window must land on a *live* renderer, not the corpse this instance
+    // was holding: `RendererRef.get()` re-resolves once the old one reports `isDestroyed`. Getting
+    // this wrong is silent — `acquire()` on a destroyed renderer just returns false and the element
+    // never animates again.
+    inst.activate()
+    const rebuilt = getSharedShaderRenderer()
+    expect(rebuilt).not.toBe(renderer)
+    expect(rebuilt.isDestroyed).toBe(false)
+    expect(rebuilt.refCount).toBe(1)
+    rebuilt.renderFrame(2)
+    expect(gl.createTexture).toHaveBeenCalledTimes(2)
+
+    inst.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('a re-activation inside the grace window keeps the textures and the renderer warm', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+
+    const inst = prepareWithTimers(img, params, overrides, timers)
+    inst.activate()
+    renderer.renderFrame(1)
+    expect(gl.createTexture).toHaveBeenCalledTimes(1)
+
+    inst.cancel()
+    expect(timers.pending()).toHaveLength(1)
+
+    // Back inside the window. Nothing was released, so there is nothing to rebuild: the same
+    // renderer object, no second upload, and the countdown disarmed.
+    inst.activate()
+    expect(timers.pending()).toHaveLength(0)
+    expect(getSharedShaderRenderer()).toBe(renderer)
+    expect(renderer.isDestroyed).toBe(false)
+    expect(renderer.refCount).toBe(1)
+    renderer.renderFrame(2)
+    expect(gl.createTexture).toHaveBeenCalledTimes(1)
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+
+    // And the callback of a timer that was cancelled but ran anyway — a host whose `clearTimeout`
+    // does not really cancel — must find the instance active and do nothing. Without that re-entry
+    // check this deletes a texture the renderer is drawing through, seconds after a re-hover.
+    timers.flushLeaky()
+    expect(gl.deleteTexture).not.toHaveBeenCalled()
+    expect(renderer.refCount).toBe(1)
+
+    inst.destroy()
+    setSharedShaderRenderer(null)
+  })
+
+  it('destroy cancels the grace timer so it cannot fire against a dead instance', () => {
+    const timers = createManualTimers()
+    const { gl, renderer, img, params, overrides } = createGraceFixture()
+
+    const inst = prepareWithTimers(img, params, overrides, timers)
+    inst.activate()
+    renderer.renderFrame(1)
+    inst.cancel()
+    expect(timers.pending()).toHaveLength(1)
+
+    // `destroy()` gives everything back at once, exactly as it did before the window existed, and
+    // takes the pending timer with it. A timer left armed here fires against an instance that is
+    // over, on a renderer another element may since have re-acquired — so it would be releasing
+    // someone else's reference.
+    inst.destroy()
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(timers.pending()).toHaveLength(0)
+    expect(renderer.refCount).toBe(0)
+
+    // Even if that cancelled callback runs anyway, the release is idempotent: one `deleteTexture`
+    // and one `release()` total, not two.
+    timers.flushLeaky()
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(renderer.refCount).toBe(0)
+
     setSharedShaderRenderer(null)
   })
 
