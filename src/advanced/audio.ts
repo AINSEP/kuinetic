@@ -454,7 +454,6 @@ export class AudioSourceController {
     element: HTMLElement,
     options: AudioSourceOptions = {},
     env: AdvancedEnv = {},
-    hostLedger?: StyleLedger | null,
   ) {
     this.element = element
     this.options = options
@@ -464,7 +463,7 @@ export class AudioSourceController {
     this.document = resolved.document
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createAdvancedLedgers(element, hostLedger)
+    this.ledgers = createAdvancedLedgers(element)
   }
 
   private connectMicSource(graph: SharedAudioGraph, analyser: AnalyserNode, win: Window | null): void {
@@ -789,12 +788,12 @@ export function prepareAudioSource(
   const smoothing = clamp(params.num ? params.num('smoothing', 0.8) : 0.8, 0, 0.99)
   const fftSize = snapFftSize(clamp(params.num ? params.num('fft', 256) : 256, 32, 2048))
 
-  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
+  // One capture per element, shared with every other writer on it — core's `LedgerSet`
+  // included — because the registry lives on the element itself. Nothing is handed over.
   const controller = new AudioSourceController(
     el as HTMLElement,
     { source, target, smoothing, fftSize },
     resolvedEnv,
-    ctx?.style,
   )
 
   return createEffectInstance({

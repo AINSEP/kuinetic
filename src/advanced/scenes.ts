@@ -6,7 +6,6 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv,
   type AdvancedLedgers,
@@ -277,7 +276,6 @@ export class SceneController {
     container: HTMLElement,
     options: SceneOptions = {},
     env: AdvancedEnv = {},
-    hostLedger?: StyleLedger | null,
   ) {
     this.container = container
     this.options = options
@@ -286,7 +284,7 @@ export class SceneController {
     this.window = resolved.window
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createAdvancedLedgers(container, hostLedger)
+    this.ledgers = createAdvancedLedgers(container)
     this.onScroll = this.onScroll.bind(this)
   }
 
@@ -436,12 +434,12 @@ export function prepareScene(
   const duration = clamp(params.num ? params.num('duration', 1000) : 1000, 100, 60000)
 
   const htmlEl = el as HTMLElement
-  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
+  // One capture per element, shared with every other writer on it — core's `LedgerSet`
+  // included — because the registry lives on the element itself. Nothing is handed over.
   const controller = new SceneController(
     htmlEl,
     { progress: progressMode, duration },
     resolvedEnv,
-    ctx?.style,
   )
   /*
    * The steps are scanned once, here, and never again — there is no `MutationObserver` on the

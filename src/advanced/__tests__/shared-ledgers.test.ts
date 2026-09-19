@@ -98,31 +98,41 @@ describe('the shared per-element registry', () => {
   })
 
   /**
-   * The `hostLedger` parameter, which is the only thing this wrapper adds to
-   * `core/owned-styles.ts`'s registry — and which nothing else in the suite can observe, because
-   * everything else reaches it from inside one bundle, where core has already registered the host
-   * and the seed is correctly ignored.
+   * The split-bundle contract, which is the only reason this wrapper exists separately from
+   * `core/owned-styles.ts`'s registry at all.
+   *
+   * `scripts/build-tiers.mjs` builds `kuinetic.advanced.js` from its own entry point, so it
+   * inlines its own copy of `owned-styles.ts`. Two copies of the *code* is fine; two registries is
+   * not, and a module-level `WeakMap` would give exactly that. What makes the copies agree is that
+   * the registry is not in either of them — it is on the element, under a key both copies compute
+   * from the runtime's own global symbol registry. That is the property asserted here, because it
+   * is the one thing a single-bundle test run cannot otherwise observe.
    */
-  it('adopts a ledger opened outside this tier when the registry has never seen the host', () => {
+  it('keeps its capture on the element, where a separately bundled core finds the same one', () => {
     const host = document.createElement('div')
     document.body.append(host)
     host.style.setProperty('opacity', '0.2', 'important')
 
-    // Stands in for `ctx.style` arriving from a *separately bundled* core, whose copy of
-    // `owned-styles.ts` carries a `sharedStyles` registry this one cannot see. Adoption is the
-    // only thing that leaves the two bundles with one capture between them rather than two.
-    const fromCore = createStyleLedger(host)
-    const ledgers = createAdvancedLedgers(host, fromCore)
+    const ledgers = createAdvancedLedgers(host)
     ledgers.style(host).set('opacity', '0.7')
 
-    // The decisive assertion: the write went through core's ledger. A capture of this tier's own
-    // would leave this `undefined`, and would hold a second, later snapshot of the same element.
-    expect(fromCore.peek('opacity')).toBe('0.2')
-    expect(host.style.opacity).toBe('0.7')
+    // The key a second bundle's copy of `owned-styles.ts` computes — `Symbol.for` reads through
+    // the runtime's registry, so it is the same symbol object there as here, whatever order the
+    // script tags loaded in. If this capture ever moves back into module scope this goes
+    // undefined, and the two bundles are silently back to one capture each.
+    const onElement = (host as unknown as Record<symbol, Map<string, unknown> | undefined>)[
+      Symbol.for('kuinetic.owned-styles.1')
+    ]
+    expect(onElement?.get('style')).toBeDefined()
+    // Invisible to the author: not enumerable, not serialized, not in the markup.
+    expect(Object.keys(host)).toEqual([])
+    expect(host.outerHTML).toBe('<div style="opacity: 0.7;"></div>')
 
     ledgers.restore()
     expect(host.style.opacity).toBe('0.2')
     expect(host.style.getPropertyPriority('opacity')).toBe('important')
+    // Gone with the last owner, rather than left behind as a stale entry the next effect adopts.
+    expect(onElement?.get('style')).toBeUndefined()
     host.remove()
   })
 

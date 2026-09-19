@@ -8,10 +8,11 @@ import type { StyleLedger } from '../core/owned-styles.js'
 // The one value this tier imports from core, and the one core module that therefore lands inside
 // `dist/kuinetic.advanced.js`. `owned-styles.ts` has no imports of its own, and `createStyleClaim`
 // is deliberately absent from `src/core/index.ts`'s barrel, so sharing it across the two bundles
-// would mean widening core's public API to save well under a kilobyte. Leave it inlined — with the
-// consequence that the two bundles get one `sharedStyles` registry each, which is what the
-// `hostLedger` parameter below is for. Everything else here is `import type`, which is what keeps
-// the rest of core out — see `asRegistry`.
+// would mean widening core's public API to save well under a kilobyte. Leave it inlined: the two
+// bundles get a copy of the *code* each, and they still share one capture per element, because the
+// registry those copies read lives on the element under a `Symbol.for` key rather than in either
+// copy's module scope. Everything else here is `import type`, which is what keeps the rest of core
+// out — see `asRegistry`.
 import { createStyleClaim } from '../core/owned-styles.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
@@ -140,6 +141,13 @@ export interface AdvancedLedgers {
  * to remember — it is simply another claim, and the element is unwound by whichever owner lets go
  * last, controller or animator.
  *
+ * There is also no `hostLedger` parameter any more, and its absence is the point. It existed
+ * because this tier ships as its own bundle with its own copy of `owned-styles.ts`, so the
+ * animator's ledger for the host had to be *handed over* to be shared. That made sharing opt-in at
+ * the call site and left two ways to open a capture. The registry now lives on the element itself,
+ * under a `Symbol.for` key both bundles compute identically, so a controller and the animator find
+ * the same entry by asking — and the only way to open a capture is to ask.
+ *
  * What this tier still needs the registry *for* is what it always did. These controllers write to
  * elements they merely **found** — a `camera-layer` under a `camera-scene`, a `scene-step` under a
  * `scene` — and one found element can belong to two controllers. {@link ownedDescendants} removed
@@ -152,19 +160,10 @@ export interface AdvancedLedgers {
  *   reason `createLedgerSet` documents: the host carries `data-kui-state`, which is the cloak
  *   layer's release key, so it must not become visible before the subtree under it is back to the
  *   author's markup.
- * @param hostLedger - `ctx.style` when the animator prepared this controller: the host's entry in
- *   the animator's own `LedgerSet`. Passed straight through as an adoption seed, and consulted
- *   only in the split-bundle build where this tier's copy of the registry cannot see core's — see
- *   the import comment at the top of this file. Inside one bundle core has already registered that
- *   element and this changes nothing, which is the intended shape: sharing is the registry's job,
- *   and the seed is only a bridge across a boundary it cannot span.
  * @complexity O(1) per lookup; O(n) space and O(n) time to restore, in elements written to.
  */
-export function createAdvancedLedgers(
-  host: Element,
-  hostLedger?: StyleLedger | null,
-): AdvancedLedgers {
-  const claim = createStyleClaim(hostLedger ? new Map([[host, hostLedger]]) : null)
+export function createAdvancedLedgers(host: Element): AdvancedLedgers {
+  const claim = createStyleClaim()
 
   return {
     style: (el) => claim.style(el),

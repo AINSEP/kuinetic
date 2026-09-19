@@ -1830,6 +1830,127 @@ describe('Advanced Shaders Labs Module', () => {
 
       setSharedShaderRenderer(null)
     })
+
+    /**
+     * Reduced motion on a *generator*: one baked frame, written as a real background, given back.
+     *
+     * The suite reached `prepareReducedMotion` only once before this, with the default `displace`
+     * mode, which bails at the `GENERATIVE_MODES` guard on the first line — so every line after it
+     * was unexecuted. Coverage said otherwise, because an optional chain in the argument list
+     * happened to split v8's range for the unreachable tail; deleting that argument in the
+     * ownership refactor removed the split and the tail was reported honestly. Nothing regressed.
+     * This is the test that was missing all along.
+     */
+    it('bakes one still frame for a generator under reduced motion and hands the background back', () => {
+      const gl = createMockGL()
+      const glCanvas = document.createElement('canvas')
+      glCanvas.getContext = vi.fn().mockReturnValue(gl)
+      const renderer = new SharedShaderRenderer({
+        createCanvas: () => glCanvas,
+        raf: vi.fn(),
+        caf: vi.fn(),
+        window: { innerWidth: 1000, innerHeight: 800, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      })
+      setSharedShaderRenderer(renderer)
+
+      // The read-back canvas is a second one, so that `createCanvas` proves it is the *context's*
+      // and not the renderer's: the bake copies the WebGL canvas's corner through a 2D context.
+      const out = document.createElement('canvas')
+      const drawImage = vi.fn()
+      out.getContext = vi.fn().mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+      out.toDataURL = vi.fn().mockReturnValue('data:image/png;base64,BAKED')
+
+      const el = document.createElement('div')
+      el.style.backgroundImage = 'url("author.png")'
+      el.getBoundingClientRect = () => ({ width: 200, height: 100, top: 0, left: 0, right: 200, bottom: 100 }) as DOMRect
+
+      const params = {
+        text: vi.fn((k: string, def: string) => (k === 'mode' ? 'gradient' : def)),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+
+      const ctx = createRealPrepareContext(el, { reducedMotion: true, createCanvas: () => out })
+      const inst = prepareShaders(el, params, ctx)
+      // Registered rather than drawn inline — nothing has happened to the element yet.
+      expect(el.style.backgroundImage).toBe('url("author.png")')
+      expect(renderer.drawCalls.size).toBe(1)
+
+      renderer.renderFrame(1)
+      expect(drawImage).toHaveBeenCalled()
+      expect(el.style.backgroundImage).toBe('url("data:image/png;base64,BAKED")')
+      expect(el.style.backgroundSize).toBe('100% 100%')
+      expect(el.style.backgroundRepeat).toBe('no-repeat')
+      // One frame only: the bake unregisters itself, so the second frame is not a second encode.
+      expect(renderer.drawCalls.size).toBe(0)
+
+      // Destroying the instance drops the *shader's* claim, not the element's capture: the
+      // animator's own `LedgerSet` — `ctx.style` — is still an owner, so the baked frame stays
+      // put. The last owner out is the one that restores.
+      inst.destroy()
+      expect(el.style.backgroundImage).toBe('url("data:image/png;base64,BAKED")')
+
+      ctx.style.restore()
+      expect(el.style.backgroundImage).toBe('url("author.png")')
+      expect(el.style.backgroundSize).toBe('')
+
+      setSharedShaderRenderer(null)
+    })
+
+    /**
+     * The bake's two refusals, which are the reason it is registered rather than drawn inline.
+     *
+     * A zero-sized element and a canvas that will not encode both mean the same thing to the
+     * caller — no frame — and neither may touch the element or unregister the draw, because the
+     * next frame is when the element may finally have a box.
+     */
+    it('leaves a generator alone and stays registered when the frame cannot be baked', () => {
+      const gl = createMockGL()
+      const glCanvas = document.createElement('canvas')
+      glCanvas.getContext = vi.fn().mockReturnValue(gl)
+      const renderer = new SharedShaderRenderer({
+        createCanvas: () => glCanvas,
+        raf: vi.fn(),
+        caf: vi.fn(),
+        window: { innerWidth: 1000, innerHeight: 800, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      })
+      setSharedShaderRenderer(renderer)
+
+      const out = document.createElement('canvas')
+      out.getContext = vi.fn().mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D)
+      // A tainted canvas refuses the read. `toDataURL` is the only step that can throw.
+      out.toDataURL = vi.fn(() => { throw new Error('tainted') })
+
+      const el = document.createElement('div')
+      el.style.backgroundImage = 'url("author.png")'
+      let rect = { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 } as DOMRect
+      el.getBoundingClientRect = () => rect
+
+      const params = {
+        text: vi.fn((k: string, def: string) => (k === 'mode' ? 'gradient' : def)),
+        num: vi.fn((_k: string, def: number) => def),
+      } as unknown as EffectParams
+
+      const inst = prepareShaders(el, params, createRealPrepareContext(el, {
+        reducedMotion: true,
+        createCanvas: () => out,
+      }))
+
+      // No box yet: nothing drawn, nothing written, still waiting.
+      renderer.renderFrame(1)
+      expect(el.style.backgroundImage).toBe('url("author.png")')
+      expect(renderer.drawCalls.size).toBe(1)
+
+      // A box, but an encode that refuses. Same answer, and still waiting.
+      rect = { width: 200, height: 100, top: 0, left: 0, right: 200, bottom: 100 } as DOMRect
+      renderer.renderFrame(2)
+      expect(out.toDataURL).toHaveBeenCalled()
+      expect(el.style.backgroundImage).toBe('url("author.png")')
+      expect(renderer.drawCalls.size).toBe(1)
+
+      inst.destroy()
+      expect(renderer.drawCalls.size).toBe(0)
+      setSharedShaderRenderer(null)
+    })
   })
 
   /*

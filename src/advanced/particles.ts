@@ -6,7 +6,6 @@
 import type { EffectInstance, EffectParams, PrepareContext, Preset, Primitive } from '../core/types.js'
 import type { Registry } from '../core/registry.js'
 import type { Animator } from '../core/animator.js'
-import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv,
   type AdvancedLedgers,
@@ -132,12 +131,11 @@ export class ParticleEmitter {
     element: HTMLElement,
     options: ParticleOptions = {},
     env: AdvancedEnv = {},
-    hostLedger?: StyleLedger | null,
   ) {
     this.element = element
     this.options = options
     this.env = env
-    this.ledgers = createAdvancedLedgers(element, hostLedger)
+    this.ledgers = createAdvancedLedgers(element)
     const resolved = resolveEnv(null, env)
     this.window = resolved.window
     this.document = resolved.document
@@ -346,8 +344,9 @@ export function prepareParticles(
   const color = params.text ? params.text('color', '#e4f222') : '#e4f222'
 
   const htmlEl = el as HTMLElement
-  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
-  const emitter = new ParticleEmitter(htmlEl, { count, radius, color }, resolvedEnv, ctx?.style)
+  // One capture per element, shared with every other writer on it — core's `LedgerSet`
+  // included — because the registry lives on the element itself. Nothing is handed over.
+  const emitter = new ParticleEmitter(htmlEl, { count, radius, color }, resolvedEnv)
   let isMounted = false
 
   return createEffectInstance({

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createAttributeLedger, createLedgerSet, createStyleClaim, createStyleLedger } from '../src/core/owned-styles.js'
+import { createAttributeClaim, createAttributeLedger, createLedgerSet, createStyleClaim, createStyleLedger } from '../src/core/owned-styles.js'
 
 /*
  * Teardown's contract is the authored markup, byte for byte.
@@ -398,6 +398,166 @@ describe('createStyleClaim', () => {
     expect(claim.elements()).toEqual([])
   })
 
+  /**
+   * A handle outliving its own release.
+   *
+   * Handles are held for a long time and released early: `PrepareContext.style` is handed to a
+   * primitive once at prepare and kept for the element's whole life, a controller cancels and
+   * re-activates, a `LedgerSet` is restored and the element is re-entered. The first version of
+   * this registry closed each handle over the shared *entry*, so a write after release went
+   * straight to a ledger the registry had already deleted and restored: the value landed on the
+   * element, the claim was empty, and nothing anywhere would ever put it back. The author's
+   * `!important` was gone for the life of the page with no effect running.
+   *
+   * Writing is claiming. A handle that writes takes the element back, whatever happened before.
+   * Reading is not claiming: a released handle answers that it owns nothing rather than reporting
+   * on a capture it has no part in.
+   */
+  it('a handle that writes after its own release claims the element again', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('opacity', '0.2', 'important')
+    const claim = createStyleClaim()
+    const handle = claim.style(el)
+
+    handle.set('opacity', '0.6')
+    expect(handle.owned()).toEqual(['opacity'])
+
+    handle.restore()
+    expect(el.style.opacity).toBe('0.2')
+    expect(claim.elements()).toEqual([])
+    expect(handle.owned()).toEqual([])
+    expect(handle.peek('opacity')).toBeUndefined()
+
+    handle.set('opacity', '0.9')
+    expect(el.style.opacity).toBe('0.9')
+    // The decisive one: the write re-opened a claim, so there is an owner to restore it.
+    expect(claim.elements()).toEqual([el])
+    expect(handle.peek('opacity')).toBe('0.2')
+
+    handle.restore()
+    expect(el.style.opacity).toBe('0.2')
+    expect(el.style.getPropertyPriority('opacity')).toBe('important')
+  })
+
+  /**
+   * The half of "reading is not claiming" that the test above cannot reach.
+   *
+   * There, the released handle was the *only* owner, so the registry had already deleted the entry
+   * and `owned()` had nothing to find however it looked. The answer only becomes a choice while a
+   * second owner is still holding the element: a released handle that reads through to the live
+   * shared entry would report that owner's properties as its own, and — because `peek` is what a
+   * primitive consults for the value it will fall back to — hand out a capture it is not entitled
+   * to restore. It must answer for itself, and it owns nothing.
+   */
+  it('a released handle owns nothing even while another owner still holds the element', () => {
+    const el = document.createElement('div')
+    el.style.opacity = '0.2'
+    const mine = createStyleClaim()
+    const other = createStyleClaim()
+    const handle = mine.style(el)
+
+    handle.set('opacity', '0.6')
+    other.style(el).set('color', 'red')
+    handle.restore()
+
+    // The element is still held, still written, and still restorable — by the other owner.
+    expect(el.style.opacity).toBe('0.6')
+    expect(other.style(el).owned().sort((a, b) => a.localeCompare(b))).toEqual(['color', 'opacity'])
+
+    // But not by this one. Reading did not rejoin, either.
+    expect(handle.owned()).toEqual([])
+    expect(handle.peek('opacity')).toBeUndefined()
+    expect(mine.elements()).toEqual([])
+
+    other.release(el)
+    expect(el.style.opacity).toBe('0.2')
+  })
+
+  it('a claim() after release re-opens the claim as a write does', () => {
+    const el = document.createElement('div')
+    el.style.setProperty('height', '10px')
+    const claim = createStyleClaim()
+    const handle = claim.style(el)
+
+    handle.claim('height')
+    handle.restore()
+    expect(claim.elements()).toEqual([])
+
+    // `claim()` records without writing, and the recording is exactly as much of a claim on the
+    // element as a `set()` is — `layout/primitives.ts` claims `height` and lets the browser write
+    // it, so a `claim()` nobody owns loses the author's value just as completely.
+    handle.claim('height')
+    expect(claim.elements()).toEqual([el])
+    el.style.setProperty('height', '99px')
+
+    handle.restore()
+    expect(el.style.height).toBe('10px')
+  })
+
+  /**
+   * The attribute half of the same model. `animator.ts`'s `installMatch` stamps `data-kui-fx` and
+   * `data-kui-rm` on every element a group's `target:` resolves to, and under `scope:page` two
+   * authored hosts can resolve to the same element — so the second set captured the first's stamp
+   * as the author's attribute and put *that* back.
+   */
+  it('shares one attribute capture per element, and the last owner out restores', () => {
+    const el = document.createElement('div')
+    el.setAttribute('data-kui-fx', 'author')
+    const first = createAttributeClaim()
+    const second = createAttributeClaim()
+
+    first.attributes(el).set('data-kui-fx', 'fade-up')
+    second.attributes(el).set('data-kui-fx', 'zoom-in')
+    expect(el.getAttribute('data-kui-fx')).toBe('zoom-in')
+
+    // Through the handle rather than the claim: a `LedgerSet` releases by element, but everything
+    // holding only the ledger — every caller of `ledgers.attributes(el)` — says it is done by
+    // calling `restore()` on the thing it was given.
+    first.attributes(el).restore()
+    expect(el.getAttribute('data-kui-fx')).toBe('zoom-in')
+    expect(first.elements()).toEqual([])
+
+    second.attributes(el).restore()
+    expect(el.getAttribute('data-kui-fx')).toBe('author')
+  })
+
+  it('an attribute handle that writes after its own release claims the element again', () => {
+    const el = document.createElement('div')
+    const claim = createAttributeClaim()
+    const handle = claim.attributes(el)
+
+    handle.set('aria-current', 'true')
+    handle.restore()
+    expect(el.hasAttribute('aria-current')).toBe(false)
+
+    handle.set('aria-current', 'page')
+    expect(claim.elements()).toEqual([el])
+    handle.restore()
+    expect(el.hasAttribute('aria-current')).toBe(false)
+  })
+
+  /**
+   * An element that cannot carry the registry property refuses the claim, loudly.
+   *
+   * `Object.defineProperty` throws on a frozen or non-extensible object, where the module-level
+   * `WeakMap` this replaced never could. The tempting fix is to catch that and fall back to a
+   * `WeakMap` — and it is wrong: the fallback is per *bundle*, so a page running `kuinetic.js` and
+   * `kuinetic.advanced.js` against one frozen element gets two captures, which is the defect this
+   * whole file exists to prevent, arriving silently. Throwing is contained where it happens:
+   * `js-effect-preparer.ts` runs each `prepare` in a try/catch and warns `failed to initialise`
+   * against the element. One odd element loses one effect and says so. This test is here so the
+   * fallback is not re-invented.
+   */
+  it('refuses an element that cannot carry the registry property, rather than splitting it', () => {
+    const el = document.createElement('div')
+    el.style.opacity = '0.2'
+    Object.freeze(el)
+
+    expect(() => createStyleClaim().style(el).set('opacity', '0.6')).toThrow(TypeError)
+    // Untouched: no half-open capture, and the author's value is exactly as they left it.
+    expect(el.style.opacity).toBe('0.2')
+  })
+
   it('ignores a release of an element this owner never claimed', () => {
     const el = document.createElement('div')
     const owner = createStyleClaim()
@@ -436,52 +596,47 @@ describe('createStyleClaim', () => {
   })
 
   /**
-   * Adoption is the bridge across a bundle boundary, not a second way to open a capture:
-   * `src/advanced/` inlines its own copy of this module and therefore its own registry, so a
-   * controller prepared by core is handed core's ledger for the host directly. Both halves below
-   * matter — the seed is used where there is nothing, and ignored where there is something.
+   * Where the capture lives, which is what makes "one per element" true across *bundles* and not
+   * only across owners. `scripts/build-tiers.mjs` builds `kuinetic.advanced.js` from its own entry
+   * point, so that bundle inlines its own copy of this module; a module-level `WeakMap` would give
+   * a page loading both one registry each and one element two captures. `Symbol.for` resolves
+   * through the runtime's own global symbol registry, so both copies compute the same key.
    */
-  it('writes through an adopted ledger where it has no capture of its own', () => {
-    const adopted = document.createElement('div')
-    const ours = document.createElement('div')
-    adopted.style.opacity = '0.2'
-    ours.style.opacity = '0.3'
+  it('keeps the entry on the element, under a key any copy of this module computes', () => {
+    const el = document.createElement('div')
+    const claim = createStyleClaim()
+    claim.style(el).set('opacity', '0.6')
 
-    const foreign = createStyleLedger(adopted)
-    const claim = createStyleClaim(new Map([[adopted, foreign]]))
-    claim.style(adopted).set('opacity', '0.6')
-    claim.style(ours).set('opacity', '0.7')
+    const entries = (el as unknown as Record<symbol, Map<string, unknown> | undefined>)[
+      Symbol.for('kuinetic.owned-styles.1')
+    ]
+    expect(entries?.get('style')).toBeDefined()
+    // Not enumerable and not serialized — the author's markup is unchanged apart from the
+    // property this library actually wrote.
+    expect(Object.keys(el)).toEqual([])
+    expect(el.outerHTML).toBe('<div style="opacity: 0.6;"></div>')
 
-    // The decisive assertion: the adopted ledger is the one holding the capture. A second ledger
-    // opened over the same element would leave this `undefined`.
-    expect(foreign.peek('opacity')).toBe('0.2')
-    // An element the seed says nothing about still gets a capture of its own.
-    expect(foreign.owned()).toEqual(['opacity'])
-
-    claim.release(adopted)
-    claim.release(ours)
-    expect(adopted.style.opacity).toBe('0.2')
-    expect(ours.style.opacity).toBe('0.3')
+    claim.release(el)
+    // Dropped with the last owner. A stale entry left here would be adopted by the next effect on
+    // this element as if it were the author's capture.
+    expect(entries?.get('style')).toBeUndefined()
+    expect(el.hasAttribute('style')).toBe(false)
   })
 
-  it('ignores an adopted ledger for an element the registry has already captured', () => {
+  it('opens a fresh capture after the last owner has gone, not the one it just restored', () => {
     const el = document.createElement('div')
     el.style.opacity = '0.2'
+    const first = createStyleClaim()
 
-    const incumbent = createStyleClaim()
-    incumbent.style(el).set('opacity', '0.6')
+    first.style(el).set('opacity', '0.6')
+    first.release(el)
 
-    const ignored = createStyleLedger(el)
-    const late = createStyleClaim(new Map([[el, ignored]]))
-    late.style(el).set('opacity', '0.9')
-
-    // Nothing was ever written through the seed, so it captured nothing — which is what stops it
-    // from putting `0.6`, this library's own frame value, back as the author's.
-    expect(ignored.owned()).toEqual([])
-
-    incumbent.release(el)
-    expect(el.style.opacity).toBe('0.9')
-    late.release(el)
-    expect(el.style.opacity).toBe('0.2')
+    // The author moved on in between. A registry that kept the spent entry would restore `0.2`
+    // here and silently undo a value it never owned.
+    el.style.opacity = '0.4'
+    const second = createStyleClaim()
+    second.style(el).set('opacity', '0.9')
+    second.release(el)
+    expect(el.style.opacity).toBe('0.4')
   })
 })

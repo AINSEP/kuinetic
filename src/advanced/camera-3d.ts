@@ -113,7 +113,6 @@ export class CameraController {
     container: HTMLElement,
     options: CameraOptions = {},
     env: AdvancedEnv = {},
-    hostLedger?: StyleLedger | null,
   ) {
     this.container = container
     this.options = options
@@ -122,7 +121,7 @@ export class CameraController {
     this.window = resolved.window
     this.raf = resolved.raf
     this.caf = resolved.caf
-    this.ledgers = createAdvancedLedgers(container, hostLedger)
+    this.ledgers = createAdvancedLedgers(container)
     this.onScroll = this.onScroll.bind(this)
     this.onMouseMove = this.onMouseMove.bind(this)
   }
@@ -431,10 +430,10 @@ export function prepareCameraScene(
     : { depth, mouseTilt, audio }
 
   const htmlEl = el as HTMLElement
-  // `ctx.style` is the host's entry in the animator's own `LedgerSet` (`animator.ts` hands every
-  // JS primitive on an element the same one), so adopting it is what makes `camera-scene` and any
-  // CSS-rendered effect on the same element share one capture instead of snapshotting each other.
-  const controller = new CameraController(htmlEl, options, resolvedEnv, ctx?.style)
+  // `camera-scene` and any CSS-rendered effect on the same element share one capture rather than
+  // snapshotting each other, because both ask the element's own registry for it — see
+  // `createAdvancedLedgers`. Nothing has to be handed over for that to hold.
+  const controller = new CameraController(htmlEl, options, resolvedEnv)
   const layerEls = ownedDescendants<HTMLElement>(htmlEl, 'camera-scene', 'camera-layer')
 
   for (const layer of layerEls) {

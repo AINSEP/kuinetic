@@ -9,7 +9,6 @@ import type { Animator } from '../core/animator.js'
 import {
   DISPLACE_FS, FLUID_FS, FULLSCREEN_QUAD_VS, GRADIENT_FS, LIQUID_FS, MORPH_FS, PARTICLES_FS,
 } from './glsl.js'
-import type { StyleLedger } from '../core/owned-styles.js'
 import {
   type AdvancedEnv, type AdvancedLedgers, type AnyWindow, type AnyDocument, type RafFunction,
   type CafFunction, clamp, createAdvancedLedgers, createEffectInstance, createInertInstance,
@@ -1989,12 +1988,12 @@ function instanceProgress(info: ShaderInstanceInfo): number {
   return info.opt.scrubsFromScroll ? readElementProgress(info.el) : -1
 }
 
-function createShaderInstance(info: ShaderInstanceInfo, hostLedger?: StyleLedger | null): EffectInstance {
+function createShaderInstance(info: ShaderInstanceInfo): EffectInstance {
   const state: ShaderInstanceState = {
     // Shared per element with every other writer, advanced or core — see `createAdvancedLedgers`.
     // A private `createLedgerSet` here captured whatever a CSS effect on the same element had
     // already written to `opacity` as the author's own value, and handed it back on teardown.
-    ledgers: createAdvancedLedgers(info.el, hostLedger),
+    ledgers: createAdvancedLedgers(info.el),
     hiddenByRenderer: false, progress: -1, audio: 0, geometry: null, hostAlpha: 1,
   }
   let isActive = false, isAcquired = false
@@ -2235,7 +2234,7 @@ function prepareReducedMotion(
   const renderer = getSharedShaderRenderer(env)
   if (!renderer.acquire()) return createInertInstance()
 
-  const ledgers = createAdvancedLedgers(el, ctx?.style)
+  const ledgers = createAdvancedLedgers(el)
   nextShaderId += 1
   const id = `kui-shader-static-${nextShaderId}`
   let released = false
@@ -2288,8 +2287,9 @@ export function prepareShaders(
   const holders = createShaderTextureHolders(el as HTMLElement, options, info)
   info.tex = holders.texHolder
   info.to = holders.toHolder
-  // `ctx.style` is this element's entry in the animator's own `LedgerSet`; see `camera-3d.ts`.
-  return createShaderInstance(info, ctx?.style)
+  // One capture per element, shared with every other writer on it — core's `LedgerSet`
+  // included — because the registry lives on the element itself. Nothing is handed over.
+  return createShaderInstance(info)
 }
 
 export const SHADER_PARAMETERS = {

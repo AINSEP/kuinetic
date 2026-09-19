@@ -605,13 +605,15 @@ describe('restore responsibility for a context-provided host ledger', () => {
     host.remove()
   })
 
-  it('two controllers handed the same host ledger share it rather than capturing each other', () => {
+  it('two controllers on one host share the animator\'s capture rather than taking their own', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const ctx = createRealPrepareContext(host, { win: null, reducedMotion: false })
 
-    const first = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null }, ctx.style)
-    const second = new CameraController(host, { depth: 400, mouseTilt: false }, { window: null }, ctx.style)
+    // Neither is handed anything. Both ask the element for its capture, and so did the
+    // `LedgerSet` behind `ctx.style` — one entry, three owners.
+    const first = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null })
+    const second = new CameraController(host, { depth: 400, mouseTilt: false }, { window: null })
 
     host.style.setProperty('perspective', '1500px', 'important')
 
@@ -622,7 +624,7 @@ describe('restore responsibility for a context-provided host ledger', () => {
 
     first.destroy()
     second.destroy()
-    // Neither controller owns this ledger, so neither restored it.
+    // The animator still holds a claim, so neither controller's release unwound the element.
     expect(host.style.perspective).toBe('400px')
 
     ctx.style.restore()
@@ -654,10 +656,10 @@ describe('restore responsibility for a context-provided host ledger', () => {
     document.body.appendChild(host)
     const ctx = createRealPrepareContext(host, { win: null, reducedMotion: false })
 
-    // Prepared by the animator: writes through the host's entry in the animator's own `LedgerSet`.
-    const prepared = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null }, ctx.style)
-    // Constructed directly, with no ledger of the animator's to hand over — a consumer calling the
-    // module itself, or any effect the animator never prepared.
+    // Prepared by the animator, and torn down with it.
+    const prepared = new CameraController(host, { depth: 800, mouseTilt: false }, { window: null })
+    // A consumer calling the module itself, or any effect the animator never prepared — its life
+    // is nobody else's business and it outlives the release below.
     const standalone = new CameraController(host, { depth: 400, mouseTilt: false }, { window: null })
 
     host.style.setProperty('perspective', '1500px', 'important')
