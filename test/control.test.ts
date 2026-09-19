@@ -1,11 +1,3 @@
-/* eslint-disable max-lines --
- * One concern, one test file. `control.ts` owns both the runtime control surface and the lifecycle
- * events it dispatches; these suites lived in two files only because they were written by two
- * hands. Merging them puts this file over the 400-line cap, which is a production-code readability
- * signal — a long source file hides its own structure — whereas a test file is read one `describe`
- * at a time and gains nothing from being cut in half at an arbitrary line. Same argument the
- * `max-lines-per-function` override in `eslint.config.js` already makes for test bodies.
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'

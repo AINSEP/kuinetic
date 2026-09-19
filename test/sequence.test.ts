@@ -1,13 +1,3 @@
-/* eslint-disable max-lines --
- * One feature, one test file. `sequence.test.ts` and `sequencing.test.ts` were two names for the
- * same thing, one letter apart, and the only real difference was the layer they entered at: the
- * `parsePosition`/`resolveSequence` suites below drive the grammar and the arithmetic directly,
- * the `at: —` suites drive the same feature end to end through `compile`. Both are kept, in that
- * order. Merging them puts this file over the 400-line cap, which is a production-code readability
- * signal — a long source file hides its own structure — whereas a test file is read one `describe`
- * at a time. Same argument the `max-lines-per-function` override in `eslint.config.js` already
- * makes for test bodies.
- */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { createJsEffectPreparer } from '../src/core/js-effect-preparer.js'
