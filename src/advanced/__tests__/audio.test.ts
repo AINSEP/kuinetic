@@ -328,6 +328,56 @@ describe('Audio-Reactive Source Module', () => {
       expect(raf).toHaveBeenCalledTimes(1)
       ctrl.destroy()
     })
+
+    it('a microphone granted after a running context suspends on its own still gets its own resume', async () => {
+      // `start()` runs while the context is running: `resumeContext()` answers `true` without
+      // chaining anything or arming a gesture listener, because nothing was pending to arm. The
+      // permission prompt is still open when the browser suspends the context on its own — a tab
+      // going hidden does this independently of any prompt — so by the time the visitor grants the
+      // microphone, the connect lands against a suspended context with no resume in flight and no
+      // gesture listener armed to ever catch it.
+      mockAudioCtx.state = 'running'
+      const container = document.createElement('div')
+      let grant: ((stream: unknown) => void) | null = null
+      let settleResume: (() => void) | null = null
+      mockAudioCtx.resume = vi.fn(() => new Promise<void>((resolve) => { settleResume = resolve }))
+      const fakeWin = {
+        AudioContext: vi.fn().mockImplementation(() => mockAudioCtx),
+        navigator: { mediaDevices: { getUserMedia: vi.fn(() => new Promise((resolve) => { grant = resolve })) } },
+      } as unknown as Window
+      let rafCb: FrameRequestCallback | null = null
+      const raf = vi.fn((cb: FrameRequestCallback) => { rafCb = cb; return 9 })
+      const ctrl = new AudioSourceController(container, { source: 'mic' }, { window: fakeWin, document, raf, caf: vi.fn() })
+
+      ctrl.start()
+      expect(ctrl.sourceNode).toBeNull()
+      expect(mockAudioCtx.resume).not.toHaveBeenCalled()
+      expect(raf).not.toHaveBeenCalled()
+
+      // The context suspends on its own while the prompt is still open.
+      mockAudioCtx.state = 'suspended'
+
+      // The visitor grants the microphone.
+      grant!({ getTracks: () => [] })
+      await Promise.resolve()
+      expect(ctrl.sourceNode).not.toBeNull()
+      // A resume is now in flight for this controller — the one `start()` never armed.
+      expect(mockAudioCtx.resume).toHaveBeenCalledTimes(1)
+      expect(raf).not.toHaveBeenCalled()
+
+      // The context comes back — another controller's resume, or an external one — and this
+      // controller's own chained resume settles.
+      mockAudioCtx.state = 'running'
+      settleResume!()
+      await Promise.resolve()
+      expect(raf).toHaveBeenCalledTimes(1)
+
+      expect(rafCb).not.toBeNull()
+      rafCb!(16)
+      expect(container.style.getPropertyValue('--kui-audio-level')).toBe((100 / 255).toFixed(3))
+
+      ctrl.destroy()
+    })
   })
 
   /**

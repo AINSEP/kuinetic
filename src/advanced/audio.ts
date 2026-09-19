@@ -482,10 +482,14 @@ export class AudioSourceController {
       this.sourceNode = graph.ctx.createMediaStreamSource(stream)
       this.sourceIsShared = false
       this.sourceNode.connect(analyser)
-      // This is what `start()` was waiting for — see there. A context still suspended at this
-      // point is waiting on its own resume, and starting the loop is that resume's job; a loop
-      // started here would spin over zeros until the gesture that may never come.
-      if (graph.ctx.state !== 'suspended') this.startLoopIfReady()
+      // Not "start the loop unless suspended" — a suspended context here is not necessarily the one
+      // `start()` already armed a resume for. `start()` only arms a resume when *it* saw the context
+      // suspended; if the context was running back then and only suspended itself afterward (the
+      // browser can do this on its own, e.g. a hidden tab, independent of this permission prompt),
+      // nothing is chained and no gesture listener exists to catch the wake-up. Routing through
+      // `resumeContext()` gives this arrival its own resume-or-arm exactly like `start()` does, and
+      // is a no-op wrapper when the context is already running.
+      if (this.resumeContext()) this.startLoopIfReady()
     }).catch(() => undefined)
   }
 
