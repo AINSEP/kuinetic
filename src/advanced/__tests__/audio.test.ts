@@ -208,13 +208,116 @@ describe('Audio-Reactive Source Module', () => {
       ctrl.destroy()
     })
 
-    it('gracefully handles missing AudioContext and missing media elements', () => {
+    it('gracefully handles missing AudioContext and missing media elements', async () => {
       const container = document.createElement('div')
       const ctrlNoAudio = new AudioSourceController(container, {}, { window: {} as any })
       expect(ctrlNoAudio.initAudio()).toBe(false)
       ctrlNoAudio.start()
+      expect(ctrlNoAudio.rafId).toBeNull()
       ctrlNoAudio.updateFrame()
       ctrlNoAudio.destroy()
+
+      // Web Audio present, media absent: the graph is joined and the analyser built, and nothing
+      // is connected to it. One silent frame says "there is a driver here"; no loop runs behind
+      // it, because a loop over a disconnected analyser writes the same `0.000` at 60fps for the
+      // life of the page and nothing is ever coming to change that. `running`, not the fixture's
+      // `suspended`: a suspended context withholds the loop on its own, and would hide a start
+      // that ignored the missing source.
+      mockAudioCtx.state = 'running'
+      const fakeWin = { AudioContext: vi.fn().mockImplementation(() => mockAudioCtx), HTMLMediaElement: window.HTMLMediaElement } as unknown as Window
+      const raf = vi.fn(() => 5)
+      const noMedia = document.createElement('div')
+      const ctrlNoMedia = new AudioSourceController(noMedia, { source: 'media' }, { window: fakeWin, document, raf, caf: vi.fn() })
+      ctrlNoMedia.start()
+      expect(ctrlNoMedia.isActive).toBe(true)
+      expect(ctrlNoMedia.analyser).not.toBeNull()
+      expect(ctrlNoMedia.sourceNode).toBeNull()
+      // Exactly one frame was written through the analyser. This fixture's analyser reports 100 in
+      // every bin whatever is connected to it, so the frame reads 100/255 — a real context would
+      // say `0.000` here, and `faithfulContext` below is the double that says so.
+      expect(noMedia.style.getPropertyValue('--kui-audio-level')).toBe((100 / 255).toFixed(3))
+      expect(raf).not.toHaveBeenCalled()
+      expect(ctrlNoMedia.rafId).toBeNull()
+      ctrlNoMedia.destroy()
+
+      // And the resume path reaches the same answer: a context that wakes up over an element with
+      // no media has nothing more to read than it had asleep.
+      mockAudioCtx.state = 'suspended'
+      const rafAsleep = vi.fn(() => 6)
+      const noMediaAsleep = document.createElement('div')
+      const ctrlAsleep = new AudioSourceController(noMediaAsleep, { source: 'media' }, { window: fakeWin, document, raf: rafAsleep, caf: vi.fn() })
+      ctrlAsleep.start()
+      await Promise.resolve()
+      expect(mockAudioCtx.resume).toHaveBeenCalled()
+      expect(rafAsleep).not.toHaveBeenCalled()
+      ctrlAsleep.destroy()
+    })
+
+    it('a microphone still being asked for, or refused, runs no loop; one granted starts it', async () => {
+      mockAudioCtx.state = 'running'
+      const container = document.createElement('div')
+      let grant: ((stream: unknown) => void) | null = null
+      let refuse: ((reason: unknown) => void) | null = null
+      const fakeWin = {
+        AudioContext: vi.fn().mockImplementation(() => mockAudioCtx),
+        navigator: { mediaDevices: { getUserMedia: vi.fn(() => new Promise((resolve, reject) => { grant = resolve; refuse = reject })) } },
+      } as unknown as Window
+
+      // The prompt is open. `initAudio()` has already answered `true` — the analyser exists — and
+      // that answer used to be enough to start the loop over a source that was not there yet.
+      const raf = vi.fn(() => 5)
+      const ctrl = new AudioSourceController(container, { source: 'mic' }, { window: fakeWin, document, raf, caf: vi.fn() })
+      ctrl.start()
+      expect(ctrl.isActive).toBe(true)
+      expect(ctrl.sourceNode).toBeNull()
+      // One frame, through this fixture's always-100 analyser (see the missing-media case above).
+      expect(container.style.getPropertyValue('--kui-audio-level')).toBe((100 / 255).toFixed(3))
+      expect(raf).not.toHaveBeenCalled()
+
+      // Granted: the stream is what the loop was waiting for, and it starts exactly once.
+      grant!({ getTracks: () => [] })
+      await Promise.resolve()
+      expect(ctrl.sourceNode).not.toBeNull()
+      expect(raf).toHaveBeenCalledTimes(1)
+      ctrl.destroy()
+
+      // Refused: nothing arrives, so nothing starts, and the visitor's answer is not retried.
+      const rafRefused = vi.fn(() => 6)
+      const ctrlRefused = new AudioSourceController(container, { source: 'mic' }, { window: fakeWin, document, raf: rafRefused, caf: vi.fn() })
+      ctrlRefused.start()
+      refuse!(new DOMException('denied', 'NotAllowedError'))
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(ctrlRefused.sourceNode).toBeNull()
+      expect(rafRefused).not.toHaveBeenCalled()
+      expect(ctrlRefused.rafId).toBeNull()
+      ctrlRefused.destroy()
+    })
+
+    it('a microphone granted while the context is still suspended leaves the loop to the resume', async () => {
+      // The visitor answers the browser's prompt — which is not a gesture on the page — before any
+      // gesture has resumed the context. The stream is connected, and the loop still waits: started
+      // here, it would spin over a suspended analyser's zeros until a gesture that may never come.
+      const container = document.createElement('div')
+      let settleResume: (() => void) | null = null
+      mockAudioCtx.resume = vi.fn(() => new Promise<void>((resolve) => { settleResume = resolve }))
+      const fakeWin = {
+        AudioContext: vi.fn().mockImplementation(() => mockAudioCtx),
+        navigator: { mediaDevices: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }) } },
+      } as unknown as Window
+      const raf = vi.fn(() => 7)
+      const ctrl = new AudioSourceController(container, { source: 'mic' }, { window: fakeWin, document, raf, caf: vi.fn() })
+      ctrl.start()
+      await Promise.resolve()
+      expect(ctrl.sourceNode).not.toBeNull()
+      expect(raf).not.toHaveBeenCalled()
+
+      // The resume lands with the stream already connected, and that is what starts the loop.
+      mockAudioCtx.state = 'running'
+      settleResume!()
+      await Promise.resolve()
+      expect(raf).toHaveBeenCalledTimes(1)
+      ctrl.destroy()
     })
   })
 

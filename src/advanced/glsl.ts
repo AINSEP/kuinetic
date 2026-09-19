@@ -274,23 +274,32 @@ uniform vec4 u_color2;
 uniform float u_progress;
 ${AUDIO_GAIN_GLSL}${SHAPE_MASK_GLSL}
 vec4 applyBlend(vec4 base, vec4 tint, int mode) {
-  // Multiply, both as mode 2 and as the fallback. Already correct on premultiplied colour: a
-  // transparent \`base\` multiplies to transparent whatever the tint is, so it is left alone.
-  if (mode != 1 && mode != 3) return base * tint;
-  // Screen and add are not. \`base\` is premultiplied — \`createGLTexture\` uploads with
-  // \`UNPACK_PREMULTIPLY_ALPHA_WEBGL\` to match a \`premultipliedAlpha: true\` context — while
-  // \`tint\` is straight rgba out of \`parseColor\`. Both blends are defined on *straight* colour,
-  // so running them over all four premultiplied components took the alpha channel with them:
-  // \`screen((0,0,0,0), (1,0,0,1))\` is \`(1,0,0,1)\`, an opaque red pixel where the source had no
-  // coverage at all. \`blend: screen tint: red\` filled a transparent PNG's surround with a solid
-  // red rectangle, and \`add\` did the same.
+  // \`base\` is premultiplied — \`createGLTexture\` uploads with \`UNPACK_PREMULTIPLY_ALPHA_WEBGL\` to
+  // match a \`premultipliedAlpha: true\` context — while \`tint\` is straight rgba out of
+  // \`parseColor\`. All four blends are defined on *straight* colour, so every mode takes the same
+  // path: un-premultiply, blend, and re-premultiply by this pixel's own coverage.
   //
-  // So: un-premultiply, blend the colour, and re-premultiply by this pixel's own coverage. Alpha
-  // is \`base.a * tint.a\` — the source's coverage, faded by a translucent tint exactly as the
-  // multiply path already fades it.
+  // Screen and add were the obvious cases. Run over all four premultiplied components,
+  // \`screen((0,0,0,0), (1,0,0,1))\` is \`(1,0,0,1)\`, an opaque red pixel where the source had no
+  // coverage at all — \`blend: screen tint: red\` filled a transparent PNG's surround with a solid
+  // red rectangle. Normal and multiply *looked* safe as a plain \`base * tint\`, because a transparent
+  // base does multiply to transparent whatever the tint is. It is the tint's alpha they got wrong:
+  // \`(1,1,1,1) * (1,0,0,0)\` is \`(1,0,0,0)\`, red at zero coverage, and a premultiplied canvas
+  // composites \`rgb > a\` *additively* — \`tint: rgba(255,0,0,0)\`, a fully transparent tint, turned
+  // an opaque image red, and any translucent tint bled the same way in proportion.
+  //
+  // The \`min\` on \`s\` is for \`main()\`'s chromatic sampling, which reads the three colour channels
+  // at three offsets and \`a\` at a fourth: at a transparent PNG's edge that can pair \`rgb\` from
+  // opaque neighbours with \`a\` from a transparent centre, an input that already breaks the
+  // invariant. Clamping the un-premultiplied colour to 1 is what keeps the output inside it.
+  //
+  // Alpha is \`base.a * tint.a\` — the source's coverage, faded by a translucent tint. Whatever the
+  // mode, the result satisfies \`rgb <= a\`, which is the whole contract of a premultiplied pixel.
   float a = base.a * tint.a;
-  vec3 s = base.a > 0.0 ? base.rgb / base.a : vec3(0.0);
-  vec3 c = mode == 1 ? 1.0 - (1.0 - s) * (1.0 - tint.rgb) : min(s + tint.rgb, vec3(1.0));
+  vec3 s = base.a > 0.0 ? min(base.rgb / base.a, vec3(1.0)) : vec3(0.0);
+  vec3 c = mode == 1 ? 1.0 - (1.0 - s) * (1.0 - tint.rgb)
+         : mode == 3 ? min(s + tint.rgb, vec3(1.0))
+         : s * tint.rgb;
   return vec4(c * a, a);
 }
 

@@ -11,7 +11,12 @@ wherever CSS can do it. Standalone, MIT, npm + CDN, framework-agnostic. No produ
 ```
 
 292 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
-gesture-driven motion. 100% branch/statement/function/line test coverage, over 800 tests.
+gesture-driven motion. 3,800+ unit tests. The jsdom suite holds `src/` at 100%
+line/branch/function/statement coverage with two carve-outs: the WebGL tier in `src/advanced/`
+(`shaders.ts`, `gl-utils.ts`, `fluid-cursor.ts`, `particles.ts`), whose GPU paths cannot execute
+without a real context and report below 100%, and `src/effects/gestures/primitives.ts`, which
+`vitest.config.ts` excludes from the metric outright. Both are exercised by the real-browser tier
+under `test/browser/` instead.
 
 ## Install
 

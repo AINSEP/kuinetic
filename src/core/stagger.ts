@@ -309,23 +309,13 @@ function round(value: number): number {
  */
 function randomRanks(count: number): number[] {
   const order = Array.from({ length: count }, (_, index) => index)
-  // The `|| a - b` tie-break is not decoration. Two indices can hash to the same 32-bit key, and a
-  // comparator that returns 0 for them would leave their relative order to the engine's sort — the
-  // one place a "deterministic" shuffle could still differ between browsers. With the tie-break the
-  // comparator is a total order and the result is fixed no matter how the sort is implemented.
-  //
-  // The `|| a - b` arm is the one branch in this file with no test behind it, and the marker below
-  // says *unprovable*, not *dead*. It is genuinely reachable — `scatterKey` is a 32-bit hash, so a
-  // large enough `count` collides — but no test can discriminate it **on V8**, which is the only
-  // engine the suite runs on: `Array#sort` has been required to be stable since ES2019, so with two
-  // equal keys V8 already preserves the original relative order, which is exactly what `a - b`
-  // produces. Delete the tie-break and every assertion still passes; write a test for it and that
-  // test survives its own mutation. What it guards is an engine whose sort is *not* stable, and the
-  // suite has no such engine to run against. Covering it would mean asserting an answer the broken
-  // code also gives, so it is marked rather than faked. If this ever gains a non-V8 target, delete
-  // the marker and write the real test.
-  /* v8 ignore next */
-  order.sort((a, b) => scatterKey(a, count) - scatterKey(b, count) || a - b)
+  // No tie-break, because there are no ties to break. For a fixed `count`, `scatterKey` is a
+  // bijection on uint32, not a hash: every step of it — `Math.imul` by an odd constant, XOR with a
+  // constant, a right xorshift — is invertible mod 2^32, so two distinct indices cannot share a
+  // key and the comparator is already a total order on every engine, stable sort or not. An
+  // earlier `|| a - b` arm guarded a collision that cannot happen, under a coverage pragma that
+  // called it reachable but unprovable; it was dead, and the pragma went with it.
+  order.sort((a, b) => scatterKey(a, count) - scatterKey(b, count))
 
   const ranks = new Array<number>(count)
   // `order` reads "which child takes rank r"; `--kui-i` needs the inverse, "which rank child i
@@ -335,9 +325,11 @@ function randomRanks(count: number): number[] {
 }
 
 /**
- * Hash one index to a 32-bit key. `Math.imul` throughout so every multiply stays in the int32
- * domain: plain `*` on these constants exceeds 2^53 for large indices and starts losing low bits,
- * which is where a "deterministic" hash quietly stops being one.
+ * Mix one index into a 32-bit key. For a fixed `count` this is a bijection on uint32 — all four
+ * constants are odd, so each `Math.imul` is invertible, and each xorshift is — which is what lets
+ * {@link randomRanks} sort on the key alone. `Math.imul` throughout so every multiply stays in the
+ * int32 domain: plain `*` on these constants exceeds 2^53 for large indices and starts losing low
+ * bits, which is where a "deterministic" key quietly stops being one.
  *
  * `count` is mixed in so a group of 5 and a group of 20 get unrelated orders rather than the
  * second being the first with a tail.

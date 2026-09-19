@@ -145,6 +145,36 @@ describe('Advanced Shaders Labs Module', () => {
     expect(parseColor('#123456789')).toEqual([1, 1, 1, 1])
   })
 
+  it('re-premultiplies every blend mode by the pixel\'s own coverage', () => {
+    // `applyBlend` takes premultiplied colour and a straight tint, and what it returns goes to a
+    // `premultipliedAlpha: true` canvas, which composites any `rgb > a` additively. A mode that
+    // returned `base * tint` on all four components broke that for every translucent tint —
+    // `(1,1,1,1) * (1,0,0,0)` is red at zero coverage — and `normal` and `multiply` still did
+    // after `screen` and `add` had been fixed. The requirement is structural: one un-premultiply,
+    // one re-premultiply, and no mode that returns before either. Comment lines are dropped first,
+    // so a claim here cannot be satisfied by a sentence describing it.
+    const at = DISPLACE_FS.indexOf('vec4 applyBlend(')
+    const body = DISPLACE_FS.slice(at, DISPLACE_FS.indexOf('\n}', at))
+    const lines = body.split('\n').filter((l) => !l.trim().startsWith('//'))
+    const code = lines.join('\n')
+
+    // Exactly one way out, and it is the re-premultiplied one.
+    const returns = lines.filter((l) => /\breturn\b/.test(l))
+    expect(returns).toHaveLength(1)
+    expect(returns[0]?.trim()).toBe('return vec4(c * a, a);')
+    expect(code).toContain('float a = base.a * tint.a;')
+    // No component-wise shortcut for any mode: that is the exact shape of the defect.
+    expect(code).not.toContain('base * tint')
+    // The un-premultiplied colour is clamped, so a chromatic edge that arrives with `rgb > a`
+    // still leaves inside the invariant.
+    expect(code).toContain('min(base.rgb / base.a, vec3(1.0))')
+    // All four modes decide on the straight colour `s`: screen (1), add (3), and the multiply
+    // that `normal` (0) and `multiply` (2) share.
+    expect(code).toContain('mode == 1 ?')
+    expect(code).toContain('mode == 3 ?')
+    expect(code).toContain(': s * tint.rgb;')
+  })
+
   it('compiles shaders and handles compilation failures', () => {
     const gl = createMockGL()
     const shader = compileShader(gl, gl.VERTEX_SHADER, 'void main(){}')
@@ -481,19 +511,46 @@ describe('Advanced Shaders Labs Module', () => {
       num: vi.fn((k, def) => def),
     } as unknown as EffectParams
 
-    const inst = prepareShaders(img, params, createRealPrepareContext(img, { reducedMotion: false }))
+    // `createCanvas` on the context as well as on the renderer: once a give-back drives the
+    // renderer to refCount 0 it is torn down, and the re-activation below has to be able to build
+    // the live one it lands on.
+    const inst = prepareShaders(img, params, createRealPrepareContext(img, { reducedMotion: false, createCanvas: () => mockCanvas, raf: vi.fn(), caf: vi.fn() }))
     expect(inst).toBeDefined()
     inst.activate()
     inst.activate() // already active return
+    expect(customRenderer.refCount).toBe(1)
     // Call renderFrame on customRenderer to execute registered quad draw callback (drawCall)
     customRenderer.renderFrame(1)
+    expect(gl.createTexture).toHaveBeenCalledTimes(1)
+
+    // A cancel gives back everything `activate()` took — the texture and the renderer reference,
+    // not only the draw registration. With nothing else holding it, the renderer goes with them.
+    // Left in place, a gallery of `on:hover` shaders retained every image it had ever drawn.
     inst.cancel()
-    inst.cancel() // already cancelled return
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+    expect(customRenderer.refCount).toBe(0)
+    expect(customRenderer.isDestroyed).toBe(true)
+    inst.cancel() // already cancelled: nothing to give back twice
     inst.finish() // not active return
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(1)
+
+    // Re-activation acquires whatever is live now — not the torn-down renderer, and not the
+    // deleted texture: the next frame uploads a fresh one.
     inst.activate()
+    const revived = getSharedShaderRenderer()
+    expect(revived).not.toBe(customRenderer)
+    expect(revived.isDestroyed).toBe(false)
+    expect(revived.refCount).toBe(1)
+    revived.renderFrame(2)
+    expect(gl.createTexture).toHaveBeenCalledTimes(2)
+
+    // `finish` is the same give-back as `cancel`.
     inst.finish() // finish while active
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(2)
+    expect(revived.refCount).toBe(0)
     inst.activate()
     inst.destroy() // destroy while active
+    expect(gl.deleteTexture).toHaveBeenCalledTimes(2) // nothing was drawn, so nothing to delete
 
     // Test keyword parameter mode
     const kwParams = {

@@ -440,9 +440,12 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
     // no slots at all still counts one place. There is no division by zero to defend against.
     const spacing = arcDeg / count
     for (const node of slotNodes) {
-      // No `?? '0'`: `marker.mark` two statements above writes this attribute onto every node
-      // `resolveSlots` returns, so a missing one is already unreachable — and `Number(null)` is `0`
-      // regardless, so the fallback was not even defending the arithmetic it appeared to.
+      // No `?? '0'`, and not because the attribute is always there. `marker.mark` and the
+      // `resolveSlots` above are two separate live resolutions: a custom-element slide that watches
+      // `data-kui-step-state` can append another matching slide from its synchronous
+      // `attributeChangedCallback`, and that node is in this list with no offset written on it.
+      // The fallback is omitted because `Number(null)` is already `0` — the same value `'0'`
+      // would give — so it never defended the arithmetic it appeared to.
       const offset = Number(node.getAttribute('data-kui-step-offset'))
       const angle = (offset - drift) * spacing
       ledgersFor(slots, node).attributes.set(FACE_ATTR, faceAt(angle))

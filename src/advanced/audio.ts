@@ -482,6 +482,10 @@ export class AudioSourceController {
       this.sourceNode = graph.ctx.createMediaStreamSource(stream)
       this.sourceIsShared = false
       this.sourceNode.connect(analyser)
+      // This is what `start()` was waiting for — see there. A context still suspended at this
+      // point is waiting on its own resume, and starting the loop is that resume's job; a loop
+      // started here would spin over zeros until the gesture that may never come.
+      if (graph.ctx.state !== 'suspended') this.startLoopIfReady()
     }).catch(() => undefined)
   }
 
@@ -563,15 +567,23 @@ export class AudioSourceController {
    *   only ever scrolls with a wheel fires none of them, so "while it waits" was the rest of the
    *   session at 60fps.
    *
-   * One frame of silence covers both, and it is all either case needs: nothing is going to change
-   * these five values until a resume lands, and writing them once still says "there is a driver on
-   * this element and it is silent" to a consumer that would otherwise inherit an ancestor's live
-   * band. The loop is then started by whichever `resume()` succeeds — see {@link startLoopIfActive}.
+   * - **There is nothing to read.** `initAudio()` answers `true` as soon as the analyser exists,
+   *   and the analyser can exist with nothing connected to it: `audio-source target:#missing`, or a
+   *   page with no media under the element, leaves `connectMediaSource` with no node to attach;
+   *   `audio-mic` leaves `connectMicSource` waiting on a permission prompt the visitor may close,
+   *   refuse, or never answer. A loop over a disconnected analyser is the first case again — the
+   *   same `0.000` at 60fps, for the life of the page, with nothing coming to change it.
+   *
+   * One frame of silence covers all three, and it is all any of them needs: nothing is going to
+   * change these five values until a resume or a stream lands, and writing them once still says
+   * "there is a driver on this element and it is silent" to a consumer that would otherwise inherit
+   * an ancestor's live band. The loop is then started by whichever arrives last — the `resume()`
+   * that succeeds, or the microphone the visitor grants — see {@link startLoopIfReady}.
    */
   start(): void {
     if (this.isActive) return
     this.isActive = true
-    if (!this.initAudio() || !this.resumeContext()) {
+    if (!this.initAudio() || !this.resumeContext() || !this.sourceNode) {
       this.updateFrame()
       return
     }
@@ -600,21 +612,26 @@ export class AudioSourceController {
     // Chained off *this* call rather than off the context's state, so a second instance arriving
     // while a first instance's resume is still in flight gets its own answer instead of waiting on
     // a gesture that has already been spent. `resume()` on a running context settles immediately.
-    ctx.resume().then(() => this.startLoopIfActive()).catch(() => undefined)
+    ctx.resume().then(() => this.startLoopIfReady()).catch(() => undefined)
     this.armGestureResume()
     return false
   }
 
   /**
-   * Start the loop, unless the effect was torn down while the context was still waking up.
+   * Start the loop, unless the effect was torn down while the context was still waking up — or
+   * there is still nothing connected for it to read.
    *
    * `resume()` settles whenever the browser gets to it, which can be long after a `cancel()` — the
    * same race {@link micRequestToken} closes for `getUserMedia`, and with the same consequence if
    * it is left open: a resume landing after teardown would start a frame loop on a stopped
    * instance, and nothing would ever come back to stop it.
+   *
+   * The source check is the other half of the gate {@link start} applies: a resume that lands
+   * before the microphone is granted, or on an element with no media to bind, has nothing to start
+   * a loop over. When the stream does arrive, `connectMicSource` comes back through here.
    */
-  private startLoopIfActive(): void {
-    if (this.isActive) this.startLoop()
+  private startLoopIfReady(): void {
+    if (this.isActive && this.sourceNode) this.startLoop()
   }
 
   private armGestureResume(): void {
@@ -622,7 +639,7 @@ export class AudioSourceController {
     if (this.releaseGestureResume || !win?.addEventListener || !win.removeEventListener) return
     const onGesture = (): void => {
       this.releaseGestureResume?.()
-      this.audioCtx?.resume().then(() => this.startLoopIfActive()).catch(() => undefined)
+      this.audioCtx?.resume().then(() => this.startLoopIfReady()).catch(() => undefined)
     }
     this.releaseGestureResume = () => {
       this.releaseGestureResume = null
