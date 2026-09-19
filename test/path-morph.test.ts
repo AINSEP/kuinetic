@@ -117,6 +117,67 @@ describe('parsePath', () => {
     expect(segments[0]?.c2).toEqual({ x: 20, y: 15 })
     expect(segments[0]?.to).toEqual({ x: 20, y: 20 })
   })
+
+  it('rejects a command letter that lands inside another command\'s argument list', () => {
+    // `L10,L 20,30` is an `L` missing its second number, immediately followed by another `L`. The
+    // truncation check above cannot see it: the slice returns two tokens, so `args.length` is 2 —
+    // the right *count* with the wrong *values*. `Number('L')` is `NaN`, and the old code carried
+    // that straight into `endpointFor`, so the parse "succeeded": measured, pre-fix, this returned
+    // `reason` undefined with two segments, one of them holding NaN coordinates. A NaN segment
+    // serialises to `C NaN,NaN ...`, which a browser drops without a word — the plausible-looking
+    // wrong shape the module header says this parser exists to refuse.
+    const { segments, reason } = parsePath('M0,0 L10,L 20,30')
+    expect(reason).toBe("'L' expects 2 numbers, found the command letter 'L'")
+    expect(segments).toEqual([])
+  })
+
+  it('rejects a command letter hiding deeper inside a cubic\'s six numbers', () => {
+    // Same bug, and `C` is where it is most likely to go unnoticed in a hand-written or
+    // tool-exported `d`: six numbers is a wide window for a stray letter to sit in and still leave
+    // the count looking right. Only commands taking two or more numbers can reach this at all —
+    // for `H`/`V` the single argument slot is the very token the main loop already proved was not
+    // a letter before it called `consume`.
+    const { segments, reason } = parsePath('M0,0 C1,2 3,4 5,C 6,7 8,9 10,11')
+    expect(reason).toBe("'C' expects 6 numbers, found the command letter 'C'")
+    expect(segments).toEqual([])
+  })
+
+  it('names the command that actually broke, not one a later iteration stumbled over', () => {
+    // `M0,0 C10,20 L30,40 50,60` was rejected even before the NaN check existed — but for the
+    // wrong reason and with a misleading count. Pre-fix the `C` consumed six tokens, one of which
+    // was the letter `L`, and pushed a NaN segment; the *next* pass then found only `60` left and
+    // reported "'C' expects 6 numbers, found 1". The author wrote four numbers after that `C`, not
+    // one, so the message sent them looking at the wrong end of their `d` string — and the `C` it
+    // named was not even the one that failed. Rejecting at the offending token instead reports
+    // both the real command and the real obstacle. Asserting the message text, not merely that
+    // some reason exists, is the whole point of this test.
+    expect(parsePath('M0,0 C10,20 L30,40 50,60').reason).toBe(
+      "'C' expects 6 numbers, found the command letter 'L'",
+    )
+  })
+
+  it('rejects a path that ends on a bare command letter', () => {
+    // Measured, pre-fix: both of these returned `reason` undefined and one segment. `walkTokens`
+    // set `state.command`, advanced past the letter, and the loop simply ran out of tokens, so a
+    // command with no arguments at all was indistinguishable from a path that never mentioned it.
+    // A trailing command letter is malformed per the SVG spec, and this parser's whole contract is
+    // to report a reason rather than quietly hand back a shape the author did not draw.
+    expect(parsePath('M0,0 L10,10 L').reason).toBe("'L' expects 2 numbers, found 0")
+    expect(parsePath('M0,0 L10,10 C').reason).toBe("'C' expects 6 numbers, found 0")
+    // The one-argument commands too, and not only for symmetry: `number` singular is the branch
+    // no other malformed-path test in this file reaches, so without an `H`/`V` case here the
+    // shared phrasing could pluralise wrongly and nothing would notice.
+    expect(parsePath('M0,0 H').reason).toBe("'H' expects 1 number, found 0")
+    expect(parsePath('M0,0 V').reason).toBe("'V' expects 1 number, found 0")
+  })
+
+  it('rejects a command letter immediately followed by another command letter', () => {
+    // The same silent drop as the trailing-letter case, one token earlier, and it falls out of the
+    // same check: an argument-taking command must be followed by a number. `Z`/`z` are unaffected
+    // — arity 0, so nothing is expected to follow them.
+    expect(parsePath('M0,0 L L10,10').reason).toBe("'L' expects 2 numbers, found 0")
+    expect(parsePath('M0,0 L10,0 Z').reason).toBeUndefined()
+  })
 })
 
 describe('splitCubic', () => {

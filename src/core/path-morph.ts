@@ -55,6 +55,46 @@ const COMMAND = /([mlhvcz])|(-?(?:\d+(?:\.\d+)?|\.\d+))/gi
 const UNSUPPORTED = /[AaSsQqTt]/
 
 /**
+ * Record a command letter, and refuse one whose arguments do not follow it.
+ *
+ * Split out of `walkTokens` for the same reason `consume` was: the argument check below is the
+ * walk's third distinct decision, and adding it inline pushed `walkTokens` past the repo's
+ * cognitive-complexity budget. The seam is a real one either way — this is everything that
+ * happens *because a token is a letter*, and nothing that happens because it is a number.
+ *
+ * **Why the check exists at all.** An argument-taking command that is not followed by a number
+ * never reaches `consume`: it is recorded here, the walk steps over it, and the next pass either
+ * finds another letter (which overwrites `state.command`) or finds nothing (which ends the loop).
+ * Either way the command evaporates with no `reason` set. Measured, pre-fix: `M0,0 L10,10 L` and
+ * `M0,0 L10,10 C` both parsed "successfully" — `reason` undefined, one segment — and so did
+ * `M0,0 L L10,10`. All three are malformed per the SVG spec, which requires a command's full
+ * argument list to follow it, and reporting a reason rather than handing back a shape the author
+ * did not draw is this module's whole job. Looking at the *next* token, rather than checking for a
+ * trailing letter once the loop has ended, is what covers both shapes with one rule: the trailing
+ * case is simply the one where there is no next token.
+ *
+ * `Z`/`z` are arity 0 and are deliberately exempt — nothing is expected to follow them, and
+ * `M0,0 L10,0 Z` has to stay valid.
+ *
+ * @returns The reason this command cannot stand where it does, or `undefined` when it can.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function takeCommand(tokens: string[], index: number, state: PathState): string | undefined {
+  const token = tokens[index]!
+  state.command = token
+  // `Z` takes no arguments, so it never reaches `consume` — it has to close the subpath here or
+  // the final side of every closed shape is silently missing.
+  if (token.toLowerCase() === 'z') closeSubpath(state)
+  const expected = ARITY[token.toLowerCase()]!
+  const next = tokens[index + 1]
+  if (expected > 0 && (next === undefined || /[a-z]/i.test(next))) {
+    return argumentError(token, expected, '0')
+  }
+  return undefined
+}
+
+/**
  * Walk the token list, one command at a time, mutating `state` as it goes.
  *
  * Lifted out of `parsePath` rather than left inline. The branching here is the *walk's* — a token
@@ -72,10 +112,8 @@ function walkTokens(tokens: string[], state: PathState): string | undefined {
   while (index < tokens.length) {
     const token = tokens[index]!
     if (/[a-z]/i.test(token)) {
-      state.command = token
-      // `Z` takes no arguments, so it never reaches `consume` — it has to close the subpath here
-      // or the final side of every closed shape is silently missing.
-      if (token.toLowerCase() === 'z') closeSubpath(state)
+      const reason = takeCommand(tokens, index, state)
+      if (reason !== undefined) return reason
       index++
       continue
     }
@@ -189,6 +227,25 @@ function closeSubpath(state: PathState): void {
 type ConsumeResult = { index: number } | { reason: string }
 
 /**
+ * The one phrasing for "this command's argument list is wrong".
+ *
+ * Three separate checks now reject an argument list — too few numbers, a command letter sitting
+ * where a number should be, and a command letter with nothing after it at all — and they are
+ * raised from two different functions. Routing all three through one line keeps them reading as
+ * one diagnostic family to an author staring at a warning, and keeps the singular/plural of
+ * `number`/`numbers` from being got right in one place and wrong in the next.
+ *
+ * @param command - The command letter as the author wrote it, so the case they used comes back.
+ * @param arity - How many numbers that command needs.
+ * @param found - What was there instead, already quoted or counted by the caller.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function argumentError(command: string, arity: number, found: string): string {
+  return `'${command}' expects ${arity} number${arity === 1 ? '' : 's'}, found ${found}`
+}
+
+/**
  * Consume one command's worth of numbers and emit its segment.
  *
  * @returns The next token index, or a reason when this command cannot be consumed at all.
@@ -225,8 +282,29 @@ function consume(tokens: string[], index: number, state: PathState): ConsumeResu
   // shorter shape — silently stopping here, as the old `return tokens.length` did, handed the
   // caller a plausible-looking partial path instead of telling it the input was invalid.
   if (args.length < arity) {
+    return { reason: argumentError(state.command, arity, String(args.length)) }
+  }
+
+  // The check above counts tokens; this one reads them, and the gap between the two was a real
+  // hole. A command letter can sit *inside* the argument window — `M0,0 L10,L 20,30` is an `L`
+  // missing its second number followed immediately by another `L` — and the slice still returns
+  // `arity` tokens, so the length guard passes with the right count and the wrong values.
+  // `Number('L')` is `NaN`, and pre-fix that NaN went straight on into `endpointFor` and
+  // `pushSegment`: measured, `parsePath('M0,0 L10,L 20,30')` returned `reason` undefined and two
+  // segments, one of them holding NaN coordinates. `toPathData` then writes `C NaN,NaN ...`, which
+  // a browser drops without a word — precisely the "plausible-looking wrong shape" this module's
+  // header says it refuses to produce, arrived at through the back door.
+  //
+  // A NaN here always means a command letter and never a malformed number, which is why the
+  // message can name it as one: every token came from the `COMMAND` regex, so it is either a
+  // letter from `mlhvcz` or a fully-formed number, and only the letters fail `Number`. Nor can
+  // this fire for `h`/`v`: their single argument is the very token the caller already tested
+  // against `/[a-z]/i` before calling in, so only the two-or-more-argument commands (`m`, `l`,
+  // `c`) have a slot far enough in for a letter to hide.
+  const bad = args.findIndex(Number.isNaN)
+  if (bad !== -1) {
     return {
-      reason: `'${state.command}' expects ${arity} number${arity === 1 ? '' : 's'}, found ${args.length}`,
+      reason: argumentError(state.command, arity, `the command letter '${tokens[index + bad]}'`),
     }
   }
 
