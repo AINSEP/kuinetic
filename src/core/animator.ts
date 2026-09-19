@@ -1,16 +1,9 @@
-/* eslint-disable max-lines --
-   Over the 400-line budget by decision, permanently. This is not a temporary state, not a merge
-   artefact, and not something to resolve by splitting the file.
+/* This file is long by decision. `max-lines` was removed from `eslint.config.js` in 2026-09, so
+   nothing enforces a file-length budget any more — but the reasoning below is why length was never
+   the right signal here, and it still governs when this file should be split.
 
-   The measurement, so a later reader can redo it rather than trust it. `max-lines` is configured
-   `skipBlankLines`/`skipComments`, so `wc -l` is the wrong instrument — it reads 1326 here, and
-   more than half of that is the WHY comments this codebase writes. What the rule actually counts
-   is 570, against a cap of 400. Reproduce with
-   `npx eslint src/core/animator.ts --no-inline-config --rule '{"max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}'`
-   — `--no-inline-config` is needed to get past this very directive.
-
-   The budget exists to catch complexity, and by the two metrics `eslint.config.js` names for it
-   nothing here is close to the ceiling. Cyclomatic, cap 10: `resolveCollaborators` 10,
+   A length budget exists to catch complexity, and by the two metrics `eslint.config.js` still names
+   for it nothing here is close to the ceiling. Cyclomatic, cap 10: `resolveCollaborators` 10,
    `scan`/`activate` 8, `reverseFrom`/`process` 7, `openGate`/`deactivate` 6, everything else 5 or
    less. Cognitive, same cap: nothing above 6 — `process`, `scan`, `activate`, `reverseFrom` and
    `deactivate` sit there, everything else at 5 or less — and `resolveCollaborators`, the
@@ -252,6 +245,30 @@ export class Animator {
    * history, the same reason `settleWhen` already re-checks `this.states.get(el) !== state`.
    */
   private readonly currentRun = new WeakMap<InstanceState, symbol>()
+  /**
+   * Whether the element's current run has a settle gate that will eventually write its final
+   * status, or whether nothing is ever going to report on it.
+   *
+   * `settleWhen` declines to arm a gate when every instance it was handed is `continuous` — see
+   * the reasoning there, which is right: a pin that is still pinned should read `running`. But
+   * "nobody will ever write this status" was left as an unrecorded fact known only inside that
+   * one early return, and `cancel()` had no way to ask. So a cancelled pin kept `status =
+   * 'running'` for the rest of the element's life and `activate()`'s own `running` guard locked it
+   * out of every future activation. Measured on `<div data-kui="pin-section">`, the documented
+   * form: cancel left `data-kui-state="running"`, and the next `activate()` emitted no `kui:start`
+   * at all.
+   *
+   * Recorded here rather than re-derived in `cancel()` from `state.instances`, because the two
+   * would not be asking the same question. `settleWhen` decides on the instances that actually
+   * *started* this run; an instance whose setup threw is excluded there, and by cancel time it is
+   * indistinguishable from a timed one (`continuous` reads from the setup result, which a failed
+   * or torn-down instance no longer has). The gate's own answer is the only one that matches the
+   * gate's own behaviour.
+   *
+   * Keyed on `InstanceState` for the same reason `currentRun` is: a `release()`-then-reinstall
+   * mints a fresh state object, which must start with no history.
+   */
+  private readonly settleArmed = new WeakMap<InstanceState, boolean>()
   /** Built lazily by `watch()` when not injected, so nothing observes until `start()` needs it. */
   private domWatcher: DomWatcher | undefined
   /**
@@ -1129,7 +1146,14 @@ export class Animator {
     // an author styling `[data-kui-state='running']` needs. An element with no instances at all
     // (a pure CSS-keyframes effect) is untouched by this and still resolves immediately.
     const timed = instances.filter((instance) => !instance.continuous)
-    if (timed.length === 0 && instances.length > 0) return
+    if (timed.length === 0 && instances.length > 0) {
+      // Recorded, not merely returned from: this is the one place that knows no completion will
+      // ever arrive for this run, and `cancel()` is the one caller that has to know it. See
+      // `settleArmed`.
+      this.settleArmed.set(state, false)
+      return
+    }
+    this.settleArmed.set(state, true)
 
     const direction = state.direction
     void Promise.all(timed.map((instance) => instance.finished)).then(() => {
@@ -1222,6 +1246,22 @@ export class Animator {
     const wasRunning = state.status === 'running'
     state.cancelled = true
     for (const instance of state.instances) runQuietly(() => instance.cancel())
+    // Ordinarily `status` is none of cancel's business: the run's settle gate resolves a microtask
+    // later (cancelling an instance settles its `finished` too — see `EffectInstance.finished`'s
+    // never-rejects contract) and writes `finished`, or `ready` for a cancelled exit, which is the
+    // distinction that makes writing a status here unconditionally the wrong fix. But an
+    // all-continuous run has no gate at all, so for it this is not a duplicate write — it is the
+    // only one there will ever be, and without it the element sits at `running` forever with
+    // `activate()`'s guard refusing every attempt to start it again. `finished` rather than
+    // `ready` because that is exactly what a cancelled *timed* element already lands on; a stopped
+    // pin is not a different kind of stop and must not report a different kind of state. There is
+    // no `direction === 'reverse'` case to distinguish: `reverseFrom` returns before recording a
+    // direction unless some instance `isDirectional`, and a JS-rendered instance never is, so an
+    // element that reached the ungated path is always travelling forwards.
+    if (wasRunning && this.settleArmed.get(state) === false) {
+      state.status = 'finished'
+      state.attributes.set(ATTR.state, 'finished')
+    }
     if (wasRunning) this.emit(el, state, KUI_EVENT.cancel, 'cancelled')
   }
 

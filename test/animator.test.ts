@@ -466,3 +466,50 @@ describe('Animator — a cancelled run does not silence a later one', () => {
     expect(target.getAttribute(ATTR.state)).toBe('finished')
   })
 })
+
+
+/**
+ * The one shape of element that no completion promise will ever report on.
+ *
+ * A `pin` never ends, so its instance is `continuous` and `settleWhen` deliberately declines to
+ * arm a gate over it — an element that is genuinely still pinned should read `running`, and that
+ * part is correct. What made it a trap is that *nothing else* wrote `status` either: `cancel()`
+ * only ever set `cancelled` and tore the instances down, so a cancelled pin stayed `running`
+ * forever and `activate()`'s `if (state.status === 'running') return` guard shut the element out
+ * of every future activation, silently.
+ *
+ * Reachable from the plainest possible markup, which is why it is worth a suite of its own: a
+ * deferred activation (`on:enter`, `on:click`, `on:manual`) writes `animation-play-state: paused`
+ * as its gate, and that lone `animation-*` property is enough to make `installMatch` push a
+ * (non-continuous) CSS instance alongside the JS one — which is what quietly kept `timed` from
+ * emptying and hid this. The scroll-mechanics presets default to an *immediate* gate, so they get
+ * no such companion and reach the all-continuous case straight out of the box.
+ */
+describe('Animator.cancel — an element whose every effect is continuous', () => {
+  it('leaves a cancelled pin re-activatable instead of stuck running forever', async () => {
+    const animator = build('<div data-kui="pin-section" style="height:200px"></div>')
+    const target = el()
+    await flush()
+    // Deliberate, and the fix must not disturb it: a pin that is still pinned reports `running`,
+    // because it genuinely is. Two flushes' worth of microtasks change nothing here — there is no
+    // settle gate to resolve.
+    expect(target.getAttribute(ATTR.state)).toBe('running')
+
+    const events: string[] = []
+    target.addEventListener(KUI_EVENT.start, () => events.push('start'))
+    target.addEventListener(KUI_EVENT.cancel, () => events.push('cancel'))
+
+    animator.cancel(target)
+    await flush()
+    // `finished` for the same reason a cancelled *timed* element lands there: `settleWhen` has
+    // always written that attribute for a cancelled run (and suppressed the event that would claim
+    // it ran to its end). A cancelled pin is not a different kind of stop, so it must not report a
+    // different kind of state.
+    expect(target.getAttribute(ATTR.state)).toBe('finished')
+
+    animator.activate(target)
+    await flush()
+    expect(events).toEqual(['cancel', 'start'])
+    expect(target.getAttribute(ATTR.state)).toBe('running')
+  })
+})
