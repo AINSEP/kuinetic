@@ -119,6 +119,9 @@ export interface AdvancedLedgers {
   /**
    * Give up this controller's claim on every element it wrote to, restoring each one that no other
    * controller still holds.
+   *
+   * Every element is attempted. One that throws on the way out does not cost the ones after it; the
+   * failures are re-thrown together as an `AggregateError` once the sweep is complete.
    */
   restore(): void
   /** Elements this controller has asked for. Diagnostics and leak assertions. */
@@ -167,19 +170,53 @@ export function createAdvancedLedgers(host: Element): AdvancedLedgers {
 
   return {
     style: (el) => claim.style(el),
+    /*
+     * One element's teardown must not cost the rest of the subtree's.
+     *
+     * This loop is the *only* thing that ever gives a found element back — a `camera-layer`, a
+     * `scene-step` — because nothing else holds a claim on it. `createStyleLedger.restore()` ends
+     * in `removeProperty`/`setProperty`/`removeAttribute` calls straight against the author's
+     * element, and any of those can throw on a page that patched the CSSOM, froze a node, or runs a
+     * `MutationObserver` that throws in the same task. An unguarded loop therefore turned one such
+     * element into *every element after it in the claim set*, host included, keeping this library's
+     * inline transforms permanently: `openClaimBook.leave` drops the claim before the restore that
+     * threw, so those elements were never coming back — no later owner can be the last one out of
+     * an entry the failed sweep already deleted, and `createEffectInstance.destroy()` latches
+     * `isDestroyed` before `opts.destroy()`, so a second `destroy()` cannot retry either.
+     *
+     * The failures are collected rather than swallowed: `destroy()` throwing is contained upstream
+     * (`js-effect-preparer.ts` warns and moves on; the animator's `runQuietly` swallows), and an
+     * element the library genuinely could not hand back is worth saying so about. Aggregated so the
+     * first failure does not hide the fifth.
+     */
     restore() {
-      for (const el of claim.elements()) {
-        if (el !== host) claim.release(el)
+      const failures: unknown[] = []
+      const release = (el: Element): void => {
+        try {
+          claim.release(el)
+        } catch (error) {
+          failures.push(error)
+        }
       }
-      claim.release(host)
+      for (const el of claim.elements()) {
+        if (el !== host) release(el)
+      }
+      release(host)
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures,
+          `kuinetic: ${failures.length} element(s) could not be given back`,
+        )
+      }
     },
     elements: () => claim.elements(),
   }
 }
 
 /**
- * One compiled matcher per effect name. The names are module constants at the two call sites, so
- * the map has exactly two entries in practice and never grows with the document.
+ * One compiled matcher per effect name. The names are literals at the two {@link ownedDescendants}
+ * call sites — `scene`/`scene-step` and `camera-scene`/`camera-layer` — so the map has exactly four
+ * entries in practice and never grows with the document.
  */
 const effectNamePatterns = new Map<string, RegExp>()
 
@@ -220,8 +257,9 @@ function effectNamePattern(name: string): RegExp {
 /**
  * Does this element's authored `data-kui` name the effect `name`?
  *
- * Guarded rather than assumed: this walks arbitrary ancestors, and the suites reach this tier with
- * `{} as HTMLElement` and with hand-rolled stand-ins carrying nothing but `getAttribute`.
+ * Guarded rather than assumed: this runs over arbitrary ancestors and over whatever a host's
+ * `querySelectorAll` handed back, and the suites reach this tier with `{} as HTMLElement` and with
+ * hand-rolled stand-ins carrying nothing but `getAttribute`.
  *
  * @complexity O(n) in attribute length.
  */
@@ -279,8 +317,16 @@ function isNearestHostOfKind(host: Element, el: Element, hostEffect: string): bo
  * reasons — and `ownership.test.ts`'s 'an element that is both a scene step and a camera layer'
  * is the standing proof that it still does.
  *
- * The `*=` query survives as a native prefilter and the precise predicate runs only over what it
- * returned, so the cost is O(matched descendants × depth), not a walk of the subtree.
+ * The `*=` query is a native prefilter and nothing else, so both halves of the rule are predicates
+ * run over what it returned: the candidate must itself *declare* `descendantEffect`, and no nearer
+ * host of `hostEffect`'s kind may stand between it and `host`. The first half is not redundant with
+ * the query. `[data-kui*="camera-layer"]` matches any attribute *containing* that text, which
+ * includes a parameter value — `<img data-kui='fade-up target:".camera-layer"'>` merely names the
+ * class it animates, and the scan used to claim it and write `preserve-3d` and a `translate3d` over
+ * the author's own effect. {@link declaresEffect} is the same name test the parent walk already
+ * uses, applied to the element the walk is about.
+ *
+ * The cost stays O(matched descendants × depth), not a walk of the subtree.
  *
  * @param host - The authored element the controller was prepared on.
  * @param hostEffect - The host's own primitive name, e.g. `scene`. A nearer element declaring it
@@ -296,7 +342,7 @@ export function ownedDescendants<T extends Element>(
   if (typeof host.querySelectorAll !== 'function') return []
   const owned: T[] = []
   for (const el of host.querySelectorAll<T>(`[data-kui*="${descendantEffect}"]`)) {
-    if (isNearestHostOfKind(host, el, hostEffect)) owned.push(el)
+    if (declaresEffect(el, descendantEffect) && isNearestHostOfKind(host, el, hostEffect)) owned.push(el)
   }
   return owned
 }
@@ -428,13 +474,28 @@ export function createEffectInstance(opts: EffectInstanceOptions = {}): EffectIn
       }
     },
     finished: opts.continuous ? Promise.resolve() : finishedPromise,
+    /*
+     * `finally`, because `destroy()` is the one call that cannot be made twice.
+     *
+     * `cancel()` and `finish()` throwing leave the instance alive, so a later call still settles
+     * `finished`. `destroy()` latches `isDestroyed` first — deliberately, so that a teardown which
+     * threw partway cannot be re-entered and a later `activate()` cannot resurrect a destroyed
+     * effect through ledgers that rejoin on write (`owned-styles.ts`). The cost of that latch was
+     * that a throwing `opts.destroy()` also skipped the resolve below, and every subsequent call
+     * returned at the guard: a non-continuous instance's `finished` then never settled at all, so
+     * anything awaiting it waited for the life of the page. The teardown still throws — the caller
+     * is told — but the promise it advertises is honoured on the way out.
+     */
     destroy() {
       if (isDestroyed) return
       isDestroyed = true
-      if (typeof opts.destroy === 'function') opts.destroy()
-      if (!isFinished && resolveFinished) {
-        isFinished = true
-        resolveFinished()
+      try {
+        if (typeof opts.destroy === 'function') opts.destroy()
+      } finally {
+        if (!isFinished && resolveFinished) {
+          isFinished = true
+          resolveFinished()
+        }
       }
     },
   }

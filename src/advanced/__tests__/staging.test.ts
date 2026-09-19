@@ -769,7 +769,23 @@ describe('Advanced Staging Modules: Scenes and Camera 3D', () => {
       const emptyInst = CAMERA_PRIMITIVES[0]!.prepare!(emptyEl, {} as EffectParams, createRealPrepareContext(null, { reducedMotion: false }))
       expect(emptyInst).toBeDefined()
 
-      // Layer without data-kui (getAttribute returns null)
+      // A node the `[data-kui*=]` prefilter returned whose `getAttribute` answers `null`. It
+      // reaches `declaresEffect`'s `Boolean(attr)` arm and is dropped, so it is never claimed.
+      //
+      // Reaches that arm rather than asserting it: this case is a branch probe, not a contract
+      // test, and the contract it looks like it covers — an element the prefilter matched but
+      // which declares no such effect — is pinned properly in `nested-ownership.test.ts`, against
+      // real markup that mentions `camera-layer` inside a `target:` value. Before
+      // `ownedDescendants` gained its name check this stub did reach `addLayer`; it no longer
+      // does, and nothing here would notice, which is why the real assertion lives there.
+      //
+      // Two attempts at making it self-discriminating failed and are recorded so nobody repeats
+      // them. `addLayer` only pushes to an array, so a claimed stub and a rejected one are
+      // identical from outside until a frame renders. And counting `data-kui` reads does not work
+      // either: claimed, the single read is `prepareCameraScene` parsing `z:` (camera-3d.ts:441);
+      // rejected, it is `declaresEffect`. One read either way — mutation-checked, and it passed
+      // against the broken code, which is the whole reason this comment exists instead of that
+      // assertion.
       const mockLayerRoot = {
         style: {},
         querySelectorAll: () => [{ getAttribute: () => null }],

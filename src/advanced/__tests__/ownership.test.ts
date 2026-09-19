@@ -18,6 +18,7 @@ import { AudioSourceController, prepareAudioSource } from '../audio.js'
 import { CameraController, prepareCameraScene } from '../camera-3d.js'
 import { SceneController, parseChildStep } from '../scenes.js'
 import { ParticleEmitter } from '../particles.js'
+import { createAdvancedLedgers } from '../base.js'
 import type { EffectParams } from '../../core/types.js'
 import { createRealPrepareContext } from './prepare-context-fixture.js'
 
@@ -685,5 +686,96 @@ describe('restore responsibility for a context-provided host ledger', () => {
     expect(host.style.perspective).toBe('1500px')
     expect(host.style.getPropertyPriority('perspective')).toBe('important')
     host.remove()
+  })
+})
+
+describe('one element that cannot be given back does not cost the rest of the subtree', () => {
+  /**
+   * The teardown sweep, reached the only way production reaches it: `prepare` → `activate` →
+   * `destroy`.
+   *
+   * `createAdvancedLedgers.restore()` is the sole thing that ever unwinds a **found** element — a
+   * `camera-layer`, a `scene-step` — because nothing else holds a claim on one. It used to loop
+   * `claim.release(el)` bare, so the first element whose ledger threw on the way out aborted the
+   * sweep: every element after it in the claim set, and the host, kept this library's inline
+   * transforms. Permanently, and that word is load-bearing three times over —
+   * `openClaimBook.leave` drops the claim *before* the restore that throws, so the failed entry is
+   * gone and no later owner can be the last one out of it; the elements the sweep never reached are
+   * still held by a controller nobody can run again, because `createEffectInstance.destroy()`
+   * latches `isDestroyed` before calling `opts.destroy()`; and the animator swallows a throwing
+   * teardown (`runQuietly`), so nothing upstream notices.
+   *
+   * `shared-ledgers.test.ts` asks the registry this directly. This asks it through a real primitive,
+   * because the raw-ledger case could be — and was — satisfied by calling `restore()` a second time,
+   * which is a call no production path can make.
+   *
+   * `ctx` is `null` rather than the usual fixture on purpose: `createRealPrepareContext` gives the
+   * host a second owner (the animator's `LedgerSet`), and the host's own restore is half of what is
+   * under test here.
+   */
+  it('finishes the sweep, reports the loss, and leaves the survivors free for a later owner', () => {
+    const root = document.createElement('div')
+    const doomed = document.createElement('div')
+    const spared = document.createElement('div')
+    doomed.setAttribute('data-kui', 'camera-layer z:100')
+    spared.setAttribute('data-kui', 'camera-layer z:200')
+    root.append(doomed, spared)
+    document.body.appendChild(root)
+    // Far enough down the page that the camera has not started travelling: `cameraZ` is 0, so each
+    // layer sits at exactly its authored depth and the assertions read as the authored markup.
+    root.getBoundingClientRect = () => ({ top: 5000, height: 400 }) as DOMRect
+
+    const params = { num: () => 1000, is: () => false, text: () => 'off' } as unknown as EffectParams
+    const instance = prepareCameraScene(root, params, null)
+    instance.activate()
+
+    expect(doomed.style.transform).toBe('translate3d(0, 0, 100px)')
+    expect(spared.style.transform).toBe('translate3d(0, 0, 200px)')
+    expect(root.style.perspective).toBe('1000px')
+
+    // The one hostile element, failing the way a real one does: mid-restore, after its entry has
+    // already been deleted. `transform-style` was written first (`applyStage`) and `transform`
+    // second (`render`), and `createStyleLedger.restore()` replays that order — so the second
+    // `removeProperty` is the one carrying the layer's transform.
+    let removals = 0
+    doomed.style.removeProperty = (property: string): string => {
+      if (++removals === 2) throw new Error(`teardown blew up on ${property}`)
+      return ''
+    }
+
+    let thrown: unknown
+    try {
+      instance.destroy()
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(AggregateError)
+    expect((thrown as AggregateError).errors.map((error: Error) => error.message)).toEqual([
+      'teardown blew up on transform',
+    ])
+
+    // The whole finding is this pair. The sibling *after* the failure in the claim set, and the
+    // host released last behind it, both come back — before the fix neither did.
+    expect(spared.style.transform).toBe('')
+    expect(spared.style.transformStyle).toBe('')
+    expect(root.style.perspective).toBe('')
+    expect(root.style.transformStyle).toBe('')
+
+    // And the honest cost, stated rather than papered over: the element whose own restore threw is
+    // one-shot, and it keeps whatever the throw interrupted. A second `destroy()` cannot retry it —
+    // `isDestroyed` is already latched — and must not pretend to.
+    expect(doomed.style.transform).toBe('translate3d(0, 0, 100px)')
+    expect(() => instance.destroy()).not.toThrow()
+    expect(doomed.style.transform).toBe('translate3d(0, 0, 100px)')
+
+    // A later effect over the survivor finds a free element: its entry was deleted and its capture
+    // spent, so the next owner captures the author's markup rather than this library's frame value.
+    const later = createAdvancedLedgers(root)
+    later.style(spared).set('transform', 'scale(2)')
+    later.restore()
+    expect(spared.style.transform).toBe('')
+    expect(spared.hasAttribute('style')).toBe(false)
+
+    root.remove()
   })
 })

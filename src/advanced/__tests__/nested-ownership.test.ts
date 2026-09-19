@@ -16,8 +16,10 @@ import { createRealPrepareContext } from './prepare-context-fixture.js'
  *
  * `createAdvancedLedgers` made that survivable on *teardown* by sharing one capture per element.
  * It never arbitrated the writes, because `ledger.set()` writes straight through. `ownedDescendants`
- * is the other half, and this file is what holds it: the rule is that a host claims a descendant
- * only when no nearer host **of the same kind** sits between them.
+ * is the other half, and this file is what holds it: a host claims a descendant when that descendant
+ * **declares** the effect and no nearer host **of the same kind** sits between them. The `*=` query
+ * decides neither half — it is a prefilter over a substring, and both an effect name and a parameter
+ * value are substrings.
  *
  * Why it needs its own file rather than a case bolted onto the existing ones: `camera-3d.ts` was at
  * 100% line *and* branch coverage while this was broken. The scan loop was fully covered; which
@@ -159,6 +161,36 @@ describe('a camera scene claims only the layers no nearer camera scene stands be
 
     outerInst.destroy()
     innerInst.destroy()
+  })
+
+  it('leaves an element that only names camera-layer in a parameter value alone', () => {
+    /*
+     * `[data-kui*="camera-layer"]` is a substring query and a `target:` value is a substring, so the
+     * prefilter matches an element that merely *mentions* the layers. Nothing afterwards checked
+     * what the matched element itself declared — `isNearestHostOfKind` tests the parent chain, for
+     * the *host's* name — so an image running its own effect and pointing at the layers was claimed
+     * as one, and `prepareCameraScene` wrote `preserve-3d` and a `translate3d` over the author's own
+     * effect every frame. `target:".camera-layer"` is the ordinary way to write that, not a
+     * contrivance: it is this library's one selector-parameter convention.
+     *
+     * The genuine layer beside it is not decoration. "The scan claimed nobody" satisfies the first
+     * three assertions on its own, and that is the failure mode a name check gets wrong.
+     */
+    const camera = authored('camera-scene')
+    const mention = document.createElement('img')
+    mention.setAttribute('data-kui', 'fade-up target:".camera-layer"')
+    const layer = authored('camera-layer z:40')
+    camera.append(mention, layer)
+
+    const inst = prepareCameraScene(camera, NO_PARAMS, stillFrameContext(camera))
+
+    expect(mention.style.transform).toBe('')
+    expect(mention.style.transformStyle).toBe('')
+    // Not `style=""` either: the scan must not have opened a ledger over it at all.
+    expect(mention.hasAttribute('style')).toBe(false)
+    expect(layer.style.transform).toContain('translate3d(0, 0, 40px)')
+
+    inst.destroy()
   })
 
   it('is not blocked by a scene between it and its layer', () => {

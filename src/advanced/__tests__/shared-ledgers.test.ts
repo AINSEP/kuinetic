@@ -15,10 +15,12 @@ import { createStyleLedger } from '../../core/owned-styles.js'
  *
  * The third is the reason this file exists rather than three cases bolted onto `ownership.test.ts`.
  * `createStyleClaim`'s `release` drops the element from this owner's claim one line *before* the
- * restore that may throw, so a ledger that blows up on the way out leaves a half-finished claim
- * rather than one that will unwind the same element twice. That is a state no controller can
- * produce on purpose and every controller can land in by accident, and it is what the
- * `if (!holding) return` guard is for on the retry.
+ * restore that may throw, so a ledger that blows up on the way out is one-shot: its entry is gone
+ * and no later owner can be the last one out of it. That makes it the sweep's job to reach every
+ * *other* element anyway, in the same call, because there is no second chance for any of them
+ * either — `createEffectInstance.destroy()` latches `isDestroyed` before it calls `opts.destroy()`,
+ * so a controller cannot be destroyed twice. A state no controller can produce on purpose and every
+ * controller can land in by accident.
  */
 
 /** A registry that records what it was asked for, so "was a ledger opened at all" is observable. */
@@ -166,39 +168,69 @@ describe('the shared per-element registry', () => {
     host.remove()
   })
 
-  it('finishes a restore that threw partway, instead of tripping over the element it already gave back', () => {
+  it('finishes the sweep past an element that threw, and reports every failure together', () => {
     const host = document.createElement('div')
-    const hostile = document.createElement('div')
+    const firstHostile = document.createElement('div')
     const ordinary = document.createElement('div')
-    document.body.append(host, hostile, ordinary)
+    const secondHostile = document.createElement('div')
+    document.body.append(host, firstHostile, ordinary, secondHostile)
 
     const ledgers = createAdvancedLedgers(host)
-    ledgers.style(hostile).set('opacity', '0.5')
+    // Written host-first, so the claim set is walked in exactly the order a controller produces:
+    // `applyStage` asks for the container before it touches anything it found.
+    ledgers.style(host).set('perspective', '900px')
+    ledgers.style(firstHostile).set('opacity', '0.5')
     ledgers.style(ordinary).set('opacity', '0.25')
+    ledgers.style(secondHostile).set('opacity', '0.75')
 
     // `createStyleLedger.restore()` ends by removing the `style` attribute it never found there.
     // Anything on the element can make that throw — a stubbed-out attribute API, an extension's
     // patched prototype, a `MutationObserver` callback that throws in the same task. What matters
-    // is only that it throws *after* the entry has been deleted, which is where the guard lives.
-    hostile.removeAttribute = (): never => {
-      throw new Error('teardown blew up')
+    // is only that it throws *after* the entry has been deleted, so the element is unrecoverable
+    // and every other element in the sweep must not be made unrecoverable with it.
+    const blowUp = (name: string) => (): never => {
+      throw new Error(`teardown blew up on ${name}`)
+    }
+    firstHostile.removeAttribute = blowUp('first')
+    secondHostile.removeAttribute = blowUp('second')
+
+    let thrown: unknown
+    try {
+      ledgers.restore()
+    } catch (error) {
+      thrown = error
     }
 
-    expect(() => ledgers.restore()).toThrow('teardown blew up')
-    // The hostile element got its markup back before the throw...
-    expect(hostile.style.opacity).toBe('')
-    // ...and its neighbour, later in the claim set, was never reached at all.
-    expect(ordinary.style.opacity).toBe('0.25')
+    // Reported, not swallowed: an element this library could not hand back is worth saying so
+    // about. Aggregated, so the first failure does not hide the second.
+    expect(thrown).toBeInstanceOf(AggregateError)
+    expect((thrown as AggregateError).message).toBe('kuinetic: 2 element(s) could not be given back')
+    expect((thrown as AggregateError).errors.map((error: Error) => error.message)).toEqual([
+      'teardown blew up on first',
+      'teardown blew up on second',
+    ])
 
-    // The retry is the case under test. It must skip the element whose entry the failed attempt
-    // already consumed — restoring that one twice would put this library's own value back as the
-    // author's — and it must still finish the ones the failure cost.
-    expect(() => ledgers.restore()).not.toThrow()
+    // The finding, in one call rather than two. Each hostile element got its properties back before
+    // its own throw, the ordinary element *between* them was reached anyway, and so was the host —
+    // released last, after everything reached through it, exactly as when nothing throws.
+    expect(firstHostile.style.opacity).toBe('')
+    expect(secondHostile.style.opacity).toBe('')
     expect(ordinary.style.opacity).toBe('')
     expect(ordinary.hasAttribute('style')).toBe(false)
+    expect(host.style.perspective).toBe('')
+    expect(host.hasAttribute('style')).toBe(false)
+
+    // Nothing is left holding a claim, so a second `restore()` is a no-op rather than a second
+    // unwind — writing this library's own values back as if they were the author's. The author
+    // value below is written *after* teardown and must survive it untouched.
+    ordinary.style.opacity = '0.9'
+    expect(() => ledgers.restore()).not.toThrow()
+    expect(ledgers.elements()).toEqual([])
+    expect(ordinary.style.opacity).toBe('0.9')
 
     host.remove()
-    hostile.remove()
+    firstHostile.remove()
     ordinary.remove()
+    secondHostile.remove()
   })
 })

@@ -185,6 +185,39 @@ describe('Advanced Modules Contracts & Verification', () => {
       await expect(inst3.finished).resolves.toBeUndefined()
     })
 
+    it('settles finished even when the teardown it wraps throws', async () => {
+      /*
+       * `destroy()` is the one call the guard makes unrepeatable: it latches `isDestroyed` before
+       * running `opts.destroy()`, on purpose — a teardown that threw partway must not be re-entered,
+       * and a later `activate()` must not resurrect a destroyed effect through ledgers that rejoin
+       * on write. So a throw used to cost the completion contract outright: the resolve sat after
+       * the call, every later `destroy()` returned at the guard, and a non-continuous instance's
+       * `finished` never settled for the life of the page.
+       *
+       * A real shape, not a hypothetical one: `createAdvancedLedgers.restore()` throws an
+       * `AggregateError` for an element it genuinely could not give back, and `CameraController`
+       * calls it from a `finally`.
+       */
+      const inst = createEffectInstance({
+        continuous: false,
+        destroy() { throw new Error('teardown blew up') },
+      })
+
+      // Watched rather than awaited, so a promise that never settles fails this in one microtask
+      // turn instead of hanging the suite until the test timeout — the whole failure mode here is
+      // "waits forever", and a test that reproduces it by waiting forever reports it badly.
+      let settled = false
+      void inst.finished.then(() => { settled = true })
+
+      // Still reported — swallowing it here would hide the failure from the only caller that can
+      // see it, and the animator's own `runQuietly` is where the decision to ignore it belongs.
+      expect(() => inst.destroy()).toThrow('teardown blew up')
+      await Promise.resolve()
+      expect(settled).toBe(true)
+      // And the latch is intact: the throw did not buy a second attempt.
+      expect(() => inst.destroy()).not.toThrow()
+    })
+
     it('inert instance resolves finished immediately and guards destroy', () => {
       let destroyCount = 0
       const inert = createInertInstance(() => { destroyCount++ })
