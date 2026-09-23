@@ -74,7 +74,7 @@
         { href: './scroll.html', label: 'Scroll', page: 'scroll.html' },
         { href: './interactive.html', label: 'Interactive', page: 'interactive.html' },
         { href: './data-hover.html', label: 'Data & Hover', page: 'data-hover.html' },
-        { href: './shaders-audio.html', label: 'Shaders & Audio', page: 'shaders-audio.html' },
+        // { href: './shaders-audio.html', label: 'Shaders & Audio', page: 'shaders-audio.html' },
         // { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
       ],
     },
