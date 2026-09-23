@@ -132,6 +132,28 @@ button, a.btn { font-family: inherit; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- header / nav ---------- */
+/* `header-hide-on-scroll` (src/effects/navigation) publishes `data-kui-hidden` on scroll-down and
+   clears it on scroll-up; the library's own rule already answers it with `translate: 0 -100%` and
+   the 220ms ease-out the preset compiles into `--kui-transition`, so neither the distance nor the
+   timing is invented here. Only the *amount* needs a rule, and only because this header is a
+   floating pill rather than a flush bar: `-100%` is exactly the pill's own height, which parks its
+   bottom edge on `top: 1rem` — 16px of pill, plus `--shadow-float` under it, still showing. The
+   extra 1.5rem clears both. Same channel the library uses (`translate`), so the transition it
+   already declared is the one that runs.
+
+   Here and not in a page's own `<style>`, for the reason the show-code chip lives here: every page
+   generates this header from `scripts/generate-nav-header.mjs`, so every page publishes the
+   attribute, and a header that means the same thing everywhere should move the same way
+   everywhere. A page that needs to differ overrides the one property that differs. */
+.site-header[data-kui-hidden='true'] { translate: 0 calc(-100% - 1.5rem); }
+
+/* ...except while the mobile menu is open. The panel and its backdrop are children of this pill,
+   so hiding it would drag an open menu off the top of the screen — and `translate` makes the pill
+   the containing block for the `position: fixed` backdrop, collapsing a full-viewport scrim into a
+   58px pill on the way out. nav.js keeps `aria-expanded` on the hamburger as the single open/closed
+   fact, so that is what this reads. */
+.site-header:has([data-nav-hamburger][aria-expanded='true'])[data-kui-hidden='true'] { translate: none; }
+
 .site-header {
   position: sticky;
   top: 1rem;

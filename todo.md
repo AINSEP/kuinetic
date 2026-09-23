@@ -8,6 +8,79 @@ library should own it. Never call something "not the library's job" without grep
 
 ---
 
+## 2026-09-08 audit fixes — UNVERIFIED IN A BROWSER, check these
+
+Four commits landed from a four-auditor review (Codex `gpt-5.6-sol` xhigh, Sonnet 5, Gemini 3.1
+Pro + 3.8 Flash via `agy`). Report: `ADS-memory/.local-artifacts/external-audit/runs/20260908-external-audit-report.md`.
+Agent logs: `.../offloads/20260908/opus-fixer-log.md`, `opus-delivery-log.md`.
+
+| commit | what |
+|---|---|
+| `47edbd8` | phase exemption unsound for keyframe-delivered states; forced-colors focus ring; `view-swap` timer leak; CSS system colours |
+| `fa72983` | `transforms.ts` was imported by committed code and never committed |
+| `44be19c` | an entrance names the trigger; `Preset.delivery` axis |
+| `8f1182b` | `capturePointer` — main now builds from a clean clone |
+
+**Every one of these was verified at the compiler and by unit tests only. Not one frame was
+rendered.** 3312 tests pass, which proves registration and compiler output, not that anything
+animates. Until the boxes below are ticked, treat "fixed" as "compiles as intended".
+
+- [ ] **Browser-verify all four commits, desktop AND 390px.** Non-negotiable per the standing rule
+      — the audience is mostly phones. Use Claude in Chrome against the dev server on 8934, never a
+      hand-rolled Playwright script.
+- [ ] **Sweep every demo page for `data-kui` pairs that now REFUSE.** 556 pairs stopped composing
+      (548 real clobbers + 8 `icon-*`/`split-flap` × `tween`). Those were silently dead before, so a
+      demo may have shipped one and looked fine. Now it warns and drops. Grep the demo `data-kui`
+      attributes, compile each through the registry, and list any that warn.
+- [ ] **`focus-ring-grow` in real forced-colors.** The fix scopes the outline to `:focus`. Confirm
+      in actual Windows High Contrast / `forced-colors: active` emulation that the ring appears on
+      focus and is GONE when unfocused — that was the bug.
+- [ ] **`view-swap delay:` teardown, for real.** Unit test asserts the timer is cleared. Confirm in
+      a page: click, destroy the animator inside the delay window, nothing flips afterwards.
+- [ ] **Rebuild `demo/kuinetic.css`.** Stale against the `forms.css` change — the dev server still
+      serves the old forced-colors rule. `npm run generate:css`. **Never `npm run build`**, it
+      corrupts tracked `demo/tailwind.css`.
+- [ ] **Sign off the no-warning decision on activation merge.** `44be19c` makes an entrance's
+      activation win silently. A warning was measured and rejected: it would fire on 4,882–6,098
+      pairs including `fade-up, lift`. Census is in the doc comment. Owner call — keep silent, or
+      warn only when both halves explicitly declare and differ?
+- [ ] **Confirm the delivery invariant actually bites.** `css-composition-invariants.test.ts`
+      claims bidirectional set equality against `src/css/*.css`. Add a fifth host-level hover
+      `animation:` rule without declaring `delivery` and confirm tests go red.
+
+### Audit findings deliberately NOT fixed — decide on each
+
+- [ ] **`::after` ownership gap.** `underline-slide`, `underline-center`, `typewriter`,
+      `redaction-reveal` paint a pseudo-element without claiming the ownership channel.
+      `test/css-composition-invariants.test.ts:80-132` calls the 7 resulting pairs "genuine, live"
+      and then asserts them as an accepted baseline. Sonnet 5 read that as a deliberate argued
+      decision; Codex and Gemini Pro both called it ship-blocking. **Genuine disagreement — needs
+      the owner.**
+- [ ] **`additiveResolution()` over-includes.** Pulls in claims excluded by gate or phase, so one
+      non-additive bystander sinks a valid rescue. Codex's case:
+      `fade-up below:md, parallax-y above:md, depth-layer above:md`. Not reproduced yet.
+- [ ] **Carousel back faces stay keyboard-focusable.** `pointer-events: none` without
+      `visibility: hidden`, so tab order reaches invisible cards. (Codex 7)
+- [ ] **`masked-label-swap` exposes both labels to AT.** The documented markup gives an accessible
+      name of "Download Get the file". (Codex 8)
+- [ ] **`view-swap` `controls:` bypasses `selectorBreadth()`**, and `attribute:` is unvalidated —
+      both throw instead of warning. (Codex 11)
+- [ ] **`[data-kui-step-offset]`'s 620ms transition** is not in `base.css`'s reduced-motion
+      whitelist. (Gemini Flash 3, unverified)
+- [ ] **`demo/index.html` at `19f5eec` references 12 uncommitted files** (`video-hero.js`,
+      `video-hero-sources.js`, 10 assets). Clean checkout 404s on the homepage. Owner's WIP —
+      commit or de-reference.
+- [ ] **`npm run lint` is red on `main`** — `test/params.test.ts` is 413 lines vs a 400 cap.
+      Pre-existing, predates this audit.
+
+**Rejected finding, recorded so it is not re-raised:** Gemini 3.1 Pro claimed the `ParamSpec`
+migration broke `motion-path anchor:50%`. False — `git show f75d5cf^` shows `anchor` was
+`type: 'keyword'` before and after; only `values:` was renamed to `keywords:`. Also: Gemini 3.8
+Flash presents paraphrased code as literal quotes. Its conclusions were sound; its evidence is not
+citable.
+
+---
+
 ## 2026-09-08 catalog review — the roll-up
 
 One session, three outside reviews (Codex 5.6 Sol, Gemini 3.8 Flash via `agy`, a Sonnet subagent),
@@ -195,6 +268,36 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
     disable it or swap it for a static frame? **Decide the composition model first** — that answer
     determines whether a non-CSS renderer can even be expressed in this grammar.
 
+24. **A 3D tier via three.js behind `kuinetic/3d` — HIGH PRIORITY, parked 2026-09-10 by owner.**
+    Deliberately not started now; `src/advanced/` had to be repaired first. Everything below is
+    measured or verified, not estimated — do not re-litigate it from memory.
+    **The gap:** the library cannot render geometry at all. `shaders.ts`'s `SharedShaderRenderer`
+    owns **one static fullscreen quad, and that is the only geometry in the entire system** — all
+    five fragment shaders draw that same quad per element via `drawElementQuad` + scissor.
+    `camera-3d.ts` is pure CSS (`translate3d`/`rotateX`/`rotateY` under `perspective` +
+    `preserve-3d`), zero WebGL.
+    **Architecture, owner's call:** a separate `kuinetic/3d` subpath export — the pattern already
+    exists (`./core`, `./effects`, `./css` ship today). three.js as an **optional peer dependency**,
+    so the package keeps its current zero-dependency posture and only an author who opts into 3D
+    installs or downloads it.
+    **three.js over OGL, decided once size stops mattering.** Measured 2026-09-10 with esbuild,
+    tree-shaking verified: OGL minimum mesh surface 15.1 KB gzip, 22.2 KB with glTF; three.js at
+    feature parity 133.2 KB gzip. Behind an opt-in entry point that 10x is acceptable — nobody
+    shipping a 3D hero blinks at it — and three.js then wins on everything else: OGL's last commit
+    was 2025-04-13 and last publish 2025-01-27 (dormant ~17 months, not archived), while three.js is
+    actively maintained with first-party glTF/DRACO/KTX2 loaders. It is also, practically, the path
+    AI assistants write correctly — raw GL plumbing is where every review round of `src/advanced/`
+    found its serious defects. **Retire the "OGL is ~29 KB minzipped" figure**; it came from a chat
+    transcript, was never measured, and is wrong.
+    **This is differentiation, not catch-up.** motionsites.ai was re-checked 2026-09-10 with a
+    genuinely foregrounded tab: zero `<canvas>`, no WebGL, no three/spline/model-viewer, no JS
+    animation library at all. Its "3D Website" category is baked AI-rendered video. Competitors fake
+    3D; nobody in view is rendering geometry.
+    **The real work is the grammar, not the renderer.** "Put an attribute on a div, get a 3D scene"
+    needs design: what is a model, a camera, a light, a material, in `data-kui` terms? Answer that
+    before writing renderer code. The composition questions in item 23 above apply here unchanged and
+    are still unanswered.
+
 ### PARAMETERISE — knobs and API shape
 
 **Five of these seven shipped 2026-09-08.**
@@ -255,6 +358,26 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 ---
 
 ## Open
+
+- [ ] **Swap the Fitim Bozar Short on `scroll.html` for `IwCxNOOB_qE`.** Owner's request,
+      2026-09-21. New video: <https://www.youtube.com/shorts/IwCxNOOB_qE>. It replaces the
+      **front face** of the opening showcase flip card, `demo/scroll.html:1537-1538`, currently
+      `4tGD1JWPqvA` — "How to Build Smooth Scrolling Animations With Claude Code and Kling — Fitim
+      Bozar". The back face (Zaid, `jOjnRf88Eic`, line 1548) stays.
+      Three edits, all on those two lines:
+      1. `data-yt-id="4tGD1JWPqvA"` → `data-yt-id="IwCxNOOB_qE"`.
+      2. The `<img src>` → `https://img.youtube.com/vi/IwCxNOOB_qE/maxresdefault.jpg`.
+      3. The `alt` → the new video's **real** title and creator, in the same `Title — Creator` shape.
+         Not known yet — look it up, do not invent it.
+      Keep `data-kui="parallax-scale from:1 scale:1.06 timeline:pin"` on the `<img>`; only the front
+      face carries it.
+      **Check before shipping:** that `maxresdefault.jpg` actually exists for this ID (some videos
+      only publish `hqdefault`, and a missing one 404s into a broken image). And do not assume the
+      thumbnail is vertical — a Short's `maxresdefault` is 1280x720 with the real frame centred and a
+      blurred copy smeared across both sides. The card's 9:16 box + `object-fit: cover` already crops
+      that correctly, so no layout change should be needed; verify in a browser, including at 390px.
+      The `videos-before-shorts` git tag is the restore point for the older *landscape* videos and is
+      unaffected by this swap.
 
 - [x] **Lifecycle phasing (fix candidate 2) — SHIPPED 2026-09-08, and it is the big one.** This
       entry originally offered two candidate fixes and asked for an owner call; phasing is the one

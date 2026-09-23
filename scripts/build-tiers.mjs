@@ -30,6 +30,12 @@
  * local showcase and CDN deploy target), exactly as `build-standalone.mjs` is, so the two stay in
  * sync without a manual copy step. The core bundles it appends to must already exist — run it after
  * the esbuild steps in `package.json`'s `build`/`build:dist`, not standalone.
+ *
+ * `demo` is the production site (kuinetic.com), not a debugging convenience, so it is minified like
+ * `dist`'s `.min.js` outputs — `package.json`'s `build` step already emits `demo/kuinetic.js.map`
+ * (`--sourcemap=linked`) alongside it, so DevTools still resolves the readable `src/` on demand.
+ * `demo` keeps its non-`.min` filenames (no page's `<script src>` changes) but is built and tailed
+ * minified; `dist` still emits both a readable and a `.min.js` variant for library consumers.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -75,9 +81,10 @@ const esbuild = (args) =>
   execFileSync('npx', ['esbuild', ...args], { stdio: 'pipe', cwd: root }).toString()
 
 /**
- * The boot, bundled to a self-contained IIFE. Built twice so a minified tier gets a minified tail
- * and a readable one gets a readable tail — a `kuinetic.js` whose last 200 lines are minified would
- * be a poor thing to hand someone debugging in a browser.
+ * The boot, bundled to a self-contained IIFE. Built twice so a minified output gets a minified tail
+ * and a readable output gets a readable tail — a minified `kuinetic.js` with 200 lines of readable
+ * boot glue appended would be an odd mix, and inconsistent with the DevTools source map that already
+ * covers the minified body. `demo`'s outputs are minified now too, so they take the minified tail.
  */
 function bootSnippet(minify) {
   const out = `${tmpDir}/boot${minify ? '.min' : ''}.js`
@@ -117,11 +124,14 @@ function appendBoot(file, snippet, call) {
 const snippets = { plain: bootSnippet(false), min: bootSnippet(true) }
 
 function emit(tier, file) {
-  const minified = file.endsWith('.min.js')
+  // `demo` is the production site: its non-`.min` filenames (`kuinetic.js`, `kuinetic.advanced.js`)
+  // are now built and tailed minified too, so `minified` tracks "build this one minified" rather
+  // than "this filename says .min.js". `dist` is unchanged: only its `.min.js` outputs are minified,
+  // and only `dist` still emits a `.min.js` file at all — `demo` never ships a second, `.min`-suffixed
+  // copy, so no page's `<script src>` needs to change.
+  const minified = file.endsWith('.min.js') || dir === 'demo'
   const path = `${root}${dir}/${file}`
-  // Only `dist` carries minified output; `demo` is the local showcase and ships the readable one,
-  // which is what `build` already does for core.
-  if (minified && dir !== 'dist') return
+  if (file.endsWith('.min.js') && dir !== 'dist') return
 
   if (tier.prebuilt) {
     if (!existsSync(path)) return

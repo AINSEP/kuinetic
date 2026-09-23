@@ -21,11 +21,17 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<!-- Inter is self-hosted (see demo/fonts.css) — no fonts.googleapis.com hop for the page font. -->
+<link rel="preload" href="./assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="./fonts.css" />
 <!-- Roboto Flex carries real wght/wdth/slnt axes. Inter (the page font) ships wght only, so
      `font-stretch` on it animates its computed value while painting nothing — the variable-font
-     cards below need a font that actually has the axes they are demonstrating. -->
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" />
+     cards below need a font that actually has the axes they are demonstrating. Only the var-font
+     cards far below the fold use it, so it is loaded non-blocking (the print/onload swap trick)
+     instead of costing every page load a second render-blocking cross-origin request; the
+     preconnects above stay, since this still needs them. -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<noscript><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" /></noscript>
 <link rel="stylesheet" href="./kuinetic.css" />
 <link rel="stylesheet" href="./system.css" />
 <script defer src="./nav.js"></script>
@@ -466,7 +472,7 @@
 
   <footer data-od-id="footer" data-footer-mount></footer>
 
-  <script src="./kuinetic.js"></script>
+  <script src="./kuinetic.js" fetchpriority="high"></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

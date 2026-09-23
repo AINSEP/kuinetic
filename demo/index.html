@@ -30,10 +30,16 @@
     document.documentElement.dataset.theme = theme || 'light'
   })()
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap" rel="stylesheet" />
+<!-- Inter is self-hosted (see demo/fonts.css) — no fonts.googleapis.com hop, so no preconnect needed. -->
+<link rel="preload" href="./assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="./fonts.css" />
 <link rel="stylesheet" href="./kuinetic.css" />
+<!-- Slide 0's poster is this page's real LCP candidate (a full-viewport video hero, painted before
+     any of the fold below it). `bg`'s <video poster> is only built once kuinetic.js has downloaded,
+     parsed and run `start()`, so without this the browser can't even discover the image until then.
+     Preloading it, plus painting it as a CSS background on #video-hero-slide-0 below, lets it paint
+     at first paint instead of waiting on the whole script round-trip. -->
+<link rel="preload" as="image" href="./assets/webdesign/midjourney-showcase-poster.jpg" fetchpriority="high" />
 <script defer src="./nav.js"></script>
 <style>
   /* Restated here, not inherited: this page does not load `system.css` (same note as the show-code
@@ -469,6 +475,13 @@
     transition: opacity 600ms ease;
   }
   .video-hero-slide.is-active { opacity: 1; pointer-events: auto; z-index: 1; }
+  /* Paints the LCP poster without waiting on kuinetic.js: `bg` (background-media.ts) writes only
+     `data-kui-background` on this host and puts its scrim on its own child layer, so it sets no
+     `background` here — this CSS rule owns that property free and clear. The `<video poster>` `bg`
+     builds once JS runs sits on top of this at the same size, so it doesn't cause a second LCP
+     paint; it's the same image already on screen, just now backed by a real <video> element. Slide
+     0 has no `data-mobile-poster`, so phones paint this same file too. */
+  #video-hero-slide-0 { background: #000 url(./assets/webdesign/midjourney-showcase-poster.jpg) center / cover no-repeat; }
 
   /* Bottom-centre, not corner-anchored — the one piece of the carousel meant to be read as a
      caption rather than a control, so it gets the middle of the stage to itself. `--accent`, not
@@ -2212,7 +2225,7 @@
       <div
         class="video-hero-slide"
         id="video-hero-slide-1"
-        aria-hidden="true"
+        inert
         data-mobile-src="./assets/webdesign/kling-dogs-cooking-mobile.mp4"
         data-mobile-poster="./assets/webdesign/kling-dogs-cooking-mobile-poster.jpg"
         data-mobile-source-url="https://kling.ai/app/ai-video/dogs-cooking-funny-moments/314630307504261"
@@ -2226,7 +2239,7 @@
       <div
         class="video-hero-slide"
         id="video-hero-slide-2"
-        aria-hidden="true"
+        inert
         data-source-url="https://x.com/jojogh_007/status/2049123558102810714/video/1"
         data-mobile-src="./assets/webdesign/kling-veiled-royalty-mobile.mp4"
         data-mobile-poster="./assets/webdesign/kling-veiled-royalty-mobile-poster.jpg"
@@ -2300,10 +2313,11 @@
                    loads off the critical path until the poster is clicked. -->
               <div class="kui-face-front" data-flip-name="Sam Crawford — The Psychology of Premium Websites">
                 <div class="video-frame" data-yt-id="f2mGqlLLqok">
-                  <!-- The largest element in the first viewport, so it is this page's LCP
-                       candidate: `eager` + `fetchpriority="high"` gets the poster painted without
-                       waiting for the observer. -->
-                  <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="eager" fetchpriority="high" />
+                  <!-- No longer the first viewport's largest element or this page's LCP candidate —
+                       the 100svh video hero above now owns that (see #video-hero-slide-0's preload
+                       and CSS background). `fetchpriority="high"` here would just compete with the
+                       real LCP resource, so this is plain `lazy` like the reference videos below. -->
+                  <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
                   <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
@@ -3297,7 +3311,7 @@ kuinetic({ observe: true }).start()</code></pre>
        hero to its portrait clips has any effect — and the only one that stops a phone downloading
        the landscape files first. See the file's own header. -->
   <script src="./video-hero-sources.js"></script>
-  <script src="./kuinetic.js"></script>
+  <script src="./kuinetic.js" fetchpriority="high"></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

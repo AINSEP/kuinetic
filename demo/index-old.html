@@ -25,6 +25,22 @@
 <link rel="stylesheet" href="./kuinetic.css" />
 <script defer src="./nav.js"></script>
 <style>
+  /* Restated here, not inherited: this page does not load `system.css` (same note as the show-code
+     chip below). The library's own `[data-kui-fx~='header-hide-on-scroll'][data-kui-hidden='true']`
+     in `navigation.css` parks the pill at `translate: 0 -100%`, which is exactly its own height —
+     and this header is a floating pill at `top: 1rem`, so -100% leaves its last 16px plus its
+     shadow on screen. Same specificity as the library's rule, and this block is after the
+     stylesheet link, so this is the one that lands. Same channel (`translate`), so the 220ms
+     ease-out the preset already declared is the transition that runs. */
+  .site-header[data-kui-hidden='true'] { translate: 0 calc(-100% - 1.5rem); }
+
+  /* ...except while the mobile menu is open. The panel and its backdrop are children of this pill,
+     so hiding it would drag an open menu off the top of the screen — and `translate` makes the pill
+     the containing block for the `position: fixed` backdrop, collapsing a full-viewport scrim into
+     a 58px pill on the way out. `nav.js` keeps `aria-expanded` on the hamburger as the single
+     open/closed fact, so that is what this reads. */
+  .site-header:has([data-nav-hamburger][aria-expanded='true'])[data-kui-hidden='true'] { translate: none; }
+
   :root,
   :root[data-theme='light'] {
     --bg: #ffffff;
@@ -629,7 +645,7 @@ figure .kui-show-code-toggle {
 </head>
 <body>
 
-  <header class="site-header" data-od-id="header" data-nav-root>
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
     <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
     <a href="#top" class="logo" aria-label="kUInetic home">
       <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>

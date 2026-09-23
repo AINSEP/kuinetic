@@ -48,11 +48,43 @@
     button.type = 'button'
     button.className = 'kui-replay-fab'
     // Grow-on-hover comes from the library's `pop` preset rather than a hand-written
-    // `transition: transform` + `:hover { transform: scale() }` pair in each page's CSS.
-    button.setAttribute('data-kui', 'pop')
+    // `transition: transform` + `:hover { transform: scale() }` pair in each page's CSS. `drag`
+    // (plain, no `bounds:`/`return:`) rides alongside it on the same attribute — `pop`'s scale and
+    // `drag`'s translate are different channels, so the two compose instead of fighting — so the
+    // fab can be pulled clear of whatever it's floating over instead of being stuck in one corner.
+    button.setAttribute('data-kui', 'pop, drag')
     button.setAttribute('aria-label', 'Replay every effect on this page')
     button.innerHTML = REPLAY_ICON
-    button.addEventListener('click', replayInPlace)
+
+    // A real press-drag-release still fires a native `click` on the same element afterward —
+    // the browser doesn't care that the pointer moved in between, only that both ends landed on
+    // this button — so without this, every drag also replayed the page. `draggable`'s own prepare
+    // writes `data-kui-dragging="true"` the moment the gesture crosses its drag threshold
+    // (`recognise()`, `core/gesture.ts`) and back to "false" on release, which lands *before* the
+    // click that follows — so latching `dragged` on the way up to `"true"` and checking it in the
+    // click handler is what tells "this click ended a drag" apart from "this click was a click".
+    let dragged = false
+    new MutationObserver(() => {
+      if (button.getAttribute('data-kui-dragging') === 'true') dragged = true
+    }).observe(button, { attributes: true, attributeFilter: ['data-kui-dragging'] })
+    button.addEventListener('click', () => {
+      if (dragged) {
+        dragged = false
+        return
+      }
+      replayInPlace()
+    })
+    // Always `<body>`, at every width. This was briefly mounted inside `.video-hero` on phones so
+    // that a `position: absolute` rule could hold it level with the hero's caption at every scroll
+    // position — which it did, and which was the wrong trade: an element inside the hero scrolls
+    // away with the hero, so the replay control was reachable only in the first screenful and
+    // absent from every section below it. A replay-everything button that is only present at the
+    // top of the page is not much of a replay-everything button.
+    //
+    // So it stays out of the document flow and pinned to the viewport instead. The cost is that it
+    // is level with the caption only at scroll 0 and floats free after that. That is inherent, not
+    // a bug to tune out: one element is anchored to the viewport and the other to the page, and no
+    // set of offsets can make those two agree at more than one scroll position.
     document.body.appendChild(button)
   }
 

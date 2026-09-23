@@ -29,3 +29,4 @@ ADS-memory/
 test/browser/baselines/
 .artifacts/visual-diff-report.html
 .vercel
+demo/kuinetic.js.map

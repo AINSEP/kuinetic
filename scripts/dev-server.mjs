@@ -22,6 +22,8 @@ const DOCS_ROOT = join(ROOT, 'docs')
 if (process.env.NODE_ENV !== 'production') {
   console.log('Starting build watchers...')
   const spawnOpts = { stdio: 'inherit', cwd: ROOT, shell: true }
+  // Intentionally unminified here, unlike package.json's `build` step: watch-mode dev is for
+  // debugging demo/kuinetic.js directly (no source map in this loop), so keep it readable.
   spawn('npx', ['esbuild', 'src/index.ts', '--bundle', '--format=iife', '--global-name=kuinetic', '--outfile=demo/kuinetic.js', '--watch=forever'], spawnOpts)
   spawn('npx', ['esbuild', 'src/css/index.css', '--bundle', '--outfile=demo/kuinetic.css', '--watch=forever'], spawnOpts)
   spawn('npx', ['@tailwindcss/cli', '-i', 'demo/tailwind-entry.css', '-o', 'demo/tailwind.css', '--watch'], spawnOpts)
