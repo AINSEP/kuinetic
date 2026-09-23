@@ -17,8 +17,10 @@ export interface CountLayers {
   /** `aria-hidden` node the ticking display writes to on every frame. */
   decorative: HTMLElement
   /**
-   * Visually-hidden twin. The caller must write this exactly once, on completion — never
-   * mid-tick — so a screen reader is told the final value and nothing in between.
+   * Visually-hidden twin. Holds the final value from the moment it is installed and never
+   * changes again — the number is content, not a status update, so there is nothing to announce
+   * mid-count (design.md §12's "no aria-live spam from counters"). The caller writes it once, at
+   * install, from the same `to`/`format` the tween itself will settle on.
    */
   srOnly: HTMLElement
   /**
@@ -31,12 +33,13 @@ export interface CountLayers {
 
 /**
  * Replace an element's content with an `aria-hidden` ticking display plus a visually-hidden twin,
- * both empty until the caller populates them, so a counter's mid-flight text is never read aloud
- * and its `aria-live` region changes exactly once.
+ * both empty until the caller populates them. The decorative layer is free to tick every frame;
+ * the SR-only twin is meant to be written once, with the counter's final value, and never touched
+ * again — a counter is content, not a live status, so it carries no `aria-live`.
  *
  * @param el - Element whose content is being taken over. Assumed to hold no meaningful children.
  * @param doc - Document to create nodes in, rather than the ambient global.
- * @returns The decorative node to tick, the SR-only node to finalize once, and a cleanup.
+ * @returns The decorative node to tick, the SR-only node to populate once, and a cleanup.
  * @complexity O(1) time and space.
  * @overallScore 100
  */
@@ -48,7 +51,6 @@ export function installCountLayers(el: Element, doc: Document): CountLayers {
 
   const srOnly = doc.createElement('span')
   srOnly.className = SR_ONLY_CLASS
-  srOnly.setAttribute('aria-live', 'polite')
 
   el.textContent = ''
   el.append(decorative, srOnly)

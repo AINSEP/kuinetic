@@ -226,7 +226,9 @@ instead. Turn warnings on with `kuinetic({ reporter: consoleReporter() })` while
 ## Text effects
 
 Text-specific primitives split, type, or scramble the content — they still read correctly to
-screen readers (see [Architecture §12](?doc=design#12-platform-considerations)).
+screen readers (see [Architecture §12](?doc=design#12-platform-considerations)). The rule behind
+that: animation may change presentation, never content. The authored HTML is canonical — a screen
+reader or a no-JS crawler reads it, unchanged, at every instant.
 
 ```html
 <span data-kui="typewriter">Typed on load.</span>
@@ -234,8 +236,27 @@ screen readers (see [Architecture §12](?doc=design#12-platform-considerations))
 
 ```live
 <span class="doc-demo-box" data-kui="typewriter" data-kui-on="load">Typed on load.</span>
-<span class="doc-demo-box">count-up: <b data-kui="count-up 1400ms to:237" data-kui-on="load">0</b></span>
+<span class="doc-demo-box">count-up: <b data-kui="count-up 1400ms to:237" data-kui-on="load">237</b></span>
 ```
+
+A few things follow from that rule:
+
+- **Author a counter with its final value, not `0`.** `count-up 1400ms to:237` counts up to 237 —
+  write `237` as the element's own text, as the example above does, not a placeholder. A visitor
+  before JS runs, and any crawler that doesn't execute it, sees exactly what you wrote; the library
+  warns when the authored number and `to:` disagree.
+- **`word-cycler` is read as whatever text you authored**, not as the words it cycles through.
+  `words:alpha|beta|gamma` names three strings to *show*; the library won't invent which one (or
+  which combination) a screen reader should hear instead, so write the sentence you want read as
+  the element's own text, separately from the words you want cycled.
+- **`split-*`, `typewriter`, and `scramble`/`decode`/`glitch` skip an element that contains a link
+  or a control** — `<a href>`, `<button>`, anything focusable — rather than flattening it out of
+  the page. Apply these to a leaf element instead, one level below the link.
+
+> **LCP note.** LCP is recorded at the first frame the element is visible. For a cloaked entrance
+> that is the moment the runtime starts plus any authored `delay:`, so the cost is the script's
+> download and start-up time, not the animation's length. Keep kuinetic.js small and early on pages
+> whose hero heading or image is cloaked, and don't give the hero a delay.
 
 ---
 

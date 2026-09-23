@@ -534,6 +534,10 @@ an iframe, a test harness, or an SSR-hydrated subtree.
   reading representation; no `aria-live` spam from counters; hidden reveal targets must not be
   focusable; hover needs focus + coarse-pointer equivalents; policies for flashing, continuous
   motion, zoom, reduced transparency. Forced colors: see §12a, now catalog-wide.
+- **Content invariant** — animation may change presentation, never content. The authored HTML is
+  the canonical text: screen readers and crawlers read it at every instant, and one-shot rewrites
+  settle back to it. Enforced catalog-wide, derived from the `content` channel rather than a
+  hand-listed set of effects, by `test/content-invariant.test.ts`.
 - **Directionality** — `slide-left` stays physically left; add logical `slide-inline-start` etc.
   Silently flipping "left" in RTL is surprising.
 - **Print** — unconditional final-state layer.

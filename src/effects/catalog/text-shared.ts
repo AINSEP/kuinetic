@@ -15,6 +15,30 @@ export type SplitUnit = 'chars' | 'words' | 'lines'
 const SR_ONLY_CLASS = 'kui-sr-only'
 const DECORATIVE_CLASS = 'kui-split-decorative'
 
+/**
+ * Selector for the elements a content-mutating text/number effect must never remove from the DOM:
+ * a link, a form control, anything focusable or already interactive. Every primitive that takes
+ * over an element's text (`installSplitLayers`, `installCountLayers`, `word-cycler`) flattens
+ * markup into plain text or a captured-and-replaced subtree, and a link caught inside that is gone
+ * from the page for as long as the effect runs — for a one-shot effect that never settles back,
+ * permanently. Losing a link costs SEO; losing a focusable control is worse, because it costs a
+ * keyboard user access to it.
+ */
+export const INTERACTIVE_DESCENDANT =
+  'a[href], button, input, select, textarea, [tabindex], [contenteditable], details, summary, iframe, audio[controls], video[controls]'
+
+/**
+ * Whether `el` contains an interactive descendant a content-mutating effect would otherwise
+ * remove or flatten.
+ *
+ * @param el - Host element the effect is about to take over.
+ * @complexity O(n) time in descendant count (native `querySelector`); O(1) space.
+ * @overallScore 100
+ */
+export function hasInteractiveDescendant(el: Element): boolean {
+  return el.querySelector(INTERACTIVE_DESCENDANT) !== null
+}
+
 export interface SplitLayers {
   /** `aria-hidden` container the caller populates with decorative markup or text. */
   decorative: HTMLElement
@@ -34,7 +58,9 @@ export interface SplitLayers {
  * screen reader ever seeing an incomplete or garbled read of the content.
  *
  * @param el - Element whose text is being taken over. Assumed to hold plain text (no children) —
- *   every DOM-surgery primitive in this module shares that constraint.
+ *   every DOM-surgery primitive in this module shares that constraint. Callers are expected to
+ *   have already checked {@link hasInteractiveDescendant} and bailed out if it is true; this
+ *   function itself does not guard, so a caller that skips the check still flattens a link.
  * @param doc - Document to create nodes in, rather than the ambient global, so callers can point
  *   this at a test document.
  * @returns The decorative layer to populate, the captured text, and a cleanup.

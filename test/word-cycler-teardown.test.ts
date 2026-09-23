@@ -91,10 +91,10 @@ describe('word-cycler teardown', () => {
     // The pending swap would have removed the fade class; finishing has to do it instead, or the
     // element is left permanently mid-fade.
     expect(el.classList.contains('kui-word-cycler-swap')).toBe(false)
-    expect(el.textContent).toBe('alpha')
+    expect(el.querySelector('.kui-split-decorative')?.textContent).toBe('alpha')
 
     vi.advanceTimersByTime(500)
-    expect(el.textContent).toBe('alpha')
+    expect(el.querySelector('.kui-split-decorative')?.textContent).toBe('alpha')
 
     instance.destroy()
   })

@@ -80,8 +80,11 @@ describe('positional timing reaches JS-rendered effects', () => {
     vi.advanceTimersByTime(199)
     expect(decorative()).not.toBe('ok')
 
+    // Past 200ms delay + 400ms resolve, the effect has finished on its own and settled back onto
+    // the authored markup — the decorative layer is gone, not just holding 'ok'.
     vi.advanceTimersByTime(401)
-    expect(decorative()).toBe('ok')
+    expect(el().querySelector('.kui-scramble')).toBeNull()
+    expect(el().textContent).toBe('ok')
   })
 
   it('feeds positional timing into the split-text stagger formula', () => {
@@ -122,12 +125,13 @@ describe('positional timing reaches JS-rendered effects', () => {
       '<span data-kui="word-cycler 0ms 300ms words:alpha|beta interval:100ms" data-kui-on="load">x</span>',
     )
     animator.start()
-    expect(el().textContent).toBe('alpha')
+    const decorative = (): string => el().querySelector('.kui-split-decorative')!.textContent ?? ''
+    expect(decorative()).toBe('alpha')
 
     vi.advanceTimersByTime(299)
-    expect(el().textContent).toBe('alpha')
+    expect(decorative()).toBe('alpha')
     vi.advanceTimersByTime(101 + 150)
-    expect(el().textContent).toBe('beta')
+    expect(decorative()).toBe('beta')
   })
 
   it('delays a counter before it starts climbing', () => {
@@ -360,7 +364,9 @@ describe('finished tells the truth for JS-rendered effects', () => {
     const instance = jsInstance(animator)
 
     instance.finish()
-    expect(el().querySelector('.kui-scramble')?.textContent).toBe('ok')
+    // finish() settles the resolve immediately, back onto the authored markup.
+    expect(el().querySelector('.kui-scramble')).toBeNull()
+    expect(el().textContent).toBe('ok')
     await expect(instance.finished).resolves.toBeUndefined()
   })
 
@@ -410,8 +416,10 @@ describe('the delay: spelling reaches JS-rendered effects', () => {
     vi.advanceTimersByTime(199)
     expect(decorative()).toBe(fromFrame)
 
+    // Past the delay plus the resolve, the effect has settled back onto the authored markup.
     vi.advanceTimersByTime(401)
-    expect(decorative()).toBe('ok')
+    expect(el().querySelector('.kui-scramble')).toBeNull()
+    expect(el().textContent).toBe('ok')
   })
 
   it('delays a word cycler with no throwaway duration token in front of it', () => {
@@ -419,14 +427,15 @@ describe('the delay: spelling reaches JS-rendered effects', () => {
       '<span data-kui="word-cycler delay:300ms words:alpha|beta interval:100ms" data-kui-on="load">x</span>',
     )
     animator.start()
-    expect(el().textContent).toBe('alpha')
+    const decorative = (): string => el().querySelector('.kui-split-decorative')!.textContent ?? ''
+    expect(decorative()).toBe('alpha')
 
     // Undelayed, the first swap lands at 100ms + the 150ms opacity crossfade.
     vi.advanceTimersByTime(299)
-    expect(el().textContent).toBe('alpha')
+    expect(decorative()).toBe('alpha')
 
     vi.advanceTimersByTime(101 + 150)
-    expect(el().textContent).toBe('beta')
+    expect(decorative()).toBe('beta')
   })
 
   it('delays a counter before it starts climbing', () => {

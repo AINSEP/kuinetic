@@ -3,9 +3,10 @@ import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../cor
 import type { PrepareContext } from '../../core/effect-context.js'
 import type { Registry } from '../../core/registry.js'
 import { deferPrepare } from '../../core/instances.js'
-import type { TimedSetup } from '../../core/instances.js'
+import type { SetupResult, TimedSetup } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
+import { hasInteractiveDescendant } from './text-shared.js'
 import {
   formatCount,
   groupDigits,
@@ -262,6 +263,43 @@ function withCountLayers(
 }
 
 /**
+ * Warn when the element's authored text doesn't carry the number this counter is about to settle
+ * on. A no-JS crawler, and a visitor in the instant before JS runs, only ever sees the authored
+ * text — if that text names a different number, or none at all, the fallback reading and the
+ * animated one permanently disagree and nothing else catches it (the repo's own
+ * docs/getting-started.md used to author `to:237">0<`, which is exactly this bug).
+ *
+ * Compared digit-only (`replace(/\D/g, '')`), not exact-string equal: `formattedTo` carries
+ * currency symbols, a `%` sign, and locale group/decimal punctuation an author's own plain-number
+ * markup never needs to reproduce — `<span data-kui="count-currency to:4820">$4,820</span>` is a
+ * match, `<span ...>4820</span>` is too. This only warns; it deliberately never reads `to` back
+ * out of the authored text (see Task 6's decision in the SEO audit plan) — that would make a
+ * preset's meaning depend on markup the compiler never validated.
+ *
+ * @param el - Host element, read before `installCountLayers`/`withCountLayers` overwrites it.
+ * @param name - Preset family name for the warning ("count" or "count-odometer").
+ * @param formattedTo - The value the counter will display/announce once it settles.
+ * @complexity O(n) time in authored text length; O(1) space.
+ * @overallScore 100
+ */
+function warnOnNumberMismatch(
+  el: Element,
+  name: string,
+  formattedTo: string,
+  ctx: PrepareContext,
+): void {
+  const authoredText = el.textContent ?? ''
+  const authoredDigits = authoredText.replace(/\D/g, '')
+  const toDigits = formattedTo.replace(/\D/g, '')
+  if (authoredDigits === toDigits) return
+  ctx.warn(
+    `${name}: authored text "${authoredText}" doesn't match the value it will count to ` +
+      `(${formattedTo}) — author the final value as the element's text so crawlers and no-JS ` +
+      `readers see it`,
+  )
+}
+
+/**
  * Tick a formatted number from `from` to `to`, powering `count-up`, `count-down`,
  * `count-currency`, `count-percent`, and `count-compact` — one primitive, four presets that only
  * differ in default parameters, the same "48 names from 4 primitives" shape as the entrance matrix.
@@ -269,7 +307,13 @@ function withCountLayers(
  * @complexity O(1) work per tick; O(1) space beyond the two accessible layers.
  * @overallScore 100
  */
-function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
+function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'count would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const doc = el.ownerDocument
   const from = params.num('from', 0)
   const to = params.num('to', 100)
@@ -284,18 +328,23 @@ function prepareCount(el: Element, params: EffectParams, ctx: PrepareContext): T
   // all, means a bad parameter is rejected while the author's children are still their own —
   // there is nothing to restore, because nothing has been taken yet.
   const fromText = formatCount(from, options)
+  const toText = formatCount(to, options)
+  // Read before `withCountLayers` below wipes `el`'s children — the authored text is only ever
+  // `el.textContent` up to that point.
+  warnOnNumberMismatch(el, 'count', toText, ctx)
 
   return withCountLayers(el, doc, (layers) => {
     layers.decorative.textContent = fromText
-    layers.srOnly.textContent = fromText
+    // The SR twin is written once, here, with the value the tween will settle on — never mid-
+    // tick. The number is content, not a status update (see `CountLayers.srOnly`'s doc comment).
+    layers.srOnly.textContent = toText
 
     const tween = tweenNumber(ctx, {
       from,
       to,
       ...tweenTimingFor(params, ctx),
-      onTick: (value, done) => {
+      onTick: (value) => {
         layers.decorative.textContent = formatCount(value, options)
-        if (done) layers.srOnly.textContent = formatCount(to, options)
       },
     })
 
@@ -353,29 +402,40 @@ function updateOdometerColumns(strips: HTMLElement[], grouped: string): void {
  * @complexity O(w) time and space in digit-string width, both to build and per tick.
  * @overallScore 100
  */
-function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
+function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'count-odometer would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const doc = el.ownerDocument
   const from = Math.max(0, params.num('from', 0))
   const to = Math.max(0, params.num('to', 100))
   const width = Math.max(String(Math.round(from)).length, String(Math.round(to)).length)
-  const toGrouped = groupDigits(paddedDigits(to, width))
   const fromGrouped = groupDigits(paddedDigits(from, width))
+  // Not zero-padded, unlike the decorative columns: the column layout needs a fixed digit width so
+  // it never reflows mid-count, but an SR announcement of "125" reading "005" would be wrong — the
+  // padding is a display detail of the rolling strips, not part of the number.
+  const toGrouped = groupDigits(String(Math.round(to)))
+  // Read before `withCountLayers` below wipes `el`'s children — the authored text is only ever
+  // `el.textContent` up to that point.
+  warnOnNumberMismatch(el, 'count-odometer', toGrouped, ctx)
 
   // Nothing between `installCountLayers` and the return below throws today — `groupDigits` and
   // `paddedDigits` are pure string ops on numbers `Math.max(0, ...)` already made finite and
   // non-negative. Going through `withCountLayers` anyway, rather than only `prepareCount`, is what
   // keeps that true by construction instead of by nobody having broken it yet.
   return withCountLayers(el, doc, (layers) => {
-    layers.srOnly.textContent = fromGrouped
+    layers.srOnly.textContent = toGrouped
     const strips = buildOdometerColumns(layers.decorative, doc, fromGrouped)
 
     const tween = tweenNumber(ctx, {
       from,
       to,
       ...tweenTimingFor(params, ctx),
-      onTick: (value, done) => {
+      onTick: (value) => {
         updateOdometerColumns(strips, groupDigits(paddedDigits(value, width)))
-        if (done) layers.srOnly.textContent = toGrouped
       },
     })
 

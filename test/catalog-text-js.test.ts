@@ -24,8 +24,12 @@ import { catalogRegistry } from './support/registry.js'
  * covers the lot through the real registered `prepare` function, the same call shape
  * `js-effect-preparer.ts` uses in production.
  */
-function fakeCtx(el: Element, win: Window & typeof globalThis = window): PrepareContext {
-  return { win, doc: win.document, style: createStyleLedger(el) } as unknown as PrepareContext
+function fakeCtx(
+  el: Element,
+  win: Window & typeof globalThis = window,
+  warn: (message: string) => void = () => {},
+): PrepareContext {
+  return { win, doc: win.document, style: createStyleLedger(el), warn } as unknown as PrepareContext
 }
 
 /** jsdom never lays anything out, so `getBoundingClientRect` is always all zeros without this. */
@@ -214,6 +218,68 @@ describe('split-chars / split-text', () => {
     expect(() => vi.advanceTimersByTime(10_000)).not.toThrow()
     vi.useRealTimers()
   })
+
+  it('settles back onto the authored markup, nested elements intact, once the reveal finishes on its own', () => {
+    vi.useFakeTimers()
+    const resolved = registry.resolve('split-chars')!
+    const el = document.createElement('p')
+    el.innerHTML = 'one <em>two</em>'
+    const authored = el.innerHTML
+    const em = el.querySelector('em')
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ unit: 'chars', direction: 'fade', duration: '100ms', stagger: '10ms' }),
+      fakeCtx(el),
+    )
+
+    instance.activate()
+    expect(el.querySelector('.kui-split-decorative')).not.toBeNull()
+
+    // Well past `splitRevealFinishMs` for this short string, so the completion timer has fired.
+    vi.advanceTimersByTime(10_000)
+
+    // One copy of the text, not two (decorative + SR-only), and the original `<em>` node back —
+    // not a re-parsed lookalike — so any listeners or identity checks on it still hold.
+    expect(el.querySelector('.kui-split-decorative')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+    expect(el.innerHTML).toBe(authored)
+    expect(el.querySelector('em')).toBe(em)
+
+    instance.destroy()
+    vi.useRealTimers()
+  })
+
+  it('re-splits correctly when activated again after finish()', async () => {
+    vi.useFakeTimers()
+    const resolved = registry.resolve('split-chars')!
+    const el = document.createElement('p')
+    el.textContent = 'hi'
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ unit: 'chars', direction: 'fade', duration: '100ms', stagger: '10ms' }),
+      fakeCtx(el),
+    )
+
+    instance.activate()
+    instance.finish()
+    expect(el.textContent).toBe('hi')
+    expect(el.querySelector('.kui-split-decorative')).toBeNull()
+
+    // `createJsInstance`'s own re-entrancy guard only clears once this instance's `finished`
+    // promise has actually settled — a microtask, not something `finish()` does synchronously
+    // (see test/instances.test.ts's `createJsInstance replay after a natural finish`) — so a
+    // real `on:hover` retrigger (a fresh browser event) always lands after that, and this test has
+    // to let the same microtasks run before the second `activate()` or it is a same-tick no-op.
+    for (let tick = 0; tick < 4; tick++) await Promise.resolve()
+
+    instance.activate()
+    expect(el.querySelectorAll('.kui-split-item')).toHaveLength(2)
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('hi')
+
+    instance.destroy()
+    expect(el.textContent).toBe('hi')
+    vi.useRealTimers()
+  })
 })
 
 describe('typewriter', () => {
@@ -298,7 +364,12 @@ describe('scramble/decode/glitch', () => {
     expect(el.querySelector('.kui-scramble')!.textContent!.charAt(0)).toBe('o')
 
     vi.advanceTimersByTime(10)
-    expect(el.querySelector('.kui-scramble')?.textContent).toBe('ok')
+    // A resolve that finishes on its own settles straight back onto the authored markup — the
+    // decorative/SR-only layers are gone the instant the last grapheme resolves, not just on
+    // destroy, so the resting DOM never carries the text twice.
+    expect(el.querySelector('.kui-scramble')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+    expect(el.textContent).toBe('ok')
 
     instance.destroy()
     expect(el.textContent).toBe('ok')
@@ -336,7 +407,9 @@ describe('scramble/decode/glitch', () => {
     instance.activate()
     vi.advanceTimersByTime(20)
 
-    expect(el.querySelector('.kui-scramble')?.textContent).toBe('ok')
+    // The second run resolves fully and settles back onto the authored markup.
+    expect(el.querySelector('.kui-scramble')).toBeNull()
+    expect(el.textContent).toBe('ok')
     expect(el.style.minWidth).toBe('')
     expect(el.style.minHeight).toBe('')
   })
@@ -348,6 +421,52 @@ describe('scramble/decode/glitch', () => {
     vi.advanceTimersByTime(10)
     instance.cancel()
     expect(el.style.minWidth).toBe('10rem')
+  })
+
+  it('settles back onto the authored markup, nested elements intact, once the resolve finishes on its own', () => {
+    const el = document.createElement('p')
+    el.innerHTML = 'one <em>two</em>'
+    const authored = el.innerHTML
+    const em = el.querySelector('em')
+    stubRect(el, { width: 42, height: 21 })
+    const instance = registry.resolve('scramble')!.primitive.prepare!(
+      el,
+      createParams({ step: '10ms', revealEvery: '1', charset: 'upper' }),
+      fakeCtx(el),
+    )
+
+    instance.activate()
+    vi.advanceTimersByTime(10_000)
+
+    // One copy of the text, not two, and the original `<em>` node back — not a re-parsed
+    // lookalike.
+    expect(el.querySelector('.kui-scramble')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+    expect(el.innerHTML).toBe(authored)
+    expect(el.querySelector('em')).toBe(em)
+
+    instance.destroy()
+  })
+
+  it('re-scrambles correctly when activated again after finish()', async () => {
+    const { el, instance } = startScramble()
+
+    instance.activate()
+    instance.finish()
+    expect(el.textContent).toBe('ok')
+    expect(el.querySelector('.kui-scramble')).toBeNull()
+
+    // `createJsInstance`'s re-entrancy guard only clears once `finished` actually settles, a
+    // microtask `finish()` schedules but does not complete synchronously — see the equivalent
+    // wait in the split-chars replay test just above.
+    for (let tick = 0; tick < 4; tick++) await Promise.resolve()
+
+    // A replay starts from the settled authored text, not from a stranded pair of layers.
+    instance.activate()
+    expect(el.querySelector('.kui-scramble')).not.toBeNull()
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('ok')
+
+    instance.destroy()
   })
 })
 
@@ -364,15 +483,28 @@ describe('word-cycler', () => {
       createParams({ words: 'alpha|beta', interval: '1000ms' }),
       fakeCtx(el),
     )
+    const decorative = (): string => el.querySelector('.kui-split-decorative')!.textContent ?? ''
+    const srOnly = (): string => el.querySelector('.kui-sr-only')!.textContent ?? ''
 
     instance.activate()
-    expect(el.textContent).toBe('alpha')
+    // The decorative layer cycles; the SR-only twin holds the authored text throughout — the
+    // library does not invent a canonical reading of a multi-word list, so the one text a no-JS
+    // crawler and a screen reader see is the one the author actually wrote.
+    expect(decorative()).toBe('alpha')
+    expect(srOnly()).toBe('placeholder')
 
     vi.advanceTimersByTime(1000 + 150)
-    expect(el.textContent).toBe('beta')
+    expect(decorative()).toBe('beta')
+    expect(srOnly()).toBe('placeholder')
+
+    vi.advanceTimersByTime(1000 + 150)
+    expect(decorative()).toBe('alpha')
+    expect(srOnly()).toBe('placeholder')
 
     instance.destroy()
     expect(el.textContent).toBe('placeholder')
+    expect(el.querySelector('.kui-split-decorative')).toBeNull()
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
   })
 
   it('is a harmless no-op when no words were authored at all', () => {
@@ -410,12 +542,13 @@ describe('word-cycler', () => {
       createParams({ words: 'alone', interval: '1000ms' }),
       fakeCtx(el),
     )
+    const decorative = (): string => el.querySelector('.kui-split-decorative')!.textContent ?? ''
 
     instance.activate()
-    expect(el.textContent).toBe('alone')
+    expect(decorative()).toBe('alone')
 
     vi.advanceTimersByTime(1000 + 150)
-    expect(el.textContent).toBe('alone')
+    expect(decorative()).toBe('alone')
     expect(el.classList.contains('kui-word-cycler-swap')).toBe(false)
 
     instance.destroy()
@@ -511,10 +644,53 @@ describe('destroy() restores the authored subtree, not merely its text', () => {
       fakeCtx(el),
     )
     instance.activate()
-    expect(el.textContent).toBe('alpha')
+    expect(el.querySelector('.kui-split-decorative')?.textContent).toBe('alpha')
+    // The SR-only twin holds the authored subtree's text ("placeholder"), not a cycled word —
+    // the same reason `<em>placeholder</em>` is what comes back on destroy.
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('placeholder')
 
     instance.destroy()
     expect(el.innerHTML).toBe(authored)
     vi.useRealTimers()
+  })
+})
+
+/**
+ * A content-mutating effect on a host that has a link or control inside it would otherwise
+ * flatten that markup into plain text (split/typewriter/scramble) or replace it outright
+ * (word-cycler) — removing the link from the DOM and taking a keyboard user's focus target with
+ * it. The guard skips the effect entirely and warns once, leaving the authored markup untouched.
+ */
+describe('interactive descendants', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it.each([
+    'split-chars',
+    'split-words',
+    'text-reveal-up',
+    'text-wave',
+    'typewriter',
+    'scramble',
+    'word-cycler',
+  ])('%s skips a host with an interactive descendant, and warns once', (name) => {
+    const el = document.createElement('p')
+    el.innerHTML = 'Try <a href="/x">pricing</a>'
+    const authored = el.innerHTML
+    const link = el.querySelector('a')
+
+    const warn = vi.fn()
+    const resolved = registry.resolve(name)!
+    const instance = resolved.primitive.prepare!(el, createParams({}), fakeCtx(el, window, warn))
+
+    instance.activate()
+    vi.advanceTimersByTime(5000)
+
+    expect(el.querySelector('a')).toBe(link)
+    expect(el.innerHTML).toBe(authored)
+    expect(warn).toHaveBeenCalledTimes(1)
+
+    instance.destroy()
+    expect(el.innerHTML).toBe(authored)
   })
 })

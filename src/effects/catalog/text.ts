@@ -2,7 +2,7 @@ import { CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
-import type { SetupResult, TimedSetup } from '../../core/instances.js'
+import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
 import {
@@ -11,6 +11,7 @@ import {
   appendCharSpans,
   appendSpansFor,
   createStepRunner,
+  hasInteractiveDescendant,
   installSplitLayers,
   nextTypeState,
   scrambledFrame,
@@ -21,7 +22,6 @@ import {
   varAxisVariant,
 } from './text-shared.js'
 import type { SplitUnit, TypeState } from './text-shared.js'
-import { captureChildren } from './subtree-capture.js'
 
 /**
  * Text and typography effects (catalog section D).
@@ -304,7 +304,13 @@ const wordCyclerParams: ParameterSchema = {
  * @complexity O(n) time and space in text length, dominated by the chosen unit's segmentation.
  * @overallScore 100
  */
-function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
+function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'split-text would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const doc = el.ownerDocument
   const unit = params.text('unit', 'chars') as SplitUnit
   const direction = params.text('direction', 'fade')
@@ -319,16 +325,26 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
   const finished = new Promise<void>((resolve) => {
     settle = resolve
   })
-  const timer = ctx.win.setTimeout(settle, splitRevealFinishMs(params, items.length))
+  // Restoring here, not only from `cleanup`, is what keeps the duplicated decorative/SR-only text
+  // (see `installSplitLayers`) off the page's *resting* DOM: a one-shot reveal that finishes on
+  // its own puts the authored markup straight back — one copy of the text, links and all — rather
+  // than leaving two permanently-duplicated layers behind for the rest of the page's life.
+  const timer = ctx.win.setTimeout(() => {
+    layers.restore()
+    settle()
+  }, splitRevealFinishMs(params, items.length))
 
   return {
     cleanup: () => {
       ctx.win.clearTimeout(timer)
+      // Idempotent: `captureChildren`'s restore is `replaceChildren(...sameNodes)`
+      // (subtree-capture.ts), so calling it again after the timer above already ran is a no-op.
       layers.restore()
     },
     finished,
     finish: () => {
       ctx.win.clearTimeout(timer)
+      layers.restore()
       settle()
     },
   }
@@ -340,7 +356,13 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
  * @complexity O(n) time and space in grapheme count.
  * @overallScore 100
  */
-function prepareSplitMotion(el: Element, params: EffectParams): Cleanup {
+function prepareSplitMotion(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'split-text-motion would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const doc = el.ownerDocument
   const motion = params.text('motion', 'wave')
   const layers = installSplitLayers(el, doc)
@@ -362,7 +384,13 @@ function prepareSplitMotion(el: Element, params: EffectParams): Cleanup {
  * @complexity O(1) time per tick; O(n) space for the retained grapheme array.
  * @overallScore 100
  */
-function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
+function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'typewriter would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const loop = params.is('loop')
   const layers = installSplitLayers(el, el.ownerDocument)
   layers.decorative.classList.add('kui-typewriter')
@@ -407,7 +435,13 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
  * @complexity O(n) time per tick in grapheme count; O(n) space for the retained array.
  * @overallScore 100
  */
-function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext): TimedSetup {
+function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'scramble-text would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   // `charset` is a closed `keyword` param (`scrambleParams` below) validated against exactly
   // `SCRAMBLE_CHARSETS`'s three keys before this ever runs, so the lookup always hits.
   const charset = SCRAMBLE_CHARSETS[params.text('charset', 'upper')]!
@@ -470,8 +504,14 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
       render()
       const done = resolved >= graphemes.length
       // Released on the same tick that paints the real text, so the box is never unpinned while a
-      // random-width frame is still on screen.
-      if (done) releaseSizeLock()
+      // random-width frame is still on screen. Restoring right after is what keeps the resolved
+      // text from sitting permanently duplicated across the decorative and SR-only layers (see
+      // `installSplitLayers`): a scramble that resolves on its own settles back onto the authored
+      // markup — one copy of the text, nested elements intact — the instant it is done.
+      if (done) {
+        releaseSizeLock()
+        layers.restore()
+      }
       return done
     },
   })
@@ -479,6 +519,8 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
   return {
     cleanup: () => {
       run.stop()
+      // Idempotent: `captureChildren`'s restore is `replaceChildren(...sameNodes)`
+      // (subtree-capture.ts), so calling it again after the tick above already ran is a no-op.
       layers.restore()
       // Also here, not only on the completion tick: `cancel()` and `destroy()` reach this and
       // nothing else, and the ledger's own unwind runs a level up in `Animator.release()` — so a
@@ -495,6 +537,7 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
       resolved = graphemes.length
       render()
       releaseSizeLock()
+      layers.restore()
     },
   }
 }
@@ -503,9 +546,15 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
  * Cycle an element's text through an author-supplied `|`-separated word list on a timer, with a
  * brief opacity swap between words.
  *
- * Real words throughout, never decorative garbage, so this does not need the two-layer
- * accessible-split pattern the other content-mutating effects use — whatever text is present at
- * any instant is already valid, readable content.
+ * Uses the same accessible two-layer pattern as `split-text`/`typewriter`/`scramble-text`, even
+ * though every cycled word is real, readable text on its own. The reason is not the decorative
+ * layer's content — it is what the *SR-only* layer holds. The library does not get to invent the
+ * canonical reading of an element whose text changes over time: `words:alpha|beta|gamma` names
+ * three strings, not one, and there is no rule for collapsing them into a single sentence a screen
+ * reader or a no-JS crawler should read instead. The one text this function was never told to
+ * discard is the text the author actually wrote on the element — so that is what the SR-only twin
+ * holds, unchanged, for the effect's entire life, and it is also the one string that a JS-blind
+ * crawler already sees in the raw HTML. Cycling only ever touches the decorative layer.
  *
  * Cycling has no natural end, so — like `typewriter-loop` — its `finished` never settles on its
  * own; it only resolves once the caller cancels or destroys it, the same contract an
@@ -518,6 +567,12 @@ function prepareScramble(el: Element, params: EffectParams, ctx: PrepareContext)
  * @overallScore 100
  */
 function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (hasInteractiveDescendant(el)) {
+    ctx.warn(
+      'word-cycler would remove the link or control inside this element — apply it to a leaf element instead',
+    )
+    return () => {}
+  }
   const words = params
     .text('words', '')
     .split('|')
@@ -525,18 +580,18 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
     .filter(Boolean)
   if (words.length === 0) return () => {}
 
-  const restoreChildren = captureChildren(el)
+  const layers = installSplitLayers(el, el.ownerDocument)
   const swapMs = 150
   let index = 0
   // The `words.length === 0` guard just above means `words` is non-empty here.
-  el.textContent = words[0]!
+  layers.decorative.textContent = words[0]!
 
   /*
    * Each tick fades the word out and swaps it `swapMs` later, and that second half has to be
    * cancellable. `run.stop()` only reaches the interval; the swap is a separate timeout that
-   * writes `el.textContent`, so one left queued past `cleanup()` fired *after* `restoreChildren()`
-   * had handed the author's own children back and replaced them with a cycling word — for up to
-   * 150ms the element looked torn down, and then it silently wasn't.
+   * writes `layers.decorative.textContent`, so one left queued past `cleanup()` fired *after*
+   * `layers.restore()` had handed the author's own children back and replaced them with a cycling
+   * word — for up to 150ms the element looked torn down, and then it silently wasn't.
    *
    * A set rather than one handle, because `interval:` is author-controlled and nothing stops it
    * being shorter than the swap window: at `interval:100ms` a second tick fires while the first
@@ -562,7 +617,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
         pendingSwaps.delete(handle)
         index = (index + 1) % words.length
         // Modulo by `words.length` (always >= 1, per the guard above) keeps `index` in bounds.
-        el.textContent = words[index]!
+        layers.decorative.textContent = words[index]!
         el.classList.remove('kui-word-cycler-swap')
       }, swapMs)
       pendingSwaps.add(handle)
@@ -575,7 +630,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
       run.stop()
       cancelPendingSwaps()
       el.classList.remove('kui-word-cycler-swap')
-      restoreChildren()
+      layers.restore()
     },
     finished: run.finished,
     finish: () => {
@@ -590,16 +645,19 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
 }
 
 export const TEXT_JS_PRIMITIVES: Primitive[] = [
-  jsTextPrimitive('split-text', [CHANNEL.opacity, CHANNEL.translate, CHANNEL.clip], {
+  // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
+  jsTextPrimitive('split-text', [CHANNEL.opacity, CHANNEL.translate, CHANNEL.clip, 'content'], {
     parameters: splitTiming,
     prepare: deferPrepare(prepareSplitText),
   }),
-  jsTextPrimitive('split-text-motion', [CHANNEL.translate, CHANNEL.rotate], {
+  // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
+  jsTextPrimitive('split-text-motion', [CHANNEL.translate, CHANNEL.rotate, 'content'], {
     parameters: motionParams,
     prepare: deferPrepare(prepareSplitMotion),
     perfClass: 'continuous',
   }),
-  jsTextPrimitive('typewriter', [CHANNEL.clip], {
+  // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
+  jsTextPrimitive('typewriter', [CHANNEL.clip, 'content'], {
     parameters: typewriterParams,
     prepare: deferPrepare(prepareTypewriter),
     perfClass: 'continuous',

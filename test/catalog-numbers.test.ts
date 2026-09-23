@@ -32,8 +32,8 @@ function registry(): Registry {
 }
 
 /** JS-tier count/odometer primitives only read `win` off `ctx`, same as the text-tier primitives. */
-function fakeCtx(reducedMotion = false): PrepareContext {
-  return { win: window, doc: window.document, reducedMotion } as unknown as PrepareContext
+function fakeCtx(reducedMotion = false, warn: (message: string) => void = () => {}): PrepareContext {
+  return { win: window, doc: window.document, reducedMotion, warn } as unknown as PrepareContext
 }
 
 describe('numbers catalog registration', () => {
@@ -53,7 +53,7 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('ticks an aria-hidden display and finalizes an SR-only twin exactly once, on completion', () => {
+  it('holds the final value in the SR-only twin from the first frame, and never announces', () => {
     const resolved = registry().resolve('count-up')!
     const el = document.createElement('span')
     const instance = resolved.primitive.prepare!(
@@ -66,13 +66,14 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     const decorative = el.querySelector('.kui-count-decorative')!
     expect(decorative.getAttribute('aria-hidden')).toBe('true')
     const srOnly = el.querySelector('.kui-sr-only')!
-    expect(srOnly.textContent).toBe('0')
+    expect(srOnly.textContent).toBe('10')
+    expect(srOnly.hasAttribute('aria-live')).toBe(false)
 
     vi.advanceTimersByTime(48) // partway through a 100ms ramp
     expect(decorative.textContent).not.toBe('0')
     expect(decorative.textContent).not.toBe('10')
-    // The SR-only layer must not move mid-count — only the decorative layer ticks.
-    expect(srOnly.textContent).toBe('0')
+    // The SR-only layer must not move mid-count — it already holds the final value.
+    expect(srOnly.textContent).toBe('10')
 
     vi.advanceTimersByTime(100)
     expect(decorative.textContent).toBe('10')
@@ -88,13 +89,18 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
     const resolved = registry().resolve('count-up')!
     const el = document.createElement('span')
     el.textContent = '42'
+    const warn = vi.fn()
 
     const instance = resolved.primitive.prepare!(
       el,
       createParams({ from: '0', to: '100', duration: '100ms' }),
-      fakeCtx(),
+      fakeCtx(false, warn),
     )
     instance.activate()
+    // "42" doesn't carry "100" — Task 6's reconciliation warns about exactly this mismatch, once,
+    // at activation, without changing what the counter does.
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toContain('100')
     vi.advanceTimersByTime(200)
     expect(el.querySelector('.kui-count-decorative')?.textContent).toBe('100')
 
@@ -193,6 +199,10 @@ describe('count-up / count-down / count-currency / count-percent / count-compact
       win: {},
       doc: window.document,
       reducedMotion: false,
+      // A real `PrepareContext.warn` is required, not optional — `warnOnNumberMismatch` (Task 6)
+      // calls it before this reaches the timer-dependent code this test means to exercise, and a
+      // missing `warn` would throw there instead, for the wrong reason.
+      warn: () => {},
     } as unknown as PrepareContext
 
     const instance = resolved.primitive.prepare!(
@@ -254,7 +264,9 @@ describe('odometer-roll', () => {
     instance.activate()
     const columns = el.querySelectorAll('.kui-odometer-col')
     expect(columns).toHaveLength(3) // "125" is the wider of "0" and "125" at 3 digits
-    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('000')
+    // The SR twin holds the final value from install, unpadded — the fixed column width is a
+    // display detail of the rolling strips, not part of the announced number.
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('125')
 
     vi.advanceTimersByTime(80)
     const strips = el.querySelectorAll('.kui-odometer-strip')
@@ -266,6 +278,23 @@ describe('odometer-roll', () => {
     // Authored empty, so it comes back empty — the rolled total belongs to the library, not the
     // author, and teardown hands the element back.
     expect(el.textContent).toBe('')
+  })
+
+  it('announces the SR twin unpadded even when the rolling columns are zero-padded', () => {
+    const resolved = registry().resolve('odometer-roll')!
+    const el = document.createElement('span')
+    const instance = resolved.primitive.prepare!(
+      el,
+      createParams({ from: '100', to: '5', duration: '80ms' }),
+      fakeCtx(),
+    )
+
+    instance.activate()
+    // "100" is wider than "5", so the columns are 3-digit-padded ("005"), but the announced value
+    // is the plain number.
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('5')
+
+    instance.destroy()
   })
 
   it('puts back the authored fallback content on destroy', () => {
@@ -300,6 +329,120 @@ describe('odometer-roll', () => {
     expect(el.querySelectorAll('.kui-odometer-col')).toHaveLength(4)
     expect(el.textContent).toContain(',')
   })
+})
+
+describe('authored number reconciliation', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('warns once when the authored text does not carry the value count-up will settle on', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    el.textContent = '42'
+    const warn = vi.fn()
+
+    resolved.primitive
+      .prepare!(el, createParams({ from: '0', to: '100', duration: '100ms' }), fakeCtx(false, warn))
+      .activate()
+
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toContain('100')
+  })
+
+  it('does not warn when the authored text already carries the counted-to value', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    el.textContent = '10'
+    const warn = vi.fn()
+
+    resolved.primitive
+      .prepare!(el, createParams({ from: '0', to: '10', duration: '100ms' }), fakeCtx(false, warn))
+      .activate()
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('warns when the host has no authored number at all', () => {
+    const resolved = registry().resolve('count-up')!
+    const el = document.createElement('span')
+    const warn = vi.fn()
+
+    resolved.primitive
+      .prepare!(el, createParams({ from: '0', to: '10', duration: '100ms' }), fakeCtx(false, warn))
+      .activate()
+
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('compares digit-only, so currency punctuation the author already matched does not itself warn', () => {
+    const resolved = registry().resolve('count-currency')!
+    const el = document.createElement('span')
+    el.textContent = '$4,820'
+    const warn = vi.fn()
+
+    resolved.primitive
+      .prepare!(
+        el,
+        createParams({ from: '0', to: '4820', format: 'currency', currency: 'USD', decimals: '0' }),
+        fakeCtx(false, warn),
+      )
+      .activate()
+
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('odometer-roll warns on a mismatch and stays silent on a match', () => {
+    const resolved = registry().resolve('odometer-roll')!
+
+    const mismatchWarn = vi.fn()
+    const mismatchEl = document.createElement('span')
+    mismatchEl.textContent = '42'
+    resolved.primitive
+      .prepare!(mismatchEl, createParams({ from: '0', to: '125', duration: '80ms' }), fakeCtx(false, mismatchWarn))
+      .activate()
+    expect(mismatchWarn).toHaveBeenCalledTimes(1)
+
+    const matchWarn = vi.fn()
+    const matchEl = document.createElement('span')
+    matchEl.textContent = '125'
+    resolved.primitive
+      .prepare!(matchEl, createParams({ from: '0', to: '125', duration: '80ms' }), fakeCtx(false, matchWarn))
+      .activate()
+    expect(matchWarn).not.toHaveBeenCalled()
+  })
+})
+
+describe('interactive descendants', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it.each(['count-up', 'odometer-roll'])(
+    '%s skips a host with an interactive descendant, and warns once',
+    (name) => {
+      const el = document.createElement('span')
+      el.innerHTML = '<a href="/x">42</a>'
+      const authored = el.innerHTML
+      const link = el.querySelector('a')
+
+      const warn = vi.fn()
+      const resolved = registry().resolve(name)!
+      const instance = resolved.primitive.prepare!(
+        el,
+        createParams({ from: '0', to: '100', duration: '100ms' }),
+        fakeCtx(false, warn),
+      )
+
+      instance.activate()
+      vi.advanceTimersByTime(200)
+
+      expect(el.querySelector('a')).toBe(link)
+      expect(el.innerHTML).toBe(authored)
+      expect(warn).toHaveBeenCalledTimes(1)
+
+      instance.destroy()
+      expect(el.innerHTML).toBe(authored)
+    },
+  )
 })
 
 describe('numbers pure math', () => {
