@@ -8,10 +8,6 @@ import type { Registry } from './registry.js'
  * can legitimately contain one. An author who forgets the quotes (`target:'.a, .b'`) gets a stray
  * segment named `.a` that is not a registered effect and looks exactly like a selector — this
  * module finds that shape and 9b's diagnostics surface it via `data-kui-unmatched`.
- *
- * SKELETON STUB (§1): `findUnquotedSelectors` always returns `[]`, so `compileTargets`'s call site
- * is a no-op and no `data-kui` value is parsed any differently than HEAD parses it today. Real
- * bodies land with 9b — see `target-phases-2-9.md`.
  */
 
 /** One stray segment that looks like a continuation of the previous segment's `target:` selector. */
@@ -20,6 +16,21 @@ export interface UnquotedSelector {
   previous: string
   /** The stray segment's name — the text between commas that isn't a registered effect. */
   segment: string
+}
+
+/** A bare segment name starting with a class/id/attribute/universal/pseudo selector marker. */
+const SELECTOR_START = /^[.#[*:]/
+/** A bare segment name containing a combinator — only ever legal inside a selector. */
+const SELECTOR_COMBINATOR = /[>~+]/
+
+/**
+ * True when `name` — a segment's first token, i.e. what would be its effect name — instead looks
+ * like a fragment of a CSS selector: it opens with a class/id/attribute/universal/pseudo marker,
+ * or contains a combinator. Neither shape is a legal effect name, so either is evidence the
+ * segment is really the tail of the previous segment's unquoted `target:` selector.
+ */
+function looksLikeSelectorFragment(name: string): boolean {
+  return SELECTOR_START.test(name) || SELECTOR_COMBINATOR.test(name)
 }
 
 /**
@@ -32,17 +43,34 @@ export interface UnquotedSelector {
  * compiled — the fix is a warning, not a silent re-join, because re-joining would have to guess
  * where the selector was supposed to end.
  *
- * @param specs - The document's parsed effect segments, in authored order.
+ * Known limitation: only catches a stray segment whose *first token* looks like a selector.
+ * `pop target:.a, li > a` splits into a stray segment `li > a` whose first token is `li` — a
+ * plausible effect name — so it is not flagged, even though `>` later in the segment is still a
+ * combinator. Detecting that shape would mean scanning every segment for a `target:`-less
+ * combinator, not just the one right after a `target:`-bearing segment, which is out of scope
+ * here: this pass only looks at the segment immediately following one that carries `target:`.
+ *
+ * @param specs - The document's parsed effect segments, in authored order. Pre-lift: `target:`
+ *   still lives in `spec.params.target` rather than having been pulled onto a separate field.
  * @param registry - Where a segment's first token is looked up to decide if it names a real
  *   effect.
  * @returns Every suspect segment found, in authored order.
- * STUB: always `[]`.
- * @complexity O(1) time and space.
+ * @complexity O(n) time in `specs.length`, each iteration doing an O(1) registry lookup; O(f)
+ *   space in the number of findings.
  * @overallScore 100
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub: params unused until 9b fills this in
 export function findUnquotedSelectors(specs: EffectSpec[], registry: Registry): UnquotedSelector[] {
-  return []
+  const found: UnquotedSelector[] = []
+  // `specs.entries()` rather than an index loop: `noUncheckedIndexedAccess` still makes
+  // `specs[i - 1]` possibly-`undefined`, so that lookup keeps its own guard below, but `spec`
+  // itself comes typed straight off the iterator instead of a second unchecked index read.
+  for (const [i, spec] of specs.entries()) {
+    // `specs[-1]` is undefined, so the first segment falls out through the optional chain.
+    const target = specs[i - 1]?.params.target
+    if (!target || registry.has(spec.name) || !looksLikeSelectorFragment(spec.name)) continue
+    found.push({ previous: target, segment: spec.name })
+  }
+  return found
 }
 
 /**
@@ -50,11 +78,13 @@ export function findUnquotedSelectors(specs: EffectSpec[], registry: Registry): 
  * quote the previous segment's selector so the whole comma list is one `target:` value.
  *
  * @param found - One finding from {@link findUnquotedSelectors}.
- * STUB: `''` — never called while `findUnquotedSelectors` returns `[]`.
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- stub: param unused until 9b fills this in
 export function unquotedSelectorWarning(found: UnquotedSelector): string {
-  return ''
+  return (
+    `target:${found.previous} looks like it continues into "${found.segment}", but a comma ` +
+    `always starts a new effect segment — a target: selector containing a comma must be quoted, ` +
+    `e.g. target:'${found.previous}, ${found.segment}'`
+  )
 }
