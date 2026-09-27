@@ -1,5 +1,92 @@
 /* Phase 7b — icon-toggle-family structural parts (`data-kui-part="bar"`) for a host with no
  * authored `.kui-bar` children.
- * SKELETON STUB (§1): empty — svg.css's existing icon-toggle rules are unchanged until 7b lands. */
+ *
+ * `icon-parts.ts`'s `withIconParts` stamps `data-kui-part="bar"` on a host's positional bars only
+ * when it finds no `.kui-bar` inside it — so every rule below is `svg.css`'s matching `.kui-bar`
+ * rule with the class swapped for the attribute, nothing else. The two are meant to be
+ * indistinguishable to an author who never sees which one fired; `test/icon-parts.test.ts` derives
+ * this file's expectations straight from `svg.css` so the two cannot drift apart unnoticed.
+ *
+ * `:nth-child(N)` becomes `:nth-child(N of [data-kui-part='bar'])`: a class selector only ever
+ * matches classed siblings, so `.kui-bar:nth-child(1)` already counts positions among *just* the
+ * bars. An attribute selector has no such filter built in — a bare `:nth-child(1)` counts every
+ * sibling, bar or not — so the `of` form restates the same "among the bars" scoping explicitly.
+ */
 @layer kui.effects {
+  [data-kui-fx~='hamburger-to-x'] [data-kui-part='bar'] {
+    transition:
+      translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      opacity var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] [data-kui-part='bar'] {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] [data-kui-part='bar']:nth-child(1 of [data-kui-part='bar']) {
+    translate: 0 var(--kui-bar-gap, 6px);
+    rotate: 45deg;
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] [data-kui-part='bar']:nth-child(2 of [data-kui-part='bar']) {
+    opacity: 0;
+  }
+
+  [data-kui-fx~='hamburger-to-x'][aria-expanded='true'] [data-kui-part='bar']:nth-child(3 of [data-kui-part='bar']) {
+    translate: 0 calc(var(--kui-bar-gap, 6px) * -1);
+    rotate: -45deg;
+  }
+
+  [data-kui-fx~='play-to-pause'] [data-kui-part='bar'] {
+    transition:
+      translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      clip-path var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) [data-kui-part='bar'] {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) [data-kui-part='bar']:nth-child(1 of [data-kui-part='bar']) {
+    translate: var(--kui-bar-gap, 4px) 0;
+    clip-path: polygon(0 0, 100% 25%, 100% 75%, 0 100%);
+  }
+
+  [data-kui-fx~='play-to-pause']:not([aria-pressed='true']) [data-kui-part='bar']:nth-child(2 of [data-kui-part='bar']) {
+    translate: calc(var(--kui-bar-gap, 4px) * -1) 0;
+    clip-path: polygon(0 25%, 100% 50%, 100% 50%, 0 75%);
+  }
+
+  [data-kui-fx~='plus-to-minus'] [data-kui-part='bar'] {
+    transition: scale var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+
+  [data-kui-fx~='plus-to-minus'] [data-kui-part='bar']:nth-child(2 of [data-kui-part='bar']) {
+    rotate: 90deg;
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] [data-kui-part='bar'] {
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
+  }
+
+  [data-kui-fx~='plus-to-minus'][aria-expanded='true'] [data-kui-part='bar']:nth-child(1 of [data-kui-part='bar']) {
+    scale: 0;
+  }
+}
+
+/* Reduced motion twin of base.css's `kui.policy` block (~L417-419): those three entries only
+ * reach an authored `.kui-bar`, so a positional host stamped `data-kui-part="bar"` needs its own
+ * copy of the same shortening or its bars would animate at full speed under
+ * `prefers-reduced-motion: reduce` while every classed sibling shortens to 1ms. Same body, same
+ * reasoning — see that block's comment for why 1ms rather than `transition: none`. */
+@layer kui.policy {
+  @media (prefers-reduced-motion: reduce) {
+    [data-kui-rm][data-kui-fx~='hamburger-to-x'] [data-kui-part='bar'],
+    [data-kui-rm][data-kui-fx~='play-to-pause'] [data-kui-part='bar'],
+    [data-kui-rm][data-kui-fx~='plus-to-minus'] [data-kui-part='bar'] {
+      transition-duration: 1ms !important;
+      transition-delay: 0ms !important;
+    }
+  }
 }
