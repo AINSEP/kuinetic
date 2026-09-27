@@ -1,0 +1,124 @@
+/*
+ * Showcase widgets — hand-written CSS, `@layer kui.effects`, same layer every other effect
+ * stylesheet uses. Kept out of `src/css/*.css` and `test/support/css-sources.ts`'s SOURCES on
+ * purpose — see `device-frame.ts`'s note on `requiresOwnSubtree` for why, and
+ * `test/showcase-device-frame.test.ts` for how this file is checked instead.
+ *
+ * Comments here stay terse: this ships inside `dist/kuinetic.css`, which `.size-limit.json` caps
+ * unminified, so a long comment here costs the same real brotli bytes a long comment in
+ * `src/css/*.css` would (see D2 in the showcase plan).
+ */
+@layer kui.effects {
+  /* device-frame: keyed on `data-kui-device`, the kind `device-frame.ts` stamps — never on
+     `[data-kui-fx~='device-frame']`, because no shipped browser can branch a rule on a custom
+     property's *value*. */
+  [data-kui-device] {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--kui-device-color, #111) 55%, transparent);
+    border-radius: var(--kui-device-radius, 18px);
+    padding: 14px;
+    background: var(--kui-device-color, #111);
+  }
+
+  [data-kui-device] > img,
+  [data-kui-device] > video {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  /* Browser: a top bar deep enough for three traffic-light dots, drawn as background-images so a
+     screen reader never meets three empty circles. */
+  [data-kui-device='browser'] {
+    padding: 30px 14px 14px;
+    border-radius: var(--kui-device-radius, 10px);
+  }
+
+  [data-kui-device='browser']::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-start: 15px;
+    inline-size: 44px;
+    block-size: 10px;
+    background-image:
+      radial-gradient(circle, #ff5f57 0 45%, transparent 46%),
+      radial-gradient(circle, #febc2e 0 45%, transparent 46%),
+      radial-gradient(circle, #28c840 0 45%, transparent 46%);
+    background-size: 10px 10px;
+    background-position: 0 0, 17px 0, 34px 0;
+    background-repeat: no-repeat;
+  }
+
+  /* Phone: a tall narrow bezel; a notch/dynamic-island cut from the top edge. */
+  [data-kui-device='phone'] {
+    padding: 16px 8px;
+    border-radius: var(--kui-device-radius, 36px);
+    aspect-ratio: 9 / 19.5;
+    max-inline-size: 20rem;
+    margin-inline: auto;
+  }
+
+  [data-kui-device='phone']::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 38%;
+    block-size: 16px;
+    background-image: radial-gradient(circle, #000 0 100%);
+    background-size: 100% 100%;
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* Tablet: the same bezel language, a squarer aspect-ratio, no notch. */
+  [data-kui-device='tablet'] {
+    padding: 18px;
+    border-radius: var(--kui-device-radius, 22px);
+    aspect-ratio: 3 / 4;
+    max-inline-size: 28rem;
+    margin-inline: auto;
+  }
+
+  /* Laptop: a thin screen bezel over a deep base strip standing in for the keyboard deck/hinge. */
+  [data-kui-device='laptop'] {
+    padding: 10px 10px 34px;
+    border-radius: var(--kui-device-radius, 12px) var(--kui-device-radius, 12px) 4px 4px;
+    aspect-ratio: 16 / 10;
+  }
+
+  [data-kui-device='laptop']::after {
+    content: '';
+    position: absolute;
+    inset-block-end: 14px;
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 15%;
+    block-size: 6px;
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--kui-device-color, #111) 55%, #fff) 0 100%
+    );
+    background-size: 100% 100%;
+    border-radius: 3px;
+  }
+
+  /* §12a: the bezel is structural (border, remapped by the UA); the dots/notch are decoration. */
+  @media (forced-colors: active) {
+    [data-kui-device] {
+      border-color: CanvasText;
+      background: Canvas;
+    }
+
+    [data-kui-device='browser']::before,
+    [data-kui-device='phone']::after,
+    [data-kui-device='laptop']::after {
+      background-image: none;
+    }
+  }
+}

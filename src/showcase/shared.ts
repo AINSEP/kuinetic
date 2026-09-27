@@ -32,29 +32,29 @@ import type { Channel, ParameterSchema, PerfClass, Primitive } from '../core/typ
  * `src/effects/navigation/index.ts`'s `navPrimitive` already uses for its own small family.
  *
  * @param id - Primitive id, also the preset name for every showcase widget shipped so far.
- * @param channels - CSS property groups this widget's CSS claims — see `core/channels.ts`.
- * @param parameters - The widget's parameter schema.
- * @param perfClass - This widget's honest performance-budget class.
+ * @param spec - The three fields every widget answers differently: `channels` (CSS property
+ *   groups this widget's CSS claims, see `core/channels.ts`), `parameters` (the widget's parameter
+ *   schema), and `perfClass` (this widget's honest performance-budget class). Grouped into one
+ *   object rather than three positional params so this factory stays under the four-parameter
+ *   lint ceiling (`eslint.config.js`'s `max-params`) alongside `prepare`.
  * @param prepare - Fully wrapped setup: `withTimingContract(...)`-and/or-`deferPrepare(...)`.
  * @returns A complete `Primitive`.
  * @complexity O(1) time and space.
  */
 export function widgetPrimitive(
   id: string,
-  channels: Channel[],
-  parameters: ParameterSchema,
-  perfClass: PerfClass,
+  spec: { channels: Channel[]; parameters: ParameterSchema; perfClass: PerfClass },
   prepare: NonNullable<Primitive['prepare']>,
 ): Primitive {
   return {
     id,
     renderer: 'javascript',
-    channels,
-    parameters,
+    channels: spec.channels,
+    parameters: spec.parameters,
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
-    perfClass,
+    perfClass: spec.perfClass,
     reducedMotion: 'shorten',
     prepare,
   }

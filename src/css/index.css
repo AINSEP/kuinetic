@@ -23,3 +23,7 @@
    `@layer kui.effects`, so source order decides, and the glass hairline is the one an author who
    wrote `glass` is asking to see. */
 @import './glass.css';
+/* The showcase module: pre-built presentation widgets, not effects — see docs/design.md §14's
+   amendment. Its own generated presets, then its hand-written CSS, last of all. */
+@import '../showcase/presets.generated.css';
+@import '../showcase/showcase.css';

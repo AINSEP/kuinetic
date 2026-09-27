@@ -378,6 +378,24 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * before adding this entry, the same discipline the `background`/`layout` entries above record.
    */
   discrete: ['display', 'overlay'],
+  /**
+   * `device-frame`'s (`src/showcase/`) only channel-tracked writes: the bezel `border` +
+   * `border-radius` + `padding`, and `aspect-ratio` on the phone/tablet/laptop kinds. Not asserted
+   * by this file's own static-rule scan today — `src/showcase/showcase.css` is outside
+   * `test/support/css-sources.ts`'s `SOURCES`, checked instead by `test/showcase-device-frame.test.ts`
+   * — but declared here anyway so a channel this map does not yet police still reads as an
+   * intentional set rather than an absent one, matching `sweep`/`content`'s own reasoning above.
+   */
+  frame: ['border', 'border-radius', 'padding', 'aspect-ratio'],
+  /**
+   * The showcase module's ownership token for "this widget builds and manages state a page did
+   * not already have" (a dialog, an active slide, which note is open) — nothing on this list
+   * paints a physical CSS property on the *host*, so an empty array is the honest answer, the same
+   * reasoning `sweep`/`pseudo-before`/`proximity` above give for theirs. `device-frame` does not
+   * use it; declared ahead of Phase 2's `lightbox`/`compare`/`hotspots`/`slideshow`/`scroll-story`,
+   * which will.
+   */
+  widget: [],
 }
 
 /**

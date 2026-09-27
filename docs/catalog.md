@@ -28,6 +28,7 @@ here that is not a named effect at all: it is how you animate something the cata
 - **Renderer** — `css` (keyframes only) · `waapi` · `js` (per-frame) · `prep` (JS DOM surgery, then CSS)
 - **Channels** — properties the effect owns, for composition-conflict detection:
   `o` opacity · `t` translate · `s` scale · `r` rotate · `f` filter · `c` clip/mask · `x` other
+  (`x` also covers section T's showcase-only `frame`/`widget` channels)
 - Effects with **disjoint** channels compose in one comma list; collisions warn.
 
 ---
@@ -1376,6 +1377,41 @@ of, not something it does.
 
 ---
 
+## T. Showcase — 1 name
+
+The first name in `src/showcase/`, a separate module and the one place this library owns UI
+*behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
+components almost every marketing page reaches for. See [design.md §14](?doc=design#14-scope)'s
+amendment for the boundary this section operates under. It ships inside `kuinetic.js` today; the
+seam that lets it become its own `<script>` tag later is an internal detail this doc does not
+need to track.
+
+`device-frame`
+
+> **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
+> video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
+> structural markup beyond the one wrapper, nothing else built.
+>
+> ```html
+> <div data-kui="device-frame kind:phone color:#2a2a2a">
+>   <img src="app.png" alt="App home screen">
+> </div>
+> ```
+>
+> **Params:** `kind:` (`browser` default, or `phone`/`tablet`/`laptop`), `color:` (bezel colour,
+> default `#111`), `radius:` (screen corner radius; each kind has its own CSS default).
+>
+> **All the chrome is CSS.** The one thing JavaScript does is stamp `data-kui-device="<kind>"`,
+> because a stylesheet cannot branch on a custom property's *value* — every visible pixel of the
+> bezel, the browser tab-bar dots, and the phone notch is drawn from that attribute alone.
+>
+> **No timing tokens**, refused by name: it writes its attribute once, synchronously, on
+> activation, so `device-frame 400ms` warns rather than silently doing nothing.
+>
+> **No-JS:** the wrapped media renders bare and unframed. Nothing is ever hidden.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -1399,6 +1435,7 @@ of, not something it does.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
+| T Showcase | 1 |
 | Generic tween | 2 |
 | **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |
