@@ -1426,7 +1426,7 @@ seam that lets it become its own `<script>` tag later is an internal detail this
 need to track.
 
 `device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
-`carousel-fade` · `carousel-slide` · `video-hero-slideshow`
+`carousel-fade` · `carousel-slide` · `video-hero-slideshow` · `scroll-story`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
 > video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
@@ -1534,6 +1534,31 @@ need to track.
 > visitors start paused; a user pause stays in effect until they press Play.
 >
 > **No-JS:** Slides remain a plain visible list in document order, with no inserted controls.
+
+> **Sticky scrollytelling (`scroll-story`).** Pairs a sticky media column with scrolling text steps.
+> As each step reaches the viewport reference line, the active step index synchronises to both the
+> step and media groups (`data-kui-step-state="active"`), crossfading media and playing videos with
+> authored `autoplay` or `loop`. On narrow screens, the media forms a sticky top band while steps
+> scroll beneath.
+>
+> ```html
+> <section data-kui="scroll-story" aria-label="How it works">
+>   <div>
+>     <img src="1.png" alt="Step 1">
+>     <img src="2.png" alt="Step 2">
+>   </div>
+>   <ol>
+>     <li><h3>Connect</h3><p>…</p></li>
+>     <li><h3>Configure</h3><p>…</p></li>
+>   </ol>
+> </section>
+> ```
+>
+> **Params:** `target:` selects media items (default `:scope > :first-child > *`), `sections:` selects text steps (default `:scope > :last-child > *`), `offset-top:` sets the activation line (default `50vh`), `side:` sets the wide-screen media column (`end` default, or `start`).
+>
+> **Reduced motion:** Crossfade completes in 1ms; video autoplay is disabled.
+>
+> **No-JS:** Media and step list render in document order, fully readable with nothing hidden.
 
 ---
 

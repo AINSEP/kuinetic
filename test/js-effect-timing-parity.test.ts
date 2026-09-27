@@ -462,6 +462,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   'horizontal-track': 'scroll position',
   'media-scrub': 'scroll position',
   'scroll-spy': 'scroll position',
+  'scroll-story': 'scroll position',
   'scroll-snap': 'scroll position; it configures native snapping rather than animating',
   'smooth-scroll': 'it sets `scroll-behavior` and animates nothing itself',
   'header-shrink': 'scroll position',
