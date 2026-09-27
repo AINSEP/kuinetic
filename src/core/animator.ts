@@ -569,10 +569,16 @@ export class Animator {
     this.process(el)
   }
 
+  /** Route a document with any non-empty-selector group through the derived-host path; `true`
+   *  when it did (a derived install's own `document` never carries one, so this cannot recurse). */
+  private installedAsHost(request: InstallRequest): boolean {
+    if (!request.document.targets.some((t) => t.selector !== '')) return false
+    installWithTargets(this.port, request)
+    return true
+  }
+
   private install(request: InstallRequest): void {
-    // A non-empty-selector group installs through the derived-host path instead (a derived
-    // install's own `document` never carries one, so this cannot recurse).
-    if (request.document.targets.some((t) => t.selector !== '') && installWithTargets(this.port, request)) return
+    if (this.installedAsHost(request)) return
 
     const { el, fingerprint, parsed, config, document } = request
 

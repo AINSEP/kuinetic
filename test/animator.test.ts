@@ -321,7 +321,10 @@ describe('Animator — target: retargeting', () => {
     expect(host.hasAttribute(ATTR.normalized)).toBe(false)
     expect(h2.getAttribute(ATTR.normalized)).toBe('fade-up')
     expect(h2.hasAttribute(ATTR.rm)).toBe(true)
-    expect(h2.hasAttribute(ATTR.state)).toBe(false)
+    // D6 reversed, target-everywhere 2a: a derived match installs through the ordinary install
+    // path (its own InstanceState), so it carries its own data-kui-state now — only the host's
+    // own untargeted segment (none here) would have left it host-only.
+    expect(h2.getAttribute(ATTR.state)).toBe('ready')
   })
 
   it('writes the compiled declarations onto the match, not the host', () => {
@@ -351,6 +354,7 @@ describe('Animator — target: retargeting', () => {
     expect(h2.hasAttribute(ATTR.rm)).toBe(false)
     expect(h2.style.length).toBe(0)
     expect(h2.hasAttribute('style')).toBe(false)
+    expect(h2.hasAttribute(ATTR.state)).toBe(false)
   })
 
   it('numbers --kui-i across the matched set, in document order', () => {
