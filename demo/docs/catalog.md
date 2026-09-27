@@ -234,13 +234,19 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > spelling as the pinning family though not the same shared token — the per-section form above is
 > unchanged and still wants `distance:` and one attribute per section.
 >
-> These four are `target:`'s original home, but the parameter is not limited to them: **any effect
-> in the catalog** may be retargeted — `fade-up target:h1` animates the `h1`, not the element the
-> attribute is written on — with `scope:page` to search the whole document instead of just this
-> element's descendants. See [Animating a different element](getting-started.md#animating-a-different-element--target-and-scope)
+> `scrollytelling-step`, `scroll-spy`, and `sequence-scrub`/`video-scrub` are three of `target:`'s
+> nine original homes — primitives that read the parameter themselves rather than having it lifted
+> off them — but the parameter is not limited to them: **any effect in the catalog** may be
+> retargeted — `fade-up target:h1` animates the `h1`, not the element the attribute is written on —
+> with `scope:page` to search the whole document instead of just this element's descendants. A
+> retargeted effect installs on each match as if it carried the attribute itself (its own trigger,
+> its own lifecycle), which these nine don't: they still resolve `target:` inside their own
+> `prepare` and stamp their own state contract (`data-kui-step-state` above) rather than becoming a
+> derived host. See [Animating a different element](getting-started.md#animating-a-different-element--target-and-scope)
 > for the general grammar, the effects that refuse retargeting because their CSS reaches past
-> themselves, and the one limitation shared by every use of `target:` here and below: it is resolved
-> once, when the host is first processed, not kept live against later DOM insertions.
+> themselves, the collision and grouping rules, and `target:`'s one remaining limitation: a
+> `scope:page` group, or any group without `observe: true` running, still resolves once when the
+> host is first processed rather than staying live against later DOM insertions.
 
 > **`sequence-scrub target:` — prefer authored frames over a `src:` pattern.**
 >
@@ -364,6 +370,18 @@ Primitives 15, 16. All CSS except the two morphs.
 >
 > `--kui-bar-gap` is how far an outer bar travels to meet the centre. Set it to match your own
 > bar spacing.
+>
+> **The `.kui-bar` classes are optional too**, the same positional fallback `flip-card` gets: a
+> host with none of its own gets `data-kui-part="bar"` stamped on its bars instead — the children
+> of a lone `<svg>` (its `line`/`rect`/`path`/`polyline`/`circle` elements), or, for plain markup,
+> every direct child that carries no text of its own (a label span is left alone). Either shape
+> works with zero classes:
+>
+> ```html
+> <button data-kui="hamburger-to-x" aria-expanded="false" aria-label="Menu">
+>   <span></span><span></span><span></span>
+> </button>
+> ```
 
 > **`logo-build`** goes on the *parts* of a mark, with `data-kui-stagger` on their wrapper. That
 > stagger is what makes it a build rather than one more scale-in.
@@ -875,6 +893,26 @@ Primitives 14, 22, 38.
 > Faces are matched by class, not by position, so the control can sit anywhere in the source order.
 > Keep it outside both faces: a button on the front face rotates away with it and stops being
 > clickable the moment you use it once.
+>
+> **The classes are optional.** A card with no `.kui-face-front`/`-back`/`.kui-flip-control` still
+> works: the library stamps `data-kui-part` on the same structure positionally instead — the first
+> two non-button direct children become the faces, and an authored `button[aria-pressed]` (any
+> class, or none) becomes the control. Write the shortest version you actually need:
+>
+> ```html
+> <div data-kui="flip-card">
+>   <div>Front</div>
+>   <div>Back</div>
+> </div>
+> ```
+>
+> **No control at all, and the library injects one** — `<button type="button" class="kui-flip-control"
+> aria-pressed="false">Flip card</button>`, appended as the card's last child and wired to toggle
+> its own `aria-pressed` on click, cleaned up (removed, listener detached) on teardown. For the
+> three hover triggers, the injected button starts visually hidden and only appears on
+> `:focus-visible` — hover already has a pointer path in, so the injected control exists purely as
+> the keyboard fallback and stays out of the way otherwise. A card that authors its own control,
+> classed or positional, is never touched by any of this.
 
 > **`trigger:` — four ways in, and the only part of `flip-card` that runs JavaScript.**
 >

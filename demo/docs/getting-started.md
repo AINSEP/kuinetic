@@ -479,10 +479,36 @@ hold the attribute:
 ```
 
 Only the `h1` moves. `header` never does — it just carries the instruction. Any effect can be
-retargeted this way, not only the handful (`scroll-progress`, `scroll-spy`, `sequence-scrub`,
-`step-progress`, and friends — catalog sections O/P) that already used `target:` for their own
-reasons before this existed; those six still read it themselves and are unaffected by anything
-below.
+retargeted this way, not only the nine primitives that already read `target:` for their own
+reasons before this existed — `scroll-progress`, `scroll-spy`, `scroll-snap`, `horizontal-track`,
+and `media-scrub` (catalog section C), `step-progress` (section O), `spatial-ring` (section N, the
+`carousel-3d` family), and `audio-source`/`model-3d` (the advanced and 3D tiers) — those nine still
+read it themselves and are unaffected by anything below.
+
+**Each match animates as if it carried the attribute itself.** `fade-up target:li` on a list gives
+every `<li>` its own trigger, its own `data-kui-state`, its own lifecycle events — not one shared
+animation relocated onto twenty elements. `on:`, `timeline:`, `threshold:`, `actions:`, and the
+stagger keys (`cascade:`/`spread:`/`order:`/`cols:`/`along:`) written *in the targeted segment*
+belong to that segment alone; the same keys written in an untargeted segment on the same element
+stay element-wide and are inherited by every target group that doesn't override them. `rm:` and
+`func:` are always element-wide — one reduced-motion policy, one callback, whichever segment they're
+written in. So a composition like this compiles the way it reads — one flip on the card, a
+scroll-driven scale on the video only, a separate pop on the play button:
+
+```html
+<div data-kui="flip-card trigger:hover, parallax-scale target:video timeline:view, pop target:.yt-play scale:1.08">
+```
+
+`timeline:view` belongs to the `video` segment alone; it never has to agree with `flip-card`'s own
+(unrelated) timeline, because the two no longer share one compiled plan.
+
+**A host with no untargeted segment has nothing of its own to run**, so its `data-kui-state`
+mirrors its matches' instead: `running` the moment any of them starts, `finished` once every one
+has settled — and it dispatches its own `kui:start`/`kui:finish` exactly once each, so you can
+listen on the host instead of on every match individually. A host that *does* keep an untargeted
+segment (`flip-card` above) keeps its own independent lifecycle, unaffected by its targets. Either
+way, an event that fires on a match still bubbles and still carries `event.detail.host`, pointing
+back at the element that authored it, alongside the usual `effects`/`activation`/`timeline`/`reason`.
 
 **`target:` always means "search inside myself"** — the element carrying the attribute, by
 default. Add `scope:page` to search the whole document instead, for the case where what should
@@ -493,35 +519,83 @@ animate genuinely lives somewhere else on the page:
 ```
 
 Quote a selector containing spaces or commas, the same escape every other selector-taking
-parameter in this library uses — `target:.stops > li` would otherwise parse `> li` as two stray
-tokens.
+parameter in this library uses — `target:.stops > li` would otherwise parse `> li` as a second,
+stray effect segment. Forgetting the quotes on a selector that opens with a class/id/attribute/
+universal/pseudo marker (`.`/`#`/`[`/`*`/`:`) or a combinator is common enough that the library
+recognizes the shape and warns by name — `pop target:.a, .b` reports that `.b` looks like it
+continues the previous `target:` and should be quoted (`target:'.a, .b'`). It only catches a stray
+segment whose *first token* looks like a selector, though: `pop target:.a, li > a` splits into a
+stray `li > a` whose first word (`li`) reads as a perfectly plausible effect name, so that shape
+still fails silently — when in doubt, quote it.
 
-Three things worth knowing:
+Collisions are resolved in this order:
 
-- **A selector matching `<html>`/`<body>`, or one that does not parse, is refused with a warning**
-  rather than stamping the whole document. So is a selector that simply matches nothing — check the
-  console.
-- **A handful of effects cannot be retargeted at all**, because their CSS assumes a child or
-  sibling exists right next to the element it animates — `card-flip-x`, `hamburger-to-x`,
-  `label-float`, and a dozen more in that shape. `target:` on one of these is dropped with a
-  warning and the effect runs on the host as if you had not written it, rather than compiling to
-  something that silently animates nothing.
-- **Matching more than one element stamps and animates every one of them.** `fade-up target:li` on
-  a list fades every `<li>` in — each independently, in document order, with `--kui-i` numbered the
-  same way a `data-kui-stagger` group's children are (see the next section), so pairing it with
-  `data-kui-stagger="90ms"` on the same host staggers the set.
+- **A match that is the host itself is skipped and warned** — mostly a `scope:page` concern, where
+  a broad selector can resolve to include the element carrying the attribute.
+- **A match that already carries its own `data-kui` is skipped and warned.** An authored element
+  always animates itself; a `target:` group never overrides it.
+- **A match already claimed by another `target:` host is skipped and warned** — whichever host's
+  scan reached it first keeps it. A match claimed by *two of the same host's own groups* is not a
+  collision: it installs once, compiled from the union of both groups' effects, so a conflict
+  between them is caught exactly as it would be in a hand-written comma list on that element.
 
-**`target:` is resolved once, when the element is first processed — not kept live.** An element
-matching the selector that is inserted afterwards is not picked up automatically, even with
-`observe: true` watching the page for new `data-kui` attributes — that only catches a *new* host,
-not a late arrival for an existing one's `target:`. If your page inserts matching content later,
-re-run the two steps that install effects by hand on your animator instance (the `kui` from
+**A selector that matches nothing doesn't fail silently.** Past the console warning
+(`consoleReporter()`), the host itself carries `data-kui-unmatched="<selector>, <selector>"` —
+every group selector (and any unquoted-selector warning from above) that came back empty — so you
+can find the miss by inspecting the element, no reporter required. It's removed the moment every
+group finds at least one match.
+
+**Grouping matches for one staggered reveal.** Add `cascade:`, `spread:`, or `order:` to the
+targeted segment (or leave it element-wide) and the whole group binds *once*, on the host, instead
+of once per match:
+
+```html
+<ul data-kui="fade-up target:li distance:14px cascade:90ms">
+  <li>…</li>
+  <li>…</li>
+  <li>…</li>
+</ul>
+```
+
+One `IntersectionObserver` on the `<ul>` starts every `<li>` in document order, each delayed by its
+own `--kui-i × 90ms` — the classic list reveal, the same shape a `data-kui-stagger` group on plain
+children already gives you (see the next section). `cols:`/`along:` alone don't group a target — a
+column count or an axis has nothing to order without `cascade:`/`spread:`/`order:` alongside it, so
+`target:li cols:3` with no other stagger key still fires each `<li>` independently. A one-shot
+trigger (`on:enter`) only starts members still at rest; a toggle (`click`, `hover`) reaches every
+member on every firing, finished or not. **v1 limitation:** a grouped target only wires the two-way
+activate/deactivate — [`actions:`'s four-way crossing](#the-four-crossings--actions) doesn't
+cross-bind to the group yet.
+
+**Late-inserted matches are picked up automatically, but only under `observe: true` and only for
+the default `scope:self`.** Append a new `<li>` to a live `target:li` host and it gets its own
+derived state, numbered correctly into the existing `--kui-i` sequence, without restarting anything
+already running — every other sibling's instance and index are untouched. A `scope:page` group
+still resolves once, same as before this existed. Without `observe: true`, or for a `scope:page`
+group, re-run the two steps that install effects by hand instead (the `kui` from
 [Controlling a running animation](#controlling-a-running-animation) below):
 
 ```js
 kui.reset(headerEl)
 kui.process(headerEl)
 ```
+
+Two more things worth knowing:
+
+- **A selector matching `<html>`/`<body>`, or one that does not parse, is refused with a warning**
+  rather than stamping the whole document.
+- **A handful of effects cannot be retargeted at all**, because their CSS assumes a child or
+  sibling exists right next to the element it animates — `card-flip-x`, `hamburger-to-x`,
+  `label-float`, and a dozen more in that shape. `target:` on one of these is dropped with a
+  warning and the effect runs on the host as if you had not written it, rather than compiling to
+  something that silently animates nothing.
+- **Nesting two 3D-establishing effects warns, it doesn't block.** A derived match running
+  `card-flip-y`/`cube-rotate`/`flip-card` and similar inside a host or ancestor that's *also*
+  running one gets a console warning — `preserve-3d`/`perspective` contexts don't compose when
+  nested — rather than a silently broken flip. And a `cloak: true` preset retargeted with
+  `scope:page` warns too: the pre-JS cloak only hides descendants of the element carrying
+  `data-kui`, so a page-scope match outside that subtree flashes unstyled before the library ever
+  runs; use `scope:self`, or drop the cloaked preset from that group.
 
 ---
 
