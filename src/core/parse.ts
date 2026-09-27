@@ -4,7 +4,14 @@ import type { EffectGate, GateDirection } from './breakpoints.js'
 import { springTokenProblems } from './easing.js'
 import { applyPlayback, isPlaybackKey } from './repeat.js'
 import { validateToggleActions } from './toggle-actions.js'
-import type { Activation, EffectSpec, ParsedValue, ReducedMotionPolicy } from './types.js'
+import { SEGMENT_HOIST_KEYS } from './types.js'
+import type {
+  Activation,
+  EffectSpec,
+  ParsedValue,
+  ReducedMotionPolicy,
+  SegmentHoists,
+} from './types.js'
 
 /**
  * Grammar — ours, deliberately NOT "the CSS animation shorthand" (see docs/design.md §3):
@@ -17,7 +24,11 @@ import type { Activation, EffectSpec, ParsedValue, ReducedMotionPolicy } from '.
  *
  * Some `key:value` keys are reserved and never reach a primitive's parameters:
  * `on`/`actions`/`timeline`/`threshold`/`cascade`/`spread`/`order`/`cols`/`along`/`rm`/`func` are
- * hoisted element-wide (see `HOISTS`);
+ * hoisted element-wide (see `HOISTS`) — except that a segment carrying a `target:` token routes
+ * all but `rm`/`func` into that segment's own `spec.hoists` instead, since `parse.ts` cannot yet
+ * know whether the segment's primitive declares its own `target` parameter; `compile.ts`'s
+ * `scopeHoists` folds a declaring/unknown name's hoists back to element-wide (see `types.ts`'s
+ * `SegmentHoists`);
  * `at:` is lifted onto the spec as a relative position, which `core/sequence.ts` owns;
  * `above:`/`below:`/`wide:`/`narrow:` are lifted onto the spec as a gate — viewport for the first
  * pair, container for the second — which `core/breakpoints.ts` owns; and `repeat:`/`yoyo:` are
@@ -291,13 +302,89 @@ function parseSegment(segment: string, result: ParsedValue): EffectSpec | null {
   const spec: EffectSpec = { name, params: {} }
   let timeCount = 0
 
+  // A targeted segment cannot yet know whether its primitive declares its own `target` parameter
+  // (that is only known once `compile.ts` has the registry) — so a segment carrying a `target:`
+  // token provisionally routes its hoists into a scratch sink instead of straight onto the
+  // element-wide `result`. `compile.ts`'s `scopeHoists` folds them back to element-wide for a
+  // declaring primitive or an unknown name, where there is no group to scope them to (D-B).
+  const sink: ParsedValue | null = hasTargetToken(tokens) ? { specs: [], warnings: [] } : null
+
   for (const raw of tokens) {
     const token = classify(raw)
     if (token.kind === 'time') timeCount = applyTime(spec, token.value, timeCount, result.warnings)
-    else applyToken(token, spec, segment, result)
+    else applyToken(token, spec, { segment, result, sink })
   }
+
+  attachSegmentHoists(spec, sink, result)
   return spec
 }
+
+/**
+ * Fold a targeted segment's scratch sink (see `parseSegment`) onto `spec.hoists`, once every token
+ * has been applied. Split out of `parseSegment` itself so that function's own cognitive complexity
+ * stays under the project's ceiling — this is a tail, not a branch anything else in that function
+ * depends on.
+ *
+ * A no-op when the segment carried no `target:` token (`sink` is `null`) or when it did but wrote
+ * none of the nine scopable hoists (`collectHoists` returns `undefined`) — a segment like `fade-up
+ * target:li distance:14px` must not grow an all-`undefined` `spec.hoists`.
+ *
+ * @complexity O(k) time in the nine hoist keys; O(1) space.
+ * @overallScore 100
+ */
+function attachSegmentHoists(spec: EffectSpec, sink: ParsedValue | null, result: ParsedValue): void {
+  if (!sink) return
+  // Validation warnings raised while writing into the sink (e.g. `validateActivation`'s problems
+  // for `on:`) must still surface on the real `result` — only the *value* is scoped.
+  result.warnings.push(...sink.warnings)
+  const hoists = collectHoists(sink)
+  if (hoists) spec.hoists = hoists
+}
+
+/** Whether any of a segment's tokens (after the effect name has been shifted off) is `target:…`. */
+function hasTargetToken(tokens: string[]): boolean {
+  return tokens.some((t) => splitPair(t)?.[0] === 'target')
+}
+
+/**
+ * Collect whichever of {@link SEGMENT_HOIST_KEYS} the sink actually received.
+ *
+ * Returns `undefined` rather than an all-`undefined` object when nothing was written — a segment
+ * that carries `target:` but no scoped hoist (`fade-up target:li distance:14px`) must not grow a
+ * `spec.hoists` at all.
+ *
+ * @complexity O(k) time/space in the fixed key count (9).
+ * @overallScore 100
+ */
+function collectHoists(sink: ParsedValue): SegmentHoists | undefined {
+  const hoists: Partial<SegmentHoists> = {}
+  let any = false
+  for (const key of SEGMENT_HOIST_KEYS) {
+    const value = sink[key]
+    if (value === undefined) continue
+    hoists[key] = value as never
+    any = true
+  }
+  return any ? (hoists as SegmentHoists) : undefined
+}
+
+/**
+ * Surface token words from {@link HOISTS} that scope to a targeted segment's group instead of
+ * folding element-wide, when the segment carries a `target:` token — see {@link SegmentHoists}.
+ * `rm`/`func` are excluded on purpose (D-B.3): one element has one reduced-motion policy and one
+ * completion callback, whatever it targets.
+ */
+const SEGMENT_SCOPABLE_HOISTS: ReadonlySet<string> = new Set([
+  'on',
+  'actions',
+  'timeline',
+  'threshold',
+  'cascade',
+  'spread',
+  'order',
+  'cols',
+  'along',
+])
 
 /**
  * The two hoists that are legitimately the *whole* attribute.
@@ -367,12 +454,8 @@ function applyTime(spec: EffectSpec, value: string, seen: number, warnings: stri
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function applyToken(
-  token: NonTimeToken,
-  spec: EffectSpec,
-  segment: string,
-  result: ParsedValue,
-): void {
+function applyToken(token: NonTimeToken, spec: EffectSpec, context: GateContext): void {
+  const { segment, result, sink } = context
   if (token.kind === 'easing') {
     applyEasing(token.value, spec, segment, result)
     return
@@ -384,14 +467,18 @@ function applyToken(
     return
   }
 
-  if (applyLifted(token.key, token.value, spec, { segment, result })) return
+  if (applyLifted(token.key, token.value, spec, context)) return
 
   // `Object.hasOwn`, not `HOISTS[token.key]` truthiness: a plain object's lookup falls through to
   // `Object.prototype`, so an author-controlled key like `__proto__` or `constructor` resolves to
   // an inherited value there — truthy, but not a hoist handler, so calling it threw and aborted
   // the whole attribute scan for every element after this one.
   if (Object.hasOwn(HOISTS, token.key)) {
-    HOISTS[token.key]!(result, token.value)
+    // A targeted segment scopes most hoists to its own sink instead of the element-wide `result`
+    // (D-B) — `rm`/`func` always keep writing to `result`, since `SEGMENT_SCOPABLE_HOISTS` omits
+    // them regardless of whether a sink exists.
+    const dest = sink && SEGMENT_SCOPABLE_HOISTS.has(token.key) ? sink : result
+    HOISTS[token.key]!(dest, token.value)
     return
   }
   if (token.key in spec.params) {
@@ -491,10 +578,17 @@ function isGateDirection(key: string): key is GateDirection {
  * Where a lifted token came from, so `applyGate` and its siblings can quote it back without a
  * fifth parameter. Named for the gate because that is what first needed it; every family in
  * {@link applyLifted} takes the same pair.
+ *
+ * `sink` is optional and read only by `applyToken`'s own dispatch — `applyGate`/`applyPlayback`
+ * and the rest of {@link applyLifted}'s families never look at it. It rides along on the same
+ * shape rather than a second parameter object so `applyToken` can hand its own context straight to
+ * `applyLifted` unchanged, and so `applyToken` itself stays under the project's four-parameter cap.
  */
 interface GateContext {
   segment: string
   result: ParsedValue
+  /** The targeted segment's scratch sink (see `parseSegment`), or `null` when there is none. */
+  sink?: ParsedValue | null
 }
 
 /**
@@ -776,7 +870,7 @@ function warnStepMode(
  * @complexity O(1) time, O(1) space.
  * @overallScore 100
  */
-function assignOnce<
+export function assignOnce<
   K extends
     | 'activation'
     | 'timeline'

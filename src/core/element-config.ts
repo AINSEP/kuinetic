@@ -3,7 +3,7 @@ import { parseActivationAttribute } from './parse.js'
 import type { ParsedActivationAttribute } from './parse.js'
 import { parseToggleActions } from './toggle-actions.js'
 import type { ToggleActions } from './toggle-actions.js'
-import type { Activation, ParsedValue, Timeline } from './types.js'
+import type { Activation, ParsedValue, SegmentHoists, Timeline } from './types.js'
 
 /** The subset of an element's attributes this module needs. Keeps resolution DOM-free. */
 export interface ElementAttributes {
@@ -98,6 +98,61 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
  * @returns The optional source field for the resolved element configuration.
  * @complexity O(1) time and space.
  */
+/**
+ * Read only the head keyword off a raw `timeline:` value, falling back when it is absent or not a
+ * recognised timeline — the same extraction `resolveConfig` does inline for the element-wide
+ * attribute, duplicated here (against the same {@link TIMELINES} set) rather than refactored into
+ * it, so a per-group caller (`compile.ts`'s `scopeHoists`/`compileTargets`) can reuse the logic
+ * without touching `resolveConfig`'s own body and risking its passing tests.
+ *
+ * @param raw - A group's scoped `timeline:` hoist, or `undefined` when it scoped none.
+ * @param fallback - The element-wide timeline to use when `raw` is absent or unrecognised.
+ * @complexity O(k) time in the value's length; O(1) space.
+ * @overallScore 100
+ */
+export function resolveTimelineHead(raw: string | undefined, fallback: Timeline): Timeline {
+  if (raw === undefined) return fallback
+  const [head] = raw.trim().split(/\s+/)
+  return TIMELINES.has(head as Timeline) ? (head as Timeline) : fallback
+}
+
+/**
+ * Build a derived host's own `ElementConfig` from the element-wide base plus its `target:` group's
+ * scoped hoists — not yet wired into `animator.ts` (that is Phase 2's job, once each group installs
+ * as its own host); landed now so `CompiledTarget.hoists` has a documented consumer shape.
+ *
+ * Each field the group scoped a value for overrides the base; anything the group left unscoped
+ * inherits the element-wide answer unchanged, matching D-B's "hoists written in an untargeted
+ * segment stay element-wide and are inherited by every target group unless the group overrides
+ * them".
+ *
+ * @param base - The host element's own resolved config, from `resolveConfig`.
+ * @param hoists - The group's merged scoped hoists (`CompiledTarget.hoists`), or absent when the
+ *   group scoped none — the identity path, returning `base` unchanged.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function resolveGroupConfig(
+  base: ElementConfig,
+  hoists: SegmentHoists | undefined,
+): ElementConfig {
+  if (!hoists) return base
+  const authored = hoists.activation
+  const config: ElementConfig = {
+    ...base,
+    activation: authored ?? base.activation,
+    activationAuthored: authored !== undefined || base.activationAuthored,
+  }
+  if (hoists.actions !== undefined) config.actions = parseToggleActions(hoists.actions)
+  if (hoists.timeline !== undefined) {
+    const [head = 'time', ...rest] = hoists.timeline.trim().split(/\s+/)
+    config.timeline = TIMELINES.has(head as Timeline) ? (head as Timeline) : base.timeline
+    config.range = rest.join(' ')
+  }
+  if (hoists.threshold !== undefined) config.threshold = hoists.threshold
+  return config
+}
+
 function sourceFromLonghand({
   parsed,
   longhand,

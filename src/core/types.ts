@@ -883,7 +883,51 @@ export interface EffectSpec {
    */
   yoyo?: boolean
   params: Record<string, string>
+  /**
+   * Segment-scoped hoists — see {@link SegmentHoists}. Present only when this segment carries a
+   * `target:` token and wrote at least one of these keys; `compile.ts`'s `scopeHoists` consumes
+   * and clears it (for a declaring/unknown name) before anything else reads `EffectSpec`.
+   */
+  hoists?: SegmentHoists
 }
+
+/**
+ * Element-scoped hoists recorded on a *targeted* segment rather than folded element-wide — D-B in
+ * the plan. `parseSegment` cannot yet know whether the segment's primitive declares its own
+ * `target` parameter (resolved later, in `compile.ts`), so it provisionally routes these here for
+ * any segment carrying a `target:` token; `compile.ts`'s `scopeHoists` folds them back onto the
+ * element-wide `ParsedValue` for a declaring primitive or an unknown name, where there is no group
+ * to scope them to.
+ *
+ * `rm:`/`func:` excluded on purpose — they stay element-wide always (D-B.3): one element has one
+ * reduced-motion policy and one completion callback, whatever it targets.
+ */
+export type SegmentHoists = Pick<
+  ParsedValue,
+  'activation' | 'actions' | 'timeline' | 'threshold' | 'cascade' | 'spread' | 'order' | 'cols' | 'along'
+>
+
+/**
+ * The keys {@link SegmentHoists} carries, as a runtime-iterable tuple — the one place enumerating
+ * them, so `compile.ts` and `bundles.ts` cannot drift into two different lists.
+ *
+ * NOTE: these are the `ParsedValue` *field* names, not the surface grammar words — `on:` writes
+ * the field `activation`. `parse.ts` needs the surface-word spelling instead and keeps its own
+ * local set for that (see its own comment).
+ */
+export const SEGMENT_HOIST_KEYS = [
+  'activation',
+  'actions',
+  'timeline',
+  'threshold',
+  'cascade',
+  'spread',
+  'order',
+  'cols',
+  'along',
+] as const
+
+export type SegmentHoistKey = (typeof SEGMENT_HOIST_KEYS)[number]
 
 /** The full parse of one element's `data-kui` attribute. */
 export interface ParsedValue {

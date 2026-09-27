@@ -108,17 +108,24 @@ describe('compileTargets — conflicts are per-group', () => {
 describe('compileTargets — element-scoped facts are merged across every group', () => {
   it('folds the strictest reduced-motion policy onto every group, not just the one that declared it', () => {
     // flip-reorder declares reducedMotion: 'disable'; fade-up declares 'shorten'. Both groups must
-    // see 'disable' — there is one activation binding for the whole element (D1), so a `disable`
-    // anywhere disables the gate everywhere.
+    // see 'disable' — `rm:`/reduced-motion is the one fact still merged element-wide after D-B.4
+    // (see host-facts.ts's module comment): a `disable` anywhere disables the gate everywhere,
+    // whatever else has become per-group.
     const document = runTargets('flip-reorder target:.list, fade-up')
     for (const target of document.targets) expect(target.plan.reducedMotion).toBe('disable')
   })
 
-  it('unions channels across every group', () => {
+  // Reverses the plan's D-B.4: a `target:` group is a derived host in its own right, so its
+  // `channels` (and `supportedActivations`/`supportedTimelines`/`defaultActivation`) are its own
+  // rather than a union/intersection across the whole document — see `host-facts.ts`'s module
+  // comment and `compile.ts`'s `compileTargets`. This replaces the old "unions channels across
+  // every group" test, which asserted the exact cross-group merge this phase removes.
+  it('keeps channels separate per group instead of unioning them across the document', () => {
     const document = runTargets('fade-up target:h1, count-up target:.n')
-    for (const target of document.targets) {
-      expect(target.plan.channels).toEqual(expect.arrayContaining(['opacity', 'translate', 'content']))
-    }
+    const byTarget = new Map(document.targets.map((t) => [t.selector, t.plan]))
+    expect(byTarget.get('h1')!.channels).toEqual(expect.arrayContaining(['opacity', 'translate']))
+    expect(byTarget.get('h1')!.channels).not.toContain('content')
+    expect(byTarget.get('.n')!.channels).toEqual(['content'])
   })
 
   it('is the identity for a single, untargeted group — compile() stays byte-identical', () => {
@@ -170,6 +177,40 @@ describe('compileTargets — requiresOwnSubtree refuses relocation', () => {
 
   it('does not warn for a preset that may be retargeted', () => {
     expect(runTargets('fade-up target:h1').warnings.join()).not.toContain('cannot be retargeted')
+  })
+})
+
+/**
+ * Segment-scoped hoists (D-B) — the owner's flip-card example, reconstructed from the plan's own
+ * bug-1 sentence (`docs`/the project's task list/`AI-Dev-Shop` carry no verbatim string to quote
+ * instead): three groups, a `timeline:view` written only on the `target:video` segment. Before
+ * this phase,
+ * `timeline:view` hoisted element-wide (`parse.ts`'s old unconditional `HOISTS.timeline`) and
+ * `flip-card`'s group inherited it, so `mergeHostFacts` intersected `card-toggle`'s
+ * `supportedTimelines: ['time']` with `parallax-scale`'s `['view','scroll','pin']` down to `[]` and
+ * every group falsely warned "does not support timeline". `scopeHoists` + per-group facts fix both
+ * halves: the video group gets its own `view` timeline, the host group never sees it at all.
+ */
+describe('compileTargets — segment-scoped hoists (the flip-card regression)', () => {
+  it('scopes timeline:view to only the target: segment that wrote it', () => {
+    const document = runTargets(
+      'flip-card trigger:hover, parallax-scale target:video timeline:view, pop target:.yt-play',
+    )
+    expect(document.targets).toHaveLength(3)
+    const bySelector = new Map(document.targets.map((t) => [t.selector, t]))
+
+    expect(bySelector.get('')!.plan.fxNames).toEqual(['flip-card'])
+    // The regression this test guards: the HOST group must not see `timeline:view` at all, and
+    // must not warn about a mismatch that was never really there.
+    expect(bySelector.get('')!.hoists).toBeUndefined()
+    expect(bySelector.get('')!.plan.warnings.join()).not.toContain('does not support timeline')
+
+    expect(bySelector.get('video')!.hoists?.timeline).toBe('view')
+    expect(bySelector.get('video')!.plan.fxNames).toEqual(['parallax-scale'])
+    expect(bySelector.get('video')!.plan.warnings.join()).not.toContain('does not support timeline')
+
+    expect(bySelector.get('.yt-play')!.plan.fxNames).toEqual(['pop'])
+    expect(bySelector.get('.yt-play')!.hoists).toBeUndefined()
   })
 })
 

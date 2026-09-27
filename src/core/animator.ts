@@ -37,7 +37,7 @@ import { BundleTable } from './bundles.js'
 import { bindCallback } from './callback.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
-import { compileTargets } from './compile.js'
+import { compileTargets, scopeHoists } from './compile.js'
 import type { CompiledDocument, CompiledPlan, CompiledTarget } from './compile.js'
 import { control, emitLifecycle, KUI_EVENT } from './control.js'
 import type { ControlHandle, LifecycleEventType, LifecycleReason } from './control.js'
@@ -389,13 +389,18 @@ export class Animator {
     // Between parsing and compiling, so everything downstream — channel conflicts, sequencing,
     // `target:` grouping, `data-kui-fx` — sees the segments the author would have written by hand.
     // A bundle can therefore never behave differently from its own expansion.
-    const parsed = this.bundles.expand(parse(attributes.source))
+    const parsed = scopeHoists(this.bundles.expand(parse(attributes.source)), this.registry)
     const config = resolveConfig(attributes, parsed)
     const document = compileTargets(parsed, this.registry, config.timeline)
-    // `targets[0]` for every element-scoped fact below: `compileTargets`' `mergeHostFacts` already
-    // folds `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/
-    // `channels` across every `target:` group and writes the merged answer onto all of them, so any
-    // one group's plan carries the element's real, single answer — see that function's own comment.
+    // `targets[0]` — the host group — for every element-scoped fact below. `reducedMotion` there is
+    // still the one merged answer `compileTargets`' `mergeHostFacts` folds across every `target:`
+    // group (`rm:` is one author decision regardless of group count). `supportedActivations`/
+    // `supportedTimelines`/`defaultActivation`/`channels` are no longer a document-wide merge as of
+    // this phase (D-B.4 in the target-everywhere plan): they are the *host group's own* answer, from
+    // only its own composed effects. Reading only `targets[0]` here is therefore incomplete for a
+    // document that has a `target:` group — that group's own facts (`document.targets[n]`) are not
+    // yet consulted anywhere in this file. This is intentional for this phase: each group gets its
+    // own binding, gate and activation only once Phase 2 lands (see the plan's D-A).
     const facts = document.targets[0]!.plan
     // Before `planStyles` runs, so that an element whose only JS effect is gated off reports no
     // work and takes the `immediate` gate rather than sitting deferred on an activation that has
