@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    // Local runs share an 8-core laptop with Chrome, the dev server and agent CLIs; vitest's
+    // default (cores - 1 workers) pinned the load at ~6x the core count. CI gets every core.
+    // (vitest 2 defaults minWorkers to the core count, so it has to come down with the cap.)
+    maxWorkers: process.env.CI ? undefined : 3,
+    minWorkers: process.env.CI ? undefined : 1,
     include: ['test/**/*.test.ts', 'src/advanced/__tests__/**/*.test.ts'],
     coverage: {
       provider: 'v8',

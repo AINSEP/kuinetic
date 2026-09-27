@@ -6,6 +6,7 @@ import { DEVICE_FRAME_PRESETS, DEVICE_FRAME_PRIMITIVE } from './device-frame.js'
 import { LIGHTBOX_PRESETS, LIGHTBOX_PRIMITIVE } from './lightbox.js'
 import { COMPARE_PRESETS, COMPARE_PRIMITIVE } from './compare.js'
 import { HOTSPOTS_PRESETS, HOTSPOTS_PRIMITIVE } from './hotspots.js'
+import { SLIDESHOW_PRESETS, SLIDESHOW_PRIMITIVE } from './slideshow.js'
 
 /**
  * The showcase module: pre-built presentation widgets — a dialog, an ARIA carousel, image
@@ -25,12 +26,14 @@ export const SHOWCASE_PRIMITIVES: Primitive[] = [
   LIGHTBOX_PRIMITIVE,
   COMPARE_PRIMITIVE,
   HOTSPOTS_PRIMITIVE,
+  SLIDESHOW_PRIMITIVE,
 ]
 export const SHOWCASE_PRESETS: Preset[] = [
   ...DEVICE_FRAME_PRESETS,
   ...LIGHTBOX_PRESETS,
   ...COMPARE_PRESETS,
   ...HOTSPOTS_PRESETS,
+  ...SLIDESHOW_PRESETS,
 ]
 
 /**

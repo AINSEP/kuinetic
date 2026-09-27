@@ -120,18 +120,23 @@ export interface AttributeLedger {
 
 /**
  * The same discipline for attributes, so a library-stamped attribute never clobbers an authored
- * one permanently.
+ * one permanently. The concrete ledger also exposes `remove`, which records the original value
+ * before clearing a boolean attribute such as a slideshow slide's `inert`.
  *
  * @complexity O(1) per write; O(n) to restore.
  * @overallScore 100
  */
-export function createAttributeLedger(el: Element): AttributeLedger {
+export function createAttributeLedger(el: Element): AttributeLedger & { remove(name: string): void } {
   const previous = new Map<string, string | null>()
 
   return {
     set(name, value) {
       if (!previous.has(name)) previous.set(name, el.getAttribute(name))
       el.setAttribute(name, value)
+    },
+    remove(name) {
+      if (!previous.has(name)) previous.set(name, el.getAttribute(name))
+      el.removeAttribute(name)
     },
     restore() {
       for (const [name, value] of previous) {

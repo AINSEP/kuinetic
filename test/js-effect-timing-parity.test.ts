@@ -481,6 +481,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   lightbox: 'the dialog opens immediately, so it has no delay phase',
   compare: 'it builds an interactive before/after slider; there is no motion to time',
   hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
+  slideshow: 'its controls and index are live on load; it has no delayed start',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.

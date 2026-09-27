@@ -1195,7 +1195,8 @@ Primitives 1, 10, 15.
 >
 > **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
 > no autoplay, no swipe. Section H states the same line for `accordion-height`, and a second name
-> does not move it. Pair it with `swipe-x` from the gestures group for touch.
+> does not move it. Pair it with `swipe-x` from the gestures group for touch. For a carousel that
+> owns controls and accessibility behavior, use the showcase names in section T.
 
 > **`step-progress`** is the click-driven half of the step pair — it advances its own index on
 > click and wraps, where `scrollytelling-step` in section C takes its index from scroll position.
@@ -1415,7 +1416,7 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 5 names
+## T. Showcase — 8 names
 
 The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
@@ -1424,7 +1425,8 @@ amendment for the boundary this section operates under. It ships inside `kuineti
 seam that lets it become its own `<script>` tag later is an internal detail this doc does not
 need to track.
 
-`device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots`
+`device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
+`carousel-fade` · `carousel-slide` · `video-hero-slideshow`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
 > video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
@@ -1512,6 +1514,27 @@ need to track.
 >
 > **No-JS:** The image is followed by the plain numbered or bulleted list of notes, fully readable by crawlers and screen readers.
 
+> **Accessible slide shows.** `carousel-fade` stacks slides and fades between them;
+> `carousel-slide` moves a horizontal row. `video-hero-slideshow` uses the fade layout with
+> seven-second autoplay and dots. The existing `video-hero` name remains the single background
+> video preset from section G.
+>
+> ```html
+> <section data-kui="carousel-fade autoplay:6s" aria-label="Customer stories">
+>   <ul><li>First story</li><li>Second story</li></ul>
+> </section>
+> ```
+>
+> **Params:** `target:` selects slides (default direct list items), `next:` / `prev:` /
+> `jump:` bind authored controls, `controls:auto|dots|arrows|none` builds controls when none
+> are authored, `autoplay:` sets an interval of at least two seconds, `swipe:` toggles touch
+> navigation, `mute:` names a button for the active slide's video, and `duration:` / `ease:`
+> tune the transition. A pause button is built whenever autoplay runs; autoplay is disabled with
+> `controls:none` or authored controls because there would be no pause button. Reduced-motion
+> visitors start paused; a user pause stays in effect until they press Play.
+>
+> **No-JS:** Slides remain a plain visible list in document order, with no inserted controls.
+
 ---
 
 ## Totals
@@ -1537,7 +1560,7 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 5 |
+| T Showcase | 8 |
 | Generic tween | 2 |
 | **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |

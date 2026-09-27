@@ -122,11 +122,11 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     expect(reaching.length).toBeGreaterThan(0)
   })
 
-  it('matches the hand-maintained list exactly — 24 names, including three showcase widgets', () => {
+  it('matches the hand-maintained list exactly — 27 names, including six showcase widgets', () => {
     // Not a tautology: this is read from the shipped CSS, compared against a literal list. Its
     // core names were transcribed from `docs/plan-scope-page.md` §0.3 by a human; the showcase
     // names came from their own stylesheet, not from the scan's result.
-    // A drift in either direction — a new reaching name, or one of these 24 stopping to reach past
+    // A drift in either direction — a new reaching name, or one of these 27 stopping to reach past
     // itself — fails here first.
     //
     // Five additions to the plan's original 16, and all five are the same kind of thing: an effect
@@ -154,6 +154,8 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'carousel-3d-high',
         'carousel-3d-inside',
         'carousel-3d-low',
+        'carousel-fade',
+        'carousel-slide',
         'checkbox-draw',
         'compare',
         'device-frame',
@@ -171,6 +173,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'strength-meter',
         'submit-to-spinner-to-check',
         'toggle-morph',
+        'video-hero-slideshow',
         'video-scrub',
       ].sort((a, b) => a.localeCompare(b)),
     )

@@ -286,6 +286,95 @@
     translate: 0 0;
   }
 
+  /* slideshow */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] {
+    display: grid;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state] {
+    grid-area: 1 / 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] {
+    display: flex;
+    translate: calc(var(--kui-step, 0) * -100%) 0;
+    transition: translate var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] > [data-kui-step-state] {
+    flex: 0 0 100%;
+    min-inline-size: 0;
+  }
+
+  [data-kui-fx~='carousel-fade'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  [data-kui-fx~='carousel-slide'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  [data-kui-fx~='video-hero-slideshow'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+    display: inline-grid;
+    place-items: center;
+    min-inline-size: 2.75rem;
+    min-block-size: 2.75rem;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: Canvas;
+    color: CanvasText;
+    cursor: pointer;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Previous slide']::before { content: '←'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Next slide']::before { content: '→'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Pause slideshow']::before { content: 'Ⅱ'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Play slideshow']::before { content: '▶'; }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot {
+    min-inline-size: 1rem;
+    min-block-size: 1rem;
+    padding: 0;
+    border-width: 2px;
+    background: transparent;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+    background: currentColor;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
   @starting-style {
     [data-kui-fx~='hotspots'] [popover]:popover-open {
       opacity: 0;
@@ -295,6 +384,15 @@
 
   /* §12a: the bezel is structural (border, remapped by the UA); the dots/notch are decoration. */
   @media (forced-colors: active) {
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+      border-color: CanvasText;
+      color: CanvasText;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+      background: Highlight;
+    }
+
     [data-kui-device] {
       border-color: CanvasText;
       background: Canvas;
@@ -405,4 +503,3 @@
     .kui-lightbox-frame { border: 1px solid CanvasText; }
   }
 }
-
