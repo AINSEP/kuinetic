@@ -82,6 +82,17 @@ describe('compare', () => {
     expect(rangeWithAltLabel.getAttribute('aria-label')).toBe('Compare: Raw photo / Color graded')
   })
 
+  it('names video media and fills in missing media names', () => {
+    build('<figure data-kui="compare"><video aria-label="Raw take"></video><video title="Edit"></video></figure>').start()
+    expect(el().querySelector('input')?.getAttribute('aria-label')).toBe('Compare: Raw take / Edit')
+
+    build('<figure data-kui="compare"><video></video><video title="Edit"></video></figure>').start()
+    expect(el().querySelector('input')?.getAttribute('aria-label')).toBe('Compare: Before / Edit')
+
+    build('<figure data-kui="compare"><video></video><video></video></figure>').start()
+    expect(el().querySelector('input')?.getAttribute('aria-label')).toBe('Compare: Before / After')
+  })
+
   it('sets aria-valuetext and updates it on range input', () => {
     build(
       '<figure data-kui="compare position:40%"><img src="a.jpg" alt=""><img src="b.jpg" alt=""></figure>',
@@ -158,14 +169,23 @@ describe('compare', () => {
   })
 
   it('showcase.css carries compare rules, axis branching, and forced-colors styles', () => {
-    expect(showcaseCss.includes("[data-kui-fx~='compare']")).toBe(true)
-    expect(showcaseCss.includes("clip-path: inset(0 0 0 var(--kui-compare, 50%))")).toBe(true)
-    expect(showcaseCss.includes("[data-kui-compare-axis='y']")).toBe(true)
-    expect(showcaseCss.includes('.kui-compare-handle')).toBe(true)
-    expect(showcaseCss.includes('.kui-compare-range:focus-visible + .kui-compare-handle')).toBe(true)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='compare'\] \{[^}]*display: grid;/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='compare'\] > \.kui-compare-handle \{[^}]*translate: calc\(var\(--kui-compare, 50%\) - 100%\) 0;/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='compare'\] > \.kui-compare-range:focus-visible \+ \.kui-compare-handle \{[^}]*outline: 2px solid Highlight;/)
     const forcedColors = /@media \(forced-colors: active\) \{([\s\S]*?)\n {2}\}/.exec(showcaseCss)?.[1]
     expect(forcedColors).toMatch(
       /\[data-kui-fx~='compare'\] > \.kui-compare-handle::before \{\s*border: 2px solid CanvasText;\s*background: Canvas;/,
     )
+  })
+
+  it('clips only the second media child on both axes', () => {
+    const second = ':is(img, picture, video):nth-child(2 of :is(img, picture, video))'
+    const x = `[data-kui-fx~='compare'] > ${second}`
+    const y = `[data-kui-fx~='compare'][data-kui-compare-axis='y'] > ${second}`
+    const rules = showcaseCss.split('}')
+      .filter((part) => part.includes("[data-kui-fx~='compare']") && part.includes('clip-path:'))
+    expect(rules.map((part) => part.slice(0, part.indexOf('{')).trim())).toEqual([x, y])
+    expect(rules[0]).toContain('clip-path: inset(0 0 0 var(--kui-compare, 50%))')
+    expect(rules[1]).toContain('clip-path: inset(var(--kui-compare, 50%) 0 0 0)')
   })
 })

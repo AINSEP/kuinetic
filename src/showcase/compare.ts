@@ -32,21 +32,21 @@ const compareParams: ParameterSchema = {
   },
 }
 
-function getMediaAlt(item: Element | undefined): string {
-  if (!item) return ''
-  if (item.tagName.toLowerCase() === 'picture') {
-    return item.querySelector('img')?.getAttribute('alt') ?? ''
-  }
-  return item.getAttribute('alt') ?? ''
+function getMediaName(item: Element, fallback: string): string {
+  const alt = item.localName === 'picture'
+    ? item.querySelector('img')?.getAttribute('alt')
+    : item.getAttribute('alt')
+  return alt?.trim() || item.getAttribute('aria-label')?.trim() ||
+    item.getAttribute('title')?.trim() || fallback
 }
 
 function resolveCompareLabel(el: Element, media: Element[]): string {
-  const authored = el.getAttribute('aria-label')
+  const authored = el.getAttribute('aria-label')?.trim()
   if (authored) return authored
   const first = media[0]
   const second = media[1]
   if (first && second) {
-    return `Compare: ${getMediaAlt(first)} / ${getMediaAlt(second)}`
+    return `Compare: ${getMediaName(first, 'Before')} / ${getMediaName(second, 'After')}`
   }
   return 'Compare'
 }

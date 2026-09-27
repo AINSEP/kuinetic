@@ -143,7 +143,7 @@ describe('hotspots', () => {
     expect(reporter.messages.some((m) => m.includes('missing --kui-x or --kui-y'))).toBe(true)
   })
 
-  it('runs fallback positioning on toggle when CSS.supports is false', () => {
+  it('measures and clamps fallback positioning only when a popover opens', () => {
     vi.stubGlobal('CSS', {
       supports: vi.fn().mockReturnValue(false),
     })
@@ -161,26 +161,60 @@ describe('hotspots', () => {
     const button = host.querySelector<HTMLButtonElement>('button.kui-hotspot')!
     const note = host.querySelector<HTMLLIElement>('li')!
 
-    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
-      top: 150,
-      left: 200,
+    const buttonRect = vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+      top: 4,
+      left: 2,
       width: 24,
       height: 24,
-      bottom: 174,
-      right: 224,
-      x: 200,
-      y: 150,
+      bottom: 28,
+      right: 26,
+      x: 2,
+      y: 4,
       toJSON: () => {},
     })
+    const noteRect = vi.spyOn(note, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, width: 120, height: 60, bottom: 60, right: 120,
+      x: 0, y: 0, toJSON: () => {},
+    })
+    expect(buttonRect).not.toHaveBeenCalled()
+    expect(noteRect).not.toHaveBeenCalled()
 
     const toggleEvent = new Event('toggle') as Event & { newState: string }
     toggleEvent.newState = 'open'
     note.dispatchEvent(toggleEvent)
 
     expect(note.style.getPropertyValue('position')).toBe('fixed')
-    expect(note.style.getPropertyValue('top')).toBe('150px')
-    expect(note.style.getPropertyValue('left')).toBe('212px')
-    expect(note.style.getPropertyValue('translate')).toBe('-50% -100%')
+    expect(note.style.getPropertyValue('top')).toBe('36px')
+    expect(note.style.getPropertyValue('left')).toBe('8px')
+    expect(note.style.getPropertyValue('translate')).toBe('0 0')
+    expect(buttonRect).toHaveBeenCalledTimes(1)
+    expect(noteRect).toHaveBeenCalledTimes(1)
+
+    toggleEvent.newState = 'closed'
+    note.dispatchEvent(toggleEvent)
+    expect(buttonRect).toHaveBeenCalledTimes(1)
+    expect(noteRect).toHaveBeenCalledTimes(1)
+  })
+
+  it('places fallback notes above lower markers and clamps the right edge', () => {
+    vi.stubGlobal('CSS', { supports: vi.fn().mockReturnValue(false) })
+    build('<figure data-kui="hotspots"><img src="a.png" alt=""><ol><li style="--kui-x: 90%; --kui-y: 90%">Note</li></ol></figure>').start()
+    const host = el()
+    const button = host.querySelector<HTMLButtonElement>('.kui-hotspot')!
+    const note = host.querySelector<HTMLLIElement>('li')!
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+      top: 700, left: 1010, width: 24, height: 24, bottom: 724, right: 1034,
+      x: 1010, y: 700, toJSON: () => {},
+    })
+    vi.spyOn(note, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, width: 120, height: 60, bottom: 60, right: 120,
+      x: 0, y: 0, toJSON: () => {},
+    })
+    const toggleEvent = new Event('toggle') as Event & { newState: string }
+    toggleEvent.newState = 'open'
+    note.dispatchEvent(toggleEvent)
+    expect(note.style.getPropertyValue('top')).toBe('632px')
+    expect(note.style.getPropertyValue('left')).toBe(`${window.innerWidth - 128}px`)
   })
 
   it('configures anchor positioning when CSS.supports(position-area: top) is true', () => {
@@ -226,11 +260,12 @@ describe('hotspots', () => {
   })
 
   it('showcase.css carries hotspots rules, popover styling, starting-style, and forced-colors', () => {
-    expect(showcaseCss.includes("[data-kui-fx~='hotspots']")).toBe(true)
-    expect(showcaseCss.includes('.kui-hotspot')).toBe(true)
-    expect(showcaseCss.includes('[popover]')).toBe(true)
-    expect(showcaseCss.includes(':popover-open')).toBe(true)
-    expect(showcaseCss.includes('@starting-style')).toBe(true)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='hotspots'\] \{[^}]*position: relative;/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='hotspots'\] \.kui-hotspot \{[^}]*position: absolute;/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='hotspots'\] \[popover\] \{[^}]*max-inline-size: min\(18rem, calc\(100vw - 16px\)\);/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='hotspots'\] \[popover\] \{[^}]*max-block-size: calc\(100vh - 16px\);[^}]*overflow: auto;/)
+    expect(showcaseCss).toMatch(/\[data-kui-fx~='hotspots'\] \[popover\]:popover-open \{[^}]*opacity: 1;/)
+    expect(showcaseCss).toMatch(/@starting-style \{\s*\[data-kui-fx~='hotspots'\] \[popover\]:popover-open \{[^}]*opacity: 0;/)
     const forcedColors = /@media \(forced-colors: active\) \{([\s\S]*?)\n {2}\}/.exec(showcaseCss)?.[1]
     expect(forcedColors).toMatch(
       /\[data-kui-fx~='hotspots'\] \.kui-hotspot \{\s*border-color: CanvasText;\s*background: Canvas;\s*color: CanvasText;/,
@@ -238,5 +273,15 @@ describe('hotspots', () => {
     expect(forcedColors).toMatch(
       /\[data-kui-fx~='hotspots'\] \[popover\] \{\s*border-color: CanvasText;\s*background: Canvas;\s*color: CanvasText;/,
     )
+  })
+
+  it('zeros the default list box so marker percentages map to the image', () => {
+    const selector = "[data-kui-fx~='hotspots'] > :is(ol, ul) {"
+    const start = showcaseCss.indexOf(selector)
+    expect(start).toBeGreaterThanOrEqual(0)
+    const listRule = showcaseCss.slice(start + selector.length, showcaseCss.indexOf('}', start))
+    expect(listRule).toContain('margin: 0;')
+    expect(listRule).toContain('padding: 0;')
+    expect(listRule).toContain('block-size: 0;')
   })
 })

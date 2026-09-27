@@ -58,16 +58,23 @@ function setupFallbackPositioning(
   note: HTMLElement,
   noteStyle: ReturnType<typeof createStyleLedger>,
 ): () => void {
+  const viewport = note.ownerDocument.defaultView ?? window
+  const gap = 8
+  const clamp = (value: number, size: number, limit: number): number =>
+    Math.max(gap, Math.min(value, Math.max(gap, limit - size - gap)))
   const onToggle = (event: Event): void => {
     if (!isPopoverOpen(note, event)) return
     const buttonRect = button.getBoundingClientRect()
-    const top = buttonRect.top
-    const left = buttonRect.left + buttonRect.width / 2
+    const noteRect = note.getBoundingClientRect()
+    const above = buttonRect.top - noteRect.height - gap
+    const top = above >= gap ? above : buttonRect.bottom + gap
+    const center = buttonRect.left + buttonRect.width / 2
+    const left = center - noteRect.width / 2
     noteStyle.set('position', 'fixed')
     noteStyle.set('inset', 'auto')
-    noteStyle.set('top', `${top}px`)
-    noteStyle.set('left', `${left}px`)
-    noteStyle.set('translate', '-50% -100%')
+    noteStyle.set('top', `${clamp(top, noteRect.height, viewport.innerHeight)}px`)
+    noteStyle.set('left', `${clamp(left, noteRect.width, viewport.innerWidth)}px`)
+    noteStyle.set('translate', '0 0')
     noteStyle.set('margin', '0')
   }
   note.addEventListener('toggle', onToggle)
