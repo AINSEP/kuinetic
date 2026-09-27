@@ -1873,7 +1873,7 @@
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Horizontal travel (1)</strong> — vertical scroll drives horizontal motion</li>
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Media scrub (1)</strong> — a frame sequence scrubbed by scroll position</li>
                     <li data-kui="fade-up distance:14px timeline:pin"><strong>Navigation (1)</strong> — <code>scroll-spy</code> highlights the active section in the nav</li>
-                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Native CSS passthroughs (2)</strong> — <code>scroll-snap-x</code>/<code>-y</code>, no JS involved</li>
+                    <li data-kui="fade-up distance:14px timeline:pin"><strong>Native CSS passthroughs (2)</strong> — <code>scroll-snap-x</code>/<code>-y</code>, set once, no scroll listener</li>
                   </ul>
                 </div>
               </div>
@@ -2183,7 +2183,7 @@
           <p class="matrix-group-label">Native CSS passthroughs</p>
                     <div class="rev-notes">
             <ul>
-              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two are pure CSS</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>. No JS runs at all.</li>
+              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>These two set once and let the browser take over</strong> — they only set <code>scroll-snap-type</code> and <code>-align</code>. Nothing runs while you scroll.</li>
               <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>The track above moves itself; these wait for you.</strong> <code>horizontal-scroll</code> is not a scroll container — it is a pinned strip that JS translates from the page's vertical position, so you cannot grab it. These are real containers: scroll or drag one directly and it lets go on a card.</li>
             </ul>
           </div>

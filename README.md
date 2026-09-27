@@ -97,7 +97,7 @@ k.start()
 ```
 
 It is **unstable and not covered by the guarantees the rest of this README makes** — the API can
-change without a major version, and nothing here is CSS-first or zero-JS. Nothing is imported
+change without a major version, and nothing here is CSS-first or zero-dependency. Nothing is imported
 unless you write that import: the default entry is byte-for-byte the same whether or not this
 subpath exists. See `docs/advanced-modules.md` for what each module does and what it costs.
 
