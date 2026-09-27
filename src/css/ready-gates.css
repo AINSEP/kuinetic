@@ -1,6 +1,79 @@
-/* Phase 4a — gate-scoped start-state tokens (`--kui-gate-distance`/`-from-angle`/`-bar-from`),
- * layered onto the ready selectors that used to set the plain `--kui-distance`/etc. `!important`.
- * SKELETON STUB (§1): empty — no rule here yet, so S-8's inert `var(--kui-gate-*, var(--kui-*, X))`
- * rewrite in every other effects file falls back to its original value unchanged. */
+/*
+ * Phase 4a — ready-gate custom properties, the other half of the `var()` rewrite S-12 gave every
+ * keyframe that reads `--kui-distance`/`--kui-from-angle`/`--kui-bar-from`: each now resolves
+ * `var(--kui-gate-X, var(--kui-X, default))` instead of reading `--kui-X` directly. Until this file
+ * had rules in it (it shipped as an empty stub), `--kui-gate-*` was never set on any element, so
+ * every rewritten `var()` fell through to its original value, unchanged.
+ *
+ * Same defect the `--kui-distance: 0px !important` rule on `[data-kui-state='ready']` (entrance.css)
+ * exists to fix — an `on:enter`/`on:click`/etc. entrance sits paused at its authored offset for
+ * however long the trigger takes, which can leave a horizontally-offset box past the document edge
+ * for the whole wait — but reached without `!important`. `--kui-distance`/`--kui-from-angle`/
+ * `--kui-bar-from` are also the per-instance *parameters*, written inline by the runtime
+ * (`style="--kui-distance:40px"`), so only `!important` can outrank that inline declaration from a
+ * stylesheet rule. `--kui-gate-*` is a second, disjoint set of tokens nothing ever sets inline — this
+ * file is their only writer — so there is no inline declaration to outrank, and an ordinary
+ * author-layer rule is enough: the paused animation's keyframe still resolves the `var()` chain
+ * dynamically against the cascaded value, same mechanism as the old rule, one layer of indirection
+ * earlier.
+ *
+ * Registered via `@property` with `syntax: '*'` (untyped — these tokens carry lengths, angles, and
+ * bare numbers depending which one) and `inherits: false`, so each is a genuinely per-element switch:
+ * a `ready` ancestor's `--kui-gate-distance: 0px` can never leak onto some unrelated non-ready
+ * descendant that also happens to read the same `var()` chain — the failure mode
+ * `kui_inherited-custom-props-leak-past-their-group` describes for `--kui-i`. Left unregistered, a
+ * bare custom property defaults to `inherits: true` and reopens exactly that leak. No
+ * `initial-value` — the universal syntax `*` is the one case `@property` doesn't require one; unset,
+ * the token is the guaranteed-invalid value, which is exactly what makes the inner `var(--kui-X, …)`
+ * fallback fire for every element that isn't `ready`.
+ *
+ * `--kui-gate-distance` is unscoped — `[data-kui-fx][data-kui-state='ready']` covers every
+ * distance-based entrance in one rule, matching the reach of the old unscoped `--kui-distance` rule.
+ * `--kui-gate-from-angle`/`--kui-gate-bar-from` are enumerated per preset name instead, for the same
+ * reason the rules they sit beside are: both tokens are also read by non-ready siblings (`*-out`
+ * presets, `to`-only keyframes, `rotate-out`/`roll-out`/`flip-out-x`/`-y`) where flattening them would
+ * be a silent no-op that reads as though it did something. None of these three rules carries
+ * `opacity: 0` — that half of the old fix stays put in entrance.css/three-d.css/svg.css/numbers.css
+ * (reconcile item R-5), scoped to the same preset names, so it isn't duplicated here.
+ *
+ * Landmine, not fixed in this file: `text.css`'s split-text presets animate per-character children,
+ * not the host. A gate token set here lands on the host; `inherits: false` means those children never
+ * see it. Flagged for a browser check, not addressed here — this file only owns the token plumbing.
+ */
 @layer kui.effects {
+  @property --kui-gate-distance {
+    syntax: '*';
+    inherits: false;
+  }
+
+  @property --kui-gate-from-angle {
+    syntax: '*';
+    inherits: false;
+  }
+
+  @property --kui-gate-bar-from {
+    syntax: '*';
+    inherits: false;
+  }
+
+  [data-kui-fx][data-kui-state='ready'] {
+    --kui-gate-distance: 0px;
+  }
+
+  [data-kui-fx~='flip-in-x'][data-kui-state='ready'],
+  [data-kui-fx~='flip-in-y'][data-kui-state='ready'],
+  [data-kui-fx~='rotate-in'][data-kui-state='ready'],
+  [data-kui-fx~='rotate-in-left'][data-kui-state='ready'],
+  [data-kui-fx~='rotate-in-right'][data-kui-state='ready'],
+  [data-kui-fx~='swing-in'][data-kui-state='ready'],
+  [data-kui-fx~='roll-in'][data-kui-state='ready'],
+  [data-kui-fx~='fold-panel'][data-kui-state='ready'] {
+    --kui-gate-from-angle: 0deg;
+  }
+
+  [data-kui-fx~='loading-bar'][data-kui-state='ready'],
+  [data-kui-fx~='chart-bar-grow'][data-kui-state='ready'],
+  [data-kui-fx~='progress-bar'][data-kui-state='ready'] {
+    --kui-gate-bar-from: 1;
+  }
 }
