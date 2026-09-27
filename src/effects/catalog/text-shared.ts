@@ -42,6 +42,8 @@ export function hasInteractiveDescendant(el: Element): boolean {
 export interface SplitLayers {
   /** `aria-hidden` container the caller populates with decorative markup or text. */
   decorative: HTMLElement
+  /** The accessible reading copy while the decorative pieces are animating. */
+  srOnly: HTMLElement
   /** The element's text at the moment splitting began, trimmed for display. */
   originalText: string
   /**
@@ -89,6 +91,7 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
 
   return {
     decorative,
+    srOnly,
     originalText,
     restore: restoreChildren,
   }
@@ -296,29 +299,61 @@ export function appendCharSpans(container: Element, doc: Document, text: string)
   return spans
 }
 
+interface WordSpanState {
+  container: Element
+  doc: Document
+  spans: HTMLElement[]
+  preceding: HTMLElement | null
+  leading: string
+}
+
+/** Add one indexed animated item, including a punctuation-only run when needed. */
+function appendWordItem(state: WordSpanState, value: string): HTMLElement {
+  const span = state.doc.createElement('span')
+  markItem(span, state.spans.length)
+  span.textContent = value
+  state.container.append(span)
+  state.spans.push(span)
+  return span
+}
+
+/** Route non-word graphemes to a neighboring word, an item, or bare whitespace. */
+function appendNonWordToken(state: WordSpanState, value: string, graphemes: Intl.Segmenter): void {
+  for (const { segment } of graphemes.segment(value)) {
+    if (segment.trim() === '') {
+      if (state.leading) appendWordItem(state, state.leading)
+      state.leading = ''
+      state.preceding = null
+      state.container.append(state.doc.createTextNode(segment))
+    } else if (state.leading || /^[\p{Ps}\p{Pi}¿¡]$/u.test(segment) || !state.preceding) {
+      state.leading += segment
+    } else {
+      state.preceding.textContent += segment
+    }
+  }
+}
+
 /**
- * Split text into one span per word, leaving the whitespace and punctuation between them as plain
- * text nodes so natural line-wrapping and spacing survive untouched.
+ * Split text into animated words. Opening punctuation joins the next word; other punctuation
+ * joins the preceding word. A punctuation run without a word gets its own item. Only whitespace
+ * stays outside the items, preserving natural wrapping and spacing.
  *
  * @complexity O(n) time and space in segment count.
  * @overallScore 100
  */
 export function appendWordSpans(container: Element, doc: Document, text: string): HTMLElement[] {
-  const spans: HTMLElement[] = []
-  let index = 0
+  const state: WordSpanState = { container, doc, spans: [], preceding: null, leading: '' }
+  const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   for (const token of segmentWords(text)) {
     if (!token.isWord) {
-      container.append(doc.createTextNode(token.text))
+      appendNonWordToken(state, token.text, graphemes)
       continue
     }
-    const span = doc.createElement('span')
-    markItem(span, index)
-    span.textContent = token.text
-    container.append(span)
-    spans.push(span)
-    index++
+    state.preceding = appendWordItem(state, state.leading + token.text)
+    state.leading = ''
   }
-  return spans
+  if (state.leading) appendWordItem(state, state.leading)
+  return state.spans
 }
 
 /**
@@ -356,8 +391,7 @@ function bucketByLine(container: Element): Node[][] {
  * @complexity O(n) time and space in word-span count.
  * @overallScore 100
  */
-export function appendLineSpans(container: Element, doc: Document, text: string): HTMLElement[] {
-  appendWordSpans(container, doc, text)
+function wrapMeasuredLines(container: Element, doc: Document): HTMLElement[] {
   const buckets = bucketByLine(container)
   container.replaceChildren()
   return buckets.map((nodes, index) => {
@@ -381,6 +415,33 @@ export function appendLineSpans(container: Element, doc: Document, text: string)
     container.append(line)
     return line
   })
+}
+
+/**
+ * Split text into measured visual lines.
+ * @complexity O(n) time and space in word-span count.
+ * @overallScore 100
+ */
+export function appendLineSpans(container: Element, doc: Document, text: string): HTMLElement[] {
+  appendWordSpans(container, doc, text)
+  return wrapMeasuredLines(container, doc)
+}
+
+/**
+ * Put existing words and whitespace back into natural flow, measure, and wrap the new lines.
+ * The offsetTop reads in wrapMeasuredLines finish before it writes any line wrappers.
+ *
+ * @complexity O(n) time and space in word-span count.
+ * @overallScore 100
+ */
+export function rewrapLineSpans(container: Element, doc: Document): HTMLElement[] {
+  const nodes = Array.from(container.childNodes).flatMap((line) => Array.from(line.childNodes))
+  container.replaceChildren(...nodes)
+  let index = 0
+  for (const node of nodes) {
+    if (node instanceof HTMLElement) markItem(node, index++)
+  }
+  return wrapMeasuredLines(container, doc)
 }
 
 /**

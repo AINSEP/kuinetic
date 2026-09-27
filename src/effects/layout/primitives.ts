@@ -2,6 +2,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { timeScaleOf } from '../../core/time-scale.js'
+import { frameScheduler, watchElementSize } from '../../core/element-size.js'
 import { createFlipEngine, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
@@ -203,6 +204,7 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
   const selector = params.text('follow')
   const runs = trackFlipRuns()
   let currentShift = 0
+  let followed: Element | null = null
 
   const move = (): void => {
     if (!selector) return
@@ -230,15 +232,29 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
         scale: true,
       }),
     )
+    followed = target
   }
 
   // `move()` is fallible — a malformed `follow` selector reaches `querySelector` directly — so it
   // runs before `watchAttribute` subscribes, not after. A throw here must never leave a live
   // MutationObserver that this function has already stopped being able to hand back as cleanup.
   move()
-  const unwatch = watchAttribute(ctx.doc.documentElement, params.text('attribute'), move)
+  const update = (): void => {
+    const previous = followed
+    move()
+    if (previous === followed) return
+    if (previous) sizeWatch.unobserve(previous)
+    if (followed) sizeWatch.observe(followed)
+  }
+  const frame = frameScheduler(ctx.win, update)
+  const sizeWatch = watchElementSize(ctx.win, frame.request)
+  sizeWatch.observe(el.parentElement ?? el)
+  if (followed) sizeWatch.observe(followed)
+  const unwatch = watchAttribute(ctx.doc.documentElement, params.text('attribute'), update)
   return () => {
     unwatch()
+    sizeWatch.disconnect()
+    frame.cancel()
     runs.cancelAll()
   }
 }

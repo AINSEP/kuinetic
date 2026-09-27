@@ -1,4 +1,5 @@
 import { cssEasingValue } from '../../core/easing.js'
+import { watchElementSize } from '../../core/element-size.js'
 import type { Cleanup, EffectParams } from '../../core/types.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
 
@@ -274,19 +275,9 @@ function watchImageBox(
   bands: SlatBands,
 ): Cleanup {
   const handler = (): void => syncStageToImage(stage, img, bands)
-  win.addEventListener('resize', handler, { passive: true })
-  const stopWindow = (): void => win.removeEventListener('resize', handler)
-
-  const ResizeObserverCtor = (win as Window & { ResizeObserver?: typeof ResizeObserver })
-    .ResizeObserver
-  if (!ResizeObserverCtor) return stopWindow
-
-  const observer = new ResizeObserverCtor(handler)
-  observer.observe(img)
-  return () => {
-    stopWindow()
-    observer.disconnect()
-  }
+  const watch = watchElementSize(win, handler)
+  watch.observe(img)
+  return watch.disconnect
 }
 
 /**
