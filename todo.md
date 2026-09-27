@@ -359,6 +359,17 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 
 ## Open
 
+- [ ] **Demo page for the showcase components.** Owner's request, 2026-09-27: not now, later.
+      One page (`demo/showcase.html` or similar) that shows all ten showcase presets working:
+      `device-frame`, `lightbox`, `video-lightbox`, `compare` (both axes), `hotspots`,
+      `carousel-fade`, `carousel-slide`, `video-hero-slideshow`, `scroll-story`, `slow-mo`. Use
+      real images/videos, add a Show-code chip for each (the standing solid dark pill), and check
+      at 1280 and 390px. This is owner design work: load the web-design agent bundle first
+      (CLAUDE.md). Copy-paste examples to start from: the "Presentation components (showcase)"
+      section of `docs/getting-started.md`. Several review findings could only be judged visually
+      (compare axis:y, compare touch scrolling on phones, scroll-story sticky centring, lightbox
+      controls over a tall image); this page is where they get a real-browser pass.
+
 - [ ] **Demo: show multi-selector `target:` in quotes.** Owner's request, 2026-09-26. Once the
       `target:`-everywhere work lands (plan: session scratchpad `target-everywhere-plan.md`), add a
       few real examples to the demo pages where one `data-kui` aims at several selectors, e.g.
