@@ -145,6 +145,10 @@ describe('warnNested3d', () => {
 
   it('warns when the host itself is already running a 3D-establishing effect', () => {
     const host = document.createElement('div')
+    // `id` set on one side only, so the warning's own element-label formatting (`describe()` in
+    // diagnostics.ts: `tag#id` when the element has one, plain `tag` otherwise) exercises both
+    // branches across this file rather than only the id-less one every other fixture here uses.
+    host.id = 'carousel'
     const match = document.createElement('div')
     host.appendChild(match)
     const { port, reporter, states } = fakePort(registry)
@@ -154,6 +158,7 @@ describe('warnNested3d', () => {
 
     expect(reporter.messages).toHaveLength(1)
     expect(reporter.messages[0]).toContain('div')
+    expect(reporter.messages[0]).toContain('div#carousel')
     expect(reporter.messages[0]).toContain('nested inside')
   })
 

@@ -18,10 +18,9 @@ import { ATTR } from '../../core/attrs.js'
 
 /** What {@link prepareFlipParts} resolved for one flip card. */
 export interface FlipParts {
-  /** The card's toggle control, whether authored or injected. Never `null` in practice — the
-   *  injected branch always succeeds — but the type stays `Element | null` to match the shape
-   *  `prepareCardToggle`'s "no control" warning already branches on. */
-  control: Element | null
+  /** The card's toggle control, whether authored or injected. `resolveControl`'s injected branch
+   *  always succeeds, so this is never absent. */
+  control: Element
   /** Undo every attribute stamp and remove every injected node. */
   cleanup: Cleanup
 }
@@ -29,6 +28,17 @@ export interface FlipParts {
 /** A card's own class already marks its faces — stamping `data-kui-part` next to one would be
  *  redundant, and this selector is how every branch below checks for that first. */
 const FACE_CLASS_SELECTOR = ':scope > .kui-face-front, :scope > .kui-face-back'
+
+/**
+ * Matches whichever control {@link prepareFlipParts} resolved for a card, whichever of the three
+ * branches produced it — an authored `.kui-flip-control`, an authored `button[aria-pressed]`
+ * (stamped `data-kui-part="control"`), or the injected fallback (both class and stamp). `three-d/
+ * index.ts`'s deferred `prepareCardToggle` re-finds the control through this selector rather than
+ * calling {@link prepareFlipParts} a second time — target:-everywhere reconcile R-7 moved the one
+ * call that stamps/injects to prepare time, before `prepareCardToggle` (deferred to activation)
+ * ever runs, so by the time it looks, the control this selector matches already exists.
+ */
+export const CONTROL_SELECTOR = `:scope > :is(.kui-flip-control, [${ATTR.part}~='control'])`
 
 /**
  * Stamp the card's first two non-button direct children `data-kui-part="front"`/`"back"`, unless

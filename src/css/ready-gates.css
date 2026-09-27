@@ -5,8 +5,9 @@
  * had rules in it (it shipped as an empty stub), `--kui-gate-*` was never set on any element, so
  * every rewritten `var()` fell through to its original value, unchanged.
  *
- * Same defect the `--kui-distance: 0px !important` rule on `[data-kui-state='ready']` (entrance.css)
- * exists to fix — an `on:enter`/`on:click`/etc. entrance sits paused at its authored offset for
+ * Same defect the old `--kui-distance: 0px !important` rule on `[data-kui-state='ready']`
+ * (entrance.css, removed by target:-everywhere reconcile R-5 once this file could take over) existed
+ * to fix — an `on:enter`/`on:click`/etc. entrance sits paused at its authored offset for
  * however long the trigger takes, which can leave a horizontally-offset box past the document edge
  * for the whole wait — but reached without `!important`. `--kui-distance`/`--kui-from-angle`/
  * `--kui-bar-from` are also the per-instance *parameters*, written inline by the runtime

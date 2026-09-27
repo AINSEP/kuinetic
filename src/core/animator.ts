@@ -64,13 +64,7 @@ import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createLedgerSet } from './owned-styles.js'
 import type { LedgerSet } from './owned-styles.js'
-import {
-  applyStagger,
-  indexTargetGroup,
-  releaseStagger,
-  restageAfterRemoval,
-  restageAround,
-} from './stagger.js'
+import { applyStagger, releaseStagger, restageAfterRemoval, restageAround } from './stagger.js'
 import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
 import { queryScoped, selectorBreadth } from './target.js'
@@ -655,8 +649,10 @@ export class Animator {
     this.states.set(el, state)
     this.liveElements.add(el)
     // Written once, unconditionally, and before any group's own writes below — same position this
-    // attribute has always been written at, and it is the host's own lifecycle marker regardless of
-    // where `target:` sends the rest (D6: stays on the host).
+    // attribute has always been written at. A real `target:` group never reaches this point at all
+    // (`installedAsHost` already diverted it to `installWithTargets`), so unlike the D6-era comment
+    // this replaced, there is no "elsewhere" `data-kui-state` could have gone instead: every group
+    // `install` sees here is the host's own, and this is that host's one lifecycle marker.
     attributes.set(ATTR.state, 'ready')
 
     const context: GroupInstall = {
@@ -716,6 +712,13 @@ export class Animator {
    * even though both share one gate, one activation and one reduced-motion policy (which is exactly
    * what `elementHasCssAnimation` carries in from the caller).
    *
+   * `group.target.selector` is always `''` here — `installedAsHost` diverts any document carrying a
+   * real `target:` group to `installWithTargets` before `install` (this method's only caller) ever
+   * runs, so `matches` is always the host's own single-element `[el]` (target:-everywhere reconcile
+   * R-8 removed the in-place relocation path this method used to also handle, along with the
+   * `indexTargetGroup` call it made only for a real group — `restageTargets`, in
+   * `core/derived/install.ts`, is the one that indexes a real target group's stagger keys now).
+   *
    * @complexity O(m * p) time in the group's matches and the plan's properties; O(p) space.
    * @overallScore 100
    */
@@ -734,19 +737,6 @@ export class Animator {
 
     const writes: GroupWrites = { target, stylePlan, hasCssAnimation }
     for (const match of matches) this.installMatch(match, writes, context)
-
-    // Only for a real `target:` group — the host's own single "match" (itself) has nothing to
-    // order relative to. `applyStagger`'s existing DOM-children pass, run once per `scan()` after
-    // every element has been processed, still owns an ordinary group's stagger numbering; this is
-    // the same job for a set `target:`/`scope:` resolved instead.
-    if (target.selector !== '') {
-      indexTargetGroup({
-        host: context.el,
-        matches,
-        styleOf: (el) => context.ledgers.style(el),
-        reporter: this.reporter,
-      })
-    }
   }
 
   /**
@@ -768,11 +758,10 @@ export class Animator {
     for (const [property, value] of Object.entries(stylePlan.properties)) {
       matchLedger.set(property, value)
     }
-    // `data-kui-state` is deliberately not written here — it is the host's own lifecycle
-    // marker (D6: stays on the host regardless of where `target:` sends the writes) and was
-    // already set, once, by `install`. `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches
-    // on the same compound, so both land on every element this group's effects actually reach —
-    // the host itself for the host's own group, the matches for every other one.
+    // `data-kui-state` is deliberately not written here — it is the host's own lifecycle marker
+    // and was already set, once, by `install`. `match` is always that same host (see `installGroup`'s
+    // own comment on why); `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches on the same
+    // compound, so both land there alongside it.
     matchAttributes.set(ATTR.normalized, stylePlan.attributes[ATTR.normalized]!)
     matchAttributes.set(ATTR.rm, stylePlan.attributes[ATTR.rm]!)
     matchLedger.claim('animation-play-state')

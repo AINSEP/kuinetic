@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { BREAKPOINTS } from '../src/core/breakpoints.js'
+import { cloakTokenForms, gateReleaseSelector } from '../src/core/cloak-selectors.js'
 import { SCROLL_PRESETS } from '../src/effects/scroll-mechanics/presets.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
 import { extractHostAnimationBindings, readBalancedBlock } from './support/css-scan.js'
@@ -167,6 +168,42 @@ describe('CSS static rules', () => {
       }
     }
 
+    expect(violations).toEqual([])
+  })
+})
+
+describe('ready-gate custom properties', () => {
+  /**
+   * target:-everywhere reconcile R-5: every rule that used to exist only to zero a paused
+   * animation's starting value while `data-kui-state='ready'` now does so through a `--kui-gate-*`
+   * token in `ready-gates.css` instead of writing `--kui-distance`/`--kui-from-angle`/
+   * `--kui-bar-from` directly with `!important` — see that file's own header comment for the split.
+   * `opacity`/`clip-path` lines stayed behind on purpose (they have no `--kui-gate-*` counterpart),
+   * so this only polices *custom* properties: if any `[data-kui-state='ready']` rule anywhere in
+   * the catalog ever declares a non-gate custom property again, the two ways of gating the same
+   * token have drifted back out of sync — one `!important` and invisible until something writes the
+   * token inline, one not and the only writer.
+   */
+  it("every [data-kui-state='ready'] rule sets only --kui-gate-* custom properties", () => {
+    const violations: string[] = []
+    // A multi-selector rule (`[...][data-kui-state='ready'],\n  [...][data-kui-state='ready']`) can
+    // match more than once for the one body that follows; `seen` keys on the body's own start so
+    // it is only scanned once. Braces are located with plain string search, not a regex, so this
+    // has none of a `[^{}]*…[^{}]*` pattern's backtracking risk (sonarjs/slow-regex).
+    const seen = new Set<number>()
+    for (const match of scannedCss.matchAll(/\[data-kui-state=(['"])ready\1\]/g)) {
+      const openBrace = scannedCss.indexOf('{', match.index)
+      if (openBrace === -1 || seen.has(openBrace)) continue
+      seen.add(openBrace)
+      const selectorStart = scannedCss.lastIndexOf('}', match.index) + 1
+      const selector = scannedCss.slice(selectorStart, openBrace).trim()
+      const body = readBalancedBlock(scannedCss, openBrace + 1)
+      for (const [, property] of body.matchAll(/(?:^|[{;])\s*(--[\w-]+)\s*:/g)) {
+        if (property && !property.startsWith('--kui-gate-')) {
+          violations.push(`"${selector}" sets "${property}", not a --kui-gate-* token`)
+        }
+      }
+    }
     expect(violations).toEqual([])
   })
 })
@@ -358,7 +395,11 @@ describe('pre-JS cloak', () => {
     .filter((name) => registry.resolve(name)?.preset.cloak === true)
   const emitted = [
     ...new Set(
-      [...generated.matchAll(/html\[data-kui-cloak\] \[data-kui~='([^']+)'\]/g)]
+      // Each cloak selector is now `:is([data-kui~='NAME'], [data-kui~='NAME,'], ...)` (9a's four
+      // comma forms, target:-everywhere reconcile R-4) — `[^',]+` anchors on the bare form only
+      // (a comma-suffixed/prefixed variant always has a `,` right against the closing/opening
+      // quote, which this class excludes), so this still extracts exactly one name per rule.
+      [...generated.matchAll(/html\[data-kui-cloak\] :is\(\[data-kui~='([^',]+)'\]/g)]
         .map((m) => m[1]!)
         // The cloak layer also carries the viewport-gate release, which keys on the *gate* token
         // in the same authored attribute (`above:md`) rather than on a preset name. Those are
@@ -412,12 +453,27 @@ describe('pre-JS cloak', () => {
     // `not all and (min-width: X)` rather than a `max-width`: the complement has to be exact, or a
     // sliver of widths just under the boundary stays hidden for an animation that never runs.
     for (const [name, width] of Object.entries(BREAKPOINTS)) {
+      const above = gateReleaseSelector(`above:${name}`)
+      const below = gateReleaseSelector(`below:${name}`)
       expect(generated, `above:${name}`).toContain(
-        `@media not all and (min-width: ${width}) {\n    html[data-kui-cloak] [data-kui~='above:${name}']`,
+        `@media not all and (min-width: ${width}) {\n${above}`,
       )
-      expect(generated, `below:${name}`).toContain(
-        `@media (min-width: ${width}) {\n    html[data-kui-cloak] [data-kui~='below:${name}']`,
-      )
+      expect(generated, `below:${name}`).toContain(`@media (min-width: ${width}) {\n${below}`)
+    }
+  })
+
+  /**
+   * target:-everywhere reconcile R-4: the four comma forms `cloakTokenForms` derives (bare,
+   * trailing comma, leading comma, both) must all actually reach the generated CSS for a real,
+   * currently-cloaked preset — `cloakSelector`/`gateReleaseSelector`'s own `:is()` construction is
+   * exercised above only indirectly, through string equality on their full output; this pins the
+   * one property that matters most directly: every comma-adjacency an author can type for
+   * `text-reveal-mask` is actually present in the shipped selector.
+   */
+  it('carries all four comma forms for text-reveal-mask', () => {
+    expect(declared).toContain('text-reveal-mask')
+    for (const form of cloakTokenForms('text-reveal-mask')) {
+      expect(generated, form).toContain(`[data-kui~='${form}']`)
     }
   })
 

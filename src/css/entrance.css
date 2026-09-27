@@ -115,18 +115,12 @@
    * `slide-left` on index.html did exactly this: invisible, waiting, and still past the
    * document's own right edge — permanently, until scrolling it into view triggered the play.
    *
-   * `!important` is required: a paused CSS animation still supplies its 0%-keyframe value from
-   * the Animations origin, which ordinary author CSS cannot outrank regardless of layer or
-   * specificity — only `!important` sits above it. Overriding `--kui-distance` itself, rather than
-   * `translate` on each keyframe, reaches every current and future preset built on it from one
-   * declaration instead of an enumerated list of names: `kui-in-up`/`-down`/`-left`/`-right`/
-   * `-inline-start`/`-inline-end`, `kui-zoom-in-up`/`-down`, `kui-roll-in`, and `kui-fade-blur-up`
-   * all read it. The instant the trigger fires, `data-kui-state` becomes `"running"`, this rule
-   * stops matching, and the animation plays from its real, authored distance exactly as before.
+   * The zeroing itself now happens in `ready-gates.css`'s unscoped `--kui-gate-distance` rule, not
+   * here: every `translate` above resolves `var(--kui-gate-distance, var(--kui-distance, …))`, so a
+   * `ready` element gets 0 from the first, higher-priority arm of that fallback chain without
+   * needing `!important` at all (target:-everywhere reconcile R-5 — `--kui-gate-distance` is a
+   * second, disjoint token nothing ever sets inline, unlike `--kui-distance` itself).
    */
-  [data-kui-state='ready'] {
-    --kui-distance: 0px !important;
-  }
 
   /* --- scale (channel: scale) --- */
   @keyframes kui-zoom-in {
@@ -304,29 +298,29 @@
    * matters because `on:enter` is the default activation for every entrance with none named:
    * Chromium resolves such a target's `intersectionRatio` to `1` and fires normally (measured), but
    * WebKit and Gecko are unverified here. Giving the box real geometry retires the question instead
-   * of depending on the answer. `[data-kui-state='ready']` already handles this class of thing — see the
-   * `--kui-distance` rule near the top of this file — but it only ever reset the *translate*
-   * channel, since every preset built on it also owns `opacity` and stays invisible regardless.
-   * `flip-in-x`/`-y` own no opacity channel at all, so flattening the angle alone would leave the
-   * box fully visible at rest instead of hidden — this pairs the flattened angle with an explicit
-   * `opacity: 0` so the "waiting" look stays invisible (matching what `cloak` already promises
-   * pre-JS) while the geometry `IntersectionObserver` measures is real.
+   * of depending on the answer. `[data-kui-fx][data-kui-state='ready']` already handles the
+   * `translate` half of this class of thing in `ready-gates.css` — but that shared rule doesn't
+   * touch `opacity`, since every distance-based preset already owns that channel and stays invisible
+   * regardless. `flip-in-x`/`-y` own no opacity channel at all, so flattening the angle alone (also
+   * `ready-gates.css`, `--kui-gate-from-angle`) would leave the box fully visible at rest instead of
+   * hidden — this rule pairs that flattened angle with an explicit `opacity: 0` so the "waiting"
+   * look stays invisible (matching what `cloak` already promises pre-JS) while the geometry
+   * `IntersectionObserver` measures is real.
    *
-   * That `opacity` is deliberately NOT `!important`, unlike the `--kui-from-angle` beside it, and
-   * the asymmetry is the whole point. `!important` in an author layer outranks the Animations
-   * origin, so an `!important` opacity here would beat *every* composed effect's own opacity
-   * keyframes — including one that legitimately owns the channel, which is precisely the
+   * That `opacity` is deliberately NOT `!important`. `!important` in an author layer outranks the
+   * Animations origin, so an `!important` opacity here would beat *every* composed effect's own
+   * opacity keyframes — including one that legitimately owns the channel, which is precisely the
    * interference the channel model exists to catch and which `findConflicts` would never have
    * been told about, since no primitive here declares `opacity`. Left as a normal declaration it
    * is a *default*: it applies when nothing else writes opacity (the ordinary case — an
    * unclaimed channel has no owner to fight), and any composed effect that does claim opacity
-   * wins from the Animations origin without argument. The flattened angle still needs
-   * `!important` because it is beating this element's own paused 0% keyframe, not somebody
-   * else's declared channel.
+   * wins from the Animations origin without argument. The angle-flattening rule in `ready-gates.css`
+   * needs no such asymmetry: `--kui-gate-from-angle` is a token nothing ever sets inline, so an
+   * ordinary declaration already outranks the paused animation's 0%-keyframe value without
+   * `!important` (target:-everywhere reconcile R-5).
    */
   [data-kui-fx~='flip-in-x'][data-kui-state='ready'],
   [data-kui-fx~='flip-in-y'][data-kui-state='ready'] {
-    --kui-from-angle: 0deg !important;
     opacity: 0;
   }
 
@@ -337,21 +331,21 @@
    * scrollable overflow just as surely as a translate does — so a 360x480 card parked at 45deg
    * in the last column of a grid reaches ~116px past the viewport's right edge and hands the
    * whole document a horizontal scrollbar, measured on reveals.html. Exactly the defect the
-   * `--kui-distance` rule at the top of this file was written for (`div.install-snip`'s
+   * distance fallback near the top of this file was written for (`div.install-snip`'s
    * `slide-left` sitting permanently past the document's right edge), arriving through the
-   * `rotate` channel instead of `translate`, so it needs its own declaration: that rule flattens
-   * only the offset.
+   * `rotate` channel instead of `translate`.
    *
    * Four pages were each patching around this locally with `html, body { overflow-x: clip }`,
    * which is the wrong altitude twice over — a page cannot know which of its effects is leaking,
    * and clipping the root to contain one card silently swallows every other overflow bug on it.
    *
-   * Enumerated rather than folded into the shared `[data-kui-state='ready']` rule for the reason
-   * `three-d.css` gives for `fold-panel`: `--kui-from-angle` is also read by `to`-only siblings
+   * The angle-flattening itself lives in `ready-gates.css`, enumerated by preset name there rather
+   * than folded into its shared unscoped rule for the reason that file (and `three-d.css`'s
+   * `fold-panel` comment) gives: `--kui-gate-from-angle` is also read by `to`-only siblings
    * (`rotate-out`, `roll-out`), where the angle is the *end* state and flattening it while paused
-   * at 0% would change nothing while reading as though it did.
+   * at 0% would change nothing while reading as though it did. This rule only owns the other half:
    *
-   * `opacity: 0` for the same reason as the flip rule above — this family owns no opacity channel,
+   * `opacity: 0`, for the same reason as the flip rule above — this family owns no opacity channel,
    * so an un-rotated waiting card would otherwise sit fully visible in its final position until
    * the trigger fires, which is both wrong for a reveal and a louder bug than the one being fixed.
    * Every preset here already declares `cloak: true`, so invisible-while-waiting is what it
@@ -365,7 +359,6 @@
   [data-kui-fx~='rotate-in-right'][data-kui-state='ready'],
   [data-kui-fx~='swing-in'][data-kui-state='ready'],
   [data-kui-fx~='roll-in'][data-kui-state='ready'] {
-    --kui-from-angle: 0deg !important;
     opacity: 0;
   }
 }

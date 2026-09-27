@@ -18,6 +18,10 @@ function fakeCtx(el: Element, overrides: Partial<PrepareContext> = {}): PrepareC
     reducedMotion: false,
     warn: () => {},
     style: createStyleLedger(el),
+    // Prepare now runs `prepareCard` (target:-everywhere reconcile R-7), which reads `ctx.signal`
+    // synchronously to register the parts' cleanup — every `mount()` below goes through it, even
+    // though this file never asserts on that cleanup itself (nothing here calls `.abort()`).
+    signal: new AbortController().signal,
     ...overrides,
   } as unknown as PrepareContext
 }
@@ -69,6 +73,28 @@ describe('flip-card trigger:', () => {
     enter(card)
     expect(flipped(control)).toBe(false)
     instance.destroy()
+  })
+
+  // Moved from `test/three-d.test.ts` (target:-everywhere reconcile, full-suite gate): that file is
+  // deliberately DOM-free and used to call `prepare(undefined, {}, undefined)` directly, which
+  // R-7's now-eager `prepareFlipParts` call can no longer tolerate — it stamps faces and injects a
+  // control right away, so it needs a real element. The behavioural guarantee that check made still
+  // holds and still needs covering: a `renderer: 'javascript'` primitive is handed to the animator,
+  // which calls every hook on the instance it returns, so activate/cancel/finish/destroy all being
+  // safe — and `finished` settling — has to be true on the default (click) path, here with the real
+  // card this file already builds one for.
+  it('is safe through its full lifecycle on the default (click) path', async () => {
+    const { card } = buildCard()
+    const instance = mount(card, {})
+
+    expect(() => {
+      instance.cancel()
+      instance.finish()
+      instance.destroy()
+    }).not.toThrow()
+    // Already settled, so the animator's `finished` bookkeeping cannot strand `data-kui-state` on
+    // "running" for the life of the page.
+    await expect(instance.finished).resolves.toBeUndefined()
   })
 
   // The three hover modes differ only in what happens *after* the pointer leaves, so that is
@@ -132,11 +158,19 @@ describe('flip-card trigger:', () => {
     expect(flipped(control)).toBe(false)
   })
 
-  it('does not throw on a card that has no control to hold the state', () => {
+  // Pre-target:-everywhere, a card authored with no control at all left `prepareCardToggle`'s
+  // lookup empty and it silently bailed out. `prepareFlipParts`'s injected-control fallback
+  // (target:-everywhere 7a, wired to prepare time by reconcile R-7) means there is no such thing
+  // as "no control" any more — one gets built and wired instead — so this now asserts the
+  // replacement behaviour rather than a no-op.
+  it('injects a control and flips it, on a card authored with none at all', () => {
     const card = document.createElement('div')
     document.body.append(card)
     const instance = mount(card, { trigger: 'hover' })
+    const control = card.querySelector('.kui-flip-control')
+    expect(control).not.toBeNull()
     expect(() => enter(card)).not.toThrow()
+    expect(flipped(control!)).toBe(true)
     instance.destroy()
   })
 })

@@ -372,6 +372,27 @@ describe('compileUnion', () => {
     }
   })
 
+  it('keeps a gated jsEffect when the host\'s document has no view to test the gate against', () => {
+    // `document.implementation.createHTMLDocument()` has no `defaultView` at all (see
+    // `callback.test.ts`'s own use of the same fixture) — `compileUnion`'s `context.host
+    // .ownerDocument?.defaultView ?? undefined` chain exists for exactly this case, which every
+    // other test in this file never reaches: `setup()`'s `host` is a live-document element, whose
+    // `ownerDocument.defaultView` is always the real `window`, attached to the tree or not.
+    const { port, context } = setup()
+    const inert = document.implementation.createHTMLDocument()
+    expect(inert.defaultView).toBeNull()
+    context.host = inert.createElement('div')
+
+    const a = group({ name: 'count-up', gate: { above: 'md' } })
+    const b = group({ name: 'fade-up' })
+
+    // `gateMatches` fails open with no `matchMedia` to ask, so the gated effect survives rather
+    // than being silently dropped for a viewport this union has no way to measure.
+    const union = compileUnion(port, context, [a, b])
+
+    expect(union.plan.jsEffects).toHaveLength(1)
+  })
+
   it('reports a union-only composition warning against the host, once', () => {
     const { port, reporter, context } = setup()
     const a = group({ name: 'fade-up' })

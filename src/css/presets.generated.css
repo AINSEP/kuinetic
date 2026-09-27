@@ -1669,60 +1669,60 @@
  * rather than waiting for the whole page.
  */
 @layer kui.cloak {
-  html[data-kui-cloak] [data-kui~='back-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='back-in-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='blur-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='blur-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='card-flip-x']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='card-flip-y']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='chart-bar-grow']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='curtain-reveal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-blur-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-blur-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='flip-in-x']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='flip-in-y']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='roll-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slat-assemble']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-block-end']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-block-start']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-inline-end']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-inline-start']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='swing-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in-up']:not([data-kui-state]) {
+  html[data-kui-cloak] :is([data-kui~='back-in-down'], [data-kui~='back-in-down,'], [data-kui~=',back-in-down'], [data-kui~=',back-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='back-in-up'], [data-kui~='back-in-up,'], [data-kui~=',back-in-up'], [data-kui~=',back-in-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='blur-in'], [data-kui~='blur-in,'], [data-kui~=',blur-in'], [data-kui~=',blur-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='blur-up'], [data-kui~='blur-up,'], [data-kui~=',blur-up'], [data-kui~=',blur-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in'], [data-kui~='bounce-in,'], [data-kui~=',bounce-in'], [data-kui~=',bounce-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in-down'], [data-kui~='bounce-in-down,'], [data-kui~=',bounce-in-down'], [data-kui~=',bounce-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in-up'], [data-kui~='bounce-in-up,'], [data-kui~=',bounce-in-up'], [data-kui~=',bounce-in-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='card-flip-x'], [data-kui~='card-flip-x,'], [data-kui~=',card-flip-x'], [data-kui~=',card-flip-x,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='card-flip-y'], [data-kui~='card-flip-y,'], [data-kui~=',card-flip-y'], [data-kui~=',card-flip-y,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='chart-bar-grow'], [data-kui~='chart-bar-grow,'], [data-kui~=',chart-bar-grow'], [data-kui~=',chart-bar-grow,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='curtain-reveal'], [data-kui~='curtain-reveal,'], [data-kui~=',curtain-reveal'], [data-kui~=',curtain-reveal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-blur-in'], [data-kui~='fade-blur-in,'], [data-kui~=',fade-blur-in'], [data-kui~=',fade-blur-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-blur-up'], [data-kui~='fade-blur-up,'], [data-kui~=',fade-blur-up'], [data-kui~=',fade-blur-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-down'], [data-kui~='fade-down,'], [data-kui~=',fade-down'], [data-kui~=',fade-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-in'], [data-kui~='fade-in,'], [data-kui~=',fade-in'], [data-kui~=',fade-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-left'], [data-kui~='fade-left,'], [data-kui~=',fade-left'], [data-kui~=',fade-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-right'], [data-kui~='fade-right,'], [data-kui~=',fade-right'], [data-kui~=',fade-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-up'], [data-kui~='fade-up,'], [data-kui~=',fade-up'], [data-kui~=',fade-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='flip-in-x'], [data-kui~='flip-in-x,'], [data-kui~=',flip-in-x'], [data-kui~=',flip-in-x,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='flip-in-y'], [data-kui~='flip-in-y,'], [data-kui~=',flip-in-y'], [data-kui~=',flip-in-y,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fold-panel'], [data-kui~='fold-panel,'], [data-kui~=',fold-panel'], [data-kui~=',fold-panel,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='loading-bar'], [data-kui~='loading-bar,'], [data-kui~=',loading-bar'], [data-kui~=',loading-bar,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='mask-reveal'], [data-kui~='mask-reveal,'], [data-kui~=',mask-reveal'], [data-kui~=',mask-reveal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='path-swoop'], [data-kui~='path-swoop,'], [data-kui~=',path-swoop'], [data-kui~=',path-swoop,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='pop-in'], [data-kui~='pop-in,'], [data-kui~=',pop-in'], [data-kui~=',pop-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='progress-bar'], [data-kui~='progress-bar,'], [data-kui~=',progress-bar'], [data-kui~=',progress-bar,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='reveal-once'], [data-kui~='reveal-once,'], [data-kui~=',reveal-once'], [data-kui~=',reveal-once,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='roll-in'], [data-kui~='roll-in,'], [data-kui~=',roll-in'], [data-kui~=',roll-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in'], [data-kui~='rotate-in,'], [data-kui~=',rotate-in'], [data-kui~=',rotate-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in-left'], [data-kui~='rotate-in-left,'], [data-kui~=',rotate-in-left'], [data-kui~=',rotate-in-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in-right'], [data-kui~='rotate-in-right,'], [data-kui~=',rotate-in-right'], [data-kui~=',rotate-in-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slat-assemble'], [data-kui~='slat-assemble,'], [data-kui~=',slat-assemble'], [data-kui~=',slat-assemble,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-block-end'], [data-kui~='slide-block-end,'], [data-kui~=',slide-block-end'], [data-kui~=',slide-block-end,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-block-start'], [data-kui~='slide-block-start,'], [data-kui~=',slide-block-start'], [data-kui~=',slide-block-start,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-down'], [data-kui~='slide-down,'], [data-kui~=',slide-down'], [data-kui~=',slide-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-inline-end'], [data-kui~='slide-inline-end,'], [data-kui~=',slide-inline-end'], [data-kui~=',slide-inline-end,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-inline-start'], [data-kui~='slide-inline-start,'], [data-kui~=',slide-inline-start'], [data-kui~=',slide-inline-start,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-left'], [data-kui~='slide-left,'], [data-kui~=',slide-left'], [data-kui~=',slide-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-right'], [data-kui~='slide-right,'], [data-kui~=',slide-right'], [data-kui~=',slide-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-up'], [data-kui~='slide-up,'], [data-kui~=',slide-up'], [data-kui~=',slide-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='swing-in'], [data-kui~='swing-in,'], [data-kui~=',swing-in'], [data-kui~=',swing-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-down'], [data-kui~='text-reveal-down,'], [data-kui~=',text-reveal-down'], [data-kui~=',text-reveal-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-mask'], [data-kui~='text-reveal-mask,'], [data-kui~=',text-reveal-mask'], [data-kui~=',text-reveal-mask,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-up'], [data-kui~='text-reveal-up,'], [data-kui~=',text-reveal-up'], [data-kui~=',text-reveal-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='tween-from'], [data-kui~='tween-from,'], [data-kui~=',tween-from'], [data-kui~=',tween-from,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-circle'], [data-kui~='wipe-circle,'], [data-kui~=',wipe-circle'], [data-kui~=',wipe-circle,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-diagonal'], [data-kui~='wipe-diagonal,'], [data-kui~=',wipe-diagonal'], [data-kui~=',wipe-diagonal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-down'], [data-kui~='wipe-down,'], [data-kui~=',wipe-down'], [data-kui~=',wipe-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-left'], [data-kui~='wipe-left,'], [data-kui~=',wipe-left'], [data-kui~=',wipe-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-right'], [data-kui~='wipe-right,'], [data-kui~=',wipe-right'], [data-kui~=',wipe-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-up'], [data-kui~='wipe-up,'], [data-kui~=',wipe-up'], [data-kui~=',wipe-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in'], [data-kui~='zoom-in,'], [data-kui~=',zoom-in'], [data-kui~=',zoom-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in-down'], [data-kui~='zoom-in-down,'], [data-kui~=',zoom-in-down'], [data-kui~=',zoom-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in-up'], [data-kui~='zoom-in-up,'], [data-kui~=',zoom-in-up'], [data-kui~=',zoom-in-up,']):not([data-kui-state]) {
     opacity: 0;
     animation: kui-cloak-release 1ms linear 2s forwards;
   }
@@ -1736,60 +1736,60 @@
   /* Reduced motion never wanted the entrance in the first place, so hiding content to smooth one
      is pure cost: the visitor gets a blank region and then a hard cut, instead of the content. */
   @media (prefers-reduced-motion: reduce) {
-  html[data-kui-cloak] [data-kui~='back-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='back-in-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='blur-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='blur-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='bounce-in-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='card-flip-x']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='card-flip-y']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='chart-bar-grow']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='curtain-reveal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-blur-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-blur-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fade-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='flip-in-x']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='flip-in-y']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='fold-panel']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='loading-bar']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='mask-reveal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='path-swoop']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='pop-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='progress-bar']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='reveal-once']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='roll-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='rotate-in-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slat-assemble']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-block-end']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-block-start']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-inline-end']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-inline-start']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='slide-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='swing-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-mask']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='text-reveal-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='tween-from']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-circle']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-diagonal']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-left']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-right']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='wipe-up']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in-down']:not([data-kui-state]),
-  html[data-kui-cloak] [data-kui~='zoom-in-up']:not([data-kui-state]) {
+  html[data-kui-cloak] :is([data-kui~='back-in-down'], [data-kui~='back-in-down,'], [data-kui~=',back-in-down'], [data-kui~=',back-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='back-in-up'], [data-kui~='back-in-up,'], [data-kui~=',back-in-up'], [data-kui~=',back-in-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='blur-in'], [data-kui~='blur-in,'], [data-kui~=',blur-in'], [data-kui~=',blur-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='blur-up'], [data-kui~='blur-up,'], [data-kui~=',blur-up'], [data-kui~=',blur-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in'], [data-kui~='bounce-in,'], [data-kui~=',bounce-in'], [data-kui~=',bounce-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in-down'], [data-kui~='bounce-in-down,'], [data-kui~=',bounce-in-down'], [data-kui~=',bounce-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='bounce-in-up'], [data-kui~='bounce-in-up,'], [data-kui~=',bounce-in-up'], [data-kui~=',bounce-in-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='card-flip-x'], [data-kui~='card-flip-x,'], [data-kui~=',card-flip-x'], [data-kui~=',card-flip-x,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='card-flip-y'], [data-kui~='card-flip-y,'], [data-kui~=',card-flip-y'], [data-kui~=',card-flip-y,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='chart-bar-grow'], [data-kui~='chart-bar-grow,'], [data-kui~=',chart-bar-grow'], [data-kui~=',chart-bar-grow,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='curtain-reveal'], [data-kui~='curtain-reveal,'], [data-kui~=',curtain-reveal'], [data-kui~=',curtain-reveal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-blur-in'], [data-kui~='fade-blur-in,'], [data-kui~=',fade-blur-in'], [data-kui~=',fade-blur-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-blur-up'], [data-kui~='fade-blur-up,'], [data-kui~=',fade-blur-up'], [data-kui~=',fade-blur-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-down'], [data-kui~='fade-down,'], [data-kui~=',fade-down'], [data-kui~=',fade-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-in'], [data-kui~='fade-in,'], [data-kui~=',fade-in'], [data-kui~=',fade-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-left'], [data-kui~='fade-left,'], [data-kui~=',fade-left'], [data-kui~=',fade-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-right'], [data-kui~='fade-right,'], [data-kui~=',fade-right'], [data-kui~=',fade-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fade-up'], [data-kui~='fade-up,'], [data-kui~=',fade-up'], [data-kui~=',fade-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='flip-in-x'], [data-kui~='flip-in-x,'], [data-kui~=',flip-in-x'], [data-kui~=',flip-in-x,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='flip-in-y'], [data-kui~='flip-in-y,'], [data-kui~=',flip-in-y'], [data-kui~=',flip-in-y,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='fold-panel'], [data-kui~='fold-panel,'], [data-kui~=',fold-panel'], [data-kui~=',fold-panel,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='loading-bar'], [data-kui~='loading-bar,'], [data-kui~=',loading-bar'], [data-kui~=',loading-bar,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='mask-reveal'], [data-kui~='mask-reveal,'], [data-kui~=',mask-reveal'], [data-kui~=',mask-reveal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='path-swoop'], [data-kui~='path-swoop,'], [data-kui~=',path-swoop'], [data-kui~=',path-swoop,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='pop-in'], [data-kui~='pop-in,'], [data-kui~=',pop-in'], [data-kui~=',pop-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='progress-bar'], [data-kui~='progress-bar,'], [data-kui~=',progress-bar'], [data-kui~=',progress-bar,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='reveal-once'], [data-kui~='reveal-once,'], [data-kui~=',reveal-once'], [data-kui~=',reveal-once,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='roll-in'], [data-kui~='roll-in,'], [data-kui~=',roll-in'], [data-kui~=',roll-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in'], [data-kui~='rotate-in,'], [data-kui~=',rotate-in'], [data-kui~=',rotate-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in-left'], [data-kui~='rotate-in-left,'], [data-kui~=',rotate-in-left'], [data-kui~=',rotate-in-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='rotate-in-right'], [data-kui~='rotate-in-right,'], [data-kui~=',rotate-in-right'], [data-kui~=',rotate-in-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slat-assemble'], [data-kui~='slat-assemble,'], [data-kui~=',slat-assemble'], [data-kui~=',slat-assemble,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-block-end'], [data-kui~='slide-block-end,'], [data-kui~=',slide-block-end'], [data-kui~=',slide-block-end,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-block-start'], [data-kui~='slide-block-start,'], [data-kui~=',slide-block-start'], [data-kui~=',slide-block-start,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-down'], [data-kui~='slide-down,'], [data-kui~=',slide-down'], [data-kui~=',slide-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-inline-end'], [data-kui~='slide-inline-end,'], [data-kui~=',slide-inline-end'], [data-kui~=',slide-inline-end,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-inline-start'], [data-kui~='slide-inline-start,'], [data-kui~=',slide-inline-start'], [data-kui~=',slide-inline-start,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-left'], [data-kui~='slide-left,'], [data-kui~=',slide-left'], [data-kui~=',slide-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-right'], [data-kui~='slide-right,'], [data-kui~=',slide-right'], [data-kui~=',slide-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='slide-up'], [data-kui~='slide-up,'], [data-kui~=',slide-up'], [data-kui~=',slide-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='swing-in'], [data-kui~='swing-in,'], [data-kui~=',swing-in'], [data-kui~=',swing-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-down'], [data-kui~='text-reveal-down,'], [data-kui~=',text-reveal-down'], [data-kui~=',text-reveal-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-mask'], [data-kui~='text-reveal-mask,'], [data-kui~=',text-reveal-mask'], [data-kui~=',text-reveal-mask,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='text-reveal-up'], [data-kui~='text-reveal-up,'], [data-kui~=',text-reveal-up'], [data-kui~=',text-reveal-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='tween-from'], [data-kui~='tween-from,'], [data-kui~=',tween-from'], [data-kui~=',tween-from,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-circle'], [data-kui~='wipe-circle,'], [data-kui~=',wipe-circle'], [data-kui~=',wipe-circle,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-diagonal'], [data-kui~='wipe-diagonal,'], [data-kui~=',wipe-diagonal'], [data-kui~=',wipe-diagonal,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-down'], [data-kui~='wipe-down,'], [data-kui~=',wipe-down'], [data-kui~=',wipe-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-left'], [data-kui~='wipe-left,'], [data-kui~=',wipe-left'], [data-kui~=',wipe-left,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-right'], [data-kui~='wipe-right,'], [data-kui~=',wipe-right'], [data-kui~=',wipe-right,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='wipe-up'], [data-kui~='wipe-up,'], [data-kui~=',wipe-up'], [data-kui~=',wipe-up,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in'], [data-kui~='zoom-in,'], [data-kui~=',zoom-in'], [data-kui~=',zoom-in,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in-down'], [data-kui~='zoom-in-down,'], [data-kui~=',zoom-in-down'], [data-kui~=',zoom-in-down,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='zoom-in-up'], [data-kui~='zoom-in-up,'], [data-kui~=',zoom-in-up'], [data-kui~=',zoom-in-up,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
@@ -1797,70 +1797,70 @@
 
   /* The same argument on the width axis — see `gateReleaseRules`. */
   @media not all and (min-width: 40rem) {
-    html[data-kui-cloak] [data-kui~='above:sm']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='above:sm'], [data-kui~='above:sm,'], [data-kui~=',above:sm'], [data-kui~=',above:sm,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media (min-width: 40rem) {
-    html[data-kui-cloak] [data-kui~='below:sm']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='below:sm'], [data-kui~='below:sm,'], [data-kui~=',below:sm'], [data-kui~=',below:sm,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media not all and (min-width: 48rem) {
-    html[data-kui-cloak] [data-kui~='above:md']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='above:md'], [data-kui~='above:md,'], [data-kui~=',above:md'], [data-kui~=',above:md,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media (min-width: 48rem) {
-    html[data-kui-cloak] [data-kui~='below:md']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='below:md'], [data-kui~='below:md,'], [data-kui~=',below:md'], [data-kui~=',below:md,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media not all and (min-width: 64rem) {
-    html[data-kui-cloak] [data-kui~='above:lg']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='above:lg'], [data-kui~='above:lg,'], [data-kui~=',above:lg'], [data-kui~=',above:lg,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media (min-width: 64rem) {
-    html[data-kui-cloak] [data-kui~='below:lg']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='below:lg'], [data-kui~='below:lg,'], [data-kui~=',below:lg'], [data-kui~=',below:lg,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media not all and (min-width: 80rem) {
-    html[data-kui-cloak] [data-kui~='above:xl']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='above:xl'], [data-kui~='above:xl,'], [data-kui~=',above:xl'], [data-kui~=',above:xl,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media (min-width: 80rem) {
-    html[data-kui-cloak] [data-kui~='below:xl']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='below:xl'], [data-kui~='below:xl,'], [data-kui~=',below:xl'], [data-kui~=',below:xl,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media not all and (min-width: 96rem) {
-    html[data-kui-cloak] [data-kui~='above:2xl']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='above:2xl'], [data-kui~='above:2xl,'], [data-kui~=',above:2xl'], [data-kui~=',above:2xl,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }
   }
 
   @media (min-width: 96rem) {
-    html[data-kui-cloak] [data-kui~='below:2xl']:not([data-kui-state]) {
+    html[data-kui-cloak] :is([data-kui~='below:2xl'], [data-kui~='below:2xl,'], [data-kui~=',below:2xl'], [data-kui~=',below:2xl,']):not([data-kui-state]) {
       opacity: 1;
       animation: none;
     }

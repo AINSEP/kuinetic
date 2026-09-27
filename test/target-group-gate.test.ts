@@ -49,6 +49,16 @@ function fakeState(status: InstanceState['status']): InstanceState {
   return { status } as unknown as InstanceState
 }
 
+/**
+ * `toEqual` compares DOM elements structurally, not by reference — two empty `<li>` elements are
+ * indistinguishable to it, so an ordering or identity bug between structurally-identical members
+ * would pass silently under `toEqual`. This asserts both length and per-index *identity* instead.
+ */
+function expectOrder(actual: Element[], ...expected: Element[]): void {
+  expect(actual).toHaveLength(expected.length)
+  expected.forEach((el, i) => expect(actual[i]).toBe(el))
+}
+
 interface Harness {
   port: AnimatorPort
   book: DerivedBook
@@ -147,6 +157,14 @@ describe('bindGroups', () => {
     expect(harness.binder.bindings[0]?.el).toBe(host)
   })
 
+  it('does nothing for a host with no book.groups entry at all', () => {
+    // The real (only) caller, `finalizeInstall`, always sets `book.groups` for `host` first — this
+    // guard is defensive, for a caller (or a future one) that reaches `bindGroups` without having
+    // gone through it.
+    expect(() => bindGroups(harness.port, host)).not.toThrow()
+    expect(harness.binder.bindings).toHaveLength(0)
+  })
+
   it('does not bind a group whose style plan does not defer (on:load runs immediately)', () => {
     const group = makeGroup('fade-up on:load', host)
     harness.book.groups.set(host, [group])
@@ -173,7 +191,7 @@ describe('bindGroups', () => {
     bindGroups(harness.port, host)
     harness.binder.fire(host)
 
-    expect(harness.activated).toEqual([ready])
+    expectOrder(harness.activated, ready)
   })
 
   it('toggle: activates every member regardless of status', () => {
@@ -188,7 +206,7 @@ describe('bindGroups', () => {
     bindGroups(harness.port, host)
     harness.binder.fire(host)
 
-    expect(harness.activated).toEqual([ready, finished])
+    expectOrder(harness.activated, ready, finished)
   })
 
   it('deactivate reaches every member', () => {
@@ -203,7 +221,7 @@ describe('bindGroups', () => {
     const request = bindSpy.mock.calls[0]?.[2]
     request?.deactivate?.()
 
-    expect(harness.deactivated).toEqual([a, b])
+    expectOrder(harness.deactivated, a, b)
   })
 
   it('reads group.members live: a member pushed after binding still fires', () => {
@@ -221,7 +239,7 @@ describe('bindGroups', () => {
 
     harness.binder.fire(host)
 
-    expect(harness.activated).toEqual([first, late])
+    expectOrder(harness.activated, first, late)
   })
 
   it('registers a release that the fake binder counts as unbound', () => {

@@ -1,10 +1,17 @@
 import { CHANNEL } from '../../core/types.js'
-import type { Cleanup, EffectParams, Preset, PrepareContext, Primitive } from '../../core/types.js'
+import type {
+  Cleanup,
+  EffectInstance,
+  EffectParams,
+  Preset,
+  PrepareContext,
+  Primitive,
+} from '../../core/types.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { ALL_TIMING_TOKENS, cssPrimitive, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { supportsFineHover } from '../catalog/interaction-shared.js'
-import { prepareFlipParts } from './flip-parts.js'
+import { CONTROL_SELECTOR, prepareFlipParts } from './flip-parts.js'
 
 /**
  * 3D, perspective, and page-transition effects — all CSS-rendered.
@@ -26,11 +33,17 @@ import { prepareFlipParts } from './flip-parts.js'
  * card would flip on the same tap that was trying to press something inside it — the control stays
  * clickable, which is the accessible path on those devices anyway.
  *
+ * Runs deferred (via `deferPrepare`, wired up by {@link prepareCard} below), so — unlike that
+ * function — it never stamps or injects the card's parts itself: by the time this runs, at
+ * activation, `prepareCard` has already resolved them, and this only re-finds the control through
+ * `CONTROL_SELECTOR`. It is therefore never absent here (target:-everywhere reconcile R-6 dropped
+ * the old "no control" bail-out that used to guard a direct, un-injected lookup).
+ *
  * @complexity O(1) time and space; one listener.
  * @overallScore 100
  */
 function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  // Before any trigger branch, and before either bail-out below: three-d.css reads
+  // Before any trigger branch, and before the bail-outs below: three-d.css reads
   // `--kui-card-toggle-duration`/`-delay`/`-ease`, and only the `key:value` spelling of those
   // reaches it on its own (`declarations.ts`'s `pushTrack` writes the positional tokens for `css-keyframes`
   // primitives and no others). So `flip-card 900ms` used to turn at the 700ms default while
@@ -42,16 +55,10 @@ function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContex
   if (trigger === 'click') return () => {}
   if (!supportsFineHover(ctx.win)) return () => {}
 
-  const parts = prepareFlipParts(el, params, ctx)
-  const control = parts.control
-  if (!control) {
-    // The two bail-outs above are silent by design — `click` has nothing to wire, and a coarse
-    // pointer is a documented no-op. This one is a misconfiguration: the card renders, the pointer
-    // does nothing, and the usual cause is a control nested one level deeper than the direct child
-    // the `:has()` rule and this lookup both require.
-    ctx.warn(`flip-card trigger:${trigger} found no direct-child .kui-flip-control — the card will not flip`)
-    return parts.cleanup
-  }
+  // Guaranteed present: `prepareCard` already ran `prepareFlipParts` on this element before this
+  // deferred function could ever be reached, and `resolveControl`'s injected branch always
+  // succeeds — see `FlipParts.control`'s own doc comment.
+  const control = el.querySelector(CONTROL_SELECTOR)!
 
   const set = (flipped: boolean): void => control.setAttribute('aria-pressed', String(flipped))
   const isFlipped = (): boolean => control.getAttribute('aria-pressed') === 'true'
@@ -69,8 +76,34 @@ function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContex
   return () => {
     el.removeEventListener('pointerenter', onEnter)
     el.removeEventListener('pointerleave', onLeave)
-    parts.cleanup()
   }
+}
+
+/**
+ * Prepare-time entry point for `card-toggle`: stamp/inject the card's structural parts
+ * immediately, then defer the trigger wiring itself to activation exactly as before.
+ *
+ * The parts call moved here from inside {@link prepareCardToggle} (target:-everywhere reconcile
+ * R-7) because that function runs wrapped in `deferPrepare`, which never calls it at all until
+ * `activate()` does — and `activate()` is exactly what `trigger:click` bails out of reaching
+ * (nothing to wire) and what the animator never calls for a `reducedMotion: 'disable'` primitive
+ * once `prefers-reduced-motion` is on. Either way, a class-free card got no faces and no control:
+ * invisible under reduced motion, silently unflippable on the default `trigger:click`. `prepare()`
+ * itself has no such gate — it runs once per install regardless of trigger or motion preference —
+ * so resolving the parts here reaches every card the primitive installs on.
+ *
+ * The parts' own cleanup rides `ctx.signal` rather than the returned `EffectInstance`'s teardown:
+ * the two fire together (the animator aborts `ctx.signal` at the same release that would call
+ * `destroy()`), and `ctx.signal` is available immediately, before the deferred instance — or
+ * whether it ever activates at all — is any part of the question.
+ *
+ * @complexity O(1) time and space beyond {@link prepareFlipParts}'s own cost.
+ * @overallScore 100
+ */
+function prepareCard(el: Element, params: EffectParams, ctx: PrepareContext): EffectInstance {
+  const parts = prepareFlipParts(el, params, ctx)
+  ctx.signal.addEventListener('abort', parts.cleanup, { once: true })
+  return deferPrepare(prepareCardToggle)(el, params, ctx)
 }
 
 /**
@@ -120,7 +153,7 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
   defaultActivation: 'load',
   perfClass: 'compositor',
   reducedMotion: 'disable',
-  prepare: deferPrepare(prepareCardToggle),
+  prepare: prepareCard,
 }
 
 export const THREE_D_PRIMITIVES: Primitive[] = [
