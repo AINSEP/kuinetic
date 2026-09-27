@@ -578,16 +578,10 @@ export class Animator {
 
     // Resolved before anything else touches the DOM — every group's selector against the live
     // document, once, warning by name for any that is invalid, too broad, or simply empty (see
-    // `resolveGroupMatches`). If none survive, this element has real compiled effects
-    // (`process()`'s own `fxNames.length === 0` guard already ruled out "no effects at all") but
-    // nowhere for any of them to run, so nothing here is registered and no ledger ever opens.
+    // `resolveGroupMatches`).
     const groups = document.targets
       .map((target) => ({ target, matches: this.resolveGroupMatches(el, target) }))
       .filter((group) => group.matches.length > 0)
-    if (groups.length === 0) {
-      el.setAttribute(ATTR.state, 'failed')
-      return
-    }
 
     /*
      * One set per authored element, not one ledger pair. The host is the first member and always

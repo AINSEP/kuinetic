@@ -288,7 +288,10 @@ function warnOnNumberMismatch(
   formattedTo: string,
   ctx: PrepareContext,
 ): void {
-  const authoredText = el.textContent ?? ''
+  // Always a string, never null: `Node.textContent` can be null for a document or doctype node,
+  // but `el` here is always an `Element`, whose own `textContent` is spec'd to always return one
+  // (`''` for an empty element), never `null`.
+  const authoredText = el.textContent!
   const authoredDigits = authoredText.replace(/\D/g, '')
   const toDigits = formattedTo.replace(/\D/g, '')
   if (authoredDigits === toDigits) return

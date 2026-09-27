@@ -248,8 +248,16 @@ describe('install order: the host\'s data-kui-state is stamped after its matches
 
 describe('multi-group claims compile to one union install', () => {
   it('a match claimed by two target: groups installs once, carrying both effects', () => {
+    // Two DIFFERENT selectors, deliberately overlapping on one element (`.item.featured`) — not
+    // the same selector authored twice. Two `target:` groups sharing one selector compile down to
+    // a single group at compile time (`compile.ts` keys groups by selector+scope), so that would
+    // only ever exercise install.ts's ordinary single-group path. Only two distinct selectors that
+    // both resolve to the same live element make `claimMatches` join a second claim onto an
+    // already-claimed match (`claimMatch`'s `existing` branch) and force `installedTargetFor` into
+    // its real `compileUnion` path, instead of the `targets.length === 1` shortcut.
     const { animator } = build(
-      '<div id="host" data-kui="fade-up target:.item, blur-in target:.item"><p class="item"></p></div>',
+      '<div id="host" data-kui="fade-up target:.item, blur-in target:.featured">' +
+        '<p class="item featured"></p></div>',
     )
     const host = document.getElementById('host')!
     const item = host.querySelector('.item')!

@@ -235,8 +235,8 @@ function finalizeInstall(port: AnimatorPort, context: DerivedInstallContext, inp
  * its own derived state, then the host's own group (or a zero-instance aggregate).
  *
  * A host with no own (untargeted) segment and nothing claimed has real compiled effects — `process`
- * already ruled out zero effects entirely — but nowhere for any of them to run, the same "failed"
- * outcome an ordinary install reaches when every group's selector comes back empty.
+ * already ruled out zero effects entirely — but nowhere for any of them to run, so this is the
+ * `'failed'` outcome below.
  *
  * @param port - The animator's narrow window (see `AnimatorPort`).
  * @param request - The would-be host's install request.

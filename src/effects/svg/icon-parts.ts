@@ -34,7 +34,10 @@ function findBars(el: Element): Element[] {
   if (sole && sole.tagName.toLowerCase() === 'svg') return Array.from(sole.querySelectorAll(SVG_BAR_SELECTOR))
   // A label sibling (`<span>Menu</span>`) has text of its own; a bar never does — it is a plain
   // decorative box the CSS transitions `translate`/`rotate`/`opacity`/`clip-path`/`scale` on.
-  return children.filter((child) => (child.textContent ?? '').trim() === '')
+  // Always a string, never null: `Node.textContent` can be null for a document or doctype node,
+  // but `children` only ever holds `Element`s, whose own `textContent` is spec'd to always return
+  // one (`''` for an empty element), never `null`.
+  return children.filter((child) => child.textContent!.trim() === '')
 }
 
 /**

@@ -320,4 +320,52 @@ describe('adoptLateMatches', () => {
     expect(installDerivedMatchesMock).not.toHaveBeenCalled()
     expect(restageTargetsMock).not.toHaveBeenCalled()
   })
+
+  it('leaves an unaffected sibling group untouched when only one of the host\'s groups gains a member', () => {
+    // `reindexGroup` runs over EVERY one of the host's live groups, not just the one(s) that
+    // actually resolved a new match (`resolveNewGroups` snapshots every group's `before` count
+    // unconditionally) — a host with a second, untouched group is what exercises its own early
+    // return (`group.members.length === before`), as distinct from the single-group tests above,
+    // which only ever exercise the "did gain a member" path.
+    const targetA = makeTarget('.item')
+    const targetB = makeTarget('.other')
+    const existingA = item()
+    const existingB = document.createElement('div')
+    existingB.className = 'other'
+    host.appendChild(existingA)
+    host.appendChild(existingB)
+    const groupA = makeGroup(targetA, undefined, [existingA])
+    const groupB = makeGroup(targetB, undefined, [existingB])
+    harness.book.groups.set(host, [groupA, groupB])
+    harness.book.contexts.set(host, makeContext(host))
+
+    const late = item() // matches '.item' (groupA) only
+    host.appendChild(late)
+
+    expect(() => adoptLateMatches(harness.port, late)).not.toThrow()
+
+    expectOrder(groupA.members, existingA, late)
+    expectOrder(groupB.members, existingB)
+  })
+
+  it('installs and restages nothing when every late match is rejected by claimMatches', () => {
+    // A real rejection (already claimed by another host, D-D) is `claimMatches`'s job, already
+    // covered elsewhere (`target-derived.test.ts`) — this file mocks that function entirely, so the
+    // only way to exercise `adoptIntoHost`'s own "nothing survived the claim pass" branch is to
+    // make the mock reject everything for one call, the same shape a real rejection would produce.
+    const target = makeTarget('.item')
+    const group = makeGroup(target, undefined)
+    harness.book.groups.set(host, [group])
+    harness.book.contexts.set(host, makeContext(host))
+    claimMatchesMock.mockReturnValueOnce(new Map())
+
+    const late = item()
+    host.appendChild(late)
+
+    adoptLateMatches(harness.port, late)
+
+    expect(installDerivedMatchesMock).not.toHaveBeenCalled()
+    expect(restageTargetsMock).not.toHaveBeenCalled()
+    expect(group.members).toEqual([])
+  })
 })

@@ -27,6 +27,15 @@ describe('findUnquotedSelectors', () => {
     expect(findUnquotedSelectors(specs, catalogRegistry())).toEqual([])
   })
 
+  // `looksLikeSelectorFragment`'s two tests are independent: a stray segment can look like a
+  // selector fragment by opening with a class/id/attribute/universal/pseudo marker (`.b` above) OR
+  // by containing a combinator without one, e.g. a descendant/child selector's second half once
+  // the comma has already split it off. This exercises the second shape on its own.
+  it('flags a stray segment that contains a combinator but no leading selector marker', () => {
+    const { specs } = parse('pop target:.a, a>b')
+    expect(findUnquotedSelectors(specs, catalogRegistry())).toEqual([{ previous: '.a', segment: 'a>b' }])
+  })
+
   it('does not flag a selector-shaped segment whose previous segment carries no target:', () => {
     const { specs } = parse('pop, .b')
     expect(findUnquotedSelectors(specs, catalogRegistry())).toEqual([])

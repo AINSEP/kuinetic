@@ -113,7 +113,10 @@ export function claimTargetGroupHost(host: Element): () => void {
   return () => {
     if (released) return
     released = true
-    const remaining = (TARGET_GROUP_HOSTS.get(host) ?? 1) - 1
+    // Always present: this closure's own `set` above guarantees an entry for `host`, and `released`
+    // makes every closure's own decrement fire exactly once — the shared count can never fall below
+    // the number of claims still holding an un-released closure.
+    const remaining = TARGET_GROUP_HOSTS.get(host)! - 1
     if (remaining > 0) TARGET_GROUP_HOSTS.set(host, remaining)
     else TARGET_GROUP_HOSTS.delete(host)
   }

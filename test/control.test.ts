@@ -395,6 +395,27 @@ describe('control() over a live animator', () => {
     expect(handle.pause().play().reverse().seek(0.5).timeScale(0.5)).toBe(handle)
   })
 
+  it('binds a target: match once, even when the selection also names it directly', () => {
+    // `#host` reaches `.item` twice over: once directly (it is its own selector match) and once
+    // through `#host`'s own `target:` group (`withDerived` widens `#host` to include its derived
+    // matches). `handle.elements` stays the author's literal selection (`elements`, before
+    // widening — see `control()`'s own comment on `reach` vs `handle.elements`), so it cannot tell
+    // the two apart; `handle.uncontrolled` can, since it is built from `bounds`, which is built
+    // from the (de-duplicated) `reach`. A `fake-drag` match bound twice would name `'fake-drag'`
+    // twice in `handle.uncontrolled`, once per duplicate `bound` entry constructed for it.
+    const { animator, reporter } = build(
+      '<div id="host" data-kui="fake-drag target:.item"><p class="item"></p></div>',
+    )
+    const host = document.getElementById('host')!
+    const item = host.querySelector('.item')!
+
+    const handle = animator.control('#host, .item')
+
+    expect(handle.elements).toEqual([host, item])
+    expect(handle.uncontrolled).toEqual(['fake-drag'])
+    expect(reporter.messages.filter((m) => m.includes('"fake-drag" is rendered in JavaScript'))).toHaveLength(1)
+  })
+
   it('reports the least advanced element of a selection, so progress 1 means all done', () => {
     const { animator } = build(
       '<div class="x" data-kui="fake-fade" data-kui-on="load"></div>' +
