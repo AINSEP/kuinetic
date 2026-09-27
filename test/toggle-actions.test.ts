@@ -340,6 +340,7 @@ describe('the animator wires the crossings up', () => {
     el: HTMLElement
     requests: ActivationRequest[]
     messages: string[]
+    animator: Animator
   } {
     document.body.innerHTML = markup
     const requests: ActivationRequest[] = []
@@ -351,17 +352,19 @@ describe('the animator wires the crossings up', () => {
       },
       destroy() {},
     }
-    new Animator({
+    const animator = new Animator({
       root: document.body,
       registry: catalogRegistry(),
       capabilities: CAPS,
       reporter,
       binder,
-    }).start()
+    })
+    animator.start()
     return {
       el: document.body.querySelector('[data-kui]') as HTMLElement,
       requests,
       messages: reporter.messages,
+      animator,
     }
   }
 
@@ -382,6 +385,17 @@ describe('the animator wires the crossings up', () => {
     const { el, requests } = build('<div data-kui="fade-up on:enter actions:none/play"></div>')
     requests[0]?.cross?.('enter')
     expect(el.getAttribute(ATTR.state)).toBe('ready')
+  })
+
+  it('reverses the element when the verb for a crossing is "reverse"', () => {
+    // The one call site `applyCrossing`'s own `reverse` callback has: a crossing whose verb is
+    // "reverse" is the only thing that reaches it — `control().reverse()` (asserted in
+    // `control.test.ts`) goes through a different method entirely.
+    const { el, requests, animator } = build('<div data-kui="fade-up on:enter actions:play/reverse"></div>')
+    requests[0]?.cross?.('enter')
+    expect(animator.stateOf(el)!.direction).toBe('forward')
+    requests[0]?.cross?.('leave')
+    expect(animator.stateOf(el)!.direction).toBe('reverse')
   })
 
   it('warns about an activation with no crossings, even though it never reaches the binder', () => {

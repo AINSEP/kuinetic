@@ -5,7 +5,7 @@
 // file rather than that one, because what it now guarantees is a fact about the partition: it
 // returns `targets[0]`, and `targets[0]` is always the host group.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { compile, compileTargets } from '../src/core/compile.js'
+import { compile, compileTargets, scopeHoists } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
 import { catalogRegistry } from './support/registry.js'
@@ -211,6 +211,52 @@ describe('compileTargets — segment-scoped hoists (the flip-card regression)', 
 
     expect(bySelector.get('.yt-play')!.plan.fxNames).toEqual(['pop'])
     expect(bySelector.get('.yt-play')!.hoists).toBeUndefined()
+  })
+})
+
+describe('scopeHoists — folding a declaring/unknown segment’s hoists back element-wide', () => {
+  it('folds an unknown name’s scoped hoist onto the element instead of leaving it group-scoped', () => {
+    // `bogus-effect` never resolves, so `staysOnHost` takes its `!resolved` branch — same as a
+    // primitive that owns `target` itself (the six `scroll-mechanics`/`forms` primitives): there is
+    // no group for `on:hover` to scope to, so it belongs on the element, exactly where an untargeted
+    // `on:hover` would have landed.
+    const folded = scopeHoists(parse('bogus-effect target:.a on:hover'), catalogRegistry())
+    expect(folded.activation).toBe('hover')
+    expect(folded.specs[0]!.hoists).toBeUndefined()
+    expect(folded.specs[0]!.params.target).toBe('.a')
+  })
+})
+
+describe('compileTargets — conflicting hoists within one target: group', () => {
+  it('keeps the first-authored value and warns by name on a later disagreement', () => {
+    const document = runTargets('fade-up target:.a threshold:40%, blur-in target:.a threshold:80%')
+    const group = document.targets.find((t) => t.selector === '.a')!
+    expect(group.hoists?.threshold).toBe('40%')
+    expect(group.plan.warnings.join()).toContain(
+      'conflicting thresholds "40%" and "80%" in one target: group — the first wins',
+    )
+  })
+})
+
+describe('compileTargets — at: across groups with different triggers', () => {
+  it('warns when an at:-positioned segment’s own trigger differs from its neighbour’s', () => {
+    const document = runTargets(
+      'fade-up target:h1 on:enter 600ms, blur-in target:p on:hover 400ms at:-200ms',
+    )
+    expect(document.warnings.join()).toContain(
+      "may start on a different trigger — the offset is relative to each one's own start",
+    )
+    expect(document.warnings.join()).toContain('"blur-in"')
+    expect(document.warnings.join()).toContain('"fade-up"')
+  })
+})
+
+describe('compileTargets — 9b unquoted target: selectors surface as a document warning', () => {
+  it('names the stray segment and marks it as a suspect selector', () => {
+    const document = runTargets('pop target:.a, .b')
+    expect(document.suspectSelectors).toEqual(['.b'])
+    expect(document.warnings.join()).toContain('target:.a')
+    expect(document.warnings.join()).toContain('.b')
   })
 })
 

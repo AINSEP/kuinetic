@@ -220,6 +220,82 @@ describe('hostOf() is derivedOf()\'s inverse', () => {
   })
 })
 
+// `activate()`/`reverseFrom()`/`cancel()` each do their own element first, then fan out to
+// `derivedOf(el)` — see their own doc comments. A host whose whole authored value is `target:`ed
+// away (no own, untargeted segment) is a zero-instance aggregate (`installAggregate`): calling any
+// of the three directly on *that* host exercises both halves in one call — the host's own early
+// return (`activateOne`'s `state.aggregate` guard) and the fan-out loop reaching real matches.
+describe('activate()/reverseFrom()/cancel() on an aggregate host fan out to its derived matches', () => {
+  function setup() {
+    const { animator } = build(
+      '<ul id="host" data-kui="fade-up on:click target:li"><li></li><li></li></ul>',
+    )
+    const host = document.getElementById('host')!
+    const matches = animator.derivedOf(host)
+    return { animator, host, matches }
+  }
+
+  it('activate() starts every match, and the aggregate host follows them via syncAggregate', () => {
+    const { animator, host, matches } = setup()
+    expect(matches).toHaveLength(2)
+    expect(animator.stateOf(host)!.status).toBe('ready')
+
+    animator.activate(host)
+
+    for (const match of matches) expect(animator.stateOf(match)!.status).toBe('running')
+    // The aggregate host has no instances of its own to run — `installAggregate` never gives it
+    // any — so `activate()`'s own `activateOne(host)` call takes `activateOne`'s `state.aggregate`
+    // guard and returns having written nothing; the host reaches `running` only secondhand, through
+    // `syncAggregate` reacting to its matches' own `kui:start`.
+    expect(animator.stateOf(host)!.status).toBe('running')
+  })
+
+  it('reverseFrom() reverses every match that has already started', () => {
+    const { animator, host, matches } = setup()
+    animator.activate(host)
+
+    animator.reverseFrom(host)
+
+    for (const match of matches) expect(animator.stateOf(match)!.direction).toBe('reverse')
+  })
+
+  it('cancel() stops every running match and dispatches kui:cancel on each one', () => {
+    const { animator, host, matches } = setup()
+    animator.activate(host)
+    const cancelled: Element[] = []
+    for (const match of matches) match.addEventListener('kui:cancel', () => cancelled.push(match))
+
+    animator.cancel(host)
+
+    expect(cancelled).toEqual(matches)
+  })
+})
+
+// 3b's own rule: a `target:` group whose effective stagger keys are grouped (`cascade:` here) gets
+// one activation binding on the host instead of each member binding its own — `activateGroup`/
+// `deactivateGroup` (group-gate.ts) fan out through `port.activateOne`/`port.deactivateOne`.
+// `group-gate.test.ts` already drives those two functions against a hand-built port double; this
+// is the seam that proves the real `Animator`'s own port closures are what a real binding reaches.
+describe('a grouped target: group binds one gate on the host and fans out through the real port', () => {
+  it('activates and deactivates every member when the host\'s one binding fires', () => {
+    const { animator, binder } = build(
+      '<ul id="host" data-kui="fade-up on:pointerenter/pointerleave target:li cascade:90ms">' +
+        '<li></li><li></li></ul>',
+    )
+    const host = document.getElementById('host')!
+    const matches = animator.derivedOf(host)
+    expect(matches).toHaveLength(2)
+    // One binding on the host, not one per member — `groupGateOwner` named it the gate owner.
+    expect(binder.bindings.map((b) => b.el)).toEqual([host])
+
+    binder.fire(host)
+    for (const match of matches) expect(animator.stateOf(match)!.status).toBe('running')
+
+    binder.fireOut(host)
+    for (const match of matches) expect(animator.stateOf(match)!.direction).toBe('reverse')
+  })
+})
+
 describe('install order: the host\'s data-kui-state is stamped after its matches\' animation-name', () => {
   it('records the host\'s data-kui-state mutation after a match\'s style mutation', () => {
     document.body.innerHTML =
