@@ -359,6 +359,13 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 
 ## Open
 
+- [ ] **Demo: show multi-selector `target:` in quotes.** Owner's request, 2026-09-26. Once the
+      `target:`-everywhere work lands (plan: session scratchpad `target-everywhere-plan.md`), add a
+      few real examples to the demo pages where one `data-kui` aims at several selectors, e.g.
+      `pop target:'.yt-play, .card-cta' scale:1.08`. Inside `data-kui="..."` the selector must use
+      single quotes. Blocked on that work; it is demo design work, so load the web-design agent
+      per CLAUDE.md.
+
 - [x] **Swap the Fitim Bozar Short on `scroll.html` for `IwCxNOOB_qE`.** DONE 2026-09-26:
       swapped `data-yt-id`, `<img src>`, and `alt` on `demo/scroll.html:1537-1538` to
       `IwCxNOOB_qE` — real title/creator via oEmbed is "This Horizontal Scroll Animation is EASY!
