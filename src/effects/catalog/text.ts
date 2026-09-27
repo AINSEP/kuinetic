@@ -2,6 +2,7 @@ import { CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { frameScheduler, watchElementSize } from '../../core/element-size.js'
 import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
@@ -14,6 +15,7 @@ import {
   hasInteractiveDescendant,
   installSplitLayers,
   nextTypeState,
+  rewrapLineSpans,
   scrambledFrame,
   segmentGraphemes,
   splitRevealFinishMs,
@@ -21,7 +23,7 @@ import {
   varAxisParams,
   varAxisVariant,
 } from './text-shared.js'
-import type { SplitUnit, TypeState } from './text-shared.js'
+import type { SplitLayers, SplitUnit, TypeState } from './text-shared.js'
 
 /**
  * Text and typography effects (catalog section D).
@@ -313,6 +315,7 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
   }
   const doc = el.ownerDocument
   const unit = params.text('unit', 'chars') as SplitUnit
+  if (unit === 'lines') return prepareResponsiveLines(el, params, ctx)
   const direction = params.text('direction', 'fade')
   const layers = installSplitLayers(el, doc)
   layers.decorative.setAttribute('data-kui-split-fx', direction)
@@ -347,6 +350,117 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
       layers.restore()
       settle()
     },
+  }
+}
+
+/** The host's current content width (or height in a vertical writing mode). */
+function textInlineSize(el: Element, win: Window): number {
+  const style = win.getComputedStyle(el)
+  const vertical = /^(vertical|sideways)/.test(style.writingMode)
+  const rect = el.getBoundingClientRect()
+  const measured = vertical ? el.clientHeight : el.clientWidth
+  const fallback = vertical ? rect.height : rect.width
+  const padding = vertical
+    ? parseFloat(style.paddingBlockStart) + parseFloat(style.paddingBlockEnd)
+    : parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd)
+  return (measured || fallback) - (Number.isNaN(padding) ? 0 : padding)
+}
+
+/** Completion gate for a line reveal whose stagger can change after a resize. */
+function lineCompletion(
+  ctx: PrepareContext,
+  params: EffectParams,
+  layers: SplitLayers,
+  count: number,
+) {
+  let settle!: () => void
+  const finished = new Promise<void>((resolve) => { settle = resolve })
+  const land = (): void => {
+    ctx.win.clearTimeout(timer)
+    timer = undefined
+    layers.decorative.removeAttribute('aria-hidden')
+    layers.srOnly.remove()
+    settle()
+  }
+  let timer: number | undefined = ctx.win.setTimeout(land, splitRevealFinishMs(params, count))
+  return {
+    finished,
+    land,
+    rearm(nextCount: number) {
+      if (timer === undefined) return
+      ctx.win.clearTimeout(timer)
+      timer = ctx.win.setTimeout(land, splitRevealFinishMs(params, nextCount))
+    },
+    cancel() {
+      if (timer !== undefined) ctx.win.clearTimeout(timer)
+    },
+  }
+}
+
+/** Observe line layout and one pending font load, stopping every callback on teardown. */
+function watchLineChanges(
+  el: Element,
+  ctx: PrepareContext,
+  onResize: () => void,
+  onFontReady: () => void,
+): Cleanup {
+  let active = true
+  const frame = frameScheduler(ctx.win, onResize)
+  const watch = watchElementSize(ctx.win, frame.request)
+  watch.observe(el)
+  const fonts = el.ownerDocument.fonts
+  if (fonts && fonts.status !== 'loaded') {
+    void fonts.ready.then(() => {
+      if (!active) return
+      onFontReady()
+      frame.request()
+    })
+  }
+  return () => {
+    active = false
+    watch.disconnect()
+    frame.cancel()
+  }
+}
+
+/**
+ * Keep visual lines aligned with the live inline size, including a late font load.
+ * @complexity O(n) per rewrap in word count; O(n) space for line buckets.
+ * @overallScore 100
+ */
+function prepareResponsiveLines(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  const doc = el.ownerDocument
+  const layers = installSplitLayers(el, doc)
+  layers.decorative.setAttribute('data-kui-split-fx', params.text('direction', 'fade'))
+  applyStaggerVars(layers.decorative, params)
+  const items = appendSpansFor('lines', layers.decorative, doc, layers.originalText)
+  let inlineSize = textInlineSize(el, ctx.win)
+  let force = false
+  let destroyed = false
+  const completion = lineCompletion(ctx, params, layers, items.length)
+
+  const rewrap = (): void => {
+    if (destroyed) return
+    const nextSize = textInlineSize(el, ctx.win)
+    if (!force && nextSize === inlineSize) return
+    force = false
+    inlineSize = nextSize
+    const lines = rewrapLineSpans(layers.decorative, doc)
+    // New elements start new CSS animations. Keep the completion gate open until the last of
+    // those newly staggered lines has reached its final frame.
+    completion.rearm(lines.length)
+  }
+  const stopWatching = watchLineChanges(el, ctx, rewrap, () => { force = true })
+
+  return {
+    cleanup: () => {
+      destroyed = true
+      stopWatching()
+      completion.cancel()
+      layers.restore()
+    },
+    finished: completion.finished,
+    finish: completion.land,
   }
 }
 

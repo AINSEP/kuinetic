@@ -87,6 +87,15 @@
     margin-block: calc(-1 * var(--kui-mask-bleed, 0px));
   }
 
+  /* A finished line reveal stays in the DOM for responsive re-measurement. New wrappers must
+   * display their final frame without restarting, and the mask must not clip a long word. */
+  [data-kui-state='finished'] [data-kui-split-fx] .kui-split-line {
+    animation-name: none;
+    opacity: 1;
+    clip-path: none;
+    translate: none;
+  }
+
   @keyframes kui-split-reveal-fade {
     from {
       opacity: 0;

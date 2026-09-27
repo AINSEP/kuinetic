@@ -42,6 +42,8 @@ export function hasInteractiveDescendant(el: Element): boolean {
 export interface SplitLayers {
   /** `aria-hidden` container the caller populates with decorative markup or text. */
   decorative: HTMLElement
+  /** The accessible reading copy while the decorative pieces are animating. */
+  srOnly: HTMLElement
   /** The element's text at the moment splitting began, trimmed for display. */
   originalText: string
   /**
@@ -89,6 +91,7 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
 
   return {
     decorative,
+    srOnly,
     originalText,
     restore: restoreChildren,
   }
@@ -356,8 +359,7 @@ function bucketByLine(container: Element): Node[][] {
  * @complexity O(n) time and space in word-span count.
  * @overallScore 100
  */
-export function appendLineSpans(container: Element, doc: Document, text: string): HTMLElement[] {
-  appendWordSpans(container, doc, text)
+function wrapMeasuredLines(container: Element, doc: Document): HTMLElement[] {
   const buckets = bucketByLine(container)
   container.replaceChildren()
   return buckets.map((nodes, index) => {
@@ -381,6 +383,33 @@ export function appendLineSpans(container: Element, doc: Document, text: string)
     container.append(line)
     return line
   })
+}
+
+/**
+ * Split text into measured visual lines.
+ * @complexity O(n) time and space in word-span count.
+ * @overallScore 100
+ */
+export function appendLineSpans(container: Element, doc: Document, text: string): HTMLElement[] {
+  appendWordSpans(container, doc, text)
+  return wrapMeasuredLines(container, doc)
+}
+
+/**
+ * Put existing words and whitespace back into natural flow, measure, and wrap the new lines.
+ * The offsetTop reads in wrapMeasuredLines finish before it writes any line wrappers.
+ *
+ * @complexity O(n) time and space in word-span count.
+ * @overallScore 100
+ */
+export function rewrapLineSpans(container: Element, doc: Document): HTMLElement[] {
+  const nodes = Array.from(container.childNodes).flatMap((line) => Array.from(line.childNodes))
+  container.replaceChildren(...nodes)
+  let index = 0
+  for (const node of nodes) {
+    if (node instanceof HTMLElement) markItem(node, index++)
+  }
+  return wrapMeasuredLines(container, doc)
 }
 
 /**
