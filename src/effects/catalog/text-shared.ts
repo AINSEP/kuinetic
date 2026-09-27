@@ -299,29 +299,61 @@ export function appendCharSpans(container: Element, doc: Document, text: string)
   return spans
 }
 
+interface WordSpanState {
+  container: Element
+  doc: Document
+  spans: HTMLElement[]
+  preceding: HTMLElement | null
+  leading: string
+}
+
+/** Add one indexed animated item, including a punctuation-only run when needed. */
+function appendWordItem(state: WordSpanState, value: string): HTMLElement {
+  const span = state.doc.createElement('span')
+  markItem(span, state.spans.length)
+  span.textContent = value
+  state.container.append(span)
+  state.spans.push(span)
+  return span
+}
+
+/** Route non-word graphemes to a neighboring word, an item, or bare whitespace. */
+function appendNonWordToken(state: WordSpanState, value: string, graphemes: Intl.Segmenter): void {
+  for (const { segment } of graphemes.segment(value)) {
+    if (segment.trim() === '') {
+      if (state.leading) appendWordItem(state, state.leading)
+      state.leading = ''
+      state.preceding = null
+      state.container.append(state.doc.createTextNode(segment))
+    } else if (state.leading || /^[\p{Ps}\p{Pi}¿¡]$/u.test(segment) || !state.preceding) {
+      state.leading += segment
+    } else {
+      state.preceding.textContent += segment
+    }
+  }
+}
+
 /**
- * Split text into one span per word, leaving the whitespace and punctuation between them as plain
- * text nodes so natural line-wrapping and spacing survive untouched.
+ * Split text into animated words. Opening punctuation joins the next word; other punctuation
+ * joins the preceding word. A punctuation run without a word gets its own item. Only whitespace
+ * stays outside the items, preserving natural wrapping and spacing.
  *
  * @complexity O(n) time and space in segment count.
  * @overallScore 100
  */
 export function appendWordSpans(container: Element, doc: Document, text: string): HTMLElement[] {
-  const spans: HTMLElement[] = []
-  let index = 0
+  const state: WordSpanState = { container, doc, spans: [], preceding: null, leading: '' }
+  const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   for (const token of segmentWords(text)) {
     if (!token.isWord) {
-      container.append(doc.createTextNode(token.text))
+      appendNonWordToken(state, token.text, graphemes)
       continue
     }
-    const span = doc.createElement('span')
-    markItem(span, index)
-    span.textContent = token.text
-    container.append(span)
-    spans.push(span)
-    index++
+    state.preceding = appendWordItem(state, state.leading + token.text)
+    state.leading = ''
   }
-  return spans
+  if (state.leading) appendWordItem(state, state.leading)
+  return state.spans
 }
 
 /**

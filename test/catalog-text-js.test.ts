@@ -10,6 +10,7 @@ import {
   appendWordSpans,
   installSplitLayers,
   nextTypeState,
+  rewrapLineSpans,
   scrambledFrame,
   segmentGraphemes,
   splitRevealFinishMs,
@@ -75,6 +76,13 @@ describe('installSplitLayers', () => {
 })
 
 describe('appendCharSpans', () => {
+  it('keeps punctuation as individual grapheme items in chars mode', () => {
+    const container = document.createElement('span')
+    const spans = appendCharSpans(container, document, '“Hi!”')
+    expect(spans.map((span) => span.textContent)).toEqual(['“', 'H', 'i', '!', '”'])
+    expect(container.textContent).toBe('“Hi!”')
+  })
+
   it('leaves whitespace graphemes as plain text nodes rather than zero-width spans', () => {
     const container = document.createElement('span')
     const spans = appendCharSpans(container, document, 'a b')
@@ -118,6 +126,29 @@ describe('appendWordSpans', () => {
     appendWordSpans(container, document, 'one  two')
     expect(container.textContent).toBe('one  two')
     expect(container.querySelectorAll('.kui-split-item')).toHaveLength(2)
+  })
+
+  it.each([
+    ['A self-hosted content management system. Write blog posts, create videos.',
+      ['A', 'self-', 'hosted', 'content', 'management', 'system.', 'Write', 'blog', 'posts,', 'create', 'videos.']],
+    ['“Hello,” she said.', ['“Hello,”', 'she', 'said.']],
+    ['"Hello," she said.', ['"Hello,"', 'she', 'said.']],
+    ['(Hello) [world] {again}.', ['(Hello)', '[world]', '{again}.']],
+    ['Wait… really?', ['Wait…', 'really?']],
+    ['one — two', ['one', '—', 'two']],
+    ['你好，世界。', ['你好，', '世界。']],
+    ['…', ['…']],
+    ['!?…', ['!?…']],
+    ['¿Qué? ¡Sí!', ['¿Qué?', '¡Sí!']],
+  ])('keeps punctuation inside animated items for %s', (source, expected) => {
+    const container = document.createElement('span')
+    const spans = appendWordSpans(container, document, source)
+    expect(spans.map((span) => span.textContent)).toEqual(expected)
+    expect(Array.from(container.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)
+      .every((node) => node.textContent?.trim() === '')).toBe(true)
+    expect(spans.map((span) => span.style.getPropertyValue('--kui-i')))
+      .toEqual(spans.map((_, index) => String(index)))
+    expect(container.textContent).toBe(source)
   })
 })
 
@@ -172,9 +203,63 @@ describe('appendLineSpans', () => {
       expect(line.querySelectorAll('.kui-split-item')).toHaveLength(0)
     }
   })
+
+  it('re-buckets punctuation-bearing words without losing or duplicating text', () => {
+    const source = '“One,” two — three (four)…'
+    const container = document.createElement('span')
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop')
+    let perLine = 3
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) {
+        const siblings = Array.from(this.parentElement?.children ?? [])
+        return Math.floor(siblings.indexOf(this) / perLine) * 20
+      },
+    })
+    try {
+      appendLineSpans(container, document, source)
+      perLine = 2
+      for (let pass = 0; pass < 2; pass++) {
+        const lines = rewrapLineSpans(container, document)
+        expect(container.textContent).toBe(source)
+        expect(Array.from(container.querySelectorAll('.kui-split-line > span'),
+          (span) => span.textContent)).toEqual(['“One,”', 'two', '—', 'three', '(four)…'])
+        expect(Array.from(container.querySelectorAll('.kui-split-line'),
+          (line) => Array.from(line.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)
+            .every((node) => node.textContent?.trim() === ''))).toEqual(lines.map(() => true))
+        expect(lines.map((line) => line.style.getPropertyValue('--kui-i')))
+          .toEqual(lines.map((_, index) => String(index)))
+        expect(container.querySelectorAll('.kui-split-line .kui-split-item')).toHaveLength(0)
+      }
+    } finally {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, 'offsetTop', descriptor)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'offsetTop')
+    }
+  })
 })
 
 describe('split-chars / split-text', () => {
+  it('hides punctuation in text-reveal-up and restores the exact reading text', () => {
+    vi.useFakeTimers()
+    const source = 'A self-hosted content management system. Write blog posts, create videos.'
+    const el = document.createElement('p')
+    el.textContent = source
+    const resolved = registry.resolve('text-reveal-up')!
+    const instance = resolved.primitive.prepare!(el, createParams({ duration: '700ms' }), fakeCtx(el))
+    instance.activate()
+    const decorative = el.querySelector('.kui-split-decorative')!
+    expect(decorative.textContent).toBe(source)
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe(source)
+    expect(Array.from(decorative.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)
+      .every((node) => node.textContent?.trim() === '')).toBe(true)
+    instance.finish()
+    expect(el.textContent).toBe(source)
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+    instance.destroy()
+    expect(el.textContent).toBe(source)
+    vi.useRealTimers()
+  })
+
   it('splits by grapheme cluster and restores original text on destroy', () => {
     const resolved = registry.resolve('split-chars')!
     const el = document.createElement('p')

@@ -66,9 +66,9 @@
   /*
    * No `overflow: hidden` here — `clip-path` already clips this element's own painted content
    * without it, and per spec, `overflow` other than `visible` on an inline-block moves its
-   * baseline to its bottom margin edge instead of its text baseline. That shifted every word
-   * span down relative to any plain-text sibling (trailing punctuation, inter-word spaces)
-   * still using the real baseline — visible as a stray, oddly-placed period after "view.".
+   * baseline to its bottom margin edge instead of its text baseline. That shifted word spans
+   * against the surrounding inline content. Punctuation now lives inside an animated word span,
+   * so it shares that word's baseline and cannot appear as a stray period before the reveal.
    *
    * `--kui-mask-bleed` is the tolerance knob for the other half of the same clipping story. The
    * resting frame is `clip-path: inset(0)`, which clips to the item's *border box* — and display
