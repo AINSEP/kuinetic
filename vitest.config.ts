@@ -13,6 +13,7 @@ export default defineConfig({
         'src/css/**',
         // Type-only, no runtime code to cover.
         'src/core/effect-context.ts',
+        'src/core/derived/types.ts',
         // Test files, not product code. They live under `src/` only so `src/advanced/`
         // can colocate its suite, and `coverage.include`'s `src/**` sweeps them up.
         // Grading a test file's own functions measures nothing.

@@ -66,11 +66,17 @@ function xComponent(value: string): string {
  * Evaluates a `*`-chained expression built only from `var(--kui-distance, 24px)` (normalized to
  * `1`, since only its sign matters here) and `var(--kui-dir, 1)` (substituted with `dir`).
  *
+ * `--kui-distance` may be gate-wrapped (`var(--kui-gate-distance, var(--kui-distance, 24px))`,
+ * S-12's inert `var()`-rewrite) as well as bare — the wrapped form has to be matched first, since
+ * it contains the bare pattern as a substring and would otherwise be left with an unresolved
+ * `var(--kui-gate-distance, 1)` outer shell once the inner match is normalized to `1`.
+ *
  * A plain multiply-the-factors reducer rather than a general expression evaluator: every formula
  * in this file is a product of those two terms and literal `-1`s, nothing more.
  */
 function signAt(expr: string, dir: 1 | -1): number {
   const factors = expr
+    .replace(/var\(--kui-gate-distance,\s*var\(--kui-distance,\s*24px\)\)/g, '1')
     .replace(/var\(--kui-distance,\s*24px\)/g, '1')
     .replace(/var\(--kui-dir,\s*1\)/g, String(dir))
     .split('*')

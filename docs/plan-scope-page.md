@@ -2,6 +2,16 @@
 
 Status: **plan only, no code written.** Read-only survey of `main` at `ceb1c3c`.
 
+> **Superseded 2026-09-27 by `target:-everywhere`.** This plan's own D1/D6 (below, and §2/§2.1) are
+> now the *opposite* of what shipped: each `target:` match installs as its own derived host — its
+> own `InstanceState`, its own trigger, its own `data-kui-state` — rather than the host owning one
+> shared lifecycle with only its writes relocated. `data-kui-state` reaches every match now, not
+> only the host. The six-primitive count in §0.1/§1 is also stale — nine primitives declare `target`
+> today (`test/target-declarers.test.ts`), not six. Kept for its still-accurate research (the
+> file:line survey, the cloak/attribute-ledger findings, D3 `horizontal-track`'s first-vs-all-match
+> question); read the design decisions here as history, not the current model. Current model: this
+> repo's `docs/getting-started.md#animating-a-different-element--target-and-scope`.
+
 The settled decisions this plan implements (owner's, not up for debate here):
 
 - **`target:` always means "search inside myself"** — descendant-scoped.

@@ -13,7 +13,7 @@ import { registerAdvanced } from 'kuinetic/advanced'
 Read "experimental" literally. This directory was written by an AI, has been through five review
 rounds, and two further reviews on the day it was exported each found P1 bugs still being fixed. The
 parameter names, preset names, and module boundaries can change without a major version bump. It is
-**not covered by the core library's stability guarantees**, and none of core's "CSS-first, zero-JS,
+**not covered by the core library's stability guarantees**, and none of core's "CSS-first,
 zero-dependency" claims describe it: every module here is JavaScript, and the shader modules need
 WebGL2. `demo/shaders-audio.html` is the one page built on it. Prefer a core effect
 whenever one will do.

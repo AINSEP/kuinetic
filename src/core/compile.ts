@@ -8,6 +8,7 @@ import {
 } from './channels.js'
 import { declarationsFor, emptyTracks, pushTrack, pushTransitions } from './declarations.js'
 import type { AnimationTracks } from './declarations.js'
+import { resolveTimelineHead } from './element-config.js'
 import {
   intersect,
   mergeHostFacts,
@@ -15,6 +16,7 @@ import {
   resolvedPolicy,
   strictestPolicy,
 } from './host-facts.js'
+import { assignOnce } from './parse.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
 import { suggest } from './registry.js'
@@ -22,6 +24,8 @@ import { resolvePlayback } from './repeat.js'
 import { isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
 import type { TargetScope } from './target.js'
+import { findUnquotedSelectors, unquotedSelectorWarning } from './unquoted-selectors.js'
+import { SEGMENT_HOIST_KEYS } from './types.js'
 import type {
   Activation,
   Channel,
@@ -33,6 +37,8 @@ import type {
   ParsedValue,
   Preset,
   ReducedMotionPolicy,
+  SegmentHoistKey,
+  SegmentHoists,
   Timeline,
 } from './types.js'
 
@@ -236,6 +242,16 @@ export interface CompiledTarget {
   /** `''` for the host group. */
   selector: string
   scope: TargetScope
+  /**
+   * Segment-scoped hoists merged across this group's own member entries, or absent when none of
+   * them carried one — see `SegmentHoists` and `scopeHoists`. Not yet consumed at runtime (that is
+   * Phase 2's job, via `element-config.ts`'s `resolveGroupConfig`); documented here as the shape a
+   * derived host's own `ElementConfig` will be built from.
+   */
+  hoists?: SegmentHoists
+  /** This group's lifted specs (target/scope stripped, hoists kept), authored order — what a
+   *  multi-group union recompiles from (2b `compileUnion`). */
+  specs: EffectSpec[]
   plan: CompiledPlan
 }
 
@@ -255,6 +271,9 @@ export interface CompiledTarget {
 export interface CompiledDocument {
   targets: CompiledTarget[]
   warnings: string[]
+  /** 9b: stray segments that look like an unquoted selector list — surfaced by 5b in
+   *  `data-kui-unmatched`. */
+  suspectSelectors?: string[]
 }
 
 /**
@@ -291,13 +310,23 @@ export function compileTargets(
   timeline: Timeline,
 ): CompiledDocument {
   const warnings = [...parsed.warnings]
+  // 9b: an unquoted, comma-containing `target:` selector splits into stray segments that look like
+  // effect names and are not — caught here, against the raw parsed specs, before any of them are
+  // resolved against the registry at all.
+  const unquoted = findUnquotedSelectors(parsed.specs, registry)
+  for (const found of unquoted) warnings.push(unquotedSelectorWarning(found))
+  const suspects = unquoted.length > 0 ? { suspectSelectors: unquoted.map((found) => found.segment) } : {}
   const { entries, unknown } = resolveEntries(parsed.specs, registry, warnings)
 
   if (entries.length === 0) {
     // `[]`, not `warnings`: everything raised so far is document-scoped, and handing the same array
     // to the plan would make `plan.warnings` and `document.warnings` the same object — see this
     // function's own `warnings` comment above.
-    return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, []) }], warnings }
+    return {
+      targets: [{ selector: '', scope: 'self', specs: [], plan: emptyPlan(unknown, []) }],
+      warnings,
+      ...suspects,
+    }
   }
 
   // Both sanitizers run before the sequencer, and `refusePlayback` has to: `at:after` measures the
@@ -311,12 +340,12 @@ export function compileTargets(
   // by index is safe.
   const steps = resolveSequence(sanitized.map(memberFor), timeline, (m) => warnings.push(m))
   const sequenced = sanitized.map((entry, index) => ({ ...entry, step: steps[index]! }))
+  warnCrossGroupSequencing(sequenced, parsed.activation, warnings)
 
-  // Every entry that survived composition, in host-group-first order, kept so the element's one
-  // activation can be decided from all of them at once — see {@link resolveDefaultActivation}. It
-  // has to be the *composed* lists rather than `sequenced`: an effect the resolver dropped is not
-  // going to run, so letting it name the trigger would bind the element for a corpse.
-  const composedEntries: Entry[] = []
+  // Per-group now, not merged across the document (D-B.4): a `target:` group is a derived host in
+  // its own right, so its `supportedActivations`/`supportedTimelines`/`channels`/
+  // `defaultActivation` are its own rather than the intersection/union of every group's. Only
+  // `reducedMotion` still folds element-wide, below, via the narrowed `mergeHostFacts`.
   const targets = partitionByTarget(sequenced).map(({ selector, scope, entries: group }) => {
     // A sink of its own per group, never the document's. `buildPlan` stores the array it is handed
     // *by reference* as `plan.warnings`, so passing `warnings` here would make every plan and the
@@ -324,25 +353,210 @@ export function compileTargets(
     // and printed every warning 1 + (group count) times off a single authored attribute.
     const groupWarnings: string[] = []
     const composed = resolveComposition(group, registry, groupWarnings)
-    composedEntries.push(...composed)
-    return { selector, scope, plan: buildPlan(composed, timeline, unknown, groupWarnings) }
+    const groupHoists = mergeGroupHoists(group, groupWarnings)
+    // A group's own timeline, not the element-wide one: `parallax-scale target:video
+    // timeline:view` must warn against `view`, not against `flip-card`'s (or any other host
+    // segment's) `time` — see `scopeHoists`'s and `types.ts`'s `SegmentHoists` comments for why
+    // this hoist is scoped to the group at all.
+    const groupTimeline = resolveTimelineHead(groupHoists?.timeline, timeline)
+    const plan = buildPlan(composed, groupTimeline, unknown, groupWarnings)
+    // Decided per group rather than once over the whole document (D-B.4): a derived host's
+    // preferred activation depends only on which of *its own* effects is an entrance, not on a
+    // sibling group's. See `resolveDefaultActivation`'s own comment for the rule itself.
+    plan.defaultActivation = resolveDefaultActivation(
+      composed.map((entry) => ({
+        phase: phaseOf(entry),
+        defaultActivation: entry.resolved.primitive.defaultActivation,
+      })),
+    )
+    return { selector, scope, hoists: groupHoists, specs: group.map((entry) => entry.spec), plan }
   })
-  // Flattened to the two facts the decision needs, rather than handing over the entries: `phaseOf`
-  // is this module's derivation and `host-facts.ts` has no business calling it — the same
-  // structural-input argument `channels.ts` makes for `ChannelClaim`, and what keeps that module's
-  // import of `CompiledPlan` type-only.
-  const activationClaims = composedEntries.map((entry) => ({
-    phase: phaseOf(entry),
-    defaultActivation: entry.resolved.primitive.defaultActivation,
-  }))
-  mergeHostFacts(targets, resolveDefaultActivation(activationClaims))
+  // Only `reducedMotion` remains a true single-element fact after D-B.4 — one author decision
+  // (`rm:`) folded against the strictest declared policy across every group, however many there
+  // are. See `host-facts.ts`'s module comment for why the rest of what this used to merge is gone.
+  mergeHostFacts(targets)
   // `rm:` is hoisted off the whole attribute and `mergeHostFacts` has already folded one policy
   // across every group, so this resolves once, against the document, and is written back to all of
   // them. Resolving it per group instead re-raised the identical "may only strengthen" warning once
   // per group for a decision that was only ever made once.
   const reducedMotion = resolvedPolicy(targets[0]!.plan.reducedMotion, parsed.rm, warnings)
   for (const target of targets) target.plan.reducedMotion = reducedMotion
-  return { targets, warnings }
+  return { targets, warnings, ...suspects }
+}
+
+/**
+ * Fold a targeted segment's provisional hoists (`spec.hoists`, from `parse.ts`) back onto the
+ * element-wide `ParsedValue` for any spec whose primitive is not itself a `target:`-declaring one
+ * (or is unknown) — see `types.ts`'s `SegmentHoists`.
+ *
+ * `parseSegment` cannot know, at parse time, whether a targeted segment's own primitive declares
+ * a `target` parameter — that requires the registry, which only `compile.ts` has. A segment whose
+ * primitive *does* declare `target` (the nine listed on `liftTarget`'s comment) never becomes a
+ * group at all: `target:` there means "this primitive's own participants", so its hoists were
+ * always meant to be element-wide, same as before this feature existed. An unknown name is folded
+ * the same way, for the same reason `resolveEntries` already treats it as staying on the host:
+ * there is no group to scope anything to.
+ *
+ * Called from `animator.ts`'s `process()`, right after `bundles.expand` and before
+ * `resolveConfig` — `resolveConfig` reads `parsed.activation`/`timeline`/etc. and must see the
+ * folded answer, not a value still sitting on a declaring spec's `hoists`.
+ *
+ * @param parsed - Output of `parse`/`bundles.expand`.
+ * @param registry - Effect catalog, needed to tell a declaring primitive from a retargeting one.
+ * @returns `parsed` unchanged (by reference) when nothing needed folding — the identity path for
+ *   every attribute with no `target:` at all — or a new `ParsedValue` with the fold applied.
+ * @complexity O(s * k) time in spec count and the nine hoist keys; O(s) space.
+ * @overallScore 100
+ */
+export function scopeHoists(parsed: ParsedValue, registry: Registry): ParsedValue {
+  if (!parsed.specs.some((spec) => spec.hoists)) return parsed
+  const warnings = [...parsed.warnings]
+  const folded: ParsedValue = { ...parsed, warnings }
+  const specs = parsed.specs.map((spec) => {
+    if (!spec.hoists || !staysOnHost(spec, registry)) return spec
+    for (const key of SEGMENT_HOIST_KEYS) {
+      const value = spec.hoists[key]
+      if (value === undefined) continue
+      assignOnce(folded, key, value as never, HOIST_LABELS[key])
+    }
+    // Copy-and-delete rather than a rest destructure (`const { hoists: _hoists, ...rest } = spec`):
+    // that form needs a named binding for a key whose only purpose is to be thrown away, which is
+    // exactly what the unused-variable lint rule exists to catch — see `liftTarget`'s own comment
+    // for the same trade.
+    const rest = { ...spec }
+    delete rest.hoists
+    return rest
+  })
+  return { ...folded, specs }
+}
+
+/**
+ * Whether a spec's hoists belong element-wide rather than scoped to a `target:` group — true for
+ * a primitive that declares its own `target` parameter (the segment never becomes a group; see
+ * `liftTarget`) and for an unknown name (nothing to scope to; `resolveEntries` already keeps it on
+ * the host).
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function staysOnHost(spec: EffectSpec, registry: Registry): boolean {
+  const resolved = registry.resolve(spec.name)
+  if (!resolved) return true
+  return Object.hasOwn(resolved.primitive.parameters, 'target')
+}
+
+/**
+ * Human-readable labels for {@link SEGMENT_HOIST_KEYS}, mirroring the literal label arguments
+ * `parse.ts`'s own `HOISTS` table already passes to `assignOnce` — kept in sync by inspection, not
+ * import, since those are string literals scattered across that table's ~9 call sites.
+ */
+const HOIST_LABELS: Record<SegmentHoistKey, string> = {
+  activation: 'activations',
+  actions: 'crossing actions',
+  timeline: 'timelines',
+  threshold: 'thresholds',
+  cascade: 'stagger steps',
+  spread: 'stagger budgets',
+  order: 'stagger orders',
+  cols: 'stagger column counts',
+  along: 'stagger axes',
+}
+
+/**
+ * Merge one `target:` group's member entries' `spec.hoists` into a single answer for the group,
+ * first-wins plus a conflict warning — the same precedence `assignOnce` gives the element-wide
+ * hoists, applied one level down.
+ *
+ * @returns `undefined` when no member of the group carried a hoist at all, so `CompiledTarget
+ *   .hoists` stays unset rather than growing an all-`undefined` object.
+ * @complexity O(e * k) time in the group's entry count and the nine hoist keys; O(k) space.
+ * @overallScore 100
+ */
+function mergeGroupHoists(entries: Entry[], warnings: string[]): SegmentHoists | undefined {
+  let merged: Partial<Record<SegmentHoistKey, string>> | undefined
+  for (const entry of entries) {
+    if (!entry.spec.hoists) continue
+    merged = absorbGroupHoists(merged ?? {}, entry.spec.hoists, warnings)
+  }
+  return merged as SegmentHoists | undefined
+}
+
+/**
+ * Absorb one entry's `spec.hoists` into a group's running merge, key by key — the inner loop
+ * {@link mergeGroupHoists} delegates to so its own cognitive complexity stays under the project's
+ * ceiling.
+ *
+ * @complexity O(k) time in the nine hoist keys; O(1) space beyond the accumulator.
+ * @overallScore 100
+ */
+function absorbGroupHoists(
+  merged: Partial<Record<SegmentHoistKey, string>>,
+  hoists: SegmentHoists,
+  warnings: string[],
+): Partial<Record<SegmentHoistKey, string>> {
+  for (const key of SEGMENT_HOIST_KEYS) {
+    const value = hoists[key]
+    if (value === undefined) continue
+    const current = merged[key]
+    if (current === undefined) merged[key] = value
+    else if (current !== value) {
+      warnings.push(
+        `conflicting ${HOIST_LABELS[key]} "${current}" and "${value}" in one target: group — the ` +
+          `first wins`,
+      )
+    }
+  }
+  return merged
+}
+
+/**
+ * Name an `at:` offset that is relative to a segment in a *different* `target:`/`scope:` group when
+ * the two groups may not start together.
+ *
+ * `core/sequence.ts` resolves `at:` positions over the whole authored comma list before this
+ * module ever partitions it by group — deliberately, so a cross-group pair like `fade-up
+ * target:h1, slide-left target:p at:-200ms` keeps working when both groups share a trigger. What it
+ * cannot know is whether they actually do: once each `target:` group can carry its own scoped
+ * `on:` (D-B), two neighbouring segments in different groups may now start at different times, and
+ * a `calc()` offset relative to "the segment before this one in the source" is relative to a start
+ * that may not exist yet.
+ *
+ * Deliberately a lightweight heuristic, not a fully-merged per-group answer: it compares only each
+ * entry's own `spec.hoists.activation` (falling back to the element-wide activation when the
+ * segment didn't scope one), not what `mergeGroupHoists` would resolve for the whole group. Good
+ * enough for a warning; not load-bearing for correctness, and it touches nothing outside this
+ * module — `sequence.ts`'s own per-list `PROGRESS_DRIVEN` check is unchanged.
+ *
+ * @param sequenced - Every entry, already sequenced, in authored order.
+ * @param elementActivation - The element-wide `on:` (or `undefined`), the fallback for a segment
+ *   that scoped none.
+ * @complexity O(n) time in the entry count; O(1) space.
+ * @overallScore 100
+ */
+function warnCrossGroupSequencing(
+  sequenced: (Entry & { step: SequenceStep })[],
+  elementActivation: Activation | undefined,
+  warnings: string[],
+): void {
+  for (let i = 1; i < sequenced.length; i++) {
+    const entry = sequenced[i]!
+    if (!entry.step.sequenced) continue
+    const previous = sequenced[i - 1]!
+    if (groupKeyOf(entry) === groupKeyOf(previous)) continue
+    const ownTrigger = entry.spec.hoists?.activation ?? elementActivation
+    const previousTrigger = previous.spec.hoists?.activation ?? elementActivation
+    if (ownTrigger === previousTrigger) continue
+    warnings.push(
+      `"${entry.spec.name}"'s at:"${entry.spec.at}" is relative to "${previous.spec.name}", ` +
+        `which targets a different element and may start on a different trigger — the offset is ` +
+        `relative to each one's own start, not a shared clock`,
+    )
+  }
+}
+
+/** Same grouping key `partitionByTarget` uses, so two entries in one group are never flagged. */
+function groupKeyOf(entry: Entry): string {
+  return `${entry.scope ?? 'self'} ${entry.target ?? ''}`
 }
 
 /**
@@ -483,13 +697,15 @@ function warnUnknownEffect(name: string, registry: Registry, warnings: string[])
  * Some primitives declare `target` themselves — `scroll-progress`, `horizontal-track`,
  * `media-scrub`, `scroll-spy` and `scroll-snap` in `effects/scroll-mechanics/primitives.ts`,
  * `step-progress` in `effects/forms/primitives.ts`, `spatial-ring` in `effects/carousel/index.ts`,
- * `audio-source` in `advanced/audio.ts` — and read the key themselves through `EffectParams` inside
- * their own `prepare`; see `effects/step-marking.ts`'s module comment for where the shared
- * `target:`/`scope:` grammar lives. Lifting it here too would be lifting nothing, since
- * `Object.hasOwn` below is false for none of them; the early return is what keeps their existing
- * behaviour untouched. This list is not the source of truth and will drift the next time a
- * primitive opts in — re-derive it with `grep -rn "'--kui-target'" src/ --include=*.ts` (excluding
- * `__tests__`) rather than trusting a remembered count.
+ * `audio-source` in `advanced/audio.ts`, `model-3d` in `3d/model-3d.ts`, and showcase's `lightbox`
+ * and `hotspots` — eleven today — and read the key themselves through `EffectParams` inside their
+ * own `prepare`; see `effects/step-marking.ts`'s
+ * module comment for where the shared `target:`/`scope:` grammar lives. Lifting it here too would
+ * be lifting nothing, since `Object.hasOwn` below is false for none of them; the early return is
+ * what keeps their existing behaviour untouched. This list is not the source of truth and will
+ * drift the next time a primitive opts in — re-derive it with `grep -rn "'--kui-target'" src/
+ * --include=*.ts` (excluding `__tests__`), the same query `test/target-declarers.test.ts` (5a)
+ * pins the full set against, rather than trusting a remembered count.
  *
  * For every other primitive, `target:h1` is not a parameter that primitive has ever heard of, so
  * it must be gone from `spec.params` before `resolveParams`/`readParams` validate the rest — left
@@ -918,4 +1134,3 @@ function warnUnsupportedTimeline(
     `"${name}" does not support timeline "${timeline}" (supports: ${supported.join(', ')})`,
   )
 }
-

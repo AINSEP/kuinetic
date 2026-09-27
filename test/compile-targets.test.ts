@@ -5,7 +5,7 @@
 // file rather than that one, because what it now guarantees is a fact about the partition: it
 // returns `targets[0]`, and `targets[0]` is always the host group.
 import { beforeEach, describe, expect, it } from 'vitest'
-import { compile, compileTargets } from '../src/core/compile.js'
+import { compile, compileTargets, scopeHoists } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
 import { catalogRegistry } from './support/registry.js'
@@ -108,17 +108,24 @@ describe('compileTargets — conflicts are per-group', () => {
 describe('compileTargets — element-scoped facts are merged across every group', () => {
   it('folds the strictest reduced-motion policy onto every group, not just the one that declared it', () => {
     // flip-reorder declares reducedMotion: 'disable'; fade-up declares 'shorten'. Both groups must
-    // see 'disable' — there is one activation binding for the whole element (D1), so a `disable`
-    // anywhere disables the gate everywhere.
+    // see 'disable' — `rm:`/reduced-motion is the one fact still merged element-wide after D-B.4
+    // (see host-facts.ts's module comment): a `disable` anywhere disables the gate everywhere,
+    // whatever else has become per-group.
     const document = runTargets('flip-reorder target:.list, fade-up')
     for (const target of document.targets) expect(target.plan.reducedMotion).toBe('disable')
   })
 
-  it('unions channels across every group', () => {
+  // Reverses the plan's D-B.4: a `target:` group is a derived host in its own right, so its
+  // `channels` (and `supportedActivations`/`supportedTimelines`/`defaultActivation`) are its own
+  // rather than a union/intersection across the whole document — see `host-facts.ts`'s module
+  // comment and `compile.ts`'s `compileTargets`. This replaces the old "unions channels across
+  // every group" test, which asserted the exact cross-group merge this phase removes.
+  it('keeps channels separate per group instead of unioning them across the document', () => {
     const document = runTargets('fade-up target:h1, count-up target:.n')
-    for (const target of document.targets) {
-      expect(target.plan.channels).toEqual(expect.arrayContaining(['opacity', 'translate', 'content']))
-    }
+    const byTarget = new Map(document.targets.map((t) => [t.selector, t.plan]))
+    expect(byTarget.get('h1')!.channels).toEqual(expect.arrayContaining(['opacity', 'translate']))
+    expect(byTarget.get('h1')!.channels).not.toContain('content')
+    expect(byTarget.get('.n')!.channels).toEqual(['content'])
   })
 
   it('is the identity for a single, untargeted group — compile() stays byte-identical', () => {
@@ -170,6 +177,86 @@ describe('compileTargets — requiresOwnSubtree refuses relocation', () => {
 
   it('does not warn for a preset that may be retargeted', () => {
     expect(runTargets('fade-up target:h1').warnings.join()).not.toContain('cannot be retargeted')
+  })
+})
+
+/**
+ * Segment-scoped hoists (D-B) — the owner's flip-card example, reconstructed from the plan's own
+ * bug-1 sentence (`docs`/the project's task list/`AI-Dev-Shop` carry no verbatim string to quote
+ * instead): three groups, a `timeline:view` written only on the `target:video` segment. Before
+ * this phase,
+ * `timeline:view` hoisted element-wide (`parse.ts`'s old unconditional `HOISTS.timeline`) and
+ * `flip-card`'s group inherited it, so `mergeHostFacts` intersected `card-toggle`'s
+ * `supportedTimelines: ['time']` with `parallax-scale`'s `['view','scroll','pin']` down to `[]` and
+ * every group falsely warned "does not support timeline". `scopeHoists` + per-group facts fix both
+ * halves: the video group gets its own `view` timeline, the host group never sees it at all.
+ */
+describe('compileTargets — segment-scoped hoists (the flip-card regression)', () => {
+  it('scopes timeline:view to only the target: segment that wrote it', () => {
+    const document = runTargets(
+      'flip-card trigger:hover, parallax-scale target:video timeline:view, pop target:.yt-play',
+    )
+    expect(document.targets).toHaveLength(3)
+    const bySelector = new Map(document.targets.map((t) => [t.selector, t]))
+
+    expect(bySelector.get('')!.plan.fxNames).toEqual(['flip-card'])
+    // The regression this test guards: the HOST group must not see `timeline:view` at all, and
+    // must not warn about a mismatch that was never really there.
+    expect(bySelector.get('')!.hoists).toBeUndefined()
+    expect(bySelector.get('')!.plan.warnings.join()).not.toContain('does not support timeline')
+
+    expect(bySelector.get('video')!.hoists?.timeline).toBe('view')
+    expect(bySelector.get('video')!.plan.fxNames).toEqual(['parallax-scale'])
+    expect(bySelector.get('video')!.plan.warnings.join()).not.toContain('does not support timeline')
+
+    expect(bySelector.get('.yt-play')!.plan.fxNames).toEqual(['pop'])
+    expect(bySelector.get('.yt-play')!.hoists).toBeUndefined()
+  })
+})
+
+describe('scopeHoists — folding a declaring/unknown segment’s hoists back element-wide', () => {
+  it('folds an unknown name’s scoped hoist onto the element instead of leaving it group-scoped', () => {
+    // `bogus-effect` never resolves, so `staysOnHost` takes its `!resolved` branch — same as a
+    // primitive that owns `target` itself (the six `scroll-mechanics`/`forms` primitives): there is
+    // no group for `on:hover` to scope to, so it belongs on the element, exactly where an untargeted
+    // `on:hover` would have landed.
+    const folded = scopeHoists(parse('bogus-effect target:.a on:hover'), catalogRegistry())
+    expect(folded.activation).toBe('hover')
+    expect(folded.specs[0]!.hoists).toBeUndefined()
+    expect(folded.specs[0]!.params.target).toBe('.a')
+  })
+})
+
+describe('compileTargets — conflicting hoists within one target: group', () => {
+  it('keeps the first-authored value and warns by name on a later disagreement', () => {
+    const document = runTargets('fade-up target:.a threshold:40%, blur-in target:.a threshold:80%')
+    const group = document.targets.find((t) => t.selector === '.a')!
+    expect(group.hoists?.threshold).toBe('40%')
+    expect(group.plan.warnings.join()).toContain(
+      'conflicting thresholds "40%" and "80%" in one target: group — the first wins',
+    )
+  })
+})
+
+describe('compileTargets — at: across groups with different triggers', () => {
+  it('warns when an at:-positioned segment’s own trigger differs from its neighbour’s', () => {
+    const document = runTargets(
+      'fade-up target:h1 on:enter 600ms, blur-in target:p on:hover 400ms at:-200ms',
+    )
+    expect(document.warnings.join()).toContain(
+      "may start on a different trigger — the offset is relative to each one's own start",
+    )
+    expect(document.warnings.join()).toContain('"blur-in"')
+    expect(document.warnings.join()).toContain('"fade-up"')
+  })
+})
+
+describe('compileTargets — 9b unquoted target: selectors surface as a document warning', () => {
+  it('names the stray segment and marks it as a suspect selector', () => {
+    const document = runTargets('pop target:.a, .b')
+    expect(document.suspectSelectors).toEqual(['.b'])
+    expect(document.warnings.join()).toContain('target:.a')
+    expect(document.warnings.join()).toContain('.b')
   })
 })
 

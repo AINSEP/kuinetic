@@ -94,6 +94,23 @@ describe('data-kui-define — expansion', () => {
     expect(el().style.getPropertyValue('animation-duration')).toBe('')
   })
 
+  it('merges a targeted segment\'s own hoisted keys with the reference\'s own', () => {
+    // `on:`/`threshold:` only scope to the targeted group (`spec.hoists`) rather than folding
+    // element-wide when authored on a segment that also carries `target:` — true for both the
+    // bundle member's own segment and the use site's reference segment. This authors one hoisted
+    // key on each side, on the SAME target, so `overlayHoists` has to both keep the member's own
+    // (the reference names no `on:`) and take the reference's over the member's (neither names
+    // `threshold:`, so there is nothing to clash with — just a key the member never set).
+    build(`
+      <template data-kui-define="hero" data-kui="fade-up target:h1 on:hover"></template>
+      <div id="use" data-kui="hero target:h1 threshold:40%"><h1>title</h1></div>
+    `)
+    const h1 = el('#use h1')
+    const binding = binder.bindings.find((b) => b.el === h1)
+    expect(binding?.activation).toBe('hover')
+    expect(binding?.threshold).toBe('40%')
+  })
+
   it('lets the usage site retarget the whole bundle', () => {
     // `target:` is a parameter like any other, so the override rule covers retargeting for free.
     build(`

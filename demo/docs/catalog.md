@@ -28,6 +28,7 @@ here that is not a named effect at all: it is how you animate something the cata
 - **Renderer** — `css` (keyframes only) · `waapi` · `js` (per-frame) · `prep` (JS DOM surgery, then CSS)
 - **Channels** — properties the effect owns, for composition-conflict detection:
   `o` opacity · `t` translate · `s` scale · `r` rotate · `f` filter · `c` clip/mask · `x` other
+  (`x` also covers section T's showcase-only `frame`/`widget` channels)
 - Effects with **disjoint** channels compose in one comma list; collisions warn.
 
 ---
@@ -234,13 +235,19 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 > spelling as the pinning family though not the same shared token — the per-section form above is
 > unchanged and still wants `distance:` and one attribute per section.
 >
-> These four are `target:`'s original home, but the parameter is not limited to them: **any effect
-> in the catalog** may be retargeted — `fade-up target:h1` animates the `h1`, not the element the
-> attribute is written on — with `scope:page` to search the whole document instead of just this
-> element's descendants. See [Animating a different element](getting-started.md#animating-a-different-element--target-and-scope)
+> `scrollytelling-step`, `scroll-spy`, and `sequence-scrub`/`video-scrub` are three of `target:`'s
+> nine original homes — primitives that read the parameter themselves rather than having it lifted
+> off them — but the parameter is not limited to them: **any effect in the catalog** may be
+> retargeted — `fade-up target:h1` animates the `h1`, not the element the attribute is written on —
+> with `scope:page` to search the whole document instead of just this element's descendants. A
+> retargeted effect installs on each match as if it carried the attribute itself (its own trigger,
+> its own lifecycle), which these nine don't: they still resolve `target:` inside their own
+> `prepare` and stamp their own state contract (`data-kui-step-state` above) rather than becoming a
+> derived host. See [Animating a different element](getting-started.md#animating-a-different-element--target-and-scope)
 > for the general grammar, the effects that refuse retargeting because their CSS reaches past
-> themselves, and the one limitation shared by every use of `target:` here and below: it is resolved
-> once, when the host is first processed, not kept live against later DOM insertions.
+> themselves, the collision and grouping rules, and `target:`'s one remaining limitation: a
+> `scope:page` group, or any group without `observe: true` running, still resolves once when the
+> host is first processed rather than staying live against later DOM insertions.
 
 > **`sequence-scrub target:` — prefer authored frames over a `src:` pattern.**
 >
@@ -364,6 +371,18 @@ Primitives 15, 16. All CSS except the two morphs.
 >
 > `--kui-bar-gap` is how far an outer bar travels to meet the centre. Set it to match your own
 > bar spacing.
+>
+> **The `.kui-bar` classes are optional too**, the same positional fallback `flip-card` gets: a
+> host with none of its own gets `data-kui-part="bar"` stamped on its bars instead — the children
+> of a lone `<svg>` (its `line`/`rect`/`path`/`polyline`/`circle` elements), or, for plain markup,
+> every direct child that carries no text of its own (a label span is left alone). Either shape
+> works with zero classes:
+>
+> ```html
+> <button data-kui="hamburger-to-x" aria-expanded="false" aria-label="Menu">
+>   <span></span><span></span><span></span>
+> </button>
+> ```
 
 > **`logo-build`** goes on the *parts* of a mark, with `data-kui-stagger` on their wrapper. That
 > stagger is what makes it a build rather than one more scale-in.
@@ -875,6 +894,26 @@ Primitives 14, 22, 38.
 > Faces are matched by class, not by position, so the control can sit anywhere in the source order.
 > Keep it outside both faces: a button on the front face rotates away with it and stops being
 > clickable the moment you use it once.
+>
+> **The classes are optional.** A card with no `.kui-face-front`/`-back`/`.kui-flip-control` still
+> works: the library stamps `data-kui-part` on the same structure positionally instead — the first
+> two non-button direct children become the faces, and an authored `button[aria-pressed]` (any
+> class, or none) becomes the control. Write the shortest version you actually need:
+>
+> ```html
+> <div data-kui="flip-card">
+>   <div>Front</div>
+>   <div>Back</div>
+> </div>
+> ```
+>
+> **No control at all, and the library injects one** — `<button type="button" class="kui-flip-control"
+> aria-pressed="false">Flip card</button>`, appended as the card's last child and wired to toggle
+> its own `aria-pressed` on click, cleaned up (removed, listener detached) on teardown. For the
+> three hover triggers, the injected button starts visually hidden and only appears on
+> `:focus-visible` — hover already has a pointer path in, so the injected control exists purely as
+> the keyboard fallback and stays out of the way otherwise. A card that authors its own control,
+> classed or positional, is never touched by any of this.
 
 > **`trigger:` — four ways in, and the only part of `flip-card` that runs JavaScript.**
 >
@@ -1376,6 +1415,105 @@ of, not something it does.
 
 ---
 
+## T. Showcase — 5 names
+
+The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
+*behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
+components almost every marketing page reaches for. See [design.md §14](?doc=design#14-scope)'s
+amendment for the boundary this section operates under. It ships inside `kuinetic.js` today; the
+seam that lets it become its own `<script>` tag later is an internal detail this doc does not
+need to track.
+
+`device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots`
+
+> **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
+> video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
+> structural markup beyond the one wrapper, nothing else built.
+>
+> ```html
+> <div data-kui="device-frame kind:phone color:#2a2a2a">
+>   <img src="app.png" alt="App home screen">
+> </div>
+> ```
+>
+> **Params:** `kind:` (`browser` default, or `phone`/`tablet`/`laptop`), `color:` (bezel colour,
+> default `#111`), `radius:` (screen corner radius; each kind has its own CSS default).
+>
+> **All the chrome is CSS.** The one thing JavaScript does is stamp `data-kui-device="<kind>"`,
+> because a stylesheet cannot branch on a custom property's *value* — every visible pixel of the
+> bezel, the browser tab-bar dots, and the phone notch is drawn from that attribute alone.
+>
+> **No timing tokens**, refused by name: it writes its attribute once, synchronously, on
+> activation, so `device-frame 400ms` warns rather than silently doing nothing.
+>
+> **No-JS:** the wrapped media renders bare and unframed. Nothing is ever hidden.
+
+> **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
+> captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
+> from a real link. Modified clicks keep the link's normal browser behavior.
+>
+> ```html
+> <div data-kui="lightbox">
+>   <a href="full.jpg"><img src="thumb.jpg" alt="Dashboard overview"></a>
+> </div>
+> <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-kui="video-lightbox">
+>   Watch the walkthrough
+> </a>
+> ```
+>
+> **Params:** `target:` selects triggers (default: linked images or bare images for `lightbox`,
+> links for `video-lightbox`); `scope:self|page`, `scale:` (default `0.965`), `duration:` (default
+> `280ms`), `ease:`; image galleries accept `loop:false`, and video accepts
+> `aspect:wide|tall|square` (YouTube Shorts default to tall).
+>
+> **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
+> `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
+
+> **Interactive before/after media slider (`compare`).** Stacks two media elements (images or videos)
+> and overlays an accessible range slider. Dragging or arrowing the slider reveals the "after"
+> state via `clip-path` without layout reflows.
+>
+> ```html
+> <figure data-kui="compare">
+>   <img src="before.jpg" alt="Before: raw photo">
+>   <img src="after.jpg" alt="After: graded">
+>   <figcaption>Colour grade</figcaption>
+> </figure>
+> ```
+>
+> **Params:** `position:` (`50%` default), `axis:` (`x` default, or `y`).
+>
+> **Accessible:** Range slider is announced with `aria-valuetext` (e.g. "50% after") and takes its
+> accessible name from the figure's `aria-label` or the two media `alt`s.
+>
+> **No timing tokens:** Interaction is driven by the user; there is no motion to time.
+>
+> **No-JS:** Both media elements render sequentially in document order with their alts.
+
+> **Image hotspots with native popover notes (`hotspots`).** Pins numbered or dot markers over an image
+> using author-supplied `--kui-x` and `--kui-y` percentages, each opening its note via native
+> `popover="auto"` and `popovertarget`.
+>
+> ```html
+> <figure data-kui="hotspots">
+>   <img src="dashboard.png" alt="Analytics dashboard">
+>   <ol>
+>     <li style="--kui-x:32%; --kui-y:48%"><strong>Live filters</strong> Update without reload.</li>
+>     <li style="--kui-x:71%; --kui-y:20%"><strong>Export</strong> CSV or PNG, one click.</li>
+>   </ol>
+> </figure>
+> ```
+>
+> **Params:** `target:` (defaults to `:scope > :is(ol, ul) > li`), `marker:` (`number` default, or `dot`).
+>
+> **Positioning:** Uses CSS anchor positioning (`position-area: top`) where supported, with JS fallback on `toggle` events.
+>
+> **No timing tokens:** Interactive popovers and markers have no timeline to time.
+>
+> **No-JS:** The image is followed by the plain numbered or bulleted list of notes, fully readable by crawlers and screen readers.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -1399,6 +1537,7 @@ of, not something it does.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
+| T Showcase | 5 |
 | Generic tween | 2 |
 | **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |

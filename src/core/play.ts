@@ -204,7 +204,11 @@ export function play(request: PlayRequest, options: PlayOptions = {}): PlaybackH
   // Every renderer exposes the same lifecycle handle, so a JS-driven effect is awaited and
   // cancelled exactly like a CSS one. Reading `getAnimations()` returned [] for JS effects, so
   // `finished` resolved immediately and `cancel()` did nothing.
-  const instancesOf = (el: Element) => animator.stateOf(el)?.instances ?? []
+  // A `target:`-derived match's instances are its own state's, not the host's — folded in here so
+  // `finished`/`cancel()` below see every instance a `play()` on the host actually started, not
+  // only the host's own (which, for an aggregate host, is none at all).
+  const instancesOf = (el: Element) =>
+    [el, ...animator.derivedOf(el)].flatMap((each) => animator.stateOf(each)?.instances ?? [])
   const finished = Promise.all(
     elements.flatMap((el) => instancesOf(el).map((instance) => instance.finished)),
   ).then(() => undefined)

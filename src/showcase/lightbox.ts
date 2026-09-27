@@ -12,7 +12,7 @@ import { widgetPrimitive } from './shared.js'
 
 const paramsSchema: ParameterSchema = {
   media: { type: 'keyword', default: 'image', cssProperty: '--kui-lightbox-media', keywords: ['image', 'video'] },
-  target: { type: 'text', default: '', cssProperty: '--kui-lightbox-target' },
+  target: { type: 'text', default: '', cssProperty: '--kui-target' },
   scope: SCOPE_PARAM,
   scale: { type: 'number', default: '0.965', cssProperty: '--kui-from-scale', finite: true, minimum: 0 },
   duration: { type: 'time', default: '280ms', cssProperty: '--kui-lightbox-duration' },

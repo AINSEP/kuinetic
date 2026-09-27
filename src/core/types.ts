@@ -819,6 +819,13 @@ export interface Preset {
    * silently compiling to an empty subtree in production.
    */
   requiresOwnSubtree?: boolean
+  /**
+   * This preset's CSS establishes a 3D rendering context (`preserve-3d`/`perspective`) on the
+   * `data-kui-fx` element — nesting another such effect inside it breaks (memory:
+   * no-nested-3d). Derived from `three-d.css` by `test/target-establishes3d.test.ts` (5a) so it
+   * cannot drift.
+   */
+  establishes3d?: boolean
 }
 
 export type ResolvedParams = Record<string, string>
@@ -883,7 +890,51 @@ export interface EffectSpec {
    */
   yoyo?: boolean
   params: Record<string, string>
+  /**
+   * Segment-scoped hoists — see {@link SegmentHoists}. Present only when this segment carries a
+   * `target:` token and wrote at least one of these keys; `compile.ts`'s `scopeHoists` consumes
+   * and clears it (for a declaring/unknown name) before anything else reads `EffectSpec`.
+   */
+  hoists?: SegmentHoists
 }
+
+/**
+ * Element-scoped hoists recorded on a *targeted* segment rather than folded element-wide — D-B in
+ * the plan. `parseSegment` cannot yet know whether the segment's primitive declares its own
+ * `target` parameter (resolved later, in `compile.ts`), so it provisionally routes these here for
+ * any segment carrying a `target:` token; `compile.ts`'s `scopeHoists` folds them back onto the
+ * element-wide `ParsedValue` for a declaring primitive or an unknown name, where there is no group
+ * to scope them to.
+ *
+ * `rm:`/`func:` excluded on purpose — they stay element-wide always (D-B.3): one element has one
+ * reduced-motion policy and one completion callback, whatever it targets.
+ */
+export type SegmentHoists = Pick<
+  ParsedValue,
+  'activation' | 'actions' | 'timeline' | 'threshold' | 'cascade' | 'spread' | 'order' | 'cols' | 'along'
+>
+
+/**
+ * The keys {@link SegmentHoists} carries, as a runtime-iterable tuple — the one place enumerating
+ * them, so `compile.ts` and `bundles.ts` cannot drift into two different lists.
+ *
+ * NOTE: these are the `ParsedValue` *field* names, not the surface grammar words — `on:` writes
+ * the field `activation`. `parse.ts` needs the surface-word spelling instead and keeps its own
+ * local set for that (see its own comment).
+ */
+export const SEGMENT_HOIST_KEYS = [
+  'activation',
+  'actions',
+  'timeline',
+  'threshold',
+  'cascade',
+  'spread',
+  'order',
+  'cols',
+  'along',
+] as const
+
+export type SegmentHoistKey = (typeof SEGMENT_HOIST_KEYS)[number]
 
 /** The full parse of one element's `data-kui` attribute. */
 export interface ParsedValue {
@@ -1041,4 +1092,16 @@ export interface InstanceState {
    */
   cancelled?: boolean
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
+  /**
+   * Derived state only: the authored element whose `target:` group installed this one. Lifecycle
+   * events carry it as `detail.host`.
+   */
+  host?: Element
+  /**
+   * Host only: it has no own group; its status mirrors its derived matches' (`syncAggregate`),
+   * and `activateOne` never starts it.
+   */
+  aggregate?: boolean
+  /** Derived state of a grouped target: the element that owns its activation binding. */
+  gateOwner?: Element
 }

@@ -26,6 +26,10 @@ const easingBundle = `${tmpDir}/easing.mjs`
 // Bundled on its own, not read off `createRegistry()`'s output, so the set of showcase names is
 // known independently of the registry walk below — see `partitionByShowcase`.
 const showcaseBundle = `${tmpDir}/showcase.mjs`
+/** Bundled for the same reason the breakpoint scale is — see {@link easingValue}; the source of
+ *  truth for both selector strings this file emits is `src/core/cloak-selectors.ts`, not a copy
+ *  kept here. */
+const cloakBundle = `${tmpDir}/cloak-selectors.mjs`
 const outFile = `${root}src/css/presets.generated.css`
 const showcaseOutFile = `${root}src/showcase/presets.generated.css`
 
@@ -39,6 +43,7 @@ function build() {
   bundleOne(`${root}src/core/breakpoints.ts`, breakpointsBundle)
   bundleOne(`${root}src/core/easing.ts`, easingBundle)
   bundleOne(`${root}src/showcase/index.ts`, showcaseBundle)
+  bundleOne(`${root}src/core/cloak-selectors.ts`, cloakBundle)
 }
 
 /**
@@ -55,6 +60,12 @@ function build() {
  * mean" is exactly how the two halves drifted apart in the first place.
  */
 let easingValue
+
+/**
+ * The two pre-JS cloak selector strings, bundled from `src/core/cloak-selectors.ts` — same
+ * "one implementation, not a mirrored copy" argument as {@link easingValue} above.
+ */
+let cloakSelectors
 
 /**
  * A `path` parameter's value, as the CSS `<string>` the custom property has to hold.
@@ -131,11 +142,11 @@ function declarationsFor(resolved) {
  * That last one is the reason to care: `^=` would also have hit any name that happens to be a
  * prefix of another, and `~=` cannot, because the token has to be the whole word.
  *
- * A comma with no space after it (`data-kui="fade-up,blur-in"`) makes one token and matches
- * neither. That is a deliberate fail-open: not cloaking is exactly today's behaviour.
+ * Commas can touch either neighbouring name. `src/core/cloak-selectors.ts` groups the four
+ * possible whitespace-token forms in `:is()` so all authored segment lists can cloak.
  */
 function cloakSelector(name) {
-  return `  html[data-kui-cloak] [data-kui~='${name}']:not([data-kui-state])`
+  return cloakSelectors.cloakSelector(name)
 }
 
 /**
@@ -164,7 +175,7 @@ function cloakSelector(name) {
 function gateReleaseRules(breakpoints) {
   const release = (token, query) =>
     `  @media ${query} {\n` +
-    `    html[data-kui-cloak] [data-kui~='${token}']:not([data-kui-state]) {\n` +
+    `${cloakSelectors.gateReleaseSelector(token)} {\n` +
     `      opacity: 1;\n` +
     `      animation: none;\n` +
     `    }\n` +
@@ -293,6 +304,7 @@ async function main() {
   const { SHOWCASE_PRESETS } = await import(showcaseBundle)
   const { BREAKPOINTS } = await import(breakpointsBundle)
   easingValue = (await import(easingBundle)).cssEasingValue
+  cloakSelectors = await import(cloakBundle)
   const registry = createRegistry()
   const showcaseNames = new Set(SHOWCASE_PRESETS.map((preset) => preset.name))
 

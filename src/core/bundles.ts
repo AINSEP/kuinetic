@@ -3,6 +3,7 @@ import { parse } from './parse.js'
 import { suggest } from './registry.js'
 import type { Registry } from './registry.js'
 import type { Reporter } from './reporter.js'
+import { SEGMENT_HOIST_KEYS } from './types.js'
 import type { EffectSpec, ParsedValue } from './types.js'
 
 /**
@@ -384,7 +385,35 @@ function overlay(member: EffectSpec, ref: EffectSpec): EffectSpec {
     repeat: ref.repeat ?? member.repeat,
     yoyo: ref.yoyo ?? member.yoyo,
     params: { ...member.params, ...ref.params },
+    hoists: overlayHoists(member.hoists, ref.hoists),
   }
+}
+
+/**
+ * Lay the reference's own segment-scoped hoists (`SegmentHoists`, see `types.ts`) over the
+ * expanded member's, key by key — the same "the author wrote nothing" precedence {@link overlay}
+ * gives every other field, one level down. Without this, a use site that itself writes a targeted
+ * segment's hoist (e.g. `hero-entrance target:h1 timeline:view`) would have that value silently
+ * discarded: the plain `{...member, ...}` spread `overlay` builds carries `member.hoists` through
+ * only *by omission* (`hoists` was never in its override list), so the reference's own tokens never
+ * got a chance to win.
+ *
+ * @returns `undefined` when neither side carries a hoist, so an untargeted bundle member stays
+ *   without a `hoists` field rather than growing an all-`undefined` object.
+ * @complexity O(k) time in the nine hoist keys; O(k) space.
+ * @overallScore 100
+ */
+function overlayHoists(
+  member: EffectSpec['hoists'],
+  ref: EffectSpec['hoists'],
+): EffectSpec['hoists'] {
+  if (!member && !ref) return undefined
+  const merged: NonNullable<EffectSpec['hoists']> = { ...member }
+  for (const key of SEGMENT_HOIST_KEYS) {
+    const value = ref?.[key]
+    if (value !== undefined) merged[key] = value
+  }
+  return merged
 }
 
 /**

@@ -1,10 +1,19 @@
 /**
  * The facts that belong to the *element* rather than to any one effect on it.
  *
- * An element has one activation binding, one reduced-motion policy, one timeline, one channel
- * union — however many effects its `data-kui` names and however many `target:` groups they compile
- * into. `compile.ts` builds a plan per group; this module decides the single answer each of those
- * fields gets and writes it back onto all of them.
+ * Only `reducedMotion` is still a true single-element fact after the plan's D-B.4 reversal: `rm:`
+ * is one author decision (or one folded default) that applies however many `target:` groups the
+ * attribute compiles into, so {@link mergeHostFacts} still folds the strictest declared policy
+ * across every group and writes the merged answer back onto all of them.
+ *
+ * `supportedActivations`/`supportedTimelines`/`channels`/`defaultActivation` are **not** folded
+ * here any more — a `target:` group is a derived host in its own right (each match will get its
+ * own trigger, timeline and events once Phase 2 lands), so pretending its capabilities are the
+ * *document's* capabilities was the bug: `parallax-scale target:video timeline:view` alongside a
+ * `flip-card` host used to intersect the two primitives' `supportedTimelines` down to `[]` and warn
+ * a mismatch that was never really there. `compile.ts`'s `compileTargets` now resolves each of
+ * those per group, from that group's own composed entries, and writes them straight onto that
+ * group's own plan — see this plan's design doc, section D-B.4, for the full reasoning.
  *
  * Split out of `compile.ts` when that file reached its own 400-line lint ceiling, the same way
  * `test/css-composition-invariants.test.ts` was split out of `css-invariants.test.ts`. The seam is
@@ -15,14 +24,7 @@
  * type-only import of `CompiledPlan` below from becoming a runtime cycle.
  */
 import type { CompiledPlan } from './compile.js'
-import type {
-  Activation,
-  Channel,
-  EffectPhase,
-  NamedActivation,
-  ReducedMotionPolicy,
-  Timeline,
-} from './types.js'
+import type { Activation, EffectPhase, ReducedMotionPolicy } from './types.js'
 
 /** `disable` is the strongest claim: if any effect must not run, none of the list should. */
 const RM_RANK: Record<ReducedMotionPolicy, number> = { shorten: 0, crossfade: 1, disable: 2 }
@@ -43,14 +45,17 @@ export interface ActivationClaim {
  * want different triggers cannot have both. What this decides is which one loses.
  *
  * It used to be first-wins: `plan.defaultActivation ??= primitive.defaultActivation`, folded in
- * authoring order in `buildPlan` and again across `target:` groups in {@link mergeHostFacts}. `??=`
- * is the right operator for "a default fills in when nothing is set" and the wrong one for a
- * *merge*, because there is no sense in which the first name in a comma list is the authoritative
- * one. The consequence was that composing an entrance with a behaviour changed **when the entrance
- * itself fired**: `lift` declares `defaultActivation: 'load'`, so `data-kui="fade-up, lift"` — the
- * pair the whole phase axis was added to allow — bound the element on `load` and fired the reveal
- * before it was ever scrolled to. `back-in-down, drag` did the same. Measured across the catalog,
- * 4,545 composing pairs took their activation from the non-entrance half.
+ * authoring order in `buildPlan` and again across every `target:` group's already-folded answer in
+ * `mergeHostFacts` (the D1 model — one document-wide answer written onto every group, since D-B.4
+ * reversed that: each group now calls this function once, over only its own composed entries, and
+ * keeps its own answer). `??=` is the right operator for "a default fills in when nothing is set"
+ * and the wrong one for a *merge*, because there is no sense in which the first name in a comma
+ * list is the authoritative one. The consequence was that composing an entrance with a behaviour
+ * changed **when the entrance itself fired**: `lift` declares `defaultActivation: 'load'`, so
+ * `data-kui="fade-up, lift"` — the pair the whole phase axis was added to allow — bound the element
+ * on `load` and fired the reveal before it was ever scrolled to. `back-in-down, drag` did the same.
+ * Measured across the catalog, 4,545 composing pairs took their activation from the non-entrance
+ * half.
  *
  * The rule is that **an entrance names the trigger**, and it is the lesser of two unavoidable harms
  * rather than a preference. Either choice compromises something:
@@ -84,7 +89,8 @@ export interface ActivationClaim {
  * for an author who wants the other answer, and it still wins outright — `animator.ts` only reads
  * this field when `config.activationAuthored` is false.
  *
- * @param claims - Every effect that survived composition, across all `target:` groups, host first.
+ * @param claims - Every effect that survived composition, for one `target:` group (`compile.ts`'s
+ *   `compileTargets` calls this once per group, not once over the whole document — see D-B.4).
  *   Survivors rather than authored segments: an effect the resolver dropped is not going to run, so
  *   letting it name the trigger would bind the element for a corpse.
  * @complexity O(n) time in the claim count; O(n) space.
@@ -99,67 +105,27 @@ export function resolveDefaultActivation(claims: ActivationClaim[]): Activation 
 }
 
 /**
- * Fold the element-scoped `CompiledPlan` facts across every target group and write the merged
- * answer back onto all of them.
+ * Fold the strictest declared `reducedMotion` across every `target:` group and write the merged
+ * answer back onto every group's plan.
  *
- * `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/`channels` are
- * facts about the *element* — there is exactly one activation binding, one reduced-motion policy,
- * one gate — even when its effects are split across several `target:` groups. `fade-up target:h1`
- * and `pin target:.x` on one host cannot each ask for a different gate; the gate is decided once,
- * from every group's facts merged, and every group's plan carries the same merged answer so
- * whichever one `animator.ts` happens to read it from agrees with the others.
+ * `rm:` is one author decision (or one folded default among the composed primitives) for the whole
+ * attribute, even when its effects are split across several `target:` groups — `fade-up target:h1
+ * rm:disable, pin target:.x` cannot honour two different reduced-motion policies on one page load
+ * decided from two different subsets of the same author's intent. Every other cross-group fact this
+ * function used to merge (`supportedActivations`/`supportedTimelines`/`channels`/
+ * `defaultActivation`) is decided per group instead now — see this module's own doc comment for why
+ * — so this is the one field left.
  *
  * Mutates the plans in place rather than returning a new list: `buildPlan` already built each one,
- * and threading a copy through here for five field writes would cost more than it clarifies.
+ * and threading a copy through here for one field write would cost more than it clarifies.
  *
- * `defaultActivation` arrives as a parameter rather than being folded here with the rest, because
- * it is the one field whose answer cannot be recovered from the plans: it is decided from the
- * *effects* — which of them is an entrance — and a plan carries only the resolved value. Folding it
- * here with `??=` is exactly the bug {@link resolveDefaultActivation} exists to fix.
- *
- * @complexity O(g * c) time in groups and their channel counts; O(c) space.
+ * @complexity O(g) time in the group count; O(1) space.
  * @overallScore 100
  */
-export function mergeHostFacts(
-  targets: { plan: CompiledPlan }[],
-  defaultActivation: Activation | undefined,
-): void {
+export function mergeHostFacts(targets: { plan: CompiledPlan }[]): void {
   let reducedMotion: ReducedMotionPolicy = 'shorten'
-  let activations: NamedActivation[] | undefined
-  let timelines: Timeline[] | undefined
-  const channels = new Set<Channel>()
-
-  for (const { plan } of targets) {
-    reducedMotion = strictestPolicy(reducedMotion, plan.reducedMotion)
-    activations = intersect(activations, plan.supportedActivations)
-    timelines = intersect(timelines, plan.supportedTimelines)
-    for (const channel of plan.channels) channels.add(channel)
-  }
-
-  const mergedChannels = [...channels]
-  for (const { plan } of targets) {
-    plan.reducedMotion = reducedMotion
-    /*
-     * Asserted rather than restructured, and the two obvious restructurings are worse.
-     *
-     * Both hold because this loop and the one above walk the same `targets`: one iteration of the
-     * first makes each local an array — {@link intersect} returns `[...supported]` when handed
-     * `undefined` — and an empty `targets` never reaches here, because this loop does not run
-     * either.
-     *
-     * Hoisting the declarations to `= []` is the restructuring that suggests itself, and it is a
-     * bug: `intersect` treats `undefined` ("nobody has contributed yet") and `[]` ("the composed
-     * primitives share nothing") as different states on purpose — see its own note for the shipped
-     * defect that collapsing them caused. Seeding from `targets[0]` instead needs an emptiness
-     * guard, which would duplicate one the caller already makes: `compile.ts:341` reads
-     * `targets[0]!.plan` two lines after calling this. So the invariant is the caller's, it is
-     * already spelled `!` there, and it is spelled `!` here for the same reason.
-     */
-    plan.supportedActivations = activations!
-    plan.supportedTimelines = timelines!
-    plan.defaultActivation = defaultActivation
-    plan.channels = mergedChannels
-  }
+  for (const { plan } of targets) reducedMotion = strictestPolicy(reducedMotion, plan.reducedMotion)
+  for (const { plan } of targets) plan.reducedMotion = reducedMotion
 }
 
 /**

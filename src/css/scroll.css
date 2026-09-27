@@ -16,19 +16,19 @@
 @layer kui.effects {
   @keyframes kui-parallax-y {
     from {
-      translate: 0 calc(var(--kui-distance, 100px) * -1);
+      translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 100px)) * -1);
     }
     to {
-      translate: 0 var(--kui-distance, 100px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 100px));
     }
   }
 
   @keyframes kui-parallax-x {
     from {
-      translate: calc(var(--kui-distance, 100px) * -1) 0;
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 100px)) * -1) 0;
     }
     to {
-      translate: var(--kui-distance, 100px) 0;
+      translate: var(--kui-gate-distance, var(--kui-distance, 100px)) 0;
     }
   }
 
@@ -43,7 +43,7 @@
 
   @keyframes kui-parallax-rotate {
     from {
-      rotate: var(--kui-from-angle, 0deg);
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, 0deg));
     }
     to {
       rotate: var(--kui-to-angle, 12deg);

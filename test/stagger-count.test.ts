@@ -7,6 +7,7 @@ import {
   resolveStaggerConfig,
   staggerRanks,
 } from '../src/core/stagger.js'
+import { resolveStaggerConfigFrom } from '../src/core/stagger-config.js'
 import { collectingReporter } from '../src/core/reporter.js'
 import { ATTR } from '../src/core/attrs.js'
 
@@ -408,6 +409,19 @@ describe('the data-kui spelling of a stagger group', () => {
 
   it('reports no group when neither attribute declares one', () => {
     expect(resolveStaggerConfig(null, 'fade-up 600ms on:enter')).toBeUndefined()
+  })
+
+  /*
+   * `resolveStaggerConfig`'s own pre-guard (identical condition) always short-circuits before this
+   * one is ever reached through it, and `indexTargetGroup`'s other call site only reaches this
+   * function with an already-resolved `keys` object (never `undefined` together with a null
+   * attribute) — so `resolveStaggerConfigFrom`'s own copy of the guard is dead through every
+   * current caller. It is exported in its own right, same as `resolveStaggerConfig`, so this calls
+   * it directly rather than deleting a guard a future caller — one that skips `resolveStaggerConfig`
+   * entirely — would still need.
+   */
+  it('reports no group when called directly with neither an attribute nor inline keys', () => {
+    expect(resolveStaggerConfigFrom(null, undefined)).toBeUndefined()
   })
 
   /*

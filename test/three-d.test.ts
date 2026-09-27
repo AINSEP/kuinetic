@@ -4,7 +4,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createParams } from '../src/core/js-params.js'
 import { GESTURE_PRESETS } from '../src/effects/gestures/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
@@ -173,37 +172,18 @@ describe('v3 registration', () => {
     }
   })
 
-  it('the state-driven presets\' prepare animates nothing, whatever else it wires up', async () => {
-    // The assertions above read the primitive's *metadata*. That is not the same claim: a
-    // `renderer: 'javascript'` primitive is still handed to the animator, which calls every hook on
-    // the instance it returns, so the guarantee that has to hold is behavioural — activate, cancel,
-    // finish and destroy are all safe, and `finished` settles.
-    //
-    // `prepare` stopped ignoring its arguments when `trigger:` landed, so it can no longer be
-    // invoked with none. It is still invoked here without a DOM, and deliberately: this file is
-    // `environment: node` (line 1), and `createParams({})` is the empty-attribute case — the
-    // `click` default, which is where a state-driven preset must animate nothing. On that path
-    // `prepare` reads the keyword and returns a no-op teardown without ever reaching for the
-    // element or the context, so `undefined` for both is not a stub that papers over anything: if a
-    // preset listed above ever starts touching the DOM on its *default* path, that lands inside the
-    // `not.toThrow()` below and fails, which is the correct answer rather than a missed one. The
-    // trigger values that do need a DOM are covered in `test/three-d-flip-trigger.test.ts`.
-    const noDom = undefined as unknown as never
-    for (const name of STATE_DRIVEN) {
-      const prepare = registry.resolve(name)!.primitive.prepare!
-      const instance = prepare(noDom, createParams({}), noDom)
-
-      expect(() => {
-        instance.activate()
-        instance.cancel()
-        instance.finish()
-        instance.destroy()
-      }, name).not.toThrow()
-      // Already settled, so the animator's `finished` bookkeeping cannot strand `data-kui-state`
-      // on "running" for the life of the page.
-      await expect(instance.finished).resolves.toBeUndefined()
-    }
-  })
+  // A DOM-free "prepare(undefined, {}, undefined) must not throw and must not touch the DOM on
+  // the default path" check used to live here, covering every `STATE_DRIVEN` preset — today just
+  // `flip-card`. `prepareCard` now calls `prepareFlipParts` eagerly, unconditionally, at prepare
+  // time (target:-everywhere reconcile R-7) — stamping faces and injecting a `.kui-flip-control`
+  // when the card authored none — precisely so a class-free `trigger:click` or reduced-motion card
+  // still gets its structural parts. That is real DOM work on the default path now, by design, so
+  // `flip-card`'s `prepare` can no longer run with `el`/`ctx` both `undefined`. With `flip-card` as
+  // `STATE_DRIVEN`'s only member, excluding it here would leave the loop body running zero times —
+  // an always-green check on nothing is worse than no check — so the behavioural assertion this
+  // used to make (activate/cancel/finish/destroy are all safe, and `finished` settles) moved to
+  // `test/three-d-flip-trigger.test.ts` instead, as `'is safe through its full lifecycle on the
+  // default (click) path'`, which already has a real card to prepare it against.
 
   it('registers no duplicate names across all packages', () => {
     const names = registry.names()

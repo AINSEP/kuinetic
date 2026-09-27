@@ -17,6 +17,68 @@
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.7 4.3a1 1 0 0 1 0 1.4l-6.5 6.5a1 1 0 0 1-1.4 0L2.3 8.7a1 1 0 1 1 1.4-1.4L6.5 10.1l5.8-5.8a1 1 0 0 1 1.4 0Z"/></svg>'
 
   /**
+   * Split on top-level commas only — a comma inside quotes (`'…'`/`"…"`) or parens is data, not a
+   * separator (`target:'.yt-play, .x'`, `ease:cubic-bezier(.2, .8, .2, 1)`). Mirrors
+   * `splitTopLevel(input, ',')`'s scanner in `src/core/parse.ts` (same precedence: an open quote
+   * wins over paren-depth, which wins over the delimiter check) minus the warnings this printer
+   * has no use for. The demo is plain JS, so this is a small reimplementation, not an import.
+   */
+  function splitTopLevelCommas(input) {
+    const parts = []
+    let buffer = ''
+    let depth = 0
+    let quote = null
+    let escaped = false
+    for (const char of input) {
+      if (quote) {
+        if (escaped) escaped = false
+        else if (char === '\\') escaped = true
+        else if (char === quote) quote = null
+        buffer += char
+        continue
+      }
+      if (char === '"' || char === "'") {
+        quote = char
+        buffer += char
+        continue
+      }
+      if (char === '(') depth++
+      else if (char === ')') depth = Math.max(0, depth - 1)
+      if (depth === 0 && char === ',') {
+        if (buffer.trim()) parts.push(buffer.trim())
+        buffer = ''
+        continue
+      }
+      buffer += char
+    }
+    if (buffer.trim()) parts.push(buffer.trim())
+    return parts
+  }
+
+  /**
+   * A `data-kui` value prints on one line unless it's "long": 3 or more comma-separated effects,
+   * or 2+ effects where the one-line value already runs past 80 characters. A long value gets one
+   * effect per line, indented to `column` — the printed position of the value's own first
+   * character (right after the opening quote) — so every continuation lines up under the first
+   * effect rather than under the attribute name or the tag's own indent.
+   *
+   * Only the printed text changes: this never touches the real attribute, so the Apply input (fed
+   * from `element.getAttribute('data-kui')`) and the live DOM stay single-line. The embedded `\n`s
+   * this returns are legal inside an HTML attribute value and copy-paste back in fine — the
+   * library's own tokenizer treats whitespace (newlines included) as an ordinary separator.
+   */
+  function formatDataKuiValue(value, column) {
+    const parts = splitTopLevelCommas(value)
+    const isLong = parts.length >= 3 || (parts.length >= 2 && value.length > 80)
+    if (!isLong) return value
+    const pad = ' '.repeat(column)
+    return parts
+      .map((part, i) => (i < parts.length - 1 ? `${part},` : part))
+      .map((line, i) => (i === 0 ? line : pad + line))
+      .join('\n')
+  }
+
+  /**
    * Returns an array of `{ text, isTag }` line records rather than a plain string. `isTag` marks
    * a line that came from an element's own opening tag (or a collapsed void/empty element) — the
    * only place a real `data-kui` *attribute* or a class-token contract can ever live. Every other
@@ -32,11 +94,26 @@
   function prettyPrint(el, depth) {
     const indent = '  '.repeat(depth)
     const tag = el.tagName.toLowerCase()
-    const attrs = [...el.attributes]
+    const attrList = [...el.attributes]
       // Every `data-show-code*` attribute is this tool's own wiring — `data-show-code`,
       // `-target`, `-key`. None of it belongs in the markup someone is about to copy.
       .filter(a => !a.name.startsWith('data-show-code'))
-      .map((a) => `${a.name}="${a.value}"`).join(' ')
+
+    // The column the next attribute starts printing at — `<tag ` plus every attribute already
+    // emitted before it — so a long `data-kui` value (below) knows where its own first character
+    // lands and can indent its continuation lines to match.
+    let column = indent.length + 1 + tag.length + 1
+    const attrStrings = attrList.map((a) => {
+      if (a.name === 'data-kui') {
+        const str = `data-kui="${formatDataKuiValue(a.value, column + 'data-kui="'.length)}"`
+        column += str.slice(str.lastIndexOf('\n') + 1).length + 1
+        return str
+      }
+      const str = `${a.name}="${a.value}"`
+      column += str.length + 1
+      return str
+    })
+    const attrs = attrStrings.join(' ')
     const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`
 
     if (VOID_TAGS.has(tag)) return [{ text: `${indent}${openTag.slice(0, -1)} />`, isTag: true }]

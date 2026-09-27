@@ -140,24 +140,39 @@ describe('everything without an entrance resolves exactly as it did', () => {
 })
 
 /**
- * The same rule across a `target:` split.
+ * `defaultActivation` per `target:` group, reversing the plan's D-B.4.
  *
- * An element has one activation binding however many groups its attribute compiles to, so
- * `mergeHostFacts` folds the field across every group and writes the merged answer back onto all of
- * them. It carried its own copy of the `??=` and so had its own copy of the bug: with the entrance
- * relocated to a child and the behaviour left on the host, the host group is `targets[0]` and won
- * outright.
+ * This block used to assert the D1 model: one activation binding for the whole element, folded by
+ * `mergeHostFacts` across every group and written back onto all of them, with its own copy of the
+ * `??=` merge bug — an entrance relocated to a child used to win outright over a behaviour left on
+ * the host, because the host group is `targets[0]`.
+ *
+ * The owner's stated model reverses this (a `target:` group is a derived host in its own right —
+ * see `docs`/the target-everywhere plan's D-A/D-B.4), so each group's `defaultActivation` is now
+ * decided only from *its own* composed entries, exactly as `resolveDefaultActivation` would decide
+ * it for that group compiled alone. `fade-up target:h1, drag` therefore resolves to two independent
+ * answers rather than one merged one: the host group is `drag` alone, so it keeps `drag`'s own
+ * declared preference (`'load'`); the `h1` group is `fade-up` alone, and — exactly as
+ * `activationOf('fade-up')` alone resolves in "the declarations these merges are made from" above —
+ * a lone entrance with nothing else in its own group to beat has nothing to decide, so it stays
+ * `undefined` rather than materialising `'enter'`. `element-config.ts`'s `'enter'` fallback still
+ * applies at the point each group is actually bound (Phase 2), the same way it always has for a lone
+ * `fade-up` today.
  */
-describe('a target: split is still one element with one trigger', () => {
-  it('lets an entrance on a child name the trigger for a behaviour on the host', () => {
+describe('a target: split now resolves defaultActivation per group, not merged onto every group', () => {
+  it("gives the host group (drag alone) drag's own declared preference", () => {
     const document = compile(parse('fade-up target:h1, drag'), registry, 'time')
-    expect(document.defaultActivation).toBe('enter')
+    expect(document.defaultActivation).toBe('load')
   })
 
-  it('writes the same answer onto every group, whichever one a caller reads', () => {
+  it('gives each group its own independent answer instead of one merged onto both', () => {
     const targets = groupsOf('fade-up target:h1, drag')
     expect(targets).toHaveLength(2)
-    for (const target of targets) expect(target.plan.defaultActivation).toBe('enter')
+    const bySelector = new Map(targets.map((t) => [t.selector, t.plan.defaultActivation]))
+    // Host group: drag alone keeps its own 'load'.
+    expect(bySelector.get('')).toBe('load')
+    // h1 group: fade-up alone has nothing in its own group to beat — same as a lone `fade-up`.
+    expect(bySelector.get('h1')).toBeUndefined()
   })
 
   it('is decided from the entries that survived composition, not the ones authored', () => {

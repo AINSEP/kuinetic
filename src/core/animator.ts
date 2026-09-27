@@ -37,10 +37,16 @@ import { BundleTable } from './bundles.js'
 import { bindCallback } from './callback.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
-import { compileTargets } from './compile.js'
+import { compileTargets, scopeHoists } from './compile.js'
 import type { CompiledDocument, CompiledPlan, CompiledTarget } from './compile.js'
 import { control, emitLifecycle, KUI_EVENT } from './control.js'
 import type { ControlHandle, LifecycleEventType, LifecycleReason } from './control.js'
+import { syncAggregate } from './derived/aggregate.js'
+import { createDerivedBook, derivedOf as bookDerivedOf, hostOf as bookHostOf } from './derived/book.js'
+import { skipsOwnBinding } from './derived/group-gate.js'
+import { installWithTargets, releaseDerived, restageAfterTreeRelease } from './derived/install.js'
+import { adoptLateMatches } from './derived/late-matches.js'
+import type { AnimatorPort, DerivedBook, InstallRequest, ResolvedGroup } from './derived/types.js'
 import { createDomWatcher } from './dom-watcher.js'
 import type { DomWatcher } from './dom-watcher.js'
 import { readAttributes, resolveConfig } from './element-config.js'
@@ -58,13 +64,7 @@ import type { Reporter } from './reporter.js'
 import { createCssInstance } from './instances.js'
 import { createLedgerSet } from './owned-styles.js'
 import type { LedgerSet } from './owned-styles.js'
-import {
-  applyStagger,
-  indexTargetGroup,
-  releaseStagger,
-  restageAfterRemoval,
-  restageAround,
-} from './stagger.js'
+import { applyStagger, releaseStagger, restageAfterRemoval, restageAround } from './stagger.js'
 import { planStyles } from './style-plan.js'
 import type { StylePlan } from './style-plan.js'
 import { queryScoped, selectorBreadth } from './target.js'
@@ -113,21 +113,6 @@ interface GateRequest {
   stylePlan: StylePlan
   config: ElementConfig
   plan: CompiledPlan
-}
-
-/** Everything `install` needs, grouped so the call site reads as one request. */
-interface InstallRequest {
-  el: Element
-  fingerprint: string
-  parsed: ParsedValue
-  config: ElementConfig
-  document: CompiledDocument
-}
-
-/** One `CompiledTarget` and the live elements its selector actually resolved to. */
-interface ResolvedGroup {
-  target: CompiledTarget
-  matches: Element[]
 }
 
 /**
@@ -279,6 +264,10 @@ export class Animator {
    */
   private gateWatcher: GateWatcher | undefined
   private started = false
+  /** This animator's derived-host bookkeeping — see `DerivedBook`. */
+  private readonly book: DerivedBook = createDerivedBook()
+  /** The narrow window the `derived/*` modules get onto this animator — see `AnimatorPort`. */
+  private readonly port: AnimatorPort
 
   constructor(options: AnimatorOptions = {}) {
     const resolved = resolveCollaborators(options)
@@ -294,6 +283,24 @@ export class Animator {
     this.domWatcher = resolved.domWatcher
     this.respectReducedMotion = resolved.respectReducedMotion
     this.shouldObserve = resolved.shouldObserve
+    this.port = {
+      registry: this.registry,
+      reporter: this.reporter,
+      binder: this.binder,
+      capabilities: this.capabilities,
+      respectReducedMotion: this.respectReducedMotion,
+      book: this.book,
+      stateOf: (el) => this.states.get(el),
+      install: (request) => this.install(request),
+      installAggregate: (request) => this.installAggregate(request),
+      resolveGroupMatches: (host, target) => this.resolveGroupMatches(host, target),
+      resolveActivation: (el, config, plan) => this.resolveActivation(el, config, plan),
+      release: (el) => this.release(el),
+      activateOne: (el) => this.activateOne(el),
+      deactivateOne: (el) => this.deactivate(el),
+      writeStatus: (el, state, next) => this.writeStatus(el, state, next),
+      emit: (el, state, type, reason) => this.emit(el, state, type, reason),
+    }
   }
 
   /**
@@ -389,20 +396,31 @@ export class Animator {
     // Between parsing and compiling, so everything downstream — channel conflicts, sequencing,
     // `target:` grouping, `data-kui-fx` — sees the segments the author would have written by hand.
     // A bundle can therefore never behave differently from its own expansion.
-    const parsed = this.bundles.expand(parse(attributes.source))
-    const config = resolveConfig(attributes, parsed)
-    const document = compileTargets(parsed, this.registry, config.timeline)
-    // `targets[0]` for every element-scoped fact below: `compileTargets`' `mergeHostFacts` already
-    // folds `reducedMotion`/`supportedActivations`/`supportedTimelines`/`defaultActivation`/
-    // `channels` across every `target:` group and writes the merged answer onto all of them, so any
-    // one group's plan carries the element's real, single answer — see that function's own comment.
+    const parsed = scopeHoists(this.bundles.expand(parse(attributes.source)), this.registry)
+    // `baseConfig` is `resolveConfig`'s output before `resolveActivation` mutates `activation` below
+    // — what each derived `target:` group's own config is built from
+    // (`resolveGroupConfig(baseConfig, target.hoists)`, phase 2a), since a group's activation is
+    // resolved against its own group facts, never the host's. `config` is `install`'s own copy —
+    // still the identical values at this point, so this split changes nothing this element sees.
+    const baseConfig = resolveConfig(attributes, parsed)
+    const config: ElementConfig = { ...baseConfig }
+    const document = compileTargets(parsed, this.registry, baseConfig.timeline)
+    // `targets[0]` — the host group — for every element-scoped fact below. `reducedMotion` there is
+    // still the one merged answer `compileTargets`' `mergeHostFacts` folds across every `target:`
+    // group (`rm:` is one author decision regardless of group count). `supportedActivations`/
+    // `supportedTimelines`/`defaultActivation`/`channels` are no longer a document-wide merge as of
+    // this phase (D-B.4 in the target-everywhere plan): they are the *host group's own* answer, from
+    // only its own composed effects. Reading only `targets[0]` here is therefore incomplete for a
+    // document that has a `target:` group — that group's own facts (`document.targets[n]`) are not
+    // yet consulted anywhere in this file. This is intentional for this phase: each group gets its
+    // own binding, gate and activation only once Phase 2 lands (see the plan's D-A).
     const facts = document.targets[0]!.plan
     // Before `planStyles` runs, so that an element whose only JS effect is gated off reports no
     // work and takes the `immediate` gate rather than sitting deferred on an activation that has
     // nothing left to release.
     this.applyViewportGates(el, document)
 
-    config.activation = this.resolveActivation(el, config, facts)
+    config.activation = this.resolveActivation(el, baseConfig, facts)
     this.reportCompiled(el, document)
 
     if (document.targets.every((target) => target.plan.fxNames.length === 0)) {
@@ -412,7 +430,7 @@ export class Animator {
       return
     }
 
-    this.install({ el, fingerprint, parsed, config, document })
+    this.install({ el, fingerprint, parsed, config, baseConfig, document })
   }
 
   /**
@@ -432,7 +450,10 @@ export class Animator {
     for (const target of document.targets) {
       for (const warning of target.plan.warnings) this.reporter.warn(warning, el)
     }
-    const channels = document.targets[0]!.plan.channels
+    // Union of every group's channels (each `target:` group now compiles its own — P1), not only
+    // the host group's: an unsupported channel in a group nobody happens to look at first must
+    // still be reported.
+    const channels = [...new Set(document.targets.flatMap((target) => target.plan.channels))]
     for (const warning of unsupportedChannelWarnings(channels, this.capabilities)) {
       this.reporter.warn(warning, el)
     }
@@ -542,21 +563,25 @@ export class Animator {
     this.process(el)
   }
 
+  /** Route a document with any non-empty-selector group through the derived-host path; `true`
+   *  when it did (a derived install's own `document` never carries one, so this cannot recurse). */
+  private installedAsHost(request: InstallRequest): boolean {
+    if (!request.document.targets.some((t) => t.selector !== '')) return false
+    installWithTargets(this.port, request)
+    return true
+  }
+
   private install(request: InstallRequest): void {
+    if (this.installedAsHost(request)) return
+
     const { el, fingerprint, parsed, config, document } = request
 
     // Resolved before anything else touches the DOM — every group's selector against the live
     // document, once, warning by name for any that is invalid, too broad, or simply empty (see
-    // `resolveGroupMatches`). If none survive, this element has real compiled effects
-    // (`process()`'s own `fxNames.length === 0` guard already ruled out "no effects at all") but
-    // nowhere for any of them to run, so nothing here is registered and no ledger ever opens.
+    // `resolveGroupMatches`).
     const groups = document.targets
       .map((target) => ({ target, matches: this.resolveGroupMatches(el, target) }))
       .filter((group) => group.matches.length > 0)
-    if (groups.length === 0) {
-      el.setAttribute(ATTR.state, 'failed')
-      return
-    }
 
     /*
      * One set per authored element, not one ledger pair. The host is the first member and always
@@ -611,11 +636,17 @@ export class Animator {
       controller,
       status: 'ready',
     }
+    // Set only on a derived install (2a) — a HEAD install's `request` never carries either field,
+    // so this is a no-op today.
+    if (request.host) state.host = request.host
+    if (request.gateOwner) state.gateOwner = request.gateOwner
     this.states.set(el, state)
     this.liveElements.add(el)
     // Written once, unconditionally, and before any group's own writes below — same position this
-    // attribute has always been written at, and it is the host's own lifecycle marker regardless of
-    // where `target:` sends the rest (D6: stays on the host).
+    // attribute has always been written at. A real `target:` group never reaches this point at all
+    // (`installedAsHost` already diverted it to `installWithTargets`), so unlike the D6-era comment
+    // this replaced, there is no "elsewhere" `data-kui-state` could have gone instead: every group
+    // `install` sees here is the host's own, and this is that host's one lifecycle marker.
     attributes.set(ATTR.state, 'ready')
 
     const context: GroupInstall = {
@@ -632,12 +663,55 @@ export class Animator {
   }
 
   /**
+   * Install a zero-instance aggregate host: a `target:` host with no own (empty-selector) group,
+   * whose status mirrors its derived matches' instead of running any effect of its own
+   * (`syncAggregate`). Called by 2a's `installWithTargets` after every claimed match has already
+   * been installed, which is what D-E's stamping order requires — the host's own `data-kui-state`
+   * must never appear before its matches'.
+   *
+   * @complexity O(g) time in the document's group count; O(1) space.
+   * @overallScore 100
+   */
+  private installAggregate(request: InstallRequest): void {
+    const { el, fingerprint, parsed, config, document } = request
+    const ledgers = createLedgerSet(el)
+    const controller = new AbortController()
+    this.bindAuthorCallback(el, parsed, controller.signal)
+    const state: InstanceState = {
+      fingerprint,
+      specs: parsed.specs,
+      activation: config.activation,
+      timeline: config.timeline,
+      fxNames: document.targets.flatMap((target) => target.plan.fxNames),
+      jsEffectNames: [],
+      progressDriven: false,
+      instances: [],
+      ledger: ledgers.style(el),
+      attributes: ledgers.attributes(el),
+      ledgers,
+      controller,
+      status: 'ready',
+      aggregate: true,
+    }
+    this.states.set(el, state)
+    this.liveElements.add(el)
+    state.attributes.set(ATTR.state, 'ready')
+  }
+
+  /**
    * Apply one `target:` group's compiled plan to every element its selector resolved to.
    *
    * Its own `planStyles` call, not the element-wide one `install` already made: `declarations` are
    * per group, so `fade-up target:h2, pin` writes different properties to the `h2` than to the host
    * even though both share one gate, one activation and one reduced-motion policy (which is exactly
    * what `elementHasCssAnimation` carries in from the caller).
+   *
+   * `group.target.selector` is always `''` here — `installedAsHost` diverts any document carrying a
+   * real `target:` group to `installWithTargets` before `install` (this method's only caller) ever
+   * runs, so `matches` is always the host's own single-element `[el]` (target:-everywhere reconcile
+   * R-8 removed the in-place relocation path this method used to also handle, along with the
+   * `indexTargetGroup` call it made only for a real group — `restageTargets`, in
+   * `core/derived/install.ts`, is the one that indexes a real target group's stagger keys now).
    *
    * @complexity O(m * p) time in the group's matches and the plan's properties; O(p) space.
    * @overallScore 100
@@ -657,14 +731,6 @@ export class Animator {
 
     const writes: GroupWrites = { target, stylePlan, hasCssAnimation }
     for (const match of matches) this.installMatch(match, writes, context)
-
-    // Only for a real `target:` group — the host's own single "match" (itself) has nothing to
-    // order relative to. `applyStagger`'s existing DOM-children pass, run once per `scan()` after
-    // every element has been processed, still owns an ordinary group's stagger numbering; this is
-    // the same job for a set `target:`/`scope:` resolved instead.
-    if (target.selector !== '') {
-      indexTargetGroup(context.el, matches, context.ledgers, this.reporter)
-    }
   }
 
   /**
@@ -686,11 +752,10 @@ export class Animator {
     for (const [property, value] of Object.entries(stylePlan.properties)) {
       matchLedger.set(property, value)
     }
-    // `data-kui-state` is deliberately not written here — it is the host's own lifecycle
-    // marker (D6: stays on the host regardless of where `target:` sends the writes) and was
-    // already set, once, by `install`. `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches
-    // on the same compound, so both land on every element this group's effects actually reach —
-    // the host itself for the host's own group, the matches for every other one.
+    // `data-kui-state` is deliberately not written here — it is the host's own lifecycle marker
+    // and was already set, once, by `install`. `match` is always that same host (see `installGroup`'s
+    // own comment on why); `data-kui-fx`/`data-kui-rm` are the pair `base.css` matches on the same
+    // compound, so both land there alongside it.
     matchAttributes.set(ATTR.normalized, stylePlan.attributes[ATTR.normalized]!)
     matchAttributes.set(ATTR.rm, stylePlan.attributes[ATTR.rm]!)
     matchLedger.claim('animation-play-state')
@@ -786,17 +851,16 @@ export class Animator {
    */
   private openGate(request: GateRequest): void {
     const { el, state, stylePlan, config, plan } = request
-    const reduce = this.respectReducedMotion && this.capabilities.reducedMotion
-    if (reduce && plan.reducedMotion === 'disable') {
+    if (this.reducedMotionDisables(plan)) {
       // Nothing is activated. A CSS effect is left at its final state by the policy layer; a JS
       // effect simply never runs, which is the only way "disable" can bind a JS renderer at all.
-      state.status = 'finished'
-      state.attributes.set(ATTR.state, 'finished')
+      this.writeStatus(el, state, 'finished')
       // The one `kui:finish` with no preceding `kui:start`, carrying the reason that says so. An
       // author chaining a second step off `kui:finish` must not have that step silently never run
       // for the visitors who asked for reduced motion — the element really is at its end state,
       // which is all `finish` has ever claimed. See `LifecycleReason` in `events.ts`.
       this.emit(el, state, KUI_EVENT.finish, 'reduced-motion')
+      this.syncHost(state)
       return
     }
 
@@ -811,16 +875,18 @@ export class Animator {
     }
 
     if (stylePlan.gate !== 'deferred') {
-      this.activate(el)
+      this.activateOne(el)
       return
     }
+    // A grouped derived match is activated by its host's one group binding (B-a), never its own.
+    if (skipsOwnBinding(state)) return
     // `planStyles` only sets `activation: null` when `gate !== 'deferred'` (see style-plan.ts);
     // the early return just above guarantees `gate === 'deferred'` here, so this is always real.
     const activation = stylePlan.activation!
     const releaseBinding = this.binder.bind(el, activation, {
       threshold: config.threshold,
       from: config.activationSource,
-      activate: () => this.activate(el),
+      activate: () => this.activateOne(el),
       deactivate: () => this.deactivate(el),
       // Only when the author asked for the four-way reading. Absent, the binder keeps its two-way
       // delivery and its one-shot release, which is what every piece of existing markup depends on.
@@ -849,6 +915,20 @@ export class Animator {
     if (!actions && isOneShot(resolveActivationSpec(activation))) {
       state.releaseActivation = releaseOnce
     }
+  }
+
+  /**
+   * Whether the visitor's own reduced-motion preference disables this plan outright, rather than
+   * merely shortening or crossfading it.
+   *
+   * Pulled out of `openGate` so that method's own branching stays about *what to do*, not about
+   * the two-part question of whether the policy applies at all.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  private reducedMotionDisables(plan: CompiledPlan): boolean {
+    return this.respectReducedMotion && this.capabilities.reducedMotion && plan.reducedMotion === 'disable'
   }
 
   /**
@@ -900,8 +980,8 @@ export class Animator {
       controls: state.instances
         .map((instance) => instance.control)
         .filter((control): control is InstanceControl => control !== undefined),
-      activate: () => this.activate(el),
-      reverse: () => this.reverseFrom(el),
+      activate: () => this.activateOne(el),
+      reverse: () => this.reverseOne(el),
     })
   }
 
@@ -921,8 +1001,17 @@ export class Animator {
    * @overallScore 100
    */
   activate(el: Element): void {
+    this.activateOne(el)
+    // Fans out to `derivedOf(el)`; see `activateOne` for the per-element rules.
+    for (const match of this.derivedOf(el)) this.activateOne(match)
+  }
+
+  /** The per-element half of {@link activate} — see that method's own doc comment. */
+  private activateOne(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
+    // An aggregate host has no instances of its own; only `syncAggregate` ever writes its status.
+    if (state.aggregate) return
     // A reversing element is still `running`, so the guard below would swallow the enter half of a
     // pair that fires while the exit half is still playing — a pointer leaving an element and
     // coming straight back, which is the commonest thing a pointer does. Turning the playhead
@@ -936,9 +1025,8 @@ export class Animator {
     // observer callback that would otherwise be the sole releaser. See `openGate`.
     state.releaseActivation?.()
     state.releaseActivation = undefined
-    state.status = 'running'
+    this.writeStatus(el, state, 'running')
     state.direction = 'forward'
-    state.attributes.set(ATTR.state, 'running')
     // A fresh run, so a cancellation belonging to whatever ran before this one must not still
     // apply — see `cancelled`'s own doc comment. Never reset from inside the completion handler
     // itself: this element's *next* activation must start clean regardless of whether the run it
@@ -950,8 +1038,8 @@ export class Animator {
       // Every instance on this element failed to activate — nothing is running, so falling
       // through to the empty `Promise.all` below and reporting "finished" would codify a lie
       // exactly as much as leaving the element stuck "running" forever would.
-      state.status = 'failed'
-      state.attributes.set(ATTR.state, 'failed')
+      this.writeStatus(el, state, 'failed')
+      this.syncHost(state)
       return
     }
     // After the failure check, never before it: an element where every instance threw has not
@@ -959,6 +1047,7 @@ export class Animator {
     // to avoid. An element with no instances at all — a pure `css-keyframes` plan whose animation
     // longhands were written straight to the style — has started, and does reach this.
     this.emit(el, state, KUI_EVENT.start, 'activated')
+    this.syncHost(state)
 
     this.settleWhen({ el, state, run }, started, 'finished')
   }
@@ -1008,7 +1097,7 @@ export class Animator {
     // this method's to make; see `reverseFrom` for why it has exactly one owner. No
     // `reversible.length === 0` guard here any more: `reverseFrom` makes the same check, and making
     // it twice would only invite the two copies to drift.
-    this.reverseFrom(el)
+    this.reverseOne(el)
   }
 
   /**
@@ -1042,6 +1131,15 @@ export class Animator {
    * @overallScore 100
    */
   reverseFrom(el: Element): void {
+    this.reverseOne(el)
+    // Fans out to `derivedOf(el)`; see `reverseOne` for the per-element rules. Idempotent per
+    // element (the `direction === 'reverse'` early return below), so a derived match reached both
+    // directly and through its host reverses once.
+    for (const match of this.derivedOf(el)) this.reverseOne(match)
+  }
+
+  /** The per-element half of {@link reverseFrom} — see that method's own doc comment. */
+  private reverseOne(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
     // Not merely tidiness. An element still at `ready` has no run to reverse, and writing
@@ -1064,9 +1162,9 @@ export class Animator {
     // above forever — and would send its next activation through `turnAround()`.
     if (reversible.length === 0) return
 
-    state.status = 'running'
+    this.writeStatus(el, state, 'running')
     state.direction = 'reverse'
-    state.attributes.set(ATTR.state, 'running')
+    this.syncHost(state)
     // A new run — the exit half of this activation — so any cancellation belonging to the entrance
     // that preceded it must not carry over: an entrance cancelled mid-flight can still exit
     // normally, and that exit's own `kui:reverse-finish` must not be swallowed by a flag left over
@@ -1160,22 +1258,23 @@ export class Animator {
       if (this.states.get(el) !== state || state.status !== 'running') return
       if (state.direction !== direction) return
       if (this.currentRun.get(state) !== run) return
-      state.status = next
-      state.attributes.set(ATTR.state, next)
+      this.writeStatus(el, state, next)
       // Cancelling resolves `finished` too (see `EffectInstance.finished`'s never-rejects
       // contract), so this handler still runs for a cancelled element and still writes the
       // "finished" attribute it has always written. Dispatching a completion event as well would
       // tell an author that an animation they explicitly stopped had run to its end — as untrue of
       // an abandoned exit as of an abandoned entrance, so one flag suppresses both.
-      if (state.cancelled) return
-      // Two events rather than one, and the split is the whole point. `kui:finish` keeps meaning
-      // what it meant before reversal existed: the *forward* run reached its end. Firing it for a
-      // settled reverse would run an author's "now reveal the next thing" handler on the way out.
-      // But an exit that has completed is still worth observing — it is the moment the element is
-      // genuinely back at its from-state, which is when an author unmounts it, releases it, or
-      // starts the next thing — so it gets a name of its own instead of the silence it used to get.
-      if (next === 'finished') this.emit(el, state, KUI_EVENT.finish, 'complete')
-      else this.emit(el, state, KUI_EVENT.reverseFinish, 'reversed')
+      if (!state.cancelled) {
+        // Two events rather than one, and the split is the whole point. `kui:finish` keeps meaning
+        // what it meant before reversal existed: the *forward* run reached its end. Firing it for a
+        // settled reverse would run an author's "now reveal the next thing" handler on the way out.
+        // But an exit that has completed is still worth observing — it is the moment the element is
+        // genuinely back at its from-state, which is when an author unmounts it, releases it, or
+        // starts the next thing — so it gets a name of its own instead of the silence it used to get.
+        if (next === 'finished') this.emit(el, state, KUI_EVENT.finish, 'complete')
+        else this.emit(el, state, KUI_EVENT.reverseFinish, 'reversed')
+      }
+      this.syncHost(state)
     })
   }
 
@@ -1224,7 +1323,38 @@ export class Animator {
       activation: state.activation,
       timeline: state.timeline,
       reason,
+      ...(state.host ? { host: state.host } : {}),
     })
+  }
+
+  /**
+   * Write one element's status, through its own ledger, with no aggregate sync.
+   *
+   * The one place `status`/`data-kui-state` are written together, so every call site that used to
+   * write both fields by hand now shares one line to drift out of sync in. `el` is unused today —
+   * kept because 2b's tests and a future per-element hook both key on it, and because every other
+   * write in this file takes the element it writes to as its first argument.
+   *
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   */
+  private writeStatus(el: Element, state: InstanceState, next: InstanceState['status']): void {
+    state.status = next
+    state.attributes.set(ATTR.state, next)
+  }
+
+  /**
+   * Let a derived state's host re-derive its aggregate status (D-A).
+   *
+   * Called after the derived element's own event, so listeners see the match's event before the
+   * host's — the same order a nested DOM structure would deliver them in were the host merely
+   * listening for its children's events instead of deriving its own status from them.
+   *
+   * @complexity O(1) time and space, delegating to {@link syncAggregate}.
+   * @overallScore 100
+   */
+  private syncHost(state: InstanceState): void {
+    if (state.host) syncAggregate(this.port, state.host)
   }
 
   /**
@@ -1241,6 +1371,13 @@ export class Animator {
    * @overallScore 100
    */
   cancel(el: Element): void {
+    this.cancelOne(el)
+    // Fans out to `derivedOf(el)`; see `cancelOne` for the per-element rules.
+    for (const match of this.derivedOf(el)) this.cancelOne(match)
+  }
+
+  /** The per-element half of {@link cancel} — see that method's own doc comment. */
+  private cancelOne(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
     const wasRunning = state.status === 'running'
@@ -1259,8 +1396,8 @@ export class Animator {
     // direction unless some instance `isDirectional`, and a JS-rendered instance never is, so an
     // element that reached the ungated path is always travelling forwards.
     if (wasRunning && this.settleArmed.get(state) === false) {
-      state.status = 'finished'
-      state.attributes.set(ATTR.state, 'finished')
+      this.writeStatus(el, state, 'finished')
+      this.syncHost(state)
     }
     if (wasRunning) this.emit(el, state, KUI_EVENT.cancel, 'cancelled')
   }
@@ -1325,6 +1462,16 @@ export class Animator {
     return this.states.get(el)
   }
 
+  /** The derived matches a host's `target:` groups installed, in document order. `[]` otherwise. */
+  derivedOf(el: Element): Element[] {
+    return bookDerivedOf(this.book, el)
+  }
+
+  /** The host that installed a derived match, else `undefined`. */
+  hostOf(el: Element): Element | undefined {
+    return bookHostOf(this.book, el)
+  }
+
   /**
    * Tear an element's effects down so the next `process()` reinstalls from scratch.
    *
@@ -1347,6 +1494,9 @@ export class Animator {
   private release(el: Element): void {
     const state = this.states.get(el)
     if (!state) return
+    // Before this element's own teardown: for a host, releases every derived match first; for a
+    // derived match, unlinks it from its host. See `releaseDerived`.
+    releaseDerived(this.port, el)
     const wasRunning = state.status === 'running'
     state.cancelled = true
     // Order matters: abort first so bindings detach, then destroy instances, then restore. A
@@ -1403,6 +1553,9 @@ export class Animator {
       if (this.liveElements.has(el)) this.release(el)
     }
     restageAfterRemoval(candidates, this.reporter)
+    // The derived-host analogue of the line above: re-index any surviving host that lost a
+    // derived match in this same removal batch.
+    restageAfterTreeRelease(this.port, candidates)
   }
 
   destroy(): void {
@@ -1432,7 +1585,10 @@ export class Animator {
   private watch(): void {
     this.domWatcher ??= createDomWatcher({
       root: this.root,
-      onElementAdded: (el) => this.scan(el),
+      onElementAdded: (el) => {
+        this.scan(el)
+        adoptLateMatches(this.port, el)
+      },
       onElementRemoved: (el) => this.releaseTree(el),
       onAttributeChanged: (el) => {
         this.process(el)

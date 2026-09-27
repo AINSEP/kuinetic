@@ -67,6 +67,9 @@ export const EFFECT_FILES = [
   'glass.css',
   'carousel.css',
   'view-transitions.css',
+  'ready-gates.css',
+  'flip-card-parts.css',
+  'icon-parts.css',
 ]
 
 /**

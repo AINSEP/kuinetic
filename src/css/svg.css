@@ -132,14 +132,16 @@
    * and it scopes its clip check to the SVG family for exactly this reason.
    *
    * `clip-path: none` rather than a neutralized custom property because these keyframes clip
-   * literally and own no token to neutralize. `!important` for the same reason
-   * `--kui-bar-from: 1 !important` carries it below: author-important outranks the Animations
-   * origin, so it beats the element's own paused 0%-keyframe. `opacity: 0` is the other half —
-   * un-clipping alone parks the finished, fully-filled shape on screen for the entire wait, trading
-   * an invisible-forever bug for a visible-wrong-state one — and is deliberately not `!important`,
-   * the same asymmetry the `chart-bar-grow` rule below accounts for in full. Both revert in the
-   * same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so no frame shows one
-   * without the other.
+   * literally and own no token to neutralize: author-`!important` outranks the Animations origin,
+   * so it beats the element's own paused 0%-keyframe, the same way `ready-gates.css`'s
+   * `--kui-gate-bar-from` rule beats `chart-bar-grow`'s (there an ordinary declaration is enough,
+   * since nothing ever sets that token inline — this property has no such second, disjoint token to
+   * redirect through, so it stays `!important` on the real property itself). `opacity: 0` is the
+   * other half — un-clipping alone parks the finished, fully-filled shape on screen for the entire
+   * wait, trading an invisible-forever bug for a visible-wrong-state one — and is deliberately not
+   * `!important`, the same asymmetry the `chart-bar-grow` rule below accounts for in full. Both
+   * revert in the same `data-kui-state` attribute set (`animator.ts`'s `activate()`), so no frame
+   * shows one without the other.
    */
   [data-kui-fx~='heart-fill'][data-kui-state='ready'],
   [data-kui-fx~='bookmark-fill'][data-kui-state='ready'],
@@ -150,7 +152,7 @@
 
   /* A bar grows from its baseline, never from its centre — same rule as `progress-bar`. */
   @keyframes kui-chart-bar-grow {
-    from { scale: 1 var(--kui-bar-from, 0); }
+    from { scale: 1 var(--kui-gate-bar-from, var(--kui-bar-from, 0)); }
     to { scale: 1 1; }
   }
   [data-kui-fx~='chart-bar-grow'] {
@@ -167,22 +169,21 @@
    * same token name across all three, since each preset only ever collapses one axis and the
    * shorthand position already says which.
    *
-   * Gating that token back to `1` on `ready` fixes the `on:enter` wait the same way: `!important`
-   * beats the paused animation's own 0%-keyframe value, and the real animation still reads the
-   * authored value once triggered. `opacity: 0` sits beside it because `chart-bar-grow` owns no
-   * opacity channel — flattening the scale alone would leave the bar fully visible for the whole
-   * wait. Both revert together in the same `data-kui-state` attribute set (`animator.ts`'s
-   * `activate()`), so there is no frame where a visitor sees the wrong shape at full opacity.
-   * `cloak: true` on this preset keeps the pre-JS and post-JS "waiting" looks the same either side
-   * of this rule.
+   * Gating that token back to `1` on `ready` fixes the `on:enter` wait the same way:
+   * `ready-gates.css`'s `--kui-gate-bar-from: 1` rule beats the paused animation's own 0%-keyframe
+   * value (an ordinary declaration is enough there, since nothing ever sets `--kui-gate-bar-from`
+   * inline), and the real animation still reads the authored value once triggered. `opacity: 0`
+   * sits beside it here because `chart-bar-grow` owns no opacity channel — flattening the scale
+   * alone would leave the bar fully visible for the whole wait. Both revert together in the same
+   * `data-kui-state` attribute set (`animator.ts`'s `activate()`), so there is no frame where a
+   * visitor sees the wrong shape at full opacity. `cloak: true` on this preset keeps the pre-JS and
+   * post-JS "waiting" looks the same either side of this rule.
    *
-   * The opacity is deliberately *not* `!important`, unlike `--kui-bar-from` — see the full account
-   * on `entrance.css`'s `flip-in-x` rule. The token beats this element's own paused keyframe; an
-   * `!important` opacity would beat a composed effect's *declared* opacity channel, which is
-   * exactly the interference the channel model exists to report.
+   * The opacity is deliberately *not* `!important` — see the full account on `entrance.css`'s
+   * `flip-in-x` rule: an `!important` opacity would beat a composed effect's *declared* opacity
+   * channel, which is exactly the interference the channel model exists to report.
    */
   [data-kui-fx~='chart-bar-grow'][data-kui-state='ready'] {
-    --kui-bar-from: 1 !important;
     opacity: 0;
   }
 

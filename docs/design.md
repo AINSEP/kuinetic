@@ -442,6 +442,14 @@ replacement, or some reduced-motion paths. State machines need cancellation + ti
 Reduced motion is **per-effect** (`shorten` / `crossfade` / `disable`). Blanket `1ms` does not
 meaningfully reduce parallax, pinning, flashing, or continuous ambient motion.
 
+The generated cloak selector matches a `data-kui` token with `~=`, which splits on whitespace, not
+commas — `data-kui="text-reveal-mask,\nfade-up"` puts the comma straight against the word, so the
+literal token is `text-reveal-mask,`, not `text-reveal-mask`. `scripts/generate-preset-css.mjs`
+(via `src/core/cloak-selectors.ts`) emits one `:is()` grouping all four comma-adjacency forms of
+every cloaked name and gate token — alone, comma-before, comma-after, both — so cloaking still
+applies whichever way an author glued the list together; a browser too old for `:is()` fails open,
+same as an unmatched form always did.
+
 ---
 
 ## 9. Packaging — three explicit products

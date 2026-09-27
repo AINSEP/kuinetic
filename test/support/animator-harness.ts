@@ -30,6 +30,9 @@ export const CAPS = defaultCapabilities({
 export interface FakeBinder extends ActivationBinder {
   bindings: Array<{ el: Element; activation: Activation; threshold: string }>
   fire(el: Element): void
+  /** The exit half of a paired activation — `request.deactivate`, when the caller registered one.
+   *  A no-op otherwise, same as a real binder firing an exit side nobody asked for. */
+  fireOut(el: Element): void
   unbound: number
 }
 
@@ -40,19 +43,25 @@ export interface FakeBinder extends ActivationBinder {
 export function fakeBinder(): FakeBinder {
   const bindings: FakeBinder['bindings'] = []
   const callbacks = new Map<Element, () => void>()
+  const outCallbacks = new Map<Element, () => void>()
   const binder: FakeBinder = {
     bindings,
     unbound: 0,
     bind(el, activation, request) {
       bindings.push({ el, activation, threshold: request.threshold })
       callbacks.set(el, () => request.activate())
+      if (request.deactivate) outCallbacks.set(el, request.deactivate)
       return () => {
         binder.unbound++
         callbacks.delete(el)
+        outCallbacks.delete(el)
       }
     },
     fire(el) {
       callbacks.get(el)?.()
+    },
+    fireOut(el) {
+      outCallbacks.get(el)?.()
     },
     destroy() {},
   }
