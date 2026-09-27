@@ -121,4 +121,85 @@
       background-image: none;
     }
   }
+
+  /* Closed dialogs must stay display:none: a transparent fixed panel otherwise eats page input. */
+  dialog.kui-lightbox { display: none; }
+  dialog.kui-lightbox[open] {
+    position: fixed;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    max-inline-size: none;
+    max-block-size: none;
+    box-sizing: border-box;
+    margin: 0;
+    border: 0;
+    padding: clamp(1rem, 4vw, 3rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    background: rgb(8 9 10 / 0.58);
+    -webkit-backdrop-filter: blur(7px);
+    backdrop-filter: blur(7px);
+    opacity: 0;
+    transition: opacity var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  dialog.kui-lightbox::backdrop { background: transparent; }
+  dialog.kui-lightbox[open].is-open { opacity: 1; }
+  .kui-lightbox-slot { display: contents; }
+  .kui-lightbox-gallery,
+  .kui-lightbox-frame {
+    opacity: 0;
+    scale: var(--kui-from-scale, 0.965);
+    translate: 0 8px;
+    transition:
+      opacity var(--kui-lightbox-duration, 280ms) ease,
+      scale var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease),
+      translate var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  .kui-lightbox.is-open .kui-lightbox-gallery,
+  .kui-lightbox.is-open .kui-lightbox-frame { opacity: 1; scale: 1; translate: 0 0; }
+  .kui-lightbox-gallery { display: grid; place-items: center; gap: 0.75rem; }
+  .kui-lightbox-gallery figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+  .kui-lightbox-gallery img { display: block; border-radius: 10px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #0b0c0d; }
+  .kui-lightbox-gallery img.is-fit { max-inline-size: min(100%, 1400px); max-block-size: 86dvh; inline-size: auto; block-size: auto; }
+  .kui-lightbox-gallery img.is-tall { inline-size: min(100%, 760px); block-size: auto; }
+  .kui-lightbox-gallery figcaption { max-inline-size: 60ch; text-align: center; font-size: 0.85rem; line-height: 1.5; color: rgb(255 255 255 / 0.72); }
+  .kui-lightbox-close,
+  .kui-lightbox-prev,
+  .kui-lightbox-next {
+    border: 1px solid rgb(255 255 255 / 0.45);
+    border-radius: 50%;
+    color: #fff;
+    background: rgb(8 9 10 / 0.7);
+    cursor: pointer;
+  }
+  .kui-lightbox-close { position: fixed; inset-block-start: clamp(0.75rem, 2vw, 1.25rem); inset-inline-end: clamp(0.75rem, 2vw, 1.25rem); z-index: 1; inline-size: 40px; block-size: 40px; font-size: 1.5rem; }
+  .kui-lightbox-prev,
+  .kui-lightbox-next { position: fixed; inset-block-start: 50%; inline-size: 40px; block-size: 40px; font-size: 2rem; }
+  .kui-lightbox-prev { inset-inline-start: 0.75rem; }
+  .kui-lightbox-next { inset-inline-end: 0.75rem; }
+  .kui-lightbox-counter { font-size: 0.85rem; color: rgb(255 255 255 / 0.8); }
+  .kui-lightbox button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  .kui-lightbox-frame { inline-size: min(92vw, 1100px); aspect-ratio: 16 / 9; border-radius: 12px; overflow: clip; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #000; }
+  .kui-lightbox-frame--tall { inline-size: min(80vw, 420px); aspect-ratio: 9 / 16; }
+  .kui-lightbox-frame--square { inline-size: min(80vw, 720px); aspect-ratio: 1; }
+  .kui-lightbox-frame iframe,
+  .kui-lightbox-frame video { display: block; inline-size: 100%; block-size: 100%; border: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    dialog.kui-lightbox,
+    .kui-lightbox-gallery,
+    .kui-lightbox-frame { transition-duration: 1ms; }
+    .kui-lightbox-gallery,
+    .kui-lightbox-frame { scale: 1; translate: 0 0; }
+  }
+  @media (forced-colors: active) {
+    dialog.kui-lightbox { border: 1px solid CanvasText; background: Canvas; color: CanvasText; backdrop-filter: none; }
+    .kui-lightbox-close,
+    .kui-lightbox-prev,
+    .kui-lightbox-next { border-color: CanvasText; color: CanvasText; background: Canvas; }
+    .kui-lightbox-frame { border: 1px solid CanvasText; }
+  }
 }

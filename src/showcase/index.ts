@@ -3,6 +3,7 @@ import type { Registry } from '../core/registry.js'
 import { registerInto } from '../core/register-into.js'
 import type { Preset, Primitive } from '../core/types.js'
 import { DEVICE_FRAME_PRESETS, DEVICE_FRAME_PRIMITIVE } from './device-frame.js'
+import { LIGHTBOX_PRESETS, LIGHTBOX_PRIMITIVE } from './lightbox.js'
 
 /**
  * The showcase module: pre-built presentation widgets — a dialog, an ARIA carousel, image
@@ -17,8 +18,8 @@ import { DEVICE_FRAME_PRESETS, DEVICE_FRAME_PRIMITIVE } from './device-frame.js'
  * moves is `src/effects/index.ts`'s call to {@link registerShowcase}.
  */
 
-export const SHOWCASE_PRIMITIVES: Primitive[] = [DEVICE_FRAME_PRIMITIVE]
-export const SHOWCASE_PRESETS: Preset[] = [...DEVICE_FRAME_PRESETS]
+export const SHOWCASE_PRIMITIVES: Primitive[] = [DEVICE_FRAME_PRIMITIVE, LIGHTBOX_PRIMITIVE]
+export const SHOWCASE_PRESETS: Preset[] = [...DEVICE_FRAME_PRESETS, ...LIGHTBOX_PRESETS]
 
 /**
  * Register every showcase widget onto a `Registry`, an `Animator`, or anything shaped like either.

@@ -1377,7 +1377,7 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 1 name
+## T. Showcase — 3 names
 
 The first name in `src/showcase/`, a separate module and the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
@@ -1410,6 +1410,29 @@ need to track.
 >
 > **No-JS:** the wrapped media renders bare and unframed. Nothing is ever hidden.
 
+`lightbox` · `video-lightbox`
+
+> **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
+> captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
+> from a real link. Modified clicks keep the link's normal browser behavior.
+>
+> ```html
+> <div data-kui="lightbox">
+>   <a href="full.jpg"><img src="thumb.jpg" alt="Dashboard overview"></a>
+> </div>
+> <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-kui="video-lightbox">
+>   Watch the walkthrough
+> </a>
+> ```
+>
+> **Params:** `target:` selects triggers (default: linked images or bare images for `lightbox`,
+> links for `video-lightbox`); `scope:self|page`, `scale:` (default `0.965`), `duration:` (default
+> `280ms`), `ease:`; image galleries accept `loop:false`, and video accepts
+> `aspect:wide|tall|square` (YouTube Shorts default to tall).
+>
+> **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
+> `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
+
 ---
 
 ## Totals
@@ -1435,7 +1458,7 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 1 |
+| T Showcase | 3 |
 | Generic tween | 2 |
 | **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |
