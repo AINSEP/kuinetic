@@ -52,8 +52,9 @@ describe('indexTargetGroup', () => {
     // `null` is what keeps a host that has only the first one working.
     const el = host({ stagger: '90ms' })
     const found = matches(3)
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, found, createLedgerSet(el))
+    indexTargetGroup({ host: el, matches: found, styleOf: (x) => ledgers.style(x) })
 
     expect(ranksOf(found)).toEqual(['0', '1', '2'])
     expect(published(el)).toEqual({ step: '90ms', count: '3' })
@@ -67,8 +68,9 @@ describe('indexTargetGroup', () => {
     // exists to reach.
     const el = host({ source: 'fade-up target:.card' })
     const found = matches(3)
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, found, createLedgerSet(el))
+    indexTargetGroup({ host: el, matches: found, styleOf: (x) => ledgers.style(x) })
 
     expect(ranksOf(found)).toEqual(['0', '1', '2'])
     expect(published(el)).toEqual({ step: '', count: '3' })
@@ -77,8 +79,9 @@ describe('indexTargetGroup', () => {
   it('takes the same declaration hoisted into data-kui', () => {
     const el = host({ source: 'fade-up cascade:90ms' })
     const found = matches(3)
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, found, createLedgerSet(el))
+    indexTargetGroup({ host: el, matches: found, styleOf: (x) => ledgers.style(x) })
 
     expect(ranksOf(found)).toEqual(['0', '1', '2'])
     expect(published(el).step).toBe('90ms')
@@ -91,8 +94,9 @@ describe('indexTargetGroup', () => {
     // through.
     const el = host({ stagger: 'order:end' })
     const found = matches(3)
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, found, createLedgerSet(el))
+    indexTargetGroup({ host: el, matches: found, styleOf: (x) => ledgers.style(x) })
 
     expect(ranksOf(found)).toEqual(['2', '1', '0'])
     expect(published(el)).toEqual({ step: '', count: '3' })
@@ -105,8 +109,9 @@ describe('indexTargetGroup', () => {
     const el = host({ stagger: '90ms' })
     const left = matches(3)
     const right = matches(2)
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, [...left, ...right], createLedgerSet(el))
+    indexTargetGroup({ host: el, matches: [...left, ...right], styleOf: (x) => ledgers.style(x) })
 
     expect(ranksOf(left)).toEqual(['0', '1', '2'])
     expect(ranksOf(right)).toEqual(['0', '1'])
@@ -121,16 +126,18 @@ describe('indexTargetGroup', () => {
     // last match, which is nowhere near what they wrote.
     const el = host({ stagger: '90ms order:9' })
     const reporter = collectingReporter()
+    const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, matches(3), createLedgerSet(el), reporter)
+    indexTargetGroup({ host: el, matches: matches(3), styleOf: (x) => ledgers.style(x), reporter })
 
     expect(reporter.messages.join()).toContain('is outside the group (0 to 2)')
   })
 
   it('does not throw when there is no reporter to tell about it', () => {
     const el = host({ stagger: '90ms order:9' })
+    const ledgers = createLedgerSet(el)
     expect(() => {
-      indexTargetGroup(el, matches(3), createLedgerSet(el))
+      indexTargetGroup({ host: el, matches: matches(3), styleOf: (x) => ledgers.style(x) })
     }).not.toThrow()
   })
 
@@ -143,7 +150,7 @@ describe('indexTargetGroup', () => {
     found[0]!.style.setProperty('--kui-i', '7')
     const ledgers = createLedgerSet(el)
 
-    indexTargetGroup(el, found, ledgers)
+    indexTargetGroup({ host: el, matches: found, styleOf: (x) => ledgers.style(x) })
     expect(ranksOf(found)).toEqual(['0', '1', '2'])
 
     ledgers.restore()

@@ -1,0 +1,6 @@
+/* Phase 4a — gate-scoped start-state tokens (`--kui-gate-distance`/`-from-angle`/`-bar-from`),
+ * layered onto the ready selectors that used to set the plain `--kui-distance`/etc. `!important`.
+ * SKELETON STUB (§1): empty — no rule here yet, so S-8's inert `var(--kui-gate-*, var(--kui-*, X))`
+ * rewrite in every other effects file falls back to its original value unchanged. */
+@layer kui.effects {
+}

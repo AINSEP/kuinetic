@@ -24,14 +24,14 @@
 
   @keyframes kui-ken-burns {
     from { scale: 1; translate: 0 0; }
-    to { scale: var(--kui-to-scale, 1.12); translate: var(--kui-distance, 24px) calc(var(--kui-distance, 24px) * -0.5); }
+    to { scale: var(--kui-to-scale, 1.12); translate: var(--kui-gate-distance, var(--kui-distance, 24px)) calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -0.5); }
   }
   @keyframes kui-ken-burns-out {
-    from { scale: var(--kui-to-scale, 1.12); translate: calc(var(--kui-distance, 24px) * -1) 0; }
+    from { scale: var(--kui-to-scale, 1.12); translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1) 0; }
     to { scale: 1; translate: 0 0; }
   }
   @keyframes kui-blur-up {
-    from { translate: 0 var(--kui-distance, 24px); filter: blur(var(--kui-blur, 16px)); }
+    from { translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px)); filter: blur(var(--kui-blur, 16px)); }
     to { translate: 0 0; filter: blur(0); }
   }
   @keyframes kui-duotone-hover {
@@ -41,8 +41,8 @@
   @keyframes kui-grayscale-hover { from { filter: grayscale(1); } to { filter: grayscale(0); } }
   @keyframes kui-saturate-hover { from { filter: saturate(0.45); } to { filter: saturate(1.35); } }
   @keyframes kui-image-parallax-frame {
-    from { translate: 0 calc(var(--kui-distance, 24px) * -1); }
-    to { translate: 0 var(--kui-distance, 24px); }
+    from { translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1); }
+    to { translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px)); }
   }
   @keyframes kui-lightbox-open {
     from { opacity: 0; scale: var(--kui-from-scale, 0.92); }

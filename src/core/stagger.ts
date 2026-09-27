@@ -1,9 +1,10 @@
 import { ATTR } from './attrs.js'
 import { createLedgerSet } from './owned-styles.js'
-import type { LedgerSet } from './owned-styles.js'
+import type { LedgerSet, StyleLedger } from './owned-styles.js'
 import type { Reporter } from './reporter.js'
-import { resolveStaggerConfig } from './stagger-config.js'
-import type { GridOrigin, StaggerConfig, StaggerFrom, StaggerLayout } from './stagger-config.js'
+import { isTargetGroupHost } from './stagger-keys.js'
+import { resolveStaggerConfig, resolveStaggerConfigFrom } from './stagger-config.js'
+import type { GridOrigin, StaggerConfig, StaggerFrom, StaggerGroupKeys, StaggerLayout } from './stagger-config.js'
 
 export { parseStaggerAttribute, resolveStaggerConfig } from './stagger-config.js'
 export type {
@@ -12,6 +13,7 @@ export type {
   StaggerColumns,
   StaggerConfig,
   StaggerFrom,
+  StaggerGroupKeys,
   StaggerLayout,
 } from './stagger-config.js'
 
@@ -627,39 +629,40 @@ function restageOne(el: Element, reporter?: Reporter): void {
  * at all, so there is no ambient ledger it would otherwise fall under, and every write this
  * function makes has to be unwound by `release()` the same way every other retargeted write is.
  *
- * @param host - The authored element. `--kui-stagger`/`--kui-stagger-count` are written here, from
- *   its own `data-kui-stagger` attribute (or `cascade:`/`order:` inside `data-kui`) if present —
- *   the same two spellings {@link resolveStaggerConfig} already reads for an ordinary group.
- * @param matches - The elements `target:` resolved to, in document order.
- * @param ledgers - The host's `LedgerSet`, so every property this function writes is restored by
- *   the same `release()` call that unwinds everything else `target:` relocated.
- * @param reporter - Diagnostic sink for a malformed `data-kui-stagger`. Optional, matching
- *   {@link indexStaggerGroup}'s own contract.
+ * @param request - The host, its matches, and where to write — see {@link TargetGroupIndexRequest}.
  * @complexity O(n) time and space in the match count.
  * @overallScore 100
  */
-export function indexTargetGroup(
-  host: Element,
-  matches: Element[],
-  ledgers: LedgerSet,
-  reporter?: Reporter,
-): void {
-  const warnings: string[] = []
-  const config = resolveStaggerConfig(
-    host.getAttribute(ATTR.stagger),
-    host.getAttribute(ATTR.source) ?? '',
-    warnings,
-  ) ?? { from: 'start' }
+export interface TargetGroupIndexRequest {
+  host: Element
+  /** Document order. */
+  matches: Element[]
+  /** The style ledger to write through for `el` — the host (`--kui-stagger`, `--kui-stagger-count`)
+   *  or a match (`--kui-i`). HEAD passed one LedgerSet for all; derived hosts pass each match's own. */
+  styleOf: (el: Element) => StyleLedger
+  /** The group's effective stagger keys. Absent → HEAD behaviour: re-read the host's
+   *  `data-kui-stagger` + raw `data-kui`. */
+  keys?: StaggerGroupKeys
+  reporter?: Reporter
+}
 
-  const maxRank = rankBuckets(bucketByParent(matches), config, ledgers, warnings)
+export function indexTargetGroup(request: TargetGroupIndexRequest): void {
+  const { host, matches, styleOf, keys, reporter } = request
+  const warnings: string[] = []
+  const attribute = host.getAttribute(ATTR.stagger)
+  const config = (keys
+    ? resolveStaggerConfigFrom(attribute, keys, warnings)
+    : resolveStaggerConfig(attribute, host.getAttribute(ATTR.source) ?? '', warnings)) ?? { from: 'start' }
+
+  const maxRank = rankBuckets(bucketByParent(matches), config, styleOf, warnings)
   // Written after the ranks for the same reason `indexStaggerGroup` writes it there — see
   // `resolveStep`. The budget is divided across the *largest bucket*'s span, since that is the one
   // the last-starting match belongs to.
   const step = resolveStep(config, maxRank)
-  if (step) ledgers.style(host).set('--kui-stagger', step)
+  if (step) styleOf(host).set('--kui-stagger', step)
   // Same `maxRank + 1` reasoning as `indexStaggerGroup`'s own — see that function's comment: the
   // largest offset in the group, not the member count, and the two only coincide for `start`.
-  ledgers.style(host).set('--kui-stagger-count', String(round(maxRank + 1)))
+  styleOf(host).set('--kui-stagger-count', String(round(maxRank + 1)))
 
   for (const warning of warnings) reporter?.warn(warning, host)
 }
@@ -695,7 +698,7 @@ function bucketByParent(matches: Element[]): Map<Element | null, Element[]> {
 function rankBuckets(
   byParent: Map<Element | null, Element[]>,
   config: StaggerConfig,
-  ledgers: LedgerSet,
+  styleOf: (el: Element) => StyleLedger,
   warnings: string[],
 ): number {
   let maxRank = 0
@@ -708,7 +711,7 @@ function rankBuckets(
       // Same invariant as `indexStaggerGroup`'s write above: `ranks` is `siblings.length` long by
       // construction, so an index from `siblings.entries()` cannot miss.
       const rank = ranks[index]!
-      ledgers.style(match).set('--kui-i', String(rank))
+      styleOf(match).set('--kui-i', String(rank))
       if (rank > maxRank) maxRank = rank
     }
   }
@@ -865,6 +868,11 @@ function declaresGroup(el: Element): boolean {
   // Without this, a definition that happens to carry `cascade:` would index the *definition*
   // element's children as a stagger group, which is markup nobody asked to animate.
   if (el.hasAttribute(ATTR.define)) return false
+  // A host installed via `target:` (2a) publishes its group's own `--kui-stagger`/`-count` through
+  // `indexTargetGroup`; without this an ordinary group scan (`applyStagger`/`restageAround`) would
+  // also index the host's *DOM* children as an unrelated stagger group (bug 3). STUB always false,
+  // so this is currently a no-op — see `stagger-keys.ts`.
+  if (isTargetGroupHost(el)) return false
   if (el.hasAttribute(ATTR.stagger)) return true
   return resolveStaggerConfig(null, el.getAttribute(ATTR.source) ?? '') !== undefined
 }

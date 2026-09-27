@@ -23,6 +23,10 @@ const bundle = `${tmpDir}/effects.mjs`
 const breakpointsBundle = `${tmpDir}/breakpoints.mjs`
 /** Bundled for the same reason the breakpoint scale is — see {@link easingValue}. */
 const easingBundle = `${tmpDir}/easing.mjs`
+/** Bundled for the same reason the breakpoint scale is — see {@link easingValue}; the source of
+ *  truth for both selector strings this file emits is `src/core/cloak-selectors.ts`, not a copy
+ *  kept here. */
+const cloakBundle = `${tmpDir}/cloak-selectors.mjs`
 const outFile = `${root}src/css/presets.generated.css`
 
 function build() {
@@ -34,6 +38,7 @@ function build() {
   bundleOne(`${root}src/effects/index.ts`, bundle)
   bundleOne(`${root}src/core/breakpoints.ts`, breakpointsBundle)
   bundleOne(`${root}src/core/easing.ts`, easingBundle)
+  bundleOne(`${root}src/core/cloak-selectors.ts`, cloakBundle)
 }
 
 /**
@@ -50,6 +55,12 @@ function build() {
  * mean" is exactly how the two halves drifted apart in the first place.
  */
 let easingValue
+
+/**
+ * The two pre-JS cloak selector strings, bundled from `src/core/cloak-selectors.ts` — same
+ * "one implementation, not a mirrored copy" argument as {@link easingValue} above.
+ */
+let cloakSelectors
 
 /**
  * A `path` parameter's value, as the CSS `<string>` the custom property has to hold.
@@ -130,7 +141,7 @@ function declarationsFor(resolved) {
  * neither. That is a deliberate fail-open: not cloaking is exactly today's behaviour.
  */
 function cloakSelector(name) {
-  return `  html[data-kui-cloak] [data-kui~='${name}']:not([data-kui-state])`
+  return cloakSelectors.cloakSelector(name)
 }
 
 /**
@@ -159,7 +170,7 @@ function cloakSelector(name) {
 function gateReleaseRules(breakpoints) {
   const release = (token, query) =>
     `  @media ${query} {\n` +
-    `    html[data-kui-cloak] [data-kui~='${token}']:not([data-kui-state]) {\n` +
+    `${cloakSelectors.gateReleaseSelector(token)} {\n` +
     `      opacity: 1;\n` +
     `      animation: none;\n` +
     `    }\n` +
@@ -237,6 +248,7 @@ async function main() {
   const { createRegistry } = await import(bundle)
   const { BREAKPOINTS } = await import(breakpointsBundle)
   easingValue = (await import(easingBundle)).cssEasingValue
+  cloakSelectors = await import(cloakBundle)
   const registry = createRegistry()
 
   const blocks = []

@@ -35,7 +35,7 @@
 
   /* A progress bar scales from its leading edge, not its centre — same rule as scroll-progress-bar. */
   @keyframes kui-progress-bar {
-    from { scale: var(--kui-bar-from, 0) 1; }
+    from { scale: var(--kui-gate-bar-from, var(--kui-bar-from, 0)) 1; }
     to { scale: 1 1; }
   }
   [data-kui-fx~='progress-bar'] {

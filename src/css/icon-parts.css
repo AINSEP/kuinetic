@@ -1,0 +1,5 @@
+/* Phase 7b — icon-toggle-family structural parts (`data-kui-part="bar"`) for a host with no
+ * authored `.kui-bar` children.
+ * SKELETON STUB (§1): empty — svg.css's existing icon-toggle rules are unchanged until 7b lands. */
+@layer kui.effects {
+}

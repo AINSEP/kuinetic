@@ -12,6 +12,7 @@ import {
   stylesheetTimingPrepare,
   TRIGGER_DELAY_PARAM,
 } from '../shared.js'
+import { withIconParts } from './icon-parts.js'
 
 /**
  * SVG shape morphing.
@@ -176,10 +177,12 @@ const ICON_TOGGLE_PRIMITIVE: Primitive = {
   defaultActivation: 'load',
   perfClass: 'compositor',
   reducedMotion: 'disable',
-  prepare: stylesheetTimingPrepare('icon-toggle', {
-    honours: ALL_TIMING_TOKENS,
-    because: 'svg.css pins that value on this effect',
-  }),
+  prepare: withIconParts(
+    stylesheetTimingPrepare('icon-toggle', {
+      honours: ALL_TIMING_TOKENS,
+      because: 'svg.css pins that value on this effect',
+    }),
+  ),
 }
 
 export const SVG_PRIMITIVES: Primitive[] = [

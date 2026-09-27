@@ -182,6 +182,13 @@ function startDeclarations(body: string): string | null {
  * (`scale: 0 1`) — both paint a zero-area box for as long as nothing overrides the custom property,
  * which is the shape every one of the six known cases has today: the parameter did not fix the
  * bug, the `[data-kui-state='ready']` gate that overrides it did.
+ *
+ * The fallback itself can be another `var(...)` — the gate-token rewrite (`--kui-gate-distance,
+ * var(--kui-distance, X))`) nests one — so the matching close paren has to be found with a depth
+ * count, not the first `)` after `var(`, and the resolved fallback is fed back through this same
+ * function so a chained default still collapses to its final literal instead of stopping one level
+ * up. A naive `indexOf(')')` here previously mistook the inner `var(...)`'s own close paren for the
+ * outer one's, which silently unresolved every rewritten token back to literal `var(...)` text.
  */
 function resolveVarFallbacks(declarations: string): string {
   let out = ''
@@ -190,16 +197,37 @@ function resolveVarFallbacks(declarations: string): string {
     const open = declarations.indexOf('var(', i)
     if (open === -1) return out + declarations.slice(i)
     out += declarations.slice(i, open)
-    const close = declarations.indexOf(')', open)
+    const close = matchingParen(declarations, open + 'var('.length - 1)
     if (close === -1) return out + declarations.slice(open)
     const inner = declarations.slice(open + 'var('.length, close)
-    const comma = inner.indexOf(',')
+    const comma = topLevelIndexOf(inner, ',')
     // No comma means no fallback to resolve — leave the reference exactly as authored, so a
     // `var(--kui-from-angle)` with nothing to fall back on is never read as an empty value.
-    out += comma === -1 ? declarations.slice(open, close + 1) : inner.slice(comma + 1).trim()
+    out += comma === -1 ? declarations.slice(open, close + 1) : resolveVarFallbacks(inner.slice(comma + 1).trim())
     i = close + 1
   }
   return out
+}
+
+/** The index of the `)` that closes the `(` at `openIndex`, honouring nesting, or -1 if unbalanced. */
+function matchingParen(text: string, openIndex: number): number {
+  let depth = 0
+  for (let index = openIndex; index < text.length; index += 1) {
+    if (text[index] === '(') depth += 1
+    else if (text[index] === ')' && (depth -= 1) === 0) return index
+  }
+  return -1
+}
+
+/** The index of the first `needle` character not nested inside a paren, or -1 if none. */
+function topLevelIndexOf(text: string, needle: string): number {
+  let depth = 0
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '(') depth += 1
+    else if (text[index] === ')') depth -= 1
+    else if (depth === 0 && text[index] === needle) return index
+  }
+  return -1
 }
 
 /**

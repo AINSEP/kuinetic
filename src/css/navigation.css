@@ -12,7 +12,7 @@
   @keyframes kui-nav-reveal {
     from {
       opacity: 0;
-      translate: 0 var(--kui-distance, 16px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 16px));
     }
   }
 
@@ -30,7 +30,7 @@
   @keyframes kui-panel-reveal {
     from {
       opacity: 0;
-      translate: 0 calc(var(--kui-distance, 10px) * -1);
+      translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 10px)) * -1);
     }
   }
 

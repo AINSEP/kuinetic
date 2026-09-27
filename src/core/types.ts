@@ -819,6 +819,13 @@ export interface Preset {
    * silently compiling to an empty subtree in production.
    */
   requiresOwnSubtree?: boolean
+  /**
+   * This preset's CSS establishes a 3D rendering context (`preserve-3d`/`perspective`) on the
+   * `data-kui-fx` element — nesting another such effect inside it breaks (memory:
+   * no-nested-3d). Derived from `three-d.css` by `test/target-establishes3d.test.ts` (5a) so it
+   * cannot drift.
+   */
+  establishes3d?: boolean
 }
 
 export type ResolvedParams = Record<string, string>
@@ -1085,4 +1092,16 @@ export interface InstanceState {
    */
   cancelled?: boolean
   status: 'pending' | 'ready' | 'running' | 'finished' | 'failed'
+  /**
+   * Derived state only: the authored element whose `target:` group installed this one. Lifecycle
+   * events carry it as `detail.host`.
+   */
+  host?: Element
+  /**
+   * Host only: it has no own group; its status mirrors its derived matches' (`syncAggregate`),
+   * and `activateOne` never starts it.
+   */
+  aggregate?: boolean
+  /** Derived state of a grouped target: the element that owns its activation binding. */
+  gateOwner?: Element
 }

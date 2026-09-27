@@ -431,6 +431,28 @@ export function resolveStaggerConfig(
   // `hasGroupKey` screens the rest out for a substring scan.
   const inline = inlineGroupKeys(source)
   if (attribute === null && inline === undefined) return undefined
+  return resolveStaggerConfigFrom(attribute, inline, warnings)
+}
+
+/**
+ * Same resolution as {@link resolveStaggerConfig}, from already-known group keys instead of a
+ * re-parse of raw `data-kui` — the path a `target:` group uses, since its keys live on
+ * `CompiledTarget.hoists` (P1), which a raw re-parse of the host's `data-kui` never sees (a group's
+ * `cascade:`/`order:` may have been authored on a *targeted* segment, which `parse.ts` scopes to
+ * `spec.hoists` rather than folding element-wide — see `types.ts`'s `SegmentHoists`).
+ *
+ * @param attribute - Raw `data-kui-stagger` text, or `null` when the element has none.
+ * @param inline - The group's already-resolved hoisted keys, or `undefined` when it has none.
+ * @param warnings - Sink for conflict and grammar diagnostics.
+ * @complexity O(n) time in the attribute's length; O(n) space for its tokens.
+ * @overallScore 100
+ */
+export function resolveStaggerConfigFrom(
+  attribute: string | null,
+  inline: StaggerGroupKeys | undefined,
+  warnings: string[] = [],
+): StaggerConfig | undefined {
+  if (attribute === null && inline === undefined) return undefined
 
   const { config: longhand, sawFrom } = parseStaggerTokens(attribute ?? '', warnings)
   return oneStepMode(screenStep(mergeInline(longhand, sawFrom, inline ?? {}, warnings), warnings), warnings)
@@ -472,18 +494,24 @@ function oneStepMode(config: StaggerConfig, warnings: string[]): StaggerConfig {
  * @complexity O(n) time in the attribute length; O(1) space in the common case, O(n) when parsed.
  * @overallScore 100
  */
-function inlineGroupKeys(source: string): InlineGroupKeys | undefined {
+function inlineGroupKeys(source: string): StaggerGroupKeys | undefined {
   if (!hasGroupKey(source)) return undefined
   // `parse()`'s warnings are deliberately dropped: `animator.process()` has already reported every
   // one of them against this same element, so forwarding them would double every grammar
   // diagnostic on the page. Only the hoisted values are taken.
   const { cascade, spread, order, cols, along } = parse(source)
-  const keys: InlineGroupKeys = { cascade, spread, order, cols, along }
+  const keys: StaggerGroupKeys = { cascade, spread, order, cols, along }
   return Object.values(keys).some((value) => value !== undefined) ? keys : undefined
 }
 
-/** The hoisted group keys, exactly as `parse()` returns them. */
-interface InlineGroupKeys {
+/**
+ * The hoisted group keys, exactly as `parse()` returns them — a `target:` group's own effective
+ * keys, too (3a's `staggerKeysFor`/`elementStaggerKeys`), which is why this is exported rather than
+ * kept private: after P1, a group's `cascade:`/`order:` lives on `CompiledTarget.hoists`, not on
+ * the raw `data-kui` text this module's own `inlineGroupKeys` re-parses, so a `target:` group's
+ * caller needs this shape without going through that re-parse at all.
+ */
+export interface StaggerGroupKeys {
   cascade?: string
   spread?: string
   order?: string
@@ -553,7 +581,7 @@ function keepValue(label: 'step' | 'spread', value: string | undefined, warnings
 function mergeInline(
   longhand: StaggerConfig,
   sawFrom: boolean,
-  inline: InlineGroupKeys,
+  inline: StaggerGroupKeys,
   warnings: string[],
 ): StaggerConfig {
   const config: StaggerConfig = { ...longhand }
@@ -598,7 +626,7 @@ function mergeInline(
 function mergeInlineGrid(
   config: StaggerConfig,
   longhand: StaggerConfig,
-  inline: InlineGroupKeys,
+  inline: StaggerGroupKeys,
   warnings: string[],
 ): void {
   if (inline.cols !== undefined) {

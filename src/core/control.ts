@@ -341,6 +341,37 @@ export interface ControlRequest {
 }
 
 /**
+ * Widen a selection to include every element's derived `target:` matches, deduplicated.
+ *
+ * `control()` is the one place an author names elements without going through the animator's own
+ * scan, so it is also the one place that has to ask `animator.derivedOf` by hand: a `target:` match
+ * has no `data-kui` of its own, so no selector an author writes can ever find it directly, and
+ * `control('.card')` over a card grid whose fade is actually declared as `target:.card` on a parent
+ * would otherwise silently control nothing. Each element's own derived matches are inserted right
+ * after it, so a caller iterating `handle`'s bound instances still sees them in something close to
+ * document order per host, not all trailing at the end.
+ *
+ * @param animator - Where a match's host, if any, is looked up.
+ * @param elements - The author's own selection, before widening.
+ * @returns `elements`, each immediately followed by its own `derivedOf`, with duplicates dropped —
+ *   two selections that both reach the same host or the same match bind it once.
+ * @complexity O(n + d) time and space, in the selection size and its total derived match count.
+ * @overallScore 100
+ */
+function withDerived(animator: Animator, elements: Element[]): Element[] {
+  const seen = new Set<Element>()
+  const out: Element[] = []
+  for (const el of elements) {
+    for (const each of [el, ...animator.derivedOf(el)]) {
+      if (seen.has(each)) continue
+      seen.add(each)
+      out.push(each)
+    }
+  }
+  return out
+}
+
+/**
  * Build a control handle for a selection.
  *
  * Warnings are emitted once here, at construction, rather than on each call: an author who asks
@@ -358,9 +389,14 @@ export interface ControlRequest {
 export function control(request: ControlRequest): ControlHandle {
   const { animator, root, target } = request
   const elements = resolveTargets(target, root)
-  const bounds = elements.map((el) => bindElement(animator, el))
+  // A `target:`-derived match is reached through its host's selection, not by naming it — `.card`
+  // fading in on `fade-up target:.card` has no `data-kui` of its own for a selector to find. `reach`
+  // is what `control()` actually binds; `handle.elements` stays `elements`, the author's own
+  // selection, since that is what `uncontrolled`/inspection are documented as answering.
+  const reach = withDerived(animator, elements)
+  const bounds = reach.map((el) => bindElement(animator, el))
   for (const [index, bound] of bounds.entries()) {
-    if (bound.note) animator.reporter.warn(`control(): ${bound.note}`, elements[index])
+    if (bound.note) animator.reporter.warn(`control(): ${bound.note}`, reach[index])
   }
 
   const each = (operation: (control: InstanceControl) => void): ControlHandle => {
@@ -534,6 +570,8 @@ export interface LifecycleDetail {
   activation: Activation
   timeline: Timeline
   reason: LifecycleReason
+  /** Set when the event fires on a derived match: its host. */
+  host?: Element
 }
 
 /** A lifecycle event, narrowed so `event.detail` is typed at the listener. */

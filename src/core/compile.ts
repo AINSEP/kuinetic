@@ -24,6 +24,7 @@ import { resolvePlayback } from './repeat.js'
 import { isReadableTime, resolveSequence } from './sequence.js'
 import type { SequenceMember, SequenceStep } from './sequence.js'
 import type { TargetScope } from './target.js'
+import { findUnquotedSelectors, unquotedSelectorWarning } from './unquoted-selectors.js'
 import { SEGMENT_HOIST_KEYS } from './types.js'
 import type {
   Activation,
@@ -248,6 +249,9 @@ export interface CompiledTarget {
    * derived host's own `ElementConfig` will be built from.
    */
   hoists?: SegmentHoists
+  /** This group's lifted specs (target/scope stripped, hoists kept), authored order — what a
+   *  multi-group union recompiles from (2b `compileUnion`). */
+  specs: EffectSpec[]
   plan: CompiledPlan
 }
 
@@ -267,6 +271,9 @@ export interface CompiledTarget {
 export interface CompiledDocument {
   targets: CompiledTarget[]
   warnings: string[]
+  /** 9b: stray segments that look like an unquoted selector list — surfaced by 5b in
+   *  `data-kui-unmatched`. */
+  suspectSelectors?: string[]
 }
 
 /**
@@ -303,13 +310,23 @@ export function compileTargets(
   timeline: Timeline,
 ): CompiledDocument {
   const warnings = [...parsed.warnings]
+  // 9b: an unquoted, comma-containing `target:` selector splits into stray segments that look like
+  // effect names and are not — caught here, against the raw parsed specs, before any of them are
+  // resolved against the registry at all.
+  const unquoted = findUnquotedSelectors(parsed.specs, registry)
+  for (const found of unquoted) warnings.push(unquotedSelectorWarning(found))
+  const suspects = unquoted.length > 0 ? { suspectSelectors: unquoted.map((found) => found.segment) } : {}
   const { entries, unknown } = resolveEntries(parsed.specs, registry, warnings)
 
   if (entries.length === 0) {
     // `[]`, not `warnings`: everything raised so far is document-scoped, and handing the same array
     // to the plan would make `plan.warnings` and `document.warnings` the same object — see this
     // function's own `warnings` comment above.
-    return { targets: [{ selector: '', scope: 'self', plan: emptyPlan(unknown, []) }], warnings }
+    return {
+      targets: [{ selector: '', scope: 'self', specs: [], plan: emptyPlan(unknown, []) }],
+      warnings,
+      ...suspects,
+    }
   }
 
   // Both sanitizers run before the sequencer, and `refusePlayback` has to: `at:after` measures the
@@ -352,7 +369,7 @@ export function compileTargets(
         defaultActivation: entry.resolved.primitive.defaultActivation,
       })),
     )
-    return { selector, scope, hoists: groupHoists, plan }
+    return { selector, scope, hoists: groupHoists, specs: group.map((entry) => entry.spec), plan }
   })
   // Only `reducedMotion` remains a true single-element fact after D-B.4 — one author decision
   // (`rm:`) folded against the strictest declared policy across every group, however many there
@@ -364,7 +381,7 @@ export function compileTargets(
   // per group for a decision that was only ever made once.
   const reducedMotion = resolvedPolicy(targets[0]!.plan.reducedMotion, parsed.rm, warnings)
   for (const target of targets) target.plan.reducedMotion = reducedMotion
-  return { targets, warnings }
+  return { targets, warnings, ...suspects }
 }
 
 /**

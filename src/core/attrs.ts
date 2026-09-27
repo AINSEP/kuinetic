@@ -17,4 +17,8 @@ export const ATTR = {
   cloak: 'data-kui-cloak',
   /** Reduced-motion policy, stamped from the primitive so the CSS layer can act on it. */
   rm: 'data-kui-rm',
+  /** Library-owned: comma list of `target:` selectors on this host that matched nothing (D). */
+  unmatched: 'data-kui-unmatched',
+  /** Library-owned: a structural role the library assigned to a child (`front`,`back`,`control`,`bar`). */
+  part: 'data-kui-part',
 } as const

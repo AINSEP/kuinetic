@@ -23,56 +23,56 @@
   @keyframes kui-in-up {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: 0 var(--kui-distance, 24px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px));
     }
   }
 
   @keyframes kui-in-down {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: 0 calc(var(--kui-distance, 24px) * -1);
+      translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1);
     }
   }
 
   @keyframes kui-in-left {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: var(--kui-distance, 24px) 0;
+      translate: var(--kui-gate-distance, var(--kui-distance, 24px)) 0;
     }
   }
 
   @keyframes kui-in-right {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: calc(var(--kui-distance, 24px) * -1) 0;
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1) 0;
     }
   }
 
   @keyframes kui-out-up {
     to {
       opacity: 0;
-      translate: 0 calc(var(--kui-distance, 24px) * -1);
+      translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1);
     }
   }
 
   @keyframes kui-out-down {
     to {
       opacity: 0;
-      translate: 0 var(--kui-distance, 24px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px));
     }
   }
 
   @keyframes kui-out-left {
     to {
       opacity: 0;
-      translate: calc(var(--kui-distance, 24px) * -1) 0;
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1) 0;
     }
   }
 
   @keyframes kui-out-right {
     to {
       opacity: 0;
-      translate: var(--kui-distance, 24px) 0;
+      translate: var(--kui-gate-distance, var(--kui-distance, 24px)) 0;
     }
   }
 
@@ -87,14 +87,14 @@
   @keyframes kui-in-inline-start {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1)) 0;
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * var(--kui-dir, 1)) 0;
     }
   }
 
   @keyframes kui-in-inline-end {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: calc(var(--kui-distance, 24px) * var(--kui-dir, 1) * -1) 0;
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * var(--kui-dir, 1) * -1) 0;
     }
   }
 
@@ -145,14 +145,14 @@
   @keyframes kui-zoom-in-up {
     from {
       scale: var(--kui-from-scale, 0.92);
-      translate: 0 var(--kui-distance, 24px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px));
     }
   }
 
   @keyframes kui-zoom-in-down {
     from {
       scale: var(--kui-from-scale, 0.92);
-      translate: 0 calc(var(--kui-distance, 24px) * -1);
+      translate: 0 calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1);
     }
   }
 
@@ -174,59 +174,59 @@
    */
   @keyframes kui-flip-in-x {
     from {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-gate-from-angle, var(--kui-from-angle, 90deg)));
     }
   }
 
   @keyframes kui-flip-in-y {
     from {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, 90deg)));
     }
   }
 
   @keyframes kui-flip-out-x {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-gate-from-angle, var(--kui-from-angle, 90deg)));
     }
   }
 
   @keyframes kui-flip-out-y {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, 90deg)));
     }
   }
 
   /* --- rotate (channel: rotate) --- */
   @keyframes kui-rotate-in {
     from {
-      rotate: var(--kui-from-angle, -8deg);
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -8deg));
     }
   }
 
   @keyframes kui-rotate-out {
     to {
-      rotate: var(--kui-from-angle, -8deg);
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -8deg));
     }
   }
 
   @keyframes kui-swing-in {
     from {
-      rotate: var(--kui-from-angle, -15deg);
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -15deg));
     }
   }
 
   /* --- roll (channels: rotate, translate) --- */
   @keyframes kui-roll-in {
     from {
-      rotate: var(--kui-from-angle, -120deg);
-      translate: calc(var(--kui-distance, 24px) * -1) 0;
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -120deg));
+      translate: calc(var(--kui-gate-distance, var(--kui-distance, 24px)) * -1) 0;
     }
   }
 
   @keyframes kui-roll-out {
     to {
-      rotate: var(--kui-from-angle, -120deg);
-      translate: var(--kui-distance, 24px) 0;
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -120deg));
+      translate: var(--kui-gate-distance, var(--kui-distance, 24px)) 0;
     }
   }
 
@@ -247,7 +247,7 @@
   @keyframes kui-fade-blur-up {
     from {
       opacity: var(--kui-from-opacity, 0);
-      translate: 0 var(--kui-distance, 24px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 24px));
       filter: blur(var(--kui-blur, 12px));
     }
   }

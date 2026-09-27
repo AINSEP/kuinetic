@@ -150,7 +150,7 @@
 
   /* A bar grows from its baseline, never from its centre — same rule as `progress-bar`. */
   @keyframes kui-chart-bar-grow {
-    from { scale: 1 var(--kui-bar-from, 0); }
+    from { scale: 1 var(--kui-gate-bar-from, var(--kui-bar-from, 0)); }
     to { scale: 1 1; }
   }
   [data-kui-fx~='chart-bar-grow'] {

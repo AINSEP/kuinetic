@@ -452,8 +452,8 @@
      it, not just be technically present. */
   @keyframes kui-text-3d-extrude {
     from {
-      rotate: var(--kui-from-angle, -20deg);
-      translate: 0 var(--kui-distance, 32px);
+      rotate: var(--kui-gate-from-angle, var(--kui-from-angle, -20deg));
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 32px));
     }
     to {
       rotate: 0deg;

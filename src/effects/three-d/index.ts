@@ -4,6 +4,7 @@ import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { ALL_TIMING_TOKENS, cssPrimitive, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { supportsFineHover } from '../catalog/interaction-shared.js'
+import { prepareFlipParts } from './flip-parts.js'
 
 /**
  * 3D, perspective, and page-transition effects — all CSS-rendered.
@@ -12,9 +13,6 @@ import { supportsFineHover } from '../catalog/interaction-shared.js'
  * natively, so these cost a keyframe block and a registry row each. That ratio is the whole
  * architecture, and it is why tripling the catalog does not triple the payload.
  */
-
-/** The card's own state lives on this control's `aria-pressed`; three-d.css reads it via `:has()`. */
-const FLIP_CONTROL_SELECTOR = ':scope > .kui-flip-control'
 
 /**
  * Wire a hover trigger onto a flip card, for the `trigger:` values that need one.
@@ -44,14 +42,15 @@ function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContex
   if (trigger === 'click') return () => {}
   if (!supportsFineHover(ctx.win)) return () => {}
 
-  const control = el.querySelector(FLIP_CONTROL_SELECTOR)
+  const parts = prepareFlipParts(el, params, ctx)
+  const control = parts.control
   if (!control) {
     // The two bail-outs above are silent by design — `click` has nothing to wire, and a coarse
     // pointer is a documented no-op. This one is a misconfiguration: the card renders, the pointer
     // does nothing, and the usual cause is a control nested one level deeper than the direct child
     // the `:has()` rule and this lookup both require.
     ctx.warn(`flip-card trigger:${trigger} found no direct-child .kui-flip-control — the card will not flip`)
-    return () => {}
+    return parts.cleanup
   }
 
   const set = (flipped: boolean): void => control.setAttribute('aria-pressed', String(flipped))
@@ -70,6 +69,7 @@ function prepareCardToggle(el: Element, params: EffectParams, ctx: PrepareContex
   return () => {
     el.removeEventListener('pointerenter', onEnter)
     el.removeEventListener('pointerleave', onLeave)
+    parts.cleanup()
   }
 }
 
@@ -171,6 +171,7 @@ export const THREE_D_PRESETS: Preset[] = [
     keyframes: 'kui-card-flip-y',
     cloak: true,
     requiresOwnSubtree: true,
+    establishes3d: true,
   },
   {
     name: 'card-flip-x',
@@ -178,13 +179,21 @@ export const THREE_D_PRESETS: Preset[] = [
     keyframes: 'kui-card-flip-x',
     cloak: true,
     requiresOwnSubtree: true,
+    establishes3d: true,
   },
-  { name: 'cube-rotate', primitive: 'flip-face', keyframes: 'kui-cube-rotate', params: { angle: '90deg' } },
+  {
+    name: 'cube-rotate',
+    primitive: 'flip-face',
+    keyframes: 'kui-cube-rotate',
+    params: { angle: '90deg' },
+    establishes3d: true,
+  },
   {
     name: 'book-page-turn',
     primitive: 'flip-face',
     keyframes: 'kui-book-page-turn',
     params: { angle: '-160deg', duration: '900ms' },
+    establishes3d: true,
   },
   // `cloak: true`, unlike its `flip-face` siblings above: those are `to`-only keyframes, so their
   // paused/waiting box is the ordinary, untransformed rest state. `fold-panel` is `from`-only —
@@ -200,6 +209,7 @@ export const THREE_D_PRESETS: Preset[] = [
     keyframes: 'kui-fold-panel',
     params: { angle: '-90deg' },
     cloak: true,
+    establishes3d: true,
   },
 
   // --- page transitions ---
@@ -215,7 +225,7 @@ export const THREE_D_PRESETS: Preset[] = [
   // aria-pressed, not a compiled animation. Same shape as the icon toggles in svg.ts.
   // `requiresOwnSubtree`: the transition rotates `> .kui-face-front`/`.kui-face-back` children
   // (three-d.css:297-306), assumed to exist under the fx element itself.
-  { name: 'flip-card', phase: 'state', primitive: 'card-toggle', requiresOwnSubtree: true },
+  { name: 'flip-card', phase: 'state', primitive: 'card-toggle', requiresOwnSubtree: true, establishes3d: true },
 ]
 
 /**

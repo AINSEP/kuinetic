@@ -32,31 +32,31 @@
    */
   @keyframes kui-card-flip-y {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 180deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, 180deg)));
     }
   }
 
   @keyframes kui-card-flip-x {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, 180deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-gate-from-angle, var(--kui-from-angle, 180deg)));
     }
   }
 
   @keyframes kui-cube-rotate {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, 90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, 90deg)));
     }
   }
 
   @keyframes kui-book-page-turn {
     to {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-from-angle, -160deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, -160deg)));
     }
   }
 
   @keyframes kui-fold-panel {
     from {
-      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-from-angle, -90deg));
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(var(--kui-gate-from-angle, var(--kui-from-angle, -90deg)));
     }
   }
 
@@ -208,7 +208,7 @@
   @keyframes kui-page-slide {
     from {
       opacity: 0;
-      translate: 0 var(--kui-distance, 40px);
+      translate: 0 var(--kui-gate-distance, var(--kui-distance, 40px));
     }
   }
 
@@ -223,7 +223,7 @@
 
   @keyframes kui-loading-bar {
     from {
-      scale: var(--kui-bar-from, 0) 1;
+      scale: var(--kui-gate-bar-from, var(--kui-bar-from, 0)) 1;
     }
   }
 

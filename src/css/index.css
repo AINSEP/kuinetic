@@ -23,3 +23,6 @@
    `@layer kui.effects`, so source order decides, and the glass hairline is the one an author who
    wrote `glass` is asking to see. */
 @import './glass.css';
+@import './ready-gates.css';
+@import './flip-card-parts.css';
+@import './icon-parts.css';

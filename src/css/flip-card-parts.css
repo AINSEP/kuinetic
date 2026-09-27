@@ -1,0 +1,5 @@
+/* Phase 7a — flip-card structural parts (`data-kui-part="front"|"back"|"control"`) and the
+ * positional pre-JS fallback for an unstamped card.
+ * SKELETON STUB (§1): empty — three-d.css's existing flip-card rules are unchanged until 7a lands. */
+@layer kui.effects {
+}
