@@ -7,6 +7,8 @@ import {
   deferredInstance,
 } from '../src/core/instances.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
+import { createActivationBinder } from '../src/core/activation.js'
+import { TIME_SCALE_ATTR } from '../src/core/time-scale.js'
 
 interface FakeAnimation extends Animation {
   animationName: string
@@ -129,6 +131,48 @@ describe('createCssInstance directional playback', () => {
   function playableAnimation(name: string): FakeAnimation & { play: ReturnType<typeof vi.fn> } {
     return Object.assign(fakeAnimation(name), { playbackRate: 1, play: vi.fn() })
   }
+
+  it('scales a hover entrance and exit while keeping reverse negative', () => {
+    const host = document.createElement('div')
+    host.setAttribute(TIME_SCALE_ATTR, '0.25')
+    const el = document.createElement('div')
+    host.appendChild(el)
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    let entered = false
+    const stop = createActivationBinder().bind(el, 'pointerenter/pointerleave', {
+      threshold: '0%',
+      activate: () => {
+        if (entered) instance.play?.()
+        else instance.activate()
+        entered = true
+      },
+      deactivate: () => instance.reverse?.(),
+    })
+
+    el.dispatchEvent(new Event('pointerenter'))
+    expect(owned.playbackRate).toBe(0.25)
+    el.dispatchEvent(new Event('pointerleave'))
+    expect(owned.playbackRate).toBe(-0.25)
+    el.dispatchEvent(new Event('pointerenter'))
+    expect(owned.playbackRate).toBe(0.25)
+    stop()
+  })
+
+  it('keeps unscaled rates and an absolute control rate on first activation', () => {
+    const el = document.createElement('div')
+    const owned = playableAnimation('kui-in-up')
+    withAnimations(el, [owned])
+    const instance = createCssInstance(el, createStyleLedger(el), ['kui-in-up'])
+    instance.control!.rate(0.4)
+    instance.activate()
+    expect(owned.playbackRate).toBe(0.4)
+    instance.reverse?.()
+    expect(owned.playbackRate).toBe(-1)
+    instance.play?.()
+    expect(owned.playbackRate).toBe(1)
+  })
 
   it('drives the owned animations backwards on reverse and forwards again on play', () => {
     const el = document.createElement('div')

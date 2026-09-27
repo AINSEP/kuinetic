@@ -1427,6 +1427,7 @@ need to track.
 
 `device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
 `carousel-fade` · `carousel-slide` · `video-hero-slideshow` · `scroll-story`
+· `slow-mo`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
 > video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
@@ -1559,6 +1560,13 @@ need to track.
 > **Reduced motion:** Crossfade completes in 1ms; video autoplay is disabled.
 >
 > **No-JS:** Media and step list render in document order, fully readable with nothing hidden.
+
+> **Slow motion (`slow-mo`).** Wrap animated content in
+> `<div data-kui="slow-mo rate:0.25">…</div>` to add a native toggle that slows Web Animations
+> and CSS animations and transitions in the subtree. `rate:` defaults to `0.25` (range `0.05`–`1`);
+> `controls:none` starts slowed without a button. The toggle keeps reverse motion reversed.
+> **Limit:** rAF-driven JavaScript effects such as count-up, typewriter, proximity, and springs
+> have no `Animation` handle and are not slowed. Without JavaScript, content renders as authored.
 
 ---
 

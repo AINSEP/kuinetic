@@ -896,6 +896,9 @@ hero.progress // 0..1, the least-advanced element in the selection
 hero.state    // 'idle' | 'running' | 'paused' | 'finished'
 ```
 
+To slow a whole section with a button, wrap it in `data-kui="slow-mo rate:0.25"`.
+Use `controls:none` to start slowed without a button; see [slow-mo](?doc=catalog#t-showcase--8-names).
+
 Progress spans the element's **whole** timeline — from the instant the activation fired to the end
 of its last composed effect, authored delays included. So for
 `data-kui="fade-up 600ms, blur-in 400ms delay:600ms"`, `seek(0.5)` lands at 500 ms, halfway through

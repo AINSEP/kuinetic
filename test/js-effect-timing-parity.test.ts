@@ -483,6 +483,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   compare: 'it builds an interactive before/after slider; there is no motion to time',
   hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
   slideshow: 'its controls and index are live on load; it has no delayed start',
+  'slow-mo': 'it controls existing playheads on load and has no animation timeline to delay',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.

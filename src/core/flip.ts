@@ -1,4 +1,5 @@
 import type { Cleanup } from './types.js'
+import { timeScaleOf } from './time-scale.js'
 
 /**
  * FLIP — First, Last, Invert, Play.
@@ -185,7 +186,11 @@ function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipO
       // `'none'` whenever there is no delay, so the zero-delay path is byte-for-byte what it was.
       { duration, delay, easing, fill: delay > 0 ? 'backwards' : 'none' },
     )
-    if (animation) animations.push(animation)
+    if (animation) {
+      const scale = timeScaleOf(el)
+      if (scale !== 1) animation.playbackRate = scale
+      animations.push(animation)
+    }
   }
 
   const finished = Promise.all(

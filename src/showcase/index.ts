@@ -8,6 +8,7 @@ import { COMPARE_PRESETS, COMPARE_PRIMITIVE } from './compare.js'
 import { HOTSPOTS_PRESETS, HOTSPOTS_PRIMITIVE } from './hotspots.js'
 import { SLIDESHOW_PRESETS, SLIDESHOW_PRIMITIVE } from './slideshow.js'
 import { SCROLL_STORY_PRESETS, SCROLL_STORY_PRIMITIVE } from './scroll-story.js'
+import { SLOW_MO_PRESETS, SLOW_MO_PRIMITIVE } from './slow-mo.js'
 
 /**
  * The showcase module: pre-built presentation widgets — a dialog, an ARIA carousel, image
@@ -29,6 +30,7 @@ export const SHOWCASE_PRIMITIVES: Primitive[] = [
   HOTSPOTS_PRIMITIVE,
   SLIDESHOW_PRIMITIVE,
   SCROLL_STORY_PRIMITIVE,
+  SLOW_MO_PRIMITIVE,
 ]
 export const SHOWCASE_PRESETS: Preset[] = [
   ...DEVICE_FRAME_PRESETS,
@@ -37,6 +39,7 @@ export const SHOWCASE_PRESETS: Preset[] = [
   ...HOTSPOTS_PRESETS,
   ...SLIDESHOW_PRESETS,
   ...SCROLL_STORY_PRESETS,
+  ...SLOW_MO_PRESETS,
 ]
 
 /**

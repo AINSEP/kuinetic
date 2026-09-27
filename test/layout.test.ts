@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createParams } from '../src/core/js-params.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { LAYOUT_PRIMITIVES } from '../src/effects/layout/primitives.js'
+import { TIME_SCALE_ATTR } from '../src/core/time-scale.js'
 
 /**
  * Regression coverage for the layout primitives' resource-teardown discipline.
@@ -261,6 +262,30 @@ describe('flip-container', () => {
 describe('auto-height', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('scales a new height animation inside a marked ancestor', () => {
+    let fire = (): void => {}
+    class ControllableMutationObserver {
+      constructor(callback: MutationCallback) {
+        fire = () => callback([], this as unknown as MutationObserver)
+      }
+      observe(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('MutationObserver', ControllableMutationObserver)
+    const host = document.createElement('div')
+    host.setAttribute(TIME_SCALE_ATTR, '0.25')
+    const el = document.createElement('div')
+    host.appendChild(el)
+    const animation = { playbackRate: 1, cancel: vi.fn() } as unknown as Animation
+    el.animate = vi.fn(() => animation) as unknown as typeof el.animate
+    const params = createParams({ attribute: 'data-open', duration: '400ms', ease: 'ease-out' })
+    const instance = autoHeight.prepare!(el, params, fakeCtx())
+    instance.activate()
+    fire()
+    expect(animation.playbackRate).toBe(0.25)
+    instance.destroy()
   })
 
   it('restarts the height animation on each attribute toggle and cancels the running one on destroy', () => {

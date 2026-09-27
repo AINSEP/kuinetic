@@ -9,6 +9,22 @@
  * `src/css/*.css` would (see D2 in the showcase plan).
  */
 @layer kui.effects {
+  .kui-slowmo-toggle {
+    display: inline-block;
+    margin-block-end: 0.75rem;
+    padding: 0.4em 0.8em;
+    border: 1px solid currentColor;
+    border-radius: 0.4em;
+    background: Canvas;
+    color: CanvasText;
+    font: inherit;
+    cursor: pointer;
+  }
+  .kui-slowmo-toggle:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
   /* device-frame: keyed on `data-kui-device`, the kind `device-frame.ts` stamps — never on
      `[data-kui-fx~='device-frame']`, because no shipped browser can branch a rule on a custom
      property's *value*. */
