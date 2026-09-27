@@ -68,6 +68,16 @@ describe('device-frame', () => {
     expect(reporter.messages.some((m) => m.includes('"device-frame" cannot honour ease'))).toBe(true)
   })
 
+  it('warns and keeps target: on the host because its CSS needs the host subtree', () => {
+    const reporter = collectingReporter()
+    build('<div data-kui="device-frame target:img"><img src="a.png" alt=""></div>', reporter).start()
+
+    expect(el().getAttribute('data-kui-fx')).toContain('device-frame')
+    expect(el().querySelector('img')?.hasAttribute('data-kui-fx')).toBe(false)
+    expect(reporter.messages.join('\n')).toContain('"device-frame" cannot be retargeted')
+    expect(reporter.messages.join('\n')).toContain('"target:img" is dropped')
+  })
+
   it('showcase.css carries a rule for every kind and a forced-colors block', () => {
     for (const kind of ['browser', 'phone', 'tablet', 'laptop']) {
       expect(showcaseCss.includes(`[data-kui-device='${kind}']`), kind).toBe(true)

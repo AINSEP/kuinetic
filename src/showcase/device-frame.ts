@@ -86,13 +86,6 @@ export const DEVICE_FRAME_PRIMITIVE: Primitive = widgetPrimitive(
   ),
 )
 
-/**
- * No `requiresOwnSubtree`, even though `showcase.css`'s chrome rules reach past the host into its
- * media child. That flag exists for `test/css-requires-own-subtree.test.ts`'s re-derived scan of
- * `src/css/*.css` alone — `src/showcase/showcase.css` is outside its `SOURCES` — so setting it here
- * would only trip that file's "never flags a name whose CSS never reaches past itself" check for
- * no benefit. See `scratchpad/showcase-progress.md`'s decision log for the full argument and the
- * note for whoever wires a showcase widget whose *own* CSS does key on `[data-kui-fx~='<name>']`
- * past itself (`lightbox`, `compare`, `hotspots`, `slideshow`, `scroll-story` all will).
- */
-export const DEVICE_FRAME_PRESETS: Preset[] = [{ name: 'device-frame', primitive: 'device-frame' }]
+export const DEVICE_FRAME_PRESETS: Preset[] = [
+  { name: 'device-frame', primitive: 'device-frame', requiresOwnSubtree: true },
+]
