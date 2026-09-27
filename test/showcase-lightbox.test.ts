@@ -103,6 +103,51 @@ describe('lightbox', () => {
     expect(dialog().querySelector('img')?.alt).toBe('Alt A')
   })
 
+  it('leaves unrelated gallery keys available to the browser', () => {
+    start('<div data-kui="lightbox"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
+    click(document.querySelector('a')!)
+    const key = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    dialog().dispatchEvent(key)
+    expect(key.defaultPrevented).toBe(false)
+    expect(dialog().querySelector('img')?.alt).toBe('A')
+  })
+
+  it('keeps single-image gallery keys available and labels a bare image without alt', () => {
+    start('<img data-kui="lightbox" src="/solo.jpg" alt="">')
+    const image = document.querySelector('img')!
+    expect(image.getAttribute('aria-label')).toBe('Open larger image')
+    image.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    expect(document.querySelector('dialog')).toBeNull()
+    click(image)
+    const key = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
+    dialog().dispatchEvent(key)
+    expect(key.defaultPrevented).toBe(false)
+    expect(dialog().querySelector('img')?.src).toContain('/solo.jpg')
+  })
+
+  it('ignores links without images', () => {
+    start('<div data-kui="lightbox"><a href="/empty.jpg">No image</a><a href="/full.jpg"><img src="/thumb.jpg" alt="Image"></a></div>')
+    const links = document.querySelectorAll('a')
+    click(links[0]!)
+    expect(document.querySelector('dialog')).toBeNull()
+    click(links[1]!)
+    expect(dialog().querySelector('img')?.alt).toBe('Image')
+  })
+
+  it('uses an authored image target and safely skips invalid or empty targets', () => {
+    start('<div data-kui="lightbox target:\'.photo\'"><img class="photo" src="/a.jpg" alt="A"><img src="/b.jpg" alt="B"></div>')
+    click(document.querySelector('.photo')!)
+    expect(dialog().querySelector('img')?.alt).toBe('A')
+
+    const reporter = collectingReporter()
+    start('<div data-kui="lightbox target:\'[\'"><img src="/c.jpg" alt="C"></div>', reporter)
+    expect(reporter.messages.join()).toContain('not a valid selector')
+    expect(document.querySelectorAll('dialog')).toHaveLength(0)
+
+    start('<div data-kui="lightbox"></div>')
+    expect(document.querySelectorAll('dialog')).toHaveLength(0)
+  })
+
   it('holds the gallery at the ends when loop:false', () => {
     start('<div data-kui="lightbox loop:false"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
     click(document.querySelector('a')!)
@@ -221,6 +266,46 @@ describe('lightbox', () => {
 })
 
 describe('video-lightbox', () => {
+  it('finds links in a video container and keeps modified clicks as navigation', () => {
+    start('<div data-kui="video-lightbox"><a href="/tour.mp4">Tour</a></div>')
+    const link = document.querySelector('a')!
+    expect(click(link, { ctrlKey: true }).defaultPrevented).toBe(false)
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(click(link).defaultPrevented).toBe(true)
+    expect(dialog().querySelector('video')).not.toBeNull()
+  })
+
+  it('uses poster alt, link text, then a fallback for video titles', () => {
+    start('<div data-kui="video-lightbox"><a href="/a.mp4"><img src="/a.png" alt="Poster"></a><a href="/b.mp4">Text title</a><a href="/c.mp4"></a></div>')
+    const links = document.querySelectorAll('a')
+    click(links[0]!)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Poster')
+    click(links[1]!)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Text title')
+    click(links[2]!)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Video')
+  })
+
+  it('pauses loaded direct media when the viewer closes', () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    start('<a data-kui="video-lightbox" href="/tour.mp4">Tour</a>')
+    click(document.querySelector('a')!)
+    const video = dialog().querySelector('video')!
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 })
+    dialog().close()
+    expect(pause).toHaveBeenCalledOnce()
+    expect(video.hasAttribute('src')).toBe(false)
+  })
+
+  it('ignores non-links selected by target and handles a link whose href was removed', () => {
+    const reporter = collectingReporter()
+    start('<div data-kui="video-lightbox target:\'.clip\'"><img class="clip" src="/poster.png" alt="Poster"><a class="clip" href="/tour.mp4">Tour</a></div>', reporter)
+    const link = document.querySelector('a')!
+    link.removeAttribute('href')
+    expect(click(link).defaultPrevented).toBe(false)
+    expect(reporter.messages.join()).toContain('cannot embed')
+    expect(document.querySelector('dialog')).toBeNull()
+  })
   it('opens a privacy-hosted iframe and empties the frame on close', () => {
     vi.useFakeTimers()
     start('<a data-kui="video-lightbox duration:20ms" href="https://youtu.be/dQw4w9WgXcQ" title="Tour"><img src="/poster.png" alt="Poster"></a>')

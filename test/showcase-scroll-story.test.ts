@@ -388,4 +388,13 @@ describe('scroll-story primitive', () => {
     expect(reporter.messages.join()).toContain('scroll-story sections matched no elements')
     emptySections.destroy()
   })
+
+  it('rejects invalid media and section selectors without querying them', () => {
+    const animator = build('<section data-kui="scroll-story target:\'[\' sections:\'[\'" aria-label="Invalid story"><div><img src="a.png"></div><ol><li>Step</li></ol></section>')
+    animator.start()
+    expect(reporter.messages.join()).toContain('not a valid selector')
+    expect(reporter.messages.join()).toContain('scroll-story target matched no media')
+    expect(document.querySelector('[data-kui-step]')).toBeNull()
+    animator.destroy()
+  })
 })

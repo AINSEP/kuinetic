@@ -221,8 +221,7 @@ function wireImages(items: ImageItem[], wiring: Wiring, loop: boolean): Array<()
       }, { signal: wiring.signal })
     }
     item.trigger.addEventListener('click', (event) => {
-      if (!(event instanceof MouseEvent)) return
-      if (!primaryClick(event)) return
+      if (!primaryClick(event as MouseEvent)) return
       if (!bare) event.preventDefault()
       wiring.shell.open(galleryContent(items, index, loop, wiring.options))
     }, { signal: wiring.signal })

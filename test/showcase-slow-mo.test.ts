@@ -115,4 +115,20 @@ describe('slow-mo', () => {
     animator.destroy()
     expect(host.getAttribute(TIME_SCALE_ATTR)).toBe('0.75')
   })
+
+  it('toggles without Web Animations support and treats a paused rate as forward', () => {
+    const animator = build('<section data-kui="slow-mo"><div></div></section>')
+    const host = el()
+    animator.start()
+    const button = host.querySelector('button')!
+    button.click()
+    expect(host.getAttribute(TIME_SCALE_ATTR)).toBe('0.25')
+    const paused = motion(0, 'animationName', 'fade')
+    host.getAnimations = vi.fn(() => [paused])
+    button.click()
+    button.click()
+    expect(paused.playbackRate).toBe(0.25)
+    animator.destroy()
+  })
+
 })

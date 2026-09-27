@@ -37,4 +37,12 @@ describe('video-lightbox media source', () => {
   ])('rejects unsupported or unsafe links: %s', (href) => {
     expect(resolveMediaSource(href)).toBeNull()
   })
+
+  it('rejects a malformed URL before inspecting its host', () => {
+    expect(resolveMediaSource('https://[')).toBeNull()
+  })
+
+  it('rejects a Vimeo link without a numeric video id', () => {
+    expect(resolveMediaSource('https://vimeo.com/not-a-video')).toBeNull()
+  })
 })

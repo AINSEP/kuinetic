@@ -70,13 +70,11 @@ function dismiss(state: ShellState): void {
     // A close event is not guaranteed after cancellation/removal. Both paths are idempotent.
     unlock(state)
     clearContent(state)
-  }, state.current?.reducedMotion ? 0 : (state.current?.duration ?? 280))
+  }, state.current!.reducedMotion ? 0 : state.current!.duration)
 }
 
-function clickedOutside(state: ShellState, target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false
-  const content = state.current?.node
-  if (!content) return target instanceof HTMLDialogElement && target === state.dialog
+function clickedOutside(state: ShellState, target: Element): boolean {
+  const content = state.current!.node
   if (content.classList.contains('kui-lightbox-gallery')) {
     return !content.contains(target) || (!target.matches('img') && !target.closest('button'))
   }
@@ -102,7 +100,7 @@ function build(state: ShellState): void {
   state.doc.body.append(dialog)
   close.addEventListener('click', () => dismiss(state))
   dialog.addEventListener('click', (event) => {
-    if (clickedOutside(state, event.target)) dismiss(state)
+    if (clickedOutside(state, event.target as Element)) dismiss(state)
   })
   dialog.addEventListener('cancel', (event) => {
     event.preventDefault()

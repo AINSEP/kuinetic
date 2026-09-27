@@ -4,6 +4,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { collectingReporter } from '../src/core/reporter.js'
+import { createParams } from '../src/core/js-params.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
+import type { PrepareContext } from '../src/core/effect-context.js'
+import { HOTSPOTS_PRIMITIVE } from '../src/showcase/hotspots.js'
 import { build, el } from './support/js-effect-harness.js'
 
 const showcaseCss = readFileSync(
@@ -215,6 +219,49 @@ describe('hotspots', () => {
     note.dispatchEvent(toggleEvent)
     expect(note.style.getPropertyValue('top')).toBe('632px')
     expect(note.style.getPropertyValue('left')).toBe(`${window.innerWidth - 128}px`)
+  })
+
+  it('positions fallback notes from native open state when toggle lacks newState', () => {
+    vi.stubGlobal('CSS', { supports: vi.fn().mockReturnValue(false) })
+    build('<figure data-kui="hotspots"><img src="a.png" alt=""><ol><li style="--kui-x: 30%; --kui-y: 40%">Note</li></ol></figure>').start()
+    const note = el().querySelector<HTMLLIElement>('li')!
+    const matches = vi.spyOn(note, 'matches').mockImplementation((selector) => selector === ':popover-open')
+    note.dispatchEvent(new Event('toggle'))
+    expect(note.style.getPropertyValue('position')).toBe('fixed')
+    expect(matches).toHaveBeenCalledWith(':popover-open')
+
+    note.style.removeProperty('position')
+    matches.mockReturnValue(false)
+    note.setAttribute('open', '')
+    note.dispatchEvent(new Event('toggle'))
+    expect(note.style.getPropertyValue('position')).toBe('fixed')
+
+    note.style.removeProperty('position')
+    matches.mockImplementation(() => { throw new SyntaxError('unsupported pseudo-class') })
+    note.dispatchEvent(new Event('toggle'))
+    expect(note.style.getPropertyValue('position')).toBe('fixed')
+  })
+
+  it('warns and leaves notes untouched for an invalid target selector', () => {
+    const reporter = collectingReporter()
+    build('<figure data-kui="hotspots target:\'[\'"><img src="a.png" alt=""><ol><li style="--kui-x: 20%; --kui-y: 30%">Note</li></ol></figure>', reporter).start()
+    expect(reporter.messages.join()).toContain('not a valid selector')
+    expect(el().querySelector('.kui-hotspot')).toBeNull()
+  })
+
+  it('positions notes in a detached HTML document with no default view', () => {
+    const doc = document.implementation.createHTMLDocument('Preview')
+    doc.body.innerHTML = '<figure><img src="a.png" alt=""><ol><li style="--kui-x: 20%; --kui-y: 30%">Note</li></ol></figure>'
+    const host = doc.querySelector('figure')!
+    const ctx = { doc, win: window, style: createStyleLedger(host), warn: vi.fn() } as unknown as PrepareContext
+    const instance = HOTSPOTS_PRIMITIVE.prepare!(host, createParams({}), ctx)
+    instance.activate()
+    const note = host.querySelector('li')!
+    expect(host.querySelector('button.kui-hotspot')).not.toBeNull()
+    note.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
+    expect(note.getAttribute('popover')).toBe('auto')
+    expect((note as HTMLElement).style.position).toBe('fixed')
+    instance.destroy()
   })
 
   it('configures anchor positioning when CSS.supports(position-area: top) is true', () => {

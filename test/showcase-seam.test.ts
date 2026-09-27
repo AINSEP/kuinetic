@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Registry } from '../src/core/registry.js'
 import { Animator } from '../src/core/animator.js'
+import { registerInto } from '../src/core/register-into.js'
 import { registerShowcase, SHOWCASE_PRESETS, SHOWCASE_PRIMITIVES } from '../src/showcase/index.js'
 import { catalogRegistry } from './support/registry.js'
 
@@ -16,6 +17,13 @@ import { catalogRegistry } from './support/registry.js'
  * activation/reduced-motion rules every later phase's widget also has to honour.
  */
 describe('registerShowcase', () => {
+  it('registers individual primitives and presets through the exported seam', () => {
+    const registry = new Registry()
+    const primitive = SHOWCASE_PRIMITIVES[0]!
+    const preset = SHOWCASE_PRESETS.find((item) => item.primitive === primitive.id)!
+    expect(registerInto(registry, primitive, preset)).toBe(registry)
+    expect(registry.resolve(preset.name)?.primitive.id).toBe(primitive.id)
+  })
   it('registers exactly SHOWCASE_PRESETS onto a bare Registry', () => {
     const registry = new Registry()
     registerShowcase(registry)

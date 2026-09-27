@@ -93,6 +93,11 @@ describe('compare', () => {
     expect(el().querySelector('input')?.getAttribute('aria-label')).toBe('Compare: Before / After')
   })
 
+  it('uses the image alt inside a picture for the comparison label', () => {
+    build('<figure data-kui="compare"><picture><img src="a.jpg" alt="Original"></picture><picture><img src="b.jpg" alt="Edited"></picture></figure>').start()
+    expect(el().querySelector('input')?.getAttribute('aria-label')).toBe('Compare: Original / Edited')
+  })
+
   it('sets aria-valuetext and updates it on range input', () => {
     build(
       '<figure data-kui="compare position:40%"><img src="a.jpg" alt=""><img src="b.jpg" alt=""></figure>',

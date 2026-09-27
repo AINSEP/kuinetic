@@ -23,8 +23,7 @@ function rescale(animations: Animation[], scale: number): void {
 }
 
 function eventAnimations(event: Event): Animation[] {
-  const target = event.target
-  if (!(target instanceof Element)) return []
+  const target = event.target as Element
   const key = event.type === 'animationstart' ? 'animationName' : 'transitionProperty'
   const name = event.type === 'animationstart'
     ? (event as AnimationEvent).animationName
