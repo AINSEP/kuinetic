@@ -10,7 +10,7 @@ wherever CSS can do it. Standalone, MIT, npm + CDN, framework-agnostic. No produ
 <h1 data-kui="fade-up">Hello.</h1>
 ```
 
-292 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
+302 named effects across scroll reveals, hover/interaction, text, numbers, layout, SVG, 3D, and
 gesture-driven motion. 3,800+ unit tests. The jsdom suite holds `src/` at 100%
 line/branch/function/statement coverage with two carve-outs: the WebGL tier in `src/advanced/`
 (`shaders.ts`, `gl-utils.ts`, `fluid-cursor.ts`, `particles.ts`), whose GPU paths cannot execute
@@ -178,7 +178,7 @@ untrusted input — see Getting Started for the full note.
 ## Docs
 
 - **Getting Started** — install, first animation, timing, composition, common mistakes.
-- **Catalog** — all 292 named effects, grouped by category, with renderer and channel metadata.
+- **Catalog** — all 302 named effects, grouped by category, with renderer and channel metadata.
 - **Architecture** — the attribute grammar, the composition model, and why the library is built
   the way it is (`docs/design.md` in this repo).
 

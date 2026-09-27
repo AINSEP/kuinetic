@@ -1,6 +1,6 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into nineteen sections (A–S).
+This catalog lists every named effect the library ships, grouped into twenty sections (A–T).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **292** named effects, **38 primitive families** — the table below enumerates all 38,
+**Counts:** **302** named effects, **45 primitive families** — the table below enumerates all 45,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -19,7 +19,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–S sections below — see [Gestures & physics](#gestures-physics) at the end
+outside the lettered A–T sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
 
@@ -33,7 +33,7 @@ here that is not a named effect at all: it is how you animate something the cata
 
 ---
 
-## The 38 primitive families
+## The 45 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -75,6 +75,13 @@ here that is not a named effect at all: it is how you animate something the cata
 | 36 | `view-swap` | js | x | starts a same-document view transition around one state change (`view-swap`) |
 | 37 | `glass` | js | x | translucent blurred surface material |
 | 38 | `spatial-ring` | js | x | N children placed on a ring in 3D — the spatial carousel |
+| 39 | `device-frame` | js | x | CSS device chrome stamped by frame kind |
+| 40 | `lightbox` | js | x | image and video modal viewers |
+| 41 | `compare` | js | c,x | interactive before/after media slider |
+| 42 | `hotspots` | js | x | image markers with popover notes |
+| 43 | `slideshow` | js | x | fade, slide, and video hero carousels |
+| 44 | `scroll-story` | js | x | scrolling text steps paired with media |
+| 45 | `slow-mo` | js | x | playback-rate control for a subtree |
 
 ---
 
@@ -1416,7 +1423,7 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 8 names
+## T. Showcase — 10 names
 
 The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
@@ -1593,12 +1600,12 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 8 |
+| T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **292** |
+| **Total shipped** | **302** |
 | Documented but not yet shipped | 3 |
 
-Renderer split: **~175 `css`** · ~12 `prep` · ~69 `js`.
+Registry renderer split: **165 `css-keyframes`** · **137 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -1607,7 +1614,7 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 ## Gestures & physics
 
 Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
-outside the lettered A–P sections above. `js`.
+outside the lettered A–T sections above. `js`.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
 `snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
@@ -1620,7 +1627,7 @@ outside the lettered A–P sections above. `js`.
 
 ## Generic tween
 
-Two names over one primitive family, sitting outside the lettered A–P sections above. `css`.
+Two names over one primitive family, sitting outside the lettered A–T sections above. `css`.
 
 `tween` · `tween-from`
 
