@@ -359,7 +359,13 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 
 ## Open
 
-- [ ] **Swap the Fitim Bozar Short on `scroll.html` for `IwCxNOOB_qE`.** Owner's request,
+- [x] **Swap the Fitim Bozar Short on `scroll.html` for `IwCxNOOB_qE`.** DONE 2026-09-26:
+      swapped `data-yt-id`, `<img src>`, and `alt` on `demo/scroll.html:1537-1538` to
+      `IwCxNOOB_qE` — real title/creator via oEmbed is "This Horizontal Scroll Animation is EASY!
+      (GSAP & Lenis)" by Rupz Web; `maxresdefault.jpg` returned 200 so it was kept. Also updated
+      the stale "Fitim Bozar" references at the flip-side label (line 1566), the script comment
+      (line ~2310), and the play button's `aria-label` (line 1539, not named in the original ask
+      but carried the old video's title). Owner's request,
       2026-09-21. New video: <https://www.youtube.com/shorts/IwCxNOOB_qE>. It replaces the
       **front face** of the opening showcase flip card, `demo/scroll.html:1537-1538`, currently
       `4tGD1JWPqvA` — "How to Build Smooth Scrolling Animations With Claude Code and Kling — Fitim
