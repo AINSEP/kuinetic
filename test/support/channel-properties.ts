@@ -379,14 +379,15 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    */
   discrete: ['display', 'overlay'],
   /**
-   * `device-frame`'s (`src/showcase/`) only channel-tracked writes: the bezel `border` +
-   * `border-radius` + `padding`, and `aspect-ratio` on the phone/tablet/laptop kinds. Not asserted
-   * by this file's own static-rule scan today — `src/showcase/showcase.css` is outside
-   * `test/support/css-sources.ts`'s `SOURCES`, checked instead by `test/showcase-device-frame.test.ts`
-   * — but declared here anyway so a channel this map does not yet police still reads as an
-   * intentional set rather than an absent one, matching `sweep`/`content`'s own reasoning above.
+   * `device-frame`'s exclusive chrome ownership token. Its bezel sets static `border`,
+   * `border-radius`, `padding`, and `aspect-ratio`, but the channel audit deliberately does not
+   * track these box-model declarations: existing ambient, feedback, material, text, and form
+   * effects also set them without claiming a shared channel. Listing them here would silently
+   * widen the tracked-property universe and flag those unrelated, pre-existing effects.
+   * `showcase.css` is outside the core stylesheet scan and its frame rules have their own test.
+   * The explicit empty array follows the ownership-token convention of `sweep` and `widget`.
    */
-  frame: ['border', 'border-radius', 'padding', 'aspect-ratio'],
+  frame: [],
   /**
    * The showcase module's ownership token for "this widget builds and manages state a page did
    * not already have" (a dialog, an active slide, which note is open) — nothing on this list

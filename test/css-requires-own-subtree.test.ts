@@ -5,14 +5,20 @@
 // piece of hand-maintained TypeScript data — `Preset.requiresOwnSubtree` — still agrees with the
 // CSS it describes. Same stylesheets, opposite direction, so it reads better on its own.
 //
-// The node environment is not optional: `./support/css-sources.js` reads the stylesheets at module
-// scope, and under jsdom `import.meta.url` is an http: URL that `fileURLToPath` throws on.
+// The node environment is not optional: this file and `./support/css-sources.js` read stylesheets
+// at module scope, and under jsdom `import.meta.url` is an http: URL that `fileURLToPath` throws on.
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { stripComments } from './support/css-scan.js'
 import { SOURCES } from './support/css-sources.js'
 import { catalogRegistry } from './support/registry.js'
 
 const registry = catalogRegistry()
+const showcaseCss = readFileSync(
+  fileURLToPath(new URL('../src/showcase/showcase.css', import.meta.url)),
+  'utf8',
+)
 
 /**
  * `Preset.requiresOwnSubtree` un-driftable — docs/plan-scope-page.md §0.3/§7.
@@ -25,8 +31,9 @@ const registry = catalogRegistry()
  * the moment someone adds a reaching selector for a name that never opted in.
  *
  * So the true set is *re-derived* here, from the shipped stylesheets, independently of the flags —
- * scanning for every `[data-kui-fx~='NAME']` followed, in the same selector (before the next `,` or
- * `{`), by a combinator (whitespace, `>`, `~`, `+`) and then more selector text. That is a name whose
+ * scanning for every `[data-kui-fx~='NAME']` (and device-frame's `[data-kui-device]` stamp) followed,
+ * in the same selector (before the next `,` or `{`), by a combinator (whitespace, `>`, `~`, `+`) and
+ * then more selector text. That is a name whose
  * CSS assumes something exists beyond the fx element itself, and every such name must carry
  * `requiresOwnSubtree: true`. A future CSS edit that reaches past a name without also flagging it
  * fails this test instead of silently compiling `target:` on that name to nothing.
@@ -81,8 +88,8 @@ function reachesPastSelf(css: string, start: number): boolean {
 }
 
 /**
- * Every preset name reached by a `[data-kui-fx~='NAME']` compound that a combinator carries past
- * itself, anywhere in the shipped effect stylesheets.
+ * Every preset name reached by an effect stamp compound that a combinator carries past itself,
+ * anywhere in the shipped effect stylesheets.
  *
  * @complexity O(n) time in total stylesheet length; O(k) space in matches found.
  * @overallScore 100
@@ -92,27 +99,34 @@ function reachingPastSelf(css: string): Set<string> {
   for (const match of css.matchAll(/\[data-kui-fx~='([\w-]+)'\]/g)) {
     if (reachesPastSelf(css, match.index + match[0].length)) names.add(match[1]!)
   }
+  // device-frame stamps its kind as `data-kui-device`, and its child rule uses that attribute
+  // instead of `data-kui-fx`. Map the distinct stamp to its preset while still deriving whether
+  // it reaches children from the actual CSS selector.
+  for (const match of css.matchAll(/\[data-kui-device(?:='[\w-]+')?\]/g)) {
+    if (reachesPastSelf(css, match.index + match[0].length)) names.add('device-frame')
+  }
   return names
 }
 
 describe('requiresOwnSubtree — the reaching-selector set is re-derived, not trusted', () => {
   // The full shipped catalog, not `scannedCss` — that constant deliberately excludes `base.css`
   // (it is scanned separately by the channel-invariant checks in `css-invariants.test.ts`), but
-  // `base.css` is exactly where 12 of these 87 reaching selectors live
+  // `base.css` is exactly where 12 of the core reaching selectors live
   // (`checkbox-draw`/`radio-fill`/`toggle-morph`'s native-form-state family). Comments stripped for
   // the same reason `scannedCss` is: a retired selector kept for reference must not read as a live
-  // one.
-  const allCatalogCss = stripComments([...SOURCES.values()].join('\n'))
+  // one. Showcase CSS stays local to this test so other invariant suites keep their core inputs.
+  const allCatalogCss = stripComments([...SOURCES.values(), showcaseCss].join('\n'))
   const reaching = [...reachingPastSelf(allCatalogCss)].sort((a, b) => a.localeCompare(b))
 
   it('finds names to guard, so this suite cannot pass vacuously', () => {
     expect(reaching.length).toBeGreaterThan(0)
   })
 
-  it('matches the hand-maintained list exactly — 21 names, five added since the plan measured them', () => {
-    // Not a tautology: this is read straight from `src/css/*.css`, compared against a literal list
-    // transcribed from `docs/plan-scope-page.md` §0.3 by a human, not derived from the scan itself.
-    // A drift in either direction — a 22nd reaching name, or one of these 21 stopping to reach past
+  it('matches the hand-maintained list exactly — 24 names, including three showcase widgets', () => {
+    // Not a tautology: this is read from the shipped CSS, compared against a literal list. Its
+    // core names were transcribed from `docs/plan-scope-page.md` §0.3 by a human; the showcase
+    // names came from their own stylesheet, not from the scan's result.
+    // A drift in either direction — a new reaching name, or one of these 24 stopping to reach past
     // itself — fails here first.
     //
     // Five additions to the plan's original 16, and all five are the same kind of thing: an effect
@@ -129,6 +143,9 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     // declares a `target` parameter of its own, so `compile.ts` never consults the flag (see
     // `Preset.requiresOwnSubtree` in `core/types.ts`) — but the fact the flag records is true, and
     // this file asserts facts rather than reachable code paths.
+    // Showcase's `hotspots` also has its own `target` parameter: it selects notes inside the host,
+    // whereas the generic compiler `target:` relocates the effect stamp. Its CSS reaches children,
+    // so the flag records that fact even though the primitive parameter handles note selection.
     expect(reaching).toEqual(
       [
         'card-flip-x',
@@ -138,9 +155,12 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'carousel-3d-inside',
         'carousel-3d-low',
         'checkbox-draw',
+        'compare',
+        'device-frame',
         'flip-card',
         'group-dim',
         'hamburger-to-x',
+        'hotspots',
         'input-underline-grow',
         'label-float',
         'play-to-pause',

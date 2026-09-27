@@ -108,6 +108,191 @@
     border-radius: 3px;
   }
 
+  /* compare: before/after media slider */
+  [data-kui-fx~='compare'] {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  [data-kui-fx~='compare'] > :is(img, picture, video) {
+    grid-area: 1 / 1;
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  [data-kui-fx~='compare'] > :is(img, picture, video) ~ :is(img, picture, video) {
+    clip-path: inset(0 0 0 var(--kui-compare, 50%));
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > :is(img, picture, video) ~ :is(img, picture, video) {
+    clip-path: inset(var(--kui-compare, 50%) 0 0 0);
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range {
+    grid-area: 1 / 1;
+    position: relative;
+    z-index: 2;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: ew-resize;
+    touch-action: none;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-range {
+    cursor: ns-resize;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle {
+    grid-area: 1 / 1;
+    position: relative;
+    z-index: 1;
+    inline-size: 100%;
+    block-size: 100%;
+    pointer-events: none;
+    translate: calc(var(--kui-compare, 50%) - 100%) 0;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle {
+    translate: 0 calc(var(--kui-compare, 50%) - 100%);
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 2px;
+    background: #fff;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    border-inline-start: 2px solid CanvasText;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle::after {
+    inset-block: auto 0;
+    inset-inline: 0;
+    inline-size: 100%;
+    block-size: 2px;
+    border-inline-start: none;
+    border-block-start: 2px solid CanvasText;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: -14px;
+    translate: 0 -50%;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle::before {
+    inset-block-start: auto;
+    inset-block-end: -14px;
+    inset-inline-start: 50%;
+    inset-inline-end: auto;
+    translate: -50% 0;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range:focus-visible + .kui-compare-handle {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range:focus-visible + .kui-compare-handle::before {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* hotspots: image markers + popover notes */
+  [data-kui-fx~='hotspots'] {
+    position: relative;
+    display: inline-block;
+  }
+
+  [data-kui-fx~='hotspots'] > img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  [data-kui-fx~='hotspots'] .kui-hotspot {
+    position: absolute;
+    left: var(--kui-x);
+    top: var(--kui-y);
+    translate: -50% -50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--kui-hotspot-color, #111);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    touch-action: manipulation;
+    user-select: none;
+    inline-size: 24px;
+    block-size: 24px;
+  }
+
+  [data-kui-fx~='hotspots'][data-kui-hotspot-marker='dot'] .kui-hotspot {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+
+  [data-kui-fx~='hotspots'] .kui-hotspot:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  [data-kui-fx~='hotspots'] [popover] {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    max-inline-size: 18rem;
+    transition: opacity 150ms ease, translate 150ms ease, display 150ms allow-discrete, overlay 150ms allow-discrete;
+    opacity: 0;
+    translate: 0 4px;
+  }
+
+  [data-kui-fx~='hotspots'] [popover]:popover-open {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  @starting-style {
+    [data-kui-fx~='hotspots'] [popover]:popover-open {
+      opacity: 0;
+      translate: 0 4px;
+    }
+  }
+
   /* §12a: the bezel is structural (border, remapped by the UA); the dots/notch are decoration. */
   @media (forced-colors: active) {
     [data-kui-device] {
@@ -119,6 +304,23 @@
     [data-kui-device='phone']::after,
     [data-kui-device='laptop']::after {
       background-image: none;
+    }
+
+    [data-kui-fx~='compare'] > .kui-compare-handle::before {
+      border: 2px solid CanvasText;
+      background: Canvas;
+    }
+
+    [data-kui-fx~='hotspots'] .kui-hotspot {
+      border-color: CanvasText;
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    [data-kui-fx~='hotspots'] [popover] {
+      border-color: CanvasText;
+      background: Canvas;
+      color: CanvasText;
     }
   }
 
@@ -203,3 +405,4 @@
     .kui-lightbox-frame { border: 1px solid CanvasText; }
   }
 }
+

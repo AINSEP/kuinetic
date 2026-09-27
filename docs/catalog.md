@@ -1377,16 +1377,16 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 3 names
+## T. Showcase — 5 names
 
-The first name in `src/showcase/`, a separate module and the one place this library owns UI
+The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
 components almost every marketing page reaches for. See [design.md §14](?doc=design#14-scope)'s
 amendment for the boundary this section operates under. It ships inside `kuinetic.js` today; the
 seam that lets it become its own `<script>` tag later is an internal detail this doc does not
 need to track.
 
-`device-frame`
+`device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
 > video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
@@ -1410,8 +1410,6 @@ need to track.
 >
 > **No-JS:** the wrapped media renders bare and unframed. Nothing is ever hidden.
 
-`lightbox` · `video-lightbox`
-
 > **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
 > captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
 > from a real link. Modified clicks keep the link's normal browser behavior.
@@ -1432,6 +1430,49 @@ need to track.
 >
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
+
+> **Interactive before/after media slider (`compare`).** Stacks two media elements (images or videos)
+> and overlays an accessible range slider. Dragging or arrowing the slider reveals the "after"
+> state via `clip-path` without layout reflows.
+>
+> ```html
+> <figure data-kui="compare">
+>   <img src="before.jpg" alt="Before: raw photo">
+>   <img src="after.jpg" alt="After: graded">
+>   <figcaption>Colour grade</figcaption>
+> </figure>
+> ```
+>
+> **Params:** `position:` (`50%` default), `axis:` (`x` default, or `y`).
+>
+> **Accessible:** Range slider is announced with `aria-valuetext` (e.g. "50% after") and takes its
+> accessible name from the figure's `aria-label` or the two media `alt`s.
+>
+> **No timing tokens:** Interaction is driven by the user; there is no motion to time.
+>
+> **No-JS:** Both media elements render sequentially in document order with their alts.
+
+> **Image hotspots with native popover notes (`hotspots`).** Pins numbered or dot markers over an image
+> using author-supplied `--kui-x` and `--kui-y` percentages, each opening its note via native
+> `popover="auto"` and `popovertarget`.
+>
+> ```html
+> <figure data-kui="hotspots">
+>   <img src="dashboard.png" alt="Analytics dashboard">
+>   <ol>
+>     <li style="--kui-x:32%; --kui-y:48%"><strong>Live filters</strong> Update without reload.</li>
+>     <li style="--kui-x:71%; --kui-y:20%"><strong>Export</strong> CSV or PNG, one click.</li>
+>   </ol>
+> </figure>
+> ```
+>
+> **Params:** `target:` (defaults to `:scope > :is(ol, ul) > li`), `marker:` (`number` default, or `dot`).
+>
+> **Positioning:** Uses CSS anchor positioning (`position-area: top`) where supported, with JS fallback on `toggle` events.
+>
+> **No timing tokens:** Interactive popovers and markers have no timeline to time.
+>
+> **No-JS:** The image is followed by the plain numbered or bulleted list of notes, fully readable by crawlers and screen readers.
 
 ---
 
@@ -1458,7 +1499,7 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 3 |
+| T Showcase | 5 |
 | Generic tween | 2 |
 | **Total shipped** | **292** |
 | Documented but not yet shipped | 3 |

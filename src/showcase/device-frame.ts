@@ -65,10 +65,10 @@ function prepareDeviceFrame(el: Element, params: EffectParams): SetupResult {
 export const DEVICE_FRAME_PRIMITIVE: Primitive = widgetPrimitive(
   'device-frame',
   {
-    // A new channel: border/border-radius/padding/aspect-ratio on the host itself. The chrome also
-    // reaches into the direct media child (`object-fit: cover` etc.) — that is not channel-tracked,
-    // the same "reaching selectors are a `requiresOwnSubtree` question, not a channel one" split
-    // every other showcase widget will follow.
+    // Exclusive ownership of the frame chrome. Its static box-model declarations are outside
+    // the channel-property audit, as they are for the existing catalog. The chrome also reaches
+    // into the direct media child (`object-fit: cover` etc.); that is a `requiresOwnSubtree`
+    // question, as with the other showcase widgets.
     channels: ['frame'],
     parameters: deviceFrameParams,
     // `'layout'`: the bezel's `border`+`padding` are box-model properties added once, at
@@ -86,13 +86,6 @@ export const DEVICE_FRAME_PRIMITIVE: Primitive = widgetPrimitive(
   ),
 )
 
-/**
- * No `requiresOwnSubtree`, even though `showcase.css`'s chrome rules reach past the host into its
- * media child. That flag exists for `test/css-requires-own-subtree.test.ts`'s re-derived scan of
- * `src/css/*.css` alone — `src/showcase/showcase.css` is outside its `SOURCES` — so setting it here
- * would only trip that file's "never flags a name whose CSS never reaches past itself" check for
- * no benefit. See `scratchpad/showcase-progress.md`'s decision log for the full argument and the
- * note for whoever wires a showcase widget whose *own* CSS does key on `[data-kui-fx~='<name>']`
- * past itself (`lightbox`, `compare`, `hotspots`, `slideshow`, `scroll-story` all will).
- */
-export const DEVICE_FRAME_PRESETS: Preset[] = [{ name: 'device-frame', primitive: 'device-frame' }]
+export const DEVICE_FRAME_PRESETS: Preset[] = [
+  { name: 'device-frame', primitive: 'device-frame', requiresOwnSubtree: true },
+]

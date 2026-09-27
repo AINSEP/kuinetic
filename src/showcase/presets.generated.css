@@ -5,7 +5,17 @@
  * `!important`. Run `npm run generate:css` after changing any preset's params.
  */
 @layer kui.presets {
+  [data-kui-fx~='lightbox'] {
+    --kui-lightbox-media: image;
+    --kui-lightbox-duration: 280ms;
+    --kui-lightbox-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
+  [data-kui-fx~='video-lightbox'] {
+    --kui-lightbox-media: video;
+    --kui-lightbox-duration: 280ms;
+    --kui-lightbox-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 @layer kui.cloak {

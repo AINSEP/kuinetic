@@ -478,6 +478,8 @@ const TIMING_REFUSALS: Record<string, string> = {
   'beam-border-auto': 'an always-on loop with no start moment',
   'rotate-static': 'it writes its one property once, synchronously, on activation',
   'device-frame': 'it stamps its frame kind once, synchronously, on activation; there is no motion to time',
+  compare: 'it builds an interactive before/after slider; there is no motion to time',
+  hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.
