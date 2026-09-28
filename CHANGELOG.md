@@ -3,7 +3,7 @@
 All notable changes to kUInetic are documented here. Dates are when a change landed on `main`;
 version numbers are assigned at release.
 
-## [Unreleased] — 2026-09-08
+## [0.2.0] — 2026-09-27
 
 ### Breaking
 
