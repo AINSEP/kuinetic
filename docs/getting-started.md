@@ -36,8 +36,8 @@ nothing at all until you say so:
 From a CDN, the same two files without downloading anything:
 
 ```html
-<link rel="stylesheet" href="https://unpkg.com/kuinetic/dist/kuinetic.css">
-<script src="https://unpkg.com/kuinetic/dist/kuinetic.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/kuinetic/dist/kuinetic.min.css">
+<script src="https://unpkg.com/kuinetic/dist/kuinetic.min.js"></script>
 ```
 
 Or with a bundler, where the named export replaces the `kuinetic.kuinetic` global:

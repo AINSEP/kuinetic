@@ -22,26 +22,37 @@
  * steps that produce them, not standalone. `<dir>` defaults to `dist` (the publishable package
  * output) and also runs against `demo` (the local showcase / CDN deploy target) so both stay in
  * sync automatically instead of needing a manual copy step.
+ *
+ * It also writes `kuinetic.all.min.js`: the same file minified, JS and embedded CSS both. That is
+ * the one the landing page and README hand to people, since the readable `kuinetic.all.js` is
+ * roughly twice the transfer size for identical behaviour. It is derived from the finished bundle
+ * above rather than built separately, so the two can never drift apart.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { transformSync } from 'esbuild'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dir = process.argv[2] ?? 'dist'
 const js = readFileSync(`${root}${dir}/kuinetic.js`, 'utf8')
 const css = readFileSync(`${root}${dir}/kuinetic.css`, 'utf8')
 
-const tail = `
+const styleInjector = (stylesheet) => `
 ;(function () {
   if (!document.getElementById('kuinetic-styles')) {
     var style = document.createElement('style')
     style.id = 'kuinetic-styles'
-    style.textContent = ${JSON.stringify(css)}
+    style.textContent = ${JSON.stringify(stylesheet)}
     document.head.appendChild(style)
   }
 })()
 `
 
-const outFile = `${root}${dir}/kuinetic.all.js`
-writeFileSync(outFile, js + tail)
-console.log(`wrote ${dir}/kuinetic.all.js (${js.length + tail.length} bytes)`)
+const bundle = js + styleInjector(css)
+writeFileSync(`${root}${dir}/kuinetic.all.js`, bundle)
+console.log(`wrote ${dir}/kuinetic.all.js (${bundle.length} bytes)`)
+
+const minCss = transformSync(css, { loader: 'css', minify: true }).code
+const minBundle = transformSync(js + styleInjector(minCss), { loader: 'js', minify: true }).code
+writeFileSync(`${root}${dir}/kuinetic.all.min.js`, minBundle)
+console.log(`wrote ${dir}/kuinetic.all.min.js (${minBundle.length} bytes)`)

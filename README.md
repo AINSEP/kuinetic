@@ -54,7 +54,7 @@ say so:
 
 ```html
 <!-- one-tag convenience -->
-<script src="https://kuinetic.pages.dev/kuinetic.all.js"></script>
+<script src="https://kuinetic.pages.dev/kuinetic.all.min.js"></script>
 ```
 
 Or via npm, with a bundler:
@@ -110,15 +110,16 @@ no separate action needed — and additionally self-hosted on Cloudflare at **`k
 |---|---|---|---|
 | `kuinetic.js` | [`/npm/kuinetic`](https://cdn.jsdelivr.net/npm/kuinetic) † | [`/kuinetic`](https://unpkg.com/kuinetic) † | [`/kuinetic.js`](https://kuinetic.pages.dev/kuinetic.js) |
 | `kuinetic.css` | [`/npm/kuinetic/dist/kuinetic.css`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.css) | [`/kuinetic/dist/kuinetic.css`](https://unpkg.com/kuinetic/dist/kuinetic.css) | [`/kuinetic.css`](https://kuinetic.pages.dev/kuinetic.css) |
-| `kuinetic.all.js` | [`/npm/kuinetic/dist/kuinetic.all.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.js) | [`/kuinetic/dist/kuinetic.all.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.js) | [`/kuinetic.all.js`](https://kuinetic.pages.dev/kuinetic.all.js) |
+| `kuinetic.all.min.js` | [`/npm/kuinetic/dist/kuinetic.all.min.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.all.min.js) | [`/kuinetic/dist/kuinetic.all.min.js`](https://unpkg.com/kuinetic/dist/kuinetic.all.min.js) | [`/kuinetic.all.min.js`](https://kuinetic.pages.dev/kuinetic.all.min.js) |
 | `kuinetic.advanced.min.js` | [`/npm/kuinetic/dist/kuinetic.advanced.min.js`](https://cdn.jsdelivr.net/npm/kuinetic/dist/kuinetic.advanced.min.js) | [`/kuinetic/dist/kuinetic.advanced.min.js`](https://unpkg.com/kuinetic/dist/kuinetic.advanced.min.js) | — |
 
 † shorthand — resolves via the `"jsdelivr"`/`"unpkg"` fields in `package.json`; only `kuinetic.js`
 gets one, since a package can only designate a single default file that way.
 
 `kuinetic.js` is the split bundle — pair it with `kuinetic.css`, which keeps working even if the JS
-is slow, blocked, or fails to load. `kuinetic.all.js` is the one-tag drop-in, the same thing with
-the CSS embedded, trading that CSS-independence guarantee for one less step.
+is slow, blocked, or fails to load. `kuinetic.all.min.js` is the one-tag drop-in, the same thing with
+the CSS embedded, trading that CSS-independence guarantee for one less step. (`kuinetic.all.js` is
+its readable, unminified twin, about twice the transfer size; use it only for debugging.)
 `kuinetic.advanced.min.js` is a tier: it needs core on the page, in either order, and never carries
 a copy of it.
 

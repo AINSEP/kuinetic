@@ -6,6 +6,7 @@ coverage/
 demo/kuinetic.js
 demo/kuinetic.css
 demo/kuinetic.all.js
+demo/kuinetic.all.min.js
 # The advanced tier bundle, built by scripts/build-tiers.mjs alongside demo/kuinetic.js. Same
 # category as its neighbours: an esbuild artifact, not a source file.
 demo/kuinetic.advanced.js
