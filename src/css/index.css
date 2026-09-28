@@ -26,3 +26,7 @@
 @import './ready-gates.css';
 @import './flip-card-parts.css';
 @import './icon-parts.css';
+/* The showcase module: pre-built presentation widgets, not effects — see docs/design.md §14's
+   amendment. Its own generated presets, then its hand-written CSS, last of all. */
+@import '../showcase/presets.generated.css';
+@import '../showcase/showcase.css';

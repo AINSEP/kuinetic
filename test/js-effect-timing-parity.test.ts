@@ -462,6 +462,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   'horizontal-track': 'scroll position',
   'media-scrub': 'scroll position',
   'scroll-spy': 'scroll position',
+  'scroll-story': 'scroll position',
   'scroll-snap': 'scroll position; it configures native snapping rather than animating',
   'smooth-scroll': 'it sets `scroll-behavior` and animates nothing itself',
   'header-shrink': 'scroll position',
@@ -477,6 +478,12 @@ const TIMING_REFUSALS: Record<string, string> = {
   glass: 'it paints a resting surface material rather than animating',
   'beam-border-auto': 'an always-on loop with no start moment',
   'rotate-static': 'it writes its one property once, synchronously, on activation',
+  'device-frame': 'it stamps its frame kind once, synchronously, on activation; there is no motion to time',
+  lightbox: 'the dialog opens immediately, so it has no delay phase',
+  compare: 'it builds an interactive before/after slider; there is no motion to time',
+  hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
+  slideshow: 'its controls and index are live on load; it has no delayed start',
+  'slow-mo': 'it controls existing playheads on load and has no animation timeline to delay',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.

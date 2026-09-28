@@ -378,6 +378,25 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * before adding this entry, the same discipline the `background`/`layout` entries above record.
    */
   discrete: ['display', 'overlay'],
+  /**
+   * `device-frame`'s exclusive chrome ownership token. Its bezel sets static `border`,
+   * `border-radius`, `padding`, and `aspect-ratio`, but the channel audit deliberately does not
+   * track these box-model declarations: existing ambient, feedback, material, text, and form
+   * effects also set them without claiming a shared channel. Listing them here would silently
+   * widen the tracked-property universe and flag those unrelated, pre-existing effects.
+   * `showcase.css` is outside the core stylesheet scan and its frame rules have their own test.
+   * The explicit empty array follows the ownership-token convention of `sweep` and `widget`.
+   */
+  frame: [],
+  /**
+   * The showcase module's ownership token for "this widget builds and manages state a page did
+   * not already have" (a dialog, an active slide, which note is open) — nothing on this list
+   * paints a physical CSS property on the *host*, so an empty array is the honest answer, the same
+   * reasoning `sweep`/`pseudo-before`/`proximity` above give for theirs. `device-frame` does not
+   * use it; declared ahead of Phase 2's `lightbox`/`compare`/`hotspots`/`slideshow`/`scroll-story`,
+   * which will.
+   */
+  widget: [],
 }
 
 /**

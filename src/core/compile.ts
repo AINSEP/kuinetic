@@ -697,8 +697,9 @@ function warnUnknownEffect(name: string, registry: Registry, warnings: string[])
  * Some primitives declare `target` themselves — `scroll-progress`, `horizontal-track`,
  * `media-scrub`, `scroll-spy` and `scroll-snap` in `effects/scroll-mechanics/primitives.ts`,
  * `step-progress` in `effects/forms/primitives.ts`, `spatial-ring` in `effects/carousel/index.ts`,
- * `audio-source` in `advanced/audio.ts`, `model-3d` in `3d/model-3d.ts` — nine today — and read the
- * key themselves through `EffectParams` inside their own `prepare`; see `effects/step-marking.ts`'s
+ * `audio-source` in `advanced/audio.ts`, `model-3d` in `3d/model-3d.ts`, and showcase's `lightbox`
+ * and `hotspots` — eleven today — and read the key themselves through `EffectParams` inside their
+ * own `prepare`; see `effects/step-marking.ts`'s
  * module comment for where the shared `target:`/`scope:` grammar lives. Lifting it here too would
  * be lifting nothing, since `Object.hasOwn` below is false for none of them; the early return is
  * what keeps their existing behaviour untouched. This list is not the source of truth and will
@@ -1133,4 +1134,3 @@ function warnUnsupportedTimeline(
     `"${name}" does not support timeline "${timeline}" (supports: ${supported.join(', ')})`,
   )
 }
-

@@ -464,7 +464,7 @@ The build-time template scanner becomes an **optional optimizer, not a correctne
 It breaks on dynamic names, CMS markup, JSX abstractions, `.play()` aliases, A/B tests, custom
 template languages, and out-of-graph monorepo templates. Ship a safelist + extraction callback.
 
-**Do not create one runtime chunk per name.** 292 named effects come from 38 primitive families — ship a compressed
+**Do not create one runtime chunk per name.** 302 named effects come from 45 primitive families — ship a compressed
 alias table (names → primitive + defaults), CSS per primitive/category, and lazy chunks only
 for expensive JS. Fifteen small requests can lose to one 10KB stylesheet. **Generate the full
 catalog CSS and measure gzip/Brotli before designing any splitting.**
@@ -662,12 +662,24 @@ Classify every effect by `perfClass` and attach automated layout/paint/long-task
 
 Names are additive: adding a new named effect is a row in an alias table (name → primitive +
 defaults), not new code, provided the underlying primitive and parameter schema already exist.
-That's why the catalog can carry 292 named effects from only 38 primitive families.
+That's why the catalog can carry 302 named effects from only 45 primitive families.
 
 Deliberately out of scope:
-- **Accessible UI components.** Accordion, carousel, and menu components own their own state,
-  focus, and ARIA. They deliberately never share the `Effect` interface used by animation
-  primitives — this library animates elements, it does not manage component behavior.
+- **Accessible UI components, as *effects*.** Accordion, carousel, and menu components own their
+  own state, focus, and ARIA. They deliberately never share the `Effect` interface used by
+  animation primitives — this library animates elements, it does not manage component behavior.
+
+  **The one exception is `src/showcase/`** (catalog.md §T): a small, separate module of pre-built
+  presentation widgets — a lightbox dialog, an ARIA carousel, image hotspots on native `popover`
+  — for the handful of components almost every marketing or portfolio page reaches for and that
+  cannot honestly be an `Effect`, because their whole point is owning state the page did not
+  already have (open/closed, which slide is active, which note is showing). A showcase widget
+  still activates through `data-kui`, still degrades under `reducedMotion` (never `'disable'` — the
+  widget must still exist for a reduced-motion visitor; only its motion is removed), and still
+  ships inside `kuinetic.js` today, under its own naming and packaging boundary rather than a
+  different attribute grammar. This is written down so a future reviewer does not "fix" the
+  showcase back out: the boundary above still governs the effect catalog proper, and the showcase
+  module is the one place the library deliberately, and only, crosses it.
 - **WebGL/canvas rendering.** Supported only through an adapter that drives a user-supplied
   canvas, never as a built-in renderer.
 - **Arbitrary composition beyond the channel model** described in section 4 above.

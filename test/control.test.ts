@@ -9,6 +9,7 @@ import { createCssControl, emitLifecycle, KUI_EVENT } from '../src/core/control.
 import type { LifecycleDetail } from '../src/core/control.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import { Registry } from '../src/core/registry.js'
+import { TIME_SCALE_ATTR } from '../src/core/time-scale.js'
 import { collectingReporter, silentReporter } from '../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
 import type { EffectInstance, Primitive } from '../src/core/types.js'
@@ -362,6 +363,15 @@ describe('control() over a live animator', () => {
     expect(animation.playbackRate).toBe(2)
     handle.play()
     expect(el.style.getPropertyValue('animation-play-state')).toBe('running')
+  })
+
+  it('keeps control().timeScale() an absolute override inside a scaled ancestor', () => {
+    const { animator } = build(`<section ${TIME_SCALE_ATTR}="0.25"><div id="a" data-kui="fake-fade" data-kui-on="load"></div></section>`)
+    const el = document.getElementById('a')!
+    const animation = fakeAnimation({ name: 'kui-fake-fade' })
+    withAnimations(el, [animation])
+    animator.control('#a').timeScale(2)
+    expect(animation.playbackRate).toBe(2)
   })
 
   it('can pause a paused element again after it has been reversed', () => {

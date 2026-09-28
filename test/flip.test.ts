@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createFlipEngine, mutationWatcher, observeLayout } from '../src/core/flip.js'
 import type { Box, FlipDeps } from '../src/core/flip.js'
+import { TIME_SCALE_ATTR } from '../src/core/time-scale.js'
 
 /**
  * FLIP is tested entirely through injected measurement and animation. jsdom reports a zero rect
@@ -12,6 +13,7 @@ import type { Box, FlipDeps } from '../src/core/flip.js'
 function fakeDeps(positions: Map<Element, Box[]>) {
   const reads = new Map<Element, number>()
   const captured: Array<{ el: Element; keyframes: Keyframe[] }> = []
+  const animations: Animation[] = []
 
   const deps: FlipDeps = {
     measure(el) {
@@ -22,10 +24,12 @@ function fakeDeps(positions: Map<Element, Box[]>) {
     },
     animate(el, keyframes) {
       captured.push({ el, keyframes })
-      return { finished: Promise.resolve(), cancel: vi.fn() } as unknown as Animation
+      const animation = { finished: Promise.resolve(), cancel: vi.fn(), playbackRate: 1 } as unknown as Animation
+      animations.push(animation)
+      return animation
     },
   }
-  return { deps, captured }
+  return { deps, captured, animations }
 }
 
 function box(x: number, y: number, width = 100, height = 50): Box {
@@ -52,6 +56,25 @@ function domRect(left: number, top: number, width = 100, height = 50): DOMRect {
 }
 
 describe('createFlipEngine', () => {
+  it('scales a FLIP animation inside the nearest marked ancestor', () => {
+    const host = makeElement()
+    host.setAttribute(TIME_SCALE_ATTR, '0.25')
+    const el = makeElement()
+    host.appendChild(el)
+    const { deps, animations } = fakeDeps(new Map([[el, [box(0, 0), box(100, 0)]]]))
+    const engine = createFlipEngine(deps)
+    engine.play(engine.snapshot([el]), [el])
+    expect(animations[0]?.playbackRate).toBe(0.25)
+  })
+
+  it('leaves an unscaled FLIP animation at its created rate', () => {
+    const el = makeElement()
+    const { deps, animations } = fakeDeps(new Map([[el, [box(0, 0), box(100, 0)]]]))
+    const engine = createFlipEngine(deps)
+    engine.play(engine.snapshot([el]), [el])
+    expect(animations[0]?.playbackRate).toBe(1)
+  })
+
   it('animates an element that moved, using the inverse of the delta', () => {
     const el = makeElement()
     // Measured at x=0 first, then x=200: it moved right, so the inverse translate is -200.

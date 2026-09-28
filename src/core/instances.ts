@@ -1,4 +1,5 @@
 import { createCssControl } from './control.js'
+import { timeScaleOf } from './time-scale.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Cleanup, EffectInstance } from './types.js'
 
@@ -95,6 +96,40 @@ function watchCompletion(animations: Animation[], settle: () => void): void {
 }
 
 /**
+ * Open the CSS play-state gate and return the owned handles now running.
+ *
+ * @complexity O(a) in owned animations; O(a) space for the handles.
+ * @overallScore 100
+ */
+function startCssAnimations(
+  el: Element,
+  ledger: StyleLedger,
+  ownedNames: ReadonlySet<string>,
+  activatedBefore: boolean,
+): Animation[] {
+  let animations = ownedAnimationsOf(el, ownedNames)
+  if (!activatedBefore) {
+    restartCssAnimation(el, ledger)
+    ledger.set('animation-play-state', 'running')
+    animations = ownedAnimationsOf(el, ownedNames)
+    // First activation uses the CSS gate rather than drive(). An unscaled activation must not
+    // overwrite an authored control rate on an animation that already exists.
+    const scale = timeScaleOf(el)
+    if (scale !== 1) {
+      for (const animation of animations) animation.playbackRate = scale
+    }
+    return animations
+  }
+  const stale = animations.filter((animation) => animation.playState === 'finished')
+  if (stale.length > 0) {
+    for (const animation of stale) animation.reverse()
+  } else {
+    ledger.set('animation-play-state', 'running')
+  }
+  return animations
+}
+
+/**
  * Wrap a CSS-rendered effect.
  *
  * Gating is `animation-play-state` rather than a class toggle: `animation-fill-mode: both`
@@ -169,7 +204,7 @@ export function createCssInstance(
       settle = resolve
     })
     for (const animation of animations) {
-      animation.playbackRate = rate
+      animation.playbackRate = rate * timeScaleOf(el)
       animation.play()
     }
     // The ledger's copy of the play state has to move with the playhead, and this call moves it.
@@ -218,19 +253,7 @@ export function createCssInstance(
       // reapplies it once. The restart only re-triggers the animation itself — the compiled
       // declaration still starts `animation-play-state: paused` (the gate), so this still needs
       // its own explicit running write, same as the plain no-stale case below.
-      let animations = ownedAnimationsOf(el, ownedNames)
-      if (!activatedBefore) {
-        restartCssAnimation(el, ledger)
-        ledger.set('animation-play-state', 'running')
-        animations = ownedAnimationsOf(el, ownedNames)
-      } else {
-        const stale = animations.filter((a) => a.playState === 'finished')
-        if (stale.length > 0) {
-          for (const animation of stale) animation.reverse()
-        } else {
-          ledger.set('animation-play-state', 'running')
-        }
-      }
+      const animations = startCssAnimations(el, ledger, ownedNames, activatedBefore)
       activatedBefore = true
       watch(animations)
     },

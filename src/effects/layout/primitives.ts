@@ -1,6 +1,7 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
+import { timeScaleOf } from '../../core/time-scale.js'
 import { frameScheduler, watchElementSize } from '../../core/element-size.js'
 import { createFlipEngine, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
@@ -173,7 +174,7 @@ function animateHeight(
 ): Animation | null {
   const animate = (node as HTMLElement & { animate?: Element['animate'] }).animate
   if (typeof animate !== 'function') return null
-  return animate.call(
+  const animation = animate.call(
     node,
     [{ height: `${endpoints.from}px` }, { height: `${endpoints.to}px` }],
     // `fill: 'backwards'` only when there is a delay to fill, so the undelayed path stays exactly
@@ -182,6 +183,9 @@ function animateHeight(
     // would show the panel already open for the wait and then snap shut to animate.
     { ...timing, fill: timing.delay > 0 ? 'backwards' : 'none' },
   )
+  const scale = timeScaleOf(node)
+  if (scale !== 1) animation.playbackRate = scale
+  return animation
 }
 
 /**

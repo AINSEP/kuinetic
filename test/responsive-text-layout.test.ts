@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createParams } from '../src/core/js-params.js'
+import { frameScheduler, watchElementSize } from '../src/core/element-size.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { LAYOUT_PRIMITIVES } from '../src/effects/layout/primitives.js'
@@ -110,9 +111,90 @@ describe('responsive split lines and flip indicator', () => {
     if (originalOffsetTop) Object.defineProperty(HTMLElement.prototype, 'offsetTop', originalOffsetTop)
   })
 
+  it('unobserves a removed size target and keeps the remaining target live', () => {
+    const changed = vi.fn()
+    const watch = watchElementSize(window, changed)
+    const first = document.createElement('div')
+    const second = document.createElement('div')
+    watch.observe(first)
+    watch.observe(second)
+    const observer = FakeResizeObserver.instances.at(-1)!
+    expect(observer.observed.has(first)).toBe(true)
+    watch.unobserve(first)
+    expect(observer.observed.has(first)).toBe(false)
+    expect(observer.observed.has(second)).toBe(true)
+    watch.observe(first)
+    expect(observer.observed.has(first)).toBe(true)
+    observer.fire()
+    expect(changed).toHaveBeenCalledOnce()
+    watch.disconnect()
+  })
+
+  it('schedules a size notification with a timer when animation frames are unavailable', () => {
+    Reflect.deleteProperty(window, 'requestAnimationFrame')
+    const changed = vi.fn()
+    const scheduler = frameScheduler(window, changed)
+    scheduler.request()
+    vi.advanceTimersByTime(15)
+    expect(changed).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(changed).toHaveBeenCalledOnce()
+    scheduler.cancel()
+  })
+
+  it('uses window resizing when ResizeObserver is unavailable and cancels a pending timer', () => {
+    Reflect.deleteProperty(window, 'ResizeObserver')
+    Reflect.deleteProperty(window, 'requestAnimationFrame')
+    const changed = vi.fn()
+    const watch = watchElementSize(window, changed)
+    const element = document.createElement('div')
+    watch.observe(element)
+    watch.observe(element)
+    window.dispatchEvent(new Event('resize'))
+    expect(changed).toHaveBeenCalledOnce()
+    const scheduler = frameScheduler(window, changed)
+    scheduler.request()
+    scheduler.cancel()
+    vi.advanceTimersByTime(16)
+    expect(changed).toHaveBeenCalledOnce()
+    watch.disconnect()
+  })
+
+  it('cancels a pending animation frame before its size notification', () => {
+    const changed = vi.fn()
+    const scheduler = frameScheduler(window, changed)
+    scheduler.request()
+    scheduler.cancel()
+    vi.advanceTimersByTime(16)
+    expect(changed).not.toHaveBeenCalled()
+  })
+
   it('retains the mask preset cloak and reduced-motion policy', () => {
     expect(catalogRegistry().resolve('text-reveal-mask')?.preset.cloak).toBe(true)
     expect(split.reducedMotion).toBe('disable')
+  })
+
+  it('re-buckets vertical text when its inline height changes', () => {
+    const { el, setWordsPerLine } = makeText()
+    el.style.writingMode = 'vertical-rl'
+    el.style.paddingBlockStart = '10px'
+    el.style.paddingBlockEnd = '5px'
+    let height = 100
+    Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => height })
+    const instance = activateLines(el)
+    expect(el.querySelectorAll('.kui-split-line')).toHaveLength(2)
+    el.style.paddingBlockStart = '20px'
+    setWordsPerLine(2)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    expect(el.querySelectorAll('.kui-split-line')).toHaveLength(3)
+    height = 200
+    setWordsPerLine(3)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    expect(el.querySelectorAll('.kui-split-line')).toHaveLength(2)
+    expect(lineWords(el)).toEqual(words)
+    instance.destroy()
   })
 
   it('re-buckets a finished mask on inline resize, retaining every word and no settled animation', async () => {
@@ -252,5 +334,40 @@ describe('responsive split lines and flip indicator', () => {
     expect(style.set).toHaveBeenCalledWith('translate', '90px 0')
     instance.destroy()
     expect(observer.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('moves the size watch from the old tab to the newly selected one', async () => {
+    const container = document.createElement('div')
+    const el = document.createElement('div')
+    const first = document.createElement('button')
+    const second = document.createElement('button')
+    first.setAttribute('aria-selected', 'true')
+    second.setAttribute('aria-selected', 'false')
+    container.append(el, first, second)
+    document.body.append(container)
+    el.getBoundingClientRect = () => ({ left: 0, width: 10, top: 0, height: 4 }) as DOMRect
+    first.getBoundingClientRect = () => ({ left: 0, width: 80, top: 0, height: 30 }) as DOMRect
+    second.getBoundingClientRect = () => ({ left: 90, width: 60, top: 0, height: 30 }) as DOMRect
+    const style = { set: vi.fn(), claim: vi.fn(), restore: vi.fn(), owned: () => [] }
+    const ctx = { ...context(el), style } as unknown as PrepareContext
+    const instance = indicator.prepare!(
+      el,
+      createParams({ follow: "[aria-selected='true']", attribute: 'aria-selected' }),
+      ctx,
+    )
+    instance.activate()
+    const observer = FakeResizeObserver.instances[0]!
+    expect(observer.observed.has(first)).toBe(true)
+    expect(observer.observed.has(second)).toBe(false)
+
+    first.setAttribute('aria-selected', 'false')
+    second.setAttribute('aria-selected', 'true')
+    await Promise.resolve()
+
+    // A resize of the old tab must no longer move the bar; the new tab's must.
+    expect(observer.observed.has(first)).toBe(false)
+    expect(observer.observed.has(second)).toBe(true)
+    expect(observer.observed.has(container)).toBe(true)
+    instance.destroy()
   })
 })

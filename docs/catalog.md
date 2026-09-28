@@ -1,6 +1,6 @@
 # Effect Catalog
 
-This catalog lists every named effect the library ships, grouped into nineteen sections (A–S).
+This catalog lists every named effect the library ships, grouped into twenty sections (A–T).
 See the [architecture document](?doc=design) for the attribute grammar, composition model, and
 design rationale behind this list.
 
@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **292** named effects, **38 primitive families** — the table below enumerates all 38,
+**Counts:** **302** named effects, **45 primitive families** — the table below enumerates all 45,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -19,7 +19,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
 Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
-outside the lettered A–S sections below — see [Gestures & physics](#gestures-physics) at the end
+outside the lettered A–T sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
 
@@ -28,11 +28,12 @@ here that is not a named effect at all: it is how you animate something the cata
 - **Renderer** — `css` (keyframes only) · `waapi` · `js` (per-frame) · `prep` (JS DOM surgery, then CSS)
 - **Channels** — properties the effect owns, for composition-conflict detection:
   `o` opacity · `t` translate · `s` scale · `r` rotate · `f` filter · `c` clip/mask · `x` other
+  (`x` also covers section T's showcase-only `frame`/`widget` channels)
 - Effects with **disjoint** channels compose in one comma list; collisions warn.
 
 ---
 
-## The 38 primitive families
+## The 45 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -74,6 +75,13 @@ here that is not a named effect at all: it is how you animate something the cata
 | 36 | `view-swap` | js | x | starts a same-document view transition around one state change (`view-swap`) |
 | 37 | `glass` | js | x | translucent blurred surface material |
 | 38 | `spatial-ring` | js | x | N children placed on a ring in 3D — the spatial carousel |
+| 39 | `device-frame` | js | x | CSS device chrome stamped by frame kind |
+| 40 | `lightbox` | js | x | image and video modal viewers |
+| 41 | `compare` | js | c,x | interactive before/after media slider |
+| 42 | `hotspots` | js | x | image markers with popover notes |
+| 43 | `slideshow` | js | x | fade, slide, and video hero carousels |
+| 44 | `scroll-story` | js | x | scrolling text steps paired with media |
+| 45 | `slow-mo` | js | x | playback-rate control for a subtree |
 
 ---
 
@@ -1194,7 +1202,8 @@ Primitives 1, 10, 15.
 >
 > **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
 > no autoplay, no swipe. Section H states the same line for `accordion-height`, and a second name
-> does not move it. Pair it with `swipe-x` from the gestures group for touch.
+> does not move it. Pair it with `swipe-x` from the gestures group for touch. For a carousel that
+> owns controls and accessibility behavior, use the showcase names in section T.
 
 > **`step-progress`** is the click-driven half of the step pair — it advances its own index on
 > click and wraps, where `scrollytelling-step` in section C takes its index from scroll position.
@@ -1414,6 +1423,160 @@ of, not something it does.
 
 ---
 
+## T. Showcase — 10 names
+
+The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
+*behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
+components almost every marketing page reaches for. See [design.md §14](?doc=design#14-scope)'s
+amendment for the boundary this section operates under. It ships inside `kuinetic.js` today; the
+seam that lets it become its own `<script>` tag later is an internal detail this doc does not
+need to track.
+
+`device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
+`carousel-fade` · `carousel-slide` · `video-hero-slideshow` · `scroll-story`
+· `slow-mo`
+
+> **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
+> video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
+> structural markup beyond the one wrapper, nothing else built.
+>
+> ```html
+> <div data-kui="device-frame kind:phone color:#2a2a2a">
+>   <img src="app.png" alt="App home screen">
+> </div>
+> ```
+>
+> **Params:** `kind:` (`browser` default, or `phone`/`tablet`/`laptop`), `color:` (bezel colour,
+> default `#111`), `radius:` (screen corner radius; each kind has its own CSS default).
+>
+> **All the chrome is CSS.** The one thing JavaScript does is stamp `data-kui-device="<kind>"`,
+> because a stylesheet cannot branch on a custom property's *value* — every visible pixel of the
+> bezel, the browser tab-bar dots, and the phone notch is drawn from that attribute alone.
+>
+> **No timing tokens**, refused by name: it writes its attribute once, synchronously, on
+> activation, so `device-frame 400ms` warns rather than silently doing nothing.
+>
+> **No-JS:** the wrapped media renders bare and unframed. Nothing is ever hidden.
+
+> **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
+> captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
+> from a real link. Modified clicks keep the link's normal browser behavior.
+>
+> ```html
+> <div data-kui="lightbox">
+>   <a href="full.jpg"><img src="thumb.jpg" alt="Dashboard overview"></a>
+> </div>
+> <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-kui="video-lightbox">
+>   Watch the walkthrough
+> </a>
+> ```
+>
+> **Params:** `target:` selects triggers (default: linked images or bare images for `lightbox`,
+> links for `video-lightbox`); `scope:self|page`, `scale:` (default `0.965`), `duration:` (default
+> `280ms`), `ease:`; image galleries accept `loop:false`, and video accepts
+> `aspect:wide|tall|square` (YouTube Shorts default to tall).
+>
+> **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
+> `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
+
+> **Interactive before/after media slider (`compare`).** Stacks two media elements (images or videos)
+> and overlays an accessible range slider. Dragging or arrowing the slider reveals the "after"
+> state via `clip-path` without layout reflows.
+>
+> ```html
+> <figure data-kui="compare">
+>   <img src="before.jpg" alt="Before: raw photo">
+>   <img src="after.jpg" alt="After: graded">
+>   <figcaption>Colour grade</figcaption>
+> </figure>
+> ```
+>
+> **Params:** `position:` (`50%` default), `axis:` (`x` default, or `y`).
+>
+> **Accessible:** Range slider is announced with `aria-valuetext` (e.g. "50% after") and takes its
+> accessible name from the figure's `aria-label` or the two media `alt`s.
+>
+> **No timing tokens:** Interaction is driven by the user; there is no motion to time.
+>
+> **No-JS:** Both media elements render sequentially in document order with their alts.
+
+> **Image hotspots with native popover notes (`hotspots`).** Pins numbered or dot markers over an image
+> using author-supplied `--kui-x` and `--kui-y` percentages, each opening its note via native
+> `popover="auto"` and `popovertarget`.
+>
+> ```html
+> <figure data-kui="hotspots">
+>   <img src="dashboard.png" alt="Analytics dashboard">
+>   <ol>
+>     <li style="--kui-x:32%; --kui-y:48%"><strong>Live filters</strong> Update without reload.</li>
+>     <li style="--kui-x:71%; --kui-y:20%"><strong>Export</strong> CSV or PNG, one click.</li>
+>   </ol>
+> </figure>
+> ```
+>
+> **Params:** `target:` (defaults to `:scope > :is(ol, ul) > li`), `marker:` (`number` default, or `dot`).
+>
+> **Positioning:** Uses CSS anchor positioning (`position-area: top`) where supported, with JS fallback on `toggle` events.
+>
+> **No timing tokens:** Interactive popovers and markers have no timeline to time.
+>
+> **No-JS:** The image is followed by the plain numbered or bulleted list of notes, fully readable by crawlers and screen readers.
+
+> **Accessible slide shows.** `carousel-fade` stacks slides and fades between them;
+> `carousel-slide` moves a horizontal row. `video-hero-slideshow` uses the fade layout with
+> seven-second autoplay and dots. The existing `video-hero` name remains the single background
+> video preset from section G.
+>
+> ```html
+> <section data-kui="carousel-fade autoplay:6s" aria-label="Customer stories">
+>   <ul><li>First story</li><li>Second story</li></ul>
+> </section>
+> ```
+>
+> **Params:** `target:` selects slides (default direct list items), `next:` / `prev:` /
+> `jump:` bind authored controls, `controls:auto|dots|arrows|none` builds controls when none
+> are authored, `autoplay:` sets an interval of at least two seconds, `swipe:` toggles touch
+> navigation, `mute:` names a button for the active slide's video, and `duration:` / `ease:`
+> tune the transition. A pause button is built whenever autoplay runs; autoplay is disabled with
+> `controls:none` or authored controls because there would be no pause button. Reduced-motion
+> visitors start paused; a user pause stays in effect until they press Play.
+>
+> **No-JS:** Slides remain a plain visible list in document order, with no inserted controls.
+
+> **Sticky scrollytelling (`scroll-story`).** Pairs a sticky media column with scrolling text steps.
+> As each step reaches the viewport reference line, the active step index synchronises to both the
+> step and media groups (`data-kui-step-state="active"`), crossfading media and playing videos with
+> authored `autoplay` or `loop`. On narrow screens, the media forms a sticky top band while steps
+> scroll beneath.
+>
+> ```html
+> <section data-kui="scroll-story" aria-label="How it works">
+>   <div>
+>     <img src="1.png" alt="Step 1">
+>     <img src="2.png" alt="Step 2">
+>   </div>
+>   <ol>
+>     <li><h3>Connect</h3><p>…</p></li>
+>     <li><h3>Configure</h3><p>…</p></li>
+>   </ol>
+> </section>
+> ```
+>
+> **Params:** `target:` selects media items (default `:scope > :first-child > *`), `sections:` selects text steps (default `:scope > :last-child > *`), `offset-top:` sets the activation line (default `50vh`), `side:` sets the wide-screen media column (`end` default, or `start`).
+>
+> **Reduced motion:** Crossfade completes in 1ms; video autoplay is disabled.
+>
+> **No-JS:** Media and step list render in document order, fully readable with nothing hidden.
+
+> **Slow motion (`slow-mo`).** Wrap animated content in
+> `<div data-kui="slow-mo rate:0.25">…</div>` to add a native toggle that slows Web Animations
+> and CSS animations and transitions in the subtree. `rate:` defaults to `0.25` (range `0.05`–`1`);
+> `controls:none` starts slowed without a button. The toggle keeps reverse motion reversed.
+> **Limit:** rAF-driven JavaScript effects such as count-up, typewriter, proximity, and springs
+> have no `Animation` handle and are not slowed. Without JavaScript, content renders as authored.
+
+---
+
 ## Totals
 
 | Section | Names |
@@ -1437,11 +1600,12 @@ of, not something it does.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
+| T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **292** |
+| **Total shipped** | **302** |
 | Documented but not yet shipped | 3 |
 
-Renderer split: **~175 `css`** · ~12 `prep` · ~69 `js`.
+Registry renderer split: **165 `css-keyframes`** · **137 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -1450,7 +1614,7 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 ## Gestures & physics
 
 Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
-outside the lettered A–P sections above. `js`.
+outside the lettered A–T sections above. `js`.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
 `snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
@@ -1463,7 +1627,7 @@ outside the lettered A–P sections above. `js`.
 
 ## Generic tween
 
-Two names over one primitive family, sitting outside the lettered A–P sections above. `css`.
+Two names over one primitive family, sitting outside the lettered A–T sections above. `css`.
 
 `tween` · `tween-from`
 

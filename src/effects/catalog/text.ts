@@ -436,11 +436,9 @@ function prepareResponsiveLines(el: Element, params: EffectParams, ctx: PrepareC
   const items = appendSpansFor('lines', layers.decorative, doc, layers.originalText)
   let inlineSize = textInlineSize(el, ctx.win)
   let force = false
-  let destroyed = false
   const completion = lineCompletion(ctx, params, layers, items.length)
 
   const rewrap = (): void => {
-    if (destroyed) return
     const nextSize = textInlineSize(el, ctx.win)
     if (!force && nextSize === inlineSize) return
     force = false
@@ -454,7 +452,6 @@ function prepareResponsiveLines(el: Element, params: EffectParams, ctx: PrepareC
 
   return {
     cleanup: () => {
-      destroyed = true
       stopWatching()
       completion.cancel()
       layers.restore()

@@ -134,6 +134,17 @@ New named effects, none of them changing anything about an existing name:
 - **`var-axis`** is a generic variable-font axis — `data-kui="var-axis axis:GRAD from:0 to:150"` —
   for any OpenType variation axis a font carries beyond the three (`wght`, `wdth`, `slnt`) CSS
   already gives a dedicated property to.
+- **Showcase presentation widgets (10 presets, bringing the catalog total from 292 to 302 named effects)**:
+  - **`device-frame`** draws realistic device chrome (browser top bar with buttons, phone notch, tablet or laptop bezel) entirely in CSS around an existing media child.
+  - **`lightbox`** opens image triggers in an accessible modal viewer (`<dialog>`) with gallery navigation, captions, and scale transitions.
+  - **`video-lightbox`** opens YouTube, Vimeo, or video files in an accessible modal shell with lazy embed resolution and clean audio teardown on close.
+  - **`compare`** stacks two media elements in an interactive before/after slider backed by an accessible native range input.
+  - **`hotspots`** places interactive pins over an image using author-authored `--kui-x`/`--kui-y` properties and opens notes via native `popover`.
+  - **`carousel-fade`** stacks slides in a fade crossfade with auto-generated controls, dot indicators, touch swipe, and an autoplay pause/play button.
+  - **`carousel-slide`** arranges slides in a horizontal sliding strip on the shared step index.
+  - **`video-hero-slideshow`** runs a fade slideshow with 7s autoplay and dot indicators (distinct from the single-video `video-hero` preset).
+  - **`scroll-story`** pairs a sticky media column with scrolling text steps, syncing active step markers and crossfading media as steps scroll.
+  - **`slow-mo`** adds a toggle to scale playback rate on Web Animations and CSS animations/transitions in its subtree to inspect motion.
 
 And three smaller parameter changes, none of which affect a page that doesn't touch them:
 

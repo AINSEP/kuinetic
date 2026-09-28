@@ -1,14 +1,12 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import type { ScrollFrame } from '../../core/scroll-scheduler.js'
-import { createMeasureCache } from '../../core/scroll-scheduler.js'
-import { toPixels } from '../../core/js-params.js'
 import type { EffectParams } from '../../core/types.js'
 import { continuousSetup } from '../../core/instances.js'
 import type { ContinuousSetup } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import type { AttributeLedger } from '../../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam } from '../../core/target.js'
-import { domGeometry, trackProgress } from './tracker.js'
+import { trackProgress } from './tracker.js'
+import { createSectionIndex } from './section-index.js'
 
 /**
  * `scroll-spy`'s two authoring shapes.
@@ -203,49 +201,6 @@ function pairSectionsWithLinks(
   return pairs
 }
 
-/**
- * `offset-top` resolved to pixels for one frame.
- *
- * Not a resolved computed style: there is no single sticky element here whose real `top` a
- * browser has already resolved through `var()`/`calc()` to read back, the way `stickyEl`/
- * `offsetOf` do for `pin`/`media-scrub` in `tracker.ts`. `toPixels` is the same static parser
- * `distance` already goes through in `tracker.ts`'s `resolveDistance`, with the same pre-existing
- * limitation: a literal length (`96px`, `6vh`, `2rem`) resolves; a `var()` reference silently
- * falls back to 0 — not a new gap, the one `distance` already has.
- *
- * @complexity O(n) time in the authored value's length; O(1) space.
- * @overallScore 100
- */
-function offsetTopPixels(authored: string, frame: ScrollFrame): number {
-  return toPixels(
-    authored,
-    {
-      viewportWidth: frame.metrics.viewportWidth,
-      viewportHeight: frame.metrics.viewportHeight,
-      percentBasis: 0,
-      fontSize: 16,
-      rootFontSize: 16,
-    },
-    0,
-  )
-}
-
-/**
- * The highest index whose content-relative top has reached the reference line.
- *
- * `-1` when none has — before the first section, or with no sections at all. Callers rely on this
- * being the *only* thing that decides "active": one number, or none, never more than one.
- *
- * @complexity O(n) time in section count; O(1) space.
- * @overallScore 100
- */
-function highestReachedIndex(tops: number[], scrollTop: number, line: number): number {
-  let index = -1
-  for (let i = 0; i < tops.length; i++) {
-    if (tops[i]! - scrollTop - line <= 0) index = i
-  }
-  return index
-}
 
 /**
  * One instance on the shared ancestor of the nav and the sections, measuring its own sections
@@ -327,39 +282,21 @@ function prepareScrollSpyContainer(
 
   const offsetAuthored = params.text('offset-top', '0px')
 
-  /*
-   * Content-relative tops, cached per resize epoch exactly the way `tracker.ts`'s own `geometry`
-   * cache is: `rect.top` is viewport-relative and changes on every scroll tick, but adding back
-   * the scroll position it was measured under gives a number that only moves when the element
-   * itself moves in the document, which a resize is the only thing this scheduler treats as a
-   * reason to re-measure. Every frame in between is a subtraction, not a layout read — the same
-   * "one measurement per resize, not per frame" property every other primitive in this file holds,
-   * even though there is no exported cache-per-element helper for N sections at once to reuse.
-   */
-  let scrollTop = 0
-  let scrollportTop = 0
-  const contentTops = createMeasureCache(() =>
-    pairs.map(({ section }) => domGeometry(section).top - scrollportTop + scrollTop),
-  )
-
-  let active = -1
   function setActive(index: number, value: boolean): void {
     const pair = pairs[index]!
     sectionLedgers[index]!.set('data-kui-active', String(value))
     if (pair.link) linkLedgers.get(pair.link)!.set('data-kui-active', String(value))
   }
 
-  const untrack = ctx.scheduler.subscribe(ctx.rootFor(el), (frame) => {
-    scrollTop = frame.metrics.scrollTop
-    scrollportTop = frame.metrics.viewportTop
-    const tops = contentTops.read(frame.epoch)
-    const line = offsetTopPixels(offsetAuthored, frame)
-    const next = highestReachedIndex(tops, scrollTop, line)
-
-    if (next === active) return
-    if (active !== -1) setActive(active, false)
-    if (next !== -1) setActive(next, true)
-    active = next
+  const untrack = createSectionIndex({
+    el,
+    sections,
+    ctx,
+    offsetTop: offsetAuthored,
+    onChange: (next, previous) => {
+      if (previous !== -1) setActive(previous, false)
+      if (next !== -1) setActive(next, true)
+    },
   })
 
   // Continuous, for the same reason as the single form above.

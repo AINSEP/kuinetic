@@ -1,0 +1,662 @@
+/*
+ * Showcase widgets — hand-written CSS, `@layer kui.effects`, same layer every other effect
+ * stylesheet uses. Kept out of `src/css/*.css` and `test/support/css-sources.ts`'s SOURCES on
+ * purpose — see `device-frame.ts`'s note on `requiresOwnSubtree` for why, and
+ * `test/showcase-device-frame.test.ts` for how this file is checked instead.
+ *
+ * Comments here stay terse: this ships inside `dist/kuinetic.css`, which `.size-limit.json` caps
+ * unminified, so a long comment here costs the same real brotli bytes a long comment in
+ * `src/css/*.css` would (see D2 in the showcase plan).
+ */
+@layer kui.effects {
+  .kui-slowmo-toggle {
+    display: inline-block;
+    margin-block-end: 0.75rem;
+    padding: 0.4em 0.8em;
+    border: 1px solid currentColor;
+    border-radius: 0.4em;
+    background: Canvas;
+    color: CanvasText;
+    font: inherit;
+    cursor: pointer;
+  }
+  .kui-slowmo-toggle:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* device-frame: keyed on `data-kui-device`, the kind `device-frame.ts` stamps — never on
+     `[data-kui-fx~='device-frame']`, because no shipped browser can branch a rule on a custom
+     property's *value*. */
+  [data-kui-device] {
+    position: relative;
+    display: inline-block;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--kui-device-color, #111) 55%, transparent);
+    border-radius: var(--kui-device-radius, 18px);
+    padding: 14px;
+    background: var(--kui-device-color, #111);
+  }
+
+  [data-kui-device] > img,
+  [data-kui-device] > video {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  /* Browser: a top bar deep enough for three traffic-light dots, drawn as background-images so a
+     screen reader never meets three empty circles. */
+  [data-kui-device='browser'] {
+    padding: 30px 14px 14px;
+    border-radius: var(--kui-device-radius, 10px);
+  }
+
+  [data-kui-device='browser']::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-start: 15px;
+    inline-size: 44px;
+    block-size: 10px;
+    background-image:
+      radial-gradient(circle, #ff5f57 0 45%, transparent 46%),
+      radial-gradient(circle, #febc2e 0 45%, transparent 46%),
+      radial-gradient(circle, #28c840 0 45%, transparent 46%);
+    background-size: 10px 10px;
+    background-position: 0 0, 17px 0, 34px 0;
+    background-repeat: no-repeat;
+  }
+
+  /* Phone: a tall narrow bezel; a notch/dynamic-island cut from the top edge. */
+  [data-kui-device='phone'] {
+    padding: 16px 8px;
+    border-radius: var(--kui-device-radius, 36px);
+    aspect-ratio: 9 / 19.5;
+    max-inline-size: 20rem;
+    margin-inline: auto;
+  }
+
+  [data-kui-device='phone']::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 38%;
+    block-size: 16px;
+    background-image: radial-gradient(circle, #000 0 100%);
+    background-size: 100% 100%;
+    border-radius: 0 0 12px 12px;
+  }
+
+  /* Tablet: the same bezel language, a squarer aspect-ratio, no notch. */
+  [data-kui-device='tablet'] {
+    padding: 18px;
+    border-radius: var(--kui-device-radius, 22px);
+    aspect-ratio: 3 / 4;
+    max-inline-size: 28rem;
+    margin-inline: auto;
+  }
+
+  /* Laptop: a thin screen bezel over a deep base strip standing in for the keyboard deck/hinge. */
+  [data-kui-device='laptop'] {
+    padding: 10px 10px 34px;
+    border-radius: var(--kui-device-radius, 12px) var(--kui-device-radius, 12px) 4px 4px;
+    aspect-ratio: 16 / 10;
+  }
+
+  [data-kui-device='laptop']::after {
+    content: '';
+    position: absolute;
+    inset-block-end: 14px;
+    inset-inline-start: 50%;
+    translate: -50% 0;
+    inline-size: 15%;
+    block-size: 6px;
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--kui-device-color, #111) 55%, #fff) 0 100%
+    );
+    background-size: 100% 100%;
+    border-radius: 3px;
+  }
+
+  /* compare: before/after media slider */
+  [data-kui-fx~='compare'] {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  [data-kui-fx~='compare'] > :is(img, picture, video) {
+    grid-area: 1 / 1;
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+  }
+
+  [data-kui-fx~='compare'] > :is(img, picture, video):nth-child(2 of :is(img, picture, video)) {
+    clip-path: inset(0 0 0 var(--kui-compare, 50%));
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > :is(img, picture, video):nth-child(2 of :is(img, picture, video)) {
+    clip-path: inset(var(--kui-compare, 50%) 0 0 0);
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range {
+    grid-area: 1 / 1;
+    position: relative;
+    z-index: 2;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: ew-resize;
+    /* The range covers the whole image: claim only the drag axis so a phone swipe across it still scrolls. */
+    touch-action: pan-y;
+  }
+
+  /* A real vertical range: vertical-lr + ltr puts 0 at the top, matching inset(var(--kui-compare) 0 0 0). */
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-range {
+    writing-mode: vertical-lr;
+    direction: ltr;
+    cursor: ns-resize;
+    touch-action: pan-x;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle {
+    grid-area: 1 / 1;
+    position: relative;
+    z-index: 1;
+    inline-size: 100%;
+    block-size: 100%;
+    pointer-events: none;
+    translate: calc(var(--kui-compare, 50%) - 100%) 0;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle {
+    translate: 0 calc(var(--kui-compare, 50%) - 100%);
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: 2px;
+    background: #fff;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    border-inline-start: 2px solid CanvasText;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle::after {
+    inset-block: auto 0;
+    inset-inline: 0;
+    inline-size: 100%;
+    block-size: 2px;
+    border-inline-start: none;
+    border-block-start: 2px solid CanvasText;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-handle::before {
+    content: '';
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-end: -14px;
+    translate: 0 -50%;
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-handle::before {
+    inset-block-start: auto;
+    inset-block-end: -14px;
+    inset-inline-start: 50%;
+    inset-inline-end: auto;
+    translate: -50% 0;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range:focus-visible + .kui-compare-handle {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-range:focus-visible + .kui-compare-handle::before {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* hotspots: image markers + popover notes */
+  [data-kui-fx~='hotspots'] {
+    position: relative;
+    display: inline-block;
+  }
+
+  [data-kui-fx~='hotspots'] > img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  [data-kui-fx~='hotspots'] > :is(ol, ul) {
+    margin: 0;
+    padding: 0;
+    block-size: 0;
+  }
+
+  [data-kui-fx~='hotspots'] .kui-hotspot {
+    position: absolute;
+    left: var(--kui-x);
+    top: var(--kui-y);
+    translate: -50% -50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--kui-hotspot-color, #111);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    touch-action: manipulation;
+    user-select: none;
+    inline-size: 24px;
+    block-size: 24px;
+  }
+
+  [data-kui-fx~='hotspots'][data-kui-hotspot-marker='dot'] .kui-hotspot {
+    inline-size: 14px;
+    block-size: 14px;
+  }
+
+  [data-kui-fx~='hotspots'] .kui-hotspot:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  [data-kui-fx~='hotspots'] [popover] {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    max-inline-size: min(18rem, calc(100vw - 16px));
+    max-block-size: calc(100vh - 16px);
+    overflow: auto;
+    overflow-wrap: anywhere;
+    transition: opacity 150ms ease, translate 150ms ease, display 150ms allow-discrete, overlay 150ms allow-discrete;
+    opacity: 0;
+    translate: 0 4px;
+  }
+
+  [data-kui-fx~='hotspots'] [popover]:popover-open {
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  /* slideshow */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] {
+    display: grid;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state] {
+    grid-area: 1 / 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] {
+    display: flex;
+    translate: calc(var(--kui-step, 0) * -100%) 0;
+    transition: translate var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] > [data-kui-step-state] {
+    flex: 0 0 100%;
+    min-inline-size: 0;
+  }
+
+  [data-kui-fx~='carousel-fade'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  [data-kui-fx~='carousel-slide'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  [data-kui-fx~='video-hero-slideshow'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+    display: inline-grid;
+    place-items: center;
+    min-inline-size: 2.75rem;
+    min-block-size: 2.75rem;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: Canvas;
+    color: CanvasText;
+    cursor: pointer;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Previous slide']::before { content: '←'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Next slide']::before { content: '→'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Pause slideshow']::before { content: 'Ⅱ'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Play slideshow']::before { content: '▶'; }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot {
+    min-inline-size: 1rem;
+    min-block-size: 1rem;
+    padding: 0;
+    border-width: 2px;
+    background: transparent;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+    background: currentColor;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* scroll-story */
+  [data-kui-fx~='scroll-story'] {
+    position: relative;
+    box-sizing: border-box;
+  }
+  [data-kui-fx~='scroll-story'] > :first-child {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    display: grid;
+    block-size: 45svh;
+    overflow: hidden;
+  }
+  [data-kui-fx~='scroll-story'] > :first-child [data-kui-step-state] {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 300ms ease;
+  }
+  [data-kui-fx~='scroll-story'] > :first-child [data-kui-step-state='active'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  [data-kui-fx~='scroll-story'] > :last-child {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] {
+    min-block-size: 60vh;
+    box-sizing: border-box;
+    opacity: var(--kui-story-dim, 0.45);
+    transition: opacity 300ms ease;
+    background: Canvas;
+  }
+  [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state='active'] {
+    opacity: 1;
+  }
+  @media (min-width: 48rem) {
+    [data-kui-fx~='scroll-story'] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(1.5rem, 3vw, 4rem);
+      align-items: start;
+    }
+    /* A percentage in a sticky box's inset resolves against the scrollport, not the box, so
+       calc(50vh - 50%) is 0 and pins to the top. Instead the column is a full-height sticky pane
+       that centres its one grid cell, and the media are stacked in that cell. */
+    [data-kui-fx~='scroll-story'] > :first-child {
+      inset-block-start: 0;
+      block-size: 100vh;
+      block-size: 100svh;
+      align-content: center;
+    }
+    [data-kui-fx~='scroll-story'] > :first-child > [data-kui-step-state] {
+      position: relative;
+      inset: auto;
+      grid-area: 1 / 1;
+      block-size: auto;
+      aspect-ratio: 16 / 10;
+    }
+    [data-kui-fx~='scroll-story']:not([data-kui-story-side='start']) > :first-child {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    [data-kui-fx~='scroll-story']:not([data-kui-story-side='start']) > :last-child {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    [data-kui-fx~='scroll-story'][data-kui-story-side='start'] > :first-child {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    [data-kui-fx~='scroll-story'][data-kui-story-side='start'] > :last-child {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] {
+      background: transparent;
+    }
+  }
+  [data-kui-fx~='scroll-story']:not([data-kui-step]) {
+    display: block;
+  }
+  [data-kui-fx~='scroll-story']:not([data-kui-step]) > :first-child {
+    position: static;
+    display: block;
+    block-size: auto;
+    overflow: visible;
+    aspect-ratio: auto;
+  }
+  [data-kui-fx~='scroll-story']:not([data-kui-step]) > :first-child * {
+    position: static;
+    inset: auto;
+    grid-area: auto;
+    inline-size: auto;
+    block-size: auto;
+    aspect-ratio: auto;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  [data-kui-fx~='scroll-story']:not([data-kui-step]) > :last-child * {
+    min-block-size: 0;
+    opacity: 1;
+  }
+
+  @starting-style {
+    [data-kui-fx~='hotspots'] [popover]:popover-open {
+      opacity: 0;
+      translate: 0 4px;
+    }
+  }
+
+  /* §12a: the bezel is structural (border, remapped by the UA); the dots/notch are decoration. */
+  @media (forced-colors: active) {
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+      border-color: CanvasText;
+      color: CanvasText;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+      background: Highlight;
+    }
+
+    [data-kui-device] {
+      border-color: CanvasText;
+      background: Canvas;
+    }
+
+    [data-kui-device='browser']::before,
+    [data-kui-device='phone']::after,
+    [data-kui-device='laptop']::after {
+      background-image: none;
+    }
+
+    [data-kui-fx~='compare'] > .kui-compare-handle::before {
+      border: 2px solid CanvasText;
+      background: Canvas;
+    }
+
+    [data-kui-fx~='hotspots'] .kui-hotspot {
+      border-color: CanvasText;
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    [data-kui-fx~='hotspots'] [popover] {
+      border-color: CanvasText;
+      background: Canvas;
+      color: CanvasText;
+    }
+  }
+
+  /* Closed dialogs must stay display:none: a transparent fixed panel otherwise eats page input. */
+  dialog.kui-lightbox { display: none; }
+  dialog.kui-lightbox[open] {
+    position: fixed;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    max-inline-size: none;
+    max-block-size: none;
+    box-sizing: border-box;
+    margin: 0;
+    border: 0;
+    padding: clamp(1rem, 4vw, 3rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    background: rgb(8 9 10 / 0.58);
+    opacity: 0;
+    transition: opacity var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  /* The blur lives on ::backdrop, never on the dialog: backdrop-filter (like transform, scale and
+     translate) makes a box the containing block for position:fixed descendants, and the dialog
+     scrolls, so the close/prev/next buttons would scroll away with a tall image. */
+  dialog.kui-lightbox::backdrop {
+    background: transparent;
+    -webkit-backdrop-filter: blur(7px);
+    backdrop-filter: blur(7px);
+    opacity: 0;
+    transition: opacity var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  dialog.kui-lightbox[open].is-open { opacity: 1; }
+  dialog.kui-lightbox[open].is-open::backdrop { opacity: 1; }
+  .kui-lightbox-slot { display: contents; }
+  .kui-lightbox-gallery,
+  .kui-lightbox-frame {
+    opacity: 0;
+    scale: var(--kui-from-scale, 0.965);
+    translate: 0 8px;
+    transition:
+      opacity var(--kui-lightbox-duration, 280ms) ease,
+      scale var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease),
+      translate var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  /* Settle on `none`, not `1` / `0 0`: any other value keeps the gallery the containing block of its
+     fixed prev/next buttons. */
+  .kui-lightbox.is-open .kui-lightbox-gallery,
+  .kui-lightbox.is-open .kui-lightbox-frame { opacity: 1; scale: none; translate: none; }
+  .kui-lightbox-gallery { display: grid; place-items: center; gap: 0.75rem; }
+  .kui-lightbox-gallery figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+  .kui-lightbox-gallery img { display: block; border-radius: 10px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #0b0c0d; }
+  .kui-lightbox-gallery img.is-fit { max-inline-size: min(100%, 1400px); max-block-size: 86dvh; inline-size: auto; block-size: auto; }
+  .kui-lightbox-gallery img.is-tall { inline-size: min(100%, 760px); block-size: auto; }
+  .kui-lightbox-gallery figcaption { max-inline-size: 60ch; text-align: center; font-size: 0.85rem; line-height: 1.5; color: rgb(255 255 255 / 0.72); }
+  .kui-lightbox-close,
+  .kui-lightbox-prev,
+  .kui-lightbox-next {
+    border: 1px solid rgb(255 255 255 / 0.45);
+    border-radius: 50%;
+    color: #fff;
+    background: rgb(8 9 10 / 0.7);
+    cursor: pointer;
+  }
+  .kui-lightbox-close { position: fixed; inset-block-start: clamp(0.75rem, 2vw, 1.25rem); inset-inline-end: clamp(0.75rem, 2vw, 1.25rem); z-index: 1; inline-size: 40px; block-size: 40px; font-size: 1.5rem; }
+  .kui-lightbox-prev,
+  .kui-lightbox-next { position: fixed; inset-block-start: 50%; inline-size: 40px; block-size: 40px; font-size: 2rem; }
+  .kui-lightbox-prev { inset-inline-start: 0.75rem; }
+  .kui-lightbox-next { inset-inline-end: 0.75rem; }
+  .kui-lightbox-counter { font-size: 0.85rem; color: rgb(255 255 255 / 0.8); }
+  .kui-lightbox button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  .kui-lightbox-frame { inline-size: min(92vw, 1100px); aspect-ratio: 16 / 9; border-radius: 12px; overflow: clip; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #000; }
+  .kui-lightbox-frame--tall { inline-size: min(80vw, 420px); aspect-ratio: 9 / 16; }
+  .kui-lightbox-frame--square { inline-size: min(80vw, 720px); aspect-ratio: 1; }
+  .kui-lightbox-frame iframe,
+  .kui-lightbox-frame video { display: block; inline-size: 100%; block-size: 100%; border: 0; }
+  @media (prefers-reduced-motion: reduce) {
+    dialog.kui-lightbox,
+    .kui-lightbox-gallery,
+    .kui-lightbox-frame { transition-duration: 1ms; }
+    .kui-lightbox-gallery,
+    .kui-lightbox-frame { scale: none; translate: none; }
+    [data-kui-fx~='scroll-story'] > :first-child [data-kui-step-state],
+    [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] { transition-duration: 1ms; }
+  }
+  @media (forced-colors: active) {
+    dialog.kui-lightbox { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+    dialog.kui-lightbox::backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .kui-lightbox-close,
+    .kui-lightbox-prev,
+    .kui-lightbox-next { border-color: CanvasText; color: CanvasText; background: Canvas; }
+    .kui-lightbox-frame { border: 1px solid CanvasText; }
+    [data-kui-fx~='scroll-story'] > :first-child,
+    [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] { border: 1px solid CanvasText; }
+  }
+}

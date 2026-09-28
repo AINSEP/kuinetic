@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-292 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+302 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -896,6 +896,9 @@ hero.progress // 0..1, the least-advanced element in the selection
 hero.state    // 'idle' | 'running' | 'paused' | 'finished'
 ```
 
+To slow a whole section with a button, wrap it in `data-kui="slow-mo rate:0.25"`.
+Use `controls:none` to start slowed without a button; see [slow-mo](?doc=catalog#t-showcase--10-names).
+
 Progress spans the element's **whole** timeline — from the instant the activation fired to the end
 of its last composed effect, authored delays included. So for
 `data-kui="fade-up 600ms, blur-in 400ms delay:600ms"`, `seek(0.5)` lands at 500 ms, halfway through
@@ -1014,6 +1017,134 @@ everywhere (`forms.css:214-218`, `:279-282`).
 
 ---
 
+## Presentation components (showcase)
+
+The showcase module (`src/showcase/`) provides pre-built presentation widgets for common marketing and portfolio patterns — dialogs, carousels, before/after comparisons, image hotspots, and device frames. Unlike animation-only primitives that leave DOM state to the author, showcase components manage accessible widget behavior, ARIA roles, and keyboard interactions directly.
+
+### Lightbox (`lightbox`)
+
+Wraps image thumbnails or links and opens an accessible modal viewer (`<dialog>`) with gallery navigation, image captions, and Esc/arrow key support:
+
+```html
+<div data-kui="lightbox">
+  <a href="full-1.jpg"><img src="thumb-1.jpg" alt="Dashboard overview"></a>
+  <figure>
+    <a href="full-2.jpg"><img src="thumb-2.jpg" alt="Settings panel"></a>
+    <figcaption>Settings panel</figcaption>
+  </figure>
+</div>
+```
+
+**Params:** `target:` selects image links or bare images (the default searches links and images inside the host), `scope:` (`self` default, or `page`), `scale:` (default `0.965`), `duration:` (default `280ms`), `ease:` (default `cubic-bezier(0.22, 1, 0.36, 1)`), `loop:` (`true` default, or `false`).
+
+### Video lightbox (`video-lightbox`)
+
+Opens YouTube, Vimeo, or direct video files in an accessible modal shell, resolving embeds lazily and tearing down audio playback immediately on close:
+
+```html
+<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-kui="video-lightbox" title="Product walkthrough">
+  <img src="poster.jpg" alt="Product walkthrough (2:14)">
+</a>
+```
+
+**Params:** `target:` selects links (the default searches links inside the host), `scope:` (`self` default, or `page`), `aspect:` (`wide`, `tall`, or `square`; otherwise the video source determines it), `scale:` (default `0.965`), `duration:` (default `280ms`), `ease:` (default `cubic-bezier(0.22, 1, 0.36, 1)`).
+
+### Before/after comparison (`compare`)
+
+Stacks two media children and adds an accessible range slider that adjusts `--kui-compare` to clip the after image:
+
+```html
+<figure data-kui="compare position:50%">
+  <img src="before.jpg" alt="Before: raw render">
+  <img src="after.jpg" alt="After: graded output">
+  <figcaption>Colour grading</figcaption>
+</figure>
+```
+
+**Params:** `position:` initial divider position (default `50%`), `axis:` (`x` default, or `y`).
+
+### Accessible carousel (`carousel-fade`)
+
+Stacks slides in a fade crossfade with auto-generated prev/next buttons, dot indicators, touch swipe, and an autoplay pause/play button:
+
+```html
+<section data-kui="carousel-fade autoplay:6s" aria-label="Customer stories">
+  <ul>
+    <li><img src="story-1.jpg" alt="Case study 1"><p>Fintech scaling story</p></li>
+    <li><img src="story-2.jpg" alt="Case study 2"><p>Retail migration story</p></li>
+  </ul>
+</section>
+```
+
+**Params:** `target:` selects slides (default `:scope > :is(ul, ol) > li`), `controls:` (`auto` default, or `dots`/`arrows`/`none`), `autoplay:` (off by default; minimum `2s` when set), `swipe:` (`true` default, or `false`), `next:`, `prev:`, `jump:` for authored navigation, `mute:` selector for a button controlling the active slide's video, `duration:` (default `500ms`), `ease:` (default `ease`). Authored navigation or `controls:none` disables autoplay so it cannot run without a pause button. Also available with horizontal sliding via `carousel-slide`, or seven-second autoplay and dots via `video-hero-slideshow`.
+
+### Sticky scrollytelling (`scroll-story`)
+
+Pairs a sticky media column with scrolling text step cards, switching active steps and media crossfades as steps reach the viewport reference line:
+
+```html
+<section data-kui="scroll-story side:end" aria-label="How it works">
+  <div>
+    <img src="step-1.png" alt="Step 1: connect">
+    <img src="step-2.png" alt="Step 2: configure">
+  </div>
+  <ol>
+    <li><h3>Connect</h3><p>Link your account in seconds.</p></li>
+    <li><h3>Configure</h3><p>Set rules and alert thresholds.</p></li>
+  </ol>
+</section>
+```
+
+**Params:** `target:` media group (default `:scope > :first-child > *`), `sections:` step text group (default `:scope > :last-child > *`), `offset-top:` trigger line (default `50vh`), `side:` media column placement (`end` default, or `start`).
+
+### Image hotspots (`hotspots`)
+
+Places interactive pin buttons over an image using author-provided coordinates (`--kui-x` and `--kui-y`), opening notes via native popovers with CSS anchor positioning where supported and a JavaScript positioning fallback elsewhere:
+
+```html
+<figure data-kui="hotspots marker:number">
+  <img src="dashboard.png" alt="Analytics dashboard">
+  <ol>
+    <li style="--kui-x: 32%; --kui-y: 48%"><strong>Filters</strong> Update without page reload.</li>
+    <li style="--kui-x: 71%; --kui-y: 20%"><strong>Export</strong> CSV or PNG in one click.</li>
+  </ol>
+</figure>
+```
+
+**Params:** `marker:` marker appearance (`number` default, or `dot`), `target:` note list items (default `:scope > :is(ol, ul) > li`).
+
+### Device frame (`device-frame`)
+
+Draws device chrome — a browser top bar with decorative dots, phone notch, tablet or laptop bezel — entirely in CSS around existing media:
+
+```html
+<div data-kui="device-frame kind:phone color:#2a2a2a">
+  <img src="app.png" alt="Mobile app home screen">
+</div>
+```
+
+**Params:** `kind:` chrome style (`browser` default, or `phone`/`tablet`/`laptop`), `color:` bezel colour (default `#111`), `radius:` corner radius override.
+
+### Slow motion (`slow-mo`)
+
+Adds a button to slow all Web Animations, CSS animations, and transitions in its subtree to quarter speed (or an authored rate) for animation inspection:
+
+```html
+<div data-kui="slow-mo rate:0.25">
+  <div data-kui="fade-up 600ms on:enter">
+    Slow motion preview
+  </div>
+</div>
+```
+
+**Params:** `rate:` speed multiplier (default `0.25`, range `0.05`–`1`), `controls:` (`button` default, or `none` to start slowed without a button).
+
+### Showcase no-JS behaviour
+
+Without JavaScript, these examples retain their authored HTML. Linked lightbox images open their full-size files, and video-lightbox links navigate to the provider or video file; a bare lightbox image remains an image. Compare shows its two media elements in document order without a slider. Carousels remain visible lists of slides, and scroll-story shows its media followed by the step list. Hotspot notes stay in their numbered list below the image. Device-frame shows its media without chrome, and slow-mo leaves its content as authored without a toggle. The showcase styles that hide or clip active widget content require attributes stamped by JavaScript, so they do not hide content when scripts are disabled.
+
+---
+
 ## Common mistakes
 
 - **Mixing up `on:` and `timeline:`.** `on:enter` plays once and stays finished. `timeline: view()`
@@ -1036,7 +1167,7 @@ everywhere (`forms.css:214-218`, `:279-282`).
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 292 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 302 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.

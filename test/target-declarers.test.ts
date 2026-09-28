@@ -38,26 +38,27 @@ function allPrimitives(registry: Registry) {
   return byId
 }
 
-// Verified 2026-09-27 against HEAD by grepping `'--kui-target'` directly (9 hits, excluding the
-// `__tests__` assertion in `src/advanced/__tests__/audio.test.ts`) and cross-checking each site's
-// primitive id. This is the same 9 the original `target-everywhere-plan.md` research pass found
-// ("9, not 8" — the `liftTarget` docstring at `compile.ts:697-700` is stale and still lists only
-// 8, missing `model-3d`; that staleness is bug #7 in the plan, left for reconcile/docs, NOT fixed
-// here — this test only asserts against the registry, not the docstring).
+// The original target:-everywhere plan found nine declarers. Showcase adds `lightbox` (media
+// triggers), `hotspots` (notes), `slideshow` (slides), and `scroll-story` (media). All consume
+// `target:` in their own prepare path, so the compiler must leave that parameter on the host.
 const EXPECTED_TARGET_DECLARERS = [
   'audio-source',
   'horizontal-track',
+  'hotspots',
+  'lightbox',
   'media-scrub',
   'model-3d',
   'scroll-progress',
   'scroll-snap',
   'scroll-spy',
+  'scroll-story',
+  'slideshow',
   'spatial-ring',
   'step-progress',
 ].sort((a, b) => a.localeCompare(b))
 
 describe('target:-everywhere — primitives that declare target: themselves (5a)', () => {
-  it('is exactly the 9 primitives the plan found, built from the full registry', () => {
+  it('is exactly the 13 target-declaring primitives in the full registry', () => {
     const byId = allPrimitives(fullRegistry())
     const declarers = [...byId.values()]
       .filter((resolved) => Object.hasOwn(resolved!.primitive.parameters, 'target'))
