@@ -58,6 +58,64 @@ export function readBalancedBlock(source: string, start: number): string {
 }
 
 /**
+ * The bodies of every at-rule block opened by exactly `prelude` (e.g. `@media (forced-colors: active)`).
+ *
+ * Returns *all* of them, in source order: a stylesheet can open the same `@media` query more than
+ * once, and a helper that only reads the first (or last) one lets an assertion pass against the
+ * wrong block. An empty array means the query is absent — callers should assert on its length.
+ *
+ * @complexity O(n) in the stylesheet length; O(n) space for the returned bodies.
+ * @overallScore 100
+ */
+export function atRuleBlocks(css: string, prelude: string): string[] {
+  const source = stripComments(css)
+  const opener = `${prelude} {`
+  const blocks: string[] = []
+  for (let at = source.indexOf(opener); at >= 0; at = source.indexOf(opener, at + opener.length)) {
+    blocks.push(readBalancedBlock(source, at + opener.length))
+  }
+  return blocks
+}
+
+/**
+ * The declaration bodies of every innermost style rule whose selector list names `selector` exactly.
+ *
+ * Selector lists are split on a comma followed by a newline (the house style for multi-selector
+ * rules), so a comma inside `:is(a, b)` on one line never splits a selector. Scoping an assertion to
+ * a rule body is the point: an unscoped `toContain` over a whole stylesheet passes as soon as the
+ * text appears *anywhere*, including in an unrelated component's rule.
+ *
+ * @complexity O(n) in the stylesheet length; O(n) space for the returned bodies.
+ * @overallScore 100
+ */
+export function ruleBodies(css: string, selector: string): string[] {
+  const source = stripComments(css)
+  const bodies: string[] = []
+  let preludeStart = 0
+  let prelude = ''
+  let open = -1
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]
+    if (ch === '{') {
+      prelude = source.slice(preludeStart, i)
+      open = i
+    } else if (ch === '}') {
+      // Only an innermost block (no `{` since the last one) is a style rule's declaration body.
+      if (open >= 0 && namesSelector(prelude, selector)) bodies.push(source.slice(open + 1, i))
+      open = -1
+    } else if (ch !== ';' || open >= 0) {
+      continue
+    }
+    preludeStart = i + 1
+  }
+  return bodies
+}
+
+function namesSelector(prelude: string, selector: string): boolean {
+  return prelude.split(',\n').map((part) => part.trim()).includes(selector)
+}
+
+/**
  * Declared CSS property names inside a block body, however the declarations are laid out.
  *
  * Anchored to "right after the block's own opening brace, or after `{`/`;`" rather than to

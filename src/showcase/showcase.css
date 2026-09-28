@@ -160,11 +160,16 @@
     padding: 0;
     opacity: 0;
     cursor: ew-resize;
-    touch-action: none;
+    /* The range covers the whole image: claim only the drag axis so a phone swipe across it still scrolls. */
+    touch-action: pan-y;
   }
 
+  /* A real vertical range: vertical-lr + ltr puts 0 at the top, matching inset(var(--kui-compare) 0 0 0). */
   [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-range {
+    writing-mode: vertical-lr;
+    direction: ltr;
     cursor: ns-resize;
+    touch-action: pan-x;
   }
 
   [data-kui-fx~='compare'] > .kui-compare-handle {
@@ -451,8 +456,19 @@
       gap: clamp(1.5rem, 3vw, 4rem);
       align-items: start;
     }
+    /* A percentage in a sticky box's inset resolves against the scrollport, not the box, so
+       calc(50vh - 50%) is 0 and pins to the top. Instead the column is a full-height sticky pane
+       that centres its one grid cell, and the media are stacked in that cell. */
     [data-kui-fx~='scroll-story'] > :first-child {
-      inset-block-start: max(0px, calc(50vh - 50%));
+      inset-block-start: 0;
+      block-size: 100vh;
+      block-size: 100svh;
+      align-content: center;
+    }
+    [data-kui-fx~='scroll-story'] > :first-child > [data-kui-step-state] {
+      position: relative;
+      inset: auto;
+      grid-area: 1 / 1;
       block-size: auto;
       aspect-ratio: 16 / 10;
     }
@@ -492,6 +508,7 @@
     grid-area: auto;
     inline-size: auto;
     block-size: auto;
+    aspect-ratio: auto;
     opacity: 1;
     pointer-events: auto;
   }
@@ -566,13 +583,21 @@
     place-items: center;
     color: #fff;
     background: rgb(8 9 10 / 0.58);
+    opacity: 0;
+    transition: opacity var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
+  }
+  /* The blur lives on ::backdrop, never on the dialog: backdrop-filter (like transform, scale and
+     translate) makes a box the containing block for position:fixed descendants, and the dialog
+     scrolls, so the close/prev/next buttons would scroll away with a tall image. */
+  dialog.kui-lightbox::backdrop {
+    background: transparent;
     -webkit-backdrop-filter: blur(7px);
     backdrop-filter: blur(7px);
     opacity: 0;
     transition: opacity var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
   }
-  dialog.kui-lightbox::backdrop { background: transparent; }
   dialog.kui-lightbox[open].is-open { opacity: 1; }
+  dialog.kui-lightbox[open].is-open::backdrop { opacity: 1; }
   .kui-lightbox-slot { display: contents; }
   .kui-lightbox-gallery,
   .kui-lightbox-frame {
@@ -584,8 +609,10 @@
       scale var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease),
       translate var(--kui-lightbox-duration, 280ms) var(--kui-lightbox-ease, ease);
   }
+  /* Settle on `none`, not `1` / `0 0`: any other value keeps the gallery the containing block of its
+     fixed prev/next buttons. */
   .kui-lightbox.is-open .kui-lightbox-gallery,
-  .kui-lightbox.is-open .kui-lightbox-frame { opacity: 1; scale: 1; translate: 0 0; }
+  .kui-lightbox.is-open .kui-lightbox-frame { opacity: 1; scale: none; translate: none; }
   .kui-lightbox-gallery { display: grid; place-items: center; gap: 0.75rem; }
   .kui-lightbox-gallery figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
   .kui-lightbox-gallery img { display: block; border-radius: 10px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #0b0c0d; }
@@ -618,12 +645,13 @@
     .kui-lightbox-gallery,
     .kui-lightbox-frame { transition-duration: 1ms; }
     .kui-lightbox-gallery,
-    .kui-lightbox-frame { scale: 1; translate: 0 0; }
+    .kui-lightbox-frame { scale: none; translate: none; }
     [data-kui-fx~='scroll-story'] > :first-child [data-kui-step-state],
     [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] { transition-duration: 1ms; }
   }
   @media (forced-colors: active) {
-    dialog.kui-lightbox { border: 1px solid CanvasText; background: Canvas; color: CanvasText; backdrop-filter: none; }
+    dialog.kui-lightbox { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+    dialog.kui-lightbox::backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
     .kui-lightbox-close,
     .kui-lightbox-prev,
     .kui-lightbox-next { border-color: CanvasText; color: CanvasText; background: Canvas; }

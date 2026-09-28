@@ -186,18 +186,21 @@ describe('scroll-story primitive', () => {
     animator.start()
     scheduler.emit(0)
 
+    // play/pause are one prototype spy each, so `v0.play` IS `v1.play`: assert on the receiver
+    // (`mock.contexts`), or swapping the active and inactive video would still pass.
     const v0 = sec('v0') as HTMLVideoElement
     const v1 = sec('v1') as HTMLVideoElement
-    expect(v0.play).toHaveBeenCalled()
-    expect(v1.pause).toHaveBeenCalled()
+    const v2 = sec('v2') as HTMLVideoElement
+    expect(playSpy.mock.contexts).toEqual([v0])
+    expect(pauseSpy.mock.contexts).toEqual([v1, v2])
 
     playSpy.mockClear()
     pauseSpy.mockClear()
 
     // Advance to step 1: v1 has autoplay so it plays; v0 pauses.
     scheduler.emit(300)
-    expect(v1.play).toHaveBeenCalled()
-    expect(v0.pause).toHaveBeenCalled()
+    expect(playSpy.mock.contexts).toEqual([v1])
+    expect(pauseSpy.mock.contexts).toEqual([v0, v2])
 
     playSpy.mockClear()
     pauseSpy.mockClear()
@@ -205,7 +208,84 @@ describe('scroll-story primitive', () => {
     // Advance to step 2: v2 has neither autoplay nor loop, so it does not play.
     scheduler.emit(700)
     expect(playSpy).not.toHaveBeenCalled()
-    expect(v1.pause).toHaveBeenCalled()
+    expect(pauseSpy.mock.contexts).toEqual([v0, v1])
+  })
+
+  it('pauses the active video while the story is off screen and resumes it on return', () => {
+    const observers: Array<{ fire(inView: boolean): void; target?: Element; disconnected: boolean }> = []
+    class FakeIntersectionObserver {
+      target?: Element
+      disconnected = false
+      constructor(private readonly callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        observers.push(this)
+      }
+      observe(target: Element): void { this.target = target }
+      disconnect(): void { this.disconnected = true }
+      fire(inView: boolean): void { this.callback([{ isIntersecting: inView }]) }
+    }
+    const host = window as Window & { IntersectionObserver?: unknown }
+    const original = host.IntersectionObserver
+    host.IntersectionObserver = FakeIntersectionObserver
+    try {
+      const playSpy = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+      const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+      const animator = build(`
+        <section id="story-io" data-kui="scroll-story">
+          <div><video id="v0" loop></video><video id="v1" autoplay></video></div>
+          <ol><li id="s0">0</li><li id="s1">1</li></ol>
+        </section>`)
+      stubRect(sec('s0'), 200, 300)
+      stubRect(sec('s1'), 600, 300)
+      animator.start()
+      scheduler.emit(0)
+      const [observer] = observers
+      expect(observer?.target).toBe(sec('story-io'))
+      // The observer has not reported visibility yet; an initially offscreen story must not play.
+      expect(playSpy).not.toHaveBeenCalled()
+
+      observer!.fire(true)
+      expect(playSpy.mock.contexts).toEqual([sec('v0')])
+
+      playSpy.mockClear()
+      pauseSpy.mockClear()
+      observer!.fire(false)
+      expect(playSpy).not.toHaveBeenCalled()
+      expect(pauseSpy.mock.contexts).toContain(sec('v0'))
+
+      // A step change while off screen still plays nothing.
+      scheduler.emit(300)
+      expect(playSpy).not.toHaveBeenCalled()
+
+      observer!.fire(true)
+      expect(playSpy.mock.contexts).toEqual([sec('v1')])
+      animator.destroy()
+      expect(observer!.disconnected).toBe(true)
+    } finally {
+      host.IntersectionObserver = original
+    }
+  })
+
+  it('hands back each video’s pre-activation play state on teardown', () => {
+    const playSpy = vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+    const pauseSpy = vi.spyOn(window.HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const animator = build(`
+      <section id="story-prior" data-kui="scroll-story">
+        <div><video id="v0"></video><video id="v1"></video></div>
+        <ol><li id="s0">0</li><li id="s1">1</li></ol>
+      </section>`)
+    // The author had v1 playing (an inactive step) and v0 paused.
+    Object.defineProperty(sec('v1'), 'paused', { configurable: true, get: () => false })
+    stubRect(sec('s0'), 200, 300)
+    stubRect(sec('s1'), 600, 300)
+    animator.start()
+    scheduler.emit(0)
+    expect(pauseSpy.mock.contexts).toContain(sec('v1'))
+
+    playSpy.mockClear()
+    pauseSpy.mockClear()
+    animator.destroy()
+    expect(playSpy.mock.contexts).toEqual([sec('v1')])
+    expect(pauseSpy.mock.contexts).toEqual([sec('v0')])
   })
 
   it('finds and controls nested videos inside media containers', () => {
@@ -231,15 +311,16 @@ describe('scroll-story primitive', () => {
     scheduler.emit(0)
 
     const nv0 = sec('nv0') as HTMLVideoElement
-    expect(nv0.play).toHaveBeenCalled()
+    const nv1 = sec('nv1') as HTMLVideoElement
+    expect(playSpy.mock.contexts).toEqual([nv0])
+    expect(pauseSpy.mock.contexts).toEqual([nv1])
 
     playSpy.mockClear()
     pauseSpy.mockClear()
 
     scheduler.emit(300)
-    const nv1 = sec('nv1') as HTMLVideoElement
-    expect(nv1.play).toHaveBeenCalled()
-    expect(nv0.pause).toHaveBeenCalled()
+    expect(playSpy.mock.contexts).toEqual([nv1])
+    expect(pauseSpy.mock.contexts).toEqual([nv0])
   })
 
   it('supports authored target, sections, and offset-top parameters', () => {

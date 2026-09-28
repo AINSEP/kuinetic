@@ -7,6 +7,7 @@ import { createActivationBinder } from '../src/core/activation.js'
 import { Animator } from '../src/core/animator.js'
 import { defaultCapabilities } from '../src/core/capabilities.js'
 import { collectingReporter } from '../src/core/reporter.js'
+import { atRuleBlocks, ruleBodies } from './support/css-scan.js'
 import { build, fakeRoot, idleScheduler } from './support/js-effect-harness.js'
 import { catalogRegistry } from './support/registry.js'
 
@@ -148,6 +149,45 @@ describe('lightbox', () => {
     expect(document.querySelectorAll('dialog')).toHaveLength(0)
   })
 
+  it('keeps focus on a Prev/Next button it activates, and moves it to the figure only for keys', () => {
+    start('<div data-kui="lightbox"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a><a href="/c.jpg"><img src="/c.png" alt="C"></a></div>')
+    click(document.querySelector('a')!)
+    const next = dialog().querySelector('.kui-lightbox-next') as HTMLButtonElement
+    const figure = dialog().querySelector('figure') as HTMLElement
+    next.focus()
+    next.click()
+    expect(dialog().querySelector('img')?.alt).toBe('B')
+    expect(document.activeElement).toBe(next)
+    const previous = dialog().querySelector('.kui-lightbox-prev') as HTMLButtonElement
+    previous.focus()
+    previous.click()
+    expect(dialog().querySelector('img')?.alt).toBe('A')
+    expect(document.activeElement).toBe(previous)
+    dialog().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(document.activeElement).toBe(figure)
+  })
+
+  it('moves focus to the figure when a click disables the button at a loop:false end', () => {
+    start('<div data-kui="lightbox loop:false"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
+    click(document.querySelector('a')!)
+    const next = dialog().querySelector('.kui-lightbox-next') as HTMLButtonElement
+    next.focus()
+    next.click()
+    expect(next.disabled).toBe(true)
+    expect(document.activeElement).toBe(dialog().querySelector('figure'))
+  })
+
+  it('does not steal focus from another control for a programmatic gallery click', () => {
+    start('<div data-kui="lightbox loop:false"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
+    click(document.querySelector('a')!)
+    const close = dialog().querySelector('.kui-lightbox-close') as HTMLButtonElement
+    const next = dialog().querySelector('.kui-lightbox-next') as HTMLButtonElement
+    close.focus()
+    next.click()
+    expect(next.disabled).toBe(true)
+    expect(document.activeElement).toBe(close)
+  })
+
   it('holds the gallery at the ends when loop:false', () => {
     start('<div data-kui="lightbox loop:false"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
     click(document.querySelector('a')!)
@@ -247,21 +287,54 @@ describe('lightbox', () => {
   it('keeps the shared dialog until the last instance tears down', () => {
     const animator = start('<div><a data-kui="lightbox" href="/a.jpg"><img src="/a.png" alt="A"></a><a data-kui="lightbox" href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
     const links = document.querySelectorAll('a')
-    click(links[0]!)
+    // One instance tearing down must not close the viewer the other one has open.
+    click(links[1]!)
     const shared = dialog()
+    animator.reset(links[0]!)
+    expect(dialog()).toBe(shared)
+    expect(shared.open).toBe(true)
+    click(links[0]!)
+    expect(dialog()).toBe(shared)
     animator.reset(links[0]!)
     expect(dialog()).toBe(shared)
     click(links[1]!)
     expect(dialog()).toBe(shared)
+    expect(shared.open).toBe(true)
     animator.destroy()
     expect(document.querySelector('dialog')).toBeNull()
   })
 
   it('keeps a closed modal out of hit testing and removes motion in CSS', () => {
-    expect(showcaseCss).toContain('dialog.kui-lightbox { display: none; }')
-    expect(showcaseCss).toContain('dialog.kui-lightbox[open]')
-    expect(showcaseCss).toContain('@media (prefers-reduced-motion: reduce)')
-    expect(showcaseCss).toContain('@media (forced-colors: active)')
+    const inBlocks = (prelude: string, selector: string): string =>
+      atRuleBlocks(showcaseCss, prelude).flatMap((block) => ruleBodies(block, selector)).join('\n')
+    expect(ruleBodies(showcaseCss, 'dialog.kui-lightbox')[0]?.trim()).toBe('display: none;')
+    expect(ruleBodies(showcaseCss, 'dialog.kui-lightbox[open]')[0]).toContain('position: fixed;')
+
+    const reduced = '@media (prefers-reduced-motion: reduce)'
+    expect(inBlocks(reduced, 'dialog.kui-lightbox')).toContain('transition-duration: 1ms;')
+    expect(inBlocks(reduced, '.kui-lightbox-gallery')).toContain('transition-duration: 1ms;')
+    expect(inBlocks(reduced, '.kui-lightbox-gallery')).toContain('scale: none; translate: none;')
+
+    const forced = '@media (forced-colors: active)'
+    expect(inBlocks(forced, 'dialog.kui-lightbox')).toContain('border: 1px solid CanvasText;')
+    expect(inBlocks(forced, 'dialog.kui-lightbox::backdrop')).toContain('backdrop-filter: none;')
+    for (const button of ['.kui-lightbox-close', '.kui-lightbox-prev', '.kui-lightbox-next']) {
+      expect(inBlocks(forced, button)).toContain('border-color: CanvasText;')
+    }
+  })
+
+  it('keeps the dialog and gallery from becoming the containing block of the fixed controls', () => {
+    // backdrop-filter, and any scale/translate but none, trap position:fixed descendants in a box
+    // that scrolls — the close/prev/next buttons would scroll away with a tall image.
+    const trapping = /(?:backdrop-filter|filter|transform|scale|translate|perspective)\s*:\s*(?!none)/
+    for (const selector of ['dialog.kui-lightbox[open]', 'dialog.kui-lightbox[open].is-open']) {
+      for (const body of ruleBodies(showcaseCss, selector)) expect(body).not.toMatch(trapping)
+    }
+    const settled = ruleBodies(showcaseCss, '.kui-lightbox.is-open .kui-lightbox-gallery')
+    expect(settled).toHaveLength(1)
+    expect(settled[0]).toContain('scale: none;')
+    expect(settled[0]).toContain('translate: none;')
+    expect(ruleBodies(showcaseCss, 'dialog.kui-lightbox::backdrop')[0]).toContain('backdrop-filter: blur(7px);')
   })
 })
 

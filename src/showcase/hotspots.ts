@@ -33,12 +33,17 @@ const hotspotsParams: ParameterSchema = {
 }
 
 let hotspotIdCounter = 0
+let anchorCounter = 0
 
-function resolveNoteLabel(note: Element, index: number): string {
+/**
+ * A numbered marker shows "1", so its accessible name must contain "1" (WCAG 2.5.3 label in name):
+ * "1: Live filters". The "Note n" fallback already carries the number.
+ */
+function resolveNoteLabel(note: Element, index: number, marker: string): string {
   const heading = note.querySelector('strong, h1, h2, h3, h4, h5, h6')
   const text = heading?.textContent?.trim()
-  if (text) return text
-  return `Note ${index + 1}`
+  if (!text) return `Note ${index + 1}`
+  return marker === 'number' ? `${index + 1}: ${text}` : text
 }
 
 function isPopoverOpen(note: HTMLElement, event: Event): boolean {
@@ -82,11 +87,11 @@ function setupFallbackPositioning(
 }
 
 function setupAnchorPositioning(
-  noteId: string,
   buttonStyle: ReturnType<typeof createStyleLedger>,
   noteStyle: ReturnType<typeof createStyleLedger>,
 ): void {
-  const anchorName = `--kui-anchor-${noteId}`
+  // Always generated: an authored id such as "a.b" or "step 1" is not a valid <dashed-ident>.
+  const anchorName = `--kui-anchor-${++anchorCounter}`
   buttonStyle.set('anchor-name', anchorName)
   noteStyle.set('position-anchor', anchorName)
   noteStyle.set('position-area', 'top')
@@ -176,7 +181,7 @@ function setupSingleNote(
   }
 
   const { noteId, noteAttrs } = setupNotePopover(note)
-  const label = resolveNoteLabel(note, index)
+  const label = resolveNoteLabel(note, index, marker)
   const { button, buttonStyle } = createHotspotButton({
     doc: el.ownerDocument,
     noteId,
@@ -189,7 +194,7 @@ function setupSingleNote(
   const noteStyle = createStyleLedger(note)
   let cleanupToggle: (() => void) | undefined
   if (supportsAnchorPositioning()) {
-    setupAnchorPositioning(noteId, buttonStyle, noteStyle)
+    setupAnchorPositioning(buttonStyle, noteStyle)
   } else {
     cleanupToggle = setupFallbackPositioning(button, note as HTMLElement, noteStyle)
   }

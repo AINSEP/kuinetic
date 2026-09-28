@@ -57,6 +57,7 @@ describe('shared modal shell', () => {
     first.release()
     first.release()
     expect(document.querySelector('dialog')?.getAttribute('aria-label')).toBe('Shared')
+    expect(document.querySelector('dialog')!.open).toBe(true)
     second.release()
     expect(document.querySelector('dialog')).toBeNull()
   })

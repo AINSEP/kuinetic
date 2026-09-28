@@ -38,8 +38,22 @@ describe('hotspots', () => {
     expect(buttons.length).toBe(2)
     const firstButton = buttons[0]!
     const secondButton = buttons[1]!
-    expect(firstButton.getAttribute('aria-label')).toBe('First')
-    expect(secondButton.getAttribute('aria-label')).toBe('Second')
+    // marker:number (the default) shows "1"; the name must contain it (WCAG 2.5.3 label in name).
+    expect(firstButton.textContent).toBe('1')
+    expect(firstButton.getAttribute('aria-label')).toBe('1: First')
+    expect(secondButton.getAttribute('aria-label')).toBe('2: Second')
+  })
+
+  it('names a dot marker by its note title alone, since it shows no number', () => {
+    build(`
+      <figure data-kui="hotspots marker:dot">
+        <img src="dashboard.png" alt="Dashboard">
+        <ol><li style="--kui-x: 20%; --kui-y: 30%"><strong>First</strong> Note 1</li></ol>
+      </figure>
+    `).start()
+    const button = el().querySelector<HTMLButtonElement>('button.kui-hotspot')!
+    expect(button.textContent).toBe('')
+    expect(button.getAttribute('aria-label')).toBe('First')
   })
 
   it('applies label rules: strong, heading, or fallback Note n', () => {
@@ -59,8 +73,8 @@ describe('hotspots', () => {
     const b0 = buttons[0]!
     const b1 = buttons[1]!
     const b2 = buttons[2]!
-    expect(b0.getAttribute('aria-label')).toBe('From Strong')
-    expect(b1.getAttribute('aria-label')).toBe('From Heading')
+    expect(b0.getAttribute('aria-label')).toBe('1: From Strong')
+    expect(b1.getAttribute('aria-label')).toBe('2: From Heading')
     expect(b2.getAttribute('aria-label')).toBe('Note 3')
   })
 
@@ -287,6 +301,26 @@ describe('hotspots', () => {
     expect(note.style.getPropertyValue('position-anchor')).toBe(anchorName)
     expect(note.style.getPropertyValue('position-area')).toBe('top')
     expect(note.style.getPropertyValue('position-try-fallbacks')).toBe('flip-block')
+  })
+
+  it('generates a valid, unique anchor name even when the authored id is not an ident', () => {
+    vi.stubGlobal('CSS', {
+      supports: vi.fn().mockImplementation((prop: string) => prop === 'position-area: top'),
+    })
+    build(`
+      <figure data-kui="hotspots">
+        <img src="a.png" alt="">
+        <ol>
+          <li id="a.b" style="--kui-x: 30%; --kui-y: 40%"><strong>Dotted</strong> Info</li>
+          <li id="step 1" style="--kui-x: 60%; --kui-y: 40%"><strong>Spaced</strong> Info</li>
+        </ol>
+      </figure>
+    `).start()
+    const names = Array.from(el().querySelectorAll<HTMLButtonElement>('button.kui-hotspot'))
+      .map((button) => button.style.getPropertyValue('anchor-name'))
+    expect(names).toHaveLength(2)
+    for (const name of names) expect(name).toMatch(/^--kui-anchor-\d+$/)
+    expect(new Set(names).size).toBe(2)
   })
 
   it('refuses timing tokens by name', () => {

@@ -32,6 +32,8 @@ const compareParams: ParameterSchema = {
   },
 }
 
+const VERTICAL_KEY_DELTA: Readonly<Record<string, number | undefined>> = { ArrowUp: -1, ArrowDown: 1 }
+
 function getMediaName(item: Element, fallback: string): string {
   const alt = item.localName === 'picture'
     ? item.querySelector('img')?.getAttribute('alt')
@@ -51,7 +53,7 @@ function resolveCompareLabel(el: Element, media: Element[]): string {
   return 'Compare'
 }
 
-function createCompareElements(doc: Document, label: string, initialPercent: number): {
+function createCompareElements(doc: Document, label: string, initialPercent: number, axis: string): {
   range: HTMLInputElement
   handle: HTMLElement
 } {
@@ -64,6 +66,8 @@ function createCompareElements(doc: Document, label: string, initialPercent: num
   range.value = String(initialPercent)
   range.setAttribute('aria-label', label)
   range.setAttribute('aria-valuetext', `${initialPercent}% after`)
+  // The y range is laid out vertical-lr (0 at the top) in CSS; say so to AT as well.
+  if (axis === 'y') range.setAttribute('aria-orientation', 'vertical')
 
   const handle = doc.createElement('span')
   handle.className = 'kui-compare-handle'
@@ -78,8 +82,9 @@ function prepareCompare(el: Element, params: EffectParams, ctx: PrepareContext):
     ctx.warn('compare requires at least two media children (img, picture, or video)')
   }
 
+  const axis = params.text('axis', 'x')
   const attrs = createAttributeLedger(el)
-  attrs.set(COMPARE_AXIS_ATTR, params.text('axis', 'x'))
+  attrs.set(COMPARE_AXIS_ATTR, axis)
 
   const initialPercent = Math.round(params.num('position', 0.5) * 100)
   const style = createStyleLedger(el)
@@ -89,6 +94,7 @@ function prepareCompare(el: Element, params: EffectParams, ctx: PrepareContext):
     el.ownerDocument,
     resolveCompareLabel(el, media),
     initialPercent,
+    axis,
   )
 
   const onInput = (): void => {
@@ -96,13 +102,25 @@ function prepareCompare(el: Element, params: EffectParams, ctx: PrepareContext):
     style.set('--kui-compare', `${val}%`)
     range.setAttribute('aria-valuetext', `${val}% after`)
   }
+  // Browsers disagree on which way ArrowUp moves a vertical range, so the y axis pins it:
+  // ArrowUp moves the divider up (value toward 0, the top), ArrowDown moves it down.
+  const onKeyDown = (event: KeyboardEvent): void => {
+    const delta = VERTICAL_KEY_DELTA[event.key]
+    if (axis !== 'y' || delta === undefined) return
+    event.preventDefault()
+    if (delta < 0) range.stepDown()
+    else range.stepUp()
+    onInput()
+  }
   range.addEventListener('input', onInput)
+  range.addEventListener('keydown', onKeyDown)
 
   el.appendChild(range)
   el.appendChild(handle)
 
   return continuousSetup(() => {
     range.removeEventListener('input', onInput)
+    range.removeEventListener('keydown', onKeyDown)
     range.remove()
     handle.remove()
     attrs.restore()

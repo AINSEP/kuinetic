@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { collectingReporter } from '../src/core/reporter.js'
+import { ruleBodies } from './support/css-scan.js'
 import { build, el } from './support/js-effect-harness.js'
 
 const showcaseCss = readFileSync(
@@ -181,6 +182,45 @@ describe('compare', () => {
     expect(forcedColors).toMatch(
       /\[data-kui-fx~='compare'\] > \.kui-compare-handle::before \{\s*border: 2px solid CanvasText;\s*background: Canvas;/,
     )
+  })
+
+  it('makes the y range genuinely vertical: orientation, keys, and a vertical-lr layout', () => {
+    build('<figure data-kui="compare"><img src="a.jpg" alt=""><img src="b.jpg" alt=""></figure>').start()
+    const xRange = el().querySelector('.kui-compare-range') as HTMLInputElement
+    expect(xRange.hasAttribute('aria-orientation')).toBe(false)
+    xRange.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true }))
+    expect(xRange.value).toBe('50')
+
+    build('<figure data-kui="compare axis:y"><img src="a.jpg" alt=""><img src="b.jpg" alt=""></figure>').start()
+    const host = el()
+    const range = host.querySelector('.kui-compare-range') as HTMLInputElement
+    expect(range.getAttribute('aria-orientation')).toBe('vertical')
+
+    const up = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+    range.dispatchEvent(up)
+    expect(up.defaultPrevented).toBe(true)
+    expect(range.value).toBe('49')
+    expect(host.style.getPropertyValue('--kui-compare')).toBe('49%')
+    expect(range.getAttribute('aria-valuetext')).toBe('49% after')
+
+    range.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }))
+    range.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true }))
+    expect(range.value).toBe('51')
+    expect(host.style.getPropertyValue('--kui-compare')).toBe('51%')
+
+    const yRange = ruleBodies(showcaseCss, "[data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-range")
+    expect(yRange).toHaveLength(1)
+    expect(yRange[0]).toContain('writing-mode: vertical-lr;')
+    expect(yRange[0]).toContain('direction: ltr;')
+  })
+
+  it('claims only the drag axis for touch so a swipe over the image still scrolls the page', () => {
+    const xRange = ruleBodies(showcaseCss, "[data-kui-fx~='compare'] > .kui-compare-range")
+    const yRange = ruleBodies(showcaseCss, "[data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-range")
+    expect(xRange).toHaveLength(1)
+    expect(xRange[0]).toContain('touch-action: pan-y;')
+    expect(yRange[0]).toContain('touch-action: pan-x;')
+    expect(showcaseCss).not.toMatch(/\.kui-compare-range \{[^}]*touch-action: none/)
   })
 
   it('clips only the second media child on both axes', () => {

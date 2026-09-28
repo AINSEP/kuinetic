@@ -34,11 +34,12 @@ function playVideo(video: HTMLVideoElement): void {
   }
 }
 
-function syncVideos(media: Element[], activeIndex: number, reducedMotion: boolean): void {
+/** `hold` pauses every video, the active one included (reduced motion, or the story is off screen). */
+function syncVideos(media: Element[], activeIndex: number, hold: boolean): void {
   media.forEach((item, index) => {
     const video = findVideo(item)
     if (!video) return
-    if (index !== activeIndex || reducedMotion) {
+    if (index !== activeIndex || hold) {
       video.pause()
       return
     }
@@ -46,6 +47,72 @@ function syncVideos(media: Element[], activeIndex: number, reducedMotion: boolea
       playVideo(video)
     }
   })
+}
+
+/** Whether each story video was playing before activation, so teardown can hand that back. */
+function capturePlayState(media: Element[]): Map<HTMLVideoElement, boolean> {
+  const state = new Map<HTMLVideoElement, boolean>()
+  for (const item of media) {
+    const video = findVideo(item)
+    if (video) state.set(video, !video.paused)
+  }
+  return state
+}
+
+function restorePlayState(state: Map<HTMLVideoElement, boolean>): void {
+  for (const [video, wasPlaying] of state) {
+    if (wasPlaying) playVideo(video)
+    else video.pause()
+  }
+}
+
+/**
+ * Report the story entering and leaving the viewport. `threshold: 0` for the reason
+ * background-media's `autoplayInView` gives: a story taller than the viewport can never reach a
+ * fractional ratio. No `IntersectionObserver` (jsdom, SSR) means "always in view".
+ */
+function watchInView(el: Element, win: Window, onChange: (inView: boolean) => void): {
+  observed: boolean
+  stop(): void
+} {
+  const Observer = (win as Window & { IntersectionObserver?: typeof IntersectionObserver })
+    .IntersectionObserver
+  if (!Observer) return { observed: false, stop: () => {} }
+  const observer = new Observer((entries) => {
+    const latest = entries[entries.length - 1]
+    if (latest) onChange(latest.isIntersecting)
+  }, { threshold: 0 })
+  observer.observe(el)
+  return { observed: true, stop: () => observer.disconnect() }
+}
+
+/** Video playback for the story: the active step's clip plays only while the story is on screen. */
+function createStoryPlayback(el: Element, media: Element[], ctx: PrepareContext): {
+  show(step: number): void
+  restore(): void
+} {
+  const prior = capturePlayState(media)
+  let step = 0
+  let inView = false
+  let active = false
+  const sync = (): void => syncVideos(media, step, ctx.reducedMotion || !inView)
+  const view = watchInView(el, ctx.win, (next) => {
+    if (next === inView) return
+    inView = next
+    if (active) sync()
+  })
+  if (!view.observed) inView = true
+  return {
+    show(next) {
+      step = next
+      active = true
+      sync()
+    },
+    restore() {
+      view.stop()
+      restorePlayState(prior)
+    },
+  }
 }
 
 /**
@@ -109,6 +176,7 @@ function prepareScrollStory(
     (message) => ctx.warn(`scroll-story ${message}`),
   )
 
+  const playback = createStoryPlayback(el, media, ctx)
   let currentStep = -1
   function applyStep(stepIndex: number): void {
     const mapped = stepIndex === -1 ? 0 : stepIndex
@@ -117,7 +185,7 @@ function prepareScrollStory(
     hostAttrs.set('data-kui-step', String(mapped))
     hostStyle.set('--kui-step', String(mapped))
     marker.mark(mapped)
-    syncVideos(media, mapped, ctx.reducedMotion)
+    playback.show(mapped)
   }
 
   applyStep(0)
@@ -133,9 +201,7 @@ function prepareScrollStory(
 
   return continuousSetup(() => {
     untrack()
-    media.forEach((item) => {
-      findVideo(item)?.pause()
-    })
+    playback.restore()
     marker.restore()
     hostAttrs.restore()
     hostStyle.restore()

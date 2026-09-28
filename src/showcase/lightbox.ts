@@ -109,17 +109,24 @@ function renderGallery(state: GalleryState, focus: boolean): void {
   if (focus) state.figure.focus()
 }
 
-function moveGallery(state: GalleryState, delta: number): void {
+/** Keyboard navigation moves focus to the figure; a Prev/Next button click leaves it on the button. */
+function moveGallery(state: GalleryState, delta: number, focus: boolean): void {
   const candidate = state.index + delta
   if (!state.loop && (candidate < 0 || candidate >= state.items.length)) return
   state.index = (candidate + state.items.length) % state.items.length
-  renderGallery(state, true)
+  renderGallery(state, focus)
+}
+
+function clickGallery(state: GalleryState, delta: number, button: HTMLButtonElement): void {
+  moveGallery(state, delta, false)
+  // Reaching an end disables the button that was just pressed, which would drop focus to <body>.
+  if (button.disabled && button.ownerDocument.activeElement === button) state.figure.focus()
 }
 
 function galleryKey(state: GalleryState, event: KeyboardEvent): void {
   if (state.items.length < 2) return
-  if (event.key === 'ArrowLeft') moveGallery(state, -1)
-  else if (event.key === 'ArrowRight') moveGallery(state, 1)
+  if (event.key === 'ArrowLeft') moveGallery(state, -1, true)
+  else if (event.key === 'ArrowRight') moveGallery(state, 1, true)
   else if (event.key === 'Home') { state.index = 0; renderGallery(state, true) }
   else if (event.key === 'End') { state.index = state.items.length - 1; renderGallery(state, true) }
   else return
@@ -152,8 +159,8 @@ function galleryContent(items: ImageItem[], initial: number, loop: boolean, opti
   const state = { items, index: initial, loop, figure, view, caption, counter, previous, next }
   if (items.length > 1) {
     box.append(previous, next, counter)
-    previous.addEventListener('click', () => moveGallery(state, -1))
-    next.addEventListener('click', () => moveGallery(state, 1))
+    previous.addEventListener('click', () => clickGallery(state, -1, previous))
+    next.addEventListener('click', () => clickGallery(state, 1, next))
   }
   renderGallery(state, false)
   return { ...options, node: box, label: 'Image viewer', onClose: () => view.removeAttribute('src'),

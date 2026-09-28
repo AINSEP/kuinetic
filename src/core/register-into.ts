@@ -4,7 +4,7 @@
  * A near-copy of `registerInto`/`asRegistry`/`hasRegistrarShape` from `src/3d/register.ts`
  * (itself a copy of `src/advanced/base.ts:519-568`) — deliberately copied rather than imported.
  * `src/showcase/` ships in core today but is designed to split into its own `<script>` bundle and
- * subpath later (see `scratchpad/showcase-plan.md`'s "Exact steps to split"), and importing a
+ * subpath later (see `.claude/showcase-run/showcase-plan.md`'s "Exact steps to split"), and importing a
  * sibling tier's helper would mean the split could not happen without also shipping whichever tier
  * that helper lived in. This file is the third copy of the same nine lines; the two originals stay
  * the reference implementation, and if the shape gate's rule ever changes, all three move together.
