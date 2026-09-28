@@ -4,6 +4,11 @@
   "description": "Declarative web animation from HTML attributes. Native CSS where possible, JS only where necessary.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AINSEP/kuinetic.git"
+  },
+  "homepage": "https://kuinetic.com",
   "sideEffects": [
     "*.css"
   ],

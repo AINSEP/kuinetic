@@ -1,0 +1,56 @@
+name: Publish to npm
+
+# Publishes the package whenever a version tag (v1.2.3) is pushed, with no token or one-time code:
+# npm "trusted publishing" lets this workflow authenticate through GitHub's OIDC identity instead.
+# The npm side is configured once on npmjs.com (package settings → Trusted Publisher → GitHub
+# Actions, repo AINSEP/kuinetic, workflow `publish.yml`). jsDelivr and unpkg then pick up the new
+# version on their own.
+#
+# This deliberately does not run `npm run ci`: that gate includes the 100% coverage thresholds and
+# the browser tier, which are verified before tagging, not re-litigated at publish time. It does
+# re-check the cheap things a broken publish would come from: the tag matches package.json, the
+# types compile, and the dist build succeeds.
+#
+# `workflow_dispatch` is for re-running a publish by hand (e.g. a tag pushed before this file
+# existed); it publishes whatever version package.json holds on the chosen ref.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Tag matches package.json
+        if: github.event_name == 'push'
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+
+      - run: npm run typecheck
+
+      - run: npm run build:dist
+
+      - run: npm publish
