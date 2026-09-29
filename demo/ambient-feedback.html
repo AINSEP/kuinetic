@@ -634,7 +634,8 @@
 
   <footer data-od-id="footer" data-footer-mount></footer>
 
-  <script src="./kuinetic.js"></script>
+  <!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+  <script src="./kuinetic.js" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

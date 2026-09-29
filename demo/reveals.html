@@ -58,7 +58,13 @@
   }
 
   /* ---------- demo grid / cards ---------- */
-  .demo-grid { margin-top: 2.5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.5rem; }
+  /* `overflow-x: clip` because the slide presets start off to the side — 480px in the matrix, a
+     full card width in the composition row — wider than a phone. A transformed box in flight
+     counts as scrollable overflow, and a phone answers that by widening its layout viewport and
+     not shrinking it back afterwards. `clip` on the x axis only, at the grid that owns the cards:
+     entrances still arrive from the grid's edge, nothing becomes a scroll container, and the
+     vertical slides keep their room. */
+  .demo-grid { margin-top: 2.5rem; overflow-x: clip; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.5rem; }
   .matrix-group .demo-grid { margin-top: 0; }
   /* flex column so figcaption can grow to fill whatever extra height CSS Grid's default
      align-items:stretch adds to this card to match the tallest card in its row (e.g. a
@@ -412,7 +418,8 @@
 
   <footer data-od-id="footer" data-footer-mount></footer>
 
-  <script src="./kuinetic.js"></script>
+  <!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+  <script src="./kuinetic.js" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

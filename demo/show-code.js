@@ -58,9 +58,11 @@
   /**
    * A `data-kui` value prints on one line unless it's "long": 3 or more comma-separated effects,
    * or 2+ effects where the one-line value already runs past 80 characters. A long value gets one
-   * effect per line, indented to `column` — the printed position of the value's own first
-   * character (right after the opening quote) — so every continuation lines up under the first
-   * effect rather than under the attribute name or the tag's own indent.
+   * effect per line, each continuation indented `column` spaces — the tag's own indent plus one
+   * step. It used to align under the value's first character instead, but that column sits after
+   * `<tag`, `class`, `id` and every attribute before it: ~50 spaces on `#deck-demo`, so the popup
+   * soft-wrapped the first line and the continuation floated in the middle of the panel (the
+   * owner's "why is it still on the next line"). A shallow fixed indent reads as a list at any width.
    *
    * Only the printed text changes: this never touches the real attribute, so the Apply input (fed
    * from `element.getAttribute('data-kui')`) and the live DOM stay single-line. The embedded `\n`s
@@ -105,7 +107,7 @@
     let column = indent.length + 1 + tag.length + 1
     const attrStrings = attrList.map((a) => {
       if (a.name === 'data-kui') {
-        const str = `data-kui="${formatDataKuiValue(a.value, column + 'data-kui="'.length)}"`
+        const str = `data-kui="${formatDataKuiValue(a.value, indent.length + 4)}"`
         column += str.slice(str.lastIndexOf('\n') + 1).length + 1
         return str
       }

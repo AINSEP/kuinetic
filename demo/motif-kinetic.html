@@ -1355,7 +1355,8 @@
 
 <button type="button" class="totop" data-kui="back-to-top-fade" data-scroll-top aria-label="Back to top">↑</button>
 
-<script src="./kuinetic.js"></script>
+<!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+<script src="./kuinetic.js" data-kui-manual></script>
 <script>
   window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
 </script>

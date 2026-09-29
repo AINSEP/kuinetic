@@ -2299,9 +2299,9 @@
          redirects the whole sequence — so the browser fired the resulting `click` at THIS section
          rather than at the dot or "Show code" chip actually pressed, and every interactive control
          inside the hero went dead. The fix is in the library, not here: `GestureOptions
-         .capturePointer` (default `true`) with `swipeable` passing `false`
-         (`effects/gestures/primitives.ts`), on the reasoning that capture exists to keep a *moving*
-         element under the finger and `swipeable` moves nothing. If the dots ever stop responding
+         .capturePointer` (default `true`) with `swipeable` passing `'drag'`
+         (`effects/gestures/primitives.ts`): no capture on a tap, so clicks reach their target, and
+         capture only once a drag starts, so a flick that leaves the section still ends the swipe. If the dots ever stop responding
          again, that is the first thing to check — not this attribute. -->
     <section class="video-hero" data-od-id="video-hero" data-video-carousel data-kui="swipe-x">
       <div
@@ -2392,38 +2392,38 @@
         <div class="play-grid">
           <div>
             <h2 data-kui="text-reveal-mask 700ms on:enter stagger:320ms">Click the attribute. Watch it change.</h2>
-            <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui="cascade:45ms">
+            <div class="lab-chips" role="group" aria-label="Choose an effect" data-kui="cascade:45ms, fade-up 500ms on:enter target:.lab-chip">
               <!-- `wipe-circle` leads: it is the one that reads instantly at this size and it is
                    not on reveals.html, so the first thing you see here is something you have not
                    already seen. The eight after `fold-panel` are the names the rest of the
                    showcase barely touches — counted, not guessed.
 
-                   Each chip carries its own `fade-up`, and the container carries the stagger, so
-                   the rows wash upward in sequence rather than appearing all at once. Flex rows
-                   are not addressable in CSS, so a per-chip stagger is what "per line" actually
-                   looks like once it wraps. -->
-              <button type="button" class="lab-chip" aria-pressed="true" data-kui="fade-up 500ms on:enter" data-fx="wipe-circle 1500ms">wipe-circle</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in 1500ms">bounce-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-blur-up 1500ms">fade-blur-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="blur-in 1500ms">blur-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in 1500ms">zoom-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="roll-in 1500ms">roll-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-y 1500ms">flip-in-y</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="curtain-reveal 1500ms">curtain-reveal</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slat-assemble 1500ms">slat-assemble</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-up 1500ms">wipe-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-right 1500ms">wipe-right</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="mask-reveal 1500ms">mask-reveal</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="blur-up 1500ms">blur-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fold-panel 1500ms">fold-panel</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="swing-in 1500ms">swing-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-up 1500ms">back-in-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="pop-in 1500ms">pop-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="flip-in-x 1500ms">flip-in-x</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns 6000ms">ken-burns</button>
+                   The container declares the entrance once (`fade-up ... target:.lab-chip`) and
+                   the stagger beside it, so the rows wash upward in sequence rather than appearing
+                   all at once. Flex rows are not addressable in CSS, so a per-chip stagger is what
+                   "per line" actually looks like once it wraps. -->
+              <button type="button" class="lab-chip" aria-pressed="true" data-fx="wipe-circle 1500ms">wipe-circle</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="bounce-in 1500ms">bounce-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-blur-up 1500ms">fade-blur-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="blur-in 1500ms">blur-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="zoom-in 1500ms">zoom-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="roll-in 1500ms">roll-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="flip-in-y 1500ms">flip-in-y</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="curtain-reveal 1500ms">curtain-reveal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slat-assemble 1500ms">slat-assemble</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wipe-up 1500ms">wipe-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wipe-right 1500ms">wipe-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="mask-reveal 1500ms">mask-reveal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="blur-up 1500ms">blur-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fold-panel 1500ms">fold-panel</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="swing-in 1500ms">swing-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="back-in-up 1500ms">back-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="zoom-in-down 1500ms">zoom-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="pop-in 1500ms">pop-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="flip-in-x 1500ms">flip-in-x</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slide-inline-end 1500ms">slide-inline-end</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="rotate-in-left 1500ms">rotate-in-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="ken-burns 6000ms">ken-burns</button>
               <!-- Ten more, picked for spread rather than count: card-flip-y is the one 3D pick
                    that actually settles front-facing on a single element (its :not(:has(>
                    :nth-child(2))) override in three-d.css turns it a full 360deg instead of the
@@ -2432,27 +2432,27 @@
                    page-transition texture. cube-rotate and book-page-turn were tried and pulled —
                    see todo.md, they end edge-on/turned-away on a single child, no equivalent
                    override exists for them. -->
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="card-flip-y 1500ms">card-flip-y</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-diagonal 1500ms">wipe-diagonal</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-up 1500ms">slide-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in 1500ms">rotate-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in-up 1500ms">bounce-in-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-in 1500ms">fade-in</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="page-slide 1500ms">page-slide</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="zoom-in-up 1500ms">zoom-in-up</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="back-in-down 1500ms">back-in-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-right 1500ms">fade-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="card-flip-y 1500ms">card-flip-y</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wipe-diagonal 1500ms">wipe-diagonal</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slide-up 1500ms">slide-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="rotate-in 1500ms">rotate-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="bounce-in-up 1500ms">bounce-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-in 1500ms">fade-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="page-slide 1500ms">page-slide</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="zoom-in-up 1500ms">zoom-in-up</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="back-in-down 1500ms">back-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-right 1500ms">fade-right</button>
               <!-- Eight more: the symmetric pairs the row above was missing (fade/slide/rotate/
                    bounce only ever showed one direction each) plus the one combo preset variant
                    not yet in the row. -->
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-down 1500ms">fade-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-left 1500ms">fade-left</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-down 1500ms">slide-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-left 1500ms">slide-left</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="rotate-in-right 1500ms">rotate-in-right</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="bounce-in-down 1500ms">bounce-in-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="fade-blur-in 1500ms">fade-blur-in</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-down 1500ms">fade-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-left 1500ms">fade-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slide-down 1500ms">slide-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slide-left 1500ms">slide-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="slide-inline-start 1500ms">slide-inline-start</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="rotate-in-right 1500ms">rotate-in-right</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="bounce-in-down 1500ms">bounce-in-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="fade-blur-in 1500ms">fade-blur-in</button>
               <!-- Six more, each checked live against the running registry before landing here —
                    several other candidates (curtain-wipe, page-fade, the ambient/particle family)
                    were tried and dropped: curtain-wipe is a page-transition primitive that stayed
@@ -2461,12 +2461,12 @@
                    and never show. wipe-down/wipe-left round out the wipe family; card-flip-x pairs
                    card-flip-y (same single-element override); shake-error and wobble are the row's
                    first "reaction" motions rather than entrances; ken-burns-out mirrors ken-burns. -->
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-down 1500ms">wipe-down</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wipe-left 1500ms">wipe-left</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="card-flip-x 1500ms">card-flip-x</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="shake-error 1500ms">shake-error</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="wobble 1500ms">wobble</button>
-              <button type="button" class="lab-chip" aria-pressed="false" data-kui="fade-up 500ms on:enter" data-fx="ken-burns-out 1500ms">ken-burns-out</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wipe-down 1500ms">wipe-down</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wipe-left 1500ms">wipe-left</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="card-flip-x 1500ms">card-flip-x</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="shake-error 1500ms">shake-error</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="wobble 1500ms">wobble</button>
+              <button type="button" class="lab-chip" aria-pressed="false" data-fx="ken-burns-out 1500ms">ken-burns-out</button>
             </div>
           </div>
           <div class="lab-card">
@@ -2563,7 +2563,7 @@
            turns a plain click on one into an in-page player (a modified click still opens YouTube
            in a new tab, and without JavaScript the link just goes there). `target:` names the play
            links, not every link in the section. The deck below does the same thing. -->
-      <section id="reel" data-od-id="reel" data-kui="video-lightbox target:.yt-play">
+      <section id="reel" data-od-id="reel" data-kui="video-lightbox target:.yt-play, pop scale:1.08 target:.yt-play">
         <!-- The title and the contract line live INSIDE the pinned stage, not above it.
              `horizontal-scroll` makes this element the sticky window and centres its grid rows, so
              anything in here pins and travels with the reel. Left outside, they occupied the top of
@@ -2572,7 +2572,7 @@
              the row that moves is still only the one `target:` names. -->
         <div class="track-stage" id="reel-track" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
           <div class="reel-intro">
-            <div class="section-head reel-head">
+            <div class="section-head">
               <h2 data-kui="fade-down on:enter">Scroll pulls the reel.</h2>
             </div>
 
@@ -2584,7 +2584,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=EcbgbKtOELY" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=EcbgbKtOELY" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2598,7 +2598,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=f2mGqlLLqok" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=f2mGqlLLqok" aria-label="Play: The Psychology of Premium Websites">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2612,7 +2612,7 @@
               <div class="reel-flip">
                 <div class="reel-frame" data-kui="slat-assemble 1100ms angle:45deg on:enter">
                   <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=N1Cl5cYmegE" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=N1Cl5cYmegE" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2626,7 +2626,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=TGi6CHaj5HU" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=TGi6CHaj5HU" aria-label="Play: Why My AI Designs Always Look Next Level">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2640,7 +2640,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=NAumQObJEwM" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=NAumQObJEwM" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2654,7 +2654,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=snErQUyqwCU" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=snErQUyqwCU" aria-label="Play: How to Build $10K Websites in Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2668,7 +2668,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=oY87jJx4sAI" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=oY87jJx4sAI" aria-label="Play: The Seismic Shifts Happening In Web Design">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2682,7 +2682,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=T1VOVArT9YI" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=T1VOVArT9YI" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2696,7 +2696,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=rJtF32LTX8U" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=rJtF32LTX8U" aria-label="Play: Claude Design = Easy Websites for Beginners">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2710,7 +2710,7 @@
               <div class="reel-flip">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=PKYNTm2m8eA" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=PKYNTm2m8eA" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2750,9 +2750,9 @@
           <h2 data-kui="typewriter">One attribute, an endless deck.</h2>
         </div>
 
-        <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
+        <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter, pop scale:1.08 target:.yt-play on:load"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
 
-        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter">
+        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev yt-play" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter, pop scale:1.08 target:.yt-play on:load">
           <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
           </button>
@@ -2762,7 +2762,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/2OwMjg5As2g/maxresdefault.jpg" alt="Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=2OwMjg5As2g" data-kui="pop scale:1.08" aria-label="Play: Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=2OwMjg5As2g" aria-label="Play: Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2774,7 +2774,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/QhmhUgccaS0/maxresdefault.jpg" alt="GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=QhmhUgccaS0" data-kui="pop scale:1.08" aria-label="Play: GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=QhmhUgccaS0" aria-label="Play: GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2786,7 +2786,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/X2PARg8ErvY/maxresdefault.jpg" alt="Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=X2PARg8ErvY" data-kui="pop scale:1.08" aria-label="Play: Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=X2PARg8ErvY" aria-label="Play: Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2798,7 +2798,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/1tLa0sYaD5w/maxresdefault.jpg" alt="Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=1tLa0sYaD5w" data-kui="pop scale:1.08" aria-label="Play: Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=1tLa0sYaD5w" aria-label="Play: Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2810,7 +2810,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/Edj_zj4U_9s/maxresdefault.jpg" alt="How to make a SaaS product demo video — Tom Bruining" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=Edj_zj4U_9s" data-kui="pop scale:1.08" aria-label="Play: How to make a SaaS product demo video — Tom Bruining">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=Edj_zj4U_9s" aria-label="Play: How to make a SaaS product demo video — Tom Bruining">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2822,7 +2822,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/eOhomP4vees/maxresdefault.jpg" alt="Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=eOhomP4vees" data-kui="pop scale:1.08" aria-label="Play: Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=eOhomP4vees" aria-label="Play: Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2834,7 +2834,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/OX80FZjHJ7o/maxresdefault.jpg" alt="Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=OX80FZjHJ7o" data-kui="pop scale:1.08" aria-label="Play: Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=OX80FZjHJ7o" aria-label="Play: Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2846,7 +2846,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/hNpC5clEbp4/maxresdefault.jpg" alt="Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=hNpC5clEbp4" data-kui="pop scale:1.08" aria-label="Play: Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=hNpC5clEbp4" aria-label="Play: Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2858,7 +2858,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/xOhh274Ayac/maxresdefault.jpg" alt="I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=xOhh274Ayac" data-kui="pop scale:1.08" aria-label="Play: I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=xOhh274Ayac" aria-label="Play: I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2870,7 +2870,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/9XvKyoz6Nmo/maxresdefault.jpg" alt="Motion Graphics Without Plugins: The New Claude Method — Sanji Nai-Chien" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=9XvKyoz6Nmo" data-kui="pop scale:1.08" aria-label="Play: Motion Graphics Without Plugins: The New Claude Method">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=9XvKyoz6Nmo" aria-label="Play: Motion Graphics Without Plugins: The New Claude Method">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2882,7 +2882,7 @@
               <figure class="deck-slide">
                 <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/RDytbVDzMF4/maxresdefault.jpg" alt="Claude Design FINALLY Solved Motion Graphics — Jack Roberts" loading="lazy" />
-                  <a class="yt-play" href="https://www.youtube.com/watch?v=RDytbVDzMF4" data-kui="pop scale:1.08" aria-label="Play: Claude Design FINALLY Solved Motion Graphics">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=RDytbVDzMF4" aria-label="Play: Claude Design FINALLY Solved Motion Graphics">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
@@ -2941,9 +2941,9 @@
           <h2 data-kui="fade-up on:enter">A slice of every category</h2>
         </div>
 
-        <div class="slices" data-kui="cascade:60ms">
+        <div class="slices" data-kui="cascade:60ms, tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter target:'.slice:not(.slice-live)'">
 
-          <a class="slice" href="./reveals.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./reveals.html">
             <span class="slice-media">
               <img src="./assets/modeling/akira-pantsuit.jpg" alt="Studio portrait in a cropped vest, tie, and voluminous wide-leg trousers with tan lace-up boots" loading="lazy" data-kui="bounce-in 900ms on:enter" />
             </span>
@@ -2953,7 +2953,7 @@
             </span>
           </a>
 
-          <span class="slice">
+          <span class="slice slice-live">
             <span class="slice-media is-composed">
               <!-- A real gesture, not a picture of one: pull the puck and the spring returns it.
                    Deliberately not an <a>: a drag inside a link fights the link on every release. -->
@@ -2965,7 +2965,7 @@
             </span>
           </span>
 
-          <a class="slice" href="./scroll.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./scroll.html">
             <span class="slice-media">
               <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
               <span class="slice-snap" data-kui="scroll-snap-x target:img">
@@ -2982,7 +2982,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./text.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./text.html">
             <span class="slice-media is-composed">
               <span class="slice-word" data-kui="scramble 1600ms, blur-in 900ms on:enter">DECLARATIVE</span>
             </span>
@@ -2992,7 +2992,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./icons-transitions.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./icons-transitions.html">
             <span class="slice-media is-composed">
               <!-- pathLength="100" so the library's `--kui-path-length` default of 100 is exactly
                    right without measuring the path in JS. -->
@@ -3006,7 +3006,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./data-hover.html">
             <span class="slice-media is-composed">
               <span class="slice-stack">
                 <span class="slice-num" data-kui="count-up 1600ms to:302, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
@@ -3019,7 +3019,7 @@
             </span>
           </a>
 
-          <span class="slice" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <span class="slice">
             <span class="slice-media" data-kui="tween-from scale:1.12 1200ms spring, slat-assemble 1100ms axis:vertical on:enter">
               <img src="./assets/modeling/modeling_05.jpg" alt="Black-and-white profile portrait in a wide-brim red hat and red cloak" loading="lazy" />
             </span>
@@ -3029,7 +3029,7 @@
             </span>
           </span>
 
-          <span class="slice" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <span class="slice">
             <span class="slice-media is-composed">
               <span class="slice-acc">
                 <button type="button" class="slice-acc-btn" aria-expanded="false" aria-controls="slice-acc-panel">
@@ -3047,7 +3047,7 @@
           </span>
 
           <!-- data-hover.html, not interactive.html: that is where `tilt-3d` is actually demoed. -->
-          <a class="slice" href="./data-hover.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./data-hover.html">
             <span class="slice-media">
               <img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" data-kui="tilt-3d maxAngle:18 perspective:600px" />
             </span>
@@ -3057,7 +3057,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./ambient-feedback.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./ambient-feedback.html">
             <span class="slice-media">
               <span class="slice-aurora" data-kui="tween-from scale:0.9 900ms spring, aurora 14s"></span>
             </span>
@@ -3067,7 +3067,7 @@
             </span>
           </a>
 
-          <a class="slice" href="./ambient-feedback.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./ambient-feedback.html">
             <span class="slice-media is-composed">
               <span class="slice-stack">
                 <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true" data-kui="spinner-ring 1s">
@@ -3088,7 +3088,7 @@
                `tween-from` starts and the solid one is rest: a ghost of the from-state, not a
                picture of one. `spring` is an easing keyword, so the block really does overshoot
                its mark and settle back. -->
-          <a class="slice" href="./tween.html" data-kui="tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter">
+          <a class="slice" href="./tween.html">
             <span class="slice-media is-composed">
               <span class="slice-tween">
                 <span class="slice-tween-ghost" aria-hidden="true"></span>
@@ -3180,7 +3180,7 @@
           </div>
 
           <div class="dc4-cols" data-kui="fade-up 620ms 180ms on:enter">
-            <div class="dc4-col dc4-col-cdn">
+            <div class="dc4-col">
               <div class="dc4-cdn-head">
                 <span class="dc-eyebrow dc4-cdn-label">CDN</span>
                 <div class="dc4-tablist-cdn" role="tablist" aria-label="CDN provider">
@@ -3212,7 +3212,7 @@
 &lt;/script&gt;</template>
             </div>
 
-            <div class="dc4-col dc4-col-switch">
+            <div class="dc4-col">
               <div class="dc4-tablist" role="tablist" aria-label="Other ways to get kUInetic">
                 <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t2" aria-selected="true" aria-controls="dc4-p2" tabindex="0">npm</button>
                 <button type="button" class="dc4-chip dc-ring" role="tab" id="dc4-t3" aria-selected="false" aria-controls="dc4-p3" tabindex="-1">Download</button>
@@ -3338,7 +3338,8 @@ kuinetic({ observe: true }).start()</code></pre>
        hero to its portrait clips has any effect — and the only one that stops a phone downloading
        the landscape files first. See the file's own header. -->
   <script src="./video-hero-sources.js"></script>
-  <script src="./kuinetic.js" fetchpriority="high"></script>
+  <!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+  <script src="./kuinetic.js" fetchpriority="high" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

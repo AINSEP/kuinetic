@@ -350,6 +350,13 @@
     border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
     padding: clamp(1.5rem, 4vw, 2.5rem);
     display: grid; grid-template-columns: 1fr; gap: 1.5rem; align-items: center;
+    /* The token's trip is a fixed 350px of path data (see `.route-track`), and below the
+       three-column breakpoint the card is narrower than that, so the token flies past the card's
+       right edge. Painted overflow from an offset-path move still counts as scrollable overflow,
+       and a phone answers it by widening the layout viewport. `clip` (not `hidden`) stops it at
+       the card without making the card a scroll container; the vertical axis stays visible for
+       the arc's peak. */
+    overflow-x: clip;
   }
   @media (min-width: 900px) { .route { grid-template-columns: auto 1fr auto; gap: 2rem; } }
   .route-node {
@@ -1008,7 +1015,8 @@
 
   <footer data-od-id="footer" data-footer-mount></footer>
 
-  <script src="./kuinetic.js"></script>
+  <!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+  <script src="./kuinetic.js" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
   </script>

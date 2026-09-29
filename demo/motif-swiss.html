@@ -1076,7 +1076,8 @@
 
 <a id="back-top" href="#main" class="label" data-kui="back-to-top-fade offset:400" aria-label="Back to top">↑</a>
 
-<script src="./kuinetic.js"></script>
+<!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+<script src="./kuinetic.js" data-kui-manual></script>
 <script>
   window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
 </script>

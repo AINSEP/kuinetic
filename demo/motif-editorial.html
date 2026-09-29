@@ -727,7 +727,12 @@
   /* ---------- colophon ---------------------------------------------------------------------- */
 
   .colophon { background: var(--paper-deep); border-top: 1px solid var(--rule); }
-  .colophon-body { display: grid; gap: clamp(2rem, 4vw, 3rem); }
+  /* `minmax(0, 1fr)`, not the implicit `auto` track: an auto column is as wide as its widest
+     item's min-content, and the exhibit's `<pre>` lines are long. Below the two-column
+     breakpoint that stretched the single column (and the definition list in it) past the phone
+     viewport, which the browser answers by widening the layout viewport to match. The `pre`
+     already scrolls inside itself; this lets it. */
+  .colophon-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(2rem, 4vw, 3rem); }
   @media (min-width: 940px) {
     .colophon-body { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr); column-gap: var(--gutter); align-items: start; }
   }
@@ -1360,7 +1365,8 @@
   </div>
 </footer>
 
-<script src="./kuinetic.js"></script>
+<!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+<script src="./kuinetic.js" data-kui-manual></script>
 <script>
   window.__kui = kuinetic.kuinetic({ observe: true }).start()
 </script>

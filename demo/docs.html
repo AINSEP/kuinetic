@@ -430,8 +430,10 @@
   </main>
 
   <script src="./markdown.js"></script>
-  <script src="./kuinetic.js"></script>
+  <script src="./kuinetic.js" data-kui-manual></script>
   <script>
+    // `data-kui-manual` above: this page needs its own reporter, and the script tag would
+    // otherwise start a second animator without one (the library warns about exactly that).
     // Getting Started embeds real `data-kui` markup via markdown.js's `live` fence (see
     // doc-live below). `observe: true` keeps a MutationObserver running so elements inserted
     // later by loadDoc()'s `body.innerHTML = ...` — after this script has already called
