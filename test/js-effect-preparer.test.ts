@@ -65,6 +65,7 @@ function planWithThrowingEffect(): CompiledPlan {
     unknown: [],
     reducedMotion: 'shorten',
     supportedActivations: [],
+    activationClaims: [],
     supportedTimelines: [],
     channels: [],
     warnings: [],

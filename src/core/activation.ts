@@ -858,7 +858,39 @@ export interface ActivationDiagnosticsRequest {
   spec: ActivationSpec
   /** Declared support from the composed primitives; empty means no primitive claimed anything. */
   supported: NamedActivation[]
+  /**
+   * What each composed effect declares on its own. Optional: without it the check can only compare
+   * against the intersection in `supported`, exactly as it did before compositions were told apart.
+   */
+  claims?: ActivationSupportClaim[]
   reporter: Reporter
+}
+
+/** One composed effect's own declaration, as `compile.ts` records it. */
+export interface ActivationSupportClaim {
+  supported: NamedActivation[]
+  /** The effect is an entrance — a reveal, which is what an `enter` trigger is written for. */
+  entrance: boolean
+}
+
+/**
+ * Whether `name` is unsupported by `supported` (the composed intersection) only because of effects
+ * that will still run, just later than they would have.
+ *
+ * `host-facts.ts` settles the composed case: an entrance names the trigger, and a behaviour that
+ * declared only `load` then wires up when its element scrolls into view rather than at load —
+ * "late, and it still works, nobody drags, hovers or clicks an element they cannot see". So when an
+ * entrance in the same composition does support the authored name, a `load`-declaring effect that
+ * does not is being bound late, not left dead. An effect that cannot start on its own at all
+ * (`manual`-only) is never excused: `enter` would never fire it. An observed trigger only — a
+ * `click` on a load-only widget is not late, it has nothing to click.
+ */
+function onlyBoundLate(name: string, claims: ActivationSupportClaim[]): boolean {
+  const authorising = authorisingActivations(name)
+  if (!authorising.includes('enter')) return false
+  const suits = (claim: ActivationSupportClaim): boolean => authorising.some((named) => claim.supported.includes(named))
+  if (!claims.some((claim) => claim.entrance && suits(claim))) return false
+  return claims.every((claim) => suits(claim) || claim.supported.includes('load'))
 }
 
 /**
@@ -884,14 +916,17 @@ export function warnAboutActivation(request: ActivationDiagnosticsRequest): void
  * @complexity O(s * a) time; O(1) space.
  * @overallScore 100
  */
-function warnUnsupported({ el, spec, supported, reporter }: ActivationDiagnosticsRequest): void {
-  if (supported.length === 0) return
+function warnUnsupported({ el, spec, supported, claims, reporter }: ActivationDiagnosticsRequest): void {
+  // An empty intersection is not "nothing declared": two effects can each declare something and
+  // share nothing (an `enter` entrance beside a `manual`-only effect), which is the dead case this
+  // check exists for. Only silence from every effect means there is nothing to compare against.
+  const declaredAny = supported.length > 0 || (claims?.some((claim) => claim.supported.length > 0) ?? false)
+  if (!declaredAny) return
+  const shared = supported.length > 0 ? supported.join(', ') : 'none in common across the composed effects'
   for (const name of spec.names) {
     if (authorisingActivations(name).some((named) => supported.includes(named))) continue
-    reporter.warn(
-      `activation "${name}" is not supported by this effect (supports: ${supported.join(', ')})`,
-      el,
-    )
+    if (claims && onlyBoundLate(name, claims)) continue
+    reporter.warn(`activation "${name}" is not supported by this effect (supports: ${shared})`, el)
   }
 }
 

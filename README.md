@@ -123,16 +123,23 @@ its readable, unminified twin, about twice the transfer size; use it only for de
 `kuinetic.advanced.min.js` is a tier: it needs core on the page, in either order, and never carries
 a copy of it.
 
-Every one of those browser bundles starts itself once the document is ready. `data-kui-manual` on a
-`<script>` tag turns that off for that file. Importing from npm does **not** start anything — a
-module import stays side-effect-free, which is the guarantee the bundler path is built on.
+Every one of those browser bundles starts itself once the document is ready. Importing from npm does
+**not** start anything — a module import stays side-effect-free, which is the guarantee the bundler
+path is built on.
+
+To drive it by hand, put `data-kui-manual` on the tag. On `kuinetic.js` that turns off the
+*auto-start* only: nothing is created or started until you call `kuinetic.kuinetic({ ... }).start()`,
+and any tier bundle you load (`kuinetic.advanced.js`, ...) still registers into the animator you
+build, in either tag order. On a tier's own tag it takes that tier out entirely.
 
 > **Changed in 0.2.** These bundles used to do nothing until you called
 > `kuinetic.kuinetic({ observe: true }).start()` yourself, and `kuinetic.all.js` started itself the
 > instant it parsed rather than at `DOMContentLoaded`. If you already write that call, it keeps
-> working and your animator is still the one the page uses — you will see one console line saying
-> the call is now redundant. Add `data-kui-manual` to the tag to silence it and go back to driving
-> everything by hand.
+> working and your animator is still the one the page uses. A call that names its own options — a
+> `reporter`, a scoped `root`, a `registry` — is how you configure the auto-started animator, and it
+> is adopted without comment. A call with no options, or only `{ observe: true }`, does nothing the
+> script tag has not already done, so you will see one console line saying it is now redundant. Delete
+> it, or add `data-kui-manual` to the tag to go back to driving everything by hand.
 
 ## Your first animation
 

@@ -171,12 +171,21 @@ console.log('\nDouble-animator guard')
   const legacy = `<script>window.__mine = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()</script>`
   const { window, warnings } = await loadPage(page(CORE_TAG + legacy, SUBJECT), { name: 'guard-adopt' })
   check(window.__mine === window.__kuinetic, "an inline call before the boot becomes the page's animator")
-  check(warnings.some((line) => line.includes('data-kui-manual')), 'and is told how to turn auto-start off', warnings.join(' | '))
+  // Naming its own reporter makes the call real configuration, not a redundant restatement, so
+  // the boot adopts it without a "safe to delete" line.
+  check(!warnings.some((line) => line.includes('created by hand')), 'and is adopted without a redundancy warning', warnings.join(' | '))
   check(!!window.document.querySelector('[data-kui-fx]'), 'the page still animates')
   check(
     !!window.__kuinetic?.registry?.resolve('fade-up'),
     'and it is a complete animator, not a stub',
   )
+}
+{
+  // The same call with nothing the boot has not already built is redundant, and says so once.
+  const plain = `<script>window.__mine = kuinetic.kuinetic({ observe: true }).start()</script>`
+  const { window, warnings } = await loadPage(page(CORE_TAG + plain, SUBJECT), { name: 'guard-adopt-plain' })
+  check(window.__mine === window.__kuinetic, "a plain inline call also becomes the page's animator")
+  check(warnings.some((line) => line.includes('data-kui-manual')), 'and is told how to turn auto-start off', warnings.join(' | '))
 }
 {
   // Adoption has to survive a tier, too: the tier registers into whatever the runtime holds, so the
@@ -239,16 +248,19 @@ console.log('\nOpt-out')
   check(warnings.length === 0, 'and it is silent about it', warnings.join(' | '))
 }
 {
-  // Core manual, tier not. Core is the only thing that creates an animator, so the tier has nothing
-  // to attach to — and should stay quiet rather than claim core is missing, because it is not.
-  const tags = '<script src="./kuinetic.js" data-kui-manual></script>' + TIER_TAG
-  const { window, warnings } = await loadPage(page(tags, SUBJECT), { name: 'manual-core-only' })
-  check(!window.__kuinetic, 'marking core manual disables the whole chain')
-  check(
-    !warnings.some((line) => line.includes('core did not')),
-    'and the tier does not wrongly report core missing',
-    warnings.join(' | '),
-  )
+  // Core manual, tier not. Manual means "do not auto-start", not "do not wire tiers": the tier
+  // registers into the animator the author builds, in either tag order, with no warning about a
+  // missing core (it is not missing) or about a hand-built animator (that is the intent).
+  for (const [label, tags] of [
+    ['core first', '<script src="./kuinetic.js" data-kui-manual></script>' + TIER_TAG],
+    ['tier first', TIER_TAG + '<script src="./kuinetic.js" data-kui-manual></script>'],
+  ]) {
+    const byHand = '<script>window.__mine = kuinetic.kuinetic({ observe: true }).start()</script>'
+    const { window, warnings } = await loadPage(page(tags + byHand, SUBJECT), { name: `manual-core-tier-${label.replace(/\W+/g, '-')}` })
+    check(!!window.__mine?.registry?.resolve('particle-dissolve'), `manual core, ${label}: the tier registered into the hand-built animator`)
+    check(!!window.document.querySelector('#tier-fx[data-kui-fx]'), `manual core, ${label}: and its effect ran on the first scan`)
+    check(warnings.length === 0, `manual core, ${label}: silent`, warnings.join(' | '))
+  }
 }
 {
   const { warnings } = await loadPage(page(TIER_TAG, SUBJECT), { name: 'tier-alone' })

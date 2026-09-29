@@ -39,10 +39,13 @@
  *
  * ## Opt-out
  *
- * `data-kui-manual` on a bundle's own `<script>` tag means "this bundle does not auto-init". Put it
- * on every tag to get exactly the pre-auto-start behaviour back. Marking *core* manual necessarily
- * disables the whole chain, because core is the only thing that creates an animator — so a tier
- * that sees core go manual stays quiet rather than complaining that core is missing.
+ * `data-kui-manual` on a bundle's own `<script>` tag means "this bundle does not auto-init". On a
+ * tier it takes that tier out entirely. On *core* it means "do not auto-START": core makes no
+ * animator and starts nothing, and the author builds one by hand, as before auto-start existed.
+ * It does not mean "do not wire tiers" — a page that loads `kuinetic.advanced.js` next to a manual
+ * core still wants the advanced effects on the animator it builds. So core keeps its factory
+ * wrapped in a registration-only mode (`guarded`, below): every animator built by hand gets the
+ * tiers that have loaded, in either tag order, before its first scan whenever that is possible.
  */
 
 /** Only what this file calls. Structural, because it cannot import the real types. */
@@ -50,6 +53,8 @@ interface AnimatorLike {
   start(): unknown
   scan(root?: ParentNode): unknown
   reset(el: Element): void
+  /** Present on the real `Animator`; a destroyed one must stop receiving tiers. */
+  destroy?(): unknown
 }
 
 type Options = Record<string, unknown>
@@ -64,15 +69,23 @@ interface TierRegistration {
   register: (animator: AnimatorLike) => unknown
 }
 
+/** One animator built by hand on a manual-core page, and whether its own `start()` has run. */
+interface HandBuilt {
+  animator: AnimatorLike
+  started: boolean
+}
+
 interface Runtime {
   v: number
   animator: AnimatorLike | null
+  /** Every live hand-built animator on a manual-core page, in creation order. Empty otherwise. */
+  handBuilt?: HandBuilt[]
   pending: TierRegistration[]
   /** The boot has run at least once with an animator in hand. */
   booted: boolean
   /** `start()` has been called on the animator — by the boot, or by hand through the guard. */
   started: boolean
-  /** Core's tag carried `data-kui-manual`, so nothing auto-inits. */
+  /** Core's tag carried `data-kui-manual`: no auto-start, but tiers still wire into a hand-built animator. */
   manual: boolean
   scheduled: boolean
   warnedVersion: boolean
@@ -195,7 +208,9 @@ function installGuard(runtime: Runtime, core: CoreNamespace, globalName?: string
  * compromise: it reproduces, precisely, what the page did before auto-start existed, including a
  * custom `reporter`, a scoped `root`, or a registry of their own. Tiers still register into it,
  * because the runtime only ever knows about one animator, and their `.start()` makes the boot's a
- * no-op. All they get is one line telling them the call is now redundant.
+ * no-op. If the call asked for nothing beyond what the boot builds (no options, or exactly
+ * `{ observe: true }`) they get one line telling them it is now redundant; if it named its own
+ * options it is adopted silently, because it is doing real work and is not redundant.
  *
  * Only a call arriving *after* the document has been scanned is a genuine conflict, and only then
  * does this hand back the existing animator — for a call that asks for nothing, or for exactly the
@@ -208,18 +223,6 @@ function guarded(
   core: CoreNamespace,
   options?: Options,
 ): AnimatorLike {
-  if (!runtime.started) {
-    const replacement = original.call(core, options)
-    adopt(runtime, replacement)
-    warnManualCall(
-      runtime,
-      'yours is now the one this page uses, exactly as it would have been before the script tag ' +
-        'started one, so the call is safe to delete',
-    )
-    return replacement
-  }
-
-  const shared = runtime.animator
   // Values, not just key names. The boot built its animator with exactly `{ observe: true }`, so
   // that is the one option a call can name and still be asking for the same thing. `observe`
   // defaults to *false* (`shouldObserve` in `src/core/animator.ts`), which makes an explicit
@@ -227,6 +230,32 @@ function guarded(
   // caller a `MutationObserver`-backed animator would be answering a different question.
   const wantsShared =
     !options || Object.entries(options).every(([key, value]) => key === 'observe' && value === true)
+
+  // A manual core made no animator of its own, so there is nothing to adopt, hand back, or
+  // conflict with: the call builds exactly what it asked for, and the tiers are wired into it.
+  if (runtime.manual) {
+    const made = original.call(core, options)
+    adoptManual(runtime, made)
+    return made
+  }
+
+  if (!runtime.started) {
+    const replacement = original.call(core, options)
+    adopt(runtime, replacement)
+    // Only a call that asks for nothing the boot has not already built is redundant. One that names
+    // its own reporter, root or registry is the supported way to configure the auto-started
+    // animator, and deleting it would silently drop those options — so it is adopted quietly.
+    if (wantsShared) {
+      warnManualCall(
+        runtime,
+        'yours is now the one this page uses, exactly as it would have been before the script tag ' +
+          'started one, so the call is safe to delete',
+      )
+    }
+    return replacement
+  }
+
+  const shared = runtime.animator
   if (shared && wantsShared) {
     warnManualCall(runtime, 'you have been handed the one it already made, so this call is safe to delete')
     return shared
@@ -264,6 +293,60 @@ function adopt(runtime: Runtime, animator: AnimatorLike): void {
   }
   runtime.animator = animator
   globalScope().__kuinetic = animator
+}
+
+/**
+ * A hand-built animator on a page whose core tag is `data-kui-manual`.
+ *
+ * Every one gets every tier that has loaded (`pending` is never drained in this mode — it is the
+ * standing list), and every one is remembered so a tier arriving later reaches all of them, not only
+ * the first. The first is also the page's one animator for the `started` bookkeeping and
+ * `window.__kuinetic`, exactly as an adopted one is.
+ *
+ * Each carries its own started flag, because "the page was scanned" is per animator here: a second
+ * one can be started while the first is still waiting. A `destroy()` drops the entry, so the list
+ * never keeps a torn-down animator alive or hands it a tier.
+ */
+function adoptManual(runtime: Runtime, animator: AnimatorLike): void {
+  if (!runtime.animator) adopt(runtime, animator)
+  const entry: HandBuilt = { animator, started: false }
+  const list = (runtime.handBuilt ??= [])
+  list.push(entry)
+  const start = animator.start.bind(animator)
+  animator.start = (): unknown => {
+    entry.started = true
+    return start()
+  }
+  if (typeof animator.destroy === 'function') {
+    const destroy = animator.destroy.bind(animator)
+    animator.destroy = (): unknown => {
+      const at = list.indexOf(entry)
+      if (at >= 0) list.splice(at, 1)
+      return destroy()
+    }
+  }
+  for (const tier of runtime.pending) registerTier(tier, animator)
+}
+
+function registerTier(entry: TierRegistration, animator: AnimatorLike): void {
+  try {
+    entry.register(animator)
+  } catch (error) {
+    warn(`the "${entry.tier}" tier failed to register: ${String(error)}`)
+  }
+}
+
+/**
+ * A tier tag parsed on a manual-core page. With an animator already built it registers straight
+ * away, and rescans if the author has started it (a `defer` tag runs after the inline script); with
+ * none yet it waits in `pending` for `adoptManual`.
+ */
+function enlistOnManual(runtime: Runtime, entry: TierRegistration): void {
+  runtime.pending.push(entry)
+  for (const { animator, started } of [...(runtime.handBuilt ?? [])]) {
+    registerTier(entry, animator)
+    if (started) recompile(animator)
+  }
 }
 
 /**
@@ -322,13 +405,7 @@ function reportMissingCore(runtime: Runtime): void {
 
 function drain(runtime: Runtime, animator: AnimatorLike): number {
   const pending = runtime.pending.splice(0, runtime.pending.length)
-  for (const entry of pending) {
-    try {
-      entry.register(animator)
-    } catch (error) {
-      warn(`the "${entry.tier}" tier failed to register: ${String(error)}`)
-    }
-  }
+  for (const entry of pending) registerTier(entry, animator)
   return pending.length
 }
 
@@ -354,20 +431,6 @@ function runBoot(runtime: Runtime): void {
   if (registered) recompile(animator)
 }
 
-/**
- * Core going manual disables the whole chain, because core is the only thing that creates an
- * animator; a tier going manual takes only itself out. Checked on the runtime rather than only on
- * this tag, so it holds whichever order the tags are in — a tier that already queued itself is
- * still called off by a core tag parsed after it.
- */
-function optedOut(runtime: Runtime, options: BootOptions): boolean {
-  if (taggedManual()) {
-    if (options.core) runtime.manual = true
-    return true
-  }
-  return runtime.manual
-}
-
 function enlist(runtime: Runtime, options: BootOptions): void {
   if (options.core) {
     if (runtime.animator) return
@@ -386,7 +449,21 @@ export function boot(options: BootOptions): void {
 
   const runtime = getRuntime()
   checkVersion(runtime, options.tier)
-  if (optedOut(runtime, options)) return
+
+  if (taggedManual()) {
+    // A tier's own attribute takes only that tier out. Core's turns off the auto-start but keeps the
+    // factory wrapped so tiers still register into whatever the author builds.
+    if (options.core) {
+      runtime.manual = true
+      installGuard(runtime, options.core, options.globalName)
+    }
+    return
+  }
+
+  if (runtime.manual) {
+    if (options.register) enlistOnManual(runtime, { tier: options.tier, register: options.register })
+    return
+  }
 
   enlist(runtime, options)
   schedule(runtime)

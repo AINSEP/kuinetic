@@ -16,6 +16,7 @@ import {
   resolvedPolicy,
   strictestPolicy,
 } from './host-facts.js'
+import type { ActivationSupportClaim } from './activation.js'
 import { assignOnce } from './parse.js'
 import { resolveParams } from './params.js'
 import type { Registry, ResolvedEffect } from './registry.js'
@@ -169,6 +170,12 @@ export interface CompiledPlan {
   defaultActivation?: Activation
   /** Activations every composed primitive supports, for enforcement by the animator. */
   supportedActivations: NamedActivation[]
+  /**
+   * What each composed effect declares on its own, in authoring order. `supportedActivations` above
+   * is their intersection and cannot say *which* effect a trigger does not suit, or whether an
+   * entrance beside it is what the trigger was written for — `warnAboutActivation` needs both.
+   */
+  activationClaims: ActivationSupportClaim[]
   /**
    * Timelines every composed primitive supports. Empty means none — `style-plan.ts` must not
    * apply a native `view()`/`scroll()` timeline the author's effect doesn't declare support for,
@@ -618,6 +625,7 @@ function emptyPlan(unknown: string[], warnings: string[]): CompiledPlan {
     unknown,
     reducedMotion: 'shorten',
     supportedActivations: [],
+    activationClaims: [],
     supportedTimelines: [],
     channels: [],
     warnings,
@@ -1020,6 +1028,10 @@ function buildPlan(
     // decides it once over every group's composed entries, and `mergeHostFacts`, which writes the
     // answer onto every plan including this one.
     activations = intersect(activations, primitive.supportedActivations)
+    plan.activationClaims.push({
+      supported: primitive.supportedActivations,
+      entrance: phaseOf(entry) === 'entrance',
+    })
     timelines = intersect(timelines, primitive.supportedTimelines)
     for (const channel of channelsFor(entry)) channels.add(channel)
     warnUnsupportedTimeline(preset.name, primitive.supportedTimelines, timeline, warnings)

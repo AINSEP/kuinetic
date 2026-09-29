@@ -484,6 +484,7 @@ export class Animator {
       el,
       spec: resolveActivationSpec(config.activation),
       supported: plan.supportedActivations,
+      claims: plan.activationClaims,
       reporter: this.reporter,
     })
     return config.activation

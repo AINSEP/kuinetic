@@ -31,13 +31,14 @@ type FakeAnimator = {
   start: () => unknown
   scan: Mock
   reset: Mock
+  destroy: Mock
 }
 
 const scope = globalThis as unknown as Record<string, unknown>
 
 function fakeAnimator(options?: Record<string, unknown>): FakeAnimator {
   const startSpy = vi.fn(() => 'started')
-  return { options, startSpy, start: startSpy, scan: vi.fn(), reset: vi.fn() }
+  return { options, startSpy, start: startSpy, scan: vi.fn(), reset: vi.fn(), destroy: vi.fn() }
 }
 
 /**
@@ -320,16 +321,31 @@ describe('tag order is irrelevant by construction', () => {
 })
 
 describe('data-kui-manual', () => {
-  it('on core, disables the whole chain', () => {
+  it('on core, means no auto-start: no animator is made and nothing is started', () => {
+    setReadyState('loading')
     const core = fakeCore()
     scope.kuinetic = core.ns
     setCurrentScript(true)
 
     boot(coreOptions(core))
+    domContentLoaded()
 
     expect(core.made).toHaveLength(0)
     expect(adopted()).toBeUndefined()
-    expect(scope.kuinetic).toBe(core.ns)
+    expect(warnings()).toEqual([])
+  })
+
+  it('on core, leaves the author a factory that behaves like the bare one', () => {
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    setCurrentScript(true)
+    boot(coreOptions(core))
+
+    const mine = globalApi().kuinetic({ observe: true, reporter: 'mine' })
+
+    expect(core.made).toEqual([mine])
+    expect(mine.options).toEqual({ observe: true, reporter: 'mine' })
+    // A hand-built animator on a manual page is the intended arrangement, not a conflict.
     expect(warnings()).toEqual([])
   })
 
@@ -347,36 +363,124 @@ describe('data-kui-manual', () => {
     expect(core.made[0]!.startSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps a tier quiet about core when core is the one that opted out', () => {
-    // Core goes manual *after* the tier queued itself, and the boot was already scheduled. The
-    // tier has nothing to attach to, but core is not missing — so nothing is said.
+  it.each([
+    ['core first', true],
+    ['tier first', false],
+  ])('still registers a tier into the hand-built animator (%s)', (_label, coreFirst) => {
     setReadyState('loading')
     const core = fakeCore()
     scope.kuinetic = core.ns
     const register = vi.fn()
+    const bootCore = (): void => {
+      setCurrentScript(true)
+      boot(coreOptions(core))
+      setCurrentScript(null)
+    }
 
-    boot(tierOptions('advanced', register))
-    setCurrentScript(true)
-    boot(coreOptions(core))
+    if (coreFirst) {
+      bootCore()
+      boot(tierOptions('advanced', register))
+    } else {
+      boot(tierOptions('advanced', register))
+      bootCore()
+    }
+    const mine = globalApi().kuinetic({ observe: true, reporter: 'mine' })
+    mine.start()
     domContentLoaded()
 
-    expect(core.made).toHaveLength(0)
-    expect(register).not.toHaveBeenCalled()
+    expect(register).toHaveBeenCalledTimes(1)
+    expect(register).toHaveBeenCalledWith(mine)
+    expect(core.made).toEqual([mine])
+    expect(adopted()).toBe(mine)
+    // Registered before the author's own start, so no post-scan rescan was needed.
+    expect(mine.reset).not.toHaveBeenCalled()
+    expect(mine.startSpy).toHaveBeenCalledTimes(1)
     expect(warnings()).toEqual([])
   })
 
-  it('stays off for a tier tag parsed after core went manual', () => {
+  it('registers a tier that arrives after the author started, and rescans', () => {
+    // A `defer` tier tag runs after the author's inline script.
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    const register = vi.fn()
+    document.body.innerHTML = '<div data-kui="fade-up"></div>'
+    setCurrentScript(true)
+    boot(coreOptions(core))
+    setCurrentScript(null)
+
+    const mine = globalApi().kuinetic({ observe: true })
+    mine.start()
+    boot(tierOptions('advanced', register))
+
+    expect(register).toHaveBeenCalledWith(mine)
+    expect(mine.reset).toHaveBeenCalledTimes(1)
+    expect(mine.scan).toHaveBeenCalledTimes(1)
+  })
+
+  it('registers a late tier into every hand-built animator, and rescans only the started ones', () => {
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    const register = vi.fn()
+    document.body.innerHTML = '<div data-kui="fade-up"></div>'
+    setCurrentScript(true)
+    boot(coreOptions(core))
+    setCurrentScript(null)
+
+    const first = globalApi().kuinetic({ observe: true })
+    const second = globalApi().kuinetic({ observe: true })
+    second.start()
+    boot(tierOptions('advanced', register))
+
+    expect(register).toHaveBeenCalledWith(first)
+    expect(register).toHaveBeenCalledWith(second)
+    expect(second.reset).toHaveBeenCalledTimes(1)
+    expect(second.scan).toHaveBeenCalledTimes(1)
+    // Never started, so its own first scan will see the tier already registered.
+    expect(first.scan).not.toHaveBeenCalled()
+  })
+
+  it('stops tracking a hand-built animator once it is destroyed', () => {
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    const register = vi.fn()
+    setCurrentScript(true)
+    boot(coreOptions(core))
+    setCurrentScript(null)
+
+    const gone = globalApi().kuinetic({ observe: true })
+    gone.start()
+    gone.destroy()
+    boot(tierOptions('advanced', register))
+
+    expect(register).not.toHaveBeenCalledWith(gone)
+    expect(gone.scan).not.toHaveBeenCalled()
+  })
+
+  it('does not register a tier that carries its own data-kui-manual', () => {
     const core = fakeCore()
     scope.kuinetic = core.ns
     const register = vi.fn()
 
     setCurrentScript(true)
     boot(coreOptions(core))
-    setCurrentScript(null)
     boot(tierOptions('advanced', register))
+    setCurrentScript(null)
+    globalApi().kuinetic({ observe: true }).start()
 
     expect(register).not.toHaveBeenCalled()
-    expect(adopted()).toBeUndefined()
+  })
+
+  it('never says core is missing when a manual core simply has no animator yet', () => {
+    setReadyState('loading')
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    boot(tierOptions('advanced', vi.fn()))
+    setCurrentScript(true)
+    boot(coreOptions(core))
+    setCurrentScript(null)
+    domContentLoaded()
+
+    expect(core.made).toHaveLength(0)
     expect(warnings()).toEqual([])
   })
 })
@@ -484,11 +588,51 @@ describe('the double-animator guard', () => {
     expect(mine).not.toBe(core.made[0])
     expect(mine.options).toEqual({ observe: true, reporter: 'mine' })
     expect(adopted()).toBe(mine)
-    expect(warnings()[0]).toContain('data-kui-manual')
+    // Adopting a call that names its own options is the supported way to configure the
+    // auto-started animator, and deleting it would drop the reporter — so nothing is said.
+    expect(warnings()).toEqual([])
 
     domContentLoaded()
 
     // The boot starts theirs, and never starts the one it made.
+    expect(mine.startSpy).toHaveBeenCalledTimes(1)
+    expect(core.made[0]!.startSpy).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no options', undefined],
+    ['an empty options object', {}],
+    ['exactly `{ observe: true }`', { observe: true }],
+  ])('warns that an adopted call with %s is redundant', (_label, options) => {
+    // Before the scan such a call asks for nothing the boot has not already built, so it really is
+    // safe to delete — and the warning names the attribute that turns the auto-start off.
+    setReadyState('loading')
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    boot(coreOptions(core))
+
+    const mine = globalApi().kuinetic(options as Record<string, unknown> | undefined)
+
+    expect(adopted()).toBe(mine)
+    expect(warnings()).toHaveLength(1)
+    expect(warnings()[0]).toContain('safe to delete')
+    expect(warnings()[0]).toContain('data-kui-manual')
+  })
+
+  it('adopts a call that names its own options without saying anything', () => {
+    setReadyState('loading')
+    const core = fakeCore()
+    scope.kuinetic = core.ns
+    boot(coreOptions(core))
+
+    const mine = globalApi().kuinetic({ observe: true, reporter: 'mine' })
+
+    expect(adopted()).toBe(mine)
+    expect(mine.options).toEqual({ observe: true, reporter: 'mine' })
+    expect(warnings()).toEqual([])
+
+    domContentLoaded()
+
     expect(mine.startSpy).toHaveBeenCalledTimes(1)
     expect(core.made[0]!.startSpy).not.toHaveBeenCalled()
   })
