@@ -22,9 +22,9 @@ import { createChecker, createFrameRecorder, perspectiveOf } from '../../scripts
  * The effect list is derived from the registry (`primitive.parameters.perspective !== undefined`),
  * the same discipline `effect-sweep.test.mjs` uses to derive its own property list from
  * `getKeyframes()` instead of a hand-written one — a hand-kept list is exactly what let six
- * effects get wrongly called dead there. Four primitives currently declare `perspective`:
- * `flip-face`, `flip-3d`, `card-toggle`, and `tilt-3d`. Only the first two are checked here — see
- * `EXCLUDED` below for the other two and why, named and reasoned rather than silently dropped.
+ * effects get wrongly called dead there. Five primitives currently declare `perspective`:
+ * `flip-face`, `flip-3d`, `card-toggle`, `tilt-3d`, and `spatial-ring`. Only the first two are checked here — see
+ * `EXCLUDED` below for the others and why, named and reasoned rather than silently dropped.
  */
 export const name = 'three-d-depth'
 
@@ -35,7 +35,7 @@ const FIXTURE_URL = `file://${fileURLToPath(new URL('./fixtures/three-d-depth.ht
  * rather than filtered out silently — same discipline as `effect-sweep.test.mjs`'s `UNSAMPLEABLE`
  * doc comment, because a canary set that quietly shrinks reads as "depth is covered" when it covers
  * fewer pathways than it looks like. A check below asserts every non-`css-keyframes` perspective
- * primitive the registry reports is one of these two — so a *third* one showing up in the future
+ * primitive the registry reports is one of these — so a *new* one showing up in the future
  * fails loudly here instead of silently getting neither this suite's coverage nor a comment.
  */
 const EXCLUDED = new Map([
@@ -55,6 +55,16 @@ const EXCLUDED = new Map([
       'exclusion like card-toggle above: nothing anywhere asserts tilt-3d itself renders with ' +
       'depth. Left for a pointer-driven suite in the shape of gesture-sweep.test.mjs, not this one.',
   ],
+  ...['carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside'].map((effect) => [
+    effect,
+    'primitive spatial-ring, renderer: "javascript" — the ring lays its slots out with JS-written ' +
+      'transforms and the perspective is a --kui-perspective property on the ring host that the slots ' +
+      'project through, not a perspective() term in a transform on an element this suite can ' +
+      'install-pause-read (there is no WAAPI Animation to find). Unit tests cover the geometry ' +
+      '(carousel-3d*.test.ts) but, like tilt-3d, this is a real, currently-uncovered gap for the ' +
+      'render itself: nothing in a browser asserts the ring is foreshortened. Needs a dedicated ' +
+      'ring fixture that compares front and back slot projected sizes, not this suite.',
+  ]),
 ])
 
 /** How long the mid-rotation sample and the "human can see it" sample wait for, respectively. */

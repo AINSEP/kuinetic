@@ -4,6 +4,9 @@
  * Each suite is a plain ESM module exporting `name` and an async `run({ browser, ARTIFACT_DIR })`
  * that returns a `{ name, passed, detail }[]`. One Chromium instance is shared across suites —
  * each suite opens its own context — so the gate stays fast as the suite count grows.
+ *
+ * `--only <prefix>` runs just the suites whose file name starts with the prefix
+ * (`--only page-` is the page-level tier, `--only docs-toc` a single suite).
  */
 import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -19,9 +22,13 @@ const ARTIFACT_DIR = fileURLToPath(new URL('../.artifacts', import.meta.url))
  * @overallScore 100
  */
 async function loadSuites() {
+  const onlyIndex = process.argv.indexOf('--only')
+  const only = onlyIndex === -1 ? '' : (process.argv[onlyIndex + 1] ?? '')
+  if (onlyIndex !== -1 && !only) throw new Error('--only needs a file-name prefix, e.g. --only page-')
   const files = readdirSync(TEST_DIR)
-    .filter((file) => file.endsWith('.test.mjs'))
+    .filter((file) => file.endsWith('.test.mjs') && file.startsWith(only))
     .sort()
+  if (files.length === 0) throw new Error(`no suite in test/browser/ starts with "${only}"`)
   return Promise.all(files.map((file) => import(`${TEST_DIR}/${file}`)))
 }
 

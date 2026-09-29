@@ -32,7 +32,7 @@ import { createChecker, createFrameRecorder } from '../../scripts/browser-harnes
  *     "unpin everything".
  *
  * It also gates the Flip control's corner. It sat 3.1rem above its own card's bottom edge on every
- * phone, on all three flip-cards, because the rule that stacked the hero card's two controls was
+ * phone, on every flip-card the page had (three then, four now — the test counts them from the DOM), because the rule that stacked the hero card's two controls was
  * scoped to `.kui-flip-control` rather than to the one card that has two.
  *
  * `resize_window` in the Chrome extension silently floors at ~500px CSS width on this machine, so a
@@ -184,11 +184,14 @@ function readFlipCorners(page) {
   return page.evaluate(() =>
     [...document.querySelectorAll('[data-kui~="flip-card"]')].map((card) => {
       const control = card.querySelector(':scope > .kui-flip-control')
+      // A card with no control is itself a finding, not a card to skip: report it and fail it below.
+      if (!control) return { id: card.id || card.className, missingControl: true }
       const style = getComputedStyle(control)
       const cardRect = card.getBoundingClientRect()
       const controlRect = control.getBoundingClientRect()
       return {
-        id: card.id,
+        // Not every card carries an id (the matrix-flip one does not); fall back to its class.
+        id: card.id || card.className,
         hidden: style.display === 'none',
         justifySelf: style.justifySelf,
         alignSelf: style.alignSelf,
@@ -202,6 +205,7 @@ function readFlipCorners(page) {
 
 /** Bottom-left: measured off the card when the control is rendered, declared when it is not. */
 function inBottomLeftCorner(card, inset) {
+  if (card.missingControl) return false
   if (card.hidden) {
     return (
       card.justifySelf === 'start' && card.alignSelf === 'end' && card.margin === `${inset}px ${inset}px ${inset}px ${inset}px`
@@ -214,7 +218,9 @@ function inBottomLeftCorner(card, inset) {
 function describeCorners(cards) {
   return cards
     .map((card) =>
-      card.hidden
+      card.missingControl
+        ? `${card.id}: no .kui-flip-control`
+        : card.hidden
         ? `${card.id}: hidden, ${card.justifySelf}/${card.alignSelf} margin ${card.margin}`
         : `${card.id}: ${card.fromLeft}/${card.fromBottom}`,
     )
@@ -404,7 +410,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
     const misplaced = corners.filter((card) => !inBottomLeftCorner(card, CORNER_INSET))
     check(
       `every flip control sits in its card's bottom-left corner at ${label}`,
-      corners.length === 3 && misplaced.length === 0,
+      corners.length >= 1 && misplaced.length === 0,
       misplaced.length ? describeCorners(misplaced) : describeCorners(corners),
     )
 
@@ -451,7 +457,7 @@ export async function run({ browser, ARTIFACT_DIR }) {
     const misplaced = corners.filter((card) => !inBottomLeftCorner(card, CORNER_INSET))
     check(
       "every flip control sits in its card's bottom-left corner at 1280px too",
-      corners.length === 3 && misplaced.length === 0,
+      corners.length >= 1 && misplaced.length === 0,
       misplaced.length ? describeCorners(misplaced) : describeCorners(corners),
     )
 

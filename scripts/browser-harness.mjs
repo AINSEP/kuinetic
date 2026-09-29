@@ -4,6 +4,80 @@
  * scheme, instead of two scripts drifting apart on how evidence is captured.
  */
 import { mkdirSync, rmSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { readFile } from 'node:fs/promises'
+import { extname, join, normalize, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
+const DEMO_ROOT = join(REPO_ROOT, 'demo')
+const DOCS_ROOT = join(REPO_ROOT, 'docs')
+
+/** Same table as `scripts/dev-server.mjs`, so a page loads the same bytes here as on the real server. */
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+}
+
+/**
+ * A read-only static server over `demo/` + the repo's `docs/`, routed exactly like
+ * `scripts/dev-server.mjs` (`/docs/*` → repo `docs/`, everything else → `demo/`) but with none of
+ * that server's build-watcher or live-reload side effects — a suite only needs `fetch()` to resolve
+ * real files. Binds port 0 so it never contends with the human's dev server on 8934.
+ *
+ * Demo pages cannot be driven as bare `file://` pages: `show-code.js` fetches `location.pathname`
+ * and `docs.html` fetches `./docs/<doc>.md`, and Chromium refuses `fetch()` against `file://`.
+ *
+ * @returns `{ origin, close }` — the server's base URL and a teardown function.
+ * @complexity O(1) to start; each request is one file read.
+ * @overallScore 100
+ */
+export async function startStaticServer() {
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://localhost')
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+    const underDocs = url.pathname.startsWith('/docs/')
+    const base = underDocs ? DOCS_ROOT : DEMO_ROOT
+    const relative = underDocs ? url.pathname.slice('/docs'.length) : url.pathname
+    const target = normalize(join(base, decodeURIComponent(relative)))
+    if (target !== base && !target.startsWith(base + sep)) {
+      res.writeHead(403)
+      res.end()
+      return
+    }
+    try {
+      const body = await readFile(target)
+      res.writeHead(200, { 'Content-Type': MIME_TYPES[extname(target)] ?? 'application/octet-stream' })
+      res.end(body)
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+      res.end('404 Not Found')
+    }
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address()
+  return { origin: `http://127.0.0.1:${port}`, close: () => new Promise((resolve) => server.close(resolve)) }
+}
 
 /**
  * Resolve Playwright without hardcoding a path outside the repository.

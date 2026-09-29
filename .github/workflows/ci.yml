@@ -41,3 +41,38 @@ jobs:
         run: npx playwright-core install --with-deps chromium
 
       - run: npm run ci
+
+  # Advisory: whole-page screenshots of every demo page. Baselines are gitignored and only mean
+  # something on the machine that wrote them, so CI captures without comparing and uploads the
+  # pictures for a human to look at. `continue-on-error` keeps it from ever failing the run — it
+  # stays out of the gate until its false-positive rate is known (see scripts/visual-regression-pages.mjs).
+  visual-pages:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright's Chromium download
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('package-lock.json') }}
+
+      - name: Install the Chromium the page captures drive
+        run: npx playwright-core install --with-deps chromium
+
+      - run: npm run build && node scripts/visual-regression-pages.mjs --capture-only
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-pages
+          path: .artifacts/visual-pages/
+          if-no-files-found: ignore

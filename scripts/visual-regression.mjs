@@ -30,11 +30,10 @@
  *                                                     as the human review artifact. Non-zero exit
  *                                                     on any canary over tolerance.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { PNG } from 'pngjs'
-import pixelmatch from 'pixelmatch'
 import { loadChromium } from './browser-harness.mjs'
+import { compareToBaseline, writeReport } from './visual-compare.mjs'
 
 const UPDATE = process.argv.includes('--update')
 const FIXTURE_URL = `file://${fileURLToPath(new URL('../test/browser/fixtures/visual-regression.html', import.meta.url))}`
@@ -136,10 +135,6 @@ async function captureCanary(page, canary) {
   return page.locator(`#${canary.id}`).screenshot()
 }
 
-function readPng(buffer) {
-  return PNG.sync.read(buffer)
-}
-
 function baselinePath(canary, theme) {
   return `${BASELINE_DIR}/${canary.id}-${theme}.png`
 }
@@ -152,48 +147,12 @@ function baselinePath(canary, theme) {
 function writeBaseline(canary, theme, png, target) {
   writeFileSync(target, png)
   console.log(`WROTE  ${canary.id} (${theme}) -> ${target}`)
-  return { canary, theme, status: 'updated' }
+  return { label: rowLabel(canary, theme), status: 'updated' }
 }
 
-/**
- * Compare one freshly captured canary against its baseline.
- *
- * Split out of `run` so the capture loop stays a loop and this stays the decision. The three ways
- * a comparison can end — no baseline yet, the element changed size, or a real pixel diff — are
- * each their own row `status`, because collapsing them into one "fail" loses the only thing that
- * tells you whether to regenerate, look at the layout, or look at the render.
- *
- * A size change short-circuits rather than diffing: `pixelmatch` requires equal dimensions, and a
- * canary that changed size has already told you what you needed to know.
- *
- * @returns The row to record for the summary and the diff report.
- */
-function compareToBaseline(canary, theme, png, target) {
-  if (!existsSync(target)) {
-    console.log(`FAIL   ${canary.id} (${theme}) — no baseline; run with --update first`)
-    return { canary, theme, status: 'missing-baseline' }
-  }
-
-  const baseline = readPng(readFileSync(target))
-  const current = readPng(png)
-  if (baseline.width !== current.width || baseline.height !== current.height) {
-    console.log(
-      `FAIL   ${canary.id} (${theme}) — size changed: ${baseline.width}x${baseline.height} -> ${current.width}x${current.height}`,
-    )
-    return { canary, theme, status: 'size-mismatch', baseline, current }
-  }
-
-  const diff = new PNG({ width: baseline.width, height: baseline.height })
-  const diffPixels = pixelmatch(baseline.data, current.data, diff.data, baseline.width, baseline.height, {
-    threshold: PIXEL_THRESHOLD,
-  })
-  const totalPixels = baseline.width * baseline.height
-  const fraction = diffPixels / totalPixels
-  const pass = fraction <= MAX_DIFF_FRACTION
-  console.log(
-    `${pass ? 'PASS' : 'FAIL'}   ${canary.id} (${theme}) — ${diffPixels}/${totalPixels} px differ (${(fraction * 100).toFixed(2)}%, budget ${(MAX_DIFF_FRACTION * 100).toFixed(0)}%)`,
-  )
-  return { canary, theme, status: pass ? 'pass' : 'fail', diffPixels, totalPixels, fraction, baseline, current, diff }
+/** The report heading for one canary in one theme. */
+function rowLabel(canary, theme) {
+  return `${canary.id} — ${theme} (${canary.pathway})`
 }
 
 async function run() {
@@ -210,7 +169,14 @@ async function run() {
       const png = await captureCanary(page, canary)
       const target = baselinePath(canary, theme)
       rows.push(
-        UPDATE ? writeBaseline(canary, theme, png, target) : compareToBaseline(canary, theme, png, target),
+        UPDATE
+          ? writeBaseline(canary, theme, png, target)
+          : compareToBaseline(
+              { logLabel: `${canary.id} (${theme})`, label: rowLabel(canary, theme) },
+              png,
+              target,
+              { threshold: PIXEL_THRESHOLD, maxFraction: MAX_DIFF_FRACTION },
+            ),
       )
     }
     await context.close()
@@ -224,50 +190,10 @@ async function run() {
   }
 
   const failed = rows.filter((r) => r.status !== 'pass')
-  writeReport(rows)
+  writeReport(rows, `${ARTIFACT_DIR}/visual-diff-report.html`, 'visual-regression diff report')
   console.log(`\n${rows.length - failed.length}/${rows.length} visual checks within tolerance`)
   console.log(`Diff report: ${ARTIFACT_DIR}/visual-diff-report.html`)
   if (failed.length > 0) process.exit(1)
-}
-
-/** A three-panel (baseline | current | diff) static HTML report — the actual review artifact, not the raw PNGs. */
-function writeReport(rows) {
-  const toDataUri = (png) => `data:image/png;base64,${PNG.sync.write(png).toString('base64')}`
-  const sections = rows
-    .map((r) => {
-      const label = `${r.canary.id} — ${r.theme} (${r.canary.pathway})`
-      if (r.status === 'updated') return `<section><h2>${label}</h2><p>baseline just written, nothing to compare</p></section>`
-      if (r.status === 'missing-baseline') return `<section><h2>${label}</h2><p class="fail">no baseline on disk — run with --update</p></section>`
-      if (r.status === 'size-mismatch') {
-        return `<section><h2 class="fail">${label} — size mismatch</h2>
-          <div class="row"><figure><figcaption>baseline (${r.baseline.width}x${r.baseline.height})</figcaption><img src="${toDataUri(r.baseline)}"></figure>
-          <figure><figcaption>current (${r.current.width}x${r.current.height})</figcaption><img src="${toDataUri(r.current)}"></figure></div></section>`
-      }
-      const cls = r.status === 'pass' ? 'pass' : 'fail'
-      return `<section><h2 class="${cls}">${label} — ${(r.fraction * 100).toFixed(2)}% differs</h2>
-        <div class="row">
-          <figure><figcaption>baseline</figcaption><img src="${toDataUri(r.baseline)}"></figure>
-          <figure><figcaption>current</figcaption><img src="${toDataUri(r.current)}"></figure>
-          <figure><figcaption>diff</figcaption><img src="${toDataUri(r.diff)}"></figure>
-        </div></section>`
-    })
-    .join('\n')
-
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>visual-regression diff report</title>
-<style>
-body { font-family: system-ui, sans-serif; background: #14110f; color: #f5efe8; margin: 0; padding: 2rem; }
-h1 { font-size: 1.1rem; }
-section { margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #333; }
-h2 { font-size: 0.95rem; font-family: ui-monospace, monospace; }
-h2.pass { color: #7ce07c; } h2.fail { color: #ff8a80; }
-.row { display: flex; gap: 1rem; flex-wrap: wrap; }
-figure { margin: 0; } figcaption { font-size: 0.75rem; color: #999; margin-bottom: 0.25rem; }
-img { max-width: 220px; border: 1px solid #333; background: #222; }
-</style></head><body>
-<h1>Visual regression diff report — ${new Date().toISOString()}</h1>
-${sections}
-</body></html>`
-  writeFileSync(`${ARTIFACT_DIR}/visual-diff-report.html`, html)
 }
 
 run().catch((error) => {

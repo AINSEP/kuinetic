@@ -56,10 +56,13 @@ const SELF_STARTING = new Set([undefined, 'load', 'enter'])
 const PARAMETERIZED = new Map([
   ['tween', 'x:120 opacity:0.2'],
   ['tween-from', 'y:40 opacity:0.2'],
+  // The axis tag is required to mean anything, and `wght` is the registered axis every variable
+  // font has. `from`/`to` are spelled out so the sample does not lean on the schema defaults.
+  ['var-axis', 'axis:wght from:100 to:900'],
 ])
 
 /**
- * The two effects this probe genuinely cannot read, each with the reason. Both were checked by hand
+ * The effect this probe genuinely cannot read, with the reason. It was checked by hand
  * before being excused — "the probe saw nothing" is not evidence that nothing happened, and six
  * effects were wrongly called dead that way once already.
  *
@@ -70,11 +73,6 @@ const UNSAMPLEABLE = new Map([
   [
     'gradient-stroke',
     'animates the SVG `stroke` property; a <div> probe has no stroke to interpolate',
-  ],
-  [
-    'redaction-reveal',
-    'animates a registered custom property that a ::before reads back through var(), and ' +
-      'getKeyframes() reports no properties at all — see src/css/text.css',
   ],
 ])
 
@@ -175,13 +173,27 @@ export async function run({ browser }) {
           }
         }
       }
+      // `getKeyframes()` leaves out every registered custom property a keyframe animates, so an
+      // effect built on the custom-property bridge (`ripple`) reported an empty list and read as
+      // "no visible change" while its disc visibly grew. The custom properties are only the carrier;
+      // what the user sees is a pseudo-element reading them back through `var()`, so the probe
+      // also samples what those pseudo-elements paint. (The keyframes rule cannot be walked for the
+      // names instead: a `file://` stylesheet is cross-origin and its `cssRules` throws.)
+      const PSEUDO_PAINT = ['opacity', 'scale', 'rotate', 'translate', 'transform', 'backgroundPosition', 'clipPath']
       const read = () =>
         animations
           .map((animation) => {
             const style = getComputedStyle(animation.effect.target)
-            return [...properties]
+            const own = [...properties]
               .map((property) => (property.startsWith('--') ? style.getPropertyValue(property) : style[property]))
               .join('|')
+            const pseudo = ['::before', '::after']
+              .map((name) => {
+                const pseudoStyle = getComputedStyle(animation.effect.target, name)
+                return PSEUDO_PAINT.map((property) => pseudoStyle[property]).join(',')
+              })
+              .join('|')
+            return `${own}|${pseudo}`
           })
           .join('#')
 
