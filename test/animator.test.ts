@@ -370,6 +370,13 @@ describe('Animator — target: retargeting', () => {
     expect(reporter.messages.join()).toContain('matches the whole document')
   })
 
+  it('warns and marks the host failed when the selector is not valid CSS', () => {
+    build('<div data-kui=\'fade-up target:"div["\'></div>')
+    expect(el().getAttribute(ATTR.state)).toBe('failed')
+    expect(reporter.messages.join()).toContain('is not a valid selector and will be ignored')
+    expect(reporter.messages.join()).not.toContain('matches the whole document')
+  })
+
   it('warns and marks the host failed when the selector matches nothing', () => {
     build('<div data-kui="fade-up target:.nope"></div>')
     expect(el().getAttribute(ATTR.state)).toBe('failed')
@@ -472,6 +479,103 @@ describe('Animator — a cancelled run does not silence a later one', () => {
   })
 })
 
+
+describe('Animator — a completion that arrives after the element is gone', () => {
+  it('reports nothing for a run whose element was reset before it finished', async () => {
+    const control: { resolve?: () => void } = {}
+    document.body.innerHTML = '<div data-kui="controllable-effect on:manual"></div>'
+    const animator = new Animator({
+      root: document.body,
+      registry: controllableRegistry(control),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+    })
+    animator.start()
+    const target = el()
+    const events: string[] = []
+    target.addEventListener(KUI_EVENT.start, () => events.push('start'))
+    target.addEventListener(KUI_EVENT.finish, () => events.push('finish'))
+
+    animator.activate(target)
+    animator.reset(target)
+    control.resolve?.()
+    await flush()
+
+    // A finished run on a released element would otherwise write the attribute back and announce a
+    // completion for an element the library no longer owns.
+    expect(events).toEqual(['start'])
+    expect(target.hasAttribute(ATTR.state)).toBe(false)
+  })
+
+  it('leaves an element it does not manage alone when asked to reverse it', () => {
+    document.body.innerHTML = '<div id="stranger"></div>'
+    const animator = new Animator({
+      root: document.body,
+      registry: catalogRegistry(),
+      capabilities: CAPS,
+      binder: fakeBinder(),
+    })
+    animator.start()
+    const stranger = el('#stranger')
+
+    expect(() => animator.reverseFrom(stranger)).not.toThrow()
+    expect(stranger.hasAttribute(ATTR.state)).toBe(false)
+  })
+})
+
+describe('Animator — a superseded run finishing late', () => {
+  it('cannot report for a run that a later run in the same direction replaced', async () => {
+    const pending: Array<() => void> = []
+    const fresh = (): Promise<void> => new Promise<void>((resolve) => { pending.push(resolve) })
+    const primitive: Primitive = {
+      id: 'flipper',
+      renderer: 'javascript',
+      channels: ['flipper'],
+      parameters: {},
+      supportedTimelines: ['time'],
+      supportedActivations: ['manual'],
+      perfClass: 'continuous',
+      reducedMotion: 'shorten',
+      prepare(): EffectInstance {
+        let finished = Promise.resolve()
+        return {
+          activate: () => { finished = fresh() },
+          play: () => { finished = fresh() },
+          reverse: () => { finished = fresh() },
+          cancel: () => {},
+          finish: () => {},
+          get finished() { return finished },
+          destroy: () => {},
+        }
+      },
+    }
+    const registry = new Registry()
+      .registerPrimitive(primitive)
+      .registerPresets([{ name: 'flip-effect', primitive: 'flipper' }])
+    document.body.innerHTML = '<div data-kui="flip-effect on:manual"></div>'
+    const animator = new Animator({ root: document.body, registry, capabilities: CAPS, binder: fakeBinder() })
+    animator.start()
+    const target = el()
+    const finishes: string[] = []
+    target.addEventListener(KUI_EVENT.finish, () => finishes.push('finish'))
+
+    animator.activate(target)
+    animator.reverseFrom(target)
+    animator.activate(target)
+    // Three runs: forward, reverse, forward again. The first run's promise is the oldest.
+    expect(pending).toHaveLength(3)
+
+    pending[0]!()
+    await flush()
+    expect(target.getAttribute(ATTR.state)).toBe('running')
+    expect(finishes).toEqual([])
+
+    pending[2]!()
+    await flush()
+    expect(target.getAttribute(ATTR.state)).toBe('finished')
+    expect(finishes).toEqual(['finish'])
+  })
+})
 
 /**
  * The one shape of element that no completion promise will ever report on.

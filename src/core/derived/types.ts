@@ -6,7 +6,6 @@ import type { ElementConfig } from '../element-config.js'
 import type { Registry } from '../registry.js'
 import type { Reporter } from '../reporter.js'
 import type { Activation, InstanceState, ParsedValue, Timeline } from '../types.js'
-export type { StaggerGroupKeys } from '../stagger-config.js'
 
 /** Everything `Animator.install` needs. Moved here verbatim from `animator.ts`'s own
  *  `InstallRequest`, plus three optional fields that are absent for every HEAD code path. */

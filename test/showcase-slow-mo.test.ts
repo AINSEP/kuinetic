@@ -53,6 +53,25 @@ describe('slow-mo', () => {
     expect([forward.playbackRate, reverse.playbackRate]).toEqual([1, -1])
   })
 
+  it('reads an event that carries no pseudoElement as one on the element itself', () => {
+    const animator = build('<section data-kui="slow-mo"><div></div></section>')
+    const host = el()
+    const child = host.querySelector('div')!
+    host.getAnimations = vi.fn(() => [])
+    const named = motion(1, 'animationName', 'fade', { target: child })
+    const pseudo = motion(1, 'animationName', 'fade', { target: child, pseudoElement: '::before' })
+    child.getAnimations = vi.fn(() => [named, pseudo])
+    animator.start()
+    host.querySelector('button')!.click()
+
+    const bare = new Event('animationstart', { bubbles: false })
+    Object.defineProperty(bare, 'animationName', { value: 'fade' })
+    child.dispatchEvent(bare)
+
+    expect(named.playbackRate).toBe(0.25)
+    expect(pseudo.playbackRate).toBe(1)
+  })
+
   it('scales only the new CSS animation or transition named by a captured event', () => {
     const animator = build('<section data-kui="slow-mo"><div></div></section>')
     const host = el()

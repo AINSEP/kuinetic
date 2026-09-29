@@ -60,6 +60,15 @@ const ALLOWLIST = new Map([
   // `.hero-copy` as the first grid track — an explicit width rule there would be redundant, not
   // missing. Semantic wrapper, same shape as .pin-section-figure above.
   ['hero-copy', 'index-old.html — sized by the parent .hero grid track, not its own rule'],
+  // `.slices`'s `target:'.slice:not(.slice-live)'` uses this to exclude the Gestures tile from the
+  // cascade entrance. A selector marker only; the tile is styled by `.slice`.
+  ['slice-live', 'index.html — target: exclusion marker for .slices, deliberately unstyled'],
+  // Bare wrapper around the 10 `.reel-frame` + caption pairs in the video reel. `.reel-item` and
+  // `.reel-frame` carry all the layout; this is the flip-card hook, and it has no rule of its own.
+  ['reel-flip', 'index.html — unstyled structural wrapper inside each .reel-item; children carry the styling'],
+  // Wrapper of the hidden <audio id="kui-audio-track"> that `audio-source` binds to; the element is
+  // the `target:`, this div only hosts the click activation and needs no styling.
+  ['audio-rig', 'shaders-audio.html — unstyled host of the audio-source click activation'],
 ])
 
 /** Class selector tokens appearing anywhere in `css` (nested/compound selectors included), unescaped. */

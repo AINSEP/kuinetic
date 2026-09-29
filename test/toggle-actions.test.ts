@@ -398,6 +398,26 @@ describe('the animator wires the crossings up', () => {
     expect(animator.stateOf(el)!.direction).toBe('reverse')
   })
 
+  it('ignores a crossing delivered after the element was reset', () => {
+    // The observer can still hold a callback for an element whose state is already gone.
+    const { el, requests, animator } = build('<div data-kui="fade-up on:enter actions:play/pause"></div>')
+    animator.reset(el)
+    expect(el.hasAttribute(ATTR.state)).toBe(false)
+
+    expect(() => requests[0]?.cross?.('enter')).not.toThrow()
+    expect(el.hasAttribute(ATTR.state)).toBe(false)
+  })
+
+  it('warns that a pointer pair has no crossings, on either half of the pair being unobserved', () => {
+    const { messages } = build('<div data-kui="fade-up on:pointerenter/pointerleave actions:play/pause"></div>')
+    expect(messages.join()).toContain('activates on "pointerenter/pointerleave"')
+  })
+
+  it('does not warn when only the exit half of a pair is the observed one', () => {
+    const { messages } = build('<div data-kui="fade-up on:pointerenter/enter actions:play/pause"></div>')
+    expect(messages.join()).not.toContain('nothing here is ever reached')
+  })
+
   it('warns about an activation with no crossings, even though it never reaches the binder', () => {
     // `on:load` resolves to an immediate gate, so `openGate` returns before it would ever bind —
     // which is exactly why the diagnostic has to run before that return rather than after it.

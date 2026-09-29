@@ -314,7 +314,8 @@ export function parseAngleRadians(raw: string | undefined): number {
   if (!match) return 0
   const value = parseFloat(match[1]!)
   if (!Number.isFinite(value)) return 0
-  return value * (ANGLE_UNITS[(match[2] ?? 'deg').toLowerCase()] ?? ANGLE_UNITS.deg!)
+  // The pattern only admits the four units `ANGLE_UNITS` holds, so the lookup cannot miss.
+  return value * ANGLE_UNITS[(match[2] ?? 'deg').toLowerCase()]!
 }
 
 /** How many palette stops the generative program's `u_colors` array holds. */
@@ -762,7 +763,8 @@ function paintBoxOf(content: Inset, natural: [number, number] | null, cs: CSSSty
   if (bw <= 0 || bh <= 0) return content
   const [dw, dh] = fittedSize(cs.objectFit || 'fill', bw, bh, natural)
   const tokens = (cs.objectPosition || '50% 50%').trim().split(/\s+/)
-  const left = content.left + positionOffset(tokens[0] ?? '50%', bw - dw)
+  // `split` always yields a first element, so only the second token can be absent.
+  const left = content.left + positionOffset(tokens[0]!, bw - dw)
   const top = content.top + positionOffset(tokens[1] ?? '50%', bh - dh)
   return { left, top, right: left + dw, bottom: top + dh }
 }
@@ -1297,7 +1299,7 @@ export function extractShaderOptions(
     ...readDuotoneColors(c1Text, c2Text, createCanvas),
     blendMode: blendMap[params.text('blend', 'normal')] ?? 0,
     to: params.text('to', ''),
-    progress: params.num ? params.num('progress', -1) : -1,
+    progress: params.num('progress', -1),
     // Compared against the one enabling word rather than "not `off`", so — exactly as with
     // `audioBand` below — a caller passing an unvalidated accessor, or an author who typed
     // `scrub: scrol`, cannot turn the bridge on by accident.
@@ -1997,7 +1999,9 @@ function restoreInstanceOpacity(el: HTMLElement, state: ShaderInstanceState): vo
   if (!state.hiddenByRenderer) return
   state.hiddenByRenderer = false
   const style = styleOf(state.ledgers, el)
-  if (style) style.set('opacity', style.peek('opacity') ?? '')
+  // `hiddenByRenderer` is only ever set after `set('opacity', '0')` went through this same ledger,
+  // and that write is what captured the property — so `peek` has an answer here.
+  if (style) style.set('opacity', style.peek('opacity')!)
 }
 
 /**

@@ -246,6 +246,11 @@ describe('scroll-story primitive', () => {
       observer!.fire(true)
       expect(playSpy.mock.contexts).toEqual([sec('v0')])
 
+      // The observer repeating what it already reported changes nothing, so it starts nothing.
+      playSpy.mockClear()
+      observer!.fire(true)
+      expect(playSpy).not.toHaveBeenCalled()
+
       playSpy.mockClear()
       pauseSpy.mockClear()
       observer!.fire(false)

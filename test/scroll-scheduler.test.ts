@@ -347,6 +347,30 @@ describe('createRootResolver', () => {
     }
   })
 
+  it('still resolves an overflowing <html> to the window when <body> has stopped propagating for it', () => {
+    document.body.innerHTML = '<p id="target"></p>'
+    // With `<html>` clipping, `<body>` no longer carries the viewport's overflow, so the walk gets
+    // past it and reaches `<html>` itself — whose overflow is the viewport's whatever it says.
+    document.documentElement.style.overflowY = 'hidden'
+    try {
+      const resolve = createRootResolver({
+        win: window,
+        isScrollable: (el) => el === document.documentElement,
+      })
+
+      expect(resolve(document.getElementById('target')!).key).toBe('window')
+    } finally {
+      document.documentElement.style.overflowY = ''
+    }
+  })
+
+  it('answers the window for an element that has no ancestor to walk', () => {
+    const detached = document.createElement('p')
+    const resolve = createRootResolver({ win: window, isScrollable: () => true })
+
+    expect(resolve(detached).key).toBe('window')
+  })
+
   it('gives the same key for two elements inside one scroller, so they share a listener', () => {
     document.body.innerHTML = '<div id="s"><p id="a"></p><p id="b"></p></div>'
     const scroller = document.getElementById('s')!

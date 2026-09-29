@@ -22,11 +22,6 @@ import {
 
 export { clamp }
 
-export type FluidParamAccessor = EffectParams | {
-  num?: (name: string, fallback?: number) => number
-  text?: (name: string, fallback?: string) => string
-}
-
 export interface FluidDrop {
   x: number
   y: number

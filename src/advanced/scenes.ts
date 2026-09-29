@@ -26,11 +26,6 @@ import {
 
 export { clamp, lerp }
 
-export type SceneParamAccessor = EffectParams | {
-  num?: (name: string, fallback?: number) => number
-  text?: (name: string, fallback?: string) => string
-}
-
 export interface TransitionValue {
   from: number
   to: number

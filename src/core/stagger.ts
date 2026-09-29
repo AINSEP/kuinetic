@@ -8,10 +8,6 @@ import type { GridOrigin, StaggerConfig, StaggerFrom, StaggerGroupKeys, StaggerL
 
 export { parseStaggerAttribute, resolveStaggerConfig } from './stagger-config.js'
 export type {
-  GridOrigin,
-  StaggerAxis,
-  StaggerColumns,
-  StaggerConfig,
   StaggerFrom,
   StaggerGroupKeys,
   StaggerLayout,

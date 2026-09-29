@@ -27,11 +27,6 @@ import { AUDIO_BANDS, parseAudioBand, readAudioBand, type AudioBand } from './au
 
 export { clamp }
 
-export type CameraParamAccessor = EffectParams | {
-  num?: (name: string, fallback?: number) => number
-  text?: (name: string, fallback?: string) => string
-}
-
 export interface CameraLayer {
   element: HTMLElement
   depthZ: number
@@ -437,7 +432,7 @@ export function prepareCameraScene(
   const layerEls = ownedDescendants<HTMLElement>(htmlEl, 'camera-scene', 'camera-layer')
 
   for (const layer of layerEls) {
-    const kui = layer.getAttribute('data-kui') || ''
+    const kui = layer.getAttribute('data-kui')!
     const zMatch = /z:([+-]?[0-9.]+)(?:px)?/.exec(kui)
     const depthZ = zMatch ? parseDepth(zMatch[1]) : 0
     controller.addLayer(layer, depthZ)

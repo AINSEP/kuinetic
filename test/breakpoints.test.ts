@@ -422,9 +422,9 @@ function registryWithProbe(log: string[]): Registry {
   return registry
 }
 
-function animatorFor(registry: Registry): Animator {
+function animatorFor(registry: Registry, root: ParentNode = document.body): Animator {
   return new Animator({
-    root: document.body,
+    root,
     registry,
     capabilities: defaultCapabilities({ individualTransforms: true }),
     binder: createActivationBinder({ createObserver: undefined }),
@@ -491,6 +491,20 @@ describe('the animator honours a gate on a JavaScript-rendered effect', () => {
 
     viewport.resize(1000)
     expect(log).toEqual(['prepare', 'destroy', 'prepare'])
+  })
+
+  it('reads a gate as satisfied in a document that has no window, and watches nothing', () => {
+    // `defaultView` is null for a detached document. The gate is then read against no viewport at
+    // all — not against the ambient jsdom window, whose 600px would refuse this effect.
+    const viewport = useViewport(600)
+    const log: string[] = []
+    const detached = document.implementation.createHTMLDocument('detached')
+    detached.body.innerHTML = '<p data-kui="probe above:md">x</p>'
+    animator = animatorFor(registryWithProbe(log), detached.body)
+    animator.start()
+    expect(detached.defaultView).toBeNull()
+    expect(log).toEqual(['prepare'])
+    expect(viewport.listenerCount()).toBe(0)
   })
 
   it('watches nothing for an ungated element, and stops watching one that loses its gate', () => {

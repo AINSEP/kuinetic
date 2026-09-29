@@ -25,11 +25,6 @@ import {
 
 export { clamp }
 
-export type ParticleParamAccessor = EffectParams | {
-  num?: (name: string, fallback?: number) => number
-  text?: (name: string, fallback?: string) => string
-}
-
 export interface Particle {
   x: number
   y: number

@@ -293,7 +293,16 @@ describe('responsive split lines and flip indicator', () => {
   it('settles lines only when the split host itself is finished, not a finished ancestor', () => {
     // A mask reveal nested in a `fade-up` section: the section finishes first, and a descendant
     // selector let its `data-kui-state="finished"` cancel the lede's still-delayed line reveal.
-    const settled = /^\s*(\[data-kui-state='finished'\][^{}\n]*)\{\s*animation-name: none;\s*opacity: 1;\s*clip-path: none;/m.exec(css)![1]!.trim()
+    const settled = css
+      .split('}')
+      .map((chunk) => {
+        const open = chunk.lastIndexOf('{')
+        const selector = chunk.slice(chunk.lastIndexOf('\n', open) + 1, open).trim()
+        const body = chunk.slice(open + 1).replace(/\s+/g, ' ').trim()
+        const settles = body.startsWith('animation-name: none; opacity: 1; clip-path: none;')
+        return open !== -1 && selector.startsWith("[data-kui-state='finished']") && settles ? selector : null
+      })
+      .find((selector) => selector !== null)!
     const section = document.createElement('article')
     section.setAttribute('data-kui-state', 'finished')
     document.body.append(section)

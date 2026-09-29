@@ -63,6 +63,9 @@
     "test:browser": "npm run build && node scripts/run-browser-tests.mjs",
     "test:visual": "npm run build && node scripts/visual-regression.mjs",
     "test:visual:update": "npm run build && node scripts/visual-regression.mjs --update",
+    "test:visual:pages": "npm run build && node scripts/visual-regression-pages.mjs",
+    "test:visual:pages:update": "npm run build && node scripts/visual-regression-pages.mjs --update",
+    "test:pages": "npm run build && node scripts/run-browser-tests.mjs --only page-",
     "generate:css": "node scripts/generate-preset-css.mjs",
     "generate:nav": "node scripts/generate-nav-header.mjs",
     "record": "npm run build && node scripts/verify-browser.mjs --record",
@@ -89,7 +92,6 @@
     "pngjs": "^7.0.0",
     "size-limit": "^13.0.3",
     "tailwindcss": "^4.3.3",
-    "three": "^0.186.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.66.0",
     "vitest": "^2.1.9"
