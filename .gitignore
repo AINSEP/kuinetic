@@ -5,6 +5,7 @@ coverage/
 .DS_Store
 demo/kuinetic.js
 demo/kuinetic.css
+demo/tailwind.css
 demo/kuinetic.all.js
 demo/kuinetic.all.min.js
 # The advanced tier bundle, built by scripts/build-tiers.mjs alongside demo/kuinetic.js. Same
