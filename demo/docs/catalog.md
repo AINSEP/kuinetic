@@ -1473,7 +1473,8 @@ need to track.
 >
 > **Params:** `target:` selects triggers (default: linked images or bare images for `lightbox`,
 > links for `video-lightbox`); `scope:self|page`, `scale:` (default `0.965`), `duration:` (default
-> `280ms`), `ease:`; image galleries accept `loop:false`, and video accepts
+> `280ms`), `ease:`; image galleries accept `loop:false` and `caption:figcaption|alt|title|none`
+> (default `figcaption`, falling back to `alt`), and video accepts
 > `aspect:wide|tall|square` (YouTube Shorts default to tall).
 >
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.

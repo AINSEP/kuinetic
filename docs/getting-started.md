@@ -1035,7 +1035,7 @@ Wraps image thumbnails or links and opens an accessible modal viewer (`<dialog>`
 </div>
 ```
 
-**Params:** `target:` selects image links or bare images (the default searches links and images inside the host), `scope:` (`self` default, or `page`), `scale:` (default `0.965`), `duration:` (default `280ms`), `ease:` (default `cubic-bezier(0.22, 1, 0.36, 1)`), `loop:` (`true` default, or `false`).
+**Params:** `target:` selects image links or bare images (the default searches links and images inside the host), `scope:` (`self` default, or `page`), `scale:` (default `0.965`), `duration:` (default `280ms`), `ease:` (default `cubic-bezier(0.22, 1, 0.36, 1)`), `loop:` (`true` default, or `false`), `caption:` (`figcaption` default, which uses the enclosing `<figcaption>` and falls back to the image's `alt`; `alt`, `title` for the link's or image's `title`, or `none`).
 
 ### Video lightbox (`video-lightbox`)
 

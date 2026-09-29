@@ -993,29 +993,20 @@
     background: #000;
   }
   .hero-flip .video-frame { position: relative; aspect-ratio: 16 / 10; overflow: clip; background: #000; }
-  /* `cover`, never `contain` and never a stretch: the two sources are 4:3 and 16:9 and they share
-     one box, so one of them has to be cropped. Cropping keeps both at their true proportions. */
-  .hero-flip .video-frame video,
-  .hero-flip .video-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  .hero-flip .video-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
-  /* Same lite-YouTube-facade look as scroll.html's `.video-frame` cards — unscoped there because
-     that page reuses it across several cards. Grouped with `.reel-frame` below: the reel section
-     is a second user of this exact look on this page, so the rule is shared rather than restated
-     a second time under a second selector. */
-  .hero-flip .video-frame[data-yt-id],
+  /* `cover`, never `contain` and never a stretch. The promo is authored at 16:10, the same ratio
+     as this box, so nothing is cropped in practice — `cover` is the guard for a source that ever
+     isn't, cropping rather than distorting. */
+  .hero-flip .video-frame video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  /* The lite-YouTube play button below belongs to the reel; the hero uses the browser's native
+     video controls instead. */
   .reel-frame { cursor: pointer; }
-  .hero-flip .yt-play,
   .reel-frame .yt-play {
     position: absolute; inset: 0; margin: auto; width: 68px; height: 48px;
     border: 0; background: none; padding: 0; cursor: pointer;
   }
-  .hero-flip .yt-play-bg,
   .reel-frame .yt-play-bg { fill: #f00; transition: fill 180ms ease; }
-  .hero-flip .video-frame:hover .yt-play-bg, .hero-flip .yt-play:focus-visible .yt-play-bg,
   .reel-frame:hover .yt-play-bg, .reel-frame .yt-play:focus-visible .yt-play-bg { fill: #ff1a1a; }
-  .hero-flip .yt-play-tri,
   .reel-frame .yt-play-tri { fill: #fff; }
-  .hero-flip .yt-play:focus-visible,
   .reel-frame .yt-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
 
   /* ---------- reel (horizontal-scroll video track) ---------- */
@@ -1063,14 +1054,24 @@
      overwritten — and a margin would be inside the centred track and only move it half as far. */
   .track { gap: 1.5rem; padding: 0 4rem; position: relative; top: 60px; }
   .track .reel-item { width: 340px; flex: none; margin: 0; }
+  /* `horizontal-scroll` travels until the row's right edge (padding included) meets the stage's,
+     so the last card rests at stage width minus the 4rem inset. On a phone the stage is ~342px and a
+     card is 340px, so the reel ended with the last card cut ~38px off the left edge. Dropping the
+     inset there lets it end fully in view; the stage already sits on the page's own gutter. Not
+     `distance:`: that only sets how much scrolling the travel takes, not how far the row goes. */
+  @media (max-width: 480px) {
+    .track { padding-inline: 0; }
+  }
   .track .reel-item figcaption { margin-top: 0.65rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--muted); }
 
   /* Both controls share one grid cell with the faces and one set of pill metrics, so they sit on
      the same baseline and read as a pair rather than as two unrelated buttons that happen to be
-     near each other. Only the corner and the fill differ. */
+     near each other. Only the corner and the fill differ.
+     Top corners, not bottom: the videos carry the browser's native control bar along their bottom
+     edge (play, scrubber, volume, fullscreen), and a pill sitting there would cover it. */
   .kui-flip-control,
   .hero-flip-code {
-    grid-area: 1 / 1; z-index: 2; align-self: end; margin: 0.85rem;
+    grid-area: 1 / 1; z-index: 2; align-self: start; margin: 0.85rem;
     display: flex; align-items: center; gap: 0.55rem;
     /* Shared, because the Flip pill is taller than its own padding — its inner name chip sets the
        height. Without this the two sit 6px apart and stop reading as a matched pair. */
@@ -2294,54 +2295,50 @@
             <span class="hero-title-spacer-end" aria-hidden="true">Declarative Animation Library</span>
           </div>
 
-          <!-- One live demo, one real website, one slot. Both faces now mirror scroll.html's own
-               hero flip exactly — same two YouTube reference videos, click-to-embed on both sides —
-               so the two pages tell one consistent story instead of carrying two different
-               reference sets. `flip-card` is the library's stateful two-sided card — not
-               `card-flip-y`, which is a one-shot entrance with nothing on the other side. The
-               state is `aria-pressed` on the control, read with `:has()`, so the button's
-               accessibility state and the card's visual state are the same fact rather than two
-               that can drift. -->
+          <!-- One live demo, one slot. Each face plays one half of the kUInetic promo tour — part 1
+               on the front, part 2 on the back — as a muted, looping, autoplaying `<video>` with the
+               browser's own controls (play/pause, scrub, volume, fullscreen).
+               `flip-card` is the library's stateful two-sided card — not `card-flip-y`, which is a
+               one-shot entrance with nothing on the other side. The state is `aria-pressed` on
+               the control, read with `:has()`, so the button's accessibility state and the card's
+               visual state are the same fact rather than two that can drift.
+               The hero-video script below owns everything about the videos themselves: it picks
+               the light or dark encode from the page theme (and swaps live when the theme
+               toggles), plays only the face that is showing and mutes the one turned away, and —
+               under `prefers-reduced-motion` — withholds autoplay so the poster waits for the
+               native play button. -->
           <div class="hero-media" data-kui="fade-up 800ms 200ms">
             <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
                  observer fires immediately anyway, and if the hero is ever pushed below the fold
                  the line types when it is read rather than into an empty screen. -->
             <p class="hero-media-credit" data-kui="typewriter delay:1000ms on:enter">Made by Leon A.</p>
             <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
-              <!-- Front face: the same lite-YouTube-facade pattern as the back face
-                   (`data-yt-id` + poster `<img>` + play button; see the script below). Nothing
-                   loads off the critical path until the poster is clicked. -->
-              <div class="kui-face-front" data-flip-name="Sam Crawford — The Psychology of Premium Websites">
-                <div class="video-frame" data-yt-id="f2mGqlLLqok">
-                  <!-- No longer the first viewport's largest element or this page's LCP candidate —
-                       the 100svh video hero above now owns that (see #video-hero-slide-0's preload
-                       and CSS background). `fetchpriority="high"` here would just compete with the
-                       real LCP resource, so this is plain `lazy` like the reference videos below. -->
-                  <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
-                    <svg viewBox="0 0 68 48" aria-hidden="true">
-                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                    </svg>
-                  </button>
+              <!-- Front face: promo tour, part 1. The video carries a `data-hero-video` stem instead
+                   of a `src`/`poster`: the light and dark encodes are separate files
+                   (`<stem>-light.mp4`, `<stem>-dark.mp4`, and a `.jpg` poster for each), and the
+                   script picks the one matching the theme before anything is fetched, so a dark-mode
+                   visitor never downloads the light file first. No `preload="none"`: this is the
+                   hero, and the video should be ready to run as soon as it is on screen. The 100svh
+                   video hero above still owns this page's LCP (see #video-hero-slide-0's preload),
+                   so nothing here competes with it. -->
+              <div class="kui-face-front" data-flip-name="kUInetic — tour, part 1">
+                <div class="video-frame">
+                  <video data-hero-video="./assets/hero-ad/hero-front" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 1: an animated walkthrough of the library"></video>
                 </div>
               </div>
-              <!-- Back face: same lite YouTube facade, scroll.html's own front-face video. -->
-              <div class="kui-face-back" data-flip-name="Kole Jain — Every UI/UX Concept Explained">
-                <div class="video-frame" data-yt-id="EcbgbKtOELY">
-                  <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="eager" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
-                    <svg viewBox="0 0 68 48" aria-hidden="true">
-                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
-                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
-                    </svg>
-                  </button>
+              <!-- Back face: promo tour, part 2. Same wiring as the front, except it does not start
+                   until the card is flipped to it: a 3D face is "on screen" to the browser even
+                   when turned away, so the script holds it paused. -->
+              <div class="kui-face-back" data-flip-name="kUInetic — tour, part 2">
+                <div class="video-frame">
+                  <video data-hero-video="./assets/hero-ad/hero-back" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 2: an animated walkthrough of the library"></video>
                 </div>
               </div>
-              <!-- Two controls, opposite corners, so neither has to make room for the other. Flip
-                   is the primary action and carries the filled treatment; Show code is an outline
-                   of the same pill, which reads as secondary without needing to be smaller or
-                   dimmer enough to be hard to hit. -->
+              <!-- Two controls, opposite top corners, so neither has to make room for the other — and
+                   both clear the bottom edge, where the native control bar sits. Flip is the
+                   primary action and carries the filled treatment; Show code is an outline of the
+                   same pill, which reads as secondary without needing to be smaller or dimmer
+                   enough to be hard to hit. -->
               <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
               <!-- The pill used to carry the name of the face you would flip TO, which reads as a
                    label for the face you are looking AT — wrong either way round. The button is now
@@ -2566,8 +2563,13 @@
     <div class="wrap">
       <!-- THE REEL — vertical scroll driving a horizontal track of video cards, the same
            `horizontal-scroll` mechanism scroll.html's own "Horizontal travel" group demonstrates
-           on screenshots. Four real videos cycled across seven cards. -->
-      <section id="reel" data-od-id="reel">
+           on screenshots. Four real videos cycled across seven cards.
+
+           Each card's play button is a real YouTube link, and `video-lightbox` on the section
+           turns a plain click on one into an in-page player (a modified click still opens YouTube
+           in a new tab, and without JavaScript the link just goes there). `target:` names the play
+           links, not every link in the section. The deck below does the same thing. -->
+      <section id="reel" data-od-id="reel" data-kui="video-lightbox target:.yt-play">
         <!-- The title and the contract line live INSIDE the pinned stage, not above it.
              `horizontal-scroll` makes this element the sticky window and centres its grid rows, so
              anything in here pins and travels with the reel. Left outside, they occupied the top of
@@ -2584,114 +2586,142 @@
           </div>
 
           <div class="track">
-            <figure class="reel-item">
+            <figure class="reel-item" data-kui="blur-in 900ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui="slat-assemble 1100ms angle:45deg on:enter" data-kui-lightbox-video="N1Cl5cYmegE" data-kui-lightbox-title="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer">
-                  <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
+                <div class="reel-frame">
+                  <img src="https://img.youtube.com/vi/EcbgbKtOELY/maxresdefault.jpg" alt="Every UI/UX Concept Explained in Under 10 Minutes — Kole Jain" loading="lazy" />
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=EcbgbKtOELY" data-kui="pop scale:1.08" aria-label="Play: Every UI/UX Concept Explained in Under 10 Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
+                </div>
+                <figcaption>Kole Jain — every UI/UX concept</figcaption>
+              </div>
+            </figure>
+            <figure class="reel-item" data-kui="wipe-diagonal 1000ms on:enter">
+              <div class="reel-flip">
+                <div class="reel-frame">
+                  <img src="https://img.youtube.com/vi/f2mGqlLLqok/maxresdefault.jpg" alt="The Psychology of Premium Websites — Sam Crawford" loading="lazy" />
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=f2mGqlLLqok" data-kui="pop scale:1.08" aria-label="Play: The Psychology of Premium Websites">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </a>
+                </div>
+                <figcaption>Sam Crawford — premium website psychology</figcaption>
+              </div>
+            </figure>
+            <figure class="reel-item">
+              <div class="reel-flip">
+                <div class="reel-frame" data-kui="slat-assemble 1100ms angle:45deg on:enter">
+                  <img src="https://img.youtube.com/vi/N1Cl5cYmegE/maxresdefault.jpg" alt="The ONLY 6 Web Design Styles that Matter (2026) — Self-Made Web Designer" loading="lazy" />
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=N1Cl5cYmegE" data-kui="pop scale:1.08" aria-label="Play: The ONLY 6 Web Design Styles that Matter">
+                    <svg viewBox="0 0 68 48" aria-hidden="true">
+                      <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
+                      <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
+                    </svg>
+                  </a>
                 </div>
                 <figcaption>Self-Made Web Designer — 6 design styles</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="wipe-circle 1200ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="TGi6CHaj5HU" data-kui-lightbox-title="Why My AI Designs Always Look Next Level — Tae Online HD">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/TGi6CHaj5HU/maxresdefault.jpg" alt="Why My AI Designs Always Look Next Level — Tae Online HD" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=TGi6CHaj5HU" data-kui="pop scale:1.08" aria-label="Play: Why My AI Designs Always Look Next Level">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Tae Online HD — AI design</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="zoom-in scale:0.12 900ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="NAumQObJEwM" data-kui-lightbox-title="Turn Claude into a Design Genius... Just Watch — Jack Roberts">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/NAumQObJEwM/maxresdefault.jpg" alt="Turn Claude into a Design Genius... Just Watch — Jack Roberts" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=NAumQObJEwM" data-kui="pop scale:1.08" aria-label="Play: Turn Claude into a Design Genius... Just Watch">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Jack Roberts — Claude design</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="flip-in-x 900ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="snErQUyqwCU" data-kui-lightbox-title="How to Build $10K Websites in Minutes (Claude AI) — Metics Media">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/snErQUyqwCU/maxresdefault.jpg" alt="How to Build $10K Websites in Minutes (Claude AI) — Metics Media" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=snErQUyqwCU" data-kui="pop scale:1.08" aria-label="Play: How to Build $10K Websites in Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Metics Media — Claude AI sites</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="wipe-diagonal 1000ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="oY87jJx4sAI" data-kui-lightbox-title="The Seismic Shifts Happening In Web Design — Self-Made Web Designer">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/oY87jJx4sAI/maxresdefault.jpg" alt="The Seismic Shifts Happening In Web Design — Self-Made Web Designer" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=oY87jJx4sAI" data-kui="pop scale:1.08" aria-label="Play: The Seismic Shifts Happening In Web Design">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Self-Made Web Designer — web design</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="blur-in 900ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="T1VOVArT9YI" data-kui-lightbox-title="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/T1VOVArT9YI/maxresdefault.jpg" alt="How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI (AntiGravity) — Viktor Oddy" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=T1VOVArT9YI" data-kui="pop scale:1.08" aria-label="Play: How I Build &amp; Sell Beautiful $5,000 Animated Websites with AI">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Viktor Oddy — AI-built sites</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="rotate-in 900ms angle:90deg on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="rJtF32LTX8U" data-kui-lightbox-title="Claude Design = Easy Websites for Beginners — Kyle Skelly">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/rJtF32LTX8U/maxresdefault.jpg" alt="Claude Design = Easy Websites for Beginners — Kyle Skelly" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=rJtF32LTX8U" data-kui="pop scale:1.08" aria-label="Play: Claude Design = Easy Websites for Beginners">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Kyle Skelly — Claude for beginners</figcaption>
               </div>
             </figure>
             <figure class="reel-item" data-kui="card-flip-x 900ms on:enter">
               <div class="reel-flip">
-                <div class="reel-frame" data-kui-lightbox-video="PKYNTm2m8eA" data-kui-lightbox-title="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/PKYNTm2m8eA/maxresdefault.jpg" alt="Every Web Design Concept Explained in Under 13 Minutes — Sam Crawford" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=PKYNTm2m8eA" data-kui="pop scale:1.08" aria-label="Play: Every Web Design Concept Explained in Under 13 Minutes">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Sam Crawford — web design concepts</figcaption>
               </div>
@@ -2717,8 +2747,11 @@
 
            Nothing translates as a strip. Every slide is stacked in one grid cell and steps out to
            its own `--kui-offset`, which is what makes the loop continuous rather than a rewind —
-           at slide 1 the last slide already reads -1 and is already sitting on the left. -->
-      <section id="deck" data-od-id="deck">
+           at slide 1 the last slide already reads -1 and is already sitting on the left.
+
+           The play buttons are YouTube links opened in place by `video-lightbox`, the same as the
+           reel's. -->
+      <section id="deck" data-od-id="deck" data-kui="video-lightbox target:.yt-play">
         <div class="section-head">
           <h2 data-kui="typewriter">One attribute, an endless deck.</h2>
         </div>
@@ -2733,134 +2766,134 @@
           <div class="deck-viewport">
             <div class="deck-track">
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="2OwMjg5As2g" data-kui-lightbox-title="Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/2OwMjg5As2g/maxresdefault.jpg" alt="Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=2OwMjg5As2g" data-kui="pop scale:1.08" aria-label="Play: Claude Fable 5.1 + Higgsfield AI = Insane Motion Graphics! — Higgsfield AI">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Higgsfield AI — Fable 5.1 motion graphics</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="QhmhUgccaS0" data-kui-lightbox-title="GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/QhmhUgccaS0/maxresdefault.jpg" alt="GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=QhmhUgccaS0" data-kui="pop scale:1.08" aria-label="Play: GPT-6 Astra FINALLY Kills AI Website Slop — Nate Herk | AI Automation">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Nate Herk — AI website slop</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="X2PARg8ErvY" data-kui-lightbox-title="Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/X2PARg8ErvY/maxresdefault.jpg" alt="Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=X2PARg8ErvY" data-kui="pop scale:1.08" aria-label="Play: Fable 5.1 Just Solved AI Slop... I'm Done — Jack Roberts">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Jack Roberts — Fable 5.1</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="1tLa0sYaD5w" data-kui-lightbox-title="Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/1tLa0sYaD5w/maxresdefault.jpg" alt="Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=1tLa0sYaD5w" data-kui="pop scale:1.08" aria-label="Play: Claude Design Let Me Build a Product Demo in 15 Min — Eric Tech">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Eric Tech — product demo</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="Edj_zj4U_9s" data-kui-lightbox-title="How to make a SaaS product demo video — Tom Bruining">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/Edj_zj4U_9s/maxresdefault.jpg" alt="How to make a SaaS product demo video — Tom Bruining" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: How to make a SaaS product demo video — Tom Bruining">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=Edj_zj4U_9s" data-kui="pop scale:1.08" aria-label="Play: How to make a SaaS product demo video — Tom Bruining">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Tom Bruining — demo video</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="eOhomP4vees" data-kui-lightbox-title="Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/eOhomP4vees/maxresdefault.jpg" alt="Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=eOhomP4vees" data-kui="pop scale:1.08" aria-label="Play: Hyperframes + Claude = Insane AI Motion Graphics In Minutes! (Full Tutorial) — Artificial Quotient">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Artificial Quotient — AI motion</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="OX80FZjHJ7o" data-kui-lightbox-title="Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/OX80FZjHJ7o/maxresdefault.jpg" alt="Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=OX80FZjHJ7o" data-kui="pop scale:1.08" aria-label="Play: Everything Claude Code + Remotion Can Do in 2026 (Full Animation Breakdown) — Andy Lo">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Andy Lo — Remotion animation</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="hNpC5clEbp4" data-kui-lightbox-title="Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/hNpC5clEbp4/maxresdefault.jpg" alt="Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=hNpC5clEbp4" data-kui="pop scale:1.08" aria-label="Play: Claude Just Solved Motion Design (Destroy AI Slop) — Jack Roberts">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Jack Roberts — motion design</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="xOhh274Ayac" data-kui-lightbox-title="I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/xOhh274Ayac/maxresdefault.jpg" alt="I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=xOhh274Ayac" data-kui="pop scale:1.08" aria-label="Play: I Made This Viral Reel Using ONLY Remotion &amp; Claude Code — MoSidd">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>MoSidd — viral Remotion reel</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="9XvKyoz6Nmo" data-kui-lightbox-title="Motion Graphics Without Plugins: The New Claude Method — Sanji Nai-Chien">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/9XvKyoz6Nmo/maxresdefault.jpg" alt="Motion Graphics Without Plugins: The New Claude Method — Sanji Nai-Chien" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Motion Graphics Without Plugins: The New Claude Method">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=9XvKyoz6Nmo" data-kui="pop scale:1.08" aria-label="Play: Motion Graphics Without Plugins: The New Claude Method">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Sanji Nai-Chien — motion graphics, no plugins</figcaption>
               </figure>
               <figure class="deck-slide">
-                <div class="reel-frame" data-kui-lightbox-video="RDytbVDzMF4" data-kui-lightbox-title="Claude Design FINALLY Solved Motion Graphics — Jack Roberts">
+                <div class="reel-frame">
                   <img src="https://img.youtube.com/vi/RDytbVDzMF4/maxresdefault.jpg" alt="Claude Design FINALLY Solved Motion Graphics — Jack Roberts" loading="lazy" />
-                  <button class="yt-play" type="button" data-kui="pop scale:1.08" aria-label="Play: Claude Design FINALLY Solved Motion Graphics">
+                  <a class="yt-play" href="https://www.youtube.com/watch?v=RDytbVDzMF4" data-kui="pop scale:1.08" aria-label="Play: Claude Design FINALLY Solved Motion Graphics">
                     <svg viewBox="0 0 68 48" aria-hidden="true">
                       <rect class="yt-play-bg" x="0" y="0" width="68" height="48" rx="14" />
                       <path class="yt-play-tri" d="M27 15 L45 24 L27 33 Z" />
                     </svg>
-                  </button>
+                  </a>
                 </div>
                 <figcaption>Jack Roberts — Claude Design motion graphics</figcaption>
               </figure>
@@ -3348,39 +3381,226 @@ kuinetic({ observe: true }).start()</code></pre>
     })
   </script>
   <script>
-    // Lite YouTube embed: swap the poster image for a real iframe only on click. Same pattern as
-    // scroll.html's own `.video-frame` cards — the facade is kept so a flipped-away video can be
-    // torn back down to it (see the flip-control script below, which calls `__restore`).
+    // Hero promo videos: the two faces of `#hero-flip-demo`, each a looping `<video controls>`.
+    //
+    // The browser's native controls own play/pause, scrubbing, volume and fullscreen, so this
+    // script never fights them. It does only what the controls cannot:
+    //   - Light and dark are separate encodes. The theme is `data-theme` on <html> (set by the
+    //     inline script in <head> and by nav.js's toggle, which always writes 'light' or 'dark');
+    //     a stray or missing value falls back to the OS preference, the same order the head script
+    //     uses. On a change the new encode loads in a detached clone and replaces the old one once
+    //     it has caught up, carrying position, paused state, volume and mute across.
+    //   - Flipping plays the face now showing and mutes and pauses the one turned away (a 3D face
+    //     is "on screen" to the browser even when it is not visible). The face flipped to is never
+    //     unmuted for the visitor; that is theirs to do with its own controls. Each face remembers
+    //     whether it was playing when it was turned away and resumes on its return.
+    //   - Scrolled out of view, a playing face pauses, so music never plays under other content,
+    //     and resumes on return. A pause the visitor chose is left alone.
+    //   - Reduced motion: no autoplay. The poster waits for the native play button.
     ;(function () {
-      document.querySelectorAll('.video-frame').forEach(function (frame) {
-        var facade = Array.prototype.slice.call(frame.childNodes)
-        frame.__restore = function () {
-          if (!frame.querySelector('iframe')) return
-          frame.replaceChildren.apply(frame, facade)
+      var card = document.getElementById('hero-flip-demo')
+      if (!card) return
+      var control = card.querySelector('.kui-flip-control')
+      var root = document.documentElement
+      var reduceMq = window.matchMedia('(prefers-reduced-motion: reduce)')
+      var darkMq = window.matchMedia('(prefers-color-scheme: dark)')
+
+      var inView = true
+      var items = ['.kui-face-front', '.kui-face-back'].map(function (sel, i) {
+        return {
+          video: card.querySelector(sel + ' video'),
+          index: i,
+          wants: i === 0 && !reduceMq.matches, // should be playing whenever it is showing
+          resume: !reduceMq.matches, // what `wants` becomes when the face is next turned toward the viewer
+          offscreenPaused: false, // paused by us for leaving the viewport, not by the visitor
+          theme: null, // the encode currently loaded
+          token: 0, // bumped per theme change so a stale swap can tell it lost
         }
-        var play = frame.querySelector('.yt-play')
-        if (!play) return
-        play.addEventListener('click', function () {
-          var id = frame.getAttribute('data-yt-id')
-          var iframe = document.createElement('iframe')
-          iframe.src = 'https://www.youtube.com/embed/' + id + '?autoplay=1'
-          iframe.title = frame.querySelector('img').alt
-          iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-          iframe.allowFullscreen = true
-          frame.replaceChildren(iframe)
-        })
       })
+
+      function theme() {
+        var t = root.dataset.theme
+        if (t === 'light' || t === 'dark') return t
+        return darkMq.matches ? 'dark' : 'light'
+      }
+      function shownIndex() {
+        return control && control.getAttribute('aria-pressed') === 'true' ? 1 : 0
+      }
+      function play(video) {
+        var r = video.play()
+        if (r && r.catch) r.catch(function () {}) // autoplay refused: the native controls are the way in
+      }
+
+      // Keep `wants` honest: it follows the visitor's own play/pause on a showing face. Events from
+      // an element a theme swap has replaced are ignored (`this` is no longer `item.video`).
+      function watch(item) {
+        item.video.addEventListener('play', function () {
+          if (this !== item.video || item.index !== shownIndex()) return
+          if (inView) {
+            item.wants = true
+          } else {
+            // Started on its own (autoplay lands after the observer has already said "offscreen").
+            item.offscreenPaused = true
+            this.pause()
+          }
+        })
+        item.video.addEventListener('pause', function () {
+          if (this !== item.video || item.index !== shownIndex() || item.offscreenPaused) return
+          item.wants = false
+        })
+      }
+
+      // Show/hide changes: the hidden face pauses and mutes; the showing face resumes if it wants.
+      function sync() {
+        var shown = shownIndex()
+        items.forEach(function (item) {
+          var v = item.video
+          if (item.index !== shown) {
+            v.muted = true
+            if (!v.paused) v.pause()
+          } else if (inView && item.wants && v.paused) {
+            play(v)
+          }
+        })
+      }
+
+      // Load the `next` encode into a face. First load, or a face with no frame to preserve, just
+      // sets the source. Otherwise the new file loads into a detached clone, is seeked to the old
+      // one's position, and only then replaces it — so the swap is one painted frame to the next
+      // instead of a trip through the poster.
+      function load(item, next) {
+        if (item.theme === next) return
+        item.theme = next
+        var token = ++item.token
+        var old = item.video
+        var stem = old.getAttribute('data-hero-video')
+        var src = stem + '-' + next + '.mp4'
+        var poster = stem + '-' + next + '.jpg'
+        if (!old.getAttribute('src') || old.readyState < 2) {
+          var at = old.currentTime
+          old.poster = poster
+          old.src = src
+          if (at) old.addEventListener('loadedmetadata', function () { old.currentTime = at }, { once: true })
+          return
+        }
+        var fresh = old.cloneNode(false)
+        fresh.removeAttribute('autoplay')
+        fresh.poster = poster
+        function swap() {
+          if (token !== item.token) return
+          item.token++ // settled: later events from either element are stale
+          var wasPlaying = !old.paused
+          fresh.muted = old.muted
+          fresh.volume = old.volume
+          old.replaceWith(fresh)
+          item.video = fresh
+          watch(item)
+          old.pause()
+          old.removeAttribute('src')
+          old.load()
+          if (wasPlaying) play(fresh)
+        }
+        // Seeking is only honoured inside `seekable`. A server with byte-range support makes the
+        // whole file seekable at once; one without (a plain static dev server) only grows it as the
+        // download progresses, and a seek issued too early is silently clamped to 0. So every
+        // loading event asks "can I seek to where the old one is yet?", and only the answer yes acts.
+        // A file that fails to load never gets there, so the old encode simply stays put.
+        var seeking = false
+        function attempt() {
+          if (token !== item.token || seeking) return
+          var t = old.currentTime
+          if (t < 0.05) {
+            if (fresh.readyState >= 2) swap()
+            return
+          }
+          var s = fresh.seekable
+          if (!s.length || s.end(s.length - 1) < t + 0.5) return
+          seeking = true
+          fresh.currentTime = t
+        }
+        fresh.addEventListener('seeked', function () {
+          if (!seeking) return
+          seeking = false
+          // Landing near the old position is the success test; a clamped seek retries on the next event.
+          if (fresh.readyState >= 2 && Math.abs(fresh.currentTime - old.currentTime) < 1) swap()
+          else attempt()
+        })
+        ;['loadedmetadata', 'loadeddata', 'progress', 'canplay'].forEach(function (name) {
+          fresh.addEventListener(name, attempt)
+        })
+        // A server with no byte-range support only ever makes the buffered head of the file
+        // seekable, so a position past it can't be carried across. Rather than wait forever on the
+        // old encode, take the new one from its start.
+        setTimeout(function () {
+          var s = fresh.seekable
+          var reach = s.length ? s.end(s.length - 1) : 0
+          if (token === item.token && fresh.readyState >= 2 && reach < old.currentTime + 0.5) swap()
+        }, 3000)
+        fresh.src = src
+      }
+      function retheme() {
+        var t = theme()
+        items.forEach(function (item) { load(item, t) })
+      }
+
+      items.forEach(function (item) {
+        // The attribute would start a face on its own the moment it has a source; `sync()` decides
+        // that instead (the back face, and every face under reduced motion, must wait).
+        if (!item.wants) item.video.removeAttribute('autoplay')
+        if (reduceMq.matches) item.video.preload = 'metadata'
+        watch(item)
+      })
+      retheme()
+      sync()
+
+      if (control) {
+        new MutationObserver(function () {
+          // The face being turned away remembers whether it was playing (a pause forced by this
+          // very flip must not count as the visitor's), and the one turned toward resumes if so.
+          var shown = shownIndex()
+          items.forEach(function (item) {
+            if (item.index === shown) {
+              item.wants = item.wants || item.resume === true
+            } else {
+              item.resume = !item.video.paused || item.offscreenPaused
+              item.offscreenPaused = false
+              item.wants = false
+            }
+          })
+          sync()
+        }).observe(control, { attributes: true, attributeFilter: ['aria-pressed'] })
+      }
+      new MutationObserver(retheme).observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+      var onMq = function (mq, fn) { mq.addEventListener ? mq.addEventListener('change', fn) : mq.addListener(fn) }
+      onMq(darkMq, retheme)
+      onMq(reduceMq, function () {
+        if (!reduceMq.matches) return
+        items.forEach(function (item) { item.wants = false; item.video.pause() })
+      })
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          inView = entries[entries.length - 1].isIntersecting
+          items.forEach(function (item) {
+            var v = item.video
+            if (!inView && item.index === shownIndex() && !v.paused) {
+              item.offscreenPaused = true
+              v.pause()
+            } else if (inView) {
+              item.offscreenPaused = false
+            }
+          })
+          sync()
+        }, { threshold: 0.25 }).observe(card)
+      }
     })()
   </script>
   <script>
     // flip-card is CSS; the one thing it cannot do for itself is toggle the attribute. That is the
     // author's line, the same as the icon toggles in catalog section E.
     //
-    // Playing both faces is waste, not just inefficiency: `backface-visibility` only stops a face
-    // being *painted*, so a video on the side you turned away keeps decoding (or, for a YouTube
-    // iframe, keeps playing audio) out of sight. The control plays whichever face is now facing the
-    // viewer, pauses the other, and tears any YouTube embed on the hidden side back down to its
-    // click-to-play poster.
+    // Which face plays, and which one has the sound, is not decided here: the hero-video script
+    // above reads this control's `aria-pressed` and moves play and sound to the face now facing the
+    // viewer. This script only owns the toggle itself and the caption that names the visible face.
     ;(function () {
       document.querySelectorAll('.kui-flip-control').forEach(function (control) {
         var card = control.closest('[data-kui]')
@@ -3400,26 +3620,8 @@ kuinetic({ observe: true }).start()</code></pre>
           var flipped = control.getAttribute('aria-pressed') !== 'true'
           control.setAttribute('aria-pressed', String(flipped))
 
-          var shownIndex = flipped ? 1 : 0
-          var hiddenIndex = flipped ? 0 : 1
-          var shown = sides[shownIndex]
-          var hidden = sides[hiddenIndex]
-
-          var shownVideo = shown && shown.querySelector('video')
-          var hiddenVideo = hidden && hidden.querySelector('video')
-          if (hiddenVideo && !hiddenVideo.paused) hiddenVideo.pause()
-          if (shownVideo) {
-            var r = shownVideo.play()
-            if (r && r.catch) r.catch(function () {})
-          }
-          if (hidden) {
-            hidden.querySelectorAll('.video-frame').forEach(function (frame) {
-              if (frame.__restore) frame.__restore()
-            })
-          }
-
           // The caption names the face now facing the viewer — the one you can actually see.
-          if (label) label.textContent = names[shownIndex]
+          if (label) label.textContent = names[flipped ? 1 : 0]
         })
       })
     })()
@@ -3671,7 +3873,6 @@ kuinetic({ observe: true }).start()</code></pre>
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>
-  <script src="./video-lightbox.js"></script>
   <script src="./video-hero.js"></script>
 </body>
 </html>

@@ -3,6 +3,18 @@
 All notable changes to kUInetic are documented here. Dates are when a change landed on `main`;
 version numbers are assigned at release.
 
+## [Unreleased]
+
+### Added
+
+- **`lightbox caption:`** picks where a gallery caption comes from: `figcaption` (the default and
+  the old behaviour, falling back to `alt`), `alt`, `title`, or `none`. A page whose figcaptions
+  label something other than the picture — a code sample, a step number — no longer has to show
+  that label under every enlarged image.
+- **`video-lightbox`** names its player from the link's `aria-label` when the link has no `title`
+  and no poster inside it, so an icon-only play button gets a real iframe title instead of the
+  generic "Video".
+
 ## [0.2.0] — 2026-09-27
 
 ### Breaking

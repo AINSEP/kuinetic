@@ -1452,7 +1452,15 @@
     </button>
   </header>
 
-  <main id="top">
+  <!-- Every content image on the page opens full-size in the library's `lightbox` dialog.
+       `target:` names images only — the preset's
+       default also picks up every `a[href]`, which here would turn the scroll-spy nav and the hero
+       buttons into gallery items. Two kinds of image are left out: a `.video-frame` poster (its
+       job is to start the video, not open a still of it) and anything marked `data-no-lightbox`
+       (the scrub frames, which are one picture split five ways). The whole page is one gallery, so
+       Left/Right/Home/End step through it once the dialog is open. `caption:alt` because this
+       page's figcaptions are the effect's code, not a description of the screenshot. -->
+  <main id="top" data-kui="lightbox target:'img:not([data-no-lightbox]):not(.video-frame img)' caption:alt">
     <div class="wrap">
 
       <!-- HERO -->
@@ -2455,6 +2463,5 @@
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>
-  <script src="./lightbox.js"></script>
 </body>
 </html>

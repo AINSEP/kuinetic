@@ -104,6 +104,30 @@ describe('lightbox', () => {
     expect(dialog().querySelector('img')?.alt).toBe('Alt A')
   })
 
+  it('reads the caption from the source caption: names', () => {
+    const figure = (spec: string): string => `<figure data-kui="lightbox${spec}"><a href="/a.jpg" title="Link title"><img src="/a.png" alt="Alt A" title="Image title"></a><figcaption>Caption A</figcaption></figure>`
+    const shown = (): string | null => {
+      const caption = dialog().querySelector('figcaption')!
+      return caption.hidden ? null : caption.textContent
+    }
+    for (const [spec, expected] of [['', 'Caption A'], [' caption:figcaption', 'Caption A'], [' caption:alt', 'Alt A'], [' caption:title', 'Link title'], [' caption:none', null]] as const) {
+      start(figure(spec))
+      click(document.querySelector('a')!)
+      expect(shown(), spec || 'default').toBe(expected)
+      for (const animator of active.splice(0)) animator.destroy()
+      document.body.replaceChildren()
+    }
+  })
+
+  it('falls back to the image title for caption:title and hides an empty one', () => {
+    start('<div data-kui="lightbox caption:title"><img src="/a.png" alt="A" title=" Image title "><img src="/b.png" alt="B"></div>')
+    const images = document.querySelectorAll('div > img')
+    click(images[0]!)
+    expect(dialog().querySelector('figcaption')?.textContent).toBe('Image title')
+    click(images[1]!)
+    expect(dialog().querySelector('figcaption')?.hidden).toBe(true)
+  })
+
   it('leaves unrelated gallery keys available to the browser', () => {
     start('<div data-kui="lightbox"><a href="/a.jpg"><img src="/a.png" alt="A"></a><a href="/b.jpg"><img src="/b.png" alt="B"></a></div>')
     click(document.querySelector('a')!)
@@ -357,6 +381,17 @@ describe('video-lightbox', () => {
     expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Text title')
     click(links[2]!)
     expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Video')
+  })
+
+  it('names an icon-only play link by its aria-label, after title and poster alt', () => {
+    start('<div data-kui="video-lightbox"><a href="https://youtu.be/dQw4w9WgXcQ" aria-label="Play: Tour"><svg aria-hidden="true"></svg></a><a href="/b.mp4" aria-label="Label" title="Title">Text</a><a href="/c.mp4" aria-label="Label"><img src="/c.png" alt="Poster"></a></div>')
+    const links = document.querySelectorAll('a')
+    click(links[0]!)
+    expect(dialog().querySelector('iframe')?.title).toBe('Play: Tour')
+    click(links[1]!)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Title')
+    click(links[2]!)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('Poster')
   })
 
   it('pauses loaded direct media when the viewer closes', () => {

@@ -19,6 +19,7 @@ const paramsSchema: ParameterSchema = {
   ease: { type: 'easing', default: 'cubic-bezier(0.22, 1, 0.36, 1)', cssProperty: '--kui-lightbox-ease' },
   loop: { type: 'keyword', default: 'true', cssProperty: '--kui-lightbox-loop', keywords: ['true', 'false'] },
   aspect: { type: 'keyword', default: '', cssProperty: '--kui-lightbox-aspect', keywords: ['wide', 'tall', 'square'] },
+  caption: { type: 'keyword', default: 'figcaption', cssProperty: '--kui-lightbox-caption', keywords: ['figcaption', 'alt', 'title', 'none'] },
 }
 
 interface ImageItem {
@@ -48,22 +49,33 @@ function imageIn(trigger: Element): HTMLImageElement | null {
   return trigger instanceof HTMLImageElement ? trigger : trigger.querySelector('img')
 }
 
-function imageItem(trigger: Element): ImageItem | null {
+/**
+ * The caption `caption:` names. `figcaption` falls back to the alt text, which is what a gallery
+ * of figures wants; the other three read one source only, so a page whose figcaptions label
+ * something other than the picture can pick `alt`, and `none` hides the line entirely.
+ */
+function captionFor(trigger: Element, image: HTMLImageElement, source: string): string {
+  if (source === 'none') return ''
+  if (source === 'alt') return image.alt
+  if (source === 'title') return (trigger.getAttribute('title') || image.title).trim()
+  return trigger.closest('figure')?.querySelector('figcaption')?.textContent?.trim() || image.alt
+}
+
+function imageItem(trigger: Element, captionSource: string): ImageItem | null {
   const image = imageIn(trigger)
   if (!image) return null
   const link = trigger instanceof HTMLAnchorElement ? trigger : null
-  const caption = trigger.closest('figure')?.querySelector('figcaption')?.textContent?.trim()
   return { trigger, image, src: link?.href ?? (image.currentSrc || image.src),
-    caption: caption || image.alt }
+    caption: captionFor(trigger, image, captionSource) }
 }
 
-function imageItems(targets: Element[]): ImageItem[] {
+function imageItems(targets: Element[], captionSource: string): ImageItem[] {
   const seen = new Set<Element>()
   const items: ImageItem[] = []
   for (const target of targets) {
     const trigger = imageTrigger(target)
     if (seen.has(trigger)) continue
-    const item = imageItem(trigger)
+    const item = imageItem(trigger, captionSource)
     if (!item) continue
     seen.add(trigger)
     items.push(item)
@@ -181,7 +193,9 @@ function videoContent(link: HTMLAnchorElement, source: NonNullable<ReturnType<ty
   const frame = doc.createElement('div')
   frame.className = `kui-lightbox-frame kui-lightbox-frame--${aspect}`
   const poster = link.querySelector('img')
-  const title = link.title || poster?.getAttribute('alt') || link.textContent?.trim() || 'Video'
+  // An icon-only play button has no text and no poster inside it; its aria-label is its name.
+  const title = link.title || poster?.getAttribute('alt') || link.getAttribute('aria-label')?.trim() ||
+    link.textContent?.trim() || 'Video'
   if (source.kind === 'file') {
     const video = doc.createElement('video')
     video.src = source.embedUrl
@@ -272,7 +286,7 @@ function prepareLightbox(el: Element, params: EffectParams, ctx: PrepareContext)
   if (media === 'video') {
     wireVideos(found, wiring, params.text('aspect'), ctx)
   } else {
-    const items = imageItems(found)
+    const items = imageItems(found, params.text('caption', 'figcaption'))
     restore = wireImages(items, wiring, params.is('loop'))
   }
   return continuousSetup(() => {
