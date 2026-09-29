@@ -322,11 +322,39 @@ export function createRootResolver(options: RootResolverOptions): (el: Element) 
 
   return (el) => {
     for (let node = el.parentElement; node; node = node.parentElement) {
+      // Checked before `isScrollable`, which would say yes: `<html data-kui="scroll-snap-y
+      // target:…">` writes `overflow-y: auto` on the root, and the root then reads as a scroller
+      // whose content overflows. But the root's overflow belongs to the viewport — the page still
+      // scrolls the window, and `scroll` fires on the document, never on `<html>`. Handing out
+      // `<html>` as the root left every scroll-driven effect on the page listening to an element
+      // that never scrolls (`horizontal-scroll` on index.html froze the moment snapping went on).
+      if (scrollsTheViewport(node, win)) return windowRoot
       if (isScrollable(node)) return elementScrollRoot(node, win)
     }
     return windowRoot
   }
 }
+
+/**
+ * Whether an element's `overflow` is the viewport's rather than its own.
+ *
+ * CSS Overflow 3 §3.3: the root element's `overflow` always propagates to the viewport, and
+ * `<body>`'s does too when the root's is `visible` on both axes. In either case the element is not
+ * a scroll container at all — the window is.
+ *
+ * @complexity O(1) time and space; reads computed style of the root only in the `<body>` case.
+ * @overallScore 100
+ */
+function scrollsTheViewport(node: Element, win: Window): boolean {
+  const root = win.document.documentElement
+  if (node === root) return true
+  if (node !== win.document.body) return false
+  const rootStyle = win.getComputedStyle(root)
+  return !CLIPPING_OVERFLOW.has(rootStyle.overflowX) && !CLIPPING_OVERFLOW.has(rootStyle.overflowY)
+}
+
+/** Every `overflow` value other than `visible` — tested as a set so an unset value reads as visible. */
+const CLIPPING_OVERFLOW = new Set(['auto', 'scroll', 'overlay', 'hidden', 'clip'])
 
 const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll', 'overlay'])
 

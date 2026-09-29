@@ -1,16 +1,17 @@
 <!doctype html>
-<!-- Snapping is parked with the video backdrop it was for — `.snap-panel` is that section's class,
-     so there is nothing left to snap to. To restore, uncomment that section further down and put
-     this back on the tag below:
-
-       data-kui="smooth-scroll-to, scroll-snap-y strictness:proximity target:.snap-panel"
+<!-- Every content section snaps to the top of the screen. Each is at least `100svh` (see the
+     `main section` rule), so a snapped section fills the screen and the tickers between them only
+     show mid-scroll. The selector skips the tickers, which are never a resting point.
 
      `strictness:proximity`, not the default `mandatory`: mandatory forces a snap from anywhere in
-     range, which fights you halfway down a long reading section. Proximity only pulls when you are
-     already close to a boundary — the "it clicks into place" behaviour without the hijack. Pairing
-     the two effects at all needed `smooth-scroll` off the shared `layout` channel; that library
-     fix is in `scroll-mechanics/primitives.ts` and stands whether or not this is revived. -->
-<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+     range, which fights you halfway down a long reading section — and `reel` and `catalog` are
+     several screens tall. Proximity only pulls when you are already close to a boundary — the "it
+     clicks into place" behaviour without the hijack. Pairing the two effects at all needed
+     `smooth-scroll` off the shared `layout` channel; that library fix is in
+     `scroll-mechanics/primitives.ts`.
+
+     Restore point without snapping: git tag `sections-before-snap`. -->
+<html lang="en" data-kui="smooth-scroll-to, scroll-snap-y strictness:proximity target:'main section:not(.ticker)'" data-kui-cloak>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />

@@ -309,6 +309,44 @@ describe('createRootResolver', () => {
     expect(resolve(document.getElementById('target')!).key).toBe('window')
   })
 
+  // `scroll-snap-y target:` on `<html>` writes `overflow-y: auto` there, and a naive overflow test
+  // then hands out `<html>` as the scroller — which never fires `scroll`; the window does.
+  it('treats an overflowing <html> as the window, not an element scroller', () => {
+    document.body.innerHTML = '<p id="target"></p>'
+    const resolve = createRootResolver({
+      win: window,
+      isScrollable: (el) => el === document.documentElement,
+    })
+
+    expect(resolve(document.getElementById('target')!).key).toBe('window')
+  })
+
+  it('treats <body> as the window while <html> is overflow: visible (body propagates)', () => {
+    document.body.innerHTML = '<p id="target"></p>'
+    const resolve = createRootResolver({
+      win: window,
+      isScrollable: (el) => el === document.body,
+    })
+
+    expect(resolve(document.getElementById('target')!).key).toBe('window')
+  })
+
+  it('keeps <body> as its own scroller once <html> has non-visible overflow', () => {
+    document.body.innerHTML = '<p id="target"></p>'
+    // Longhand, not `overflow`: jsdom does not expand the shorthand into computed style.
+    document.documentElement.style.overflowY = 'hidden'
+    try {
+      const resolve = createRootResolver({
+        win: window,
+        isScrollable: (el) => el === document.body,
+      })
+
+      expect(resolve(document.getElementById('target')!).key).toMatch(/^el:/)
+    } finally {
+      document.documentElement.style.overflowY = ''
+    }
+  })
+
   it('gives the same key for two elements inside one scroller, so they share a listener', () => {
     document.body.innerHTML = '<div id="s"><p id="a"></p><p id="b"></p></div>'
     const scroller = document.getElementById('s')!
