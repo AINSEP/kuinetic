@@ -3,7 +3,7 @@
 All notable changes to kUInetic are documented here. Dates are when a change landed on `main`;
 version numbers are assigned at release.
 
-## [Unreleased]
+## [0.2.1] — 2026-09-29
 
 ### Added
 
@@ -14,6 +14,11 @@ version numbers are assigned at release.
 - **`video-lightbox`** names its player from the link's `aria-label` when the link has no `title`
   and no poster inside it, so an icon-only play button gets a real iframe title instead of the
   generic "Video".
+
+### Fixed
+
+- **Split-text line reveals** settle only once the split host is finished, so lines re-split on
+  resize no longer get stuck hidden.
 
 ## [0.2.0] — 2026-09-27
 
