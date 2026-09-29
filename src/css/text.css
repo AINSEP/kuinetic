@@ -88,8 +88,11 @@
   }
 
   /* A finished line reveal stays in the DOM for responsive re-measurement. New wrappers must
-   * display their final frame without restarting, and the mask must not clip a long word. */
-  [data-kui-state='finished'] [data-kui-split-fx] .kui-split-line {
+   * display their final frame without restarting, and the mask must not clip a long word.
+   * `>`, not a descendant combinator: the decorative layer is the host's direct child, and a
+   * finished *ancestor* (a `fade-up` section around a `text-reveal-mask` lede) otherwise matched
+   * too and cancelled the lede's reveal while it was still in its delay. */
+  [data-kui-state='finished'] > [data-kui-split-fx] .kui-split-line {
     animation-name: none;
     opacity: 1;
     clip-path: none;

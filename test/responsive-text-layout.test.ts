@@ -220,7 +220,7 @@ describe('responsive split lines and flip indicator', () => {
     expect(el.textContent).toBe(source)
     expect(Array.from(el.querySelectorAll('.kui-split-line'), (line) =>
       (line as HTMLElement).style.getPropertyValue('--kui-i'))).toEqual(['0', '1', '2'])
-    expect(css).toMatch(/\[data-kui-state='finished'\] \[data-kui-split-fx\] \.kui-split-line \{[^}]*animation-name: none;[^}]*clip-path: none;/)
+    expect(css).toMatch(/\[data-kui-state='finished'\] > \[data-kui-split-fx\] \.kui-split-line \{[^}]*animation-name: none;[^}]*clip-path: none;/)
     instance.destroy()
   })
 
@@ -288,6 +288,25 @@ describe('responsive split lines and flip indicator', () => {
     expect(observer.disconnect).toHaveBeenCalledOnce()
     expect(el.querySelector('.kui-split-line')).toBeNull()
     expect(el.textContent).toBe(source)
+  })
+
+  it('settles lines only when the split host itself is finished, not a finished ancestor', () => {
+    // A mask reveal nested in a `fade-up` section: the section finishes first, and a descendant
+    // selector let its `data-kui-state="finished"` cancel the lede's still-delayed line reveal.
+    const settled = /^\s*(\[data-kui-state='finished'\][^{}\n]*)\{\s*animation-name: none;\s*opacity: 1;\s*clip-path: none;/m.exec(css)![1]!.trim()
+    const section = document.createElement('article')
+    section.setAttribute('data-kui-state', 'finished')
+    document.body.append(section)
+    const { el } = makeText()
+    section.append(el)
+    el.setAttribute('data-kui-state', 'running')
+    const instance = activateLines(el)
+    const line = el.querySelector('.kui-split-line')!
+    expect(line.matches(settled)).toBe(false)
+    el.setAttribute('data-kui-state', 'finished')
+    expect(line.matches(settled)).toBe(true)
+    instance.destroy()
+    section.remove()
   })
 
   it('restores authored children and disconnects on teardown', () => {
