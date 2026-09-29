@@ -34,12 +34,6 @@
 <link rel="preload" href="./assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="./fonts.css" />
 <link rel="stylesheet" href="./kuinetic.css" />
-<!-- Slide 0's poster is this page's real LCP candidate (a full-viewport video hero, painted before
-     any of the fold below it). `bg`'s <video poster> is only built once kuinetic.js has downloaded,
-     parsed and run `start()`, so without this the browser can't even discover the image until then.
-     Preloading it, plus painting it as a CSS background on #video-hero-slide-0 below, lets it paint
-     at first paint instead of waiting on the whole script round-trip. -->
-<link rel="preload" as="image" href="./assets/webdesign/midjourney-showcase-poster.jpg" fetchpriority="high" />
 <script defer src="./nav.js"></script>
 <style>
   /* Restated here, not inherited: this page does not load `system.css` (same note as the show-code
@@ -186,6 +180,18 @@
      colour of the highlighted names inside it. The seam is still carried by the alternation; the
      gold is brand, not structure. */
   section { padding: clamp(4.5rem, 6vw + 1.5rem, 8rem) 0; }
+  /* One section per screen, on every width: each content section is at least a full viewport tall,
+     its content centred in the white space, so a ticker is never on screen at rest — it only
+     slides past between two screens. Sections taller than the viewport just stay their own height.
+     `svh` for the same reason as `.video-hero` (mobile Safari's collapsing chrome). The flex column
+     was checked not to change any section's natural height at 390/820/1440 — child margins here
+     never relied on collapsing. `.video-hero` sizes itself (absolute slides), so it is left out. */
+  main section:not(.ticker):not(.video-hero) {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 510; }
   p { margin: 0; }
@@ -420,20 +426,18 @@
        ends. */
     padding-top: clamp(6.25rem, 5vw + 4.25rem, 8.25rem);
     padding-bottom: clamp(3.5rem, 5vw, 5.5rem);
-    /* No negative margin here any more. This used to pull the stage up under the floating header
-       — right when this was the first thing in `<main>`, directly below `</header>`. Now the video
-       hero carousel is first and already does that same pull-up for itself (see `.video-hero`'s
-       own margin-top); this section just follows it in normal flow. Restoring this rule would pull
-       the stage up *again*, overlapping it into the bottom of the video above — which is exactly
-       the "white band under the video" bug this replaced: `.hero-stage` paints an opaque
-       `--s-bg`, so that overlap showed as blank page colour eating the last ~70px of the clip. */
+    /* First thing in `<main>`, directly below `</header>`, so it pulls itself up under the
+       floating header: exactly the header's flow box (its `1rem` top margin plus its pinned
+       height). The padding-top above is tuned against this pull-up — it is what the nav-to-headline
+       gap was measured with. The video hero used to sit first and own this rule; it now follows a
+       ticker in normal flow and carries no negative margin. Only ever one section pulls up. */
+    margin-top: calc(-1 * (1rem + var(--site-header-h)));
   }
   .hero-inner { position: relative; z-index: 1; }
 
-  /* ---------- VIDEO HERO — full-bleed clip carousel at the very top of the page ---------- */
-  /* Sits above `.hero-stage` and borrows its "pulled up under the floating header" trick (same
-     negative margin-top) so this is the first thing painted, edge to edge, under the sticky nav
-     pill rather than below a gap it's floating over. `100svh`, not `100vh`: on mobile Safari the
+  /* ---------- VIDEO HERO — full-bleed clip carousel under the hero ---------- */
+  /* Sits below `.hero-stage` and the scroll ticker, in normal flow — no pull-up under the header
+     any more (`.hero-stage` owns that now, as the first section). `100svh`, not `100vh`: on mobile Safari the
      large-viewport value counts the address bar as present, so the section doesn't jump taller
      once the chrome collapses on scroll. The section itself has no padding/centring of its own —
      every slide is absolutely positioned inside it (see `.video-hero-slide`), so it only needs to
@@ -442,15 +446,6 @@
     position: relative;
     overflow: clip;
     min-height: 100svh;
-    /* Exactly the floating header's flow box: its `1rem` top margin plus its now-pinned height.
-       Not a guess, and not an overshoot. An overshoot lifts this section's top edge above the
-       viewport, and a `100svh` box whose top starts above the viewport necessarily ends the same
-       distance short of the viewport floor — that shortfall is what painted `.hero-stage`'s opaque
-       white as a thin band along the bottom of the first screen. Paying for it with extra height
-       instead is not a fix either: every slide is `inset: 0`, so a taller section pushes the
-       caption, dots and "Show code" chip below the fold with it. Exact is the only value that
-       leaves the clip flush at both ends. */
-    margin-top: calc(-1 * (1rem + var(--site-header-h)));
     color: #ffffff;
     /* The one line that makes `swipe-x` safe here. The gesture recogniser watches raw pointer
        events, so on a touchscreen the browser decides first whether a drag is a page scroll or the
@@ -475,10 +470,10 @@
     transition: opacity 600ms ease;
   }
   .video-hero-slide.is-active { opacity: 1; pointer-events: auto; z-index: 1; }
-  /* Paints the LCP poster without waiting on kuinetic.js: `bg` (background-media.ts) writes only
+  /* Paints slide 0's poster without waiting on kuinetic.js: `bg` (background-media.ts) writes only
      `data-kui-background` on this host and puts its scrim on its own child layer, so it sets no
      `background` here — this CSS rule owns that property free and clear. The `<video poster>` `bg`
-     builds once JS runs sits on top of this at the same size, so it doesn't cause a second LCP
+     builds once JS runs sits on top of this at the same size, so it doesn't cause a second
      paint; it's the same image already on screen, just now backed by a real <video> element. Slide
      0 has no `data-mobile-poster`, so phones paint this same file too. */
   #video-hero-slide-0 { background: #000 url(./assets/webdesign/midjourney-showcase-poster.jpg) center / cover no-repeat; }
@@ -2181,7 +2176,106 @@
 
   <main id="top">
 
-    <!-- VIDEO HERO — full-bleed clip carousel, the first thing on the page.
+    <!-- HERO — the stage.
+         Full-bleed and near-black in both themes, because that is the surface the brand's acid
+         lime was chosen for. It sits outside `.wrap` and carries its own, so the paint reaches the
+         viewport edge while the content stays on the same 1200px measure as every section below. -->
+    <section class="hero-stage stage" data-od-id="hero">
+      <div class="wrap hero-inner">
+        <div class="hero">
+          <!-- Matches `.hero-media`'s own three-column split (credit rail, video, eyebrow rail)
+               with real spacers instead of guessed pixel offsets — each spacer carries the exact
+               same text/font/writing-mode as its counterpart below, so its intrinsic width tracks
+               that counterpart's automatically. Without them the title centers across the full
+               740px box while the video sits between the two rails, and the two visibly misalign. -->
+          <div class="hero-title-row">
+            <span class="hero-title-spacer" aria-hidden="true">Made by Leon A.</span>
+            <div class="hero-title-col">
+              <h1 data-kui="split-chars 2000ms on:load">Premium Animations with HTML tags</h1>
+            </div>
+            <span class="hero-title-spacer-end" aria-hidden="true">Declarative Animation Library</span>
+          </div>
+
+          <!-- One live demo, one slot. Each face plays one half of the kUInetic promo tour — part 1
+               on the front, part 2 on the back — as a muted, looping, autoplaying `<video>` with the
+               browser's own controls (play/pause, scrub, volume, fullscreen).
+               `flip-card` is the library's stateful two-sided card — not `card-flip-y`, which is a
+               one-shot entrance with nothing on the other side. The state is `aria-pressed` on
+               the control, read with `:has()`, so the button's accessibility state and the card's
+               visual state are the same fact rather than two that can drift.
+               The hero-video script below owns everything about the videos themselves: it picks
+               the light or dark encode from the page theme (and swaps live when the theme
+               toggles), plays only the face that is showing and mutes the one turned away, and —
+               under `prefers-reduced-motion` — withholds autoplay so the poster waits for the
+               native play button. -->
+          <div class="hero-media" data-kui="fade-up 800ms 200ms">
+            <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
+                 observer fires immediately anyway, and if the hero is ever pushed below the fold
+                 the line types when it is read rather than into an empty screen. -->
+            <p class="hero-media-credit" data-kui="typewriter delay:1000ms on:enter">Made by Leon A.</p>
+            <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
+              <!-- Front face: promo tour, part 1. The video carries a `data-hero-video` stem instead
+                   of a `src`/`poster`: the light and dark encodes are separate files
+                   (`<stem>-light.mp4`, `<stem>-dark.mp4`, and a `.jpg` poster for each), and the
+                   script picks the one matching the theme before anything is fetched, so a dark-mode
+                   visitor never downloads the light file first. No `preload="none"`: this is the
+                   hero, and the video should be ready to run as soon as it is on screen. The 100svh
+                   video hero sits below this section now, so it no longer competes for first paint. -->
+              <div class="kui-face-front" data-flip-name="kUInetic — tour, part 1">
+                <div class="video-frame">
+                  <video data-hero-video="./assets/hero-ad/hero-front" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 1: an animated walkthrough of the library"></video>
+                </div>
+              </div>
+              <!-- Back face: promo tour, part 2. Same wiring as the front, except it does not start
+                   until the card is flipped to it: a 3D face is "on screen" to the browser even
+                   when turned away, so the script holds it paused. -->
+              <div class="kui-face-back" data-flip-name="kUInetic — tour, part 2">
+                <div class="video-frame">
+                  <video data-hero-video="./assets/hero-ad/hero-back" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 2: an animated walkthrough of the library"></video>
+                </div>
+              </div>
+              <!-- Two controls, opposite top corners, so neither has to make room for the other — and
+                   both clear the bottom edge, where the native control bar sits. Flip is the
+                   primary action and carries the filled treatment; Show code is an outline of the
+                   same pill, which reads as secondary without needing to be smaller or dimmer
+                   enough to be hard to hit. -->
+              <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
+              <!-- The pill used to carry the name of the face you would flip TO, which reads as a
+                   label for the face you are looking AT — wrong either way round. The button is now
+                   just the verb; the caption below names what is actually on screen. -->
+              <button type="button" class="kui-flip-control" aria-pressed="false">
+                <span class="flip-label">Flip</span>
+              </button>
+            </div>
+            <!-- Right-edge mirror of `.hero-media-credit` on the left — see `.hero-media-eyebrow`
+                 for the writing-mode mirroring. Used to sit under the headline as
+                 `.hero-title-caption`; kept the same entrance timing since it's still the first
+                 thing (besides the headline) meant to be read. -->
+            <p class="kicker hero-media-eyebrow" data-kui="fade-up 600ms 100ms">Declarative Animation Library</p>
+            <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">Easy For Beginners. Made for Designers</p>
+          </div>
+
+          <div class="hero-actions" data-kui="fade-up 700ms 540ms">
+            <a href="#catalog" class="btn btn-primary" data-kui="lift-shadow">See what it can do</a>
+            <a href="#install" class="btn btn-ghost" data-kui="shine-sweep, lift-shadow">Install in two lines →</a>
+          </div>
+          <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Free · Standalone · MIT</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Separates the hero stage from the video hero below it — the page's own separator device
+         rather than a new one; every section boundary from here down gets one. Scroll vocabulary
+         here, deliberately disjoint from `ticker-reel`'s list further down so the two never read
+         as the same bar. -->
+    <section class="ticker stage" aria-label="Scroll mechanics — the effects that key motion to the scrollbar" data-od-id="ticker-scroll">
+      <div class="ticker-row" data-kui="marquee 36s">
+        <span>pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
+        <span aria-hidden="true">pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
+      </div>
+    </section>
+
+    <!-- VIDEO HERO — full-bleed clip carousel, between the hero stage and the playground (a ticker each side).
          Each `.video-hero-slide` is `bg` (alias of `background-media`) building its own `<video>`
          from `src:`/`poster:` — cover-fit, muted, looping, autoplaying regardless of which slide is
          on screen, so switching slides is instant with no re-buffer. No `overlay:` — plain
@@ -2258,109 +2352,6 @@
         <button type="button" class="video-hero-dot is-active" data-slide-target="0" role="tab" aria-selected="true" aria-label="Video 1"></button>
         <button type="button" class="video-hero-dot" data-slide-target="1" role="tab" aria-selected="false" tabindex="-1" aria-label="Video 2"></button>
         <button type="button" class="video-hero-dot" data-slide-target="2" role="tab" aria-selected="false" tabindex="-1" aria-label="Video 3"></button>
-      </div>
-    </section>
-
-    <!-- The video hero's closing edge, and the page's own separator device rather than a new one —
-         four more of these already mark the boundaries further down. It is deliberately NOT part
-         of the first screen: `.video-hero` is exactly `100svh`, so this bar sits just under the
-         fold on landing and only reveals itself the moment someone starts scrolling. No JS and no
-         scroll listener does that — the hero's exact height is what does it, which is the other
-         half of why that height had to stop overshooting. Scroll vocabulary here, deliberately
-         disjoint from `ticker-reel`'s list further down so the two never read as the same bar. -->
-    <section class="ticker stage" aria-label="Scroll mechanics — the effects that key motion to the scrollbar" data-od-id="ticker-scroll">
-      <div class="ticker-row" data-kui="marquee 36s">
-        <span>pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
-        <span aria-hidden="true">pin-section&nbsp;·&nbsp;<b>stacking-cards</b>&nbsp;·&nbsp;scroll-progress&nbsp;·&nbsp;scrollytelling-step&nbsp;·&nbsp;<b>scroll-snap-y</b>&nbsp;·&nbsp;smooth-scroll-to&nbsp;·&nbsp;tilt-parallax&nbsp;·&nbsp;<b>image-parallax-frame</b>&nbsp;·&nbsp;marquee-scroll-linked&nbsp;·&nbsp;pin-spacer&nbsp;·&nbsp;<b>curtain-reveal</b>&nbsp;·&nbsp;mask-reveal&nbsp;·&nbsp;text-reveal-up&nbsp;·&nbsp;<b>scroll-snap-x</b>&nbsp;·&nbsp;ken-burns-out&nbsp;·&nbsp;</span>
-      </div>
-    </section>
-
-    <!-- HERO — the stage.
-         Full-bleed and near-black in both themes, because that is the surface the brand's acid
-         lime was chosen for. It sits outside `.wrap` and carries its own, so the paint reaches the
-         viewport edge while the content stays on the same 1200px measure as every section below. -->
-    <section class="hero-stage stage" data-od-id="hero">
-      <div class="wrap hero-inner">
-        <div class="hero">
-          <!-- Matches `.hero-media`'s own three-column split (credit rail, video, eyebrow rail)
-               with real spacers instead of guessed pixel offsets — each spacer carries the exact
-               same text/font/writing-mode as its counterpart below, so its intrinsic width tracks
-               that counterpart's automatically. Without them the title centers across the full
-               740px box while the video sits between the two rails, and the two visibly misalign. -->
-          <div class="hero-title-row">
-            <span class="hero-title-spacer" aria-hidden="true">Made by Leon A.</span>
-            <div class="hero-title-col">
-              <h1 data-kui="split-chars 2000ms on:load">Premium Animations with HTML tags</h1>
-            </div>
-            <span class="hero-title-spacer-end" aria-hidden="true">Declarative Animation Library</span>
-          </div>
-
-          <!-- One live demo, one slot. Each face plays one half of the kUInetic promo tour — part 1
-               on the front, part 2 on the back — as a muted, looping, autoplaying `<video>` with the
-               browser's own controls (play/pause, scrub, volume, fullscreen).
-               `flip-card` is the library's stateful two-sided card — not `card-flip-y`, which is a
-               one-shot entrance with nothing on the other side. The state is `aria-pressed` on
-               the control, read with `:has()`, so the button's accessibility state and the card's
-               visual state are the same fact rather than two that can drift.
-               The hero-video script below owns everything about the videos themselves: it picks
-               the light or dark encode from the page theme (and swaps live when the theme
-               toggles), plays only the face that is showing and mutes the one turned away, and —
-               under `prefers-reduced-motion` — withholds autoplay so the poster waits for the
-               native play button. -->
-          <div class="hero-media" data-kui="fade-up 800ms 200ms">
-            <!-- `on:enter` rather than `on:load`: the typewriter is at the top of the page, so the
-                 observer fires immediately anyway, and if the hero is ever pushed below the fold
-                 the line types when it is read rather than into an empty screen. -->
-            <p class="hero-media-credit" data-kui="typewriter delay:1000ms on:enter">Made by Leon A.</p>
-            <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
-              <!-- Front face: promo tour, part 1. The video carries a `data-hero-video` stem instead
-                   of a `src`/`poster`: the light and dark encodes are separate files
-                   (`<stem>-light.mp4`, `<stem>-dark.mp4`, and a `.jpg` poster for each), and the
-                   script picks the one matching the theme before anything is fetched, so a dark-mode
-                   visitor never downloads the light file first. No `preload="none"`: this is the
-                   hero, and the video should be ready to run as soon as it is on screen. The 100svh
-                   video hero above still owns this page's LCP (see #video-hero-slide-0's preload),
-                   so nothing here competes with it. -->
-              <div class="kui-face-front" data-flip-name="kUInetic — tour, part 1">
-                <div class="video-frame">
-                  <video data-hero-video="./assets/hero-ad/hero-front" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 1: an animated walkthrough of the library"></video>
-                </div>
-              </div>
-              <!-- Back face: promo tour, part 2. Same wiring as the front, except it does not start
-                   until the card is flipped to it: a 3D face is "on screen" to the browser even
-                   when turned away, so the script holds it paused. -->
-              <div class="kui-face-back" data-flip-name="kUInetic — tour, part 2">
-                <div class="video-frame">
-                  <video data-hero-video="./assets/hero-ad/hero-back" autoplay muted loop playsinline preload="auto" controls aria-label="kUInetic tour, part 2: an animated walkthrough of the library"></video>
-                </div>
-              </div>
-              <!-- Two controls, opposite top corners, so neither has to make room for the other — and
-                   both clear the bottom edge, where the native control bar sits. Flip is the
-                   primary action and carries the filled treatment; Show code is an outline of the
-                   same pill, which reads as secondary without needing to be smaller or dimmer
-                   enough to be hard to hit. -->
-              <button type="button" class="hero-flip-code" data-show-code-target="hero-flip-demo">Show code</button>
-              <!-- The pill used to carry the name of the face you would flip TO, which reads as a
-                   label for the face you are looking AT — wrong either way round. The button is now
-                   just the verb; the caption below names what is actually on screen. -->
-              <button type="button" class="kui-flip-control" aria-pressed="false">
-                <span class="flip-label">Flip</span>
-              </button>
-            </div>
-            <!-- Right-edge mirror of `.hero-media-credit` on the left — see `.hero-media-eyebrow`
-                 for the writing-mode mirroring. Used to sit under the headline as
-                 `.hero-title-caption`; kept the same entrance timing since it's still the first
-                 thing (besides the headline) meant to be read. -->
-            <p class="kicker hero-media-eyebrow" data-kui="fade-up 600ms 100ms">Declarative Animation Library</p>
-            <p class="kicker hero-media-caption" data-kui="fade-up 600ms 350ms">Easy For Beginners. Made for Designers</p>
-          </div>
-
-          <div class="hero-actions" data-kui="fade-up 700ms 540ms">
-            <a href="#catalog" class="btn btn-primary" data-kui="lift-shadow">See what it can do</a>
-            <a href="#install" class="btn btn-ghost" data-kui="shine-sweep, lift-shadow">Install in two lines →</a>
-          </div>
-          <p class="hero-note" data-kui="fade-up 700ms 600ms"><span class="dot"></span> Free · Standalone · MIT</p>
-        </div>
       </div>
     </section>
 
