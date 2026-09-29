@@ -55,8 +55,13 @@ export interface GestureOptions {
    * shell swallowed every click on its own dots and buttons, because the click was delivered to the
    * shell. `swipeable` recognises and publishes an attribute — it never moves anything — so it has
    * nothing to stay under the cursor for and opts out.
+   *
+   * `'drag'` is the middle path for a gesture that moves nothing but must still *finish*: no capture
+   * on `pointerdown` (so a tap or click reaches its real target), capture once movement crosses the
+   * threshold. A flick that leaves a small element otherwise never delivers `pointerup` to it, and
+   * the swipe is never reported. A drag is not a click, so retargeting after it costs nothing.
    */
-  capturePointer?: boolean
+  capturePointer?: boolean | 'drag'
 }
 
 export interface GestureDeps {
@@ -147,6 +152,10 @@ export function recognise(
   let active = false
   let longPressTimer: number | null = null
   let longPressFired = false
+  let captured = false
+  let pointerId: number | null = null
+  let lastHandled: Event | null = null
+  let documentListening: Document | null = null
 
   function sampleOf(event: PointerEvent): Sample {
     return { x: event.clientX, y: event.clientY, time: deps.now() }
@@ -177,7 +186,9 @@ export function recognise(
     // retargets the `click` that follows: with capture held, the browser fires it at this element
     // instead of the child actually pressed. A gesture that moves nothing gains nothing from it and
     // pays for it with every button inside. See `capturePointer`.
-    if (capturePointer) el.setPointerCapture?.(event.pointerId)
+    pointerId = event.pointerId
+    captured = capturePointer === true && takeCapture(event.pointerId)
+    if (!captured) listenOnDocument()
     if (longPressMs > 0) {
       longPressTimer = deps.setTimer(() => {
         longPressFired = true
@@ -186,8 +197,73 @@ export function recognise(
     }
   }
 
+  /**
+   * Take pointer capture, and say whether it is actually held.
+   *
+   * `captured` gates the release in `onUp` and the lost-capture handling, so it may only be true when
+   * the browser really has the capture: a missing method (an old engine, a partial DOM) performs
+   * nothing, and capture can throw (`NotFoundError`, e.g. a synthesised pointer id) — the swipe must
+   * survive both.
+   */
+  function takeCapture(id: number): boolean {
+    if (typeof el.setPointerCapture !== 'function') return false
+    try {
+      el.setPointerCapture(id)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** `capturePointer: 'drag'` takes capture only once the drag threshold is first crossed. */
+  function captureOnDrag(event: PointerEvent): void {
+    if (capturePointer !== 'drag') return
+    captured = takeCapture(event.pointerId)
+    if (captured) stopListeningOnDocument()
+  }
+
+  /**
+   * Hear the rest of a press that has no capture, wherever the pointer goes.
+   *
+   * Without capture, `pointermove`/`pointerup` are delivered to whatever is under the pointer. A
+   * press near a small element's edge and a fast outward flick puts the first threshold-crossing move
+   * (and the release) over something else, so the element's own listeners hear neither: the drag
+   * never starts, or never ends. Listening on the document from `pointerdown` until capture is taken
+   * or the gesture ends closes that, and capture is still not taken on press — a tap must reach the
+   * child that was pressed (see `capturePointer`).
+   */
+  function listenOnDocument(): void {
+    const doc = el.ownerDocument
+    if (!doc || documentListening) return
+    documentListening = doc
+    doc.addEventListener('pointermove', onMove as EventListener, { passive: true })
+    doc.addEventListener('pointerup', onUp as EventListener, { passive: true })
+    doc.addEventListener('pointercancel', onUp as EventListener, { passive: true })
+  }
+
+  function stopListeningOnDocument(): void {
+    const doc = documentListening
+    if (!doc) return
+    documentListening = null
+    doc.removeEventListener('pointermove', onMove as EventListener)
+    doc.removeEventListener('pointerup', onUp as EventListener)
+    doc.removeEventListener('pointercancel', onUp as EventListener)
+  }
+
+  /**
+   * The same event reaches the host and then the document as it bubbles; it counts once.
+   *
+   * Only `onMove` needs it. `onUp` takes the document listeners off as the host hears the release,
+   * and a listener removed mid-dispatch is not called, so the document never hears it a second time.
+   */
+  function firstHearing(event: Event): boolean {
+    if (event === lastHandled) return false
+    lastHandled = event
+    return true
+  }
+
   function onMove(event: PointerEvent): void {
-    if (!origin) return
+    if (!origin || !firstHearing(event)) return
     const sample = sampleOf(event)
     samples.push(sample)
     if (samples.length > MAX_SAMPLES) samples.shift()
@@ -197,13 +273,34 @@ export function recognise(
     if (!active) {
       active = true
       clearLongPress()
+      captureOnDrag(event)
       handlers.onStart?.(origin)
     }
     handlers.onMove?.(vector, sample)
   }
 
+  function releaseCapture(id: number): void {
+    if (captured) el.releasePointerCapture?.(id)
+    captured = false
+    pointerId = null
+  }
+
+  function reportEnd(vector: GestureVector, sample: Sample): void {
+    if (active) {
+      handlers.onEnd?.(vector, sample)
+      const direction = swipeDirection(vector, swipeVelocity)
+      if (direction) handlers.onSwipe?.(direction, vector)
+    } else if (longPressFired) {
+      // A long-press that never crossed the drag threshold leaves `active` false, so the branch
+      // above never runs — without this, a handler that sets an engaged state in `onLongPress`
+      // (`pressable`'s `data-kui-pressed`) has no matching release call and stays stuck engaged.
+      handlers.onEnd?.(vector, sample)
+    }
+  }
+
   function onUp(event: PointerEvent): void {
     clearLongPress()
+    stopListeningOnDocument()
     // Guarded by the same flag as the `setPointerCapture` above, and the asymmetry was a real
     // defect rather than an untidy pair. `releasePointerCapture` throws `NotFoundError` when the
     // id is not an active pointer, and `?.` only guards the method's *existence*, not the throw —
@@ -218,26 +315,27 @@ export function recognise(
     // drag threw here and reported the swipe as dead. Three separate attempts to verify
     // `swipe-x` concluded the recogniser was broken when it was this line. Cleanup must not be
     // able to abort the payload.
-    if (capturePointer) el.releasePointerCapture?.(event.pointerId)
+    releaseCapture(event.pointerId)
     if (!origin) return
     const sample = sampleOf(event)
     samples.push(sample)
-    const vector = vectorNow(sample)
-
-    if (active) {
-      handlers.onEnd?.(vector, sample)
-      const direction = swipeDirection(vector, swipeVelocity)
-      if (direction) handlers.onSwipe?.(direction, vector)
-    } else if (longPressFired) {
-      // A long-press that never crossed the drag threshold leaves `active` false, so the branch
-      // above never runs — without this, a handler that sets an engaged state in `onLongPress`
-      // (`pressable`'s `data-kui-pressed`) has no matching release call and stays stuck engaged.
-      handlers.onEnd?.(vector, sample)
-    }
+    reportEnd(vectorNow(sample), sample)
     origin = null
     active = false
     longPressFired = false
     samples = []
+  }
+
+  /**
+   * Capture taken away before the release — the host was removed or re-parented mid-drag, or another
+   * consumer released it. No `pointerup` is coming, so this is a cancellation: end the gesture the
+   * way `pointercancel` does. Only a capture this recogniser holds counts; its own release in `onUp`
+   * reports as lost too, by which point the gesture is already over.
+   */
+  function onLostCapture(event: PointerEvent): void {
+    if (!captured || event.pointerId !== pointerId) return
+    captured = false
+    onUp(event)
   }
 
   el.addEventListener('pointerdown', onDown as EventListener)
@@ -246,13 +344,16 @@ export function recognise(
   // Without this a gesture interrupted by the browser (scroll takeover, alt-tab) leaves the
   // recogniser permanently mid-drag.
   el.addEventListener('pointercancel', onUp as EventListener, { passive: true })
+  el.addEventListener('lostpointercapture', onLostCapture as EventListener, { passive: true })
 
   return () => {
     clearLongPress()
+    stopListeningOnDocument()
     el.removeEventListener('pointerdown', onDown as EventListener)
     el.removeEventListener('pointermove', onMove as EventListener)
     el.removeEventListener('pointerup', onUp as EventListener)
     el.removeEventListener('pointercancel', onUp as EventListener)
+    el.removeEventListener('lostpointercapture', onLostCapture as EventListener)
   }
 }
 

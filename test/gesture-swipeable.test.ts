@@ -133,7 +133,31 @@ describe('swipeable', () => {
     locked.destroy()
   })
 
-  it('never takes pointer capture, so clicks still reach interactive children', () => {
+  it('takes no pointer capture for a tap, so clicks still reach interactive children', () => {
+    const el = document.createElement('div')
+    document.body.append(el)
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    Object.assign(el, { setPointerCapture, releasePointerCapture })
+
+    const instance = swipeable.prepare!(el, createParams({}), stubCtx())
+    instance.activate()
+    // Below the drag threshold: a press on a dot or button inside a carousel shell carrying
+    // `swipe-x`. Capture retargets the following `click` at the capturing element, which silently
+    // killed every dot and button, so a tap must never take it.
+    flick(el, { x: 0, y: 0 }, { x: 2, y: 0 })
+
+    expect(setPointerCapture).not.toHaveBeenCalled()
+    expect(releasePointerCapture).not.toHaveBeenCalled()
+
+    instance.destroy()
+    el.remove()
+  })
+
+  it('captures once a drag is under way, so a flick longer than the element is still reported', () => {
+    // The other half of the same trade. `swipeable` moves nothing, but a real flick is longer than
+    // a small chip: the pointer is over the page before the button comes up, and without a capture
+    // the `pointerup` never reaches this element, so no direction is published at all.
     const el = document.createElement('div')
     document.body.append(el)
     const setPointerCapture = vi.fn()
@@ -144,13 +168,9 @@ describe('swipeable', () => {
     instance.activate()
     flick(el, { x: 0, y: 0 }, { x: 100, y: 0 })
 
-    // The gesture is recognised...
     expect(el.getAttribute('data-kui-swipe')).toBe('right')
-    // ...without ever capturing. Capture retargets the following `click` at the capturing element,
-    // which silently killed every dot and button inside a carousel shell carrying `swipe-x`. This
-    // primitive moves nothing, so it has nothing to stay under the cursor for.
-    expect(setPointerCapture).not.toHaveBeenCalled()
-    expect(releasePointerCapture).not.toHaveBeenCalled()
+    expect(setPointerCapture).toHaveBeenCalledOnce()
+    expect(releasePointerCapture).toHaveBeenCalledOnce()
 
     instance.destroy()
     el.remove()

@@ -290,7 +290,7 @@ function bindSwipe(el: Element, params: EffectParams, index: StepIndex): Cleanup
   return recognise(el, { onSwipe: (direction) => {
     if (direction === 'left') index.next()
     if (direction === 'right') index.prev()
-  } }, { axis: 'x', capturePointer: false })
+  } }, { axis: 'x', capturePointer: 'drag' })
 }
 
 /** Build an accessible, keyboard and swipe operable slideshow from authored slides.

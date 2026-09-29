@@ -257,11 +257,12 @@ function prepareSwipeable(el: Element, params: EffectParams): Cleanup {
     {
       axis: params.text('axis', 'both') as 'x' | 'y' | 'both',
       swipeVelocity: params.num('velocity', 300),
-      // This primitive publishes an attribute and moves nothing, so it has no reason to hold the
-      // pointer — and holding it retargets the following `click` at this element, which silently
-      // breaks every interactive child. A `swipe-x` on a carousel shell killed its own dots and
-      // buttons that way. See `capturePointer` in `core/gesture.ts`.
-      capturePointer: false,
+      // This primitive moves nothing, so it must not hold the pointer from `pointerdown` — that
+      // retargets the following `click` at this element and kills every interactive child (a
+      // `swipe-x` on a carousel shell killed its own dots and buttons). But a flick that leaves a
+      // small element never delivers `pointerup` to it unless captured, so capture only once the
+      // drag starts. See `capturePointer` in `core/gesture.ts`.
+      capturePointer: 'drag',
     },
   )
 

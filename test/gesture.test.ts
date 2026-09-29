@@ -258,6 +258,241 @@ describe('recognise', () => {
     expect(releasePointerCapture).toHaveBeenCalledOnce()
   })
 
+  describe("capturePointer: 'drag'", () => {
+    function withCapture() {
+      const el = document.createElement('div')
+      const setPointerCapture = vi.fn()
+      const releasePointerCapture = vi.fn()
+      Object.defineProperty(el, 'setPointerCapture', { value: setPointerCapture })
+      Object.defineProperty(el, 'releasePointerCapture', { value: releasePointerCapture })
+      return { el, setPointerCapture, releasePointerCapture }
+    }
+
+    it('takes no capture for a tap, so the click still reaches the child that was pressed', () => {
+      const { el, setPointerCapture, releasePointerCapture } = withCapture()
+      recognise(el, {}, { threshold: 4, capturePointer: 'drag' }, deps)
+      drag(el, [
+        [0, 0, 0],
+        [2, 0, 16],
+      ])
+      expect(setPointerCapture).not.toHaveBeenCalled()
+      expect(releasePointerCapture).not.toHaveBeenCalled()
+    })
+
+    it('captures once the movement crosses the threshold, so a flick can leave a small element', () => {
+      // A flick longer than its own element leaves it before the button is released. Without a
+      // capture the `pointerup` goes to whatever is underneath and the swipe is never reported.
+      const { el, setPointerCapture, releasePointerCapture } = withCapture()
+      const swipes: string[] = []
+      recognise(el, { onSwipe: (direction) => swipes.push(direction) }, { threshold: 4, capturePointer: 'drag' }, deps)
+      drag(el, [
+        [0, 0, 0],
+        [30, 0, 25],
+        [60, 0, 50],
+        [120, 0, 75],
+      ])
+      expect(setPointerCapture).toHaveBeenCalledOnce()
+      expect(releasePointerCapture).toHaveBeenCalledOnce()
+      expect(swipes).toEqual(['right'])
+    })
+
+    it('survives a pointer id the browser refuses to capture', () => {
+      const el = document.createElement('div')
+      Object.defineProperty(el, 'setPointerCapture', {
+        value: () => {
+          throw new DOMException('no such pointer', 'NotFoundError')
+        },
+      })
+      const swipes: string[] = []
+      recognise(el, { onSwipe: (direction) => swipes.push(direction) }, { threshold: 4, capturePointer: 'drag' }, deps)
+      drag(el, [
+        [0, 0, 0],
+        [60, 0, 50],
+        [120, 0, 100],
+      ])
+      expect(swipes).toEqual(['right'])
+    })
+  })
+
+  describe('a pointer that leaves the element before it is captured', () => {
+    // A press near a small element's edge and a fast outward flick: the first threshold-crossing
+    // move is already over something else, so `captureOnDrag` never runs and the element's own
+    // listeners hear nothing else.
+    function mounted(): HTMLElement {
+      const el = document.createElement('div')
+      document.body.append(el)
+      return el
+    }
+
+    afterEach(() => {
+      document.body.innerHTML = ''
+    })
+
+    it('still ends the gesture when the release lands outside the host', () => {
+      const el = mounted()
+      const onEnd = vi.fn()
+      const onSwipe = vi.fn()
+      recognise(el, { onEnd, onSwipe }, { threshold: 4, capturePointer: 'drag' }, deps)
+      clock = 0
+      el.dispatchEvent(pointer('pointerdown', 0, 0))
+      clock = 30
+      document.body.dispatchEvent(pointer('pointermove', 120, 0))
+      clock = 60
+      document.body.dispatchEvent(pointer('pointerup', 240, 0))
+      expect(onEnd).toHaveBeenCalledOnce()
+      expect(onSwipe).toHaveBeenCalledWith('right', expect.anything())
+    })
+
+    it('counts one event once when it bubbles from the host to the document', () => {
+      const el = mounted()
+      const onStart = vi.fn()
+      const onEnd = vi.fn()
+      recognise(el, { onStart, onEnd }, { threshold: 4, capturePointer: 'drag' }, deps)
+      drag(el, [
+        [0, 0, 0],
+        [30, 0, 16],
+        [60, 0, 32],
+      ])
+      expect(onStart).toHaveBeenCalledOnce()
+      expect(onEnd).toHaveBeenCalledOnce()
+    })
+
+    it('stops listening on the document once the gesture has ended', () => {
+      const el = mounted()
+      const onMove = vi.fn()
+      recognise(el, { onMove }, { threshold: 4, capturePointer: 'drag' }, deps)
+      drag(el, [
+        [0, 0, 0],
+        [30, 0, 16],
+      ])
+      onMove.mockClear()
+      document.body.dispatchEvent(pointer('pointermove', 90, 0))
+      expect(onMove).not.toHaveBeenCalled()
+    })
+
+    it('stops listening on the document when torn down mid-press', () => {
+      const el = mounted()
+      const onStart = vi.fn()
+      const stop = recognise(el, { onStart }, { threshold: 4, capturePointer: 'drag' }, deps)
+      el.dispatchEvent(pointer('pointerdown', 0, 0))
+      stop()
+      document.body.dispatchEvent(pointer('pointermove', 90, 0))
+      expect(onStart).not.toHaveBeenCalled()
+    })
+
+    it('listens on the document once when a second press begins before the first ends', () => {
+      const el = mounted()
+      const add = vi.spyOn(document, 'addEventListener')
+      recognise(el, {}, { threshold: 4, capturePointer: 'drag' }, deps)
+      el.dispatchEvent(pointer('pointerdown', 0, 0))
+      el.dispatchEvent(pointer('pointerdown', 10, 0))
+      const documentMoves = add.mock.calls.filter(([type]) => type === 'pointermove')
+      expect(documentMoves).toHaveLength(1)
+      add.mockRestore()
+    })
+
+    it('ends on the host alone when the element has no document to listen on', () => {
+      const listeners = new Map<string, EventListener>()
+      const el = {
+        ownerDocument: null,
+        addEventListener: (type: string, fn: EventListener) => { listeners.set(type, fn) },
+        removeEventListener: vi.fn(),
+      } as unknown as Element
+      const onEnd = vi.fn()
+      recognise(el, { onEnd }, { threshold: 4, capturePointer: 'drag' }, deps)
+
+      listeners.get('pointerdown')!(pointer('pointerdown', 0, 0))
+      listeners.get('pointermove')!(pointer('pointermove', 30, 0))
+      listeners.get('pointerup')!(pointer('pointerup', 30, 0))
+      expect(onEnd).toHaveBeenCalledOnce()
+    })
+
+    it('reports a release that bubbles from the host to the document once', () => {
+      const el = mounted()
+      const onEnd = vi.fn()
+      // Nothing moves, so no capture is taken and the document is still listening at the release.
+      recognise(el, { onEnd }, { threshold: 4, capturePointer: 'drag', longPressMs: 500 }, deps)
+      el.dispatchEvent(pointer('pointerdown', 0, 0))
+      runTimers()
+      el.dispatchEvent(pointer('pointerup', 0, 0))
+      expect(onEnd).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('capture that is unavailable or lost', () => {
+    it.each([['drag' as const], [true as const]])(
+      "does not claim a capture it never took when setPointerCapture is missing (%s)",
+      (capturePointer) => {
+        const el = document.createElement('div')
+        const releasePointerCapture = vi.fn()
+        Object.defineProperty(el, 'releasePointerCapture', { value: releasePointerCapture })
+        recognise(el, {}, { threshold: 4, capturePointer }, deps)
+        drag(el, [
+          [0, 0, 0],
+          [30, 0, 16],
+        ])
+        expect(releasePointerCapture).not.toHaveBeenCalled()
+      },
+    )
+
+    function captured(): { el: HTMLElement; lose: (pointerId: number) => void } {
+      const el = document.createElement('div')
+      Object.defineProperty(el, 'setPointerCapture', { value: vi.fn() })
+      Object.defineProperty(el, 'releasePointerCapture', { value: vi.fn() })
+      const lose = (pointerId: number): void => {
+        const event = pointer('lostpointercapture', 30, 0)
+        Object.defineProperty(event, 'pointerId', { value: pointerId })
+        el.dispatchEvent(event)
+      }
+      return { el, lose }
+    }
+
+    function press(el: Element, pointerId: number, x: number): void {
+      const event = pointer('pointerdown', 0, 0)
+      Object.defineProperty(event, 'pointerId', { value: pointerId })
+      el.dispatchEvent(event)
+      const move = pointer('pointermove', x, 0)
+      Object.defineProperty(move, 'pointerId', { value: pointerId })
+      el.dispatchEvent(move)
+    }
+
+    it('treats a lost capture as the end of the gesture', () => {
+      const { el, lose } = captured()
+      const onEnd = vi.fn()
+      const onMove = vi.fn()
+      recognise(el, { onEnd, onMove }, { threshold: 4, capturePointer: 'drag' }, deps)
+      press(el, 7, 30)
+      lose(7)
+      expect(onEnd).toHaveBeenCalledOnce()
+      onMove.mockClear()
+      el.dispatchEvent(pointer('pointermove', 60, 0))
+      el.dispatchEvent(pointer('pointerup', 60, 0))
+      expect(onMove).not.toHaveBeenCalled()
+      expect(onEnd).toHaveBeenCalledOnce()
+    })
+
+    it("ignores another pointer's lost capture", () => {
+      const { el, lose } = captured()
+      const onEnd = vi.fn()
+      recognise(el, { onEnd }, { threshold: 4, capturePointer: 'drag' }, deps)
+      press(el, 7, 30)
+      lose(8)
+      expect(onEnd).not.toHaveBeenCalled()
+    })
+
+    it('does not end twice when the capture it released itself reports as lost', () => {
+      const { el, lose } = captured()
+      const onEnd = vi.fn()
+      recognise(el, { onEnd }, { threshold: 4, capturePointer: 'drag' }, deps)
+      press(el, 7, 30)
+      const up = pointer('pointerup', 30, 0)
+      Object.defineProperty(up, 'pointerId', { value: 7 })
+      el.dispatchEvent(up)
+      lose(7)
+      expect(onEnd).toHaveBeenCalledOnce()
+    })
+  })
+
   it('drops the oldest sample once the retained window is exceeded', () => {
     const el = document.createElement('div')
     const onMove = vi.fn()
