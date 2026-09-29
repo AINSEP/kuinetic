@@ -183,14 +183,16 @@
   /* One section per screen, on every width: each content section is at least a full viewport tall,
      its content centred in the white space, so a ticker is never on screen at rest — it only
      slides past between two screens. Sections taller than the viewport just stay their own height.
-     `svh` for the same reason as `.video-hero` (mobile Safari's collapsing chrome). The flex column
-     was checked not to change any section's natural height at 390/820/1440 — child margins here
-     never relied on collapsing. `.video-hero` sizes itself (absolute slides), so it is left out. */
+     `svh` for the same reason as `.video-hero` (mobile Safari's collapsing chrome).
+     `align-content` on a plain block, NOT a flex column. Flex was tried first and broke the hero:
+     `.wrap`'s `margin: 0 auto` stops a flex item stretching, so `.hero-inner` shrank to its content
+     width, and `.hero-title-col` (`container-type: inline-size`, which reports no intrinsic width)
+     collapsed to 0px — taking the cqw-sized headline down to a 0px font. Block `align-content`
+     centres without changing how anything inside lays out. Browsers without it just top-align.
+     `.video-hero` sizes itself (absolute slides), so it is left out. */
   main section:not(.ticker):not(.video-hero) {
     min-height: 100svh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    align-content: center;
   }
 
   h1, h2, h3, h4 { margin: 0; font-weight: 510; }
