@@ -3,6 +3,31 @@
 All notable changes to kUInetic are documented here. Dates are when a change landed on `main`;
 version numbers are assigned at release.
 
+## [0.2.2] — 2026-09-29
+
+### Fixed
+
+- **Scroll-driven effects on a snapping page.** `scroll-snap-y target:…` on `<html>` writes
+  `overflow-y: auto` there, and the scroll-root resolver then treated `<html>` as its own scroller —
+  but the root element's overflow belongs to the viewport, and `scroll` fires on the document, never
+  on `<html>`. Every scroll-driven effect on such a page (e.g. `horizontal-scroll`) froze at progress
+  0. `<html>`, and `<body>` while `<html>` is `overflow: visible`, now resolve to the window.
+- **Swipes that leave a small element.** `swipeable` never captured the pointer, so a flick that
+  left the element before release never delivered `pointerup` and `data-kui-swipe` stayed unset.
+  Gestures now take a new `capturePointer: 'drag'` mode: no capture on press (a tap's click still
+  reaches the child you pressed), capture once the drag threshold is crossed, document-level
+  listeners until then, and `lostpointercapture` ends the gesture like `pointercancel`. The
+  showcase slideshow uses the same mode.
+- **`data-kui-manual` on the core bundle no longer disconnects tier bundles.** It now means "don't
+  auto-start" only: tiers such as `kuinetic.advanced.js` still register into every animator you
+  build by hand, in either tag order, including a tier that arrives after `start()`.
+- **The "an animator was created by hand" warning** now fires only when the call really is
+  redundant (no options, or exactly `{ observe: true }`). A call that passes its own `reporter`,
+  `root` or registry is the supported way to configure the page's animator and is adopted silently.
+- **"activation … is not supported" warnings** no longer fire for a load-only widget composed beside
+  an entrance under `on:enter` (the widget is simply bound when the entrance triggers). They still
+  fire when an effect can never run under the authored trigger.
+
 ## [0.2.1] — 2026-09-29
 
 ### Added
