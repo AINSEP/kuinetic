@@ -49,8 +49,9 @@ jobs:
             exit 1
           fi
 
-      - run: npm run typecheck
-
+      # dist first: the public-api tests import the package by name, which resolves to dist.
       - run: npm run build:dist
+
+      - run: npm run typecheck
 
       - run: npm publish
