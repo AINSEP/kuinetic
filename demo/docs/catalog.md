@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **302** named effects, **45 primitive families** — the table below enumerates all 45,
+**Counts:** **304** named effects, **46 primitive families** — the table below enumerates all 46,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -33,7 +33,7 @@ here that is not a named effect at all: it is how you animate something the cata
 
 ---
 
-## The 45 primitive families
+## The 46 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -74,7 +74,7 @@ here that is not a named effect at all: it is how you animate something the cata
 | 35 | `view-morph` | js | x | View Transitions shared-element handoff (`page-morph`) |
 | 36 | `view-swap` | js | x | starts a same-document view transition around one state change (`view-swap`) |
 | 37 | `glass` | js | x | translucent blurred surface material |
-| 38 | `spatial-ring` | js | x | N children placed on a ring in 3D — the spatial carousel |
+| 38 | `spatial-ring` | js | x | N children placed on a ring, in 3D or flat on the screen — the spatial carousel |
 | 39 | `device-frame` | js | x | CSS device chrome stamped by frame kind |
 | 40 | `lightbox` | js | x | image and video modal viewers |
 | 41 | `compare` | js | c,x | interactive before/after media slider |
@@ -82,6 +82,7 @@ here that is not a named effect at all: it is how you animate something the cata
 | 43 | `slideshow` | js | x | fade, slide, and video hero carousels |
 | 44 | `scroll-story` | js | x | scrolling text steps paired with media |
 | 45 | `slow-mo` | js | x | playback-rate control for a subtree |
+| 46 | `spatial-stack` | js | o,f,x | cards receding diagonally into depth — the depth-stack carousel |
 
 ---
 
@@ -872,13 +873,14 @@ Primitives 1, 5, 35, 36, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 10 shipped, 2 planned
+## N. 3D & perspective — 12 shipped, 2 planned
 
-Primitives 14, 22, 38.
+Primitives 14, 22, 38, 46.
 
 `card-flip-x` · `card-flip-y` · `flip-card` · `cube-rotate` · `book-page-turn` ·
 `fold-panel` · `carousel-3d` · `carousel-3d-high` · `carousel-3d-low` ·
-`carousel-3d-inside` · `depth-layers-pointer`† · `perspective-grid`†
+`carousel-3d-inside` · `carousel-orbit` · `carousel-stack` · `depth-layers-pointer`† ·
+`perspective-grid`†
 
 > **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
 > reading twice. `card-flip-y` is an *entrance*: one keyframe, half a turn, played once, nothing on
@@ -1056,6 +1058,87 @@ Primitives 14, 22, 38.
 > <button class="back" type="button">Previous</button>
 > <button class="fwd" type="button">Next</button>
 > ```
+
+> **Let it move on its own: `spin:` and `autoplay:`.** Both are off by default.
+>
+> `spin:` turns the deck continuously, and its value is how long one full cycle takes — every slide
+> passing once, one revolution of a full ring. **Negative runs the other way.** Three rows on one
+> page can each have their own speed and direction:
+>
+> ```html
+> <div data-kui="carousel-3d-inside spin:40s pause:.row-a-pause" aria-label="Row A"> … </div>
+> <div data-kui="carousel-3d-inside spin:-55s" aria-label="Row B"> … </div>
+> <div data-kui="carousel-3d-inside spin:30s" aria-label="Row C"> … </div>
+> ```
+>
+> `autoplay:` is the stepped version — the deck rests on each slide for that long, then moves to the
+> next with the ordinary transition, like `carousel-fade autoplay:`. Negative steps backwards. If
+> both are set, `spin:` wins. Either one is floored at 2s.
+>
+> Grabbing, the arrow keys and your `next:`/`prev:`/`jump:` controls all still work: they take over
+> immediately, their travel plays out, and the motion resumes from wherever the deck was left — it
+> never snaps back to where the spin would have been. The motion also pauses while the pointer is
+> over the deck, while it has keyboard focus, while it is scrolled out of view, and while the tab is
+> hidden. **Under `prefers-reduced-motion` it does not start at all**; a visitor can still start it
+> from your pause control.
+>
+> `pause:` names that control. It toggles the motion and carries `aria-pressed` (true while paused).
+> The library does not invent the button, as it does not invent the arrows — but add one: moving
+> content that starts by itself and lasts more than five seconds needs a way to stop it (WCAG
+> 2.2.2), and hover and focus only cover some visitors.
+
+> **`carousel-orbit` is the same ring laid flat on the screen** — cards evenly spaced on a circle,
+> like a clock face, around whatever sits in the middle, the whole circle turning.
+>
+> ```html
+> <div data-kui="carousel-orbit spin:60s target:.card radius:320px" aria-label="Services">
+>   <h2>CAROUSEL</h2>
+>   <figure class="card"> … </figure>
+>   <figure class="card"> … </figure>
+>   <!-- …as many as you like -->
+> </div>
+> ```
+>
+> It is `carousel-3d`'s own primitive with `plane:screen`, so everything above applies: drag, keys,
+> controls, `spin:`, `autoplay:`, `arc:`, `radius:`, `gap:`. Use `target:` to name the cards, and
+> anything it does not name — the word in the middle — stays centred and off the ring. The live card
+> sits at twelve o'clock and the rest follow clockwise in document order.
+>
+> `facing:` means the same thing it does in 3D: `camera` (the default here) keeps every card
+> upright, `radial` turns each one with the ring, top edge outward like a watch bezel. Neither needs
+> an extra wrapper element.
+>
+> The container becomes a centred square as wide as the circle plus one card, since cards placed on
+> a circle take no layout space of their own. On a screen narrower than that, the radius shrinks to
+> fit rather than pushing the page sideways. The container is a size container
+> (`container-type: inline-size`), so give it a width if you put it in a flex row. Unset, `radius:`
+> is the one where neighbouring cards just touch — usually too tight around a big word, so set it.
+
+> **`carousel-stack` is a deck receding diagonally into depth.** The live card is in front, large
+> and sharp; each card behind it steps up and to the side, smaller, softer and fainter. Going
+> forward, the front card leaves toward you and fades, and the next one comes forward.
+>
+> ```html
+> <div data-kui="carousel-stack autoplay:4s pause:.stack-pause" aria-label="Case studies">
+>   <figure> … </figure>
+>   <figure> … </figure>
+>   <figure> … </figure>
+>   <figure> … </figure>
+>   <figure> … </figure>
+>   <figure> … </figure>
+> </div>
+> ```
+>
+> It shares the ring's deck, so drag, keys, `next:`/`prev:`/`jump:`/`pause:`, `spin:` and
+> `autoplay:` all work the same way. Its own parameters are the shape of the diagonal: `shift:`
+> (sideways step per card, `48px`; negative goes left), `rise:` (upward step, `36px`; negative goes
+> down), `shrink:` (scale lost per card, `0.08`), `blur:` (`2px` per card), `fade:` (opacity lost
+> per card, `0.2`) and `depth:` (how many cards show behind the front one, `3`, from 1 to 8). Cards
+> past the depth are hidden with `visibility`, so they are not tab stops. The container is padded on
+> the diagonal's sides so the cards behind do not overlap what sits around it.
+>
+> With at least `depth + 3` cards, a card going from the front to the back of the deck is never seen
+> crossing it. With fewer, it appears at the back as it arrives.
 
 > **The one thing that will silently break it: a flattening ancestor.**
 >
@@ -1595,7 +1678,7 @@ need to track.
 | K Feedback & status | 17 |
 | L Page transitions | 7 |
 | M Navigation | 8 |
-| N 3D & perspective | 10 (+2 planned) |
+| N 3D & perspective | 12 (+2 planned) |
 | O Forms & inputs | 13 |
 | P Motion paths | 5 |
 | Q Discrete open/close | 6 |
@@ -1603,10 +1686,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **302** |
+| **Total shipped** | **304** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **137 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **139 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

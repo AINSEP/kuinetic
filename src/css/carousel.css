@@ -52,7 +52,8 @@
   [data-kui-fx~='carousel-3d'],
   [data-kui-fx~='carousel-3d-high'],
   [data-kui-fx~='carousel-3d-low'],
-  [data-kui-fx~='carousel-3d-inside'] {
+  [data-kui-fx~='carousel-3d-inside'],
+  [data-kui-fx~='carousel-orbit'] {
     display: grid;
     place-items: center;
     perspective: var(--kui-perspective, 1600px);
@@ -103,7 +104,8 @@
   [data-kui-fx~='carousel-3d'] [data-kui-step-offset],
   [data-kui-fx~='carousel-3d-high'] [data-kui-step-offset],
   [data-kui-fx~='carousel-3d-low'] [data-kui-step-offset],
-  [data-kui-fx~='carousel-3d-inside'] [data-kui-step-offset] {
+  [data-kui-fx~='carousel-3d-inside'] [data-kui-step-offset],
+  [data-kui-fx~='carousel-orbit'] [data-kui-step-offset] {
     grid-area: 1 / 1;
     /*
      * `backface-visibility: hidden` and a *flat* slot, and the pair has to be read together.
@@ -198,15 +200,6 @@
   }
 
   /*
-   * While a finger is down there is no travel to ease — the ring is following the pointer, and a
-   * transition on top of that is a lag between the card and the finger holding it. Suspended rather
-   * than shortened, because "nearly instant" still reads as slip on a direct-manipulation gesture.
-   */
-  [data-kui-ring-dragging='true'] [data-kui-step-offset] {
-    transition: none;
-  }
-
-  /*
    * --- turned away from the camera (channel: skew) ---
    *
    * `backface-visibility: hidden` above already stops a reversed card *painting*. It is not
@@ -265,10 +258,16 @@
    * billboarded it anyway — a parameter that parses, validates, and then does nothing on one of the
    * four names that declare it.
    */
-  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera'] [data-kui-step-offset],
-  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera'] [data-kui-step-offset],
-  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera'] [data-kui-step-offset],
-  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera'] [data-kui-step-offset] {
+  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset],
+  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset],
+  [data-kui-fx~='carousel-orbit'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] {
     /*
      * The one case that needs the scene to continue past the slot: the counter-rotation below lands
      * on a child, and a child of a flat slot is painted into the slot's plane rather than turned in
@@ -279,10 +278,16 @@
     transform-style: preserve-3d;
   }
 
-  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
-  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
-  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera'] [data-kui-step-offset] > *,
-  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera'] [data-kui-step-offset] > * {
+  [data-kui-fx~='carousel-3d'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-high'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-low'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-3d-inside'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > *,
+  [data-kui-fx~='carousel-orbit'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > * {
     transform: rotateY(calc(-1 * var(--kui-ring-angle))) rotateX(calc(-1 * var(--kui-ring-tilt)));
     transform-style: preserve-3d;
   }
@@ -307,6 +312,157 @@
   }
 
   /*
+   * --- the flat ring: plane:screen (channel: skew) ---
+   *
+   * The same ring turned to face you: slots on a clock face, the live one at twelve o'clock, the
+   * rest clockwise in document order, the whole circle turning about the axis that points out of the
+   * screen. Keyed on the attribute the runtime publishes for `plane:`, not on a name, so
+   * `carousel-orbit` and `carousel-3d plane:screen` are one rule — the `facing:` precedent above.
+   *
+   * These come after every 3D rule and match at the same specificity, so they win by order alone
+   * and nothing above needs to know they exist, except the billboard, which is excluded with
+   * `:not([data-kui-ring-plane='screen'])`: a flat upright card needs no child counter-rotation.
+   *
+   * The host has to reserve the circle itself. A transformed slot takes no layout space, so without
+   * this the host is one card tall and the ring spills over whatever follows it. It becomes a square
+   * as wide as the circle plus one card (`aspect-ratio: 1`, capped by `max-inline-size`), centred,
+   * and a size container, so the slots can clamp the radius to the square they actually got
+   * (`50cqi`): on a phone narrower than the authored circle the ring shrinks to fit rather than
+   * pushing the page sideways. `margin-inline: auto` and the sizing are in `kui.effects`, so any
+   * unlayered rule of the page's own still wins.
+   */
+  [data-kui-ring-plane='screen'] {
+    container-type: inline-size;
+    aspect-ratio: 1;
+    margin-inline: auto;
+    /* The card's larger side: what has to fit between the circle and the edge of the square. */
+    --kui-orbit-extent: max(var(--kui-item-width, 260px), var(--kui-item-height, 0px));
+    /*
+     * The authored radius, or the one where neighbours just touch. On a flat circle that is the
+     * chord rule — `(w + gap) / (2 * sin(spacing / 2))` — not the 3D ring's tangent rule, because
+     * here the cards sit *on* the circle rather than tangent to it. The count is the host's own
+     * `--kui-item-count`, which `deck.ts` publishes for exactly this: the host sizes itself from it,
+     * and the slots' per-group copies are out of its reach.
+     */
+    --kui-orbit-radius: var(
+      --kui-radius,
+      calc(
+        (var(--kui-item-width, 260px) + var(--kui-gap, 24px)) /
+          (2 * sin(clamp(0.5deg, var(--kui-arc, 360deg) / max(1, var(--kui-item-count, 1)) / 2, 90deg)))
+      )
+    );
+    max-inline-size: calc(2 * var(--kui-orbit-radius) + var(--kui-orbit-extent));
+  }
+
+  [data-kui-ring-plane='screen'] [data-kui-step-offset] {
+    --kui-ring-radius: max(
+      0px,
+      min(var(--kui-orbit-radius), calc(50cqi - var(--kui-orbit-extent) / 2))
+    );
+    /* `facing:radial` — the card turns with the ring, top edge outward, like a bezel numeral. */
+    transform: rotate(var(--kui-ring-angle)) translateY(calc(-1 * var(--kui-ring-radius)));
+  }
+
+  /*
+   * `facing:camera` — upright at every position. Rotate out, push along the radius, rotate back:
+   * the three-function form rather than a `translate(sin·r, -cos·r)` that lands in the same place,
+   * because a transition interpolates each function separately — this one carries a card *around*
+   * the circle between two places, where the `translate` form would cut straight across the chord.
+   */
+  [data-kui-ring-plane='screen'][data-kui-ring-facing='camera'] [data-kui-step-offset] {
+    transform: rotate(var(--kui-ring-angle)) translateY(calc(-1 * var(--kui-ring-radius)))
+      rotate(calc(-1 * var(--kui-ring-angle)));
+  }
+
+  /*
+   * --- the depth stack: carousel-stack (channels: skew, opacity, filter) ---
+   *
+   * A deck receding diagonally: the live card in front, sharp and full size; each place behind it
+   * stepped by `shift:` sideways and `rise:` upward, smaller by `shrink:`, softer by `blur:` and
+   * fainter by `fade:`, for `depth:` places, after which the cards wait unseen. The card that has
+   * just left sits one place *in front* — further down the diagonal, larger, fading out — so the deck
+   * reads as cards coming toward you and leaving past you, not as a list being scrolled.
+   */
+  [data-kui-fx~='carousel-stack'] {
+    display: grid;
+    place-items: center;
+    --kui-ring-drift: calc(var(--kui-step-position, 0) - var(--kui-step, 0));
+    /*
+     * Room for the cards behind, on whichever sides the diagonal goes. Transformed cards take no
+     * layout space, so a stack that recedes up and to the right would otherwise overlap whatever sits
+     * above it and push a phone page sideways. Physical sides because `shift:`/`rise:` are physical
+     * (`translate`'s x and y), and each side takes the positive half of its own signed reach, so a
+     * stack mirrored with a negative `shift:` reserves the left instead.
+     */
+    --kui-stack-reach-x: calc(var(--kui-stack-depth, 3) * var(--kui-stack-shift, 48px));
+    --kui-stack-reach-y: calc(var(--kui-stack-depth, 3) * var(--kui-stack-rise, 36px));
+    padding-top: max(0px, var(--kui-stack-reach-y));
+    padding-bottom: max(0px, -1 * var(--kui-stack-reach-y));
+    padding-right: max(0px, var(--kui-stack-reach-x));
+    padding-left: max(0px, -1 * var(--kui-stack-reach-x));
+  }
+
+  [data-kui-fx~='carousel-stack'] [data-kui-step-offset] {
+    grid-area: 1 / 1;
+    /*
+     * This card's place in the stack: 0 in front, 1..N-2 behind, -1 for the card that just left.
+     *
+     * `--kui-offset` is circular (-N/2..N/2), which is right for a ring and wrong here: a stack has
+     * a front, and half its cards are not "behind the viewer". `mod(offset + 1, N) - 1` re-reads it
+     * onto -1..N-2, so a recycled card wraps from just-left to the very back — both unseen — and
+     * never crosses the visible stack. `mod()` takes the sign of the divisor, so a negative offset
+     * lands correctly without a second `+ N`.
+     */
+    --kui-stack-place: calc(
+      mod(var(--kui-offset, 0) + 1, max(1, var(--kui-item-count, 1))) - 1 - var(--kui-ring-drift)
+    );
+    --kui-stack-behind: max(0, var(--kui-stack-place));
+    --kui-stack-gone: max(0, -1 * var(--kui-stack-place));
+    transform: translate(
+        calc(var(--kui-stack-place) * var(--kui-stack-shift, 48px)),
+        calc(-1 * var(--kui-stack-place) * var(--kui-stack-rise, 36px))
+      )
+      scale(max(0.05, 1 - var(--kui-stack-place) * var(--kui-stack-shrink, 0.08)));
+    filter: blur(calc(var(--kui-stack-behind) * var(--kui-stack-blur, 2px)));
+    /*
+     * Three ramps, and the card shows at the faintest of them: `fade:` per place behind; out over
+     * the one place past `depth:`; and out within half a place in front, so a leaving card is gone
+     * before it has travelled far. `stackFace` in `effects/carousel/stack.ts` mirrors the two ends.
+     */
+    opacity: clamp(
+      0,
+      min(
+        1 - var(--kui-stack-behind) * var(--kui-stack-fade, 0.2),
+        var(--kui-stack-depth, 3) + 1 - var(--kui-stack-place),
+        1 - 2 * var(--kui-stack-gone)
+      ),
+      1
+    );
+    /*
+     * Paint order by place, front on top and the leaving card above even that. Not `preserve-3d`
+     * depth sorting: the stack is flat, so it has no flattening-ancestor trap to warn about, and a
+     * `filter` on each card would be the kind of property that invites one. A `calc()` in an
+     * `<integer>` position rounds to the nearest integer, which is what makes a real-valued place
+     * usable here.
+     */
+    z-index: calc(100 - var(--kui-stack-place) * 10);
+    transition-property: transform, opacity, filter, z-index, visibility;
+    transition-duration: var(--kui-spatial-stack-duration, 620ms);
+    transition-timing-function: var(--kui-spatial-stack-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    transition-delay: var(--kui-spatial-stack-delay, 0ms);
+  }
+
+  /*
+   * Cards past the visible depth, and the one that has left: not a tab stop, not a click target.
+   * `visibility` is in the transition list above, and `visibility` interpolates as *visible* for the
+   * whole of a transition with a visible end — so a card hidden by a step stays painted while it fades
+   * and becomes hidden only when the fade has finished, rather than blinking out at the first frame.
+   */
+  [data-kui-fx~='carousel-stack'] [data-kui-ring-face='back'] {
+    visibility: hidden;
+  }
+
+  /*
    * --- before the runtime has touched anything ---
    *
    * Every rule above is scoped to `data-kui-fx`, which the runtime stamps when it starts. Between
@@ -324,7 +480,9 @@
   [data-kui~='carousel-3d'],
   [data-kui~='carousel-3d-high'],
   [data-kui~='carousel-3d-low'],
-  [data-kui~='carousel-3d-inside'] {
+  [data-kui~='carousel-3d-inside'],
+  [data-kui~='carousel-orbit'],
+  [data-kui~='carousel-stack'] {
     display: grid;
     place-items: center;
   }
@@ -332,7 +490,33 @@
   [data-kui~='carousel-3d'] > *,
   [data-kui~='carousel-3d-high'] > *,
   [data-kui~='carousel-3d-low'] > *,
-  [data-kui~='carousel-3d-inside'] > * {
+  [data-kui~='carousel-3d-inside'] > *,
+  [data-kui~='carousel-orbit'] > *,
+  [data-kui~='carousel-stack'] > * {
     grid-area: 1 / 1;
+  }
+
+  /*
+   * --- when the transition must not run (channel: skew) ---
+   *
+   * Last in the layer, at the slot rules' own specificity, so they win by order over every shape.
+   *
+   * While a finger is down there is no travel to ease — the deck is following the pointer, and a
+   * transition on top of that is a lag between the card and the finger holding it. Suspended rather
+   * than shortened, because "nearly instant" still reads as slip on a direct-manipulation gesture.
+   *
+   * While `spin:` is driving the deck, frames move it continuously and a transition would retarget
+   * on every one of them, trailing the real position by its own length. `deck.ts` clears the flag the
+   * instant a person takes over, so a click during a spin still travels.
+   *
+   * A slot whose circular offset just wrapped — the card at one end of the ring re-numbered to the
+   * other end — changed its angle by a whole arc while its position on screen did not change at all.
+   * Transitioned, it would sweep the long way round across every other card. `deck.ts` flags it for
+   * exactly one style resolution, so it lands where it already visually was.
+   */
+  [data-kui-ring-dragging='true'] [data-kui-step-offset],
+  [data-kui-ring-spinning='true'] [data-kui-step-offset],
+  [data-kui-step-offset][data-kui-ring-wrap='true'] {
+    transition: none;
   }
 }

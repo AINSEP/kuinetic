@@ -204,6 +204,20 @@
     --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  [data-kui-fx~='carousel-orbit'] {
+    --kui-ring-plane: screen;
+    --kui-facing: camera;
+    --kui-spatial-ring-duration: 620ms;
+    --kui-spatial-ring-delay: 0ms;
+    --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-kui-fx~='carousel-stack'] {
+    --kui-spatial-stack-duration: 620ms;
+    --kui-spatial-stack-delay: 0ms;
+    --kui-spatial-stack-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   [data-kui-fx~='chart-area-fill'] {
     --kui-shape-fill-duration: 900ms;
     --kui-shape-fill-delay: 0ms;

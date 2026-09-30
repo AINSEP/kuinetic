@@ -122,7 +122,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     expect(reaching.length).toBeGreaterThan(0)
   })
 
-  it('matches the hand-maintained list exactly — 28 names, including seven showcase widgets', () => {
+  it('matches the hand-maintained list exactly — 30 names, including seven showcase widgets', () => {
     // Not a tautology: this is read from the shipped CSS, compared against a literal list. Its
     // core names were transcribed from `docs/plan-scope-page.md` §0.3 by a human; the showcase
     // names came from their own stylesheet, not from the scan's result.
@@ -142,7 +142,9 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     // authored. Worth noting that the refusal is belt-and-braces for these four — their primitive
     // declares a `target` parameter of its own, so `compile.ts` never consults the flag (see
     // `Preset.requiresOwnSubtree` in `core/types.ts`) — but the fact the flag records is true, and
-    // this file asserts facts rather than reachable code paths.
+    // this file asserts facts rather than reachable code paths. `carousel-orbit` (the same primitive
+    // in the screen plane) and `carousel-stack` (the depth stack, sharing the deck) are two more of
+    // the same: every rule past their host rule places slots.
     // Showcase's `hotspots` also has its own `target` parameter: it selects notes inside the host,
     // whereas the generic compiler `target:` relocates the effect stamp. Its CSS reaches children,
     // so the flag records that fact even though the primitive parameter handles note selection.
@@ -155,7 +157,9 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'carousel-3d-inside',
         'carousel-3d-low',
         'carousel-fade',
+        'carousel-orbit',
         'carousel-slide',
+        'carousel-stack',
         'checkbox-draw',
         'compare',
         'device-frame',

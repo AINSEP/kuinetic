@@ -3,6 +3,31 @@
 All notable changes to kUInetic are documented here. Dates are when a change landed on `main`;
 version numbers are assigned at release.
 
+## [Unreleased]
+
+### Added
+
+- **`spin:` and `autoplay:` on the spatial carousels.** `spin:40s` turns a `carousel-3d*` ring
+  continuously, one full cycle per 40 seconds (`spin:-40s` the other way); `autoplay:4s` steps it,
+  resting on each slide. Drag, keys and `next:`/`prev:`/`jump:` take over and hand back without a
+  snap. Pauses on hover, keyboard focus, offscreen and hidden tabs; does not start under reduced
+  motion. New `pause:` control with `aria-pressed`. Off by default.
+- **`carousel-orbit`** — the ring laid flat on the screen: cards on a clock face around a centred
+  word, turning with `spin:`. It is `spatial-ring` with a new `plane:screen` parameter; `facing:`
+  picks upright or radial cards.
+- **`carousel-stack`** (new primitive `spatial-stack`) — a deck receding diagonally into depth,
+  cycling forward on `autoplay:`/`spin:`, drag and controls. `shift:`, `rise:`, `shrink:`, `blur:`,
+  `fade:`, `depth:` shape the diagonal.
+
+### Fixed
+
+- **A ring card no longer sweeps the long way round on a click.** On every step one slot's circular
+  offset wraps from one end of the deck to the other; its angle jumped a whole turn and the
+  transition swept it across the front of the ring. That jump is now committed without a transition.
+- **Dragging a ring follows the pointer.** Each `pointermove` added the whole distance from where
+  the press began to the ring's *current* place, so a real drag (dozens of moves) flung the ring
+  several places round instead of tracking the hand. The drag now moves from where it began.
+
 ## [0.2.2] — 2026-09-29
 
 ### Fixed

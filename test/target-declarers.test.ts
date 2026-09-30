@@ -39,7 +39,8 @@ function allPrimitives(registry: Registry) {
 }
 
 // The original target:-everywhere plan found nine declarers. Showcase adds `lightbox` (media
-// triggers), `hotspots` (notes), `slideshow` (slides), and `scroll-story` (media). All consume
+// triggers), `hotspots` (notes), `slideshow` (slides), and `scroll-story` (media); the carousel
+// work adds `spatial-stack` (cards), a deck like `spatial-ring`. All consume
 // `target:` in their own prepare path, so the compiler must leave that parameter on the host.
 const EXPECTED_TARGET_DECLARERS = [
   'audio-source',
@@ -54,11 +55,12 @@ const EXPECTED_TARGET_DECLARERS = [
   'scroll-story',
   'slideshow',
   'spatial-ring',
+  'spatial-stack',
   'step-progress',
 ].sort((a, b) => a.localeCompare(b))
 
 describe('target:-everywhere — primitives that declare target: themselves (5a)', () => {
-  it('is exactly the 13 target-declaring primitives in the full registry', () => {
+  it('is exactly the 14 target-declaring primitives in the full registry', () => {
     const byId = allPrimitives(fullRegistry())
     const declarers = [...byId.values()]
       .filter((resolved) => Object.hasOwn(resolved!.primitive.parameters, 'target'))

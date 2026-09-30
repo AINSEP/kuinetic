@@ -144,6 +144,19 @@ describe('dragging', () => {
     instance.destroy()
   })
 
+  it('follows the pointer across many moves, rather than adding the whole distance on each one', () => {
+    // A real drag is dozens of `pointermove`s, each carrying the vector from the *origin*. Every
+    // test above uses one move, which cannot tell "start + dx" from "live position + dx" apart.
+    const { host, instance } = mount({ target: '.slide', travel: '200' })
+    host.dispatchEvent(pointer('pointerdown', 0))
+    for (let x = -20; x >= -100; x -= 20) host.dispatchEvent(pointer('pointermove', x))
+    expect(Number(host.style.getPropertyValue('--kui-step-position'))).toBeCloseTo(0.5, 4)
+    // Back towards the origin is back towards where the ring started.
+    host.dispatchEvent(pointer('pointermove', -40))
+    expect(Number(host.style.getPropertyValue('--kui-step-position'))).toBeCloseTo(0.2, 4)
+    instance.destroy()
+  })
+
   it('suspends the travel transition for the duration of the grab', () => {
     // The attribute `carousel.css` hangs `transition: none` on. A transition on top of a
     // direct-manipulation gesture is a lag between the card and the finger holding it.

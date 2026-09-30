@@ -55,7 +55,7 @@ const EXCLUDED = new Map([
       'exclusion like card-toggle above: nothing anywhere asserts tilt-3d itself renders with ' +
       'depth. Left for a pointer-driven suite in the shape of gesture-sweep.test.mjs, not this one.',
   ],
-  ...['carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside'].map((effect) => [
+  ...['carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside', 'carousel-orbit'].map((effect) => [
     effect,
     'primitive spatial-ring, renderer: "javascript" — the ring lays its slots out with JS-written ' +
       'transforms and the perspective is a --kui-perspective property on the ring host that the slots ' +

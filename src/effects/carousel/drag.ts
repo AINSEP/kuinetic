@@ -190,15 +190,24 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
    * pixels (negative dx) are a positive step. Getting this backwards is not a subtle bug: the ring
    * follows the finger the wrong way and reads as broken rather than as inverted.
    */
+  /*
+   * Where the ring was when the drag began. `recognise` reports `dx` from the pointer's *origin*, not
+   * since the last move, so the ring's place during a drag is this plus the whole vector — reading
+   * the live position back instead would add the full distance again on every `pointermove`, and a
+   * real drag (dozens of moves) would fling the ring round several times rather than follow the hand.
+   */
+  let dragFrom = 0
+
   const stopRecognising = enabled
     ? recognise(
         el,
         {
           onStart() {
+            dragFrom = positionOf()
             setDragging(true)
           },
           onMove(vector) {
-            moveTo(positionOf() - vector.dx / travelPx)
+            moveTo(dragFrom - vector.dx / travelPx)
           },
           onEnd(vector) {
             setDragging(false)

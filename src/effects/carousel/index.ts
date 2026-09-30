@@ -8,15 +8,12 @@ import type {
 } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
-import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
-import type { AttributeLedger, StyleLedger } from '../../core/owned-styles.js'
 import type { Registry } from '../../core/registry.js'
-import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
-import { createStepMarker } from '../step-marking.js'
-import { countSteps, delegateControls, nextStep, prevStep } from '../forms/primitives.js'
-import type { ControlGroup } from '../forms/primitives.js'
-import { ALL_TIMING_TOKENS, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
-import { createRingDrag } from './drag.js'
+import { DECK_PARAMETERS, prepareSpatialDeck } from './deck.js'
+import type { Face } from './deck.js'
+import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
+
+export { snapPosition } from './deck.js'
 
 /**
  * A ring of children arranged in 3D space — the one shape nothing in the catalog could express.
@@ -71,24 +68,6 @@ import { createRingDrag } from './drag.js'
  * put inside a modal, a drawer, or a clipped grid card. {@link warnFlatteningAncestor} walks up and
  * names the offender.
  */
-
-/** Attribute this module owns on the host while a pointer is dragging the ring. */
-const DRAGGING_ATTR = 'data-kui-ring-dragging'
-
-/**
- * Attribute this module owns on each slot: whether it currently faces the camera.
- *
- * A published fact rather than a CSS derivation, because the question is "is this element's plane
- * turned more than a quarter turn away", and CSS has no way to branch on the sign or magnitude of a
- * `calc()`. `carousel.css` hangs `pointer-events` (and, for the concave name, `visibility`) on it.
- *
- * That matters for more than tidiness. A card turned away from the viewer still occupies its
- * projected screen rectangle for hit-testing purposes — `backface-visibility: hidden` stops it
- * *painting* but is not reliably a hit-testing rule, WebKit in particular — so the back of the ring
- * swallows clicks meant for the front of it. Publishing the fact is what lets one stylesheet rule
- * fix that at any ring size.
- */
-const FACE_ATTR = 'data-kui-ring-face'
 
 /** Half a turn away from the camera: past this the slot's own plane points backwards. */
 const QUARTER_TURN_DEG = 90
@@ -173,35 +152,6 @@ function flatteningDeclaration(
   return null
 }
 
-/** Every per-slot ledger this instance has ever written, so teardown gives each element back. */
-interface SlotLedgers {
-  attributes: Map<Element, AttributeLedger>
-  styles: Map<Element, StyleLedger>
-}
-
-/**
- * The ledger pair for one slot, created on first write.
- *
- * Memoised per element for the reason `LedgerSet` is (`core/owned-styles.ts`): a second ledger over
- * an element the first has already written to would snapshot *this instance's* values as the
- * author's own and "restore" to them.
- *
- * @complexity O(1) amortised time; O(n) space in slots ever touched.
- */
-function ledgersFor(store: SlotLedgers, node: Element): { attributes: AttributeLedger; styles: StyleLedger } {
-  let attributes = store.attributes.get(node)
-  if (!attributes) {
-    attributes = createAttributeLedger(node)
-    store.attributes.set(node, attributes)
-  }
-  let styles = store.styles.get(node)
-  if (!styles) {
-    styles = createStyleLedger(node)
-    store.styles.set(node, styles)
-  }
-  return { attributes, styles }
-}
-
 /**
  * Whether a slot at this ring angle has its own plane turned away from the camera.
  *
@@ -233,31 +183,8 @@ export function normaliseDegrees(angleDeg: number): number {
   return wrapped > 180 ? wrapped - 360 : wrapped
 }
 
-/**
- * Where the ring's continuous position rounds to, and how far past it the ring currently sits.
- *
- * The pair the stylesheet needs and the reason both tokens are published rather than one: the
- * integer decides which slot is *live* (and therefore what `--kui-offset` means for every other
- * slot), and the remainder is the sub-step rotation on top of it. Re-snapping the integer whenever
- * the remainder passes a half step is what keeps the remainder inside ±0.5, so the ring never has
- * to travel back across the whole strip to wrap from the last slide to the first — the same
- * property `circularOffset` gives the discrete case.
- *
- * @param position - Continuous ring position, in places. May be negative or beyond the count.
- * @param total - How many places the ring has.
- * @returns The live integer step, wrapped into range, and the signed remainder in `[-0.5, 0.5)`.
- * @complexity O(1) time and space.
- */
-export function snapPosition(position: number, total: number): { step: number; drift: number } {
-  if (total <= 0) return { step: 0, drift: 0 }
-  const nearest = Math.round(position)
-  return { step: ((nearest % total) + total) % total, drift: position - nearest }
-}
-
 const RING_PARAMETERS: ParameterSchema = {
-  duration: { type: 'time', default: '620ms', cssProperty: '--kui-duration' },
-  ...TRIGGER_DELAY_PARAM,
-  ease: { type: 'easing', default: 'cubic-bezier(0.22, 1, 0.36, 1)', cssProperty: '--kui-ease' },
+  ...DECK_PARAMETERS,
   /*
    * A real CSS `<angle>`, not a normalised scalar.
    *
@@ -294,7 +221,7 @@ const RING_PARAMETERS: ParameterSchema = {
    * differently.
    *
    * The width half of that has to come from JavaScript: CSS can compute with a measurement but
-   * cannot take one. See `measureItemWidth`.
+   * cannot take one. See `measureItem` in `deck.ts`.
    */
   radius: { type: 'length', default: '', cssProperty: '--kui-radius' },
   /** Breathing room between neighbours, spent by the derived radius above. */
@@ -320,189 +247,79 @@ const RING_PARAMETERS: ParameterSchema = {
     cssProperty: '--kui-facing',
     keywords: ['radial', 'camera'],
   },
-  /** Whether a pointer can spin the ring by hand. */
-  grab: { type: 'keyword', default: 'true', cssProperty: '--kui-grab', keywords: ['true', 'false'] },
   /*
-   * How far the pointer travels, in pixels, to move the ring one place.
+   * Which plane the ring lies in: `depth` (the default — a carousel you look *at*, turning about a
+   * vertical pole) or `screen` (a clock face, turning about the axis that points at you).
    *
-   * A pixels-per-step mapping rather than pixels-per-degree, because a step is the unit everything
-   * else here is in — the index, the offset, the snap — and a degree is not: the same drag would
-   * move a six-item ring one place and a sixty-item ring ten, purely because the spacing changed.
+   * ## Why a parameter of this primitive, and not a new one
+   *
+   * A flat ring of cards around a centred word is the same object as the 3D ring seen from its
+   * pole: N slots, evenly spaced by `arc / count`, placed from `--kui-offset` and the shared drift,
+   * advanced by the same drag, keys, controls and `spin:`. Every number this primitive publishes
+   * means the same thing in both planes; only the three transform functions that turn a place into
+   * a position differ, and those live in `carousel.css` anyway. A second primitive would have
+   * duplicated the whole index to change one stylesheet rule and one face test.
+   *
+   * It is a parameter rather than only a name (unlike convex/concave, which differ in every
+   * default and so earned two names) because the runtime has to know it: a flat slot is never
+   * turned away from the viewer, so the quarter-turn face test that stops the back of a 3D ring
+   * swallowing clicks would, on a clock face, disable every card in the bottom half. The name that
+   * ships it, `carousel-orbit`, sets it; the stylesheet gates on the published attribute rather
+   * than the name, so `carousel-3d plane:screen` is equally honoured — same rule as `facing:`.
+   *
+   * `facing:` keeps its meaning here. `radial` turns each card with the ring, top edge outward like
+   * the numerals on a watch bezel; `camera` keeps every card upright. In the screen plane upright
+   * needs no child counter-rotation at all — the slot is *translated* to its place on the circle
+   * instead of rotated there — so it costs no extra markup, unlike the 3D billboard.
    */
-  travel: { type: 'number', default: '220', cssProperty: '--kui-travel', finite: true, minimum: 1 },
-  /** Which elements sit on the ring. Unset means this element's own children. */
-  target: { type: 'text', default: '', cssProperty: '--kui-target' },
-  /** Optional controls, resolved exactly as `step-progress` resolves its own. */
-  next: { type: 'text', default: '', cssProperty: '--kui-next' },
-  prev: { type: 'text', default: '', cssProperty: '--kui-prev' },
-  jump: { type: 'text', default: '', cssProperty: '--kui-jump' },
-  scope: SCOPE_PARAM,
-}
-
-/**
- * Publish a measured slot width so the derived radius has a side length to work from.
- *
- * The one thing in the geometry that cannot be a stylesheet. `auto` radius needs the width of a
- * card, and CSS can spend a measurement (`var(--kui-item-width)`) but cannot take one.
- *
- * Measured on the first slot rather than the widest, and re-measured on every re-render rather than
- * watched: a ring of differently-sized cards has no single side length anyway, and the number is
- * only ever an input to a default that an explicit `radius:` overrides. Watching every slot with a
- * `ResizeObserver` to keep a default honest would be a per-frame cost for a value nobody looks at
- * once they have set their own.
- *
- * Skipped entirely when the author set `radius:` — nothing reads the property then, and measuring
- * forces a layout flush.
- *
- * @complexity O(1) time; one forced layout read per call.
- */
-function measureItemWidth(styles: StyleLedger, slots: Iterable<Element>): void {
-  for (const slot of slots) {
-    const width = (slot as HTMLElement).offsetWidth
-    if (width > 0) styles.set('--kui-item-width', `${width}px`)
-    return
-  }
+  plane: {
+    type: 'keyword',
+    default: 'depth',
+    cssProperty: '--kui-ring-plane',
+    keywords: ['depth', 'screen'],
+  },
 }
 
 /**
  * Drive a ring of children from one index.
  *
- * Reuses `step-progress`'s marking, counting and control delegation wholesale — the index half of a
- * carousel is the same problem whether the slides sit in a row or on a ring, and `createStepMarker`
- * was extracted precisely so a second consumer would not re-derive it. What is new here is the
- * continuous position, the measurement, the face marking, and the grab.
+ * Everything shape-independent — the continuous position, the marking, the controls, the grab, the
+ * motion — is `deck.ts`'s. What is the ring's is the face test and the two host attributes its
+ * selectors branch on.
  *
  * @complexity O(n) per flip and per drag frame in the slot count; O(n) space in slots ever touched.
  */
-// Factory closing over one ring's index state: several small named closures plus wiring, in the
-// same shape (and for the same reason) as `core/gesture.ts`'s `recognise`.
-// eslint-disable-next-line max-lines-per-function
 function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  warnFlatteningAncestor(el, ctx)
-  // Only the `key:value` spelling of a timing token reaches CSS on its own — `pushTrack` writes the
-  // positional tokens for `css-keyframes` primitives and no others, and this one renders through
-  // JavaScript. Without this, `carousel-3d 900ms` would travel at the 620ms default while
-  // `carousel-3d duration:900ms` worked, which is the failure `mirrorTimingToCss` exists for.
-  mirrorTimingToCss('spatial-ring', ALL_TIMING_TOKENS, params, ctx)
-
-  const selector = resolveTarget(params.text('target'), ctx, 'carousel')
-  const scope = scopeParam(params, 'self')
-  const resolveSlots = (): Iterable<Element> =>
-    selector ? queryScoped(el, ctx, selector, scope) : el.children
-  const marker = createStepMarker(resolveSlots, (message) => ctx.warn(`carousel ${message}`))
-  const total = (): number => countSteps(params, resolveSlots)
-
-  const hostAttributes = createAttributeLedger(el)
-  const hostStyles = createStyleLedger(el)
-  /*
-   * `facing:` reaches CSS as an attribute, not only as the `--kui-facing` custom property its spec
-   * declares. A stylesheet cannot select on the *value* of a custom property — `@container
-   * style(--kui-facing: camera)` can, and is not supported widely enough to hang a documented
-   * parameter on — so the one thing a selector needs is published in the one form a selector can
-   * read. Same pairing, for the same reason, as the number/attribute pair `step-marking.ts`
-   * publishes for the ring place.
-   */
-  hostAttributes.set('data-kui-ring-facing', params.text('facing', 'radial'))
-  const slots: SlotLedgers = { attributes: new Map(), styles: new Map() }
-  const derivesRadius = params.text('radius') === ''
-
-  /*
-   * The ring's position, in places, as a real number. The integer index everything else keys off is
-   * derived from it rather than stored beside it — two numbers that must agree is a bug waiting for
-   * a drag to interrupt a click, and `snapPosition` is the one place that relationship lives.
-   */
-  let position = 0
-
+  const plane = params.text('plane', 'depth')
+  // The ancestor trap only exists for the 3D plane; a flat ring has no `preserve-3d` to defeat.
+  if (plane === 'depth') warnFlatteningAncestor(el, ctx)
   const arcDeg = degreesOf(params.text('arc', '360deg'), 360)
+  const faceOf = (place: number, _offset: number, count: number): Face =>
+    plane === 'screen' ? 'front' : faceAt(place * (arcDeg / count))
 
-  const render = (): void => {
-    const count = total()
-    const { step, drift } = snapPosition(position, count)
-    hostAttributes.set('data-kui-step', String(step))
-    hostStyles.set('--kui-step', String(step))
+  return prepareSpatialDeck(el, params, ctx, {
+    id: 'spatial-ring',
+    label: 'carousel',
+    faceOf,
     /*
-     * The continuous position is published *relative to the live step*, not as the raw running
-     * total: `position` grows without bound across a long drag, and a ring at place 41.4 of six
-     * slides is at the same place as one at 5.4. Rebasing here is what keeps the number a fact
-     * about the ring rather than about how long someone has been spinning it, and it keeps the
-     * value CSS subtracts (`--kui-step-position - --kui-step`) inside half a place either way.
+     * A derived radius needs a card width; a flat ring also needs a card's size to reserve its own
+     * circle (the host is sized to it, since transformed slots take no layout space), so it measures
+     * even when the author named a radius.
      */
-    hostStyles.set('--kui-step-position', (step + drift).toFixed(4))
-    marker.mark(step)
-
-    const slotNodes = [...resolveSlots()]
-    if (derivesRadius) measureItemWidth(hostStyles, slotNodes)
-    // Read back off the marker's own output rather than recomputed from each node's position: the
-    // marker numbers per parent group and wraps per group, and a second numbering here would be a
-    // second answer to "which place is this" that could disagree with the one CSS is placing from.
-    // No `count > 0` guard: `countSteps` floors its answer at 1 (`Math.max(1, ...)`), and this
-    // primitive declares no `steps:` parameter for an author to override that with, so a ring with
-    // no slots at all still counts one place. There is no division by zero to defend against.
-    const spacing = arcDeg / count
-    for (const node of slotNodes) {
-      // No `?? '0'`, and not because the attribute is always there. `marker.mark` and the
-      // `resolveSlots` above are two separate live resolutions: a custom-element slide that watches
-      // `data-kui-step-state` can append another matching slide from its synchronous
-      // `attributeChangedCallback`, and that node is in this list with no offset written on it.
-      // The fallback is omitted because `Number(null)` is already `0` — the same value `'0'`
-      // would give — so it never defended the arithmetic it appeared to.
-      const offset = Number(node.getAttribute('data-kui-step-offset'))
-      const angle = (offset - drift) * spacing
-      ledgersFor(slots, node).attributes.set(FACE_ATTR, faceAt(angle))
-    }
-  }
-
-  const goTo = (next: number): void => {
-    position = next
-    render()
-  }
-
-  const groups: ControlGroup[] = []
-  const bindControl = (param: string, run: ControlGroup['run']): boolean => {
-    const control = resolveTarget(params.text(param), ctx, `carousel ${param}`)
-    if (!control) return false
-    if (queryScoped(el, ctx, control, scope).length === 0) {
-      ctx.warn(`carousel ${param} "${control}" matched nothing`)
-    }
-    groups.push({ selector: control, run })
-    return true
-  }
-
-  /*
-    * Unlike `step-progress` there is no click-the-container fallback for naming a control to
-    * retire, so nothing here needs to know whether any were named. This container is *grabbable*: a
-    * press on it is the opening of a possible drag, and advancing the ring on that press as well
-    * would mean every abandoned drag also stepped it.
-    */
-  bindControl('next', () => goTo(nextStep(snapPosition(position, total()).step, total())))
-  bindControl('prev', () => goTo(prevStep(snapPosition(position, total()).step, total())))
-  bindControl('jump', (_node, at) => { if (at >= 0) goTo(at) })
-  const releaseControls = delegateControls({ el, ctx, scope, groups })
-
-  const releaseDrag = createRingDrag({
-    el,
-    ctx,
-    enabled: params.is('grab'),
-    travelPx: params.num('travel', 220),
-    total,
-    positionOf: () => position,
-    moveTo: goTo,
-    setDragging: (dragging) => hostAttributes.set(DRAGGING_ATTR, String(dragging)),
+    measure: params.text('radius') === '' || plane === 'screen',
+    hostAttributes: {
+      /*
+       * `facing:` and `plane:` reach CSS as attributes, not only as the custom properties their
+       * specs declare. A stylesheet cannot select on the *value* of a custom property — `@container
+       * style(--kui-facing: camera)` can, and is not supported widely enough to hang a documented
+       * parameter on — so the one thing a selector needs is published in the one form a selector
+       * can read. Same pairing, for the same reason, as the number/attribute pair `step-marking.ts`
+       * publishes for the ring place.
+       */
+      'data-kui-ring-facing': params.text('facing', 'radial'),
+      'data-kui-ring-plane': plane,
+    },
   })
-
-  render()
-
-  return () => {
-    releaseDrag()
-    releaseControls()
-    marker.restore()
-    for (const ledger of slots.attributes.values()) ledger.restore()
-    for (const ledger of slots.styles.values()) ledger.restore()
-    slots.attributes.clear()
-    slots.styles.clear()
-    hostAttributes.restore()
-    hostStyles.restore()
-  }
 }
 
 /**
@@ -584,7 +401,7 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
   prepare: deferPrepare(prepareSpatialRing),
 }
 
-export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE]
+export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL_STACK_PRIMITIVE]
 
 /**
  * Convex and concave are two names, not one parameter with two values.
@@ -628,7 +445,7 @@ export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE]
  * over the `transform` shorthand (`CHANNEL.skew`) for the ring's whole lifetime, and there is no
  * turn-taking to model. It replaces "nothing is known" with the actual, checked fact.
  *
- * None of the four declares `transitions`: nothing here renders through a CSS `transition:` on the
+ * None of them declares `transitions`: nothing here renders through a CSS `transition:` on the
  * host box for `phaseOf` to derive `state` from — the ring is `renderer: 'javascript'` throughout.
  */
 export const CAROUSEL_PRESETS: Preset[] = [
@@ -668,6 +485,27 @@ export const CAROUSEL_PRESETS: Preset[] = [
     requiresOwnSubtree: true,
     phase: 'idle',
   },
+  /*
+   * The flat ring: cards on a clock face around whatever sits in the middle of the host (a word, a
+   * logo — anything the `target:` does not name stays centred and off the ring). `plane:screen` is
+   * the whole difference; see the parameter's note for why that is a parameter of this primitive and
+   * not a new one.
+   *
+   * Named for what it does rather than which way it goes — `orbit` is the motion, and it has no
+   * direction to name (the directional-naming rule, "named by travel", is about entrances that
+   * *have* one; a ring's direction is the sign of `spin:`). Not `carousel-3d-*`, because it is not
+   * three-dimensional, and a name that promised depth would send people looking for a `tilt:`.
+   *
+   * `facing:camera` by default: upright cards read as a set of things; radially turned ones read as
+   * a dial, which is the less common ask and one keyword away.
+   */
+  {
+    name: 'carousel-orbit',
+    primitive: 'spatial-ring',
+    params: { plane: 'screen', facing: 'camera' },
+    requiresOwnSubtree: true,
+    phase: 'idle',
+  },
 ]
 
 /**
@@ -678,5 +516,8 @@ export const CAROUSEL_PRESETS: Preset[] = [
  * @complexity O(n) time in the number of primitives and presets.
  */
 export function registerCarousel(registry: Registry): Registry {
-  return registry.registerPrimitives(CAROUSEL_PRIMITIVES).registerPresets(CAROUSEL_PRESETS)
+  return registry
+    .registerPrimitives(CAROUSEL_PRIMITIVES)
+    .registerPresets(CAROUSEL_PRESETS)
+    .registerPresets(STACK_PRESETS)
 }

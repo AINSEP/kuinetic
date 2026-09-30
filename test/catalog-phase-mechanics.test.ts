@@ -113,9 +113,9 @@ describe('scroll-mechanics phase does not paper over a real collision', () => {
 })
 
 describe('carousel: every spatial-ring preset declares phase: idle', () => {
-  it('covers all four names', () => {
+  it('covers all five names', () => {
     expect(CAROUSEL_NAMES).toEqual([
-      'carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside',
+      'carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside', 'carousel-orbit',
     ])
   })
 

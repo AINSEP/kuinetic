@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — carousel-motion fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. Nothing here positions, sizes the stage of, or transforms a slide. */
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      /*
+       * `overflow-x: clip` for the same reason the showcase's band has it: a depth ring's edge cards
+       * project past a phone's width, and on a mobile viewport content wider than the screen widens
+       * the layout viewport itself — which moves every coordinate a touch is dispatched at.
+       */
+      section {
+        margin-block: 48px;
+        overflow-x: clip;
+      }
+      .slide {
+        width: 120px;
+        height: 80px;
+        display: grid;
+        place-items: center;
+        background: #2a2521;
+        border: 1px solid #e4f222;
+      }
+      .card {
+        width: 90px;
+        height: 60px;
+        display: grid;
+        place-items: center;
+        background: #2a2521;
+        border: 1px solid #e4f222;
+      }
+      .word {
+        margin: 0;
+        font-size: 32px;
+      }
+      /* The showcase's band: overflow:clip around three concave rows. Chrome only, as above. */
+      .ring-band {
+        overflow: clip;
+        display: grid;
+        gap: 16px;
+        padding-block: 48px;
+      }
+      .ring-row {
+        height: 160px;
+      }
+      .ring-slot {
+        width: 260px;
+        height: 162px;
+        background: #2a2521;
+        border: 1px solid #e4f222;
+      }
+      .deck {
+        width: 200px;
+        height: 130px;
+        display: grid;
+        place-items: center;
+        background: #2a2521;
+        border: 1px solid #e4f222;
+      }
+    </style>
+  </head>
+  <body>
+    <section>
+      <div id="ring" data-kui="carousel-3d spin:4s radius:200px">
+        <div class="slide">1</div><div class="slide">2</div><div class="slide">3</div>
+        <div class="slide">4</div><div class="slide">5</div><div class="slide">6</div>
+      </div>
+    </section>
+
+    <section>
+      <div id="orbit" data-kui="carousel-orbit spin:-4s target:.card radius:170px">
+        <h2 class="word">CAROUSEL</h2>
+        <div class="card">1</div><div class="card">2</div><div class="card">3</div>
+        <div class="card">4</div><div class="card">5</div><div class="card">6</div>
+        <div class="card">7</div><div class="card">8</div>
+      </div>
+    </section>
+
+    <section>
+      <div id="stack" data-kui="carousel-stack next:.stack-next target:.deck">
+        <div class="deck">1</div><div class="deck">2</div><div class="deck">3</div>
+        <div class="deck">4</div><div class="deck">5</div><div class="deck">6</div>
+        <button class="stack-next" type="button">Next</button>
+      </div>
+    </section>
+
+    <section>
+      <div id="stepper" data-kui="carousel-3d next:.ring-next target:.slide radius:200px">
+        <div class="slide">1</div><div class="slide">2</div><div class="slide">3</div>
+        <div class="slide">4</div><div class="slide">5</div><div class="slide">6</div>
+        <button class="ring-next" type="button">Next</button>
+      </div>
+    </section>
+
+    <section>
+      <div id="inside-spin" class="ring-row" data-kui="carousel-3d-inside spin:20s target:.ring-slot">
+        <div class="ring-slot">1</div>
+        <div class="ring-slot">2</div>
+        <div class="ring-slot">3</div>
+        <div class="ring-slot">4</div>
+        <div class="ring-slot">5</div>
+        <div class="ring-slot">6</div>
+        <div class="ring-slot">7</div>
+        <div class="ring-slot">8</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="ring-band">
+      <div id="band-a" class="ring-row" data-kui="carousel-3d-inside tilt:10deg arc:180deg facing:radial gap:24px">
+        <div class="ring-slot">a1</div>
+        <div class="ring-slot">a2</div>
+        <div class="ring-slot">a3</div>
+        <div class="ring-slot">a4</div>
+        <div class="ring-slot">a5</div>
+        <div class="ring-slot">a6</div>
+        <div class="ring-slot">a7</div>
+        <div class="ring-slot">a8</div>
+        <div class="ring-slot">a9</div>
+      </div>
+      <div id="band-b" class="ring-row" data-kui="carousel-3d-inside arc:180deg facing:radial gap:24px">
+        <div class="ring-slot">b1</div>
+        <div class="ring-slot">b2</div>
+        <div class="ring-slot">b3</div>
+        <div class="ring-slot">b4</div>
+        <div class="ring-slot">b5</div>
+        <div class="ring-slot">b6</div>
+        <div class="ring-slot">b7</div>
+        <div class="ring-slot">b8</div>
+        <div class="ring-slot">b9</div>
+      </div>
+      <div id="band-c" class="ring-row" data-kui="carousel-3d-inside tilt:-10deg arc:180deg facing:radial gap:24px">
+        <div class="ring-slot">c1</div>
+        <div class="ring-slot">c2</div>
+        <div class="ring-slot">c3</div>
+        <div class="ring-slot">c4</div>
+        <div class="ring-slot">c5</div>
+        <div class="ring-slot">c6</div>
+        <div class="ring-slot">c7</div>
+        <div class="ring-slot">c8</div>
+        <div class="ring-slot">c9</div>
+      </div>
+      </div>
+    </section>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>
