@@ -214,6 +214,32 @@ async function checkInsideDrag(page, check, label, input) {
   }
 }
 
+/**
+ * A real mouse drag across a deck's text selects nothing, during the drag or after it, and gives the
+ * page its selection back on release. jsdom cannot perform a native selection gesture, so this is
+ * the only place the blue highlight could be seen.
+ */
+async function checkNoSelection(page, check, id) {
+  await page.evaluate((hostId) => document.getElementById(hostId).scrollIntoView({ block: 'center' }), id)
+  await settle(page, 200)
+  const host = await hostBox(page, id)
+  const read = () => page.evaluate(() => ({
+    selected: document.getSelection().toString(),
+    userSelect: getComputedStyle(document.documentElement).userSelect,
+  }))
+  await page.mouse.move(host.x - host.width / 4, host.y)
+  await page.mouse.down()
+  await page.mouse.move(host.x + host.width / 4, host.y + 20, { steps: 20 })
+  const mid = await read()
+  await page.mouse.up()
+  await settle(page, 100)
+  const after = await read()
+  check(`mouse: dragging ${id} selects no text`, mid.selected === '' && after.selected === '',
+    `mid ${JSON.stringify(mid.selected)}, after ${JSON.stringify(after.selected)}`)
+  check(`mouse: ${id} gives the page its text selection back on release`,
+    mid.userSelect === 'none' && after.userSelect === 'auto', `mid ${mid.userSelect}, after ${after.userSelect}`)
+}
+
 /** After a drag on the spinning inside ring, the spin resumes from where the drag left it. */
 async function checkResumeAfterDrag(page, check) {
   const { settled } = await dragInside(page, 'inside-spin', mouseDrag)
@@ -226,6 +252,188 @@ async function checkResumeAfterDrag(page, check) {
   // to where the spin "would have been" would be a different number entirely.
   const drift = placesMoved(settled, resumed, 8)
   check('spin resumes after a drag, from where the drag left the ring', spinning === 'true' && drift > 0 && drift < 1, `spinning=${spinning}, drift ${drift.toFixed(3)} places from ${settled}`)
+}
+
+/**
+ * The rings nothing clips: a depth ring fits its page by itself (`effects/carousel/fit.ts`), so these
+ * must stay inside the viewport at every width. The band rows are not here on purpose — they sit in
+ * `.ring-band { overflow: clip }`, an author-declared bleed, and a clipping ancestor opts a ring out.
+ */
+const UNCLIPPED_RINGS = ['ring', 'stepper', 'inside-spin']
+const BAND_ROWS = ['band-a', 'band-b', 'band-c']
+
+/** Every slot's resolved radius — the length of its placement translation — and its slot width. */
+function radii(page, id) {
+  return page.evaluate((hostId) => [...document.querySelectorAll(`#${hostId} [data-kui-step-offset]`)].map((slot) => {
+    const m = new DOMMatrix(getComputedStyle(slot).transform)
+    return { radius: Math.hypot(m.m41, m.m42, m.m43), width: slot.offsetWidth }
+  }), id)
+}
+
+/** The radius a band row wants: the tangent rule for 9 cards over 180deg, a 24px gap, no fit. */
+const bandWanted = (width) => (width + 24) / (2 * Math.tan((10 * Math.PI) / 180))
+/** `#inside-spin`: 8 cards over the concave name's default 120deg arc, the default 24px gap. */
+const insideWanted = (width) => (width + 24) / (2 * Math.tan((7.5 * Math.PI) / 180))
+
+/**
+ * The band rows sit under `overflow: clip`, which opts them out of the fit: they keep the radius
+ * they want at every width, including a phone's, where they bleed past the band and are clipped.
+ * Deliberate — the author declared that bleed by clipping — and the showcase's band relies on it.
+ */
+async function checkBandsUnfitted(page, check, label) {
+  for (const id of BAND_ROWS) {
+    const slots = await radii(page, id)
+    const wanted = bandWanted(slots[0].width)
+    const ok = slots.every((slot) => Math.abs(slot.radius - wanted) < 0.01)
+    check(`${label}: clipped #${id} keeps the radius it wants`, ok, `${slots[0].radius.toFixed(2)} vs wanted ${wanted.toFixed(2)}`)
+  }
+}
+
+/**
+ * The radius each ring resolved to. Where a ring already fits, `min(wanted, fit)` must hand it its
+ * own radius to the pixel; the band rows are clipped, so they get no fit at any width.
+ */
+async function checkRadii(page, check, label) {
+  for (const id of ['ring', 'stepper']) {
+    const slots = await radii(page, id)
+    const ok = slots.every((slot) => Math.abs(slot.radius - 200) < 0.01)
+    check(`${label}: #${id} keeps its authored radius:200px`, ok, slots.map((slot) => slot.radius.toFixed(2)).join(','))
+  }
+  await checkBandsUnfitted(page, check, label)
+  const inside = await radii(page, 'inside-spin')
+  const wanted = insideWanted(inside[0].width)
+  check(`${label}: #inside-spin never exceeds the radius it wants`, inside.every((slot) => slot.radius <= wanted + 0.01), `${inside[0].radius.toFixed(2)} vs wanted ${wanted.toFixed(2)}`)
+}
+
+/**
+ * Sweep every unclipped ring through a whole place of drift, synchronously in one evaluate so no
+ * spin frame or transition lands between the write and the read, and report each ring's widest
+ * extent. `data-kui-ring-spinning` turns the slot transition off, as the spin does. A concave card
+ * turned past a quarter from the camera is `visibility: hidden` in the real deck (the attribute
+ * that says so is not re-published mid-sweep), so it is skipped by its placement: behind the viewer
+ * is a positive Z after `translateZ(-r)`.
+ */
+function driftSweep(page) {
+  return page.evaluate((ids) => ids.map((id) => {
+    const host = document.getElementById(id)
+    const inside = host.matches('[data-kui-fx~="carousel-3d-inside"]')
+    const step = Number(host.style.getPropertyValue('--kui-step')) || 0
+    const savedPosition = host.style.getPropertyValue('--kui-step-position')
+    const savedSpinning = host.getAttribute('data-kui-ring-spinning')
+    host.setAttribute('data-kui-ring-spinning', 'true')
+    let left = Infinity
+    let right = -Infinity
+    for (let d = -0.5; d <= 0.5 + 1e-9; d += 0.02) {
+      host.style.setProperty('--kui-step-position', String(step + d))
+      for (const slot of host.querySelectorAll('[data-kui-step-offset]')) {
+        if (inside && new DOMMatrix(getComputedStyle(slot).transform).m43 >= 0) continue
+        const rect = slot.getBoundingClientRect()
+        left = Math.min(left, rect.left)
+        right = Math.max(right, rect.right)
+      }
+    }
+    host.style.setProperty('--kui-step-position', savedPosition)
+    if (savedSpinning === null) host.removeAttribute('data-kui-ring-spinning')
+    else host.setAttribute('data-kui-ring-spinning', savedSpinning)
+    return { id, left, right, width: document.documentElement.clientWidth }
+  }), UNCLIPPED_RINGS)
+}
+
+/** The unclipped rings whose fit binds: they resolved to less than the radius they want. */
+async function boundRings(page) {
+  const bound = []
+  for (const id of UNCLIPPED_RINGS) {
+    const [slot] = await radii(page, id)
+    const wanted = id === 'inside-spin' ? insideWanted(slot.width) : 200
+    if (slot.radius < wanted - 0.5) bound.push(id)
+  }
+  return bound
+}
+
+async function checkDriftSweep(page, check, label, tightIds = []) {
+  const extents = await driftSweep(page)
+  for (const { id, left, right, width } of extents) {
+    check(`${label}: #${id} stays inside the page at every drift`, left >= -0.5 && right <= width + 0.5, `${left.toFixed(2)}..${right.toFixed(2)} of ${width}`)
+    // Where the fit binds, it is the largest radius that fits: the widest card touches an edge.
+    if (tightIds.includes(id)) check(`${label}: #${id}'s fitted radius is tight, not merely safe`, left <= 1 || right >= width - 1, `${left.toFixed(2)}..${right.toFixed(2)} of ${width}`)
+  }
+}
+
+/** Unclipped ring slots, visible ones only, that reach past either edge of the viewport now. */
+function outsideViewport(page) {
+  return page.evaluate((ids) => {
+    const width = document.documentElement.clientWidth
+    return ids.flatMap((id) => [...document.querySelectorAll(`#${id} [data-kui-step-offset]`)]
+      .filter((slot) => getComputedStyle(slot).visibility !== 'hidden')
+      .map((slot) => ({ id, rect: slot.getBoundingClientRect() }))
+      .filter(({ rect }) => rect.left < -0.5 || rect.right > width + 0.5)
+      .map(({ id: host, rect }) => `${host} ${rect.left.toFixed(1)}..${rect.right.toFixed(1)}`))
+  }, UNCLIPPED_RINGS)
+}
+
+/** Real motion at phone width: sample the spinning rings for ~1.5s and a mid-drag on `#stepper`. */
+async function checkPhoneMotion(page, check, label) {
+  const seen = new Set()
+  for (const id of ['ring', 'inside-spin']) {
+    await page.evaluate((hostId) => document.getElementById(hostId).scrollIntoView({ block: 'center' }), id)
+    for (let sample = 0; sample < 15; sample += 1) {
+      await settle(page, 100)
+      for (const miss of await outsideViewport(page)) seen.add(miss)
+    }
+  }
+  check(`${label}: spinning rings stay inside the viewport`, seen.size === 0, [...seen].slice(0, 6).join(', ') || 'none')
+
+  await page.evaluate(() => document.getElementById('stepper').scrollIntoView({ block: 'center' }))
+  await settle(page, 200)
+  const host = await hostBox(page, 'stepper')
+  await page.mouse.move(host.x, host.y)
+  await page.mouse.down()
+  await page.mouse.move(host.x - 110, host.y, { steps: 10 })
+  const dragging = await page.evaluate(() => document.getElementById('stepper').getAttribute('data-kui-ring-dragging'))
+  const midDrag = await outsideViewport(page)
+  await page.mouse.up()
+  await settle(page, 700)
+  check(`${label}: #stepper mid-drag stays inside the viewport`, dragging === 'true' && midDrag.length === 0, `dragging=${dragging}; ${midDrag.join(', ') || 'none'}`)
+}
+
+async function checkNoSideScroll(page, check, label) {
+  const { scrollWidth, clientWidth, past } = await page.evaluate(() => {
+    const width = document.documentElement.clientWidth
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: width,
+      // Named in the failure: which element reaches past the right edge, and to where.
+      past: [...document.body.querySelectorAll('*')]
+        .filter((node) => node.getBoundingClientRect().right > width + 0.5)
+        .map((node) => `${node.closest('[id]')?.id ?? '?'}>${node.textContent.trim().slice(0, 6)}@${node.getBoundingClientRect().right.toFixed(0)}`),
+    }
+  })
+  check(`${label}: nothing on the page pushes it sideways`, scrollWidth <= clientWidth, `scrollWidth ${scrollWidth}, clientWidth ${clientWidth}; ${past.slice(0, 6).join(', ') || 'nothing past the edge'}`)
+}
+
+async function openFixture(browser, options) {
+  const context = await browser.newContext(options)
+  const page = await context.newPage()
+  await page.goto(FIXTURE_URL)
+  await page.waitForFunction(() => window.__kui !== undefined && document.getElementById('band-c').hasAttribute('data-kui-step'))
+  // The fit is solved on a resize observation and published on the next frame; the slots' first
+  // placement is a 620ms transition from `none`, and a radius read mid-flight is short of its end.
+  await settle(page, 1000)
+  return { context, page }
+}
+
+/**
+ * Wide screens: every ring that already fits keeps its radius to the pixel, and no unclipped ring
+ * reaches past the page at any drift. Not a page `scrollWidth` check here: at 1440px Chromium
+ * reports `#inside-spin`'s scrollable overflow ending at 1454px while its widest painted card ends
+ * at 1259px — an open finding, not yet explained. The painted extent is what the fit promises.
+ */
+async function checkRingFitAt(browser, check, width) {
+  const { context, page } = await openFixture(browser, { viewport: { width, height: 900 } })
+  const label = `${width}px`
+  await checkRadii(page, check, label)
+  await checkDriftSweep(page, check, label)
+  await context.close()
 }
 
 export async function run({ browser, ARTIFACT_DIR }) {
@@ -243,6 +451,8 @@ export async function run({ browser, ARTIFACT_DIR }) {
   await checkWrap(page, check)
   await checkInsideDrag(page, check, 'mouse', mouseDrag)
   await checkResumeAfterDrag(page, check)
+  await checkNoSelection(page, check, 'band-a')
+  await checkNoSelection(page, check, 'stack')
   await desktop.close()
 
   const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
@@ -252,6 +462,13 @@ export async function run({ browser, ARTIFACT_DIR }) {
   await checkInsideDrag(touchPage, check, 'touch', touchDrag)
   await touch.close()
 
+  for (const width of [1440, 820]) await checkRingFitAt(browser, check, width)
+
+  const fitTouch = await openFixture(browser, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await checkNoSideScroll(fitTouch.page, check, 'touch 390px')
+  await checkPhoneMotion(fitTouch.page, check, 'touch 390px')
+  await fitTouch.context.close()
+
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 } })
   const mobile = await phone.newPage()
   await mobile.goto(FIXTURE_URL)
@@ -259,15 +476,16 @@ export async function run({ browser, ARTIFACT_DIR }) {
   await checkOrbit(mobile, check, 'phone')
   await snap(mobile, 'phone-orbit')
   await checkStack(mobile, check, null, 'phone')
-  // Scoped to the two new decks. The depth rings (#ring, #stepper) author `radius:200px`, and a
-  // depth ring honours an authored radius at any width — that pre-dates this suite and is not what
-  // it checks — so a page-wide `scrollWidth` would fail on them, not on the orbit or the stack.
-  // Right edge only, as `scrollWidth` measures: the card that just left the stack exits down and to the left,
-  // past x=0 while hidden, which clips rather than scrolls.
-  const spill = await mobile.evaluate(() => [...document.querySelectorAll('#orbit *, #stack *')]
-    .filter((node) => node.getBoundingClientRect().right > window.innerWidth + 0.5)
-    .map((node) => `${node.parentElement.id}>${node.className}:${node.textContent.trim().slice(0, 8)}`))
-  check('phone: neither the orbit nor the stack pushes the page sideways', spill.length === 0, spill.join(', ') || 'none')
+  // Page-wide: the depth rings authoring `radius:200px` (#ring, #stepper) and the wide concave ring
+  // fit a phone by themselves now, so nothing on the page may push it sideways. `scrollWidth` looks
+  // at the right edge only, which is right: the card that just left the stack exits down and to the
+  // left, past x=0 while hidden, and that clips rather than scrolls.
+  await checkNoSideScroll(mobile, check, 'phone')
+  const bound = await boundRings(mobile)
+  check('phone: the unclipped rings that overflow a phone are fitted', bound.length === UNCLIPPED_RINGS.length, `fitted: ${bound.join(', ') || 'none'}`)
+  await checkDriftSweep(mobile, check, 'phone', bound)
+  await checkBandsUnfitted(mobile, check, 'phone')
+  await checkPhoneMotion(mobile, check, 'phone')
   await phone.close()
 
   return results

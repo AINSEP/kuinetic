@@ -22,7 +22,7 @@ import type { PrepareContext } from '../src/core/effect-context.js'
 
 const swipeable = GESTURE_PRIMITIVES.find((primitive) => primitive.id === 'swipeable')!
 
-/** Enough of a context for `withTimingContract`; this primitive writes no styles. */
+/** Enough of a context for `withTimingContract`, with the style ledger as a spy. */
 function stubCtx(): PrepareContext {
   return {
     doc: document,
@@ -190,5 +190,46 @@ describe('swipeable', () => {
     flick(el, { x: 0, y: 0 }, { x: 100, y: 0 })
     expect(el.hasAttribute('data-kui-swipe')).toBe(false)
     el.remove()
+  })
+})
+
+describe('swipe-y and the axis-locked touch-action', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.replaceChildren()
+  })
+
+  it('reports vertical flicks and ignores horizontal ones under axis:y', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance', 'Date'] })
+    const locked = mount({ axis: 'y' })
+    flick(locked.el, { x: 0, y: 100 }, { x: 0, y: 0 })
+    expect(locked.el.getAttribute('data-kui-swipe')).toBe('up')
+    locked.el.removeAttribute('data-kui-swipe')
+    flick(locked.el, { x: 0, y: 0 }, { x: 300, y: 0 })
+    expect(locked.el.hasAttribute('data-kui-swipe')).toBe(false)
+    locked.destroy()
+  })
+
+  it.each([
+    ['y', 'pan-x pinch-zoom'],
+    ['x', 'pan-y pinch-zoom'],
+  ])('axis:%s hands the browser only the other axis, through the element\'s own style ledger', (axis, expected) => {
+    // jsdom's CSSStyleDeclaration drops `touch-action` writes, so the ledger call is what can be
+    // seen here; test/browser/gesture-sweep.test.mjs reads the property a real browser resolved,
+    // and its restore on teardown.
+    const ctx = stubCtx()
+    const el = document.createElement('div')
+    const instance = swipeable.prepare!(el, createParams({ axis }), ctx)
+    instance.activate()
+    expect(vi.mocked(ctx.style.set).mock.calls).toEqual([['touch-action', expected]])
+    instance.destroy()
+  })
+
+  it('leaves touch handling alone when both axes are the swipe\'s', () => {
+    const ctx = stubCtx()
+    const instance = swipeable.prepare!(document.createElement('div'), createParams({}), ctx)
+    instance.activate()
+    expect(ctx.style.set).not.toHaveBeenCalled()
+    instance.destroy()
   })
 })

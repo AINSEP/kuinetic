@@ -7,6 +7,7 @@ import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../cor
 import type { SpringConfig, SpringDeps, SpringRunner } from '../../core/spring.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { withTimingContract } from '../shared.js'
+import { announceSwipe } from '../swipe-event.js'
 import type { TimingToken } from '../shared.js'
 
 /**
@@ -241,21 +242,35 @@ function settle(
  * Publish swipe direction as an attribute.
  *
  * An attribute rather than a callback keeps the whole category declarative: authors style
- * `[data-kui-swipe="left"]` instead of subscribing to anything.
+ * `[data-kui-swipe="left"]` instead of subscribing to anything. It also dispatches a bubbling
+ * `kui:swipe` event, which is how a `carousel` inside it steps with no page script.
  *
  * @complexity O(1) per pointer event; O(1) space.
  * @overallScore 100
  */
-function prepareSwipeable(el: Element, params: EffectParams): Cleanup {
+function prepareSwipeable(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+  const axis = params.text('axis', 'both') as 'x' | 'y' | 'both'
+  /*
+   * An axis-locked swipe hands the browser the other axis and keeps its own. Without this a phone
+   * decides a vertical flick is a page scroll, fires `pointercancel`, and `swipe-y` never reports;
+   * `none` would fix that by also swallowing the scroll across the other axis, stranding a visitor
+   * on a full-width deck. `pinch-zoom` keeps the zoom gesture either value alone would take away.
+   * Written on this element only, so page scroll everywhere outside it is untouched, and only by
+   * the axis-locked names: `swipe` (both axes) leaves the page's touch handling as authored.
+   */
+  if (axis !== 'both') ctx.style.set('touch-action', `${axis === 'x' ? 'pan-y' : 'pan-x'} pinch-zoom`)
   const stop = recognise(
     el,
     {
       onSwipe(direction) {
         el.setAttribute('data-kui-swipe', direction)
+        // After the attribute, so a listener that reads it sees this swipe. A `carousel` inside
+        // this element steps on the event (`effects/swipe-event.ts`); nothing here knows it exists.
+        announceSwipe(ctx.win, el, direction)
       },
     },
     {
-      axis: params.text('axis', 'both') as 'x' | 'y' | 'both',
+      axis,
       swipeVelocity: params.num('velocity', 300),
       // This primitive moves nothing, so it must not hold the pointer from `pointerdown` — that
       // retargets the following `click` at this element and kills every interactive child (a

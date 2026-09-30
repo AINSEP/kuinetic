@@ -120,6 +120,7 @@ describe('v3 registration', () => {
     'snap-back',
     'swipe',
     'swipe-x',
+    'swipe-y',
     'long-press',
     'magnetic',
     'magnetic-snap',

@@ -457,3 +457,138 @@ describe('video-lightbox', () => {
     expect(reporter.messages.filter((message) => message.includes('https://example.com/other'))).toHaveLength(1)
   })
 })
+
+describe('one gallery across a row of images and videos', () => {
+  const key = (target: Element, name: string): KeyboardEvent => {
+    const event = new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })
+    target.dispatchEvent(event)
+    return event
+  }
+  const next = (): HTMLButtonElement => dialog().querySelector('.kui-lightbox-next')!
+  const loaded = (video: HTMLVideoElement): HTMLVideoElement => {
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 })
+    return video
+  }
+
+  it('cycles a video row, pausing a native player it leaves and resuming it on return', () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.reject(new Error('blocked')))
+    start('<div data-kui="video-lightbox"><a href="/a.mp4">A</a><a href="https://youtu.be/dQw4w9WgXcQ">B</a><a href="/c.mp4">C</a></div>')
+    click(document.querySelectorAll('a')[0]!)
+    expect(dialog().getAttribute('aria-label')).toBe('Video viewer')
+    expect(next().getAttribute('aria-label')).toBe('Next video')
+    expect(dialog().querySelector('.kui-lightbox-counter')?.textContent).toBe('1 of 3')
+    const first = loaded(dialog().querySelector('video')!)
+    next().click()
+    expect(dialog().open).toBe(true)
+    expect(pause).toHaveBeenCalledOnce()
+    expect(first.isConnected).toBe(false)
+    const embed = dialog().querySelector('.kui-lightbox-frame')!
+    expect(embed.querySelector('iframe')?.title).toBe('B')
+    next().click()
+    expect(embed.childElementCount).toBe(0)
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('C')
+    next().click()
+    expect(dialog().querySelector('video')).toBe(first)
+    expect(first.getAttribute('src')).toBe('/a.mp4')
+    expect(play).toHaveBeenCalledOnce()
+    expect(dialog().querySelector('figcaption')!.hidden).toBe(true)
+  })
+
+  it('stops every player it kept when the viewer closes', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.resolve())
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+    start('<div data-kui="video-lightbox"><a href="/a.mp4">A</a><a href="/b.mp4">B</a></div>')
+    click(document.querySelector('a')!)
+    const first = loaded(dialog().querySelector('video')!)
+    next().click()
+    const second = loaded(dialog().querySelector('video')!)
+    dialog().close()
+    expect(pause).toHaveBeenCalledTimes(3)
+    expect(first.hasAttribute('src')).toBe(false)
+    expect(second.hasAttribute('src')).toBe(false)
+  })
+
+  it('treats media:mixed as one gallery of images and videos in document order', () => {
+    const reporter = collectingReporter()
+    start('<div data-kui="lightbox media:mixed"><figure><a href="/full.jpg"><img src="/t.jpg" alt="Photo"></a><figcaption>Harbour</figcaption></figure><a href="https://example.com/page">Read more</a><a href="https://vimeo.com/76979871"><img src="/poster.png" alt="Clip"></a><img src="/bare.png" alt="Bare"></div>', reporter)
+    const plain = document.querySelector('a[href^="https://example"]')!
+    expect(click(plain).defaultPrevented).toBe(false)
+    expect(reporter.messages.join()).toContain('lightbox cannot embed "https://example.com/page"')
+    expect(document.querySelector('dialog')).toBeNull()
+
+    click(document.querySelector('a')!)
+    expect(dialog().getAttribute('aria-label')).toBe('Media viewer')
+    expect(next().getAttribute('aria-label')).toBe('Next item')
+    expect(dialog().querySelector('.kui-lightbox-counter')?.textContent).toBe('1 of 3')
+    expect(dialog().querySelector('figcaption')?.textContent).toBe('Harbour')
+    const figure = dialog().querySelector('figure')!
+    expect(key(figure, 'ArrowRight').defaultPrevented).toBe(true)
+    expect(dialog().querySelector('iframe')?.src).toBe('https://player.vimeo.com/video/76979871?autoplay=1')
+    expect(dialog().querySelector('figcaption')?.textContent).toBe('Clip')
+    expect(dialog().querySelector('figure img')).toBeNull()
+    key(figure, 'ArrowRight')
+    expect(dialog().querySelector('figure img')?.getAttribute('src')).toBe('http://localhost:3000/bare.png')
+    expect(dialog().querySelector('iframe')).toBeNull()
+    key(figure, 'Home')
+    expect(dialog().querySelector('figure img')?.getAttribute('src')).toBe('http://localhost:3000/full.jpg')
+  })
+
+  it('opens a mixed row from a bare image and from a video link', () => {
+    start('<div data-kui="lightbox media:mixed target:\'.item\'"><img class="item" src="/a.png" alt="A"><a class="item" href="/b.mp4">B</a><div class="item">not media</div></div>')
+    const bare = document.querySelector('img')!
+    expect(bare.getAttribute('role')).toBe('button')
+    key(bare, 'Enter')
+    expect(dialog().querySelector('.kui-lightbox-counter')?.textContent).toBe('1 of 2')
+    expect(click(document.querySelector('a')!).defaultPrevented).toBe(true)
+    expect(dialog().querySelector('.kui-lightbox-counter')?.textContent).toBe('2 of 2')
+    expect(dialog().querySelector('video')?.getAttribute('aria-label')).toBe('B')
+  })
+
+  it('keeps an image row an image row: a poster linked to a clip still opens as an image', () => {
+    start('<div data-kui="lightbox"><a href="/clip.mp4"><img src="/poster.png" alt="Poster"></a></div>')
+    click(document.querySelector('a')!)
+    expect(dialog().querySelector('video')).toBeNull()
+    expect(dialog().querySelector('figure img')?.getAttribute('src')).toBe('http://localhost:3000/clip.mp4')
+  })
+
+  it('leaves arrow keys to a focused native player and stays open when the player is clicked', () => {
+    vi.useFakeTimers()
+    start('<div data-kui="video-lightbox duration:20ms"><a href="/a.mp4">A</a><a href="/b.mp4">B</a></div>')
+    click(document.querySelector('a')!)
+    const video = dialog().querySelector('video')!
+    expect(key(video, 'ArrowRight').defaultPrevented).toBe(false)
+    expect(dialog().querySelector('video')).toBe(video)
+    click(video)
+    expect(dialog().classList.contains('is-open')).toBe(true)
+    click(dialog().querySelector('figure')!)
+    expect(dialog().classList.contains('is-open')).toBe(false)
+  })
+
+  it('never shows a video row\'s unplayable poster link as an image', () => {
+    start('<div data-kui="video-lightbox"><a href="https://example.com/page"><img src="/poster.png" alt="Poster"></a></div>')
+    expect(click(document.querySelector('a')!).defaultPrevented).toBe(false)
+    expect(document.querySelector('dialog')).toBeNull()
+  })
+
+  it('reads video captions from the source caption: names, with or without a poster', () => {
+    start('<figure data-kui="video-lightbox caption:figcaption"><a href="/a.mp4" title="Titled">A</a><figcaption>Figure caption</figcaption></figure>' +
+      '<div data-kui="video-lightbox caption:figcaption"><a href="/b.mp4">B</a></div>' +
+      '<div data-kui="video-lightbox caption:alt"><a href="/c.mp4">C</a></div>' +
+      '<div data-kui="video-lightbox caption:title"><a href="/d.mp4" title=" Link title ">D</a><a href="/e.mp4">E</a><a href="/f.mp4"><img src="/f.png" title="Poster title"></a></div>')
+    const links = document.querySelectorAll('a')
+    const caption = (): string => dialog().querySelector('figcaption')!.textContent!
+    click(links[0]!)
+    expect(caption()).toBe('Figure caption')
+    click(links[1]!)
+    expect(caption()).toBe('')
+    click(links[2]!)
+    expect(caption()).toBe('')
+    click(links[3]!)
+    expect(caption()).toBe('Link title')
+    click(links[4]!)
+    expect(caption()).toBe('')
+    click(links[5]!)
+    expect(caption()).toBe('Poster title')
+  })
+})

@@ -18,9 +18,36 @@ version numbers are assigned at release.
 - **`carousel-stack`** (new primitive `spatial-stack`) — a deck receding diagonally into depth,
   cycling forward on `autoplay:`/`spin:`, drag and controls. `shift:`, `rise:`, `shrink:`, `blur:`,
   `fade:`, `depth:` shape the diagonal.
+- **`swipe-y`** — the vertical twin of `swipe-x`: publishes `data-kui-swipe="up"`/`"down"` and
+  ignores sideways flicks, for a vertical deck. Opt-in; a deck without it leaves page scroll alone.
+- **One lightbox gallery across a row of images and videos.** `lightbox media:mixed` makes every
+  image and video link in the row one gallery: prev/next buttons and the arrow/Home/End keys move
+  through images and videos alike without closing the viewer. A native video pauses when you leave
+  it and resumes where it stopped when you come back; a YouTube/Vimeo embed stops when you leave it.
+  `video-lightbox` with several links now cycles the same way. Image-only rows are unchanged, and
+  `video-lightbox` still shows no caption unless you add `caption:figcaption`.
+- **A swipe steps the `carousel` inside it.** `swipe-x`/`swipe-y` (or `swipe`) on a deck's wrapper
+  now steps the `carousel` deck within it — left or up for next, right or down for previous — with
+  no page script; only the outermost deck inside the wrapper moves. Every swipe also dispatches a
+  bubbling `kui:swipe` event (`event.detail.direction`) for pages that drive something else.
 
 ### Fixed
 
+- **A 3D ring no longer pushes the page sideways.** `radius:` on `carousel-3d*` is now a ceiling:
+  a ring whose cards would reach past the page at any angle they turn to (a `radius:200px` ring on
+  a phone, a wide `carousel-3d-inside` on a laptop) shrinks to the largest radius that fits, and
+  grows back on a wider page. Rings that already fit are unchanged to the pixel. A ring under an
+  ancestor with `overflow-x: clip` or `hidden` is left alone — that clip is an authored bleed.
+- **`swipe-x` and `swipe-y` own their `touch-action`.** On a phone the browser claimed a flick
+  along the swipe's axis as a page scroll too, so the page scrolled away under every vertical
+  swipe (and, on a horizontally scrollable page, every horizontal one). The axis-locked names now write `pan-y pinch-zoom` / `pan-x pinch-zoom` on
+  their own element only, restoring any authored value on teardown; the page still scrolls through
+  the other axis and everywhere outside the element. `swipe` (both axes) is unchanged.
+- **Dragging a ring or stack no longer selects its text.** A mouse drag across `carousel-3d*`,
+  `carousel-orbit` or `carousel-stack` cards painted them blue. Once a press becomes a drag the
+  half-made selection is cleared and the page is unselectable until the release; the page's own
+  `user-select` comes back afterwards (and on a teardown mid-drag). Presses, clicks and keys are
+  untouched.
 - **A ring card no longer sweeps the long way round on a click.** On every step one slot's circular
   offset wraps from one end of the deck to the other; its angle jumped a whole turn and the
   transition swept it across the front of the ring. That jump is now committed without a transition.

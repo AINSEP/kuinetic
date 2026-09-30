@@ -11,6 +11,7 @@ import { deferPrepare } from '../../core/instances.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepIndex } from '../step-index.js'
+import { stepOnSwipe } from '../swipe-event.js'
 
 /**
  * Form and input primitives (catalog section O).
@@ -240,7 +241,19 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
   const scope = scopeParam(params, 'page')
   const resolveSteps = (): Iterable<Element> =>
     selector ? queryScoped(el, ctx, selector, scope) : el.children
-  return createStepIndex({ el, params, ctx, scope, resolveSteps }).release
+  const index = createStepIndex({ el, params, ctx, scope, resolveSteps })
+  /*
+   * A swipe on an element around this deck steps it: left/up is next, right/down is previous. The
+   * swipe cannot sit on the deck itself (both write element state), so the documented pairing is
+   * a wrapper, and until this line every page mapped the wrapper's direction onto the deck in a
+   * script of its own. Here rather than in `createStepIndex`, because `slideshow` shares that index
+   * and owns its touch handling through its own `swipe:` parameter. See `effects/swipe-event.ts`.
+   */
+  const releaseSwipe = stepOnSwipe(ctx.doc, el, (direction) => (direction > 0 ? index.next() : index.prev()))
+  return () => {
+    releaseSwipe()
+    index.release()
+  }
 }
 
 const STEP_PROGRESS_BASE = jsInputPrimitive(

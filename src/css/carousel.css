@@ -13,6 +13,7 @@
  *   --kui-step          on the host, this effect — the live place, as an integer
  *   --kui-step-position on the host, this effect — the live place, as a real number
  *   --kui-item-width    on the host, this effect — a measured card width, for the derived radius
+ *   --kui-ring-fit      on the host, `effects/carousel/fit.ts` — the largest radius that fits the page
  *
  * INVARIANT: a keyframe may only write properties belonging to its primitive's declared channels.
  * `test/css-invariants.test.ts` enforces this against these files. This one compiles no keyframes
@@ -90,6 +91,13 @@
      * to the beginning".
      */
     --kui-ring-drift: calc(var(--kui-step-position, 0) - var(--kui-step, 0));
+    /*
+     * The largest radius at which this ring fits its page, published inline by `effects/carousel/
+     * fit.ts` whenever the page bounds the ring. Reset here so a ring nested inside another ring's slide never
+     * inherits the outer ring's cap: `initial` is the guaranteed-invalid value, so the slots' `var()`
+     * falls back to the radius they wanted.
+     */
+    --kui-ring-fit: initial;
   }
 
   /*
@@ -159,13 +167,24 @@
      * rather than one collapsed to a point. The lower bound only matters for very large counts and
      * is there to keep the expression finite rather than to shape anything.
      */
-    --kui-ring-radius: var(
+    --kui-ring-wanted: var(
       --kui-radius,
       calc(
         (var(--kui-item-width, 260px) + var(--kui-gap, 24px)) /
           (2 * tan(clamp(0.5deg, var(--kui-ring-spacing) / 2, 60deg)))
       )
     );
+
+    /*
+     * The radius the ring gets: the one it wanted, unless that would push the page sideways.
+     *
+     * `--kui-ring-fit` is solved in JavaScript (`effects/carousel/fit.ts`, which argues why a
+     * stylesheet cannot): the largest radius at which every card corner, at every angle the ring
+     * can reach, projects inside the page. A ring that already fits there wants less than the fit,
+     * so `min()` hands it its own radius to the pixel; one inside an ancestor that clips it gets no
+     * fit at all. Only a ring that would overflow — in practice, on a narrow screen — moves.
+     */
+    --kui-ring-radius: min(var(--kui-ring-wanted), var(--kui-ring-fit, var(--kui-ring-wanted)));
 
     /*
      * Placement. The order of these three functions is load-bearing and is not interchangeable.

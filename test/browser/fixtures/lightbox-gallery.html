@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — lightbox-gallery fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. The row, the dialog and its controls are the library's. */
+      body { margin: 0; padding: 16px; background: #14110f; color: #f5efe8; font-family: system-ui, sans-serif; }
+      #row { display: flex; flex-wrap: wrap; gap: 12px; }
+      #row img { width: 120px; height: 80px; object-fit: cover; }
+    </style>
+  </head>
+  <body>
+    <div id="row" data-kui="lightbox media:mixed">
+      <a href="../../../demo/assets/spotted-shirt.jpg"><img src="../../../demo/assets/spotted-shirt.jpg" alt="Shirt" /></a>
+      <a href="../../../demo/assets/webdesign/woodnest-cabin-booking.webm"><img src="../../../demo/assets/yellow_mc.jpg" alt="Cabin booking" /></a>
+      <a href="../../../demo/assets/webdesign/iris-ai-motion.webm">Iris motion</a>
+      <a href="../../../demo/assets/black-cover.jpg"><img src="../../../demo/assets/black-cover.jpg" alt="Cover" /></a>
+    </div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

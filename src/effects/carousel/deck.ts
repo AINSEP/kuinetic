@@ -197,6 +197,21 @@ export interface DeckLayout {
   measure: boolean
   /** Attributes the shape publishes on the host, so its selectors can branch on parameters. */
   hostAttributes?: Record<string, string>
+  /**
+   * Anything else the shape keeps current on the host, handed the deck's own host style ledger.
+   *
+   * The ledger rather than a second one of the shape's own: a second ledger over the host would
+   * snapshot the deck's writes as the author's and "restore" to them (`LedgerSet` in
+   * `core/owned-styles.ts`). `render` runs after every full render — never per spin frame — with
+   * the slides it rendered; `release` runs before the host's styles are given back.
+   */
+  attach?(styles: StyleLedger): DeckAttachment
+}
+
+/** What {@link DeckLayout.attach} returns. */
+export interface DeckAttachment {
+  render(nodes: readonly Element[], count: number): void
+  release: Cleanup
 }
 
 /** Every per-slot ledger this instance has ever written, so teardown gives each element back. */
@@ -299,6 +314,7 @@ export function prepareSpatialDeck(
   const hostStyles = createStyleLedger(el)
   for (const [name, value] of Object.entries(layout.hostAttributes ?? {})) hostAttributes.set(name, value)
   const slots: SlotLedgers = { attributes: new Map() }
+  const attachment = layout.attach?.(hostStyles)
 
   /*
    * The deck's position, in places, as a real number. The integer index everything else keys off is
@@ -373,6 +389,7 @@ export function prepareSpatialDeck(
     if (layout.measure) measureItem(hostStyles, nodes)
     markFaces(nodes, count, drift)
     settleWrapped(nodes, count)
+    attachment?.render(nodes, count)
     rendered = { step, count, nodes }
   }
 
@@ -483,6 +500,7 @@ export function prepareSpatialDeck(
     for (const ledger of slots.attributes.values()) ledger.restore()
     pauseControls.clear()
     slots.attributes.clear()
+    attachment?.release()
     hostAttributes.restore()
     hostStyles.restore()
   }

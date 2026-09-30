@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **304** named effects, **46 primitive families** — the table below enumerates all 46,
+**Counts:** **305** named effects, **46 primitive families** — the table below enumerates all 46,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -18,7 +18,7 @@ family like `reveal` registers a few sibling primitives so that channel-conflict
 **Out of scope:** WebGL/particle rendering — canvas-based effects are supported only through an
 adapter that drives a user-supplied canvas, never as a built-in renderer.
 
-Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate thirteen-name group,
+Gestures and physics (drag, swipe, long-press, magnetic pull) are a separate fourteen-name group,
 outside the lettered A–T sections below — see [Gestures & physics](#gestures-physics) at the end
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
@@ -1013,6 +1013,14 @@ Primitives 14, 22, 38, 46.
 > arrangement where neighbours just touch — from the measured width of the first slide. Set it
 > (`radius:340px`) when you want a specific one. Nothing else needs solving by hand.
 >
+> **`radius:` is a ceiling, not a promise.** A ring whose cards would reach past the page — a
+> `radius:200px` ring on a phone, a wide concave ring on a laptop — shrinks to the largest radius at
+> which every card, at every angle it can turn to, stays inside the page, and grows back when the
+> page widens. A ring that already fits keeps its radius to the pixel. The ring fits the nearest
+> ancestor that scrolls sideways (`overflow-x: auto` or `scroll`), or else the page. Under an
+> ancestor with `overflow-x: clip` or `hidden` it is not fitted at all: clipping is how you say the
+> ring should bleed past that edge and be cut, and it keeps the radius it asked for.
+>
 > **`arc:` is how much of a turn the slides spread over.** `360deg` is a full ring, which is the
 > default for the outward-facing names; anything less is a slice.
 >
@@ -1039,7 +1047,9 @@ Primitives 14, 22, 38, 46.
 > The container is draggable by default (`grab:false` turns the gesture off; the keyboard stays).
 > A drag moves the ring *between* two slides rather than a whole card at a time, throws with the
 > momentum you let go with, and always settles facing a slide. `travel:` is how many pointer pixels
-> move it one place — 220 by default. A drag that started on a link does not follow it.
+> move it one place — 220 by default. A drag that started on a link does not follow it, and a drag
+> selects no text: from the moment a press becomes a drag until the release, the page is
+> `user-select: none` (your own value comes back afterwards).
 >
 > Arrow keys (both axes), Page Up/Down, Home and End all step the ring, and the container is given
 > `tabindex="0"` unless you set one yourself. **Labelling is yours**: the library invents no ARIA
@@ -1284,8 +1294,10 @@ Primitives 1, 10, 15.
 > that only chose between two transforms would not be doing anything the stylesheet was not.
 >
 > **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
-> no autoplay, no swipe. Section H states the same line for `accordion-height`, and a second name
-> does not move it. Pair it with `swipe-x` from the gestures group for touch. For a carousel that
+> no autoplay, no swipe of its own. Section H states the same line for `accordion-height`, and a
+> second name does not move it. For touch, put `swipe-x` (or `swipe-y` for a vertical deck) from
+> the gestures group on the deck's wrapper: the deck steps itself on the wrapper's swipe — left or
+> up for next, right or down for previous — with no page script. For a carousel that
 > owns controls and accessibility behavior, use the showcase names in section T.
 
 > **`step-progress`** is the click-driven half of the step pair — it advances its own index on
@@ -1543,7 +1555,11 @@ need to track.
 
 > **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
 > captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
-> from a real link. Modified clicks keep the link's normal browser behavior.
+> from a real link. Every trigger under one `data-kui` is one gallery: prev/next buttons and the
+> arrow/Home/End keys move through it without closing the viewer. `media:mixed` puts images and
+> videos in the same gallery — a link to a playable video is a video, anything else holding an
+> image is an image. A native video pauses when you leave it and resumes when you come back; an
+> embed stops when you leave it. Modified clicks keep the link's normal browser behavior.
 >
 > ```html
 > <div data-kui="lightbox">
@@ -1552,13 +1568,22 @@ need to track.
 > <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" data-kui="video-lightbox">
 >   Watch the walkthrough
 > </a>
+> <!-- One gallery: image, video, image. target: names the items when the row holds other links. -->
+> <div data-kui="lightbox media:mixed target:.item">
+>   <a class="item" href="full.jpg"><img src="thumb.jpg" alt="Dashboard"></a>
+>   <a class="item" href="https://youtu.be/dQw4w9WgXcQ"><img src="poster.jpg" alt="Walkthrough"></a>
+>   <a class="item" href="demo.mp4"><img src="demo-poster.jpg" alt="Live demo"></a>
+> </div>
 > ```
 >
-> **Params:** `target:` selects triggers (default: linked images or bare images for `lightbox`,
-> links for `video-lightbox`); `scope:self|page`, `scale:` (default `0.965`), `duration:` (default
-> `280ms`), `ease:`; image galleries accept `loop:false` and `caption:figcaption|alt|title|none`
-> (default `figcaption`, falling back to `alt`), and video accepts
-> `aspect:wide|tall|square` (YouTube Shorts default to tall).
+> **Params:** `media:image|video|mixed` (set by the preset; `mixed` on `lightbox` joins both);
+> `target:` selects triggers (default: linked images or bare images for `lightbox`, links for
+> `video-lightbox`, both for `media:mixed`); `scope:self|page`, `scale:` (default `0.965`),
+> `duration:` (default `280ms`), `ease:`, `loop:false` (hold at the ends), and
+> `caption:figcaption|alt|title|none` (default `figcaption`, falling back to `alt`; `none` on
+> `video-lightbox`). Video accepts `aspect:wide|tall|square` (YouTube Shorts default to tall).
+> A focused native player keeps its own arrow keys for seeking, and keys pressed inside an embed
+> stay in the embed; the prev/next buttons still move on.
 >
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
@@ -1686,7 +1711,7 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **304** |
+| **Total shipped** | **305** |
 | Documented but not yet shipped | 3 |
 
 Registry renderer split: **165 `css-keyframes`** · **139 `javascript`** (including setup-only widgets).
@@ -1697,15 +1722,38 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 
 ## Gestures & physics
 
-Thirteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
+Fourteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
 outside the lettered A–T sections above. `js`.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
-`snap-back` · `swipe` · `swipe-x` · `long-press` · `magnetic` · `magnetic-snap`
+`snap-back` · `swipe` · `swipe-x` · `swipe-y` · `long-press` · `magnetic` · `magnetic-snap`
 
 > The drag family differs only in what happens on release: nothing (`drag`), back to origin
 > (`elastic-pull`, `rubber-band`, `snap-back` — spring stiffness varies), or onward with
 > momentum (`drag-inertia`, `throwable`). One primitive, several parameter presets.
+>
+> `swipe` publishes the direction of a flick as `data-kui-swipe="left|right|up|down"`; `swipe-x`
+> reports only left/right and `swipe-y` only up/down. The two axis-locked names also write
+> `touch-action` on their own element — `pan-y pinch-zoom` for `swipe-x`, `pan-x pinch-zoom` for
+> `swipe-y` — so a phone hands the swipe's axis to the page and keeps the other one for scrolling.
+> A finger that starts on a `swipe-y` deck swipes it instead of scrolling the page; everywhere else
+> the page scrolls as before, and teardown puts any authored `touch-action` back. `swipe` (both
+> axes) leaves `touch-action` alone. Both are opt-in: a vertical deck without `swipe-y` never
+> intercepts a scroll.
+>
+> ```html
+> <section data-kui="swipe-y">
+>   <div data-kui="carousel target:.slide">…</div>
+> </section>
+> ```
+>
+> A swipe name and `carousel` both write element state, so they cannot share one element; put the
+> swipe on the deck's wrapper. The `carousel` inside it steps by itself: a flick left or up is
+> next, right or down is previous. Only the outermost deck inside the wrapper steps — a gallery
+> nested in one of its slides does not move with it. Every swipe also dispatches a bubbling
+> `kui:swipe` event on the swipe's element, with `event.detail.direction` set to `left`, `right`,
+> `up` or `down`, for a page that drives something else from it; `data-kui-swipe` is still published
+> for CSS.
 
 ---
 

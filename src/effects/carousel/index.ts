@@ -10,6 +10,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { DECK_PARAMETERS, prepareSpatialDeck } from './deck.js'
+import { createRingFit } from './fit.js'
 import type { Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
 
@@ -222,6 +223,10 @@ const RING_PARAMETERS: ParameterSchema = {
    *
    * The width half of that has to come from JavaScript: CSS can compute with a measurement but
    * cannot take one. See `measureItem` in `deck.ts`.
+   *
+   * Authored or derived, a depth ring's radius is a ceiling: a ring that would push its page
+   * sideways is pulled in exactly as far as it has to be (`fit.ts`, `--kui-ring-fit`), and one that
+   * already fits — or sits inside an ancestor that clips it — keeps this radius to the pixel.
    */
   radius: { type: 'length', default: '', cssProperty: '--kui-radius' },
   /** Breathing room between neighbours, spent by the derived radius above. */
@@ -319,6 +324,23 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
       'data-kui-ring-facing': params.text('facing', 'radial'),
       'data-kui-ring-plane': plane,
     },
+    /*
+     * The fit to the page (`fit.ts`). Depth plane only: a flat ring already reserves and clamps to
+     * its own square (`carousel.css`, `[data-kui-ring-plane='screen']`), and its cards never leave
+     * the plane that square is measured in.
+     */
+    attach:
+      plane === 'depth'
+        ? (styles) =>
+            createRingFit({
+              el,
+              ctx,
+              styles,
+              arcDeg,
+              tiltParamDeg: degreesOf(params.text('tilt', '0deg'), 0),
+              facing: params.text('facing', 'radial') === 'camera' ? 'camera' : 'radial',
+            })
+        : undefined,
   })
 }
 

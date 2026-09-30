@@ -1,5 +1,7 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { recognise } from '../../core/gesture.js'
+import { createStyleLedger } from '../../core/owned-styles.js'
+import type { StyleLedger } from '../../core/owned-styles.js'
 import type { Cleanup } from '../../core/types.js'
 
 /**
@@ -158,6 +160,51 @@ const KEY_DELTAS: Record<string, number | null> = {
 }
 
 /**
+ * Text selection, held off for the length of one drag.
+ *
+ * A mouse press on a card's text starts a native selection before the drag threshold is crossed,
+ * and the drag then paints the card, and everything the pointer sweeps past, blue. The ring cannot
+ * `preventDefault` the press — it does not yet know the press is a drag, and a press that turns out
+ * to be a click must still focus and follow what it landed on. So the selection is undone once the
+ * gesture *is* a drag: the half-made selection is cleared, and `user-select: none` goes on the root
+ * (not the host — the pointer leaves the ring mid-drag and the selection would carry on into the
+ * page around it) until the release, through a ledger that puts back whatever the page had there.
+ *
+ * Nothing changes before the threshold or after the release, so clicks, focus and keyboard use,
+ * and selecting a card's text on purpose with a still press, all behave as authored.
+ */
+interface SelectionHold {
+  hold(): void
+  release(): void
+}
+
+function holdSelection(doc: Document): SelectionHold {
+  let ledger: StyleLedger | undefined
+  const release = (): void => {
+    ledger?.restore()
+    ledger = undefined
+  }
+  return {
+    hold() {
+      // Never two ledgers at once: a second would remember the first's `none` as the page's value.
+      release()
+      doc.getSelection()?.removeAllRanges()
+      ledger = createStyleLedger(doc.documentElement)
+      /*
+       * Safari still reads only the prefixed name, and Chrome aliases the two: writing one changes
+       * what the other reads. Both are remembered before either is written, or the second would
+       * record the first's `none` as the page's own value and restore the page unselectable.
+       */
+      ledger.claim('user-select')
+      ledger.claim('-webkit-user-select')
+      ledger.set('user-select', 'none')
+      ledger.set('-webkit-user-select', 'none')
+    },
+    release,
+  }
+}
+
+/**
  * Install the grab and the keyboard on a ring.
  *
  * @returns Teardown for every listener and attribute this installs.
@@ -198,18 +245,22 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
    */
   let dragFrom = 0
 
+  const selection = holdSelection(el.ownerDocument)
+
   const stopRecognising = enabled
     ? recognise(
         el,
         {
           onStart() {
             dragFrom = positionOf()
+            selection.hold()
             setDragging(true)
           },
           onMove(vector) {
             moveTo(dragFrom - vector.dx / travelPx)
           },
           onEnd(vector) {
+            selection.release()
             setDragging(false)
             suppressClick = true
             const settled = snapTo(projectRelease(positionOf(), vector.vx, travelPx))
@@ -273,6 +324,8 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
 
   return () => {
     stopRecognising()
+    // A teardown mid-drag gets no `onEnd`; the page must not be left unselectable.
+    selection.release()
     el.removeEventListener('keydown', onKeyDown)
     el.removeEventListener('click', onClickCapture, true)
     // Only ever removed when this instance added it, which is the same rule the attribute ledgers

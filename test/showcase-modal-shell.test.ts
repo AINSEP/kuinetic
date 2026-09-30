@@ -67,7 +67,7 @@ describe('shared modal shell', () => {
     const gallery = document.createElement('div')
     gallery.className = 'kui-lightbox-gallery'
     gallery.innerHTML = '<figure><img src="/a.png" alt="A"></figure><button>Next</button>'
-    shell.open(content('Gallery', gallery))
+    shell.open({ ...content('Gallery', gallery), inside: (target) => target.closest('img, button') !== null })
     const dialog = document.querySelector('dialog')!
     gallery.querySelector('img')!.click()
     gallery.querySelector('button')!.click()
@@ -76,6 +76,19 @@ describe('shared modal shell', () => {
     expect(dialog.classList.contains('is-open')).toBe(false)
     vi.advanceTimersByTime(20)
     expect(dialog.hasAttribute('open')).toBe(false)
+    shell.release()
+  })
+
+  it('keeps content without an inside hook open on any click within its node', () => {
+    const shell = acquireModalShell(document)
+    const node = document.createElement('div')
+    node.innerHTML = '<p>Text</p>'
+    shell.open(content('Plain', node))
+    const dialog = document.querySelector('dialog')!
+    node.querySelector('p')!.click()
+    expect(dialog.classList.contains('is-open')).toBe(true)
+    dialog.click()
+    expect(dialog.classList.contains('is-open')).toBe(false)
     shell.release()
   })
 })

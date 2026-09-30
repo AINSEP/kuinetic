@@ -42,10 +42,10 @@ function plan(attribute: string) {
 }
 
 describe('every gesture preset declares phase: state', () => {
-  it('covers all thirteen names — a name added here without a phase silently reopens the bug', () => {
+  it('covers all fourteen names — a name added here without a phase silently reopens the bug', () => {
     expect(GESTURE_NAMES).toEqual([
       'drag', 'drag-x', 'drag-y', 'drag-inertia', 'throwable', 'elastic-pull', 'rubber-band',
-      'snap-back', 'swipe', 'swipe-x', 'long-press', 'magnetic', 'magnetic-snap',
+      'snap-back', 'swipe', 'swipe-x', 'swipe-y', 'long-press', 'magnetic', 'magnetic-snap',
     ])
   })
 

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — swipe-y-touch fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only: a tall page so there is something to scroll, and two vertical decks. */
+      body { margin: 0; padding: 16px; background: #14110f; color: #f5efe8; font-family: system-ui, sans-serif; }
+      .deck { height: 320px; margin-block: 24px; display: grid; place-items: center; background: #2a241f; border-radius: 12px; }
+      .filler { height: 2400px; }
+    </style>
+  </head>
+  <body>
+    <p class="lead">A swipe-y deck, a plain vertical deck, and a long page.</p>
+    <!-- carousel and swipe-y both write state, so they sit on nested elements (see docs/catalog.md).
+         No script maps the swipe onto the deck: the library's kui:swipe event does. -->
+    <section id="swiped" class="deck" data-kui="swipe-y"><div id="swiped-deck" data-kui="carousel"><div class="slide">One</div><div class="slide">Two</div></div></section>
+    <section id="plain" class="deck" data-kui="carousel"><div class="slide">One</div><div class="slide">Two</div></section>
+    <section id="authored" class="deck" data-kui="swipe-y" style="touch-action: manipulation">Authored</section>
+    <div class="filler"></div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

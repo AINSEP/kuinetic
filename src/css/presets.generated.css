@@ -1420,6 +1420,10 @@
     --kui-axis: x;
   }
 
+  [data-kui-fx~='swipe-y'] {
+    --kui-axis: y;
+  }
+
   [data-kui-fx~='tab-indicator-slide'] {
     --kui-flip-indicator-duration: 300ms;
     --kui-flip-indicator-delay: 0ms;

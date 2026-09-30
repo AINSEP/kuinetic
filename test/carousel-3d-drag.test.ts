@@ -259,6 +259,56 @@ describe('dragging', () => {
   })
 })
 
+describe('text selection during a drag', () => {
+  const root = (): CSSStyleDeclaration => document.documentElement.style
+
+  afterEach(() => {
+    document.documentElement.removeAttribute('style')
+  })
+
+  it('clears a half-made selection and holds selection off the page only while dragging', () => {
+    const { host, instance } = mount({ target: '.slide', travel: '200' })
+    const clear = vi.spyOn(document.getSelection()!, 'removeAllRanges')
+    host.dispatchEvent(pointer('pointerdown', 0))
+    // Below the threshold it is still a press that may become a click or a deliberate selection.
+    host.dispatchEvent(pointer('pointermove', -3))
+    expect(root().getPropertyValue('user-select')).toBe('')
+    expect(clear).not.toHaveBeenCalled()
+    host.dispatchEvent(pointer('pointermove', -80))
+    expect(root().getPropertyValue('user-select')).toBe('none')
+    expect(clear).toHaveBeenCalledOnce()
+    host.dispatchEvent(pointer('pointermove', -120))
+    expect(clear).toHaveBeenCalledOnce()
+    host.dispatchEvent(pointer('pointerup', -120))
+    expect(root().getPropertyValue('user-select')).toBe('')
+    expect(document.documentElement.hasAttribute('style')).toBe(false)
+    instance.destroy()
+  })
+
+  it('puts back a page\'s own user-select, after a drag and after a teardown mid-drag', () => {
+    root().setProperty('user-select', 'text')
+    const { host, instance } = mount({ target: '.slide', travel: '200' })
+    host.dispatchEvent(pointer('pointerdown', 0))
+    host.dispatchEvent(pointer('pointermove', -80))
+    host.dispatchEvent(pointer('pointerup', -80))
+    expect(root().getPropertyValue('user-select')).toBe('text')
+    host.dispatchEvent(pointer('pointerdown', 0))
+    host.dispatchEvent(pointer('pointermove', -80))
+    expect(root().getPropertyValue('user-select')).toBe('none')
+    instance.destroy()
+    expect(root().getPropertyValue('user-select')).toBe('text')
+  })
+
+  it('leaves selection alone for a press and for the keyboard', () => {
+    const { host, instance } = mount({ target: '.slide' })
+    host.dispatchEvent(pointer('pointerdown', 0))
+    host.dispatchEvent(pointer('pointerup', 0))
+    press(host, 'ArrowRight')
+    expect(document.documentElement.hasAttribute('style')).toBe(false)
+    instance.destroy()
+  })
+})
+
 describe('keyboard', () => {
   it('steps the ring on both axes, and wraps in both directions', () => {
     const { host, instance } = mount({ target: '.slide' })

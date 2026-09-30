@@ -10,6 +10,11 @@ export interface ModalContent {
   reducedMotion: boolean
   onKey?: (event: KeyboardEvent) => void
   onClose?: () => void
+  /**
+   * Whether a click on `target` lands on the content and keeps the viewer open. Omitted, anything
+   * inside the content node counts; a viewer whose node fills the screen narrows it to its media.
+   */
+  inside?: (target: Element) => boolean
 }
 
 export interface ModalShell {
@@ -74,11 +79,9 @@ function dismiss(state: ShellState): void {
 }
 
 function clickedOutside(state: ShellState, target: Element): boolean {
-  const content = state.current!.node
-  if (content.classList.contains('kui-lightbox-gallery')) {
-    return !content.contains(target) || (!target.matches('img') && !target.closest('button'))
-  }
-  return !content.contains(target) && !target.closest('button')
+  const { node, inside } = state.current!
+  if (inside) return !inside(target)
+  return !node.contains(target) && !target.closest('button')
 }
 
 function forceReflow(element: HTMLElement): number {

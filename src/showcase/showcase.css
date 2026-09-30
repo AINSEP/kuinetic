@@ -599,8 +599,8 @@
   dialog.kui-lightbox[open].is-open { opacity: 1; }
   dialog.kui-lightbox[open].is-open::backdrop { opacity: 1; }
   .kui-lightbox-slot { display: contents; }
-  .kui-lightbox-gallery,
-  .kui-lightbox-frame {
+  /* Every viewer is a gallery, a video frame included, so only the gallery animates the open. */
+  .kui-lightbox-gallery {
     opacity: 0;
     scale: var(--kui-from-scale, 0.965);
     translate: 0 8px;
@@ -611,8 +611,7 @@
   }
   /* Settle on `none`, not `1` / `0 0`: any other value keeps the gallery the containing block of its
      fixed prev/next buttons. */
-  .kui-lightbox.is-open .kui-lightbox-gallery,
-  .kui-lightbox.is-open .kui-lightbox-frame { opacity: 1; scale: none; translate: none; }
+  .kui-lightbox.is-open .kui-lightbox-gallery { opacity: 1; scale: none; translate: none; }
   .kui-lightbox-gallery { display: grid; place-items: center; gap: 0.75rem; }
   .kui-lightbox-gallery figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
   .kui-lightbox-gallery img { display: block; border-radius: 10px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #0b0c0d; }
@@ -642,10 +641,8 @@
   .kui-lightbox-frame video { display: block; inline-size: 100%; block-size: 100%; border: 0; }
   @media (prefers-reduced-motion: reduce) {
     dialog.kui-lightbox,
-    .kui-lightbox-gallery,
-    .kui-lightbox-frame { transition-duration: 1ms; }
-    .kui-lightbox-gallery,
-    .kui-lightbox-frame { scale: none; translate: none; }
+    .kui-lightbox-gallery { transition-duration: 1ms; }
+    .kui-lightbox-gallery { scale: none; translate: none; }
     [data-kui-fx~='scroll-story'] > :first-child [data-kui-step-state],
     [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] { transition-duration: 1ms; }
   }

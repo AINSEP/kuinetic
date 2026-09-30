@@ -83,3 +83,26 @@ describe('the rules that suspend the transition', () => {
     expect(css).toMatch(/transition-property: transform, opacity, filter, z-index, visibility;/)
   })
 })
+
+describe('a depth ring’s radius is capped by its fit to the page', () => {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const block = (selector: string): string => {
+    const start = bare.indexOf(selector)
+    expect(start).toBeGreaterThanOrEqual(0)
+    return bare.slice(start, bare.indexOf('}', start))
+  }
+
+  it('resets the fit on every ring host, so a nested ring never inherits an outer ring’s cap', () => {
+    const host = block("[data-kui-fx~='carousel-3d'],")
+    for (const name of deckNames('spatial-ring')) expect(host).toContain(`[data-kui-fx~='${name}']`)
+    expect(host).toContain('--kui-ring-fit: initial;')
+    // The fit replaced a size container; no host may become one again (it resized content-sized hosts).
+    expect(host).not.toContain('container-type')
+  })
+
+  it('takes the smaller of the wanted radius and the fit, and the wanted one when there is no fit', () => {
+    const slot = block("[data-kui-fx~='carousel-3d'] [data-kui-step-offset],")
+    expect(slot).toMatch(/--kui-ring-wanted: var\(\s*--kui-radius,/)
+    expect(slot).toContain('--kui-ring-radius: min(var(--kui-ring-wanted), var(--kui-ring-fit, var(--kui-ring-wanted)));')
+  })
+})

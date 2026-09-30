@@ -43,7 +43,7 @@ import { GESTURE_PRIMITIVES } from './primitives.js'
  *   there via the same inline style until the next drag picks it up again. None of that is an
  *   `entrance`: there is no hidden from-state and no `cloak`, just an idle rest value between
  *   gestures.
- * - `swipeable` (`swipe`, `swipe-x`) and `pressable` (`long-press`) claim the primitive-level
+ * - `swipeable` (`swipe`, `swipe-x`, `swipe-y`) and `pressable` (`long-press`) claim the primitive-level
  *   `'state'` *channel* (a bucket for "writes an attribute, not a CSS property" — see
  *   `gestures/primitives.ts`'s `channels: ['state']` — a name that collides with this same-named
  *   `EffectPhase` value only in spelling, not in meaning). `long-press` is the clean case: it
@@ -93,6 +93,7 @@ export const GESTURE_PRESETS: Preset[] = [
 
   { name: 'swipe', primitive: 'swipeable', phase: 'state' },
   { name: 'swipe-x', primitive: 'swipeable', params: { axis: 'x' }, phase: 'state' },
+  { name: 'swipe-y', primitive: 'swipeable', params: { axis: 'y' }, phase: 'state' },
 
   { name: 'long-press', primitive: 'pressable', phase: 'state' },
 

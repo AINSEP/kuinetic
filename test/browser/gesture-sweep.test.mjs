@@ -159,7 +159,7 @@ export async function run({ browser }) {
     )
   }
 
-  // --- swipe, and the axis filter on swipe-x ---------------------------------------------------
+  // --- swipe, and the axis filter on swipe-x / swipe-y ---------------------------------------------------
   async function flick(id, dx, dy) {
     await focus(page, id)
     const box = await page.locator(`#${id}`).boundingBox()
@@ -188,6 +188,14 @@ export async function run({ browser }) {
     'swipe-x ignores a vertical flick rather than reporting it',
     verticalOnX !== 'up' && verticalOnX !== 'down',
     `data-kui-swipe=${verticalOnX}`,
+  )
+
+  check('swipe-y reports vertical flicks', (await flick('swipe-y', 0, -160)) === 'up', '')
+  const horizontalOnY = await flick('swipe-y', 160, 0)
+  check(
+    'swipe-y ignores a horizontal flick rather than reporting it',
+    horizontalOnY !== 'left' && horizontalOnY !== 'right',
+    `data-kui-swipe=${horizontalOnY}`,
   )
 
   // --- long-press: the timing is the contract ---------------------------------------------------

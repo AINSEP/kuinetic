@@ -33,6 +33,7 @@
 
   [data-kui-fx~='video-lightbox'] {
     --kui-lightbox-media: video;
+    --kui-lightbox-caption: none;
     --kui-lightbox-duration: 280ms;
     --kui-lightbox-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }

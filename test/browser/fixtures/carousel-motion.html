@@ -15,13 +15,12 @@
         font-family: system-ui, sans-serif;
       }
       /*
-       * `overflow-x: clip` for the same reason the showcase's band has it: a depth ring's edge cards
-       * project past a phone's width, and on a mobile viewport content wider than the screen widens
-       * the layout viewport itself — which moves every coordinate a touch is dispatched at.
+       * No `overflow-x: clip`: a depth ring fits its page by itself now (`effects/carousel/fit.ts`),
+       * so nothing here projects past a phone's width. The phone passes check exactly that, with no
+       * clip to hide it. The band below keeps its own clip because the showcase's does.
        */
       section {
         margin-block: 48px;
-        overflow-x: clip;
       }
       .slide {
         width: 120px;
@@ -58,6 +57,12 @@
         height: 162px;
         background: #2a2521;
         border: 1px solid #e4f222;
+      }
+      /* The showcase's phone size for the band's cards. */
+      @media (max-width: 640px) {
+        .ring-band .ring-slot {
+          width: 170px;
+        }
       }
       .deck {
         width: 200px;
