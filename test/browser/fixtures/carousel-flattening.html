@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — carousel-flattening fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. Three identical rings; only where the overflow rule sits differs. */
+      body { margin: 0; padding: 16px; background: #14110f; color: #f5efe8; font-family: system-ui, sans-serif; }
+      .band { margin-block: 24px; padding-block: 24px; }
+      .card { width: 160px; height: 200px; margin: 0; display: grid; place-items: center; background: #d24; font-size: 2rem; }
+    </style>
+  </head>
+  <body>
+    <!-- The catalog's recommended bleed band: overflow: clip on an ancestor. Must render in 3D and stay silent. -->
+    <section class="band" style="overflow: clip">
+      <div id="clip-band" data-kui="carousel-3d target:.card radius:120px">
+        <figure class="card">0</figure><figure class="card">1</figure><figure class="card">2</figure><figure class="card">3</figure><figure class="card">4</figure><figure class="card">5</figure><figure class="card">6</figure><figure class="card">7</figure>
+      </div>
+    </section>
+    <!-- overflow: hidden on an ancestor: a grouping property, but on an element outside the ring's 3D context. -->
+    <section class="band" style="overflow: hidden">
+      <div id="hidden-band" data-kui="carousel-3d target:.card radius:120px">
+        <figure class="card">0</figure><figure class="card">1</figure><figure class="card">2</figure><figure class="card">3</figure><figure class="card">4</figure><figure class="card">5</figure><figure class="card">6</figure><figure class="card">7</figure>
+      </div>
+    </section>
+    <!-- The same rule on the ring's own host flattens it, and is the one case that warns. -->
+    <section class="band">
+      <div id="clipped-host" style="overflow: clip" data-kui="carousel-3d target:.card radius:120px">
+        <figure class="card">0</figure><figure class="card">1</figure><figure class="card">2</figure><figure class="card">3</figure><figure class="card">4</figure><figure class="card">5</figure><figure class="card">6</figure><figure class="card">7</figure>
+      </div>
+    </section>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__warnings = []
+      window.__kui = kuinetic.kuinetic({ reporter: { warn: (message) => window.__warnings.push(String(message)) } }).start()
+    </script>
+  </body>
+</html>

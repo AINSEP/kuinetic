@@ -592,3 +592,114 @@ describe('one gallery across a row of images and videos', () => {
     expect(caption()).toBe('Poster title')
   })
 })
+
+describe('swiping between items on touch', () => {
+  let clock = 0
+  beforeEach(() => {
+    clock = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => clock)
+  })
+
+  const pointer = (type: string, x: number, y: number, pointerType: string): PointerEvent => {
+    const event = new Event(type, { bubbles: true, cancelable: true }) as PointerEvent
+    for (const [name, value] of Object.entries({ clientX: x, clientY: y, pointerId: 1, pointerType })) {
+      Object.defineProperty(event, name, { value })
+    }
+    return event
+  }
+  /** A 120px flick over 48ms from `from` (2500px/s), on `on`, as a finger unless told otherwise. */
+  const flick = (on: Element, dx: number, dy: number, pointerType = 'touch'): void => {
+    on.dispatchEvent(pointer('pointerdown', 200, 200, pointerType))
+    for (let step = 1; step <= 3; step += 1) {
+      clock += 16
+      on.dispatchEvent(pointer('pointermove', 200 + (dx * step) / 3, 200 + (dy * step) / 3, pointerType))
+    }
+    on.dispatchEvent(pointer('pointerup', 200 + dx, 200 + dy, pointerType))
+    clock += 500
+  }
+  const fresh = (): void => {
+    for (const animator of active.splice(0).reverse()) animator.destroy()
+    document.body.replaceChildren()
+  }
+  const counter = (): string => dialog().querySelector('.kui-lightbox-counter')!.textContent!
+  const gallery = (): HTMLElement => dialog().querySelector('.kui-lightbox-gallery')!
+  const row = (params = ''): void => {
+    start(`<div data-kui="lightbox${params}"><a href="/a.jpg"><img src="/a.jpg" alt="A"></a><a href="/b.jpg"><img src="/b.jpg" alt="B"></a><a href="/c.jpg"><img src="/c.jpg" alt="C"></a></div>`)
+    click(document.querySelector('a')!)
+  }
+
+  it('steps forward on a flick left and back on a flick right, from the picture or the space around it', () => {
+    row()
+    flick(dialog().querySelector('figure img')!, -120, 0)
+    expect(counter()).toBe('2 of 3')
+    flick(gallery(), -120, 0)
+    expect(counter()).toBe('3 of 3')
+    flick(gallery(), 120, 0)
+    expect(counter()).toBe('2 of 3')
+  })
+
+  it('wraps at the ends by default and stops there under loop:false', () => {
+    row()
+    flick(gallery(), 120, 0)
+    expect(counter()).toBe('3 of 3')
+    fresh()
+    row(' loop:false')
+    flick(gallery(), 120, 0)
+    expect(counter()).toBe('1 of 3')
+    flick(gallery(), -120, 0)
+    flick(gallery(), -120, 0)
+    flick(gallery(), -120, 0)
+    expect(counter()).toBe('3 of 3')
+  })
+
+  it('does nothing on a vertical flick, a mouse drag, or a press on a native player', () => {
+    row()
+    flick(gallery(), 0, -120)
+    expect(counter()).toBe('1 of 3')
+    flick(gallery(), 10, 120)
+    expect(counter()).toBe('1 of 3')
+    flick(gallery(), -120, 0, 'mouse')
+    expect(counter()).toBe('1 of 3')
+    fresh()
+    start('<div data-kui="video-lightbox"><a href="/a.mp4">A</a><a href="/b.mp4">B</a></div>')
+    click(document.querySelector('a')!)
+    // A sideways drag on the player is the timeline being scrubbed.
+    flick(dialog().querySelector('video')!, -120, 0)
+    expect(counter()).toBe('1 of 2')
+    flick(gallery(), -120, 0)
+    expect(counter()).toBe('2 of 2')
+  })
+
+  it('claims horizontal pans only in a gallery of several items', () => {
+    start('<a data-kui="lightbox" href="/one.jpg"><img src="/one.jpg" alt="One"></a>')
+    click(document.querySelector('a')!)
+    expect(gallery().classList.contains('is-swipeable')).toBe(false)
+    fresh()
+    row()
+    expect(gallery().classList.contains('is-swipeable')).toBe(true)
+    expect(ruleBodies(showcaseCss, '.kui-lightbox-gallery.is-swipeable')[0]).toContain('touch-action: pan-y pinch-zoom;')
+  })
+
+  it('hands pans back to the page while it is pinch-zoomed, and lets go of the viewport on close', () => {
+    const viewport = Object.assign(new EventTarget(), { scale: 1 })
+    const remove = vi.spyOn(viewport, 'removeEventListener')
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: viewport })
+    try {
+      row()
+      viewport.scale = 2
+      viewport.dispatchEvent(new Event('resize'))
+      expect(gallery().classList.contains('is-swipeable')).toBe(false)
+      flick(gallery(), -120, 0)
+      expect(counter()).toBe('1 of 3')
+      viewport.scale = 1
+      viewport.dispatchEvent(new Event('resize'))
+      expect(gallery().classList.contains('is-swipeable')).toBe(true)
+      flick(gallery(), -120, 0)
+      expect(counter()).toBe('2 of 3')
+      dialog().close()
+      expect(remove).toHaveBeenCalledWith('resize', expect.any(Function))
+    } finally {
+      Reflect.deleteProperty(window, 'visualViewport')
+    }
+  })
+})

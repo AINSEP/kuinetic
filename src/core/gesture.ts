@@ -62,6 +62,16 @@ export interface GestureOptions {
    * the swipe is never reported. A drag is not a click, so retargeting after it costs nothing.
    */
   capturePointer?: boolean | 'drag'
+  /**
+   * Whether a press may start a gesture at all. Omitted, every press does. Checked on
+   * `pointerdown` only; a refused press is ignored to its release, as if it had happened elsewhere.
+   *
+   * For a surface with a native control inside it that owns its own drags: a lightbox gallery
+   * refuses presses on a `<video>`, whose timeline scrubs sideways exactly like a swipe, and
+   * refuses a mouse, whose drags there are text selection. The alternative, a listener that stops
+   * the press from propagating, would hide it from every other listener on the page too.
+   */
+  accept?(event: PointerEvent): boolean
 }
 
 export interface GestureDeps {
@@ -174,6 +184,10 @@ export function recognise(
   }
 
   function onDown(event: PointerEvent): void {
+    if (options.accept && !options.accept(event)) {
+      origin = null
+      return
+    }
     origin = sampleOf(event)
     samples = [origin]
     active = false

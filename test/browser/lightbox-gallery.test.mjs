@@ -5,7 +5,8 @@ import { createChecker } from '../../scripts/browser-harness.mjs'
  * A mixed row (`lightbox media:mixed`) as one gallery, in a real renderer with real media. The unit
  * tests stub `play()`/`pause()` — jsdom implements neither — so only here can a test see a native
  * player actually play on landing, actually stop when left, and resume where it stopped rather than
- * restart. Checked at desktop and again at 390px, where the controls and the frame must fit.
+ * restart. Checked at desktop and again at 390px, where the controls and the frame must fit; on
+ * two short screens, where every item must fit with its caption and counter; and with real touches.
  */
 export const name = 'lightbox-gallery'
 
@@ -72,6 +73,107 @@ async function checkCycle(page, check, label) {
   check(`${label}: closing stops every player the gallery kept`, stopped)
 }
 
+/**
+ * A touch drag through the compositor, as `swipe-y-touch.test.mjs` does, in five moves. CDP paces
+ * each move at 15-60ms, so a ten-move 135px drag lands near the recogniser's 300px/s floor and
+ * passed or failed by scheduling; five moves over 300px is unambiguously a flick.
+ */
+async function touchDrag(page, from, to) {
+  const cdp = await page.context().newCDPSession(page)
+  const at = (t) => [{ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, id: 1 }]
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(0) })
+  for (let step = 1; step <= 5; step += 1) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(step / 5) })
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+  await page.waitForTimeout(300)
+}
+
+/**
+ * Swipe between items on a phone. The gallery listens on its whole box, so a flick on the empty
+ * space above the media counts; a flick that starts on a native player does not, because that is
+ * the player's timeline being scrubbed.
+ */
+async function checkSwipe(browser, check) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const page = await context.newPage()
+  await page.goto(FIXTURE_URL)
+  await page.waitForFunction(() => window.__kui !== undefined && document.querySelector('#row img[role]') === null)
+  await page.tap('#row a >> nth=0')
+  await page.waitForSelector('dialog.kui-lightbox.is-open')
+  await page.waitForTimeout(400)
+
+  const action = await page.evaluate(() => getComputedStyle(document.querySelector('.kui-lightbox-gallery')).touchAction)
+  check('swipe: the gallery hands the browser vertical pans only', action === 'pan-y pinch-zoom', action)
+
+  // Above the picture: the gallery's own space, not the media.
+  const space = { x: 345, y: 90 }
+  const left = { x: 45, y: 90 }
+  await touchDrag(page, space, left)
+  check('swipe: a flick left shows the next item', (await counter(page)) === '2 of 4', await counter(page))
+  await touchDrag(page, left, space)
+  check('swipe: a flick right shows the previous one', (await counter(page)) === '1 of 4', await counter(page))
+  await touchDrag(page, left, space)
+  check('swipe: loop: wraps a flick right from the first item to the last', (await counter(page)) === '4 of 4', await counter(page))
+  await touchDrag(page, { x: 195, y: 600 }, { x: 195, y: 200 })
+  check('swipe: a vertical flick is not a step', (await counter(page)) === '4 of 4', await counter(page))
+
+  await page.keyboard.press('Home')
+  await page.keyboard.press('ArrowRight')
+  const player = await page.evaluate(() => {
+    const box = document.querySelector('dialog.kui-lightbox figure video').getBoundingClientRect()
+    return { x: box.left + box.width / 2, y: box.bottom - 12 }
+  })
+  await touchDrag(page, { x: player.x - 150, y: player.y }, { x: player.x + 150, y: player.y })
+  check('swipe: a sideways drag along the native player stays with the player', (await counter(page)) === '2 of 4', await counter(page))
+  await context.close()
+}
+
+/**
+ * On a short screen every item fits: the media shrinks to what the caption and the counter leave,
+ * keeping its aspect ratio, and nothing scrolls. 1440×723 is the size that cut a video off.
+ */
+async function checkShortScreen(browser, check) {
+  for (const viewport of [{ width: 1440, height: 723 }, { width: 844, height: 390 }]) {
+    const context = await browser.newContext({ viewport })
+    const page = await context.newPage()
+    await page.goto(FIXTURE_URL)
+    await page.waitForFunction(() => window.__kui !== undefined && document.querySelector('#row img[role]') === null)
+    await page.click('#row a >> nth=0')
+    await page.waitForSelector('dialog.kui-lightbox.is-open')
+    for (let item = 0; item < 4; item += 1) {
+      await page.waitForFunction(() => {
+        const media = document.querySelector('dialog.kui-lightbox figure > img, dialog.kui-lightbox .kui-lightbox-frame video')
+        return media && (media.localName === 'video' ? media.readyState > 0 : media.complete && media.naturalWidth > 0)
+      })
+      await page.waitForTimeout(350)
+      const fit = await page.evaluate(() => {
+        const media = document.querySelector('dialog.kui-lightbox figure > img, dialog.kui-lightbox .kui-lightbox-frame video')
+        const box = media.getBoundingClientRect()
+        const counterBox = document.querySelector('.kui-lightbox-counter').getBoundingClientRect()
+        const caption = document.querySelector('dialog.kui-lightbox figcaption')
+        const lowest = Math.max(counterBox.bottom, caption.hidden ? 0 : caption.getBoundingClientRect().bottom)
+        const natural = media.localName === 'video' ? 16 / 9 : media.naturalWidth / media.naturalHeight
+        return { item: document.querySelector('.kui-lightbox-counter').textContent, kind: media.localName, tall: media.classList.contains('is-tall'),
+          top: Math.round(box.top), bottom: Math.round(lowest), height: innerHeight,
+          ratio: +(box.width / box.height).toFixed(3), natural: +natural.toFixed(3),
+          scrolls: document.querySelector('dialog.kui-lightbox').scrollHeight > innerHeight + 1 }
+      })
+      // A picture taller than 3:2 portrait (`is-tall`, the fixture's last) is read by scrolling, by
+      // design; it must start at the top, where the scroll does reach it.
+      if (fit.tall) check(`short screen ${viewport.width}x${viewport.height}, ${fit.item}: a tall picture scrolls from its top edge`,
+        fit.top >= 0 && fit.scrolls, JSON.stringify(fit))
+      else check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): media, caption and counter all on screen`,
+        fit.top >= 0 && fit.bottom <= fit.height && !fit.scrolls, JSON.stringify(fit))
+      check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): keeps its aspect ratio`,
+        Math.abs(fit.ratio - fit.natural) < 0.02, JSON.stringify(fit))
+      await page.keyboard.press('ArrowRight')
+    }
+    await context.close()
+  }
+}
+
 export async function run({ browser }) {
   const { check, results } = createChecker()
   for (const [label, viewport] of [['desktop', { width: 1280, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
@@ -82,5 +184,7 @@ export async function run({ browser }) {
     await checkCycle(page, check, label)
     await context.close()
   }
+  await checkShortScreen(browser, check)
+  await checkSwipe(browser, check)
   return results
 }

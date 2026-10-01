@@ -1150,16 +1150,20 @@ Primitives 14, 22, 38, 46.
 > With at least `depth + 3` cards, a card going from the front to the back of the deck is never seen
 > crossing it. With fewer, it appears at the back as it arrives.
 
-> **The one thing that will silently break it: a flattening ancestor.**
+> **The one thing that will silently break it: a flattening property on the ring itself.**
 >
 > `transform-style: preserve-3d` — which is what makes the ring three-dimensional at all — collapses
-> to flat 2D if **any ancestor** has `overflow` other than `visible`, a `clip-path`, `opacity` below
-> 1, a `filter`, or a `backdrop-filter`. A ring inside a modal, a drawer, or a clipped grid card
-> therefore renders as a row of overlapping cards with no depth, and nothing errors. This is a
-> browser rule, not a library one, and there is nothing this library can safely do about a property
-> on an element it does not own — so it warns instead, naming the ancestor and the property.
+> to flat 2D when **the ring's own element** has `overflow` other than `visible` (in Chrome that
+> includes `clip`), `opacity` below 1, a `filter`, `backdrop-filter`, `clip-path`, `mask-image`,
+> `mix-blend-mode`, or `isolation: isolate`. The cards then paint in DOM order as overlapping cards
+> with no depth, and nothing errors. This is a browser rule, not a library one, and the ring's
+> element is yours — so the library warns instead, naming the property. Move it to a wrapper.
 >
-> Two related gotchas, same cause. A 3D effect *nested inside* a slide (`card-flip-y` on a card in
+> Ancestors are safe. The ring establishes its own 3D space, so a ring inside a modal, a drawer, a
+> faded or blurred section, or a band with `overflow: clip` (the way to let a ring bleed off the
+> page, above) still renders in 3D.
+>
+> Two related gotchas. A 3D effect *nested inside* a slide (`card-flip-y` on a card in
 > the ring) joins the ring's own 3D space rather than getting one of its own, which is rarely what
 > you want. And `target:` may name elements that are not the container's direct children, but the
 > grid cell that stacks the slides only reaches direct children — a deeper `target:` needs your page
@@ -1556,10 +1560,13 @@ need to track.
 > **Modal media viewers.** `lightbox` opens linked gallery images in a labelled dialog with
 > captions and arrow-key navigation. `video-lightbox` opens YouTube, Vimeo, or a direct video file
 > from a real link. Every trigger under one `data-kui` is one gallery: prev/next buttons and the
-> arrow/Home/End keys move through it without closing the viewer. `media:mixed` puts images and
-> videos in the same gallery — a link to a playable video is a video, anything else holding an
-> image is an image. A native video pauses when you leave it and resumes when you come back; an
-> embed stops when you leave it. Modified clicks keep the link's normal browser behavior.
+> arrow/Home/End keys move through it without closing the viewer, and on a touch screen so does a
+> sideways swipe (left for next, right for previous; vertical swipes still scroll). `media:mixed`
+> puts images and videos in the same gallery — a link to a playable video is a video, anything
+> else holding an image is an image. A native video pauses when you leave it and resumes when you come back; an
+> embed stops when you leave it. Modified clicks keep the link's normal browser behavior. Every
+> item fits the screen with its caption and counter in view, keeping its aspect ratio; only a
+> picture taller than 3:2 portrait is shown full-width and scrolled.
 >
 > ```html
 > <div data-kui="lightbox">
@@ -1583,7 +1590,9 @@ need to track.
 > `caption:figcaption|alt|title|none` (default `figcaption`, falling back to `alt`; `none` on
 > `video-lightbox`). Video accepts `aspect:wide|tall|square` (YouTube Shorts default to tall).
 > A focused native player keeps its own arrow keys for seeking, and keys pressed inside an embed
-> stay in the embed; the prev/next buttons still move on.
+> stay in the embed; the prev/next buttons still move on. The same goes for touch: a drag along a
+> native player scrubs it, and taps on an embed are the embed's — swipe on the space around them.
+> While the page is pinch-zoomed, swipes pan the zoomed page instead of changing items.
 >
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.

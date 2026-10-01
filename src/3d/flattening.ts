@@ -1,21 +1,22 @@
 /**
  * Dev-mode diagnostic: which ancestor is clipping the scene.
  *
- * Adapted from `warnFlatteningAncestor` in `src/effects/carousel/index.ts:129-175` — copied rather
- * than imported, for the bundle reason `src/3d/register.ts` sets out.
+ * Descended from the carousel's old ancestor walk (the carousel now checks only its own host, since
+ * an ancestor cannot flatten a ring that establishes its own 3D context; an ancestor *can* clip a
+ * canvas, so this walk stays). Its own copy, for the bundle reason `src/3d/register.ts` sets out.
  *
- * **Why this tier needs one at all.** A canvas is a canvas: an ancestor cannot flatten what it
- * renders the way it flattens a CSS `preserve-3d` subtree. But the *host* is an ordinary element,
+ * **Why this tier needs one at all.** A canvas is a canvas: nothing above it can flatten what it
+ * renders. But the *host* is an ordinary element,
  * and an ancestor that clips it clips the render with it. The symptom — "the 3D scene is cut in
  * half, or gone" — points squarely at this effect while the cause is three levels up, and that gap
  * is the whole value of naming the element. So: yes, its own copy.
  *
- * **But a narrower table than the carousel's.** The original tests five properties, because all
- * five defeat `transform-style: preserve-3d`. Only two of them clip a canvas. `opacity` below 1, a
+ * **But a narrower table than the carousel's.** The carousel's table lists what defeats
+ * `transform-style: preserve-3d` on the ring's host. Only two of those clip a canvas. `opacity` below 1, a
  * `filter` and a `backdrop-filter` are ordinary compositing on an ordinary element here — a dimmed
  * or blurred 3D hero is a design, not a bug, and warning about it would be a false positive on a
  * deliberate choice. Firing on things that are fine is how a diagnostic teaches people to ignore
- * it, which is the same reason the original stops at `<body>`.
+ * it, which is also why this walk stops at `<body>`.
  */
 
 /**

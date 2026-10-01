@@ -185,6 +185,43 @@ describe('defaultGestureDeps', () => {
   })
 })
 
+describe('recognise accept', () => {
+  it('ignores a refused press to its release, and recognises the next accepted one', () => {
+    const el = document.createElement('div')
+    const swipes: string[] = []
+    const onStart = vi.fn()
+    let allow = false
+    recognise(el, { onStart, onSwipe: (direction) => swipes.push(direction) }, { accept: () => allow }, deps)
+    drag(el, [[0, 0, 0], [60, 0, 16], [120, 0, 32]])
+    expect(onStart).not.toHaveBeenCalled()
+    expect(swipes).toEqual([])
+    allow = true
+    drag(el, [[0, 0, 100], [60, 0, 116], [120, 0, 132]])
+    expect(swipes).toEqual(['right'])
+  })
+
+  it('refusing a press drops a gesture a previous press left open', () => {
+    const el = document.createElement('div')
+    const onMove = vi.fn()
+    let allow = true
+    recognise(el, { onMove }, { threshold: 1, accept: () => allow }, deps)
+    el.dispatchEvent(pointer('pointerdown', 0, 0))
+    allow = false
+    el.dispatchEvent(pointer('pointerdown', 0, 0))
+    el.dispatchEvent(pointer('pointermove', 30, 0))
+    expect(onMove).not.toHaveBeenCalled()
+  })
+
+  it('hands the press itself to accept', () => {
+    const el = document.createElement('div')
+    const accept = vi.fn(() => true)
+    recognise(el, {}, { accept }, deps)
+    const down = pointer('pointerdown', 5, 6)
+    el.dispatchEvent(down)
+    expect(accept).toHaveBeenCalledWith(down)
+  })
+})
+
 describe('recognise', () => {
   it('does not start a drag below the movement threshold', () => {
     const el = document.createElement('div')

@@ -1,10 +1,12 @@
 import type { PrepareContext } from '../core/effect-context.js'
+import { recognise } from '../core/gesture.js'
 import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { withTimingContract } from '../effects/shared.js'
+import { swipeStep } from '../effects/swipe-event.js'
 import { acquireModalShell } from './modal-shell.js'
 import type { ModalContent, ModalShell } from './modal-shell.js'
 import { resolveMediaSource } from './media-source.js'
@@ -283,6 +285,60 @@ function galleryKey(state: Viewer, event: KeyboardEvent): void {
   event.preventDefault()
 }
 
+/**
+ * Swipe between items on touch: a flick left shows the next item, right the previous one, through
+ * the same `moveGallery` the buttons and keys use, so `loop:` holds at the ends. A vertical flick is
+ * not a step; it scrolls a tall image as it always did.
+ *
+ * The recogniser is the one `swipe`/`swipe-x` use (`core/gesture.ts`), with the page-facing half of
+ * `swipeable` (an attribute, a bubbling `kui:swipe`) left out: nothing outside a modal steps with
+ * it, and a `kui:swipe` bubbling out of the dialog would be heard by any page listener as a swipe on
+ * the page. What is shared is the recognition and the direction-to-step mapping (`swipeStep`).
+ *
+ * It listens on the whole gallery, so a swipe on the dimmed space around the media counts too, not
+ * only on a small picture. The exceptions are the media that own their own gestures:
+ *
+ * - A native `<video>`: its controls live in a closed shadow root, and a press on the timeline
+ *   reaches the page as a press on the `<video>`. Scrubbing is a sideways drag, indistinguishable
+ *   from a swipe, so presses on the player are refused outright (`accept`) and scrubbing stays the
+ *   player's. The space around the player still swipes.
+ * - An embed's `<iframe>` needs no exception: its pointer events never reach this document at all,
+ *   so taps on a YouTube or Vimeo player are the player's by construction.
+ * - A mouse is refused too. Buttons and arrow keys already step on a desktop, and a mouse drag here
+ *   is a text selection in the caption; accepting it would also retarget the click that ends it at
+ *   the gallery, which the shell reads as a click outside the media and closes the viewer.
+ *
+ * `touch-action: pan-y pinch-zoom` (`.is-swipeable` in `showcase.css`) keeps horizontal pans from
+ * the browser, which would otherwise take them and cancel the pointer mid-swipe. It would also stop
+ * a visitor who pinch-zoomed into a picture from panning across it, so while the visual viewport is
+ * zoomed the class comes off and swiping is refused: the fingers are panning the zoomed page.
+ *
+ * @returns Removes the recogniser and the zoom listener.
+ * @complexity O(1) per pointer event; O(1) space.
+ */
+function swipeGallery(state: Viewer, box: HTMLElement): () => void {
+  const viewport = box.ownerDocument.defaultView?.visualViewport ?? null
+  const zoomed = (): boolean => (viewport?.scale ?? 1) > 1.01
+  const sync = (): void => {
+    box.classList.toggle('is-swipeable', !zoomed())
+  }
+  sync()
+  viewport?.addEventListener('resize', sync)
+  const stop = recognise(box, {
+    onSwipe(direction) {
+      if (direction === 'left' || direction === 'right') moveGallery(state, swipeStep(direction), false)
+    },
+  }, {
+    // A press on a button still clicks it: capture is taken only once the finger has moved.
+    capturePointer: 'drag',
+    accept: (event) => event.pointerType !== 'mouse' && !zoomed() && (event.target as Element).closest('video') === null,
+  })
+  return () => {
+    stop()
+    viewport?.removeEventListener('resize', sync)
+  }
+}
+
 function closeViewer(state: Viewer): void {
   state.view.removeAttribute('src')
   for (const frame of state.players.values()) stopMedia(frame)
@@ -332,11 +388,15 @@ function galleryContent(items: LightboxItem[], initial: number, options: ViewerO
     next.addEventListener('click', () => clickGallery(state, 1, next))
   }
   renderGallery(state, false)
+  const unswipe = items.length > 1 ? swipeGallery(state, box) : undefined
   const { duration, scale, ease, reducedMotion } = options
   return { duration, scale, ease, reducedMotion, node: box, label,
     // The media and the controls keep the viewer open; the empty figure around them closes it.
     inside: (target) => box.contains(target) && target.closest('img, video, iframe, button') !== null,
-    onClose: () => closeViewer(state),
+    onClose: () => {
+      unswipe?.()
+      closeViewer(state)
+    },
     onKey: (event) => galleryKey(state, event) }
 }
 

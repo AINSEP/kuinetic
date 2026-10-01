@@ -138,10 +138,11 @@ describe('carousel-orbit: the ring in the screen plane', () => {
     expect(host.getAttribute('style') ?? '').toBe('')
   })
 
-  it('does not warn about flattening ancestors, which a flat ring cannot suffer from', () => {
+  it('does not warn about a flattening host, which a flat ring cannot suffer from', () => {
     const warnings: string[] = []
-    document.body.innerHTML = `<div style="overflow: hidden">${ORBIT}</div>`
+    document.body.innerHTML = ORBIT
     const host = document.querySelector('[data-host]') as HTMLElement
+    host.style.overflow = 'hidden'
     const instance = SPATIAL_RING_PRIMITIVE.prepare!(
       host,
       readEffectParams({ plane: 'screen', target: '.card' }, SPATIAL_RING_PRIMITIVE.parameters, () => {}),

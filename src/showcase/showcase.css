@@ -612,10 +612,45 @@
   /* Settle on `none`, not `1` / `0 0`: any other value keeps the gallery the containing block of its
      fixed prev/next buttons. */
   .kui-lightbox.is-open .kui-lightbox-gallery { opacity: 1; scale: none; translate: none; }
-  .kui-lightbox-gallery { display: grid; place-items: center; gap: 0.75rem; }
-  .kui-lightbox-gallery figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+  /*
+   * Fit, not scroll: the media takes whatever height the caption and the counter leave, so both
+   * stay on screen at any viewport height. The gallery fills the dialog's content box (a definite
+   * height), and each `minmax(0, auto)` row is at most its content and at least nothing: when
+   * everything fits the rows are content-sized and centred as one group, caption right under the
+   * media; when it does not, the free space runs out in the media row and nowhere else, because the
+   * caption and counter rows are plain `auto`. The media then reads that row's definite height as
+   * `100%`. A tall image (`is-tall`, taller than 3:2 portrait) is the one exception: it is meant
+   * to be read by scrolling, so its gallery sizes to content and the dialog scrolls.
+   */
+  .kui-lightbox-gallery {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, auto);
+    align-content: center;
+    justify-items: center;
+    gap: 0.75rem;
+    align-self: stretch;
+    justify-self: stretch;
+    min-block-size: 0;
+  }
+  /* `safe`: a gallery taller than the dialog starts at its top edge rather than centring half of
+     itself above the scroll origin, where no scrolling reaches it. */
+  .kui-lightbox-gallery:has(> figure > img.is-tall) { align-self: safe center; }
+  /* Horizontal pans are the gallery's (swipe between items); vertical ones still scroll. Toggled
+     off while the page is pinch-zoomed, so a zoomed visitor can pan across the picture. */
+  .kui-lightbox-gallery.is-swipeable { touch-action: pan-y pinch-zoom; }
+  .kui-lightbox-gallery figure {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, auto);
+    justify-items: center;
+    gap: 0.75rem;
+    justify-self: stretch;
+    min-block-size: 0;
+  }
   .kui-lightbox-gallery img { display: block; border-radius: 10px; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #0b0c0d; }
-  .kui-lightbox-gallery img.is-fit { max-inline-size: min(100%, 1400px); max-block-size: 86dvh; inline-size: auto; block-size: auto; }
+  .kui-lightbox-gallery img.is-fit { max-inline-size: min(100%, 1400px); max-block-size: 100%; inline-size: auto; block-size: auto; }
   .kui-lightbox-gallery img.is-tall { inline-size: min(100%, 760px); block-size: auto; }
   .kui-lightbox-gallery figcaption { max-inline-size: 60ch; text-align: center; font-size: 0.85rem; line-height: 1.5; color: rgb(255 255 255 / 0.72); }
   .kui-lightbox-close,
@@ -634,11 +669,38 @@
   .kui-lightbox-next { inset-inline-end: 0.75rem; }
   .kui-lightbox-counter { font-size: 0.85rem; color: rgb(255 255 255 / 0.8); }
   .kui-lightbox button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
-  .kui-lightbox-frame { inline-size: min(92vw, 1100px); aspect-ratio: 16 / 9; border-radius: 12px; overflow: clip; box-shadow: 0 30px 80px rgb(0 0 0 / 0.45); background: #000; }
-  .kui-lightbox-frame--tall { inline-size: min(80vw, 420px); aspect-ratio: 9 / 16; }
-  .kui-lightbox-frame--square { inline-size: min(80vw, 720px); aspect-ratio: 1; }
+  /*
+   * A video fits the same row an image does, but a frame is not a replaced element: an
+   * `aspect-ratio` box whose height is clamped keeps its width, and the ratio breaks. So the frame
+   * is only the space — as wide as the row allows up to its cap, as tall as its ratio asks (that
+   * is its contribution to the row), clamped to the row by `max-block-size` — and a size container.
+   * The player inside is the largest box of the ratio that fits it, from `cqi`/`cqb`, and carries
+   * the visible frame (corners, shadow, black). The ratio is one pair of custom properties per
+   * `aspect`, read by both.
+   */
+  .kui-lightbox-frame {
+    --kui-frame-w: 16;
+    --kui-frame-h: 9;
+    container-type: size;
+    display: grid;
+    place-items: center;
+    inline-size: min(100%, 1100px);
+    aspect-ratio: var(--kui-frame-w) / var(--kui-frame-h);
+    max-block-size: 100%;
+  }
+  .kui-lightbox-frame--tall { --kui-frame-w: 9; --kui-frame-h: 16; inline-size: min(100%, 420px); }
+  .kui-lightbox-frame--square { --kui-frame-w: 1; --kui-frame-h: 1; inline-size: min(100%, 720px); }
   .kui-lightbox-frame iframe,
-  .kui-lightbox-frame video { display: block; inline-size: 100%; block-size: 100%; border: 0; }
+  .kui-lightbox-frame video {
+    display: block;
+    inline-size: min(100cqi, 100cqb * var(--kui-frame-w) / var(--kui-frame-h));
+    aspect-ratio: var(--kui-frame-w) / var(--kui-frame-h);
+    block-size: auto;
+    border: 0;
+    border-radius: 12px;
+    box-shadow: 0 30px 80px rgb(0 0 0 / 0.45);
+    background: #000;
+  }
   @media (prefers-reduced-motion: reduce) {
     dialog.kui-lightbox,
     .kui-lightbox-gallery { transition-duration: 1ms; }
@@ -652,7 +714,8 @@
     .kui-lightbox-close,
     .kui-lightbox-prev,
     .kui-lightbox-next { border-color: CanvasText; color: CanvasText; background: Canvas; }
-    .kui-lightbox-frame { border: 1px solid CanvasText; }
+    .kui-lightbox-frame iframe,
+    .kui-lightbox-frame video { border: 1px solid CanvasText; }
     [data-kui-fx~='scroll-story'] > :first-child,
     [data-kui-fx~='scroll-story'] > :last-child [data-kui-step-state] { border: 1px solid CanvasText; }
   }

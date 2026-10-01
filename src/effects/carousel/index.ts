@@ -59,26 +59,42 @@ export { snapPosition } from './deck.js'
  * (an absolute place, `2.4`, not a delta from somewhere, `0.4`), which was the objection to
  * `--kui-step-fraction`, without colliding with a live contract.
  *
- * ## The ancestor trap
+ * ## The flattening trap
  *
- * `transform-style: preserve-3d` is silently defeated by an ancestor with `overflow` other than
- * `visible`, a `clip-path`, `opacity` below 1, a `filter`, or a `backdrop-filter`: any of those
- * forces the subtree to be rendered into a flat plane first, and the ring collapses into a row of
- * overlapping cards with no depth at all. Nothing errors and nothing warns natively, which makes it
- * the single most likely bug report this effect will generate — a ring is exactly the thing people
- * put inside a modal, a drawer, or a clipped grid card. {@link warnFlatteningAncestor} walks up and
- * names the offender.
+ * `transform-style: preserve-3d` is silently defeated by a *grouping property* on the element that
+ * carries it: CSS Transforms 2 §7.1 lists `overflow` other than `visible`/`clip`, `opacity` below 1,
+ * a `filter`, a `clip-path`, `isolation: isolate`, a `mask`, a `mix-blend-mode`, and paint
+ * containment. Any of those forces the used value to `flat`, the slots are painted in DOM order
+ * into one plane, and the ring collapses into a row of overlapping cards with no depth at all.
+ * Nothing errors and nothing warns natively. {@link warnFlattenedHost} names the property.
+ *
+ * It is the ring's own host that matters, never an ancestor. The host carries both `perspective`
+ * and `preserve-3d` (see `carousel.css`), so it establishes its own 3D rendering context whatever
+ * sits above it; an ancestor with `overflow: hidden`, `opacity` or a `filter` flattens only
+ * itself, and the finished 3D ring is composited into it intact. An earlier version of this check
+ * walked the ancestors and so warned on every ring inside a clipped band — the arrangement the
+ * catalog recommends for a ring that bleeds off the page — while the rows plainly rendered in 3D.
  */
 
 /** Half a turn away from the camera: past this the slot's own plane points backwards. */
 const QUARTER_TURN_DEG = 90
 
 /**
- * Properties on an ancestor that flatten a 3D subtree, and the value that is safe.
+ * The grouping properties that flatten the host, each with the test for a flattening value.
  *
- * Each entry is `[property, isFlattening]`. Written as a predicate per property rather than a set
- * of bad values because the three questions genuinely differ: `overflow` is "anything but visible",
- * `opacity` is a number comparison, and the two filters are "anything but none".
+ * Checked against Chrome 153 by painting two overlapping cards 200px apart in depth, the far one
+ * last in DOM order, and seeing which one shows. The list differs from the specification's in both
+ * directions, and the browser is what the author is looking at:
+ *
+ * - `overflow: clip` flattens in Chrome although §7.1 exempts it, on either axis alone
+ *   (`overflow-x: clip` too) — so `overflow` is "anything but visible", as for `hidden`/`auto`.
+ * - `backdrop-filter` is not in §7.1 and flattens in Chrome.
+ * - `contain: paint` (and `strict`) is in §7.1 and does *not* flatten in Chrome, so it is left out:
+ *   a warning that the ring is flat, next to a ring that is visibly not, is worse than none.
+ *
+ * `clip` (the deprecated `rect()` one) and `mask-border-source` are left out as vanishingly rare.
+ * The empty-string arm is the "this realm has no layout" answer (jsdom reports nothing for several
+ * of these), not a value.
  */
 const FLATTENING: readonly [string, (value: string) => boolean][] = [
   ['overflow', (value) => value !== '' && value !== 'visible'],
@@ -86,59 +102,43 @@ const FLATTENING: readonly [string, (value: string) => boolean][] = [
   ['opacity', (value) => value !== '' && Number(value) < 1],
   ['filter', (value) => value !== '' && value !== 'none'],
   ['backdrop-filter', (value) => value !== '' && value !== 'none'],
+  ['isolation', (value) => value === 'isolate'],
+  ['mix-blend-mode', (value) => value !== '' && value !== 'normal'],
+  ['mask-image', (value) => value !== '' && value !== 'none'],
 ]
 
 /**
- * Walk the ancestors and warn about the first one that flattens the ring.
+ * Warn when the ring's own host carries a property that flattens it.
  *
- * A dev-mode diagnostic, not a fix: there is nothing this library can safely do about an ancestor
- * it does not own — removing a `overflow: hidden` a page relies on to clip something else would
- * trade a flat carousel for a broken layout. Naming the element is the whole value, because the
- * symptom ("the 3D does nothing") points at this effect and the cause is three levels up.
+ * A dev-mode diagnostic, not a fix: the host is the author's element, and removing an
+ * `overflow: hidden` they rely on to clip something else would trade a flat carousel for a broken
+ * layout. Naming the property is the whole value, because the symptom ("the 3D does nothing")
+ * gives no hint that a one-line rule on the same element is the cause.
  *
- * Stops at the first offender rather than listing all of them: the first one already flattens
- * everything below it, so the rest are consequences of a page the author has yet to change.
- * Stops at `<body>` because the flattening properties are meaningless above it for this purpose and
- * a page-level `overflow-x: hidden` on `<html>`/`<body>` — which is on a large fraction of all
- * sites — would otherwise fire on every ring ever authored and train people to ignore the warning.
+ * Read once, at prepare: an entrance that fades the host in flattens it only while it runs.
  *
  * @param el - The ring host.
  * @param ctx - Effect context, for the window (`getComputedStyle`) and the warning sink.
- * @complexity O(d) time in tree depth, once per instance; O(1) space.
+ * @complexity O(1) time — eight fixed properties; one forced style resolution.
  */
-function warnFlatteningAncestor(el: Element, ctx: PrepareContext): void {
-  // `Node.ownerDocument` is typed nullable because it is null for a `Document`, which cannot reach
-  // here — an Element always has one. `body`, on the other hand, genuinely can be absent (an XML
-  // document has none), and the walk below needs no default for that: a `body` of `null` simply
-  // never matches, so the walk runs to the root, which is the right answer when there is no body to
-  // stop at.
-  const body: Element | null = (el.ownerDocument as Document).body
-  let node = el.parentElement
-  while (node && node !== body) {
-    const found = flatteningDeclaration(node, ctx)
-    if (found) {
-      ctx.warn(
-        `carousel: an ancestor <${node.localName}> has ${found.property}: ${found.value}, which ` +
-          'flattens transform-style: preserve-3d — the ring will render as flat overlapping ' +
-          'cards. Move the ring out of it, or drop that property on the ancestor.',
-      )
-      return
-    }
-    node = node.parentElement
-  }
+function warnFlattenedHost(el: Element, ctx: PrepareContext): void {
+  const found = flatteningDeclaration(el, ctx)
+  if (!found) return
+  ctx.warn(
+    `carousel: the ring's own <${el.localName}> has ${found.property}: ${found.value}, which ` +
+      'flattens transform-style: preserve-3d — the ring will render as flat overlapping cards. ' +
+      'Move that property to a wrapper around the ring: an ancestor does not flatten it.',
+  )
 }
 
 /**
  * The first flattening declaration on one element, or `null`.
  *
- * Split out from the walk above so each has one job — "which ancestor" and "is this one guilty" —
- * and so the guilt test is a pure-ish lookup that a fake `getComputedStyle` can drive directly.
- *
  * `getComputedStyle` is reached through the injected window and optional-chained: a primitive can
  * be prepared against a document whose realm has no layout at all (`test/three-d.test.ts` calls
  * `prepare` with no element), and a diagnostic must never be the thing that throws.
  *
- * @complexity O(1) time — five fixed properties; one forced style resolution.
+ * @complexity O(1) time — eight fixed properties; one forced style resolution.
  */
 function flatteningDeclaration(
   node: Element,
@@ -296,8 +296,8 @@ const RING_PARAMETERS: ParameterSchema = {
  */
 function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const plane = params.text('plane', 'depth')
-  // The ancestor trap only exists for the 3D plane; a flat ring has no `preserve-3d` to defeat.
-  if (plane === 'depth') warnFlatteningAncestor(el, ctx)
+  // The flattening trap only exists for the 3D plane; a flat ring has no `preserve-3d` to defeat.
+  if (plane === 'depth') warnFlattenedHost(el, ctx)
   const arcDeg = degreesOf(params.text('arc', '360deg'), 360)
   const faceOf = (place: number, _offset: number, count: number): Face =>
     plane === 'screen' ? 'front' : faceAt(place * (arcDeg / count))

@@ -44,8 +44,7 @@ import { frameScheduler, watchElementSize } from '../../core/element-size.js'
  * - `auto` or `scroll` — overflow would scroll that box sideways, so the ring fits its padding box.
  * - none — the ring fits the page's own width, `0..clientWidth` in document coordinates.
  *
- * `<html>` and `<body>` are skipped for the reason `warnFlatteningAncestor` stops at `<body>`: a
- * page-level `overflow-x: hidden` is on a large fraction of all sites as a blanket guard, not a
+ * `<html>` and `<body>` are skipped because a page-level `overflow-x: hidden` is on a large fraction of all sites as a blanket guard, not a
  * statement that this ring should be cut off at the screen edge.
  *
  * ## Which cards count

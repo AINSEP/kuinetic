@@ -9,7 +9,7 @@ import { countSteps } from '../src/effects/forms/primitives.js'
 
 /**
  * The spatial carousel's *index* half: the controls that move it, the default slot set, the
- * measurement that feeds the derived radius, and the ancestor diagnostic's walk.
+ * measurement that feeds the derived radius, and the flattened-host diagnostic.
  *
  * Third file on this primitive, after `carousel-3d.test.ts` (geometry and published tokens) and
  * `carousel-3d-drag.test.ts` (the pointer). The seam is the same one those two were split on: this
@@ -276,81 +276,31 @@ describe('the measured slot width behind an unset radius:', () => {
   })
 })
 
-describe('the flattening-ancestor walk', () => {
-  it('keeps climbing past an innocent ancestor to reach the guilty one', () => {
-    const warn = vi.fn()
-    document.body.innerHTML = `
-      <section style="clip-path: inset(0)">
-        <div class="wrapper">
-          <div><div class="slide">one</div></div>
-        </div>
-      </section>
-    `
-    const host = document.body.querySelector('.wrapper > div') as HTMLElement
-    const instance = SPATIAL_RING_PRIMITIVE.prepare!(
-      host,
-      readEffectParams({ target: '.slide' }, SPATIAL_RING_PRIMITIVE.parameters, warn),
-      fakeCtx(host, warn),
-    )
-    instance.activate()
-
-    // `.wrapper` is clean and had to be walked *through*; `clip-path` is the third of the five
-    // properties checked, so both the walk and the per-property predicates are being exercised.
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('clip-path'))
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('<section>'))
-
-    instance.destroy()
-  })
-
-  it('stops at the first offender rather than listing the consequences below it', () => {
-    const warn = vi.fn()
-    document.body.innerHTML = `
-      <section style="overflow: hidden">
-        <div class="wrapper" style="overflow: hidden">
-          <div><div class="slide">one</div></div>
-        </div>
-      </section>
-    `
-    const host = document.body.querySelector('.wrapper > div') as HTMLElement
-    const instance = SPATIAL_RING_PRIMITIVE.prepare!(
-      host,
-      readEffectParams({ target: '.slide' }, SPATIAL_RING_PRIMITIVE.parameters, warn),
-      fakeCtx(host, warn),
-    )
-    instance.activate()
-
-    // One warning, and it names the nearest one — everything above it is already flattened by it.
-    const flattening = warn.mock.calls
-      .map((call) => String(call[0]))
-      .filter((message) => message.includes('flattens'))
-    expect(flattening).toHaveLength(1)
-    expect(flattening[0]!).toContain('<div>')
-
-    instance.destroy()
-  })
-
+describe('the flattened-host check', () => {
   /**
-   * All five flattening properties, driven through a fake `getComputedStyle` — which is exactly
-   * what `flatteningDeclaration` was split out of the walk to allow, and the only way to reach two
-   * of them at all: jsdom's `getComputedStyle` reports nothing for `backdrop-filter`, so a fixture
-   * can never make that predicate run. The three predicates genuinely differ ("anything but
-   * visible", "a number below 1", "anything but none"), which is why each is written per property
-   * and why each needs its own case.
+   * Every flattening property, driven through a fake `getComputedStyle` — the only way to reach
+   * several of them at all: jsdom's `getComputedStyle` reports nothing for `backdrop-filter`,
+   * `mix-blend-mode` or `mask-image`, so a fixture can never make those predicates run. The fake
+   * answers only for the host, so each case also proves the host is the element read.
    */
   it.each([
     ['overflow', 'hidden'],
+    ['overflow', 'clip'],
+    ['overflow', 'clip visible'],
     ['clip-path', 'inset(0 0 0 0)'],
     ['opacity', '0.5'],
     ['filter', 'blur(4px)'],
     ['backdrop-filter', 'blur(4px)'],
-  ])('names %s: %s on an ancestor as the thing that flattened the ring', (property, value) => {
+    ['isolation', 'isolate'],
+    ['mix-blend-mode', 'multiply'],
+    ['mask-image', 'linear-gradient(black, black)'],
+  ])('names %s: %s on the host as the thing that flattened the ring', (property, value) => {
     const warn = vi.fn()
     document.body.innerHTML = `<section><div><div class="slide">one</div></div></section>`
     const host = document.body.querySelector('section > div') as HTMLElement
-    const guilty = document.body.querySelector('section')!
     const win = {
       getComputedStyle: (node: Element) => ({
-        getPropertyValue: (name: string) => (node === guilty && name === property ? value : ''),
+        getPropertyValue: (name: string) => (node === host && name === property ? value : ''),
       }),
     }
 
@@ -366,12 +316,44 @@ describe('the flattening-ancestor walk', () => {
   })
 
   it.each([
+    ['overflow', 'hidden'],
+    ['opacity', '0.5'],
+    ['filter', 'blur(4px)'],
+    ['isolation', 'isolate'],
+  ])('says nothing when only an ancestor has %s: %s', (property, value) => {
+    const warn = vi.fn()
+    document.body.innerHTML = `<section><div><div class="slide">one</div></div></section>`
+    const host = document.body.querySelector('section > div') as HTMLElement
+    const win = {
+      getComputedStyle: (node: Element) => ({
+        getPropertyValue: (name: string) => (node !== host && name === property ? value : ''),
+      }),
+    }
+
+    const instance = SPATIAL_RING_PRIMITIVE.prepare!(
+      host,
+      readEffectParams({ target: '.slide', grab: 'false' }, SPATIAL_RING_PRIMITIVE.parameters, warn),
+      { ...fakeCtx(host, warn), win: win as unknown as Window } as PrepareContext,
+    )
+    instance.activate()
+
+    expect(warn).not.toHaveBeenCalled()
+    instance.destroy()
+  })
+
+  it.each([
     ['overflow', 'visible'],
     ['opacity', '1'],
     ['filter', 'none'],
     ['clip-path', 'none'],
     ['backdrop-filter', 'none'],
-  ])('says nothing about an ancestor whose %s is the harmless %s', (property, value) => {
+    ['isolation', 'auto'],
+    ['mix-blend-mode', 'normal'],
+    ['mask-image', 'none'],
+    // Paint containment is a grouping property in the spec but does not flatten in Chrome, and it
+    // is not in the table: this pins that it stays out.
+    ['contain', 'paint'],
+  ])('says nothing about a host whose %s is the harmless %s', (property, value) => {
     const warn = vi.fn()
     document.body.innerHTML = `<section><div><div class="slide">one</div></div></section>`
     const host = document.body.querySelector('section > div') as HTMLElement
@@ -400,11 +382,7 @@ describe('the flattening-ancestor walk', () => {
    */
   it('installs silently in a realm with no getComputedStyle at all', () => {
     const warn = vi.fn()
-    document.body.innerHTML = `
-      <section style="overflow: hidden">
-        <div><div class="slide">one</div></div>
-      </section>
-    `
+    document.body.innerHTML = `<section><div style="overflow: hidden"><div class="slide">one</div></div></section>`
     const host = document.body.querySelector('section > div') as HTMLElement
     const instance = SPATIAL_RING_PRIMITIVE.prepare!(
       host,
@@ -413,7 +391,7 @@ describe('the flattening-ancestor walk', () => {
     )
     instance.activate()
 
-    // The ancestor really is guilty — it is only the *reading* of it that is unavailable — so a
+    // The host really is guilty — it is only the *reading* of it that is unavailable — so a
     // silent install here is the contract, not a coincidence of a clean fixture.
     expect(warn).not.toHaveBeenCalled()
     expect(host.getAttribute('data-kui-step')).toBe('0')

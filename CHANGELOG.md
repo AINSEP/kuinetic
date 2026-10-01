@@ -26,6 +26,12 @@ version numbers are assigned at release.
   it and resumes where it stopped when you come back; a YouTube/Vimeo embed stops when you leave it.
   `video-lightbox` with several links now cycles the same way. Image-only rows are unchanged, and
   `video-lightbox` still shows no caption unless you add `caption:figcaption`.
+- **Swipe between items in the lightbox gallery.** On a touch screen a sideways swipe on the open
+  `lightbox`, `lightbox media:mixed` or multi-item `video-lightbox` viewer shows the next item
+  (left) or the previous one (right), respecting `loop:`; vertical swipes still scroll. Swipes
+  starting on a native video are left to its controls (scrubbing), embeds keep their taps, and
+  while the page is pinch-zoomed the fingers pan the page. Built on the same recogniser as
+  `swipe`/`swipe-x`, which gains an `accept` option for refusing a press.
 - **A swipe steps the `carousel` inside it.** `swipe-x`/`swipe-y` (or `swipe`) on a deck's wrapper
   now steps the `carousel` deck within it — left or up for next, right or down for previous — with
   no page script; only the outermost deck inside the wrapper moves. Every swipe also dispatches a
@@ -51,6 +57,20 @@ version numbers are assigned at release.
 - **A ring card no longer sweeps the long way round on a click.** On every step one slot's circular
   offset wraps from one end of the deck to the other; its angle jumped a whole turn and the
   transition swept it across the front of the ring. That jump is now committed without a transition.
+- **A lightbox item no longer runs off a short screen.** The video frame was sized by width only
+  (and images capped at 86% of the viewport height regardless of their caption), so at 1440×723 a
+  video ran past the bottom edge and took the caption and the "4 of 8" counter with it. The media
+  now takes exactly the height the caption and counter leave, in both dimensions, keeping its
+  aspect ratio. A picture taller than 3:2 portrait still scrolls, and now starts at its top edge
+  instead of centring part of itself out of reach.
+- **No false "flattens preserve-3d" warning on a ring inside a clipped band.** The `carousel-3d*`
+  diagnostic warned about any ancestor with `overflow` other than `visible`, `opacity`, a `filter`
+  and so on — including the `overflow: clip` band the catalog recommends for a ring that bleeds off
+  the page, whose rows render in 3D. Grouping properties flatten only the element carrying
+  `preserve-3d`, and the ring establishes its own 3D context, so ancestors never flatten it
+  (verified in Chrome 153). The check now reads the ring's own element, and covers what flattens
+  there in Chrome: `overflow` other than `visible` (including `clip`), `opacity` below 1, `filter`,
+  `backdrop-filter`, `clip-path`, `mask-image`, `mix-blend-mode` and `isolation: isolate`.
 - **Dragging a ring follows the pointer.** Each `pointermove` added the whole distance from where
   the press began to the ring's *current* place, so a real drag (dozens of moves) flung the ring
   several places round instead of tracking the hand. The drag now moves from where it began.

@@ -300,32 +300,44 @@ describe('teardown', () => {
 })
 
 /**
- * The ancestor trap, which is the bug report this effect will generate most often.
- *
- * `transform-style: preserve-3d` is silently defeated by an ancestor with `overflow` other than
- * `visible`, a `clip-path`, `opacity` below 1, a `filter`, or a `backdrop-filter`. The ring goes
- * flat, nothing errors, and the symptom points at this effect while the cause is three levels up —
- * inside the modal, drawer, or clipped grid card somebody put the deck in.
+ * The flattening trap: a grouping property on the ring's own host (the element carrying
+ * `preserve-3d`) forces it flat, and the ring collapses into overlapping cards with no error. An
+ * ancestor cannot do that — the host establishes its own 3D context — so a ring inside a clipped
+ * band, which the catalog recommends for a ring that bleeds off the page, must stay silent.
+ * `test/browser/three-d-depth.test.mjs` proves both halves in a real renderer.
  */
-describe('flattening ancestors', () => {
-  it('names the ancestor and the property that flattened the ring', () => {
+describe('flattening', () => {
+  it('names the property on the host that flattened the ring', () => {
     const warn = vi.fn()
-    document.body.innerHTML = `
-      <section style="overflow: hidden">
-        <div><div class="slide">one</div></div>
-      </section>
-    `
-    const host = document.body.querySelector('div') as HTMLElement
+    document.body.innerHTML = `<section><div style="overflow: clip"><div class="slide">one</div></div></section>`
+    const host = document.body.querySelector('section > div') as HTMLElement
     const instance = SPATIAL_RING_PRIMITIVE.prepare!(
       host,
       readEffectParams({ target: '.slide' }, SPATIAL_RING_PRIMITIVE.parameters, warn),
       fakeCtx(host, warn),
     )
     instance.activate()
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('overflow'))
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('section'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('overflow: clip'))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("ring's own <div>"))
     instance.destroy()
   })
+
+  it.each(['overflow: clip', 'overflow: hidden', 'overflow-x: clip', 'opacity: 0.5', 'filter: blur(2px)'])(
+    'says nothing about an ancestor with %s, which cannot flatten a ring',
+    (declaration) => {
+      const warn = vi.fn()
+      document.body.innerHTML = `<section style="${declaration}"><div><div class="slide">one</div></div></section>`
+      const host = document.body.querySelector('section > div') as HTMLElement
+      const instance = SPATIAL_RING_PRIMITIVE.prepare!(
+        host,
+        readEffectParams({ target: '.slide' }, SPATIAL_RING_PRIMITIVE.parameters, warn),
+        fakeCtx(host, warn),
+      )
+      instance.activate()
+      expect(warn).not.toHaveBeenCalled()
+      instance.destroy()
+    },
+  )
 
   it('says nothing about a clean tree', () => {
     const warn = vi.fn()
