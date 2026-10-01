@@ -184,8 +184,8 @@ type Side = 'top' | 'bottom' | 'left' | 'right'
 
 const OPPOSITE: Record<Side, Side> = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }
 
-function isSide(value: string): value is Side {
-  return Object.hasOwn(OPPOSITE, value)
+function isSide(value: string | null): value is Side {
+  return value !== null && Object.hasOwn(OPPOSITE, value)
 }
 
 /** How one family finds its part, records its side, and decides which side it prefers. */
@@ -422,13 +422,11 @@ export function shiftWithin(start: number, size: number, viewport: number, margi
 /**
  * The `SHIFT` measurement, run on every measure `whileShown` makes.
  *
- * From layout offsets, for `extentOf`'s reason: the transformed rect carries the entrance's
- * `translate`/`scale` and the current shift itself. Both families centre the part on the cross axis
- * with `50%` and a `-50%` translate, so its resting start is its offset minus half its size. The
- * host's `clientLeft`/`clientTop` turn its border-box rect into the padding box the offsets are
- * measured from. The viewport is the root's client box — it excludes a classic scrollbar, which the
- * part would otherwise slide under — falling back to `innerWidth`/`innerHeight` only where nothing
- * is laid out.
+ * Measure the part's size in viewport coordinates, removing its entrance scale. Project its
+ * resting anchor into that same space: the animated translate may still be catching up to a shift.
+ * Mixing the host's viewport rect with unscaled layout offsets misses ancestor scales.
+ * The result is converted back to local CSS px because the ancestor scales the shift too. The
+ * viewport is the root's client box, excluding a classic scrollbar.
  *
  * @complexity O(n) time in the host's descendants per call (the marker lookup); reads layout.
  */
@@ -437,22 +435,22 @@ function shifter(el: Element, spec: PlacementSpec, ctx: PrepareContext): () => v
   return (): void => {
     const part = el.querySelector<HTMLElement>(`[${spec.marker}]`)
     if (!part) return
-    const stamped = el.getAttribute(spec.attribute) ?? ''
+    const stamped = el.getAttribute(spec.attribute)
     const side = isSide(stamped) ? stamped : spec.preferred(el)
-    const rect = el.getBoundingClientRect()
-    const root = ctx.doc.documentElement
-    const next =
+    const rect = part.getBoundingClientRect()
+    const hostRect = el.getBoundingClientRect()
+    const [startKey, sizeKey, offsetKey, borderKey, layoutKey, viewportKey, windowKey] =
       side === 'top' || side === 'bottom'
-        ? shiftWithin(
-            rect.left + el.clientLeft + part.offsetLeft - part.offsetWidth / 2,
-            part.offsetWidth,
-            root.clientWidth || ctx.win.innerWidth,
-          )
-        : shiftWithin(
-            rect.top + el.clientTop + part.offsetTop - part.offsetHeight / 2,
-            part.offsetHeight,
-            root.clientHeight || ctx.win.innerHeight,
-          )
+        ? ['left', 'width', 'offsetLeft', 'clientLeft', 'offsetWidth', 'clientWidth', 'innerWidth'] as const
+        : ['top', 'height', 'offsetTop', 'clientTop', 'offsetHeight', 'clientHeight', 'innerHeight'] as const
+    const hostSize = (el as HTMLElement)[layoutKey]
+    const zoom = hostSize > 0 ? hostRect[sizeKey] / hostSize : 1
+    if (zoom <= 0) return
+    const entranceScale = parseFloat(ctx.win.getComputedStyle(part).scale) || 1
+    const size = rect[sizeKey] / entranceScale
+    const start = hostRect[startKey] + (el[borderKey] + part[offsetKey]) * zoom - size / 2
+    const viewport = ctx.doc.documentElement[viewportKey] || ctx.win[windowKey]
+    const next = shiftWithin(start, size, viewport) / zoom
     if (next === written) return
     written = next
     ctx.style.set(spec.shift, `${next}px`)
@@ -593,7 +591,8 @@ function teaseOnEnter(
   if (Observer) {
     observer = new Observer(
       (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return
+        // The initial callback can intersect below the threshold; wait until half is visible.
+        if (!entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5)) return
         observer!.disconnect()
         start()
       },

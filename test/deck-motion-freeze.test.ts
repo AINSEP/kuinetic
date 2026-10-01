@@ -170,6 +170,33 @@ describe('closing the lightbox does not leave the deck paused', () => {
     return host
   }
 
+  it('keeps a keyboard-focused card paused after Enter opens and Escape restores focus', () => {
+    const animator = build(
+      `<div id="deck" data-kui="carousel-stack spin:40s hover:none lightbox:true">
+        <figure tabindex="0"><img src="/a.jpg" alt="A"></figure>
+        <figure><img src="/b.jpg" alt="B"></figure>
+      </div>`,
+    )
+    active.push(animator)
+    animator.start()
+    const host = document.getElementById('deck')!
+    // Bare-image decks expose their live card through the focusable host.
+    const card = host
+    keyboardModality = true
+    card.focus()
+    expect(host.getAttribute('data-kui-ring-spinning')).toBe('false')
+    card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(dialog().open).toBe(true)
+    dialog().dispatchEvent(new Event('cancel', { cancelable: true }))
+    vi.advanceTimersByTime(2_000)
+    expect(dialog().open).toBe(false)
+    expect(document.activeElement).toBe(card)
+    const held = host.style.getPropertyValue('--kui-step-position')
+    vi.advanceTimersByTime(4_000)
+    expect(host.getAttribute('data-kui-ring-spinning')).toBe('false')
+    expect(host.style.getPropertyValue('--kui-step-position')).toBe(held)
+  })
+
   it('resumes after an Escape close, though focus came back to the deck with a ring', () => {
     const host = openThenEscape()
     const at = step(host)

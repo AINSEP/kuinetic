@@ -593,6 +593,7 @@ function bindSurface(el: Element, axis: string, dividers: Dividers): { node: HTM
   surface.setAttribute('aria-hidden', 'true')
   el.appendChild(surface)
   let dragging = -1
+  let pointerId: number | null = null
 
   const percentAt = (event: PointerEvent): number => {
     const rect = el.getBoundingClientRect()
@@ -601,7 +602,9 @@ function bindSurface(el: Element, axis: string, dividers: Dividers): { node: HTM
     return size > 0 ? (100 * along) / size : 0
   }
   const onPointerDown = (event: PointerEvent): void => {
-    if (event.button > 0) return
+    // One pointer owns the drag; another finger must not replace its divider or release it.
+    if (event.button > 0 || pointerId !== null) return
+    pointerId = event.pointerId
     const percent = percentAt(event)
     dragging = dividers.nearest(percent)
     event.preventDefault()
@@ -610,16 +613,24 @@ function bindSurface(el: Element, axis: string, dividers: Dividers): { node: HTM
     dividers.moveTo(dragging, percent)
   }
   const onPointerMove = (event: PointerEvent): void => {
-    if (dragging >= 0) dividers.moveTo(dragging, percentAt(event))
+    if (dragging >= 0 && event.pointerId === pointerId) dividers.moveTo(dragging, percentAt(event))
   }
-  const onPointerUp = (): void => {
+  const onPointerUp = (event: PointerEvent): void => {
+    if (event.pointerId !== pointerId) return
     dragging = -1
+    pointerId = null
+  }
+  const onLostCapture = (event: PointerEvent): void => {
+    // Capture loss ends our drag, but a child losing its own capture does not.
+    if (event.target !== surface) return
+    onPointerUp(event)
   }
   const listeners = [
     ['pointerdown', onPointerDown],
     ['pointermove', onPointerMove],
     ['pointerup', onPointerUp],
     ['pointercancel', onPointerUp],
+    ['lostpointercapture', onLostCapture],
   ] as const
   for (const [type, listener] of listeners) surface.addEventListener(type, listener)
 

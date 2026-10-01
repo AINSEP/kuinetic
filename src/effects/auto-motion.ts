@@ -203,6 +203,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   let viewing = false
   /** The shared viewer is open at all, from this deck or any other opener. See `onFocusIn`. */
   let viewerOpen = false
+  let focusBeforeViewer = false
 
   let frame = 0
   let lastFrameAt: number | null = null
@@ -283,14 +284,16 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
    * the keyboard until it has closed. `<dialog>.close()` restores focus to whatever had it before
    * (on a deck, the host a click focused) synchronously, before the `close` event the shell
    * announces `kui:viewer` from — so the open flag is still up when that focus lands. After an
-   * Escape the browser marks that restored focus `:focus-visible`, and counting it held the deck
-   * still until the visitor clicked somewhere else: the "freezes after closing the lightbox" report.
+   * Escape the browser marks even mouse-origin focus `:focus-visible`. Count restoration only if
+   * the deck had keyboard focus before opening: a keyboard reader must keep their pause reason.
    */
   const onFocusIn = (event: Event): void => {
-    focused = !viewerOpen && isKeyboardFocus(event.target)
+    focused = (!viewerOpen || focusBeforeViewer) && isKeyboardFocus(event.target)
     update()
   }
   const onFocusOut = (event: Event): void => {
+    // Remember keyboard focus before the modal takes it, so restoration keeps that pause reason.
+    if (!viewerOpen) focusBeforeViewer = focused
     const next = (event as FocusEvent).relatedTarget as Node | null
     focused = next !== null && el.contains(next) && isKeyboardFocus(next)
     update()

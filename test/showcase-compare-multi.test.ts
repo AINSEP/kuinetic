@@ -65,7 +65,7 @@ function box(host: HTMLElement, rect: Partial<DOMRect>): void {
   host.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0, ...rect }) as DOMRect
 }
 
-function pointer(target: Element, type: string, init: { x?: number; y?: number; button?: number }): Event {
+function pointer(target: Element, type: string, init: { x?: number; y?: number; button?: number; id?: number }): Event {
   const event = new MouseEvent(type, {
     clientX: init.x ?? 0,
     clientY: init.y ?? 0,
@@ -73,7 +73,7 @@ function pointer(target: Element, type: string, init: { x?: number; y?: number; 
     bubbles: true,
     cancelable: true,
   })
-  Object.defineProperty(event, 'pointerId', { value: 1 })
+  Object.defineProperty(event, 'pointerId', { value: init.id ?? 1 })
   target.dispatchEvent(event)
   return event
 }
@@ -259,6 +259,44 @@ describe('compare with three or more media: pointer', () => {
     pointer(surface, 'pointerup', {})
     pointer(surface, 'pointermove', { x: 100 + 200 })
     expect(at(host, 1)).toBe(25)
+  })
+
+  it('keeps the first pointer in charge when a second presses, moves and releases', () => {
+    const { host, instance } = mount(THREE)
+    box(host, { width: 300 })
+    const surface = surfaceOf(host)
+    pointer(surface, 'pointerdown', { x: 90, id: 1 })
+    pointer(surface, 'pointerdown', { x: 240, id: 2 })
+    pointer(surface, 'pointermove', { x: 270, id: 2 })
+    expect([at(host, 0), at(host, 1)]).toEqual([30, 67])
+    pointer(surface, 'pointerup', { id: 2 })
+    pointer(surface, 'pointercancel', { id: 2 })
+    pointer(surface, 'pointermove', { x: 120, id: 1 })
+    expect([at(host, 0), at(host, 1)]).toEqual([40, 67])
+    pointer(surface, 'pointerup', { id: 1 })
+    pointer(surface, 'pointermove', { x: 150, id: 1 })
+    expect(at(host, 0)).toBe(40)
+    instance.destroy()
+  })
+
+  it('ends on its own capture loss, ignoring child and unrelated pointer capture loss', () => {
+    const { host, instance } = mount(THREE)
+    box(host, { width: 300 })
+    const surface = surfaceOf(host)
+    surface.setPointerCapture = vi.fn()
+    const child = surface.appendChild(document.createElement('span'))
+    pointer(surface, 'pointerdown', { x: 90 })
+    pointer(child, 'lostpointercapture', {})
+    pointer(surface, 'lostpointercapture', { id: 2 })
+    pointer(surface, 'pointermove', { x: 120 })
+    expect(at(host, 0)).toBe(40)
+    pointer(surface, 'lostpointercapture', {})
+    pointer(surface, 'pointermove', { x: 150 })
+    expect(at(host, 0)).toBe(40)
+    // Losing capture also frees the surface for a new drag.
+    pointer(surface, 'pointerdown', { x: 240, id: 2 })
+    expect(at(host, 1)).toBe(80)
+    instance.destroy()
   })
 
   it('lets go on pointercancel too', () => {

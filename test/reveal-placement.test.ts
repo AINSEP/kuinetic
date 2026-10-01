@@ -229,6 +229,20 @@ describe('place: stamps the side the stylesheet keys on', () => {
     Object.defineProperty(child, 'offsetHeight', { get: () => offsets.height })
     Object.defineProperty(child, 'offsetWidth', { get: () => offsets.width })
 
+    // Viewport geometry includes the current CSS shift, just as a browser's rect does.
+    child.getBoundingClientRect = () => {
+      const prefix = part === 'data-kui-preview' ? '--kui-anchored-preview' : '--kui-hover-intent'
+      const shift = parseFloat(host.style.getPropertyValue(`${prefix}-shift`)) || 0
+      const side = host.getAttribute(part === 'data-kui-preview' ? 'data-kui-preview-place' : 'data-kui-hint-place')
+      const vertical = side === 'left' || side === 'right' || (!side && name.endsWith('-left'))
+      return {
+        left: geometry.rect.left + offsets.left - offsets.width / 2 + (vertical ? 0 : shift),
+        top: geometry.rect.top + offsets.top - offsets.height / 2 + (vertical ? shift : 0),
+        width: offsets.width,
+        height: offsets.height,
+      } as DOMRect
+    }
+
     const resolved = registry.resolve(name)!
     const params = readEffectParams(
       { ...resolved.preset.params, ...authored },
@@ -434,6 +448,41 @@ describe('place: stamps the side the stylesheet keys on', () => {
       expect(shiftOf(host)).toBe('85px')
     })
 
+    it('shifts a scaled preview in viewport coordinates and converts back to local pixels', () => {
+      setViewport(390, 800)
+      const { host, child, geometry, offsets } = mount('anchored-preview-bottom', {}, 'data-kui-preview')
+      // An ancestor doubles the trigger and preview; the preview itself enters at scale .85.
+      geometry.rect = { top: 300, bottom: 340, left: 250, right: 410 }
+      Object.assign(offsets, { left: 40, width: 100 })
+      Object.defineProperty(host, 'offsetWidth', { get: () => 80 })
+      host.getBoundingClientRect = () => ({ ...geometry.rect, width: 160, height: 40 }) as DOMRect
+      child.style.scale = '0.85'
+      let renderedShift = 0
+      child.getBoundingClientRect = () =>
+        ({ left: 330 + renderedShift * 2 - 85, width: 170, top: 350, height: 100 }) as DOMRect
+      host.dispatchEvent(new Event('pointerenter'))
+      // Resting viewport bounds are 230..430: -48 viewport px is -24 local CSS px.
+      expect(shiftOf(host, '--kui-anchored-preview')).toBe('-24px')
+      // Scroll can re-measure before the translate transition has caught up to the new shift.
+      viewportEvent('scroll')
+      expect(shiftOf(host, '--kui-anchored-preview')).toBe('-24px')
+      renderedShift = -24
+      viewportEvent('scroll')
+      expect(shiftOf(host, '--kui-anchored-preview')).toBe('-24px')
+    })
+
+    it('writes no shift while the host is collapsed to a zero-size rect', () => {
+      setViewport(390, 800)
+      const { host, geometry, offsets } = mount('anchored-preview-bottom', {}, 'data-kui-preview')
+      geometry.rect = { top: 300, bottom: 300, left: 250, right: 250 }
+      Object.assign(offsets, { left: 40, width: 100 })
+      // Laid out at 80px but painted at 0 (a scale(0) ancestor): no zoom to convert the shift by.
+      Object.defineProperty(host, 'offsetWidth', { get: () => 80 })
+      host.getBoundingClientRect = () => ({ ...geometry.rect, width: 0, height: 0 }) as DOMRect
+      host.dispatchEvent(new Event('pointerenter'))
+      expect(shiftOf(host, '--kui-anchored-preview')).toBe('')
+    })
+
     it('anchored-preview-bottom shifts horizontally too — the 390px showcase bug', () => {
       setViewport(390, 800)
       const { host, geometry, offsets } = mount('anchored-preview-bottom', {}, 'data-kui-preview')
@@ -550,6 +599,7 @@ describe('place: stamps the side the stylesheet keys on', () => {
       host.getBoundingClientRect = () => ({ top: 10, bottom: 50, left: 0, right: 0 }) as DOMRect
       Object.defineProperty(part, 'offsetTop', { get: () => 20 })
       Object.defineProperty(part, 'offsetHeight', { get: () => 200 })
+      part.getBoundingClientRect = () => ({ top: -70, height: 200, left: 0, width: 0 }) as DOMRect
       const resolved = registry.resolve('anchored-preview-left')!
       // An empty schema reads every key as '' — no side stamped, so the shift asks `preferred`.
       const instance = resolved.primitive.prepare!(host, readEffectParams({}, {}, () => {}), ctx(host))
@@ -606,10 +656,10 @@ describe('place: stamps the side the stylesheet keys on', () => {
         this.observed.push(el)
       }
       /** Deliver one entry, as the browser would — never after `disconnect()`. */
-      fire(isIntersecting = true): void {
+      fire(isIntersecting = true, intersectionRatio = isIntersecting ? 0.5 : 0): void {
         if (!this.connected) return
         this.callback(
-          [{ isIntersecting } as IntersectionObserverEntry],
+          [{ isIntersecting, intersectionRatio } as IntersectionObserverEntry],
           this as unknown as IntersectionObserver,
         )
       }
@@ -668,6 +718,20 @@ describe('place: stamps the side the stylesheet keys on', () => {
 
       elapse()
       expect(host.hasAttribute('data-kui-hint-tease')).toBe(false)
+    })
+
+    it('waits for half visibility after an initially intersecting entry below the threshold', () => {
+      const { host } = mount('hover-intent', { tease: '2s' })
+      const observer = FakeObserver.all[0]!
+      observer.fire(true, 0.1)
+      expect(host.hasAttribute('data-kui-hint-tease')).toBe(false)
+      expect(timers.size).toBe(0)
+      expect(observer.disconnect).not.toHaveBeenCalled()
+      observer.fire(true, 0.49)
+      expect(host.hasAttribute('data-kui-hint-tease')).toBe(false)
+      observer.fire(true, 0.5)
+      expect(host.hasAttribute('data-kui-hint-tease')).toBe(true)
+      expect(observer.disconnect).toHaveBeenCalledOnce()
     })
 
     it('ignores an entry that is not intersecting', () => {

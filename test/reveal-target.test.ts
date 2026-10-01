@@ -137,6 +137,8 @@ describe('the animator, end to end', () => {
     host.getBoundingClientRect = () => ({ top: 300, bottom: 320, left: 250, right: 330 }) as DOMRect
     Object.defineProperty(img, 'offsetLeft', { get: () => 40 })
     Object.defineProperty(img, 'offsetWidth', { get: () => 234 })
+    // The shift measures the part's viewport rect (its size), not just layout offsets.
+    img.getBoundingClientRect = () => ({ left: 173, top: 0, width: 234, height: 0 }) as DOMRect
     host.dispatchEvent(new Event('pointerenter'))
     expect(host.style.getPropertyValue('--kui-anchored-preview-shift')).toBe('-25px')
     animator!.destroy()
