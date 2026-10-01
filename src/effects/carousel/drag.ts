@@ -205,14 +205,15 @@ function holdSelection(doc: Document): SelectionHold {
 }
 
 /**
- * Install the grab and the keyboard on a ring.
+ * What a grabbable deck does to the clicks and native drags inside it.
  *
- * @returns Teardown for every listener and attribute this installs.
- * @complexity O(1) per pointer event and per key; O(1) space.
+ * Its own unit because it is one concern with three listeners — the drag's click, the next press,
+ * and the native drag — and keeping it out of `createRingDrag` keeps that function about the grab.
+ *
+ * @returns `arm()`, called when a drag ends, and the teardown.
+ * @complexity O(1) per event; O(1) space.
  */
-export function createRingDrag(request: RingDragRequest): Cleanup {
-  const { el, ctx, enabled, travelPx, total, positionOf, moveTo, setDragging } = request
-
+function guardClicks(el: Element, enabled: boolean): { arm(): void; release: Cleanup } {
   /*
    * Whether the gesture just ended actually moved the ring.
    *
@@ -229,6 +230,55 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
     event.stopPropagation()
     event.preventDefault()
   }
+
+  /*
+   * A new press clears a flag no click came to consume.
+   *
+   * Not every drag is followed by a click. A touch drag never is, and neither is a drag the browser
+   * cancelled (`pointercancel`). Left set, the flag swallowed the *next* real click — the first tap
+   * on a card after swiping the ring by finger did nothing. The `lightbox:true` browser tier found
+   * it. A drag's own click always comes before the next `pointerdown`, so this is the moment the
+   * flag can no longer be about the drag that set it.
+   */
+  const onPressCapture = (): void => {
+    suppressClick = false
+  }
+
+  /*
+   * A card that is a link or a picture is natively draggable, and a mouse drag across it started the
+   * browser's own drag-and-drop: a ghost of the card followed the pointer, `pointercancel` ended the
+   * ring's drag a few pixels in, and no click followed. On a grabbable deck a press-and-move means
+   * "turn the ring", so the native drag is refused for the deck's subtree.
+   */
+  const onNativeDrag = (event: Event): void => {
+    event.preventDefault()
+  }
+
+  el.addEventListener('click', onClickCapture, true)
+  el.addEventListener('pointerdown', onPressCapture, true)
+  if (enabled) el.addEventListener('dragstart', onNativeDrag)
+  return {
+    arm() {
+      suppressClick = true
+    },
+    release() {
+      el.removeEventListener('click', onClickCapture, true)
+      el.removeEventListener('pointerdown', onPressCapture, true)
+      el.removeEventListener('dragstart', onNativeDrag)
+    },
+  }
+}
+
+/**
+ * Install the grab and the keyboard on a ring.
+ *
+ * @returns Teardown for every listener and attribute this installs.
+ * @complexity O(1) per pointer event and per key; O(1) space.
+ */
+export function createRingDrag(request: RingDragRequest): Cleanup {
+  const { el, ctx, enabled, travelPx, total, positionOf, moveTo, setDragging } = request
+
+  const clicks = guardClicks(el, enabled)
 
   /*
    * The pointer moves the ring in the opposite direction to the index.
@@ -262,7 +312,7 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
           onEnd(vector) {
             selection.release()
             setDragging(false)
-            suppressClick = true
+            clicks.arm()
             const settled = snapTo(projectRelease(positionOf(), vector.vx, travelPx))
             moveTo(wrapPlace(settled, total()))
           },
@@ -272,7 +322,15 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
         // threshold than `recognise`'s own default of 4px is what buys that — a ring occupies a
         // large slab of a phone screen, and a scroll that begins with a two-pixel horizontal wobble
         // should not capture the pointer away from the page.
-        { axis: 'x', threshold: DRAG_THRESHOLD_PX },
+        //
+        // Capture only once the press becomes a drag (`'drag'`), never on `pointerdown`. Held from
+        // the press, capture retargets the `click` that ends a plain tap at this host instead of the
+        // card under the pointer — found by the `lightbox:true` browser tier, where a real click on
+        // a card arrived as a click on the ring and opened nothing. The same retargeting made every
+        // link and button inside a card dead in a real browser while jsdom (which has no capture)
+        // stayed green. The host never moves under the pointer — its cards do — so the press has
+        // nothing to stay captured for until it is a drag, and a drag's click is swallowed above.
+        { axis: 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag' },
       )
     : () => {}
 
@@ -320,14 +378,13 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
   const grantedFocus = el.getAttribute('tabindex') === null
   if (grantedFocus) el.setAttribute('tabindex', '0')
   el.addEventListener('keydown', onKeyDown)
-  el.addEventListener('click', onClickCapture, true)
 
   return () => {
     stopRecognising()
     // A teardown mid-drag gets no `onEnd`; the page must not be left unselectable.
     selection.release()
     el.removeEventListener('keydown', onKeyDown)
-    el.removeEventListener('click', onClickCapture, true)
+    clicks.release()
     // Only ever removed when this instance added it, which is the same rule the attribute ledgers
     // elsewhere in this module enforce by remembering the prior value: a `tabindex` the author
     // wrote must survive teardown untouched.

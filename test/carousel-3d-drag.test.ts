@@ -215,6 +215,61 @@ describe('dragging', () => {
     instance.destroy()
   })
 
+  it('does not let a drag that ended with no click swallow the next press', () => {
+    /*
+     * A touch drag is never followed by a click, and neither is one the browser cancelled. The flag
+     * used to stay set until *some* click came, so the first tap on a card after a finger swipe did
+     * nothing. A new press is where it stops being about the old drag.
+     */
+    const { host, instance } = mount({ target: '.slide' })
+    const followed = vi.fn()
+    const card = host.querySelector('.slide') as HTMLElement
+    card.addEventListener('click', followed)
+
+    host.dispatchEvent(pointer('pointerdown', 0))
+    host.dispatchEvent(pointer('pointermove', -120))
+    host.dispatchEvent(pointer('pointercancel', -120))
+    // No click: the next thing is a fresh tap.
+    card.dispatchEvent(pointer('pointerdown', 0))
+    card.dispatchEvent(pointer('pointerup', 0))
+    card.dispatchEvent(new Event('click', { bubbles: true, cancelable: true }))
+    expect(followed).toHaveBeenCalledTimes(1)
+    instance.destroy()
+  })
+
+  it('takes pointer capture only once a press becomes a drag', () => {
+    /*
+     * Held from `pointerdown`, capture makes the browser deliver the click that ends a plain tap to
+     * the host instead of the card under the pointer: every link and button in a card was dead in
+     * a real browser. jsdom has no capture, so the call itself is what can be asserted.
+     */
+    const { host, instance } = mount({ target: '.slide' })
+    const capture = vi.fn()
+    Object.assign(host, { setPointerCapture: capture, hasPointerCapture: () => capture.mock.calls.length > 0 })
+    host.dispatchEvent(pointer('pointerdown', 0))
+    expect(capture).not.toHaveBeenCalled()
+    host.dispatchEvent(pointer('pointermove', -120))
+    expect(capture).toHaveBeenCalledWith(1)
+    host.dispatchEvent(pointer('pointerup', -120))
+    instance.destroy()
+  })
+
+  it('refuses the native drag of a linked or pictured card while grabbable, and only then', () => {
+    const drag = (host: HTMLElement): boolean => {
+      const event = new Event('dragstart', { bubbles: true, cancelable: true })
+      host.querySelector('.slide')!.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const grabbable = mount({ target: '.slide' })
+    expect(drag(grabbable.host)).toBe(true)
+    grabbable.instance.destroy()
+    expect(drag(grabbable.host)).toBe(false)
+
+    const fixed = mount({ target: '.slide', grab: 'false' })
+    expect(drag(fixed.host)).toBe(false)
+    fixed.instance.destroy()
+  })
+
   it('lets a press through untouched when it never became a drag', () => {
     const { host, instance } = mount({ target: '.slide' })
     const followed = vi.fn()

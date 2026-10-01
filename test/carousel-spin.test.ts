@@ -6,7 +6,7 @@ import type { PrepareContext } from '../src/core/effect-context.js'
 import type { EffectInstance } from '../src/core/types.js'
 import { SPATIAL_RING_PRIMITIVE } from '../src/effects/carousel/index.js'
 import { offsetWrapped, SPINNING_ATTR, WRAP_ATTR } from '../src/effects/carousel/deck.js'
-import { clampPeriod, createAutoMotion, cyclesFor, MAX_FRAME_MS, MIN_PERIOD_MS } from '../src/effects/carousel/motion.js'
+import { clampPeriod, createAutoMotion, cyclesFor, MAX_FRAME_MS, MIN_PERIOD_MS } from '../src/effects/auto-motion.js'
 
 /**
  * `spin:` and `autoplay:` — the deck moving on its own, and yielding to a person.

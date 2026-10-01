@@ -1,9 +1,10 @@
 import type { Animator } from '../core/animator.js'
 import type { Registry } from '../core/registry.js'
+import { provideDeckViewer } from '../core/deck-viewer.js'
 import { registerInto } from '../core/register-into.js'
 import type { Preset, Primitive } from '../core/types.js'
 import { DEVICE_FRAME_PRESETS, DEVICE_FRAME_PRIMITIVE } from './device-frame.js'
-import { LIGHTBOX_PRESETS, LIGHTBOX_PRIMITIVE } from './lightbox.js'
+import { LIGHTBOX_PRESETS, LIGHTBOX_PRIMITIVE, attachDeckLightbox } from './lightbox.js'
 import { COMPARE_PRESETS, COMPARE_PRIMITIVE } from './compare.js'
 import { HOTSPOTS_PRESETS, HOTSPOTS_PRIMITIVE } from './hotspots.js'
 import { SLIDESHOW_PRESETS, SLIDESHOW_PRIMITIVE } from './slideshow.js'
@@ -50,10 +51,16 @@ export const SHOWCASE_PRESETS: Preset[] = [
  * `kuinetic.showcase.js` tag will hand a page's existing animator tomorrow. See
  * `src/core/register-into.ts`'s docblock for why identity cannot survive that split and shape can.
  *
+ * Also provides the deck viewer (`core/deck-viewer.ts`), the one capability decks in `src/effects/`
+ * reach in this module without importing it.
+ *
  * @param target - The registry, the animator, or a host exposing one as `.registry`.
  * @returns `target`, so callers can chain.
  * @complexity O(n) time in showcase primitives plus presets; O(1) extra space.
  */
 export function registerShowcase(target: unknown): Registry | Animator {
+  // `carousel-3d lightbox:true` and the other decks open their cards in the gallery through this.
+  // See `core/deck-viewer.ts` for why the decks cannot import it.
+  provideDeckViewer(attachDeckLightbox)
   return registerInto(target, SHOWCASE_PRIMITIVES, SHOWCASE_PRESETS, 'Showcase')
 }

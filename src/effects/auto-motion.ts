@@ -1,8 +1,20 @@
-import type { PrepareContext } from '../../core/effect-context.js'
-import type { Cleanup } from '../../core/types.js'
+import type { PrepareContext } from '../core/effect-context.js'
+import { createAttributeLedger } from '../core/owned-styles.js'
+import type { AttributeLedger } from '../core/owned-styles.js'
+import { queryScoped, resolveTarget } from '../core/target.js'
+import type { TargetScope } from '../core/target.js'
+import type { Cleanup, EffectParams, ParamSpec } from '../core/types.js'
+import type { ControlGroup } from './step-index.js'
 
 /**
- * A spatial deck that moves on its own: continuous `spin:` and stepped `autoplay:`.
+ * A deck that moves on its own: continuous `spin:` and stepped `autoplay:`.
+ *
+ * Shared by every deck in the library — the spatial ones (`carousel/deck.ts`) and the flat
+ * `carousel`/`step-progress` index (`forms/primitives.ts`). It lived in `carousel/` while only the
+ * spatial decks had motion; it moved here, beside `step-index.ts` and `swipe-event.ts`, when the
+ * flat deck gained `autoplay:`, because a second copy of the pause rules below is exactly the drift
+ * this module exists to prevent. Nothing in it knows about positions or shapes: the deck hands in
+ * how to `step` (and, for a spatial deck, how to `advance` by a fraction).
  *
  * Both are the same question asked at two grains — "when nobody is touching the deck, where does it
  * go next?" — and both have to answer the same four follow-ups identically, which is why they share
@@ -116,7 +128,7 @@ export interface AutoMotion {
  * Whether a focus event is keyboard focus — the kind that should pause the deck.
  *
  * `slideshow` pauses on any focus inside it; this deck refines that, because its host is itself
- * focusable (`drag.ts` grants `tabindex="0"`) and a mouse press on a focusable element focuses it.
+ * focusable (`carousel/drag.ts` grants `tabindex="0"`) and a mouse press on a focusable element focuses it.
  * Pausing on that would mean one click on a spinning ring stops it until the visitor clicks
  * somewhere else — a drag could never hand back to the spin at all. `:focus-visible` is the
  * platform's own answer to "did this focus come from the keyboard", so a Tab still pauses (which is
@@ -145,7 +157,7 @@ function isKeyboardFocus(target: EventTarget | null): boolean {
  * @complexity O(1) per event and per frame; O(1) space.
  */
 // A factory closing over one deck's motion state — several small named closures plus wiring, the
-// same shape as `drag.ts`'s `createRingDrag` and `core/gesture.ts`'s `recognise`.
+// same shape as `carousel/drag.ts`'s `createRingDrag` and `core/gesture.ts`'s `recognise`.
 // eslint-disable-next-line max-lines-per-function
 export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   const { el, ctx, spinMs, autoplayMs, settleMs, advance, step, setSpinning, onPausedChange } =
@@ -315,6 +327,143 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
       el.removeEventListener('focusout', onFocusOut)
       ctx.doc.removeEventListener('visibilitychange', onVisibility)
       publishSpinning(false)
+    },
+  }
+}
+
+/*
+ * Stepped motion: how long the deck rests on each slide before moving to the next. `0s` is off.
+ *
+ * The `slideshow` model — a timer pressing "next", with the stylesheet's own transition doing the
+ * travel — and its two-second floor. Negative steps backwards. One declaration for every deck, so
+ * the spelling and the default cannot drift between the spatial decks and the flat one.
+ */
+export const AUTOPLAY_PARAM: ParamSpec = { type: 'time', default: '0s', cssProperty: '--kui-autoplay' }
+
+/*
+ * A control that pauses and resumes the deck's own motion, resolved like `next:`/`prev:`/`jump:`.
+ *
+ * The library does not invent the button, unlike `slideshow`, which builds its own chrome: every
+ * other control on a deck is the author's markup, and a pause button that appeared from nowhere
+ * beside arrows the page styled itself would be the one control that did not match. It gets
+ * `aria-pressed` (true while paused) so it announces as the toggle it is. Moving content that starts
+ * on its own and runs past five seconds needs a way to stop it (WCAG 2.2.2); hover and keyboard
+ * focus already pause, and this is the control for everyone else.
+ */
+export const PAUSE_PARAM: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-pause' }
+
+/** What {@link createDeckMotion} needs from a deck. */
+export interface DeckMotionRequest {
+  el: Element
+  ctx: PrepareContext
+  params: EffectParams
+  /** Prefix for warnings, the word an author would recognise. */
+  label: string
+  /** Where the `pause:` control is searched, the same scope as the deck's other controls. */
+  scope: TargetScope
+  /** How long a manual move takes to settle, so the motion does not resume mid-transition. */
+  settleMs: number
+  /** Step the deck one place. */
+  step(direction: 1 | -1): void
+  /**
+   * The continuous half, for a deck that has a continuous position to spin (`spin:`). Omitted, the
+   * deck has no `spin:` parameter and only `autoplay:` is read.
+   */
+  spin?: Pick<AutoMotionRequest, 'advance' | 'setSpinning'>
+}
+
+/** What {@link createDeckMotion} returns. */
+export interface DeckMotion {
+  /** The motion handle the deck's manual inputs talk to (`interrupt`, `hold`). */
+  motion: AutoMotion
+  /**
+   * The `pause:` control as a group for the deck's own delegated listener, or `null` when none was
+   * named or there is nothing to pause. Bound by the deck, so a press on it goes through the same
+   * one listener — and the same scope — as its arrows and dots.
+   */
+  pause: ControlGroup | null
+  release: Cleanup
+}
+
+/**
+ * The configured motion, after the floor, with the both-set conflict resolved.
+ *
+ * @complexity O(1) time and space.
+ */
+function motionPeriods(request: DeckMotionRequest): { spin: number; autoplay: number } {
+  const { params, ctx, label } = request
+  const spinRaw = request.spin ? params.ms('spin', 0) : 0
+  const autoplayRaw = params.ms('autoplay', 0)
+  const spin = clampPeriod(spinRaw)
+  const autoplay = clampPeriod(autoplayRaw)
+  if (spin !== spinRaw) ctx.warn(`${label} spin: minimum is 2s; clamped to ${Math.abs(spin) / 1000}s`)
+  if (autoplay !== autoplayRaw) {
+    ctx.warn(`${label} autoplay: minimum is 2s; clamped to ${Math.abs(autoplay) / 1000}s`)
+  }
+  if (spin !== 0 && autoplay !== 0) {
+    ctx.warn(`${label}: spin: and autoplay: are both set; spin: wins`)
+    return { spin, autoplay: 0 }
+  }
+  return { spin, autoplay }
+}
+
+/**
+ * A deck's `autoplay:` (and, for a spatial deck, `spin:`) with its `pause:` control: the periods,
+ * the floor and its warning, the scheduler, and the `aria-pressed` the control carries.
+ *
+ * The deck-facing half of {@link createAutoMotion}, so the spatial decks and the flat `carousel`
+ * read the same parameters, warn the same way and reflect pause the same way — the only things a
+ * deck supplies are how it steps and, if it spins, how it advances.
+ *
+ * @complexity O(1) at setup plus one scoped query for a named `pause:`; O(m) per pause toggle in the
+ *   matched controls.
+ */
+export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
+  const { el, ctx, params, label, scope, settleMs, step } = request
+  const { spin, autoplay } = motionPeriods(request)
+  const ledgers = new Map<Element, AttributeLedger>()
+  const pauseSelector = resolveTarget(params.text('pause'), ctx, `${label} pause`)
+  const reflectPaused = (paused: boolean): void => {
+    if (!pauseSelector) return
+    for (const node of queryScoped(el, ctx, pauseSelector, scope)) {
+      let ledger = ledgers.get(node)
+      if (!ledger) {
+        ledger = createAttributeLedger(node)
+        ledgers.set(node, ledger)
+      }
+      ledger.set('aria-pressed', String(paused))
+    }
+  }
+
+  const motion = createAutoMotion({
+    el,
+    ctx,
+    spinMs: spin,
+    autoplayMs: autoplay,
+    settleMs,
+    advance: request.spin?.advance ?? (() => {}),
+    step,
+    setSpinning: request.spin?.setSpinning ?? (() => {}),
+    onPausedChange: reflectPaused,
+  })
+
+  let pause: ControlGroup | null = null
+  if (pauseSelector && !motion.enabled) {
+    ctx.warn(`${label} pause: has nothing to pause without ${request.spin ? 'spin: or ' : ''}autoplay:`)
+  } else if (pauseSelector) {
+    if (queryScoped(el, ctx, pauseSelector, scope).length === 0) {
+      ctx.warn(`${label} pause "${pauseSelector}" matched nothing`)
+    }
+    pause = { selector: pauseSelector, run: () => motion.toggle() }
+  }
+
+  return {
+    motion,
+    pause,
+    release() {
+      motion.release()
+      for (const ledger of ledgers.values()) ledger.restore()
+      ledgers.clear()
     },
   }
 }

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — deck-lightbox fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. The decks' geometry, the dialog and its controls are the library's. */
+      body { margin: 0; padding: 16px; background: #14110f; color: #f5efe8; font-family: system-ui, sans-serif; }
+      section { margin-block: 56px; }
+      .card { width: 120px; height: 90px; display: block; }
+      .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      /* The flat step deck: the live slide shows, the rest are out of the way. */
+      #deck { position: relative; width: 240px; height: 160px; }
+      #deck .slide { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+      #deck .slide[data-kui-step-state='active'] { opacity: 1; pointer-events: auto; }
+      #deck .slide { margin: 0; }
+      #deck .slide img { width: 100%; height: 100%; object-fit: cover; }
+      #deck .pp { position: absolute; top: calc(100% + 8px); left: 0; }
+    </style>
+  </head>
+  <body>
+    <section>
+      <div id="ring" data-kui="carousel-3d lightbox:true radius:200px" aria-label="Ring">
+        <a class="card" href="../../../demo/assets/spotted-shirt.jpg"><img src="../../../demo/assets/spotted-shirt.jpg" alt="Shirt" /></a>
+        <a class="card" href="../../../demo/assets/black-cover.jpg"><img src="../../../demo/assets/black-cover.jpg" alt="Cover" /></a>
+        <a class="card" href="../../../demo/assets/webdesign/iris-ai-motion.webm"><img src="../../../demo/assets/yellow_mc.jpg" alt="Iris motion" /></a>
+        <a class="card" href="../../../demo/assets/chap.jpg"><img src="../../../demo/assets/chap.jpg" alt="Chap" /></a>
+        <a class="card" href="../../../demo/assets/light_art.jpg"><img src="../../../demo/assets/light_art.jpg" alt="Light art" /></a>
+        <a class="card" href="../../../demo/assets/vase-dress.jpg"><img src="../../../demo/assets/vase-dress.jpg" alt="Vase dress" /></a>
+      </div>
+    </section>
+
+    <section>
+      <div id="deck" data-kui="carousel autoplay:2s lightbox:true pause:.pp target:.slide" aria-label="Deck">
+        <figure class="slide"><img src="../../../demo/assets/pink-mc.jpg" alt="Pink" /></figure>
+        <figure class="slide"><img src="../../../demo/assets/orange_visor.jpg" alt="Visor" /></figure>
+        <figure class="slide"><img src="../../../demo/assets/white-shades.jpg" alt="Shades" /></figure>
+        <button class="pp" type="button">Pause</button>
+      </div>
+    </section>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

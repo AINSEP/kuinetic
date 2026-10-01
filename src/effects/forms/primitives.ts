@@ -7,7 +7,10 @@ import type {
   ReducedMotionPolicy,
 } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
+import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import { deferPrepare } from '../../core/instances.js'
+import { effectDurationMs } from '../../core/js-params.js'
+import { AUTOPLAY_PARAM, createDeckMotion, PAUSE_PARAM } from '../auto-motion.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepIndex } from '../step-index.js'
@@ -237,11 +240,48 @@ export { nextStep, prevStep, clampStep, countSteps, delegateControls } from '../
 export type { ControlGroup } from '../step-index.js'
 
 function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const selector = resolveTarget(params.text('target'), ctx, 'step-progress')
+  const label = 'step-progress'
+  const selector = resolveTarget(params.text('target'), ctx, label)
   const scope = scopeParam(params, 'page')
   const resolveSteps = (): Iterable<Element> =>
     selector ? queryScoped(el, ctx, selector, scope) : el.children
-  const index = createStepIndex({ el, params, ctx, scope, resolveSteps })
+  const lightbox = params.is('lightbox')
+  /*
+   * `autoplay:` and `pause:` are the spatial decks' own (`auto-motion.ts`), not a second timer: the
+   * same floor, the same hover / keyboard-focus / offscreen / hidden-tab / reduced-motion pauses,
+   * the same `aria-pressed` on the pause control, and the same "a person takes over, then it
+   * resumes". Only the step is this deck's. The index is read lazily because the motion is built
+   * first — its `pause:` group has to be bound by the index's one delegated listener.
+   */
+  const { motion, pause, release: releaseMotion } = createDeckMotion({
+    el,
+    ctx,
+    params,
+    label,
+    scope,
+    settleMs: effectDurationMs(params, 400),
+    step: (direction) => (direction > 0 ? index.next() : index.prev()),
+  })
+  const index = createStepIndex({
+    el,
+    params,
+    ctx,
+    scope,
+    resolveSteps,
+    controls: pause ? [pause] : [],
+    onInput: () => motion.interrupt(),
+    /*
+     * With `lightbox:true` a click on a slide opens the viewer, so the container click cannot also
+     * advance the deck: one press would both open the gallery and move the slide behind it. The
+     * deck still moves on its arrows, dots, swipe and autoplay.
+     */
+    clickFallback: !lightbox,
+  })
+  const releaseViewer = deckLightbox(
+    lightbox,
+    { host: el, cards: resolveSteps, doc: ctx.doc, reducedMotion: ctx.reducedMotion },
+    (message) => ctx.warn(`${label} ${message}`),
+  )
   /*
    * A swipe on an element around this deck steps it: left/up is next, right/down is previous. The
    * swipe cannot sit on the deck itself (both write element state), so the documented pairing is
@@ -249,9 +289,15 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
    * script of its own. Here rather than in `createStepIndex`, because `slideshow` shares that index
    * and owns its touch handling through its own `swipe:` parameter. See `effects/swipe-event.ts`.
    */
-  const releaseSwipe = stepOnSwipe(ctx.doc, el, (direction) => (direction > 0 ? index.next() : index.prev()))
+  const releaseSwipe = stepOnSwipe(ctx.doc, el, (direction) => {
+    motion.interrupt()
+    if (direction > 0) index.next()
+    else index.prev()
+  })
   return () => {
+    releaseViewer()
     releaseSwipe()
+    releaseMotion()
     index.release()
   }
 }
@@ -305,6 +351,15 @@ const STEP_PROGRESS_BASE = jsInputPrimitive(
      * at 390px and at 1440px, and the page keeps owning the box. Same reason `rest:` is a number.
      */
     main: { type: 'number', default: '1', cssProperty: '--kui-main', finite: true, minimum: 0 },
+    /*
+     * The deck steps itself every `autoplay:` (`0s`, the default, is off), and `pause:` names the
+     * author's play/pause control. The spatial decks' declarations and scheduler, shared — see
+     * `prepareStepProgress` and `effects/auto-motion.ts`.
+     */
+    autoplay: AUTOPLAY_PARAM,
+    pause: PAUSE_PARAM,
+    // A click on a slide opens every slide in the lightbox gallery. See `core/deck-viewer.ts`.
+    lightbox: DECK_LIGHTBOX_PARAM,
     // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
     // see `prepareStepProgress`. One declaration, shared: `effects/step-marking.ts`.
     scope: SCOPE_PARAM,

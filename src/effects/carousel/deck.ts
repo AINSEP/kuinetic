@@ -1,4 +1,5 @@
 import type { Cleanup, EffectParams, ParameterSchema } from '../../core/types.js'
+import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
@@ -9,7 +10,7 @@ import { countSteps, delegateControls, nextStep, prevStep } from '../forms/primi
 import type { ControlGroup } from '../forms/primitives.js'
 import { ALL_TIMING_TOKENS, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { createRingDrag, wrapPlace } from './drag.js'
-import { clampPeriod, createAutoMotion } from './motion.js'
+import { AUTOPLAY_PARAM, createDeckMotion, PAUSE_PARAM } from '../auto-motion.js'
 
 /**
  * The spatial deck: the index, the continuous position, the controls, the grab and the auto-motion
@@ -144,17 +145,8 @@ export const DECK_PARAMETERS: ParameterSchema = {
   next: { type: 'text', default: '', cssProperty: '--kui-next' },
   prev: { type: 'text', default: '', cssProperty: '--kui-prev' },
   jump: { type: 'text', default: '', cssProperty: '--kui-jump' },
-  /*
-   * A control that pauses and resumes `spin:`/`autoplay:`, resolved like the three above.
-   *
-   * The library does not invent the button, unlike `slideshow`, which builds its own chrome: every
-   * other control on this deck is the author's markup, and a pause button that appeared from
-   * nowhere beside arrows the page styled itself would be the one control that did not match. It
-   * gets `aria-pressed` (true while paused) so it announces as the toggle it is. Moving content that
-   * starts on its own and runs past five seconds needs a way to stop it (WCAG 2.2.2); hover and
-   * keyboard focus already pause, and this is the control for everyone else.
-   */
-  pause: { type: 'text', default: '', cssProperty: '--kui-pause' },
+  /** A control that pauses and resumes `spin:`/`autoplay:`. See `PAUSE_PARAM` (`auto-motion.ts`). */
+  pause: PAUSE_PARAM,
   /*
    * Continuous rotation: how long one full cycle of the deck takes. `0s` is off.
    *
@@ -167,13 +159,17 @@ export const DECK_PARAMETERS: ParameterSchema = {
    */
   spin: { type: 'time', default: '0s', cssProperty: '--kui-spin' },
   /*
-   * Stepped motion: how long the deck rests on each slide before moving to the next. `0s` is off.
-   *
-   * The `slideshow` model — a timer pressing "next", with the stylesheet's own transition doing the
-   * travel — and its two-second floor. Negative steps backwards. When both are set `spin:` wins,
-   * because a deck cannot be both gliding and resting.
+   * Stepped motion: how long the deck rests on each slide. When both are set `spin:` wins, because a
+   * deck cannot be both gliding and resting. See `AUTOPLAY_PARAM` (`auto-motion.ts`).
    */
-  autoplay: { type: 'time', default: '0s', cssProperty: '--kui-autoplay' },
+  autoplay: AUTOPLAY_PARAM,
+  /*
+   * `lightbox:true`: a click on a card opens every card of this deck in the shared lightbox gallery,
+   * at the card clicked. A drag still only moves the deck — its click is swallowed before it can
+   * reach a card (`drag.ts`). The gallery itself lives in the showcase module; see
+   * `core/deck-viewer.ts` for how a deck reaches it without importing it.
+   */
+  lightbox: DECK_LIGHTBOX_PARAM,
   scope: SCOPE_PARAM,
 }
 
@@ -257,23 +253,6 @@ function measureItem(styles: StyleLedger, slots: readonly Element[]): void {
   if (!first) return
   if (first.offsetWidth > 0) styles.set('--kui-item-width', `${first.offsetWidth}px`)
   if (first.offsetHeight > 0) styles.set('--kui-item-height', `${first.offsetHeight}px`)
-}
-
-/** The configured motion, after the floor, with the both-set conflict resolved. */
-function motionPeriods(params: EffectParams, ctx: PrepareContext, label: string): { spin: number; autoplay: number } {
-  const spinRaw = params.ms('spin', 0)
-  const autoplayRaw = params.ms('autoplay', 0)
-  const spin = clampPeriod(spinRaw)
-  const autoplay = clampPeriod(autoplayRaw)
-  if (spin !== spinRaw) ctx.warn(`${label} spin: minimum is 2s; clamped to ${Math.abs(spin) / 1000}s`)
-  if (autoplay !== autoplayRaw) {
-    ctx.warn(`${label} autoplay: minimum is 2s; clamped to ${Math.abs(autoplay) / 1000}s`)
-  }
-  if (spin !== 0 && autoplay !== 0) {
-    ctx.warn(`${label}: spin: and autoplay: are both set; spin: wins`)
-    return { spin, autoplay: 0 }
-  }
-  return { spin, autoplay }
 }
 
 /**
@@ -408,39 +387,26 @@ export function prepareSpatialDeck(
     markFaces(rendered.nodes, rendered.count, drift)
   }
 
-  const { spin, autoplay } = motionPeriods(params, ctx, label)
-  const pauseControls = new Map<Element, AttributeLedger>()
-  const pauseSelector = resolveTarget(params.text('pause'), ctx, `${label} pause`)
-  const reflectPaused = (paused: boolean): void => {
-    if (!pauseSelector) return
-    for (const node of queryScoped(el, ctx, pauseSelector, scope)) {
-      let ledger = pauseControls.get(node)
-      if (!ledger) {
-        ledger = createAttributeLedger(node)
-        pauseControls.set(node, ledger)
-      }
-      ledger.set('aria-pressed', String(paused))
-    }
-  }
-
-  const motion = createAutoMotion({
+  const { motion, pause, release: releaseMotion } = createDeckMotion({
     el,
     ctx,
-    spinMs: spin,
-    autoplayMs: autoplay,
+    params,
+    label,
+    scope,
     settleMs: effectDurationMs(params, 620),
-    advance(cycles) {
-      position = wrapPlace(position + cycles * rendered.count, rendered.count)
-      renderFrame()
-    },
     step(direction) {
       const count = total()
       const { step } = snapPosition(position, count)
       position = direction > 0 ? nextStep(step, count) : prevStep(step, count)
       render()
     },
-    setSpinning: (spinning) => hostAttributes.set(SPINNING_ATTR, String(spinning)),
-    onPausedChange: reflectPaused,
+    spin: {
+      advance(cycles) {
+        position = wrapPlace(position + cycles * rendered.count, rendered.count)
+        renderFrame()
+      },
+      setSpinning: (spinning) => hostAttributes.set(SPINNING_ATTR, String(spinning)),
+    },
   })
 
   /** A person moved the deck. The motion yields first, so the stylesheet's transition is back. */
@@ -468,11 +434,7 @@ export function prepareSpatialDeck(
   bindControl('next', () => goTo(nextStep(snapPosition(position, total()).step, total())))
   bindControl('prev', () => goTo(prevStep(snapPosition(position, total()).step, total())))
   bindControl('jump', (_node, at) => { if (at >= 0) goTo(at) })
-  if (pauseSelector && !motion.enabled) {
-    ctx.warn(`${label} pause: has nothing to pause without spin: or autoplay:`)
-  } else {
-    bindControl('pause', () => motion.toggle())
-  }
+  if (pause) groups.push(pause)
   const releaseControls = delegateControls({ el, ctx, scope, groups })
 
   const releaseDrag = createRingDrag({
@@ -489,16 +451,21 @@ export function prepareSpatialDeck(
     },
   })
 
+  const releaseViewer = deckLightbox(
+    params.is('lightbox'),
+    { host: el, cards: resolveSlots, doc: ctx.doc, reducedMotion: ctx.reducedMotion },
+    (message) => ctx.warn(`${label} ${message}`),
+  )
+
   render()
 
   return () => {
-    motion.release()
+    releaseViewer()
+    releaseMotion()
     releaseDrag()
     releaseControls()
     marker.restore()
-    for (const ledger of pauseControls.values()) ledger.restore()
     for (const ledger of slots.attributes.values()) ledger.restore()
-    pauseControls.clear()
     slots.attributes.clear()
     attachment?.release()
     hostAttributes.restore()

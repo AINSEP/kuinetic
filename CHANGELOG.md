@@ -36,8 +36,31 @@ version numbers are assigned at release.
   now steps the `carousel` deck within it — left or up for next, right or down for previous — with
   no page script; only the outermost deck inside the wrapper moves. Every swipe also dispatches a
   bubbling `kui:swipe` event (`event.detail.direction`) for pages that drive something else.
+- **`lightbox:true` on every carousel.** `carousel-3d lightbox:true` (and `-high`, `-low`,
+  `-inside`, `carousel-orbit`, `carousel-stack`, `carousel`) opens a clicked card in the shared
+  lightbox gallery with all of that carousel's cards in it — buttons, arrow/Home/End keys and touch
+  swipe cycle them, images and videos alike. A drag only turns the deck; cards turned away, and
+  buttons or inputs inside a card, are left alone; Enter or Space on the deck opens the card in
+  front. On the `carousel` step deck a slide click opens the viewer instead of advancing. Warns if
+  the showcase module is not loaded. Off by default.
+- **`autoplay:` on the `carousel` step deck.** `carousel autoplay:4s` (or `step-progress`) steps the
+  deck on a timer, with the spatial carousels' own rules: pauses on hover, keyboard focus, offscreen
+  and hidden tabs, does not start under reduced motion, and yields to arrows, dots, clicks and
+  swipes before resuming. `pause:` names a play/pause control with `aria-pressed`. Off by default;
+  without it the deck moves only by hand.
 
 ### Fixed
+
+- **Links and buttons inside a ring's cards work in a real browser.** `carousel-3d*`,
+  `carousel-orbit` and `carousel-stack` took pointer capture on every press, so the browser
+  delivered the click that ends a tap to the deck instead of the card: card links and buttons did
+  nothing. Capture is now taken only once a press becomes a drag.
+- **The first tap after swiping a ring is no longer swallowed.** The click-after-drag guard waited
+  for a click that a touch drag (or a cancelled drag) never sends, and ate the next real one. A new
+  press now clears it.
+- **Dragging a ring by a linked or pictured card turns the ring.** The browser's native
+  drag-and-drop took over a few pixels in — a ghost of the card followed the pointer and the ring
+  stopped. A grabbable deck now refuses native drags inside it.
 
 - **A 3D ring no longer pushes the page sideways.** `radius:` on `carousel-3d*` is now a ceiling:
   a ring whose cards would reach past the page at any angle they turn to (a `radius:200px` ring on

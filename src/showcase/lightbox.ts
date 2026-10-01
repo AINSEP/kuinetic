@@ -1,11 +1,13 @@
+import type { DeckViewerRequest } from '../core/deck-viewer.js'
 import type { PrepareContext } from '../core/effect-context.js'
 import { recognise } from '../core/gesture.js'
 import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
-import type { EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
+import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { withTimingContract } from '../effects/shared.js'
+import { STEP_STATE_ATTR } from '../effects/step-marking.js'
 import { swipeStep } from '../effects/swipe-event.js'
 import { acquireModalShell } from './modal-shell.js'
 import type { ModalContent, ModalShell } from './modal-shell.js'
@@ -13,13 +15,17 @@ import { resolveMediaSource } from './media-source.js'
 import type { MediaSource } from './media-source.js'
 import { widgetPrimitive } from './shared.js'
 
+const DEFAULT_DURATION_MS = 280
+const DEFAULT_SCALE = '0.965'
+const DEFAULT_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
 const paramsSchema: ParameterSchema = {
   media: { type: 'keyword', default: 'image', cssProperty: '--kui-lightbox-media', keywords: ['image', 'video', 'mixed'] },
   target: { type: 'text', default: '', cssProperty: '--kui-target' },
   scope: SCOPE_PARAM,
-  scale: { type: 'number', default: '0.965', cssProperty: '--kui-from-scale', finite: true, minimum: 0 },
-  duration: { type: 'time', default: '280ms', cssProperty: '--kui-lightbox-duration' },
-  ease: { type: 'easing', default: 'cubic-bezier(0.22, 1, 0.36, 1)', cssProperty: '--kui-lightbox-ease' },
+  scale: { type: 'number', default: DEFAULT_SCALE, cssProperty: '--kui-from-scale', finite: true, minimum: 0 },
+  duration: { type: 'time', default: `${DEFAULT_DURATION_MS}ms`, cssProperty: '--kui-lightbox-duration' },
+  ease: { type: 'easing', default: DEFAULT_EASE, cssProperty: '--kui-lightbox-ease' },
   loop: { type: 'keyword', default: 'true', cssProperty: '--kui-lightbox-loop', keywords: ['true', 'false'] },
   aspect: { type: 'keyword', default: '', cssProperty: '--kui-lightbox-aspect', keywords: ['wide', 'tall', 'square'] },
   caption: { type: 'keyword', default: 'figcaption', cssProperty: '--kui-lightbox-caption', keywords: ['figcaption', 'alt', 'title', 'none'] },
@@ -151,9 +157,9 @@ function usable(trigger: Element, media: Media): boolean {
 
 function modalOptions(params: EffectParams, ctx: PrepareContext): Pick<ModalContent, 'duration' | 'scale' | 'ease' | 'reducedMotion'> {
   return {
-    duration: params.timing.durationMs ?? params.ms('duration', 280),
-    scale: params.text('scale', '0.965'),
-    ease: params.timing.easing ?? params.text('ease', 'cubic-bezier(0.22, 1, 0.36, 1)'),
+    duration: params.timing.durationMs ?? params.ms('duration', DEFAULT_DURATION_MS),
+    scale: params.text('scale', DEFAULT_SCALE),
+    ease: params.timing.easing ?? params.text('ease', DEFAULT_EASE),
     reducedMotion: ctx.reducedMotion,
   }
 }
@@ -460,6 +466,89 @@ function wireTriggers(triggers: Element[], wiring: Wiring): Array<() => void> {
     }, { signal: wiring.signal })
   }
   return restore
+}
+
+/**
+ * A deck card as a gallery item, read by the `media:mixed` rules: a link in the card (or the card
+ * itself, when it is one) to a playable video is a video; otherwise the card's picture is an image,
+ * linked or bare. A card with neither is not an item and its clicks are left alone.
+ */
+function cardItem(card: Element): LightboxItem | null {
+  const link = card.matches('a[href]') ? card : card.querySelector('a[href]')
+  return (link && itemFor(link, 'mixed', 'figcaption')) || itemFor(card, 'mixed', 'figcaption')
+}
+
+/** Inside a card, these keep their own click: a "Buy" button on a product card is not a picture. */
+const OWN_CLICK = 'button, input, select, textarea, label, summary, [contenteditable]'
+
+/**
+ * Click-to-view for a deck: `carousel-3d lightbox:true` and every other deck with the parameter.
+ * Provided to the decks through `core/deck-viewer.ts` by `registerShowcase`.
+ *
+ * Every card of the deck becomes one gallery, opened at the card clicked, through the same
+ * `galleryContent` the `lightbox` effect opens — buttons, keys, swipe, `loop`, the media rules and
+ * the one shared modal shell, unforked.
+ *
+ * What counts as a click is the deck's to say, and it already says it. The listener is on the host
+ * in the *bubble* phase, and a deck's drag consumes the click that ends a drag in the *capture*
+ * phase on the same host (`carousel/drag.ts`'s `guardClicks`), with `stopPropagation` — so a drag
+ * never reaches this listener, and nothing here re-derives a threshold. (That a tap's click lands
+ * on the card at all, rather than on the host, rests on the drag taking pointer capture only once a
+ * press becomes a drag — `capturePointer: 'drag'` in `createRingDrag`.) A card turned away from
+ * the viewer is `pointer-events: none` (`carousel.css`) and cannot be the target; the
+ * `data-kui-ring-face` check repeats that for an engine whose hit-testing ignores it.
+ *
+ * @returns Removes the listener and releases this deck's hold on the shared modal.
+ * @complexity O(n) per click in the deck's cards; O(1) space between clicks.
+ */
+export function attachDeckLightbox(request: DeckViewerRequest): Cleanup {
+  const { host, cards, doc, reducedMotion } = request
+  const shell = acquireModalShell(doc)
+  const options: ViewerOptions = { duration: DEFAULT_DURATION_MS, scale: DEFAULT_SCALE, ease: DEFAULT_EASE,
+    reducedMotion, loop: true, aspect: '' }
+  /** Open the deck's gallery at the first card `pick` accepts; false when that card is no item. */
+  const openAt = (pick: (card: Element) => boolean): boolean => {
+    const all = [...cards()]
+    const card = all.find(pick)
+    if (!card || card.getAttribute('data-kui-ring-face') === 'back') return false
+    const items: LightboxItem[] = []
+    let initial = -1
+    for (const candidate of all) {
+      const item = cardItem(candidate)
+      if (!item) continue
+      if (candidate === card) initial = items.length
+      items.push(item)
+    }
+    if (initial < 0) return false
+    shell.open(galleryContent(items, initial, options))
+    return true
+  }
+  const onClick = (event: Event): void => {
+    const target = event.target as Element
+    if (event.defaultPrevented || !primaryClick(event as MouseEvent) || target.closest(OWN_CLICK)) return
+    // A card's link is the full-size picture or the clip; the viewer shows it in place instead.
+    if (openAt((card) => card.contains(target))) event.preventDefault()
+  }
+  /*
+   * Added to the draft this was built from: the keyboard path. A card that is a link is reached by
+   * Tab and opened by Enter (the browser turns that into the click above), but a deck of bare
+   * pictures had no keyboard way in at all — the `lightbox` effect gives such an image
+   * `role="button"` and a tab stop, and a deck cannot, because its arrow keys already live on the
+   * focusable host (`carousel/drag.ts`). So Enter or Space on the host itself opens the live card,
+   * the one the arrows just brought forward: arrows to choose, Enter to look.
+   */
+  const onKeyDown = (event: Event): void => {
+    const key = (event as KeyboardEvent).key
+    if (event.target !== host || (key !== 'Enter' && key !== ' ')) return
+    if (openAt((card) => card.getAttribute(STEP_STATE_ATTR) === 'active')) event.preventDefault()
+  }
+  host.addEventListener('click', onClick)
+  host.addEventListener('keydown', onKeyDown)
+  return () => {
+    host.removeEventListener('click', onClick)
+    host.removeEventListener('keydown', onKeyDown)
+    shell.release()
+  }
 }
 
 /**

@@ -96,9 +96,12 @@ export const FORMS_PRESETS: Preset[] = [
    * two readings is the stylesheet. `step-progress` was the wrong word to type on a deck of
    * slides, which is the only reason this alias exists; nothing behaves differently under it.
    *
-   * It is still an *index*, not a carousel component: no ARIA, no roving focus, no autoplay. That
-   * boundary is the one section H states — the library animates elements you control and does not
-   * own the widget — and naming this `carousel` does not move it.
+   * It is still an *index*, not a carousel component: no ARIA, no roving focus. That boundary is
+   * the one section H states — the library animates elements you control and does not own the
+   * widget — and naming this `carousel` does not move it. `autoplay:`/`pause:` do not cross it: they
+   * press the same "next" a visitor's control does, on a timer, and the control is still the
+   * author's markup (`effects/auto-motion.ts`, shared with the spatial decks). Likewise
+   * `lightbox:true` hands a click on a slide to the showcase gallery (`core/deck-viewer.ts`).
    *
    * No `requiresOwnSubtree` here, unlike `step-progress` beside it. That flag means "this name's
    * shipped CSS reaches past the element into its descendants, so the universal `target:` must

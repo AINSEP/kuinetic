@@ -14,6 +14,18 @@ export interface StepIndexOptions {
   onRender?: (index: number, total: number) => void
   clickFallback?: boolean
   name?: string
+  /**
+   * Further control groups bound through the same delegated listener as `next:`/`prev:`/`jump:` —
+   * a deck's `pause:` (`auto-motion.ts`). Like the three, naming one retires the click-the-container
+   * fallback: a pause button inside the deck would otherwise also advance it on every press.
+   */
+  controls?: readonly ControlGroup[]
+  /**
+   * Called before a *person* moves the index — a named control or the container click — and never
+   * for `goTo`/`next`/`prev` called from code. How a deck's autoplay yields to the visitor without
+   * mistaking its own timer for one.
+   */
+  onInput?: () => void
 }
 
 export interface StepIndex {
@@ -220,19 +232,25 @@ export function createStepIndex(options: StepIndexOptions): StepIndex {
     groups.push({ selector, run })
     return true
   }
+  const byHand = (move: () => void): void => {
+    options.onInput?.()
+    move()
+  }
   const named = [
-    bindControl('next', next),
-    bindControl('prev', prev),
-    bindControl('jump', (_node, position) => { if (position >= 0) goTo(position) }),
-  ].some(Boolean)
+    bindControl('next', () => byHand(next)),
+    bindControl('prev', () => byHand(prev)),
+    bindControl('jump', (_node, position) => { if (position >= 0) byHand(() => goTo(position)) }),
+  ].some(Boolean) || (options.controls?.length ?? 0) > 0
+  groups.push(...(options.controls ?? []))
   const fallback = options.clickFallback !== false && !named
-  if (fallback) el.addEventListener('click', next)
+  const onContainerClick = (): void => byHand(next)
+  if (fallback) el.addEventListener('click', onContainerClick)
   const releaseControls = delegateControls({ el, ctx, scope, groups })
   render()
   return {
     goTo, next, prev, current: () => step, total,
     release: () => {
-      if (fallback) el.removeEventListener('click', next)
+      if (fallback) el.removeEventListener('click', onContainerClick)
       releaseControls()
       self.restore()
       selfStyle.restore()

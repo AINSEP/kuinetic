@@ -1097,6 +1097,36 @@ Primitives 14, 22, 38, 46.
 > content that starts by itself and lasts more than five seconds needs a way to stop it (WCAG
 > 2.2.2), and hover and focus only cover some visitors.
 
+> **Open the cards in the lightbox: `lightbox:true`.** A click on a card opens the shared lightbox
+> gallery at that card, with every card of the deck in it — prev/next buttons, the arrow, Home and
+> End keys, and a sideways swipe on a touch screen all move through them. No wrapper, no second
+> attribute:
+>
+> ```html
+> <div data-kui="carousel-3d lightbox:true" aria-label="Work">
+>   <a href="full/cabin.jpg"><img src="thumbs/cabin.jpg" alt="Cabin"></a>
+>   <figure><img src="studio.jpg" alt="Studio"><figcaption>The studio</figcaption></figure>
+>   <a href="clips/launch.mp4"><img src="launch-poster.jpg" alt="Launch film"></a>
+> </div>
+> ```
+>
+> Each card is read the way `lightbox media:mixed` reads a row: a card linking to a video (YouTube,
+> Vimeo, or an `.mp4`/`.webm`/`.ogg` file) plays it; a card linking around its picture shows the
+> link's target, so the link should be the full-size image; a card with a bare picture shows that
+> picture. The caption is the card's `figcaption`, else the picture's `alt`. A card with neither a
+> picture nor a video is skipped.
+>
+> A drag still only turns the deck — the click that ends a drag never opens anything. A card turned
+> away from the viewer is not clickable. Buttons, inputs and other controls inside a card keep their
+> own click, and a modified click (Cmd/Ctrl/Shift, middle button) still follows the card's link. On
+> the keyboard, the arrows bring a card forward and Enter or Space on the deck opens it; a card that
+> is itself a link opens with Enter when tabbed to.
+>
+> Every carousel takes it: `carousel-3d`, `-high`, `-low`, `-inside`, `carousel-orbit`,
+> `carousel-stack` and the `carousel` step deck (section O). The gallery lives in the showcase
+> module (section T), which the default build includes; if a page loads a build without it, the deck
+> warns once that the cards will not open, and they stay ordinary links.
+
 > **`carousel-orbit` is the same ring laid flat on the screen** — cards evenly spaced on a circle,
 > like a clock face, around whatever sits in the middle, the whole circle turning.
 >
@@ -1297,9 +1327,36 @@ Primitives 1, 10, 15.
 > is no `axis:` parameter: the primitive owns the index, the page owns the direction, and a knob
 > that only chose between two transforms would not be doing anything the stylesheet was not.
 >
+> **Let it step on its own: `autoplay:`.** Off by default — without it the deck moves only on its
+> controls, a click, or a swipe. `autoplay:4s` rests on each slide for four seconds and steps to the
+> next (negative steps backwards; floored at 2s):
+>
+> ```html
+> <div data-kui="carousel autoplay:4s pause:.play-pause next:.next prev:.prev" aria-label="Quotes">
+>   <blockquote> … </blockquote>
+>   <blockquote> … </blockquote>
+>   <button class="prev" type="button">Previous</button>
+>   <button class="next" type="button">Next</button>
+>   <button class="play-pause" type="button">Pause</button>
+> </div>
+> ```
+>
+> It is the spatial carousels' autoplay (section above), with the same rules: it pauses while the
+> pointer is over the deck, while it has keyboard focus, while it is scrolled out of view and while
+> the tab is hidden; under `prefers-reduced-motion` it does not start until the visitor presses
+> your pause control; a press on the arrows or dots, a click or a swipe takes over and the timer
+> resumes once the move has played out. `pause:` names your play/pause button, which carries
+> `aria-pressed` (true while paused) — add one, since moving content that lasts more than five
+> seconds needs a way to stop it (WCAG 2.2.2). Like the arrows, naming `pause:` retires the
+> click-the-container form, so pressing it never also advances the deck.
+>
+> `lightbox:true` works here too (see the spatial carousel above): a click on a slide opens every
+> slide in the lightbox gallery instead of advancing the deck, so name `next:`/`prev:`/`jump:`
+> controls or wrap it in a swipe to move it.
+>
 > **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
-> no autoplay, no swipe of its own. Section H states the same line for `accordion-height`, and a
-> second name does not move it. For touch, put `swipe-x` (or `swipe-y` for a vertical deck) from
+> no swipe of its own. Section H states the same line for `accordion-height`, and a second name does
+> not move it. For touch, put `swipe-x` (or `swipe-y` for a vertical deck) from
 > the gestures group on the deck's wrapper: the deck steps itself on the wrapper's swipe — left or
 > up for next, right or down for previous — with no page script. For a carousel that
 > owns controls and accessibility behavior, use the showcase names in section T.
@@ -1593,6 +1650,10 @@ need to track.
 > stay in the embed; the prev/next buttons still move on. The same goes for touch: a drag along a
 > native player scrubs it, and taps on an embed are the embed's — swipe on the space around them.
 > While the page is pinch-zoomed, swipes pan the zoomed page instead of changing items.
+>
+> **From a carousel:** `lightbox:true` on any carousel (`carousel-3d*`, `carousel-orbit`,
+> `carousel-stack`, `carousel`) opens its cards in this same gallery, read as `media:mixed` with the
+> defaults above — no `lightbox` wrapper needed. See section N.
 >
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
