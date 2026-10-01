@@ -106,12 +106,18 @@ export interface AutoMotionRequest {
   settleMs: number
   /** Whether the pointer resting on the deck pauses it. Omitted, it does. See `HOVER_PARAM`. */
   pauseOnHover?: boolean
-  /** Move the deck on by a (signed) fraction of a full cycle. */
-  advance(cycles: number): void
+  /**
+   * Move the deck on by a (signed) fraction of a full cycle. Absent on a deck that cannot spin; such
+   * a deck always has `spinMs` 0 (`motionPeriods`), so nothing ever calls it.
+   */
+  advance?(cycles: number): void
   /** Step the deck one place. */
   step(direction: 1 | -1): void
-  /** Publish whether frames, rather than the stylesheet's transition, are driving the deck. */
-  setSpinning(spinning: boolean): void
+  /**
+   * Publish whether frames, rather than the stylesheet's transition, are driving the deck. Absent,
+   * and never called, on a deck that cannot spin — see `advance`.
+   */
+  setSpinning?(spinning: boolean): void
   /** Called whenever the author-facing paused state changes, to mirror it onto pause controls. */
   onPausedChange(paused: boolean): void
 }
@@ -228,7 +234,10 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   const publishSpinning = (next: boolean): void => {
     if (next === spinning) return
     spinning = next
-    setSpinning(next)
+    // Only frames set `spinning`, and frames only run with `spinMs` non-zero, which a deck without
+    // the callbacks never has. Asserted rather than defaulted to a no-op: a placeholder nothing can
+    // call is a function coverage can never reach.
+    setSpinning!(next)
   }
 
   const tick = (now: number): void => {
@@ -237,7 +246,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
     // The first frame after a start or a resume only records the clock. Integrating from the last
     // frame *before* the pause would move the deck by however long it was paused for — the very
     // snap this scheduler exists to avoid.
-    if (lastFrameAt !== null) advance(cyclesFor(now - lastFrameAt, spinMs))
+    if (lastFrameAt !== null) advance!(cyclesFor(now - lastFrameAt, spinMs))
     lastFrameAt = now
     frame = requestFrame(tick)
   }
@@ -505,9 +514,9 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
     autoplayMs: autoplay,
     settleMs,
     pauseOnHover: !params.is('hover', 'none'),
-    advance: request.spin?.advance ?? (() => {}),
+    advance: request.spin?.advance,
     step,
-    setSpinning: request.spin?.setSpinning ?? (() => {}),
+    setSpinning: request.spin?.setSpinning,
     onPausedChange: reflectPaused,
   })
 
