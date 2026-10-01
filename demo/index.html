@@ -2216,7 +2216,7 @@
                  observer fires immediately anyway, and if the hero is ever pushed below the fold
                  the line types when it is read rather than into an empty screen. -->
             <p class="hero-media-credit" data-kui="typewriter delay:1000ms on:enter">Made by Leon A.</p>
-            <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
+            <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card">
               <!-- Front face: promo tour, part 1. The video carries a `data-hero-video` stem instead
                    of a `src`/`poster`: the light and dark encodes are separate files
                    (`<stem>-light.mp4`, `<stem>-dark.mp4`, and a `.jpg` poster for each), and the
@@ -2570,7 +2570,7 @@
              the viewport while the stage sat that far below the fold, and the reel read as a strip
              sliding past the bottom edge with its captions cut off. They are grid rows here, and
              the row that moves is still only the one `target:` names. -->
-        <div class="track-stage" id="reel-track" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+        <div class="track-stage" id="reel-track" data-kui="horizontal-scroll distance:300vh target:.track">
           <div class="reel-intro">
             <div class="section-head">
               <h2 data-kui="fade-down on:enter">Scroll pulls the reel.</h2>
@@ -2752,7 +2752,7 @@
 
         <p class="kui-contract deck-contract" data-kui="bounce-in"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter, pop scale:1.08 target:.yt-play on:load"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
 
-        <div class="deck-shell" id="deck-demo" data-show-code-key="deck-slide deck-dot deck-next deck-prev yt-play" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter, pop scale:1.08 target:.yt-play on:load">
+        <div class="deck-shell" id="deck-demo" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85, fade-blur-up distance:280px 1800ms on:enter, pop scale:1.08 target:.yt-play on:load">
           <button type="button" class="deck-arrow deck-prev" aria-label="Previous video">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg>
           </button>

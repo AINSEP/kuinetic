@@ -93,12 +93,25 @@
    * line's origin (tag vs. text) alongside it is what lets the highlighter tell them apart; a
    * caption can say anything it wants about `data-kui` without ever being mistaken for it.
    */
+  /**
+   * Tool chrome that sits inside a demo container but is not demo markup: `prettyPrint` skips it,
+   * and so does `referencedTokens`, so a class on one of these can never be highlighted. See the
+   * long comment in `prettyPrint` for why each of the three is chrome.
+   */
+  function isChrome(node) {
+    return (
+      node.classList.contains('kui-show-code-toggle') ||
+      node.classList.contains('kui-contract') ||
+      node.hasAttribute('data-show-code-target')
+    )
+  }
+
   function prettyPrint(el, depth) {
     const indent = '  '.repeat(depth)
     const tag = el.tagName.toLowerCase()
     const attrList = [...el.attributes]
       // Every `data-show-code*` attribute is this tool's own wiring — `data-show-code`,
-      // `-target`, `-key`. None of it belongs in the markup someone is about to copy.
+      // `-target`. None of it belongs in the markup someone is about to copy.
       .filter(a => !a.name.startsWith('data-show-code'))
 
     // The column the next attribute starts printing at — `<tag ` plus every attribute already
@@ -140,9 +153,7 @@
         // to give that button its own look — `.hero-flip-code` in the hero is an outline variant
         // parked in the opposite corner from the flip control — and those buttons sit *inside* the
         // container they name, so without this they printed as if the demo required them.
-        if (node.classList.contains('kui-show-code-toggle')) continue
-        if (node.classList.contains('kui-contract')) continue
-        if (node.hasAttribute('data-show-code-target')) continue
+        if (isChrome(node)) continue
         childLines.push(...prettyPrint(node, depth + 1))
       }
     }
@@ -155,22 +166,60 @@
   }
 
   /**
-   * Which lines in a printed source block are load-bearing.
-   *
-   * Always the `data-kui` line, because that is the whole effect. Beyond that, an effect with a
-   * markup contract can name the tokens that matter with `data-show-code-key` on its container —
-   * `flip-card` needs `kui-face-front`, `kui-face-back`, and a `kui-flip-control` outside both, and
-   * nothing in a wall of monospace tells you which of those class names you are allowed to rename
-   * and which one the stylesheet is actually selecting on.
+   * Parameters whose value is a CSS selector — every name the library passes through
+   * `resolveTarget` (`src/core/target.ts`): `target:` (universal), `sections:` (scroll-story,
+   * scroll-spy), `next:`/`prev:`/`jump:` (the step decks), `pause:` (spin/autoplay decks), `mute:`
+   * (slideshow), plus `follow:` (layout's tab indicator, which queries directly). Every other
+   * `text` parameter is a URL, an attribute name, a colour or a length, none of which name markup.
    */
-  function keyTokensFor(sourceEl) {
-    const declared = (sourceEl.getAttribute('data-show-code-key') || '').trim()
-    return declared ? declared.split(/\s+/) : []
+  const SELECTOR_PARAMS = ['target', 'sections', 'next', 'prev', 'jump', 'pause', 'mute', 'follow']
+  const SELECTOR_PARAM_RE = new RegExp(
+    `(?:^|[\\s,])(?:${SELECTOR_PARAMS.join('|')})\\s*:\\s*(?:'([^']*)'|"([^"]*)"|([^\\s,]+))`,
+    'g',
+  )
+
+  /** Class and id names inside one selector. Attribute selectors are dropped first, so the `.mp4`
+   * in `[href$=".mp4"]` is not read as a class; tag names, combinators and pseudo-classes carry no
+   * name anyone could rename and contribute nothing. */
+  function selectorNames(selector, out) {
+    const bare = selector.replace(/\[[^\]]*\]/g, ' ')
+    for (const match of bare.matchAll(/([.#])(-?[A-Za-z_][-\w]*)/g)) {
+      ;(match[1] === '.' ? out.classes : out.ids).add(match[2])
+    }
   }
 
   /**
-   * Byte ranges within a key line worth marking — the `data-kui="..."` attribute itself, and any
-   * class-token contract named by `data-show-code-key`. Scoped to the match, not the whole line:
+   * Which class and id names the printed markup's own `data-kui` values reference — derived, not
+   * declared.
+   *
+   * A highlight answers "what argument in data-kui does this go to?", so the only honest source for
+   * it is the data-kui text itself. This used to be a hand-written `data-show-code-key` per demo,
+   * and hand keys drifted in both directions: `ring-row` stayed marked on a ring band after nothing
+   * named it any more, and the swipe-y deck marked nothing although its nested carousel names four
+   * classes. Reading every selector-valued parameter of every `data-kui` in the printed subtree —
+   * nested ones included — makes the highlight exactly what the effect resolves, by construction.
+   *
+   * A name only lights up where it actually appears in the printed markup; a `pause:.band-pause
+   * scope:page` control that lives outside the block has nothing here to mark.
+   */
+  function referencedTokens(sourceEl) {
+    const out = { classes: new Set(), ids: new Set() }
+    const visit = (el) => {
+      const value = el.getAttribute('data-kui')
+      if (value) {
+        for (const match of value.matchAll(SELECTOR_PARAM_RE)) {
+          selectorNames(match[1] ?? match[2] ?? match[3], out)
+        }
+      }
+      for (const child of el.children) if (!isChrome(child)) visit(child)
+    }
+    visit(sourceEl)
+    return out
+  }
+
+  /**
+   * Byte ranges within a key line worth marking — the `data-kui="..."` attribute itself, and every
+   * class or id that `referencedTokens` found a `data-kui` naming. Scoped to the match, not the whole line:
    * `<figure class="demo-card" data-kui="fade-in 2000ms" data-show-code>` is mostly plumbing a
    * reader doesn't need lit up, and marking the entire opening tag buries the one attribute that
    * actually explains the effect under five others that don't.
@@ -179,9 +228,9 @@
    * line never reaches this function — see `prettyPrint`'s `isTag` for why a caption that merely
    * *says* `data-kui=` must never be treated as the real thing.
    *
-   * Every `data-show-code-key` authored so far names class tokens (`track`, `kui-face-front`, …),
-   * but a `target:` contract can just as easily be an id selector, so both attributes get the
-   * same treatment. Either way a token only counts as a match when it is the *whole* value (an
+   * A selector can name a class (`.track`) or an id (`#ring-landing`), and the two namespaces are
+   * kept apart: `.foo` marks only `class="… foo …"`, `#foo` only `id="foo"`. Either way a token
+   * only counts as a match when it is the *whole* value (an
    * id can't hold more than one) or one whole, space-delimited piece of a `class="..."` value —
    * never a bare `\b`-bounded substring search across the line. `\b` alone still says yes to
    * `track` inside `id="reel-track"` and inside `class="track-stage"`, because `-` and `"` are
@@ -191,7 +240,7 @@
    * construction — a `<ul class="…">` or `<li id="…">` matches exactly like a `<div>` would.
    */
   function classTokenRangesFor(text, tokens) {
-    if (tokens.length === 0) return []
+    if (tokens.classes.size === 0 && tokens.ids.size === 0) return []
     const ranges = []
     const classAttrRe = /class\s*=\s*"([^"]*)"/g
     let attrMatch
@@ -200,7 +249,7 @@
       const valueStart = attrMatch.index + attrMatch[0].length - value.length - 1
       let cursor = 0
       for (const part of value.split(/(\s+)/)) {
-        if (part && !/^\s/.test(part) && tokens.includes(part)) {
+        if (part && !/^\s/.test(part) && tokens.classes.has(part)) {
           ranges.push([valueStart + cursor, valueStart + cursor + part.length])
         }
         cursor += part.length
@@ -209,7 +258,7 @@
     const idAttrRe = /\bid\s*=\s*"([^"]*)"/g
     while ((attrMatch = idAttrRe.exec(text))) {
       const value = attrMatch[1]
-      if (!tokens.includes(value)) continue
+      if (!tokens.ids.has(value)) continue
       const valueStart = attrMatch.index + attrMatch[0].length - value.length - 1
       ranges.push([valueStart, valueStart + value.length])
     }
@@ -428,7 +477,9 @@
       targetSourceEl.setAttribute('data-kui', targetEl.getAttribute('data-kui') ?? '')
 
       originalValue = targetSourceEl.getAttribute('data-kui') ?? ''
-      const tokens = keyTokensFor(sourceEl)
+      // Derived after the chip-picker sync above, so a rewritten `data-kui` highlights what *it*
+      // names rather than what the page's first default named.
+      const tokens = referencedTokens(sourceEl)
       // The legend sentence that used to sit here is gone at the owner's request. It restated the
       // same thirty words above every single code block on every page, which is how a caption stops
       // being read at all. The highlight itself stays and does the work: a marked line is visibly a

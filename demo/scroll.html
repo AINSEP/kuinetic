@@ -1477,7 +1477,7 @@
              uses — there is no poster `<img>` to derive a flip label from, so `data-flip-label`
              on each face gives the flip script an explicit name instead. -->
         <div class="hero-video" data-kui="slide-up 700ms 90ms, blur-in 700ms 90ms on:load">
-          <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card" data-show-code-key="kui-face-front kui-face-back kui-flip-control">
+          <div class="hero-flip" id="hero-flip-demo" data-kui="flip-card">
             <div class="kui-face-front" data-flip-label="Noomo Labs">
               <video data-autoplay-in-view poster="./assets/webdesign/noomo-labs-3d-interaction-poster.jpg" muted loop playsinline preload="none"
                      aria-label="The Noomo Labs homepage animating — a pink 3D jellyfish dissolving through the oversized NOOMO LABS wordmark as it tilts and resolves into the heading DESIGN, promoting the studio's 3D websites, AR activations and interactive experiences">
@@ -1939,7 +1939,7 @@
                answers that token once for the whole showcase. So the contract below is still the
                one attribute, and it still clears the chrome. -->
           <p class="kui-contract"><code>data-kui="pin-spacer distance:120vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="pin-spacer-demo">Show code</button></p>
-          <div class="pin-spacer-demo" id="pin-spacer-demo" data-show-code-key="pin-spacer-track">
+          <div class="pin-spacer-demo" id="pin-spacer-demo">
             <div class="pin-spacer-track">
               <div class="pin-spacer-card" data-kui="pin-spacer distance:120vh">
                 <video data-autoplay-in-view poster="./assets/webdesign/museum-ancient-art-hero-poster.jpg" muted loop playsinline preload="none"
@@ -2007,7 +2007,7 @@
                so the words and the picture are never describing different things. The image is a
                single strip cut to exactly four equal panels — see `.story-frame` in the stylesheet
                for why that matters. -->
-          <div class="story" id="story-demo" data-show-code-key="story-lines story-frame story-dots" data-kui="scrollytelling-step distance:200vh steps:4 target:'.story-lines > li, .story-dots > span'" data-kui-step="0">
+          <div class="story" id="story-demo" data-kui="scrollytelling-step distance:200vh steps:4 target:'.story-lines > li, .story-dots > span'" data-kui-step="0">
             <div class="story-pin">
               <div class="story-copy">
                 <p class="kicker">One page, four stops</p>
@@ -2041,8 +2041,8 @@
                height that had to be kept in sync with `distance:300vh` by hand. It is now two
                boxes, one class and no structural CSS at all: `target:` names the row that moves,
                and the library writes the pin, the clip, the row's layout and the scroll room
-               itself. `data-show-code-key` marks the one class name that is left. -->
-          <div class="track-stage" id="horizontal-track-demo" data-kui="horizontal-scroll distance:300vh target:.track" data-show-code-key="track">
+               itself. The modal marks the one class name that is left, because `target:` names it. -->
+          <div class="track-stage" id="horizontal-track-demo" data-kui="horizontal-scroll distance:300vh target:.track">
             <p class="kui-contract"><code>data-kui="horizontal-scroll distance:300vh target:.track"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="horizontal-track-demo">Show code</button></p>
             <div class="track">
               <figure>
@@ -2128,7 +2128,7 @@
                Only the first frame carries alt text. The five are one picture as far as a
                reader is concerned, and only ever one is visible, so describing each would read
                out five descriptions of a single element. -->
-          <div class="scrub-viewport" id="scrub-demo" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)" data-show-code-key="scrub-viewport">
+          <div class="scrub-viewport" id="scrub-demo" data-kui="sequence-scrub target:'.scrub-viewport img' distance:220vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
             <img src="./assets/webdesign/scrub-dua-lipa.jpg" alt="Four music-artist websites swapping in frame by frame as you scroll" data-no-lightbox />
             <img src="./assets/webdesign/scrub-grammy-damn.jpg" alt="" data-no-lightbox />
             <img src="./assets/webdesign/scrub-starboy.jpg" alt="" data-no-lightbox />
@@ -2147,14 +2147,13 @@
           <!-- Container form: one data-kui on the shared ancestor, `sections:` and `target:`
                scoped to it. Pairing is automatic — each section's id against each link's
                href="#id" — so the five sections below carry no data-kui of their own at all.
-               `data-show-code-key` names the classes the CSS actually selects on. It used to also
-               list `data-kui-active`, which highlighted nothing and never could: the key list
-               marks class and id *tokens present in the printed markup*, and `data-kui-active` is
-               written at runtime by `scroll-spy` onto the target — it is not in the authored
-               source this modal prints. The note above says it in words instead, which is where a
-               fact about an attribute that does not exist yet belongs. -->
+               The modal marks exactly the classes `sections:` and `target:` name (`spy-section`,
+               `spy-nav`). `data-kui-active` is written at runtime by `scroll-spy` onto the target —
+               it is not in the authored source this modal prints, so the note above says it in
+               words instead, which is where a fact about an attribute that does not exist yet
+               belongs. -->
           <p class="kui-contract"><code>data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="spy-demo">Show code</button></p>
-          <div class="spy-layout" id="spy-demo" data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'" data-show-code-key="spy-layout spy-nav spy-sections spy-section">
+          <div class="spy-layout" id="spy-demo" data-kui="scroll-spy sections:'.spy-section' target:'.spy-nav a'">
             <nav class="spy-nav" aria-label="Jump to product">
               <a id="spy-link-bottle" href="#spy-bottle">Botole</a>
               <a id="spy-link-airpods-dark" href="#spy-airpods-dark">AirPods dark</a>
