@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — deck-drag-direction fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only, mirroring demo/showcase.html's band. Nothing here places a card. */
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #14110f;
+        color: #f5efe8;
+        font-family: system-ui, sans-serif;
+      }
+      section {
+        margin-block: 48px;
+      }
+      .ring-band {
+        overflow: clip;
+        --slot-w: clamp(150px, 26vw, 260px);
+      }
+      .ring-row {
+        height: calc(var(--slot-w) * 0.625 + 20px);
+      }
+      .ring-slot {
+        width: var(--slot-w);
+      }
+      .ring-slot img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+      }
+      .card {
+        width: 120px;
+        height: 80px;
+        display: grid;
+        place-items: center;
+        background: #2a2521;
+        border: 1px solid #e4f222;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="ring-band">
+      <!-- The showcase hero band's row, attribute for attribute. -->
+      <div class="ring-row" id="band" data-kui="carousel-3d-inside target:'#band > .ring-slot' tilt:10deg arc:180deg facing:radial perspective:900px gap:24px spin:60s lightbox:true">
+        <div class="ring-slot"><img src="../../../demo/assets/black-cover.jpg" alt="One" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/chap.jpg" alt="Two" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/green_monochrome.jpg" alt="Three" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/light_art.jpg" alt="Four" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/orange_visor.jpg" alt="Five" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/pink-mc.jpg" alt="Six" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/silver-glitter.jpg" alt="Seven" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/autumn_model_finished.jpg" alt="Eight" draggable="false" /></div>
+      </div>
+      <!-- The owner's hover:none row: it keeps turning under a resting or pressing mouse. -->
+      <div class="ring-row" id="band-free" data-kui="carousel-3d-inside target:'#band-free > .ring-slot' arc:180deg facing:radial perspective:900px gap:24px spin:-20s hover:none lightbox:true">
+        <div class="ring-slot"><img src="../../../demo/assets/black-cover.jpg" alt="Free one" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/chap.jpg" alt="Free two" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/green_monochrome.jpg" alt="Free three" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/light_art.jpg" alt="Free four" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/orange_visor.jpg" alt="Free five" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/pink-mc.jpg" alt="Free six" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/silver-glitter.jpg" alt="Free seven" draggable="false" /></div>
+        <div class="ring-slot"><img src="../../../demo/assets/autumn_model_finished.jpg" alt="Free eight" draggable="false" /></div>
+      </div>
+    </section>
+    <section>
+      <div id="outside" data-kui="carousel-3d radius:200px target:.card">
+        <div class="card">1</div>
+        <div class="card">2</div>
+        <div class="card">3</div>
+        <div class="card">4</div>
+        <div class="card">5</div>
+        <div class="card">6</div>
+      </div>
+    </section>
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

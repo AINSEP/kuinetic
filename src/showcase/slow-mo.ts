@@ -2,6 +2,7 @@ import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import { TIME_SCALE_ATTR } from '../core/time-scale.js'
+import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { withTimingContract } from '../effects/shared.js'
 import { widgetPrimitive } from './shared.js'
@@ -125,7 +126,8 @@ function prepareSlowMo(el: Element, params: EffectParams): SetupResult {
 /** A host-only speed control for Web Animations and CSS motion in its subtree. */
 export const SLOW_MO_PRIMITIVE: Primitive = widgetPrimitive(
   'slow-mo',
-  { channels: ['widget'], parameters: slowMoParams, perfClass: 'compositor' },
+  // The toggle it prepends into the host, and the time scale it writes there.
+  { channels: [SUBTREE_CHANNEL, attributeChannel(TIME_SCALE_ATTR)], parameters: slowMoParams, perfClass: 'compositor' },
   withTimingContract(
     'slow-mo',
     { because: 'it changes playback rate rather than defining an animation timeline' },

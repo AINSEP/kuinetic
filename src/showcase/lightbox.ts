@@ -440,7 +440,8 @@ function openAt(triggers: Element[], trigger: Element, wiring: Wiring): boolean 
     wiring.warned.add(href)
     return false
   }
-  wiring.shell.open(galleryContent(items, initial, wiring.options))
+  // `opener` announces `kui:viewer`: a deck this row sits in pauses its motion while it is open.
+  wiring.shell.open({ ...galleryContent(items, initial, wiring.options), opener: trigger })
   return true
 }
 
@@ -460,9 +461,12 @@ function wireTriggers(triggers: Element[], wiring: Wiring): Array<() => void> {
         openAt(triggers, trigger, wiring)
       }, { signal: wiring.signal })
     }
+    // A click that opened the viewer is spent, bare picture or link: `defaultPrevented` is how a
+    // deck's own `lightbox:true` listener on the host (`attachDeckLightbox`) knows to stand down,
+    // so `carousel-3d lightbox:true, lightbox` opens once. A bare picture has no default to lose.
     trigger.addEventListener('click', (event) => {
       if (!primaryClick(event as MouseEvent)) return
-      if (openAt(triggers, trigger, wiring) && !bare) event.preventDefault()
+      if (openAt(triggers, trigger, wiring)) event.preventDefault()
     }, { signal: wiring.signal })
   }
   return restore
@@ -507,10 +511,12 @@ export function attachDeckLightbox(request: DeckViewerRequest): Cleanup {
   const options: ViewerOptions = { duration: DEFAULT_DURATION_MS, scale: DEFAULT_SCALE, ease: DEFAULT_EASE,
     reducedMotion, loop: true, aspect: '' }
   /** Open the deck's gallery at the first card `pick` accepts; false when that card is no item. */
-  const openAt = (pick: (card: Element) => boolean): boolean => {
+  const turnedAway = (card: Element): boolean => card.getAttribute('data-kui-ring-face') === 'back'
+  /** Open at the first card `pick` accepts; a pressed card was already checked when it was pressed. */
+  const openAt = (pick: (card: Element) => boolean, faceChecked = false): boolean => {
     const all = [...cards()]
     const card = all.find(pick)
-    if (!card || card.getAttribute('data-kui-ring-face') === 'back') return false
+    if (!card || (!faceChecked && turnedAway(card))) return false
     const items: LightboxItem[] = []
     let initial = -1
     for (const candidate of all) {
@@ -520,14 +526,50 @@ export function attachDeckLightbox(request: DeckViewerRequest): Cleanup {
       items.push(item)
     }
     if (initial < 0) return false
-    shell.open(galleryContent(items, initial, options))
+    // The card is the opener, so the deck's own motion pauses until the viewer closes (`kui:viewer`).
+    shell.open({ ...galleryContent(items, initial, options), opener: card })
     return true
   }
+  /*
+   * Which card a press landed on, decided at the press and from the point, not from the click.
+   *
+   * Two things make the click's own target the wrong witness on a 3D deck. A concave ring
+   * (`carousel-3d-inside`) pushes its cards hundreds of pixels *behind* the host's plane inside one
+   * `preserve-3d` context, so the host wins the hit test and every click on a card arrives as a
+   * click on the host: nothing opened. And a deck that keeps moving under the pointer (`spin:` with
+   * `hover:none`, or any touch, where there is no hover to pause it) can carry the pressed card
+   * away before the release, so the click lands on the host or a neighbour. `elementsFromPoint`
+   * answers both: every box under the press, top first, so the first one inside one of this deck's
+   * own cards is the card the visitor aimed at, whatever is painted over it in the 3D scene.
+   * `pointer-events: none` on the host would also fix the first and break drag-from-a-gap.
+   */
+  let pressed: { card: Element; node: Element } | null = null
+  const cardUnder = (event: PointerEvent): { card: Element; node: Element } | null => {
+    const all = [...cards()]
+    const hits = typeof doc.elementsFromPoint === 'function' ? doc.elementsFromPoint(event.clientX, event.clientY) : []
+    for (const node of [...hits, event.target as Element]) {
+      const card = all.find((candidate) => candidate.contains(node))
+      // Turned away at the press is never the aim, however it sits by the release. Turned away by
+      // the release (a long press on a moving deck) still is: it is the card that was pressed.
+      if (card) return turnedAway(card) ? null : { card, node }
+    }
+    return null
+  }
+  const onPress = (event: Event): void => {
+    pressed = (event as PointerEvent).button === 0 ? cardUnder(event as PointerEvent) : null
+  }
   const onClick = (event: Event): void => {
+    // A click with no pointer behind it (`detail` 0: Enter on a link) is about its own target, and
+    // a press is spent by the click that ends it either way.
+    const press = (event as MouseEvent).detail > 0 ? pressed : null
+    pressed = null
     const target = event.target as Element
     if (event.defaultPrevented || !primaryClick(event as MouseEvent) || target.closest(OWN_CLICK)) return
+    // The box actually pressed, for the same "a Buy button keeps its click" rule as the target.
+    if (press?.node.closest(OWN_CLICK)) return
     // A card's link is the full-size picture or the clip; the viewer shows it in place instead.
-    if (openAt((card) => card.contains(target))) event.preventDefault()
+    const opened = press ? openAt((card) => card === press.card, true) : openAt((card) => card.contains(target))
+    if (opened) event.preventDefault()
   }
   /*
    * Added to the draft this was built from: the keyboard path. A card that is a link is reached by
@@ -542,9 +584,11 @@ export function attachDeckLightbox(request: DeckViewerRequest): Cleanup {
     if (event.target !== host || (key !== 'Enter' && key !== ' ')) return
     if (openAt((card) => card.getAttribute(STEP_STATE_ATTR) === 'active')) event.preventDefault()
   }
+  host.addEventListener('pointerdown', onPress)
   host.addEventListener('click', onClick)
   host.addEventListener('keydown', onKeyDown)
   return () => {
+    host.removeEventListener('pointerdown', onPress)
     host.removeEventListener('click', onClick)
     host.removeEventListener('keydown', onKeyDown)
     shell.release()
@@ -574,9 +618,17 @@ function prepareLightbox(el: Element, params: EffectParams, ctx: PrepareContext)
   })
 }
 
+/**
+ * What a lightbox holds: the clicks on its triggers, and the role, tab stop and label a bare
+ * picture trigger is given. It builds nothing inside the host — the viewer is the shared shell on
+ * the body — so it composes with any widget that does, a slideshow of pictures included. Two
+ * lightbox names on one host would both open on one click, and this is what refuses that pair.
+ */
+const TRIGGERS_CHANNEL = 'lightbox:triggers'
+
 export const LIGHTBOX_PRIMITIVE: Primitive = widgetPrimitive(
   'lightbox',
-  { channels: ['widget'], parameters: paramsSchema, perfClass: 'paint' },
+  { channels: [TRIGGERS_CHANNEL], parameters: paramsSchema, perfClass: 'paint' },
   withTimingContract('lightbox', { honours: ['duration', 'ease'], because: 'the dialog opens immediately, so it has no delay phase' }, deferPrepare(prepareLightbox)),
 )
 

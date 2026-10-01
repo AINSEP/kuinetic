@@ -5,6 +5,7 @@ import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import type { AttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
+import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { createStepIndex } from '../effects/step-index.js'
 import type { StepIndex } from '../effects/step-index.js'
@@ -321,7 +322,7 @@ function prepareSlideshow(el: Element, params: EffectParams, ctx: PrepareContext
   applyTiming(params, ctx)
   let renderMute = (): void => {}
   const index = createStepIndex({
-    el, params, ctx, scope, resolveSteps, name: 'slideshow', clickFallback: false,
+    el, params, ctx, resolveSteps, name: 'slideshow', clickFallback: false,
     onRender: (position) => {
       renderSlides(slides, decorations.slides, controls, position)
       renderMute()
@@ -347,7 +348,19 @@ function prepareSlideshow(el: Element, params: EffectParams, ctx: PrepareContext
 
 export const SLIDESHOW_PRIMITIVE: Primitive = widgetPrimitive(
   'slideshow',
-  { channels: ['widget'], parameters: slideshowParams, perfClass: 'layout' },
+  // The controls it inserts, then what it writes on the host: `createStepIndex`'s `data-kui-step`,
+  // as every step deck does, and `decorateHost`'s mode and carousel roles.
+  {
+    channels: [
+      SUBTREE_CHANNEL,
+      attributeChannel('data-kui-step'),
+      attributeChannel(SLIDE_MODE_ATTR),
+      attributeChannel('role'),
+      attributeChannel('aria-roledescription'),
+    ],
+    parameters: slideshowParams,
+    perfClass: 'layout',
+  },
   withTimingContract(
     'slideshow',
     { honours: ['duration', 'ease'], because: 'the slideshow has no delayed start' },

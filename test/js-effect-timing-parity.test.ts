@@ -480,7 +480,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   'rotate-static': 'it writes its one property once, synchronously, on activation',
   'device-frame': 'it stamps its frame kind once, synchronously, on activation; there is no motion to time',
   lightbox: 'the dialog opens immediately, so it has no delay phase',
-  compare: 'it builds an interactive before/after slider; there is no motion to time',
+  compare: 'its only motion, the autoplay: sweep, starts on autoplay: (always / in-view), not after a delay',
   hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
   slideshow: 'its controls and index are live on load; it has no delayed start',
   'slow-mo': 'it controls existing playheads on load and has no animation timeline to delay',

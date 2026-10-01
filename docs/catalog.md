@@ -23,12 +23,33 @@ outside the lettered A–T sections below — see [Gestures & physics](#gestures
 of this document. The [generic tween](#generic-tween) sits outside them too, and is the one entry
 here that is not a named effect at all: it is how you animate something the catalog does not name.
 
+## Reading an effect's parameters at runtime
+
+Every parameter in this catalog can be listed from the library itself, so this page and the
+running code cannot disagree:
+
+```js
+kuinetic.describe('carousel-3d', { notes: kuineticNotes.PARAM_NOTES })
+// { name, primitive: 'spatial-ring', params: [{ name: 'tilt', type: 'angle', default: '12deg',
+//   presetDefault: true, spellings: ['12', '12d', '12deg'], note: '…' }, …], positionalOrder }
+```
+
+`kuinetic.notes.js` is optional and only needed for the plain-words note and when-omitted text.
+Pass `registry: window.__kuinetic.registry` to include effects registered by a tier.
+
+`kuinetic.describeElement('fade-up on:click, lift at:-200ms')` also lists the reserved keys —
+`on:`, `timeline:`, `cascade:`, `rm:` apply to the whole element, `at:`, `repeat:`, `above:` to
+their own step — and what the markup set: `written` per step, with bare values under their name.
+A bare timing slot an effect cannot use is marked `honoured: false`, with the reason.
+
 ## Legend
 
 - **Renderer** — `css` (keyframes only) · `waapi` · `js` (per-frame) · `prep` (JS DOM surgery, then CSS)
 - **Channels** — properties the effect owns, for composition-conflict detection:
   `o` opacity · `t` translate · `s` scale · `r` rotate · `f` filter · `c` clip/mask · `x` other
-  (`x` also covers section T's showcase-only `frame`/`widget` channels)
+  (`x` also covers every channel named after the one property or attribute it guards — `position`,
+  `overflow`, `padding`, `attr:data-kui-step` — and `subtree`, held by an effect that builds inside
+  its host or takes its children as items: the showcase widgets, the step decks, `bg`)
 - Effects with **disjoint** channels compose in one comma list; collisions warn.
 
 ---
@@ -615,20 +636,31 @@ Primitives 21, 22, plus CSS.
 > the same delay is long-press-to-reveal. The hint is `pointer-events: none` in every state,
 > deliberately — a panel you can move the pointer *into* is a menu, which needs trajectory intent
 > (predicting a pointer heading toward it) and is a genuinely different, JavaScript-shaped feature.
-> Params: `distance:` (the small rise as it arrives, default `4px`) plus duration/delay/ease.
+> Params: `distance:` (the small rise as it arrives, default `4px`), `color:` / `bg-color:` /
+> `radius:` (the card — default `#f4f4f0` on `#111111`, `12px` corners; the library draws the
+> card, so a page writes markup and no CSS), `place:top|bottom|auto` (default `top`; `auto` flips
+> below when the top does not fit the viewport, re-measured on scroll and resize only while the
+> hint is shown), `tease:` (show the hint once for that long when the trigger first scrolls half
+> into view; off by default), `target:` (names the hint, in place of `data-kui-hint`), plus
+> duration/delay/ease. Whatever the side, the hint slides sideways to stay at least 8px inside the
+> viewport, so a trigger near the edge never clips it.
 
-> **Both two-box names work with `target:`**, which is why neither writes a descendant selector.
-> The trigger's state reaches the second box as an *inherited custom property* read by a standalone
-> part rule, so no rule reaches past the element carrying `data-kui-fx` and `compile.ts` is free to
-> relocate it: `data-kui="masked-label-swap target:.label"` on a button that also holds an icon is
-> the ordinary way to write this. Any rule spelled the obvious way instead would force
-> `requiresOwnSubtree` and take `target:` away silently.
+> **`target:` on the two-box names.** `masked-label-swap target:.label` relocates the effect onto
+> the label: the trigger's state reaches the second box as an *inherited custom property* read by
+> a standalone part rule, so no rule reaches past the element carrying `data-kui-fx`, and any rule
+> spelled the obvious way instead would force `requiresOwnSubtree` and take `target:` away
+> silently. `hover-intent` and `anchored-preview*` read `target:` the other way round: it names
+> the *part* — `data-kui="hover-intent target:.tip"` stamps `data-kui-hint` on `.tip`, and the
+> effect stays on the trigger. Moving a tooltip's effect onto its hint would leave nothing to
+> reveal.
 
 > **`anchored-preview`** springs a second element out from its trigger on hover or focus — a name
-> tag beside an avatar, a preview image popping out beside a linked word. One primitive, four fixed
-> placements, not a `placement:` parameter: CSS cannot branch on a custom property's *value* without
-> `@container style()`, so a keyword there would have to be read by JavaScript for the sake of one
-> word, the same reasoning `masked-label-swap`'s axis suffixes are built on. `anchored-preview` (no
+> tag beside an avatar, a preview image popping out beside a linked word. One primitive, four placements:
+> the suffixes are spellings of `place:` (`anchored-preview-left` is `place:left`), and
+> `place:auto` keeps the preset's side but flips to the opposite one along the same axis when it
+> does not fit the viewport. Every placement also slides along its cross axis — sideways for
+> top/bottom, up and down for left/right — to stay at least 8px inside the viewport, so an image on
+> a word near the edge of a phone is never cut off. `anchored-preview` (no
 > suffix) springs from the top, matching where a tooltip normally reads; `-bottom`, `-left` and
 > `-right` are the other three sides.
 >
@@ -644,10 +676,13 @@ Primitives 21, 22, plus CSS.
 > on the image itself. Params: `distance:` (how far the preview travels while springing in, default
 > `10px`), `gap:` (how far it rests from the trigger once arrived — a separate length on purpose, so
 > a bigger spring does not also push the resting position further away), `scale:` (the "sprung from"
-> starting size, `0..1`, default `0.85`), plus duration/delay/ease. Like `masked-label-swap`, the
+> starting size, `0..1`, default `0.85`), `color:` / `bg-color:` / `radius:` (for a name tag;
+> defaults change nothing, since the preview is often an image), `place:top|bottom|left|right|auto`,
+> `tease:` (as `hover-intent`'s), `target:` (names the preview), plus duration/delay/ease. Like `masked-label-swap`, the
 > preview is a real, selectable element rather than `::before`/`content`, and its state reaches it as
 > an inherited custom property rather than a descendant selector — the same mechanism the note above
-> describes — so `target:` relocates all four placements cleanly. The preview is `pointer-events:
+> describes. `target:` names the preview, so `data-kui="anchored-preview-bottom
+> target:.preview-img"` needs no `data-kui-preview` in the markup. The preview is `pointer-events:
 > none` in every state, for the same reason `hover-intent`'s hint is: a panel you can move the
 > pointer *into* is a menu, which needs trajectory intent (predicting where a pointer is heading) and
 > is a different, JavaScript-shaped feature this name deliberately does not attempt.
@@ -674,7 +709,7 @@ Primitives 21, 22, plus CSS.
 > icon-only control stay one click from typing. Params: `collapsed:` (icon-only width, default
 > `2.5em`), `width:` (expanded width, default `240px`; both accept a percentage for a flexible
 > header), plus duration/delay/ease. The input's own fade uses the same inherited-custom-property
-> mechanism as `masked-label-swap`, `hover-intent` and `anchored-preview`, so `target:` still
+> mechanism as `masked-label-swap`, so `target:` still
 > relocates the whole effect.
 
 > **`proximity-field` and `proximity-glow`** are the cross-element version of `cursor-spotlight`
@@ -1057,8 +1092,9 @@ Primitives 14, 22, 38, 46.
 > announces something confidently wrong rather than nothing. Give the container an `aria-label`.
 >
 > `next:` / `prev:` / `jump:` take selectors and behave exactly as they do on `carousel` in section
-> O, including the `scope:` rule — here they default to `scope:self`, so two rings on one page do
-> not drive each other.
+> O: they look inside the ring first and fall back to the page only when nothing inside matches, so
+> two rings with their own arrows do not drive each other, and one page-level `pause:` button can
+> drive a whole band of rings without `scope:page`.
 >
 > ```html
 > <div data-kui="carousel-3d next:.fwd prev:.back jump:.dot" aria-label="Case studies">
@@ -1092,6 +1128,9 @@ Primitives 14, 22, 38, 46.
 > hidden. **Under `prefers-reduced-motion` it does not start at all**; a visitor can still start it
 > from your pause control.
 >
+> `hover:` — `pause` (default) holds the deck still while the pointer rests on it; `none` keeps it
+> moving. Only the hover pause goes: keyboard focus, `pause:` and reduced motion still stop it.
+>
 > `pause:` names that control. It toggles the motion and carries `aria-pressed` (true while paused).
 > The library does not invent the button, as it does not invent the arrows — but add one: moving
 > content that starts by itself and lasts more than five seconds needs a way to stop it (WCAG
@@ -1121,6 +1160,10 @@ Primitives 14, 22, 38, 46.
 > own click, and a modified click (Cmd/Ctrl/Shift, middle button) still follows the card's link. On
 > the keyboard, the arrows bring a card forward and Enter or Space on the deck opens it; a card that
 > is itself a link opens with Enter when tabbed to.
+>
+> With `autoplay:` or `spin:`, the deck pauses while its viewer is open and resumes from the same
+> card when it closes; paging inside the viewer does not move the deck. The `pause:` control's
+> state is kept.
 >
 > Every carousel takes it: `carousel-3d`, `-high`, `-low`, `-inside`, `carousel-orbit`,
 > `carousel-stack` and the `carousel` step deck (section O). The gallery lives in the showcase
@@ -1219,11 +1262,13 @@ Primitives 1, 10, 15.
 > a deck of slides — an index that wraps reads as a progress bar when its steps are segments and as
 > a carousel when they are slides, and mostly only the stylesheet separates those.
 >
-> One thing does differ, because it has to: this name defaults to `scope:self`, so `target:` and
-> the three controls resolve *inside* the deck rather than page-wide. Two carousels on one page
-> would otherwise each bind both decks' arrows and mark both decks' slides, and clicking next in
-> one would advance both. A deck whose controls genuinely live outside it can still say
-> `scope:page`, which is what `step-progress` remains.
+> One thing does differ, because it has to: this name defaults to `scope:self`, so `target:`
+> resolves *inside* the deck rather than page-wide — two carousels on one page would otherwise mark
+> both decks' slides. Controls (`next:`, `prev:`, `jump:`, `pause:`) never take `scope:`: each looks
+> inside the deck first and uses the page only when nothing inside matches. An inside match always
+> wins, so two decks with their own arrows drive only themselves, and arrows in a section header
+> outside the deck need no `scope:page`. `step-progress` still defaults to `scope:page` for
+> `target:`.
 >
 > Three optional controls turn it from a one-way stepper into something a reader can drive:
 >
@@ -1356,8 +1401,9 @@ Primitives 1, 10, 15.
 >
 > **Boundary, unchanged.** This is an index, not a carousel *component* — no ARIA, no roving focus,
 > no swipe of its own. Section H states the same line for `accordion-height`, and a second name does
-> not move it. For touch, put `swipe-x` (or `swipe-y` for a vertical deck) from
-> the gestures group on the deck's wrapper: the deck steps itself on the wrapper's swipe — left or
+> not move it. For touch, add `swipe-x` (or `swipe-y` for a vertical deck) from
+> the gestures group — on the deck itself (`data-kui="swipe-y, carousel"`) or on its wrapper: the
+> deck steps itself on the swipe — left or
 > up for next, right or down for previous — with no page script. For a carousel that
 > owns controls and accessibility behavior, use the showcase names in section T.
 
@@ -1603,7 +1649,10 @@ need to track.
 > ```
 >
 > **Params:** `kind:` (`browser` default, or `phone`/`tablet`/`laptop`), `color:` (bezel colour,
-> default `#111`), `radius:` (screen corner radius; each kind has its own CSS default).
+> default `#111`), `radius:` (the frame's outer corner radius; each kind has its own CSS default),
+> `screen-radius:` (the screen's corners, one value for all four). Left unset, the screen is
+> rounded to match the frame — the radius less the bezel on each side — and never less than the
+> frame's radius up to 8px, so every kind shows a rounded screen; `radius:0px` squares both.
 >
 > **All the chrome is CSS.** The one thing JavaScript does is stamp `data-kui-device="<kind>"`,
 > because a stylesheet cannot branch on a custom property's *value* — every visible pixel of the
@@ -1655,6 +1704,11 @@ need to track.
 > `carousel-stack`, `carousel`) opens its cards in this same gallery, read as `media:mixed` with the
 > defaults above — no `lightbox` wrapper needed. See section N.
 >
+> `lightbox` builds nothing inside its host — the viewer opens over the page — so it composes with
+> any showcase widget: `data-kui="carousel-fade, lightbox"` makes a slideshow whose pictures open
+> full size. Two widgets that both build inside one host (`compare`, `hotspots`, `slow-mo`,
+> `scroll-story`, the slideshows) cannot share it.
+>
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
 
@@ -1670,12 +1724,31 @@ need to track.
 > </figure>
 > ```
 >
-> **Params:** `position:` (`50%` default), `axis:` (`x` default, or `y`).
+> **Params:** `position:` (`50%` default), `axis:` (`x` default, or `y`), `autoplay:` (`never`
+> default, `in-view`, or `always`), `duration:` (`3s`, one edge-to-edge sweep), `reverse:` and
+> `loop:` (`true`/`false`, both `false` default).
+>
+> **Auto-drag:** `data-kui="compare autoplay:in-view loop:true 4s"` sweeps the divider until someone
+> presses or focuses the slider; then it stops for good. It pauses off screen and never starts
+> under `prefers-reduced-motion`. `autoplay:` and not `on:enter`, because `on:` decides when the
+> slider is built, and a control must exist at load.
+>
+> **Three or more media:** `<figure data-kui="compare">` with N images is one frame split by N−1
+> dividers — strip k shows image k. Drag anywhere: the nearest divider jumps to the press and
+> follows, stopping at its neighbours (no minimum gap — two dividers may meet and hide the strip
+> between; a press then takes the one on its side). Each divider is a keyboard range named
+> "Divider k of N−1: A / B" (or "<aria-label>: divider k of N−1"), whose min and max are its
+> neighbours. `positions:'20% 45% 80%'` sets the start (quoted, spaces — a comma would start a new
+> step); the default is an even split, and `position:` stays the two-media spelling. `autoplay:`
+> sweeps one divider at a time — each between its neighbours and home — in order (`reverse:true`:
+> last first, heading toward 0%); a single moving wipe reads as "this against that", several at once
+> do not.
 >
 > **Accessible:** Range slider is announced with `aria-valuetext` (e.g. "50% after") and takes its
 > accessible name from the figure's `aria-label` or the two media `alt`s.
 >
-> **No timing tokens:** Interaction is driven by the user; there is no motion to time.
+> **Timing tokens:** a positional duration sets the `autoplay:` sweep; delay and ease warn by name
+> (the sweep starts on `autoplay:` and eases into each edge on its own curve).
 >
 > **No-JS:** Both media elements render sequentially in document order with their alts.
 
@@ -1817,8 +1890,8 @@ outside the lettered A–T sections above. `js`.
 > </section>
 > ```
 >
-> A swipe name and `carousel` both write element state, so they cannot share one element; put the
-> swipe on the deck's wrapper. The `carousel` inside it steps by itself: a flick left or up is
+> A swipe name and `carousel` write different attributes, so they compose on one element —
+> `data-kui="swipe-y, carousel"` — or the swipe can sit on the deck's wrapper. The `carousel` steps by itself: a flick left or up is
 > next, right or down is previous. Only the outermost deck inside the wrapper steps — a gallery
 > nested in one of its slides does not move with it. Every swipe also dispatches a bubbling
 > `kui:swipe` event on the swipe's element, with `event.detail.direction` set to `left`, `right`,

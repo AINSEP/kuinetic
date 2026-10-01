@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — compare with four media fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. The frame, its clips, handles and surface are the library's. */
+      body { margin: 0; padding: 16px; background: #f5efe8; font-family: system-ui, sans-serif; }
+      figure { margin: 0 0 24px; inline-size: min(100%, 600px); }
+      figure > img { aspect-ratio: 3 / 2; }
+    </style>
+  </head>
+  <body>
+    <!-- Four flat colours, so the colour under a point says which medium painted there. -->
+    <figure id="four" data-kui="compare">
+      <img alt="Black" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%23000000'/%3E%3C/svg%3E" />
+      <img alt="White" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%23ffffff'/%3E%3C/svg%3E" />
+      <img alt="Blue" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%230000ff'/%3E%3C/svg%3E" />
+      <img alt="Pink" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%23ff69b4'/%3E%3C/svg%3E" />
+    </figure>
+    <!-- Control: the two-media slider, still one native range over the whole frame. -->
+    <figure id="pair" data-kui="compare">
+      <img alt="Black" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%23000000'/%3E%3C/svg%3E" />
+      <img alt="White" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Crect width='30' height='20' fill='%23ffffff'/%3E%3C/svg%3E" />
+    </figure>
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

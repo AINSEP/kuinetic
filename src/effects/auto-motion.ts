@@ -1,9 +1,11 @@
+import { VIEWER_EVENT } from '../core/deck-viewer.js'
+import type { ViewerDetail } from '../core/deck-viewer.js'
 import type { PrepareContext } from '../core/effect-context.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import type { AttributeLedger } from '../core/owned-styles.js'
-import { queryScoped, resolveTarget } from '../core/target.js'
-import type { TargetScope } from '../core/target.js'
+import { queryControls, resolveTarget } from '../core/target.js'
 import type { Cleanup, EffectParams, ParamSpec } from '../core/types.js'
+import { bindControl } from './step-index.js'
 import type { ControlGroup } from './step-index.js'
 
 /**
@@ -102,6 +104,8 @@ export interface AutoMotionRequest {
   autoplayMs: number
   /** How long a manual move takes to settle, so the motion does not resume mid-transition. */
   settleMs: number
+  /** Whether the pointer resting on the deck pauses it. Omitted, it does. See `HOVER_PARAM`. */
+  pauseOnHover?: boolean
   /** Move the deck on by a (signed) fraction of a full cycle. */
   advance(cycles: number): void
   /** Step the deck one place. */
@@ -162,6 +166,7 @@ function isKeyboardFocus(target: EventTarget | null): boolean {
 export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   const { el, ctx, spinMs, autoplayMs, settleMs, advance, step, setSpinning, onPausedChange } =
     request
+  const pauseOnHover = request.pauseOnHover ?? true
   const enabled = spinMs !== 0 || autoplayMs !== 0
   if (!enabled) {
     return {
@@ -185,6 +190,19 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   let onscreen = true
   let gesture = false
   let held = false
+  /*
+   * The shared viewer is showing one of this deck's cards (`kui:viewer`, `core/deck-viewer.ts`).
+   * One more reason beside the others rather than a press of the author's pause, so closing the
+   * viewer lifts only its own reason: a deck the visitor paused stays paused.
+   *
+   * Paging inside the viewer does not move the deck — the gallery keeps its own index — so on close
+   * the deck carries on from the card it was showing. It does not "catch up" on the steps it
+   * skipped: autoplay re-arms a full period (the pending step was cleared on open, not suspended),
+   * and spin's first frame after a resume only records the clock, so nothing leaps.
+   */
+  let viewing = false
+  /** The shared viewer is open at all, from this deck or any other opener. See `onFocusIn`. */
+  let viewerOpen = false
 
   let frame = 0
   let lastFrameAt: number | null = null
@@ -195,7 +213,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   let spinning = false
 
   const active = (): boolean =>
-    !userPaused && !hovered && !focused && onscreen && !gesture && !held && !ctx.doc.hidden
+    !userPaused && !hovered && !focused && onscreen && !gesture && !held && !viewing && !ctx.doc.hidden
 
   const requestFrame = (callback: (now: number) => void): number =>
     typeof win.requestAnimationFrame === 'function'
@@ -259,19 +277,45 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
 
   const onEnter = (): void => { hovered = true; update() }
   const onLeave = (): void => { hovered = false; update() }
-  const onFocusIn = (event: Event): void => { focused = isKeyboardFocus(event.target); update() }
+  /*
+   * Focus arriving while the shared viewer is open is the viewer handing focus back, not a person
+   * tabbing in: a modal dialog makes the rest of the page inert, so nobody can reach the deck from
+   * the keyboard until it has closed. `<dialog>.close()` restores focus to whatever had it before
+   * (on a deck, the host a click focused) synchronously, before the `close` event the shell
+   * announces `kui:viewer` from — so the open flag is still up when that focus lands. After an
+   * Escape the browser marks that restored focus `:focus-visible`, and counting it held the deck
+   * still until the visitor clicked somewhere else: the "freezes after closing the lightbox" report.
+   */
+  const onFocusIn = (event: Event): void => {
+    focused = !viewerOpen && isKeyboardFocus(event.target)
+    update()
+  }
   const onFocusOut = (event: Event): void => {
     const next = (event as FocusEvent).relatedTarget as Node | null
     focused = next !== null && el.contains(next) && isKeyboardFocus(next)
     update()
   }
   const onVisibility = (): void => update()
+  // On the document, like `kui:swipe`: a close whose card was removed is announced there. There is
+  // one viewer per document, so any close ends this deck's reason, and an open is this deck's only
+  // when it came from inside it (`contains` is inclusive of the deck's own element).
+  const onViewer = (event: Event): void => {
+    const open = (event as CustomEvent<Partial<ViewerDetail> | null>).detail?.open === true
+    viewerOpen = open
+    viewing = open && el.contains(event.target as Node)
+    update()
+  }
 
-  el.addEventListener('pointerenter', onEnter)
-  el.addEventListener('pointerleave', onLeave)
+  // `hover:none` takes away this one reason and nothing else: keyboard focus, the pause control,
+  // reduced motion, a hidden tab and the rest still stop the deck.
+  if (pauseOnHover) {
+    el.addEventListener('pointerenter', onEnter)
+    el.addEventListener('pointerleave', onLeave)
+  }
   el.addEventListener('focusin', onFocusIn)
   el.addEventListener('focusout', onFocusOut)
   ctx.doc.addEventListener('visibilitychange', onVisibility)
+  ctx.doc.addEventListener(VIEWER_EVENT, onViewer)
 
   /*
    * Offscreen is a pause, not an optimisation. A spinning ring scrolled out of view that kept
@@ -326,6 +370,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
       el.removeEventListener('focusin', onFocusIn)
       el.removeEventListener('focusout', onFocusOut)
       ctx.doc.removeEventListener('visibilitychange', onVisibility)
+      ctx.doc.removeEventListener(VIEWER_EVENT, onViewer)
       publishSpinning(false)
     },
   }
@@ -352,6 +397,22 @@ export const AUTOPLAY_PARAM: ParamSpec = { type: 'time', default: '0s', cssPrope
  */
 export const PAUSE_PARAM: ParamSpec = { type: 'text', default: '', cssProperty: '--kui-pause' }
 
+/*
+ * What the pointer resting on the deck does to its own motion: `pause` (the default) holds it still,
+ * `none` lets it carry on under the pointer — for a deck that is ambient decoration rather than
+ * something to read, or one so large that a resting mouse is almost always over it.
+ *
+ * The name and the `none` are the catalogue's existing ones: `shaders`' `hover:` likewise says what
+ * hovering does, and `none` there means "nothing". Only the hover reason goes; keyboard focus, the
+ * `pause:` control and reduced motion still stop the deck, so WCAG 2.2.2's "a way to pause" stands.
+ */
+export const HOVER_PARAM: ParamSpec = {
+  type: 'keyword',
+  default: 'pause',
+  keywords: ['pause', 'none'],
+  cssProperty: '--kui-hover',
+}
+
 /** What {@link createDeckMotion} needs from a deck. */
 export interface DeckMotionRequest {
   el: Element
@@ -359,8 +420,6 @@ export interface DeckMotionRequest {
   params: EffectParams
   /** Prefix for warnings, the word an author would recognise. */
   label: string
-  /** Where the `pause:` control is searched, the same scope as the deck's other controls. */
-  scope: TargetScope
   /** How long a manual move takes to settle, so the motion does not resume mid-transition. */
   settleMs: number
   /** Step the deck one place. */
@@ -379,7 +438,8 @@ export interface DeckMotion {
   /**
    * The `pause:` control as a group for the deck's own delegated listener, or `null` when none was
    * named or there is nothing to pause. Bound by the deck, so a press on it goes through the same
-   * one listener — and the same scope — as its arrows and dots.
+   * one listener — and the same inside-first search (`core/target.ts`'s `queryControls`) — as its
+   * arrows and dots. A pause button in a band header outside the ring needs no `scope:`.
    */
   pause: ControlGroup | null
   release: Cleanup
@@ -419,13 +479,13 @@ function motionPeriods(request: DeckMotionRequest): { spin: number; autoplay: nu
  *   matched controls.
  */
 export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
-  const { el, ctx, params, label, scope, settleMs, step } = request
+  const { el, ctx, params, label, settleMs, step } = request
   const { spin, autoplay } = motionPeriods(request)
   const ledgers = new Map<Element, AttributeLedger>()
   const pauseSelector = resolveTarget(params.text('pause'), ctx, `${label} pause`)
   const reflectPaused = (paused: boolean): void => {
     if (!pauseSelector) return
-    for (const node of queryScoped(el, ctx, pauseSelector, scope)) {
+    for (const node of queryControls(el, ctx, pauseSelector)) {
       let ledger = ledgers.get(node)
       if (!ledger) {
         ledger = createAttributeLedger(node)
@@ -441,6 +501,7 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
     spinMs: spin,
     autoplayMs: autoplay,
     settleMs,
+    pauseOnHover: !params.is('hover', 'none'),
     advance: request.spin?.advance ?? (() => {}),
     step,
     setSpinning: request.spin?.setSpinning ?? (() => {}),
@@ -451,10 +512,8 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
   if (pauseSelector && !motion.enabled) {
     ctx.warn(`${label} pause: has nothing to pause without ${request.spin ? 'spin: or ' : ''}autoplay:`)
   } else if (pauseSelector) {
-    if (queryScoped(el, ctx, pauseSelector, scope).length === 0) {
-      ctx.warn(`${label} pause "${pauseSelector}" matched nothing`)
-    }
-    pause = { selector: pauseSelector, run: () => motion.toggle() }
+    // Re-resolving an already-valid selector warns nothing, so an invalid one is named once.
+    pause = bindControl({ el, ctx, params, label }, 'pause', () => motion.toggle())
   }
 
   return {

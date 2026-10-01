@@ -15,6 +15,9 @@
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 2h6a2 2 0 0 1 2 2v6h-1.5V4a.5.5 0 0 0-.5-.5H5V2Zm-2 3h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm.5 1.5v7h6v-7h-6Z"/></svg>'
   const CHECK_ICON =
     '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M13.7 4.3a1 1 0 0 1 0 1.4l-6.5 6.5a1 1 0 0 1-1.4 0L2.3 8.7a1 1 0 1 1 1.4-1.4L6.5 10.1l5.8-5.8a1 1 0 0 1 1.4 0Z"/></svg>'
+  // Read now, while this script is the one executing: `currentScript` is null again by the time
+  // any click handler runs. The notes file sits next to this one, wherever the page loads it from.
+  const SCRIPT_URL = document.currentScript ? document.currentScript.src : ''
 
   /**
    * Split on top-level commas only — a comma inside quotes (`'…'`/`"…"`) or parens is data, not a
@@ -313,6 +316,330 @@
     return marked
   }
 
+  /* ---------------------------------------------------------------------------------------------
+   * The Args tab: every parameter each preset in the printed markup accepts.
+   *
+   * Nothing here knows a single parameter name. The list, the types, the defaults and the accepted
+   * spellings all come from the runtime's own `kuinetic.describeSteps()`, which reads the registry
+   * the page is actually running (`window.__kuinetic.registry`, so tier effects are covered) and
+   * parses the value with the same parser the animator uses. A hand-written table here would be
+   * the drifting `data-show-code-key` all over again. The plain-words notes live in a separate
+   * `kuinetic.notes.js` that is fetched the first time Args opens, so a page that never opens it
+   * pays nothing, and every row reads correctly while a note is still missing.
+   * ------------------------------------------------------------------------------------------- */
+
+  const ORDINALS = ['1st', '2nd', '3rd']
+
+  /** A plain-text element. Every string below is data from the page or the registry, so nothing is
+   * ever parsed as HTML — the same rule `renderSource` follows. */
+  function node(tag, className, ...children) {
+    const el = document.createElement(tag)
+    if (className) el.className = className
+    for (const child of children) {
+      if (child == null || child === false) continue
+      el.append(typeof child === 'string' ? document.createTextNode(child) : child)
+    }
+    return el
+  }
+
+  /** `a | b | c`, each a `<code>`, so a reader can see where one spelling ends. */
+  function codeList(values) {
+    const out = document.createDocumentFragment()
+    values.forEach((value, i) => {
+      if (i > 0) out.append(document.createTextNode(' | '))
+      out.append(node('code', null, value))
+    })
+    return out
+  }
+
+  /** `<div#deck.vdeck>` — which element in the printed markup a group of steps belongs to. */
+  function elementLabel(el) {
+    const id = el.getAttribute('id')
+    const cls = (el.getAttribute('class') || '').trim()
+    return `<${el.tagName.toLowerCase()}${id ? '#' + id : ''}${cls ? '.' + cls.split(/\s+/).join('.') : ''}>`
+  }
+
+  /** Every printed element carrying `data-kui`, in document order — the same walk `prettyPrint`
+   * and `referencedTokens` make, so Args lists exactly the presets the Code tab shows. */
+  function dataKuiElements(sourceEl) {
+    const out = []
+    const visit = (el) => {
+      if (el.hasAttribute('data-kui')) out.push(el)
+      for (const child of el.children) if (!isChrome(child)) visit(child)
+    }
+    visit(sourceEl)
+    return out
+  }
+
+  /**
+   * The runtime's answer for one `data-kui` value, as `{ steps, keys, written }` — or `null` when
+   * this page's bundle predates `describeSteps()`. A bundle with `describeSteps()` but not yet
+   * `describeElement()` still lists every step; it just has no reserved-key rows.
+   */
+  function describeValue(value) {
+    const api = window.kuinetic
+    if (!api || typeof api.describeSteps !== 'function') return null
+    const options = {}
+    const registry = window.__kuinetic && window.__kuinetic.registry
+    if (registry) options.registry = registry
+    const notes = window.kuineticNotes && window.kuineticNotes.PARAM_NOTES
+    if (notes) options.notes = notes
+    try {
+      if (typeof api.describeElement === 'function') return api.describeElement(value, options)
+      return { steps: api.describeSteps(value, options), keys: [], written: {} }
+    } catch (e) {
+      console.warn('show-code.js: describing data-kui failed', e)
+      return { steps: [], keys: [], written: {} }
+    }
+  }
+
+  let notesRequested = false
+  /** Fetch the notes table once, on the first Args open; `onLoad` re-renders with the text. A
+   * failed load is fine: every row already reads correctly without a note. */
+  function loadNotes(onLoad) {
+    if (notesRequested || (window.kuineticNotes && window.kuineticNotes.PARAM_NOTES)) return
+    notesRequested = true
+    const script = document.createElement('script')
+    script.src = new URL('kuinetic.notes.js', SCRIPT_URL || document.baseURI).href
+    script.async = true
+    script.addEventListener('load', onLoad)
+    document.head.appendChild(script)
+  }
+
+  /** "optional, defaults to 12deg" / "required" — the API's phrasing hints, applied. */
+  function statusText(param, effectName) {
+    if (param.required) return 'required'
+    if (param.default === '') return 'optional'
+    return `optional, defaults to ${param.default}${param.presetDefault ? ` for ${effectName}` : ''}`
+  }
+
+  /** "from 0 to 1, whole number" — only when the declaration carries bounds. */
+  function boundsText(param) {
+    const parts = []
+    if (param.minimum !== undefined && param.maximum !== undefined) parts.push(`from ${param.minimum} to ${param.maximum}`)
+    else if (param.minimum !== undefined) parts.push(`at least ${param.minimum}`)
+    else if (param.maximum !== undefined) parts.push(`at most ${param.maximum}`)
+    if (param.integer) parts.push('whole number')
+    return parts.join(', ')
+  }
+
+  /** The "how do I write it" line: spellings, then the closed word list, then bounds. */
+  function spellingLine(param) {
+    const line = node('p', 'kui-args-spell')
+    // A free-text param has no grammar to show; a reserved key typed `text` (`on:`, `at:`) does
+    // carry example spellings, and those say more than the quoting hint.
+    if (param.type === 'text' && param.spellings.length === 0) {
+      line.append('Any text. Quote it if it has spaces or commas: ', node('code', null, `${param.name}:'…'`))
+      return line
+    }
+    const words = param.keywords || []
+    const forms = param.spellings.filter((value) => !words.includes(value))
+    if (forms.length) line.append('Write it as ', codeList(forms))
+    if (words.length) line.append(forms.length ? '; or one of ' : 'One of ', codeList(words))
+    const bounds = boundsText(param)
+    if (bounds) line.append(` (${bounds})`)
+    return line.childNodes.length ? line : null
+  }
+
+  /** "Bare values: `hover-intent 160ms 1000ms ease-out` — 1st time → duration, …". The example is
+   * the effect's own defaults, so pasting it changes nothing; a slot the primitive does not declare
+   * still gets an example, since the grammar assigns it all the same.
+   *
+   * A slot the effect cannot act on (`honoured: false`, the same contract that makes the runtime
+   * warn `"pin" cannot honour delay`) stays in the example, because a later token's meaning depends
+   * on its position, but is marked ignored, with the runtime's own reason after the line. */
+  function positionalLine(step) {
+    const byName = new Map(step.params.map((param) => [param.name, param]))
+    const FALLBACK = { duration: '600ms', delay: '200ms', ease: 'ease-out' }
+    let times = 0
+    const tokens = []
+    const line = node('p', 'kui-args-positional', 'Bare values, no name needed: ')
+    const meanings = document.createDocumentFragment()
+    const ignored = []
+    step.positionalOrder.forEach((slot, i) => {
+      const declared = slot.param ? byName.get(slot.param) : undefined
+      tokens.push(declared && declared.default ? declared.spellings[0] || declared.default : FALLBACK[slot.slot])
+      const which = slot.accepts === 'time' ? `${ORDINALS[times++]} time` : 'an easing'
+      meanings.append(i === 0 ? ' — ' : ', ')
+      if (slot.honoured === false) {
+        ignored.push(slot.slot)
+        meanings.append(node('s', 'kui-args-ignored', `${which} → ${slot.slot}`), ' (ignored)')
+      } else {
+        meanings.append(`${which} → ${slot.slot}`)
+      }
+    })
+    line.append(node('code', null, `${step.name} ${tokens.join(' ')}`), meanings, '.')
+    if (ignored.length) {
+      line.append(
+        ` ${step.name} ignores a bare ${ignored.join(' and ')}`,
+        step.unhonouredBecause ? `: ${step.unhonouredBecause}.` : '.',
+      )
+    }
+    return line
+  }
+
+  /**
+   * One row: a parameter of `step`, or a reserved key (same row shape; `step` is then just the
+   * owner's name with no positional slots). `written` is what the markup set, by name.
+   */
+  function paramRow(param, step, written) {
+    const isSet = Object.hasOwn(written, param.name)
+    const row = node('li', isSet ? 'kui-args-param is-set' : 'kui-args-param')
+    if (param.scope) row.dataset.scope = param.scope
+    const name = node(isSet ? 'mark' : 'code', isSet ? 'kui-code-key kui-args-name' : 'kui-args-name', param.name)
+    const head = node(
+      'p',
+      'kui-args-head',
+      name,
+      node('span', 'kui-args-type', param.type),
+      node('span', 'kui-args-status', statusText(param, step.name)),
+    )
+    row.append(head)
+    if (isSet) {
+      row.append(node('p', 'kui-args-set', 'This markup sets ', node('mark', 'kui-code-key', written[param.name])))
+    }
+    if (param.note) row.append(node('p', 'kui-args-note', param.note))
+    row.append(spellingLine(param) || '')
+    if (param.positionalIndex !== undefined) {
+      const slot = step.positionalOrder[param.positionalIndex]
+      // No standalone example: a lone bare time is always the duration, so `name 1s` would teach
+      // the delay row the wrong thing. The full positional example sits at the top of the step.
+      const which = slot && slot.accepts === 'easing' ? 'any easing' : `the ${ORDINALS[param.positionalIndex]} time`
+      if (slot && slot.honoured === false) {
+        row.append(node('p', 'kui-args-omitted', `${step.name} ignores this one bare${step.unhonouredBecause ? `: ${step.unhonouredBecause}` : ''}.`))
+      } else {
+        row.append(node('p', 'kui-args-spell', `Or bare, without the name: ${which} after `, node('code', null, step.name), '.'))
+      }
+    }
+    if (param.whenOmitted) row.append(node('p', 'kui-args-omitted', `Left out: ${param.whenOmitted}`))
+    return row
+  }
+
+  /** Set rows first, then the rest in declaration order. */
+  function setFirst(rows, written) {
+    return [...rows.filter((row) => Object.hasOwn(written, row.name)), ...rows.filter((row) => !Object.hasOwn(written, row.name))]
+  }
+
+  /**
+   * The reserved keys (`on:`, `at:` …) as a collapsible list under their own heading, so a page with
+   * many presets keeps its effect args in front. Open when the markup sets one of them.
+   */
+  function keysBlock(title, keys, written, ownerName) {
+    const setCount = keys.filter((key) => Object.hasOwn(written, key.name)).length
+    const details = node('details', 'kui-args-keys')
+    details.open = setCount > 0
+    details.append(
+      node(
+        'summary',
+        null,
+        node('span', 'kui-args-keys-title', title),
+        node('span', 'kui-args-count', `${keys.length} ${keys.length === 1 ? 'key' : 'keys'}${setCount ? ` · ${setCount} set here` : ''}`),
+      ),
+    )
+    const list = node('ul', 'kui-args-list')
+    const owner = { name: ownerName, positionalOrder: [] }
+    for (const key of setFirst(keys, written)) list.append(paramRow(key, owner, written))
+    details.append(list)
+    return details
+  }
+
+  function stepBlock(step, keys) {
+    // `written` is the API's record of what this step's own text set, bare tokens mapped to the
+    // slot they fill; `writtenKeys` the reserved keys it set. Absent on a bundle that predates them:
+    // then nothing is marked as set.
+    const written = step.written || {}
+    const writtenKeys = step.writtenKeys || {}
+    if (step.unknown) {
+      const block = node('div', 'kui-args-step is-unknown')
+      block.append(
+        node(
+          'p',
+          'kui-args-unknown',
+          node('code', null, step.name),
+          ' is not an effect name.',
+          step.suggestion ? ' Did you mean ' : null,
+          step.suggestion ? node('code', null, step.suggestion) : null,
+          step.suggestion ? '?' : null,
+        ),
+      )
+      return block
+    }
+    const declared = new Set(step.params.map((param) => param.name))
+    const setCount = step.params.filter((param) => Object.hasOwn(written, param.name)).length
+    const details = node('details', 'kui-args-step')
+    details.open = true
+    details.append(
+      node(
+        'summary',
+        null,
+        node('code', 'kui-args-effect', step.name),
+        step.primitive !== step.name ? node('span', 'kui-args-type', `→ ${step.primitive}`) : null,
+        node(
+          'span',
+          'kui-args-count',
+          `${step.params.length} ${step.params.length === 1 ? 'arg' : 'args'}${setCount ? ` · ${setCount} set here` : ''}`,
+        ),
+      ),
+    )
+    details.append(positionalLine(step))
+    // What the markup set first: that is the question a reader arrives with. The rest follow in the
+    // order the effect declares them, which is the order its docs use.
+    const list = node('ul', 'kui-args-list')
+    for (const param of setFirst(step.params, written)) list.append(paramRow(param, step, written))
+    // Only an effect arg the effect does not declare is ignored (the runtime warns about it too).
+    // Reserved keys are never in `written`; they are `writtenKeys`, listed with their own rows below.
+    for (const key of Object.keys(written)) {
+      if (declared.has(key)) continue
+      list.append(
+        node(
+          'li',
+          'kui-args-param is-stray',
+          node('p', 'kui-args-head', node('code', 'kui-args-name', key), node('span', 'kui-args-status', `not an arg of ${step.name}; it is ignored`)),
+          node('p', 'kui-args-set', 'This markup sets ', node('code', null, written[key])),
+        ),
+      )
+    }
+    details.append(list)
+    // This step's own keys (`at:`, `repeat:`, `above:` …), plus any element key it scoped to its
+    // target group (`on:` on a step with `target:`), which is why the row comes from `writtenKeys`
+    // as well as from scope.
+    const stepKeys = keys.filter((key) => key.scope === 'step' || Object.hasOwn(writtenKeys, key.name))
+    if (stepKeys.length) details.append(keysBlock(`Step keys for ${step.name}`, stepKeys, writtenKeys, step.name))
+    return details
+  }
+
+  /** Fill the Args panel for `sourceEl`'s printed markup. `overrides` maps an element to the value
+   * Apply put on it, so the tab follows the try-it box instead of the page's first default. */
+  function renderArgs(panel, sourceEl, overrides) {
+    panel.replaceChildren()
+    const elements = dataKuiElements(sourceEl)
+    for (const el of elements) {
+      const value = overrides.has(el) ? overrides.get(el) : el.getAttribute('data-kui') || ''
+      const described = describeValue(value)
+      if (described === null) {
+        panel.append(
+          node('p', 'kui-args-empty', 'This page’s kuinetic.js predates describeSteps(); rebuild it to list the args.'),
+        )
+        return
+      }
+      // A div, not a <section>: every demo stylesheet pads `section` as a page band.
+      const group = node('div', 'kui-args-group')
+      group.append(
+        node(
+          'h3',
+          'kui-args-element',
+          elements.length > 1 ? `${elementLabel(el)} ` : null,
+          node('code', null, `data-kui="${value}"`),
+        ),
+      )
+      for (const step of described.steps) group.append(stepBlock(step, described.keys))
+      // Element keys once per element, after its steps: one value per element, whichever step wrote it.
+      const elementKeys = described.keys.filter((key) => key.scope === 'element')
+      if (elementKeys.length) group.append(keysBlock('Element keys', elementKeys, described.written || {}, 'data-kui'))
+      panel.append(group)
+    }
+  }
+
   function buildModal() {
     const backdrop = document.createElement('div')
     backdrop.className = 'kui-code-modal-backdrop'
@@ -372,17 +699,87 @@
 
     tryIt.append(input, copyBtn, applyBtn, resetBtn)
 
-
     const pre = document.createElement('pre')
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    dialog.append(header, tryIt, pre)
+    // Code | Args, as WAI-ARIA tabs: one tab stop for the strip (roving tabindex), arrows move
+    // between tabs, and a tab activates as it takes focus — two cheap panels, so there is no reason
+    // to make keyboard users press Enter as well. The strip sits below the header, outside the drag
+    // handle, so a click on a tab is only ever a click.
+    const tabList = node('div', 'kui-code-tabs')
+    tabList.setAttribute('role', 'tablist')
+    tabList.setAttribute('aria-label', 'Source view')
+    const codePanel = node('div', 'kui-code-panel', pre)
+    const argsPanel = node('div', 'kui-code-panel kui-args')
+    const tabs = [
+      { id: 'code', label: 'Code', panel: codePanel },
+      { id: 'args', label: 'Args', panel: argsPanel },
+    ].map(({ id, label, panel }) => {
+      const tab = node('button', 'kui-code-tab', label)
+      tab.type = 'button'
+      tab.id = `kui-code-tab-${id}`
+      tab.setAttribute('role', 'tab')
+      panel.id = `kui-code-panel-${id}`
+      panel.setAttribute('role', 'tabpanel')
+      panel.setAttribute('aria-labelledby', tab.id)
+      // Focusable, so a keyboard user can reach and scroll a panel with no focusable content.
+      panel.tabIndex = 0
+      tab.setAttribute('aria-controls', panel.id)
+      tabList.append(tab)
+      return { id, tab, panel }
+    })
+
+    dialog.append(header, tryIt, tabList, codePanel, argsPanel)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
 
     let targetEl = null
     let originalValue = ''
+    let sourceRoot = null
+    let targetSourceEl = null
+    // The value Apply last put on the target, so Args describes what is running, not what loaded.
+    const overrides = new Map()
+
+    function renderArgsPanel() {
+      if (sourceRoot) renderArgs(argsPanel, sourceRoot, overrides)
+    }
+
+    function selectTab(id, focus) {
+      for (const entry of tabs) {
+        const selected = entry.id === id
+        entry.tab.setAttribute('aria-selected', String(selected))
+        entry.tab.tabIndex = selected ? 0 : -1
+        entry.panel.hidden = !selected
+        if (selected && focus) entry.tab.focus()
+      }
+      if (id === 'args') {
+        renderArgsPanel()
+        loadNotes(() => {
+          if (!argsPanel.hidden) renderArgsPanel()
+        })
+      }
+    }
+    selectTab('code', false)
+
+    tabList.addEventListener('click', (e) => {
+      const entry = tabs.find(({ tab }) => tab === e.target.closest('[role="tab"]'))
+      if (entry) selectTab(entry.id, true)
+    })
+    tabList.addEventListener('keydown', (e) => {
+      const current = tabs.findIndex(({ tab }) => tab === document.activeElement)
+      if (current < 0) return
+      const last = tabs.length - 1
+      const next = {
+        ArrowRight: current === last ? 0 : current + 1,
+        ArrowLeft: current === 0 ? last : current - 1,
+        Home: 0,
+        End: last,
+      }[e.key]
+      if (next === undefined) return
+      e.preventDefault()
+      selectTab(tabs[next].id, true)
+    })
 
     /**
      * Drag-to-move, so the panel can be parked off to one side and the effect it edits stays in
@@ -450,6 +847,8 @@
       window.__kui.reset(targetEl)
       window.__kui.process(targetEl)
       window.__kui.activate(targetEl)
+      if (targetSourceEl) overrides.set(targetSourceEl, value)
+      if (!argsPanel.hidden) renderArgsPanel()
     }
 
     // The backdrop itself is `pointer-events: none` (see system.css/style.css) so the page stays
@@ -467,7 +866,9 @@
     }
     function open(liveEl, sourceEl) {
       targetEl = liveEl.hasAttribute('data-kui') ? liveEl : (liveEl.querySelector('[data-kui]') || liveEl)
-      const targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
+      targetSourceEl = sourceEl.hasAttribute('data-kui') ? sourceEl : (sourceEl.querySelector('[data-kui]') || sourceEl)
+      sourceRoot = sourceEl
+      overrides.clear()
 
       // A chip-picker page rewrites `data-kui` itself on click (#lab, #vocab-target) — that is a
       // real, intentional value, unlike the data-kui-fx/data-kui-state noise the pristine-fetch
@@ -486,6 +887,8 @@
       // marked line, and one legend repeated forty times teaches nobody anything the fortieth time.
       renderSource(code, prettyPrint(sourceEl, 0), tokens)
       input.value = originalValue
+      // Every open starts on Code, the default; Args is one click or one arrow key away.
+      selectTab('code', false)
       backdrop.style.display = 'grid'
       // The stored offset was clamped against the viewport it was dragged in; re-clamp against the
       // current one so a resize between opens can't leave the panel parked past the edge.

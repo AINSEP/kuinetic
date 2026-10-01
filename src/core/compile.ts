@@ -705,8 +705,10 @@ function warnUnknownEffect(name: string, registry: Registry, warnings: string[])
  * Some primitives declare `target` themselves — `scroll-progress`, `horizontal-track`,
  * `media-scrub`, `scroll-spy` and `scroll-snap` in `effects/scroll-mechanics/primitives.ts`,
  * `step-progress` in `effects/forms/primitives.ts`, `spatial-ring` in `effects/carousel/index.ts`,
- * `audio-source` in `advanced/audio.ts`, `model-3d` in `3d/model-3d.ts`, and showcase's `lightbox`
- * and `hotspots` — eleven today — and read the key themselves through `EffectParams` inside their
+ * `audio-source` in `advanced/audio.ts`, `model-3d` in `3d/model-3d.ts`, `hover-intent` and
+ * `anchored-preview` in `effects/catalog/interaction-reveal.ts` (where `target:` names the revealed
+ * part), showcase's `lightbox` and `hotspots`, among others — and read the key themselves through
+ * `EffectParams` inside their
  * own `prepare`; see `effects/step-marking.ts`'s
  * module comment for where the shared `target:`/`scope:` grammar lives. Lifting it here too would
  * be lifting nothing, since `Object.hasOwn` below is false for none of them; the early return is

@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
@@ -205,7 +205,9 @@ function jsTextPrimitive(id: string, channels: string[], options: JsTextPrimitiv
   return {
     id,
     renderer: 'javascript',
-    channels,
+    // Every one of these replaces the host's children with its own spans or layers, so it owns
+    // them: beside a deck it would split the slides, beside `slow-mo` it would swallow the toggle.
+    channels: [...channels, SUBTREE_CHANNEL],
     parameters: options.parameters,
     supportedTimelines: ['time'],
     supportedActivations: ['load', 'enter', 'hover', 'focus', 'click', 'manual'],
@@ -773,7 +775,8 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
     prepare: deferPrepare(prepareTypewriter),
     perfClass: 'continuous',
   }),
-  jsTextPrimitive('scramble-text', ['content'], {
+  // `min-width`/`min-height`: the rest box it pins while the glyphs churn (`prepareScramble`).
+  jsTextPrimitive('scramble-text', ['content', 'min-width', 'min-height'], {
     parameters: scrambleParams,
     prepare: deferPrepare(prepareScramble),
     perfClass: 'continuous',

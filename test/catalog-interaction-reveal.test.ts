@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Registry } from '../src/core/registry.js'
+import { attributeChannel } from '../src/core/types.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -263,7 +264,13 @@ describe('anchored-preview: one primitive, four placements', () => {
     for (const preset of ANCHORED_PREVIEW_PRESETS) {
       expect(reg.resolve(preset.name)!.primitive.id).toBe('anchored-preview')
     }
-    expect(reg.resolve('anchored-preview')!.primitive.channels).toEqual(['preview'])
+    // Beside its own `preview` box, the family claims the two host attributes it publishes: the
+    // resolved side and a running `tease:` (see `revealPrimitive`'s `placed`).
+    expect(reg.resolve('anchored-preview')!.primitive.channels).toEqual([
+      'preview',
+      attributeChannel('data-kui-preview-place'),
+      attributeChannel('data-kui-preview-tease'),
+    ])
   })
 
   it('declares phase: state on all four placements — none carries Preset.transitions to derive it', () => {
@@ -292,14 +299,19 @@ describe('anchored-preview: one primitive, four placements', () => {
   // that actually sets `--kui-anchored-preview-inset`. Applied to all four for the same reason it
   // was applied to all three label-swap names — correct whether or not a given placement happens to
   // collide with the shared rule's boundary today.
+  //
+  // Each placement rule is now a two-selector list — the preset name, and the `place:` side stamped
+  // on the host — so the rule is found by its full selector text, which also pins the pairing: the
+  // `-left` preset and `data-kui-preview-place='left'` must share one geometry, never two copies.
   it.each([
-    ['anchored-preview', '--kui-anchored-preview-inset: auto auto calc(100% +'],
-    ['anchored-preview-bottom', '--kui-anchored-preview-inset: calc(100% +'],
-    ['anchored-preview-left', '--kui-anchored-preview-inset: 50% calc(100% +'],
-    ['anchored-preview-right', '--kui-anchored-preview-inset: 50% auto auto calc(100% +'],
-  ])('%s precomputes its own inset side rather than sharing one', (name, expected) => {
-    const start = css.lastIndexOf(`[data-kui-fx~='${name}'] {`)
-    expect(start, `no base rule for ${name}`).toBeGreaterThan(-1)
+    ['anchored-preview', 'top', '--kui-anchored-preview-inset: auto auto calc(100% +'],
+    ['anchored-preview-bottom', 'bottom', '--kui-anchored-preview-inset: calc(100% +'],
+    ['anchored-preview-left', 'left', '--kui-anchored-preview-inset: 50% calc(100% +'],
+    ['anchored-preview-right', 'right', '--kui-anchored-preview-inset: 50% auto auto calc(100% +'],
+  ])('%s precomputes its own inset side, shared with place:%s', (name, side, expected) => {
+    const selector = `[data-kui-fx~='${name}'],\n  [data-kui-fx][data-kui-preview-place='${side}'] {`
+    const start = css.lastIndexOf(selector)
+    expect(start, `no placement rule for ${name}`).toBeGreaterThan(-1)
     expect(css.slice(start, css.indexOf('}', start))).toContain(expected)
   })
 

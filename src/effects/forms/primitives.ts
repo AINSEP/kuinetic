@@ -1,4 +1,4 @@
-import { CHANNEL, inertInstance } from '../../core/types.js'
+import { attributeChannel, CHANNEL, inertInstance, SUBTREE_CHANNEL } from '../../core/types.js'
 import type {
   Cleanup,
   EffectParams,
@@ -10,7 +10,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
-import { AUTOPLAY_PARAM, createDeckMotion, PAUSE_PARAM } from '../auto-motion.js'
+import { AUTOPLAY_PARAM, createDeckMotion, HOVER_PARAM, PAUSE_PARAM } from '../auto-motion.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepIndex } from '../step-index.js'
@@ -222,7 +222,7 @@ function prepareRangeFill(el: Element, params: EffectParams, ctx: PrepareContext
 
 export const STRENGTH_METER_PRIMITIVE = jsInputPrimitive(
   'strength-meter',
-  ['meter'],
+  ['meter', attributeChannel('data-kui-strength-level')],
   {},
   deferPrepare(prepareStrengthMeter),
 )
@@ -236,8 +236,7 @@ export const RANGE_FILL_PRIMITIVE = jsInputPrimitive(
 
 // --- step-progress: click-driven state machine ---
 
-export { nextStep, prevStep, clampStep, countSteps, delegateControls } from '../step-index.js'
-export type { ControlGroup } from '../step-index.js'
+export { nextStep, prevStep, clampStep, countSteps } from '../step-index.js'
 
 function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const label = 'step-progress'
@@ -258,7 +257,6 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
     ctx,
     params,
     label,
-    scope,
     settleMs: effectDurationMs(params, 400),
     step: (direction) => (direction > 0 ? index.next() : index.prev()),
   })
@@ -266,7 +264,6 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
     el,
     params,
     ctx,
-    scope,
     resolveSteps,
     controls: pause ? [pause] : [],
     onInput: () => motion.interrupt(),
@@ -283,10 +280,9 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
     (message) => ctx.warn(`${label} ${message}`),
   )
   /*
-   * A swipe on an element around this deck steps it: left/up is next, right/down is previous. The
-   * swipe cannot sit on the deck itself (both write element state), so the documented pairing is
-   * a wrapper, and until this line every page mapped the wrapper's direction onto the deck in a
-   * script of its own. Here rather than in `createStepIndex`, because `slideshow` shares that index
+   * A swipe on this deck, or on an element around it, steps it: left/up is next, right/down is
+   * previous. Until this line every page mapped the swipe's direction onto the deck in a script of
+   * its own. Here rather than in `createStepIndex`, because `slideshow` shares that index
    * and owns its touch handling through its own `swipe:` parameter. See `effects/swipe-event.ts`.
    */
   const releaseSwipe = stepOnSwipe(ctx.doc, el, (direction) => {
@@ -304,7 +300,9 @@ function prepareStepProgress(el: Element, params: EffectParams, ctx: PrepareCont
 
 const STEP_PROGRESS_BASE = jsInputPrimitive(
   'step-progress',
-  ['state'],
+  // The host's children are its steps unless `target:` says otherwise, so a widget that inserts
+  // one (`slow-mo`'s toggle) would become a step: the subtree is this deck's.
+  [SUBTREE_CHANNEL, attributeChannel('data-kui-step')],
   {
     // Empty default, not '4': `readParams` fills every declared default in unconditionally and
     // does not validate it, so an empty one is how `prepareStepProgress` tells "unauthored" from
@@ -353,11 +351,12 @@ const STEP_PROGRESS_BASE = jsInputPrimitive(
     main: { type: 'number', default: '1', cssProperty: '--kui-main', finite: true, minimum: 0 },
     /*
      * The deck steps itself every `autoplay:` (`0s`, the default, is off), and `pause:` names the
-     * author's play/pause control. The spatial decks' declarations and scheduler, shared — see
-     * `prepareStepProgress` and `effects/auto-motion.ts`.
+     * author's play/pause control, and `hover:none` stops a resting pointer pausing it. The spatial
+     * decks' declarations and scheduler, shared — see `prepareStepProgress` and `effects/auto-motion.ts`.
      */
     autoplay: AUTOPLAY_PARAM,
     pause: PAUSE_PARAM,
+    hover: HOVER_PARAM,
     // A click on a slide opens every slide in the lightbox gallery. See `core/deck-viewer.ts`.
     lightbox: DECK_LIGHTBOX_PARAM,
     // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
@@ -438,7 +437,7 @@ function prepareSubmitFlow(el: Element, params: EffectParams, ctx: PrepareContex
 
 export const SUBMIT_FLOW_PRIMITIVE = jsInputPrimitive(
   'submit-flow',
-  ['state'],
+  [attributeChannel('data-kui-stage')],
   {
     load: { type: 'time', default: '1200ms', cssProperty: '--kui-load' },
     hold: { type: 'time', default: '1500ms', cssProperty: '--kui-hold' },

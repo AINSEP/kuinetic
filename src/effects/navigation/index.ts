@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { attributeChannel, CHANNEL } from '../../core/types.js'
 import type {
   Cleanup,
   EffectParams,
@@ -198,26 +198,25 @@ function prepareBackToTop(el: Element, params: EffectParams, ctx: PrepareContext
 export const NAV_JS_PRIMITIVES: Primitive[] = [
   navPrimitive(
     'header-shrink',
-    // `'shadow'` alongside `'layout'`: `header-shrink`'s host rule also transitions `box-shadow`
-    // (navigation.css), which `layout` alone does not cover — see `header-shrink`'s own
-    // `Preset.transitions` below and `channel-properties.ts`'s `layout` entry for why the two
-    // interpolated properties (`padding-block`/`font-size`) stay on `layout` while this one moves
-    // to the channel that already owns every other box-shadow writer (`lift-shadow`,
-    // `border-glow`). Composing `header-shrink` with either of those is now a refused conflict
-    // instead of a silent clobber on the same property — the self-consistency bug this closes.
-    ['layout', 'shadow'],
+    // The three properties its host rule writes (navigation.css): the two it interpolates from
+    // `--kui-shrink`, `padding-block` and `font-size`, each under its own name, and `box-shadow`
+    // on the channel that already owns every other box-shadow writer (`lift-shadow`,
+    // `border-glow`), so composing `header-shrink` with either of those is a refused conflict
+    // instead of a silent clobber. The two used to sit in the shared `'layout'` bucket, which also
+    // refused `header-shrink, pin-until` — a sticky header that shrinks — over nothing they share.
+    ['padding', 'font-size', 'shadow', attributeChannel('data-kui-shrunk')],
     { offset: { type: 'number', default: '120', cssProperty: '--kui-offset' } },
     deferPrepare(prepareHeaderShrink),
   ),
   navPrimitive(
     'header-hide-on-scroll',
-    [CHANNEL.translate],
+    [CHANNEL.translate, attributeChannel('data-kui-hidden')],
     { offset: { type: 'number', default: '8', cssProperty: '--kui-offset' } },
     deferPrepare(prepareHeaderHide),
   ),
   navPrimitive(
     'back-to-top-fade',
-    [CHANNEL.opacity, CHANNEL.translate],
+    [CHANNEL.opacity, CHANNEL.translate, attributeChannel('data-kui-visible')],
     { offset: { type: 'number', default: '400', cssProperty: '--kui-offset' } },
     deferPrepare(prepareBackToTop),
   ),

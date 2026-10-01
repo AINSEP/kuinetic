@@ -268,9 +268,20 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
   /**
    * `hover-intent`'s two inherited signals, same shape and same reasoning as `label-swap` above:
    * written on the host rule, read by the standalone `[data-kui-hint]` rule, feeding `opacity` and
-   * `translate` on a child box that no other effect can reach.
+   * `translate` on a child box that no other effect can reach. The last three are its placement
+   * geometry, the same role `anchored-preview`'s `-inset`/`-travel` play below: set on the host
+   * (and swapped by `[data-kui-hint-place='bottom']`), read by the hint's `top`/`bottom`/`translate`.
+   * `-shift` (both families) is reset to `0px` on the host and overwritten inline by the script's
+   * viewport shift, read by the part's cross-axis `translate`.
    */
-  hint: ['--kui-hover-intent-shown', '--kui-hover-intent-lag'],
+  hint: [
+    '--kui-hover-intent-shown',
+    '--kui-hover-intent-lag',
+    '--kui-hover-intent-top',
+    '--kui-hover-intent-bottom',
+    '--kui-hover-intent-dir',
+    '--kui-hover-intent-shift',
+  ],
   /**
    * `anchored-preview`'s four inherited signals, same shape and reasoning as `hint`/`label-swap`
    * above: written on the host rule (one pair for state, one pair precomputed per placement
@@ -283,6 +294,7 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
     '--kui-anchored-preview-lag',
     '--kui-anchored-preview-inset',
     '--kui-anchored-preview-travel',
+    '--kui-anchored-preview-shift',
   ],
   /**
    * `search-expand`'s two inherited signals, same shape and reasoning as `hint` above: written on
@@ -338,13 +350,14 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * `navPrimitive('header-shrink', ...)`), for the same "two channels, one physical property"
    * reason `text-shadow` stays split from `shadow` above.
    *
-   * `pin`/`stacking-cards`/`smooth-scroll` (`scroll-mechanics/primitives.ts`) and
-   * `parallax-background` (`catalog/media.ts`) are this channel's other members; none of them
-   * writes `padding-block`/`font-size` on an unconditional host rule, so widening this list from
-   * empty admits nothing new for them — confirmed against every current writer of either property
-   * before adding this, the same discipline the `background` entry above documents.
+   * Both used to be one `layout` entry, the bucket `pin`, `scroll-snap`, `auto-height`,
+   * `background-media` and the gradient rings also claimed; it was split into the properties each
+   * one writes (`position`, `overflow`, `height`, …). Only these two are tracked, exactly as
+   * before: `padding` stays `padding-block` alone because the rings' `padding` shorthand, like the
+   * box-model properties `frame` describes, is deliberately outside the tracked universe.
    */
-  layout: ['padding-block', 'font-size'],
+  padding: ['padding-block'],
+  'font-size': ['font-size'],
   /**
    * Declared explicitly empty rather than left absent, so `allowedProperties(['content'])` reads
    * as an intentional "this channel paints no channel-tracked CSS property" instead of an
@@ -385,18 +398,17 @@ export const CHANNEL_PROPERTIES: Record<string, string[]> = {
    * effects also set them without claiming a shared channel. Listing them here would silently
    * widen the tracked-property universe and flag those unrelated, pre-existing effects.
    * `showcase.css` is outside the core stylesheet scan and its frame rules have their own test.
-   * The explicit empty array follows the ownership-token convention of `sweep` and `widget`.
+   * The explicit empty array follows the ownership-token convention of `sweep` and `subtree`.
    */
   frame: [],
   /**
-   * The showcase module's ownership token for "this widget builds and manages state a page did
-   * not already have" (a dialog, an active slide, which note is open) — nothing on this list
-   * paints a physical CSS property on the *host*, so an empty array is the honest answer, the same
-   * reasoning `sweep`/`pseudo-before`/`proximity` above give for theirs. `device-frame` does not
-   * use it; declared ahead of Phase 2's `lightbox`/`compare`/`hotspots`/`slideshow`/`scroll-story`,
-   * which will.
+   * `SUBTREE_CHANNEL` (`core/types.ts`): the showcase widgets' ownership token for the host's own
+   * children — the controls, ranges and markers they insert, and the layout their stylesheets give
+   * the children by position. It names a subtree, not a property painted on the *host*, so an
+   * empty array is the honest answer, the same reasoning `sweep`/`pseudo-before`/`proximity` above
+   * give for theirs. It replaced the bucket `widget`, which every showcase widget shared.
    */
-  widget: [],
+  subtree: [],
 }
 
 /**

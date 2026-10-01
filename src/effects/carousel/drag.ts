@@ -60,6 +60,12 @@ export interface RingDragRequest {
   total(): number
   /** The ring's current continuous position, in places. */
   positionOf(): number
+  /**
+   * Which way the cards travel on screen as the position grows (`deck.ts`'s `travelSign`): `1` when
+   * a leftward drag advances, `-1` when a rightward one does. Asked once per drag, at its start, so
+   * the card under the pointer follows it whatever the shape.
+   */
+  travelSign(): 1 | -1
   /** Move the ring to a continuous position and re-render. */
   moveTo(position: number): void
   /** Publish or clear the dragging state the stylesheet suspends its transition on. */
@@ -285,7 +291,8 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
    *
    * Dragging left pulls the cards left, which brings the *next* card to the front — so leftward
    * pixels (negative dx) are a positive step. Getting this backwards is not a subtle bug: the ring
-   * follows the finger the wrong way and reads as broken rather than as inverted.
+   * follows the finger the wrong way and reads as broken rather than as inverted. That is the ring
+   * seen from outside; `sign` below turns it round for a shape whose next card is on the left.
    */
   /*
    * Where the ring was when the drag began. `recognise` reports `dx` from the pointer's *origin*, not
@@ -294,6 +301,12 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
    * real drag (dozens of moves) would fling the ring round several times rather than follow the hand.
    */
   let dragFrom = 0
+  /*
+   * Which way pixels turn into places for this drag. "Dragging left brings the next card" is true
+   * of a ring seen from outside; from inside one the next card is on the left, and the same rule
+   * dragged the cards against the hand. Asked of the deck's rendered geometry once, at the start.
+   */
+  let sign: 1 | -1 = 1
 
   const selection = holdSelection(el.ownerDocument)
 
@@ -303,17 +316,18 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
         {
           onStart() {
             dragFrom = positionOf()
+            sign = request.travelSign()
             selection.hold()
             setDragging(true)
           },
           onMove(vector) {
-            moveTo(dragFrom - vector.dx / travelPx)
+            moveTo(dragFrom - (sign * vector.dx) / travelPx)
           },
           onEnd(vector) {
             selection.release()
             setDragging(false)
             clicks.arm()
-            const settled = snapTo(projectRelease(positionOf(), vector.vx, travelPx))
+            const settled = snapTo(projectRelease(positionOf(), sign * vector.vx, travelPx))
             moveTo(wrapPlace(settled, total()))
           },
         },

@@ -5,6 +5,7 @@ import { recognise, rubberBand } from '../../core/gesture.js'
 import type { GestureVector } from '../../core/gesture.js'
 import { createSpringRunner, defaultSpringDeps, DEFAULT_SPRING } from '../../core/spring.js'
 import type { SpringConfig, SpringDeps, SpringRunner } from '../../core/spring.js'
+import { attributeChannel } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { withTimingContract } from '../shared.js'
 import { announceSwipe } from '../swipe-event.js'
@@ -360,7 +361,7 @@ function prepareMagnetic(el: Element, params: EffectParams, ctx: PrepareContext)
 export const GESTURE_PRIMITIVES: Primitive[] = [
   gesturePrimitive(
     'draggable',
-    ['translate'],
+    ['translate', attributeChannel('data-kui-dragging')],
     {
       ...springParams,
       axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
@@ -392,7 +393,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
 
   gesturePrimitive(
     'swipeable',
-    ['state'],
+    [attributeChannel('data-kui-swipe')],
     {
       axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
       velocity: { type: 'number', default: '300', cssProperty: '--kui-velocity' },
@@ -402,7 +403,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
 
   gesturePrimitive(
     'pressable',
-    ['state'],
+    [attributeChannel('data-kui-pressed')],
     { duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' } },
     // `duration` here is the hold threshold, not a span of motion — `long-press 800ms` means
     // "count it once the finger has been down for 800ms". It is read (see `preparePressable`), so

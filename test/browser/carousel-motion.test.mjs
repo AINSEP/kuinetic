@@ -200,7 +200,10 @@ const touchDrag = async (page, host, readMid, readPosition) => {
 }
 
 async function checkInsideDrag(page, check, label, input) {
-  const expected = DRAG_PX / TRAVEL_PX
+  // Negative: from inside a ring the next card sits to the LEFT, so a leftward drag that the cards
+  // follow walks the deck backwards. This asserted `+` until 2026-09-30, which pinned the bug
+  // (cards moving against the hand); `deck-drag-direction.test.mjs` checks the cards themselves.
+  const expected = -DRAG_PX / TRAVEL_PX
   for (const id of INSIDE_ROWS) {
     const { hit, count, before, mid, settled } = await dragInside(page, id, input)
     const moved = placesMoved(before, mid.position, count)

@@ -10,6 +10,28 @@ export { Animator, createAnimator, ATTR } from './animator.js'
 export type { AnimatorOptions } from './animator.js'
 export { detect } from './capabilities.js'
 export type { Capabilities } from './capabilities.js'
+export {
+  describeAttribute,
+  describeEffect,
+  describeElementAttribute,
+  describeKeys,
+  KEY_NOTE_OWNER,
+  spellingsFor,
+} from './describe.js'
+export type {
+  DescribedStep,
+  EffectDescription,
+  ElementDescription,
+  KeyDescription,
+  KeyScope,
+  ParamDescription,
+  ParamNotes,
+  PositionalSlot,
+  StepWritten,
+  UnknownEffect,
+} from './describe.js'
+export { timingContractOf } from './timing-contract.js'
+export type { TimingContract, TimingToken } from './timing-contract.js'
 export { control } from './control.js'
 export type { ControlHandle } from './control.js'
 // `emitLifecycle` is deliberately absent, on the same rule that keeps `PlayRequest` off this
@@ -29,7 +51,7 @@ export { Registry } from './registry.js'
 export type { ResolvedEffect } from './registry.js'
 export { collectingReporter, consoleReporter, silentReporter } from './reporter.js'
 export type { CollectingReporter, Reporter } from './reporter.js'
-export { CHANNEL, inertInstance } from './types.js'
+export { CHANNEL, SUBTREE_CHANNEL, attributeChannel, inertInstance } from './types.js'
 export type {
   Activation,
   Channel,
@@ -39,6 +61,8 @@ export type {
   EffectVariant,
   InstanceControl,
   NamedActivation,
+  ParamNote,
+  ParamNoteDetail,
   ParamSpec,
   ParameterSchema,
   PerfClass,

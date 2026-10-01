@@ -149,14 +149,14 @@ describe('compare', () => {
     expect(host.style.getPropertyValue('--kui-compare')).toBe('25%')
   })
 
-  it('refuses timing tokens by name', () => {
+  it('honours a positional duration (the autoplay sweep) and refuses delay and ease by name', () => {
     const reporter = collectingReporter()
     build(
       '<figure data-kui="compare 300ms 150ms ease"><img src="a.jpg" alt=""><img src="b.jpg" alt=""></figure>',
       reporter,
     ).start()
 
-    expect(reporter.messages.some((m) => m.includes('"compare" cannot honour duration'))).toBe(true)
+    expect(reporter.messages.some((m) => m.includes('"compare" cannot honour duration'))).toBe(false)
     expect(reporter.messages.some((m) => m.includes('"compare" cannot honour delay'))).toBe(true)
     expect(reporter.messages.some((m) => m.includes('"compare" cannot honour ease'))).toBe(true)
   })

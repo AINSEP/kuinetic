@@ -45,8 +45,8 @@ import { cssPrimitive as css } from '../shared.js'
  * not exist. Nothing else in the catalog writes `offset-*`, so this channel has exactly one
  * member and composes with everything.
  *
- * The same bare-string spelling as `path-morph`'s `'path'` channel and `background-media`'s
- * `'layout'` — a channel local to one category does not need a row in `CHANNEL`.
+ * The same bare-string spelling as `path-morph`'s `'path'` channel and `pin`'s `'position'` — a
+ * channel local to one category does not need a row in `CHANNEL`.
  */
 const OFFSET: string = 'offset'
 

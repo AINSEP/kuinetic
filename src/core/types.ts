@@ -57,6 +57,46 @@ export const CHANNEL = {
 export type Channel = (typeof CHANNEL)[keyof typeof CHANNEL] | (string & {})
 
 /**
+ * The channel for an effect whose output is an attribute it writes on its own element.
+ *
+ * Named by the attribute, not by the kind of output. These primitives used to share one bucket
+ * channel, `'state'`, and since a channel is exclusive, any two of them in one comma list were
+ * refused: `swipe-y, carousel` compiled to `swipe-y` alone, with the deck dropped, though
+ * `data-kui-swipe` and `data-kui-step` never touch. What two attribute writers can actually fight
+ * over is one attribute, so that is what the claim says — `swipe-x, swipe-y` still collide on
+ * `data-kui-swipe`, and `carousel, step-progress` on `data-kui-step`.
+ *
+ * Claim every attribute the effect writes on its host; attributes written on other elements (a
+ * deck's slides, a spy's links) are not this element's to contend for.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+export function attributeChannel(attribute: string): string {
+  return `attr:${attribute}`
+}
+
+/**
+ * The channel for a widget that owns its host's children: it inserts elements of its own into the
+ * host (a slideshow's controls, a compare's range and handle, hotspot markers, the slow-mo toggle),
+ * its stylesheet lays the host's children out by where they sit (`scroll-story`'s sticky
+ * `:first-child` beside a scrolling `:last-child`, `compare`'s stacked layers), or it takes the
+ * host's children as its items (a step deck's slides when no `target:` names them).
+ *
+ * This is the one thing two such widgets genuinely fight over, so it is exclusive like any channel:
+ * `slow-mo`'s toggle prepended into a `scroll-story` becomes the sticky first child, and a
+ * `compare` range appended into `hotspots` sits under the markers it places in percent of the host,
+ * and the same toggle inside a `carousel` becomes one of its slides.
+ * It replaces the bucket the showcase used to share, `'widget'`, which refused every pair of
+ * widgets — `lightbox` beside a slideshow included, though the lightbox only listens on the links
+ * already there. Attributes a widget writes on its host are claimed separately, with
+ * {@link attributeChannel}.
+ *
+ * Local to the showcase rather than a row of `CHANNEL`: it names a subtree, not a CSS property.
+ */
+export const SUBTREE_CHANNEL = 'subtree'
+
+/**
  * The activations the library gives a name of its own, because the DOM has no event for them or
  * because the name bundles more than one event. See `core/activation.ts` for what each
  * one binds.
@@ -252,6 +292,31 @@ interface ParamSpecBase {
   maximum?: number
   /** Require a numeric parameter to have no fractional part. */
   integer?: boolean
+  /**
+   * Plain-words documentation for a reader, surfaced by `describeEffect` — never read at runtime.
+   *
+   * Optional, and absent on every built-in primitive on purpose: the catalog's notes live in
+   * `src/notes/`, a separate entry only documentation pages load, so the prose does not ship in
+   * the core bundle. This field is the inline route for a third-party primitive, whose notes have
+   * nowhere else to live. Where both exist, this one wins.
+   */
+  note?: ParamNote
+}
+
+/**
+ * What a reader needs to know about one parameter that its type and default cannot say.
+ *
+ * A bare string is shorthand for `{ why }`.
+ */
+export type ParamNote = string | ParamNoteDetail
+
+export interface ParamNoteDetail {
+  /** One short sentence, for a non-specialist: why would you set this? */
+  why: string
+  /** What happens when the author leaves it out, where the default value alone does not say. */
+  whenOmitted?: string
+  /** The effect does nothing useful without it. Documentation only; nothing enforces it. */
+  required?: boolean
 }
 
 /**

@@ -7,6 +7,79 @@ version numbers are assigned at release.
 
 ### Added
 
+- **Tooltip styling on `hover-intent` and `anchored-preview`.** `color:`, `bg-color:` and `radius:`
+  style the hint/preview from the attribute, and `place:top|bottom|auto` picks its side — `auto`
+  starts on the preferred side and flips to the opposite one when it does not fit the viewport,
+  re-checking on scroll/resize only while shown. `anchored-preview`'s `place:` also takes
+  `left|right` (each `-bottom`/`-left`/`-right` preset is that value), and `auto` flips along the
+  preset's own axis. `hover-intent`'s hint now ships a dark card by default (`#111111`, `#f4f4f0`,
+  `12px`, padding, `max-content` width up to `min(16rem, 70vw)`); a page's own unlayered CSS still
+  wins. `anchored-preview`'s defaults change nothing.
+- **`tease:` on `hover-intent` and `anchored-preview*`.** `tease:2s` opens the hint/preview once,
+  unasked, for two seconds the first time its trigger is half in view, then closes it — so a demo
+  or onboarding hint is seen without a hover. Real hover or focus takes over mid-tease (nothing
+  closes under the pointer); `place:auto` measures before it opens; under reduced motion it still
+  shows, without moving. No `IntersectionObserver`, no tease. Off by default.
+- **`target:` names the part on `hover-intent` and `anchored-preview*`.**
+  `data-kui="anchored-preview-bottom target:.preview-img"` works with no `data-kui-preview` in the
+  markup (and `hover-intent target:.tip` with no `data-kui-hint`): the effect stays on the trigger
+  and the library stamps the marker on the first match inside it, then removes only what it
+  stamped on teardown. Markup that already writes the marker works unchanged. Zero matches or
+  several warn (only the first is used). `scope:` is not accepted — the part must sit inside the
+  trigger to be positioned against it.
+- **`autoplay:` on `compare`.** The before/after divider can sweep by itself: `autoplay:always`
+  starts at load, `autoplay:in-view` the first time the slider is on screen (default `never`).
+  One run goes out to the far edge, across to the near one and home to `position:`; `loop:true`
+  keeps going, `reverse:true` heads toward 0% first, `duration:` (or positional, `compare 4s`) is
+  one edge-to-edge sweep (default `3s`, floor `250ms`). The moment someone presses or focuses the
+  slider the sweep stops for good. Pauses off screen, never starts under reduced motion.
+- **`compare` takes three or more media.** `[black | white | blue | pink]` in one frame, split by
+  N−1 dividers; dragging one wipes between its two neighbours and stops at them (dividers never
+  cross; two may meet, closing a strip). Each divider is its own range ("Divider 2 of 3: White /
+  Blue"), tab-ordered across the frame, whose min/max are its neighbours, so arrows/Home/End clamp
+  too. Even split by default; `positions:'20% 45% 80%'` (quoted, space-separated) sets them.
+  `autoplay:` sweeps the dividers one at a time. Two media are unchanged.
+- **Tooltips and previews stay inside the viewport.** `hover-intent`'s hint and every
+  `anchored-preview*` part now slide along their cross axis (sideways for top/bottom, up/down for
+  left/right) so they clear the viewport edge by 8px, instead of being clipped — a preview on a word
+  near the right edge of a phone used to lose part of its picture. Measured when the part is about
+  to show (hover, focus, `tease:`), re-measured on scroll/resize only while it is shown. A part
+  wider than the viewport aligns to its start edge. Works with every `place:`, fixed or `auto`. On
+  by default; no switch.
+- **`describe()` — every parameter an effect accepts, generated from the registry.**
+  `kuinetic.describe('hover-intent')` returns the effect's primitive, and per parameter its type,
+  effective default (a preset's own override applied, flagged `presetDefault`), example spellings
+  the validator accepts (`12 | 12d | 12deg` for an angle, `0.8 | 80%` for an alpha), keyword list,
+  bounds, and which bare token sets it (`hover-intent 160ms 350ms`: 1st time → duration, 2nd →
+  delay, an easing by its shape). `describeSteps('fade-up 600ms, lift')` does the same for each
+  step of a whole `data-kui` value, using the runtime's own parser, and names a likely typo for an
+  unknown step. Nothing is hand-listed, so it cannot drift from the catalog.
+- **`describe()` reads markup back, covers the reserved keys, and says which bare timings count.**
+  Each step from `describeSteps()` now carries `written` — the arguments that step sets, bare
+  values mapped to their name (`hover-intent 160ms 350ms` → `duration: 160ms, delay: 350ms`) — and
+  `writtenKeys` for `at:`, `repeat:`, breakpoint gates and the like. `describeElement()` adds every
+  reserved key (`on:`, `timeline:`, `cascade:`, `rm:`, `at:` …), each marked element- or
+  step-scoped as the parser treats it, with plain-words notes in `kuinetic/notes`. Each bare slot
+  also says whether the effect acts on it (`honoured`), read from the same timing contract that
+  makes the runtime warn `"pin" cannot honour delay`, so the two cannot disagree.
+- **Plain-words parameter notes, as a separate entry.** `kuinetic/notes` (and
+  `kuinetic.notes.js`, global `kuineticNotes`) holds a one-sentence "why would I set this" note
+  for every parameter in the catalog, plus what happens when it is left out where the default
+  doesn't say. Pass `{ notes: kuineticNotes.PARAM_NOTES }` to `describe()`. Kept out of the core
+  bundle on purpose: ~10 KB brotli of prose only documentation pages need. A test fails if any
+  registered parameter has no note, or a note names a parameter that no longer exists. Third-party
+  primitives can carry a note inline on `ParamSpec.note`.
+- **Demo: "Show code" has Code | Args tabs.** Args lists every parameter of every effect in the
+  printed markup (nested `data-kui` and every comma step): type, default or "required", accepted
+  spellings and word lists, the bare-value order, what the markup sets, the element- and step-level
+  keys, which bare slots the effect ignores, and a plain-words note. All of it comes from
+  `kuinetic.describeElement()`; the notes file loads only when Args first opens.
+- **Decks hold still while their viewer is open.** A deck that moves on its own — `carousel
+  autoplay:`, or `spin:` on `carousel-3d`/`carousel-orbit`/`carousel-stack` — holds still while its
+  lightbox is open (`lightbox:true`, or a `lightbox` effect on the same deck) and carries on from the
+  same card when it closes, with a fresh full period. A deck the visitor paused stays paused. The
+  shared viewer announces this as a bubbling `kui:viewer` event (`detail.open`) from the element that
+  opened it.
 - **`spin:` and `autoplay:` on the spatial carousels.** `spin:40s` turns a `carousel-3d*` ring
   continuously, one full cycle per 40 seconds (`spin:-40s` the other way); `autoplay:4s` steps it,
   resting on each slide. Drag, keys and `next:`/`prev:`/`jump:` take over and hand back without a
@@ -48,9 +121,90 @@ version numbers are assigned at release.
   and hidden tabs, does not start under reduced motion, and yields to arrows, dots, clicks and
   swipes before resuming. `pause:` names a play/pause control with `aria-pressed`. Off by default;
   without it the deck moves only by hand.
+- `hover:none` on every self-moving deck (`carousel`/`step-progress`, `carousel-3d*`,
+  `carousel-orbit`, `carousel-stack`): the deck keeps moving while the pointer rests on it. The
+  default, `hover:pause`, is unchanged; keyboard focus, the `pause:` control and reduced motion still
+  stop the deck either way.
+
+### Changed
+
+- `target:` on `hover-intent` / `anchored-preview*` no longer moves the effect onto the match (that
+  made the match its own trigger with nothing to reveal, so the effect never showed). It now names
+  the hint/preview.
+- **Controls no longer share `target:`'s `scope:`.** `next:`, `prev:`, `jump:` and `pause:` now look
+  inside the deck first and fall back to the whole page only when nothing inside matches. A ring
+  whose pause button sits in a band header needs no `scope:page` any more, so `target:.ring-slot`
+  stays this ring's slots instead of every ring's on the page. An inside match always wins: two
+  decks with their own arrows drive only themselves. `scope:` now governs `target:` alone;
+  `scope:page` markup keeps working.
+- **`tilt-3d` composes with `rotate`-property effects** (`spin`, `wiggle`…): it writes the
+  `transform` shorthand, never `rotate`, so the two apply together. It is refused beside other
+  `transform` writers instead.
 
 ### Fixed
 
+- **A swipe and a `carousel` on one element.** `data-kui="swipe-y, carousel"` used to compile to
+  `swipe-y` alone — every attribute-writing effect (`swipe*`, `long-press`, `carousel`/`step-progress`,
+  `submit-to-spinner-to-check`, `scroll-spy`) shared one composition channel, so any two of them in a
+  comma list dropped the second, silently under the default reporter. Their channels now name the
+  attribute each writes, so they compose unless they really write the same one (`swipe-x, swipe-y`
+  is still refused). A swipe on the deck's own element now steps that deck even inside an outer deck.
+  New `attributeChannel()` and `SUBTREE_CHANNEL`, exported from `kuinetic/core`, for third-party
+  primitives that write an attribute on their host or build inside it.
+- **Every step deck claims `data-kui-step`.** `carousel-3d*`, `carousel-stack`, the
+  `carousel-fade`/`carousel-slide` slideshows and `scroll-story` publish the step index on their host
+  but did not say so, so any of them composed with `carousel` (or `scroll-progress`) on one element
+  and the two overwrote each other's index. They are now refused, with a warning, like any two
+  writers of one attribute.
+- **Showcase widgets compose when they don't fight.** Every widget (`lightbox`, `compare`,
+  `hotspots`, `slow-mo`, `scroll-story`, the `carousel-fade`/`carousel-slide` slideshows) used to
+  claim one shared composition channel, so any two in a comma list were refused and the second
+  dropped. `data-kui="carousel-fade, lightbox"` now gives a slideshow whose pictures open in the
+  viewer. Widgets that build inside their host — inserting controls, markers or a toggle, or laying
+  out its children — still refuse each other (`scroll-story, slow-mo`, `hotspots, compare`), with a
+  warning naming the `subtree`; two lightbox names on one host are refused too, since both would
+  open on one click.
+- **`carousel-3d lightbox:true, lightbox` opened the viewer twice.** A click on a bare picture card
+  reached both the `lightbox` effect and the deck's own viewer, and the second gallery replaced the
+  first. The effect now marks every click it opened as handled, so the deck stands down.
+- **Step decks own their children.** `carousel`, `step-progress`, `carousel-3d*` and
+  `carousel-stack` take the host's children as slides, so a widget that inserts one — `slow-mo`'s
+  toggle, `compare`'s range, a `bg`/`video-hero` layer — would become a slide. These pairs are now
+  refused with a warning naming the `subtree`, like any two widgets that build inside one host. `bg`
+  beside `scroll-story` is refused too (its layer would replace the sections as the last child).
+- **`compare` composes with a clip-path entrance.** It claimed the `clip` channel though its
+  `clip-path` is on the after layer, never the host, so `compare, wipe-up` was refused for nothing.
+- **The `layout` composition channel is gone.** `pin`, `scroll-snap`, `accordion-height`,
+  `tab-indicator-slide`, `header-shrink`, `bg`/`video-hero` and the gradient borders shared it, so
+  any two were refused — a sticky header that shrinks (`header-shrink, pin-until`) among them. Each
+  now claims the properties it writes (`position`, `overflow`, `height`, `padding`, …):
+  `header-shrink, pin-until` and `pin-section, scroll-snap-y` compose, while
+  `gradient-border, pin-section` (both set `position`) and `header-shrink, gradient-border` (both
+  set `padding`) are still refused.
+- **`scroll-progress` beside a `carousel` is refused.** With `steps:` both publish `data-kui-step` /
+  `--kui-step` on their element and overwrote each other's index; `scroll-progress` claimed only
+  `progress`, so the pair composed. It now claims the attribute too, and the compiler keeps the first
+  and warns.
+- **`device-frame`'s screen follows its bezel.** The wrapped media's corners are now rounded
+  concentric with the frame — the outer radius less the bezel, per side — for every `kind:` and for
+  an authored `radius:`. Where the bezel is deeper than the radius (the browser bar, the laptop
+  base, the tablet) the screen is floored at the frame's own radius, up to 8px, so it never reads
+  square unless the frame is (`radius:0px`). New `screen-radius:` sets the screen's corners
+  outright. Clips an img, video, iframe, picture or div alike; pure CSS.
+- **A self-moving deck could stop for good after a two-finger touch.** A second finger landing
+  mid-drag replaced the drag without ending it, so the deck stayed held (and the page unselectable)
+  until the next full drag. Every gesture now ends its drag when a second pointer lands, and that
+  pointer starts nothing.
+- **Dragging a ring seen from inside (`carousel-3d-inside`) moved the cards against the pointer.** A
+  drag now reads which way the cards lie on screen, so the card under the pointer follows it on every
+  deck shape, and a flick coasts the same way.
+- **A self-moving deck stayed paused after its lightbox was closed with Escape.** The focus the
+  viewer handed back to the deck counted as keyboard focus. Focus that arrives while the viewer is
+  open is now ignored; tabbing into a deck still pauses it.
+- **Clicking a card on a concave ring (`carousel-3d-inside lightbox:true`) opened nothing.** The
+  cards sit behind the host's plane, so the host took every click. A deck now opens the card that was
+  under the pointer when it was pressed, which also keeps a slow press on a still-turning deck
+  (`hover:none`, touch) from opening the neighbour that slid under it.
 - **Links and buttons inside a ring's cards work in a real browser.** `carousel-3d*`,
   `carousel-orbit` and `carousel-stack` took pointer capture on every press, so the browser
   delivered the click that ends a tap to the deck instead of the card: card links and buttons did
@@ -97,6 +251,17 @@ version numbers are assigned at release.
 - **Dragging a ring follows the pointer.** Each `pointermove` added the whole distance from where
   the press began to the ring's *current* place, so a real drag (dozens of moves) flung the ring
   several places round instead of tracking the hand. The drag now moves from where it began.
+- **Every effect now claims what it writes on its element.** A new test mounts one preset of every
+  registered primitive, plays a visit through it (hover, press, drag, type, scroll) and checks each
+  attribute, inline property and child-list change against its composition channels. It found 25
+  that wrote something they did not claim, so pairs that overwrite each other composed silently.
+  Now refused, with a warning: a text effect (`split-*`, `typewriter`, `decode`, `count*`,
+  `word-cycler`) or `hamburger-to-x`, `flip-card`, `slat-assemble`, `scroll-snap-*` beside a deck
+  or widget that owns the same children; `tilt-3d` beside another `transform` writer (it claimed
+  `rotate` but writes `transform`); `cursor-spotlight`, `slat-assemble` or `sequence-scrub` beside
+  another effect that sets `position`. Each flag attribute (`data-kui-pinned`, `-hidden`,
+  `-shrunk`, `-visible`, `-dragging`, `-device`, `-strength-level`, the 3D decks' `tabindex` and
+  ring attributes, the hint/preview placement) is claimed too.
 
 ## [0.2.2] — 2026-09-29
 

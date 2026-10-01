@@ -517,6 +517,33 @@ describe('recognise', () => {
       expect(onEnd).not.toHaveBeenCalled()
     })
 
+    it("ignores a bubbled lost capture from a child (touch's implicit capture handing over)", () => {
+      const { el } = captured()
+      const child = document.createElement('div')
+      el.appendChild(child)
+      const onEnd = vi.fn()
+      const onMove = vi.fn()
+      recognise(el, { onEnd, onMove }, { threshold: 4, capturePointer: 'drag' }, deps)
+      const down = pointer('pointerdown', 0, 0)
+      Object.defineProperty(down, 'pointerId', { value: 7 })
+      child.dispatchEvent(down)
+      const move = pointer('pointermove', 30, 0)
+      Object.defineProperty(move, 'pointerId', { value: 7 })
+      child.dispatchEvent(move)
+      onMove.mockClear()
+
+      const lost = pointer('lostpointercapture', 30, 0)
+      Object.defineProperty(lost, 'pointerId', { value: 7 })
+      child.dispatchEvent(lost)
+      expect(onEnd).not.toHaveBeenCalled()
+
+      const more = pointer('pointermove', 60, 0)
+      Object.defineProperty(more, 'pointerId', { value: 7 })
+      child.dispatchEvent(more)
+      expect(onMove).toHaveBeenCalled()
+      expect(onEnd).not.toHaveBeenCalled()
+    })
+
     it('does not end twice when the capture it released itself reports as lost', () => {
       const { el, lose } = captured()
       const onEnd = vi.fn()
@@ -616,6 +643,71 @@ describe('recognise', () => {
     el.dispatchEvent(pointer('pointermove', 40, 0))
     el.dispatchEvent(pointer('pointercancel', 40, 0))
     expect(onEnd).toHaveBeenCalledOnce()
+  })
+
+  it('ends a drag when a second pointer lands, and lets that pointer start nothing', () => {
+    // Replacing the first gesture used to drop its `onEnd`: a deck's drag hold stayed on forever.
+    const el = document.createElement('div')
+    const onStart = vi.fn()
+    const onEnd = vi.fn()
+    recognise(el, { onStart, onEnd }, { threshold: 1, capturePointer: false }, deps)
+    const finger = (type: string, x: number, id: number): PointerEvent => {
+      const event = pointer(type, x, 0)
+      Object.defineProperty(event, 'pointerId', { value: id })
+      return event
+    }
+    el.dispatchEvent(finger('pointerdown', 0, 1))
+    clock = 16
+    el.dispatchEvent(finger('pointermove', 40, 1))
+    expect(onStart).toHaveBeenCalledOnce()
+    clock = 32
+    el.dispatchEvent(finger('pointerdown', 100, 2))
+    expect(onEnd).toHaveBeenCalledOnce()
+    expect(onEnd.mock.calls[0]![0].dx).toBe(40)
+    el.dispatchEvent(finger('pointermove', 160, 2))
+    el.dispatchEvent(finger('pointerup', 160, 2))
+    el.dispatchEvent(finger('pointerup', 40, 1))
+    expect(onStart).toHaveBeenCalledOnce()
+    expect(onEnd).toHaveBeenCalledOnce()
+    // The next press is a gesture of its own again.
+    clock = 100
+    el.dispatchEvent(finger('pointerdown', 0, 3))
+    clock = 116
+    el.dispatchEvent(finger('pointermove', 30, 3))
+    el.dispatchEvent(finger('pointerup', 30, 3))
+    expect(onStart).toHaveBeenCalledTimes(2)
+    expect(onEnd).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up the first pointer\'s capture when a second pointer ends its drag', () => {
+    const el = document.createElement('div')
+    const released: number[] = []
+    Object.assign(el, {
+      setPointerCapture: () => {},
+      releasePointerCapture: (id: number) => released.push(id),
+    })
+    recognise(el, {}, { threshold: 1 }, deps)
+    const down = pointer('pointerdown', 0, 0)
+    Object.defineProperty(down, 'pointerId', { value: 1 })
+    el.dispatchEvent(down)
+    const second = pointer('pointerdown', 10, 0)
+    Object.defineProperty(second, 'pointerId', { value: 2 })
+    el.dispatchEvent(second)
+    expect(released).toEqual([1])
+  })
+
+  it('does not fire a long-press for a press a second pointer already ended', () => {
+    const el = document.createElement('div')
+    const onLongPress = vi.fn()
+    recognise(el, { onLongPress }, { longPressMs: 500, capturePointer: false }, deps)
+    const down = pointer('pointerdown', 0, 0)
+    Object.defineProperty(down, 'pointerId', { value: 1 })
+    el.dispatchEvent(down)
+    const second = pointer('pointerdown', 10, 0)
+    Object.defineProperty(second, 'pointerId', { value: 2 })
+    el.dispatchEvent(second)
+    runTimers()
+    expect(onLongPress).not.toHaveBeenCalled()
   })
 
   it('ignores moves that arrive before any pointerdown', () => {

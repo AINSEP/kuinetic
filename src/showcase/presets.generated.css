@@ -17,6 +17,10 @@
     --kui-slideshow-ease: ease;
   }
 
+  [data-kui-fx~='compare'] {
+    --kui-compare-duration: 3s;
+  }
+
   [data-kui-fx~='lightbox'] {
     --kui-lightbox-media: image;
     --kui-lightbox-duration: 280ms;

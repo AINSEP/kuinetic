@@ -3,6 +3,7 @@ import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger, createStyleLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget } from '../core/target.js'
+import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { createSectionIndex } from '../effects/scroll-mechanics/section-index.js'
 import { withTimingContract } from '../effects/shared.js'
@@ -210,7 +211,14 @@ function prepareScrollStory(
 
 export const SCROLL_STORY_PRIMITIVE: Primitive = widgetPrimitive(
   'scroll-story',
-  { channels: ['widget'], parameters: scrollStoryParams, perfClass: 'layout' },
+  // Its stylesheet lays out the host's first and last child, so nothing else may insert one. The
+  // step index on the host (`applyStep`) is claimed so a `carousel` or `scroll-progress` beside it
+  // is refused rather than left to overwrite it.
+  {
+    channels: [SUBTREE_CHANNEL, attributeChannel('data-kui-step'), attributeChannel(STORY_SIDE_ATTR)],
+    parameters: scrollStoryParams,
+    perfClass: 'layout',
+  },
   withTimingContract(
     'scroll-story',
     { because: 'scroll position' },

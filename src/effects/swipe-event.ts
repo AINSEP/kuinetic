@@ -4,9 +4,9 @@ import type { Direction } from '../core/gesture.js'
 /**
  * How a swipe reaches a deck it does not sit on.
  *
- * `swipe`/`swipe-x`/`swipe-y` and `carousel` both write element state, so they cannot share an
- * element (the channel check refuses the pair), and the documented arrangement is the swipe on the
- * deck's *wrapper*. That left the last step — "a left flick means next" — to every page, as a
+ * A swipe either shares the deck's element (`data-kui="swipe-y, carousel"` — the two write
+ * different attributes, so the channel check lets them compose) or sits on a wrapper around it.
+ * Either way the last step — "a left flick means next" — was left to every page, as a
  * `MutationObserver` on `data-kui-swipe` that each one wrote slightly differently.
  *
  * ## Why an event from the swipe, heard by the deck
@@ -67,7 +67,9 @@ export function swipeStep(direction: Direction): 1 | -1 {
 /**
  * Whether a swipe announced by `source` is about the deck `el`.
  *
- * It is when the swipe contains the deck and no other deck sits between them. The second half is
+ * It is when the swipe is on the deck itself, or contains it with no other deck between them. The
+ * self case is checked first because the walk below starts at the deck's parent and so would never
+ * meet a swipe on the deck: it would climb to the root and refuse at any outer deck. The second half is
  * what keeps a swipe on a page of decks-within-decks from stepping every level at once: an inner
  * deck (a gallery inside one slide of an outer one) is reached by its outer deck first, and the
  * outer deck is the one the wrapper was put around. A deck is recognised by `data-kui-step`, the
@@ -76,6 +78,7 @@ export function swipeStep(direction: Direction): 1 | -1 {
  * @complexity O(d) in the depth between the deck and the swipe; O(1) space.
  */
 export function swipeReaches(source: Element, el: Element): boolean {
+  if (source === el) return true
   if (!source.contains(el)) return false
   for (let node = el.parentElement; node && node !== source; node = node.parentElement) {
     if (node.hasAttribute('data-kui-step')) return false

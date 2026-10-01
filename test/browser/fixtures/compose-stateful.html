@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — compose-stateful fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only: a tall page so there is something to scroll, and one vertical deck. */
+      body { margin: 0; padding: 16px; background: #14110f; color: #f5efe8; font-family: system-ui, sans-serif; }
+      .deck { height: 320px; margin-block: 24px; display: grid; place-items: center; background: #2a241f; border-radius: 12px; }
+      .filler { height: 2400px; }
+    </style>
+  </head>
+  <body>
+    <p class="lead">swipe-y and carousel on one element: no wrapper, no script.</p>
+    <section id="deck" class="deck" data-kui="swipe-y, carousel"><div class="slide">One</div><div class="slide">Two</div><div class="slide">Three</div></section>
+    <div class="filler"></div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

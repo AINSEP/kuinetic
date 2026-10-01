@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { compile, compileTargets, scopeHoists } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
+import { SUBTREE_CHANNEL } from '../src/core/types.js'
 import { catalogRegistry } from './support/registry.js'
 
 let registry: Registry
@@ -125,7 +126,9 @@ describe('compileTargets — element-scoped facts are merged across every group'
     const byTarget = new Map(document.targets.map((t) => [t.selector, t.plan]))
     expect(byTarget.get('h1')!.channels).toEqual(expect.arrayContaining(['opacity', 'translate']))
     expect(byTarget.get('h1')!.channels).not.toContain('content')
-    expect(byTarget.get('.n')!.channels).toEqual(['content'])
+    expect(byTarget.get('h1')!.channels).not.toContain(SUBTREE_CHANNEL)
+    // `count-up` claims the subtree too: it rewrites its host's text node in place.
+    expect(byTarget.get('.n')!.channels).toEqual(['content', SUBTREE_CHANNEL])
   })
 
   it('is the identity for a single, untargeted group — compile() stays byte-identical', () => {

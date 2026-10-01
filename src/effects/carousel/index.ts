@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { attributeChannel, CHANNEL } from '../../core/types.js'
 import type {
   Cleanup,
   EffectParams,
@@ -9,7 +9,7 @@ import type {
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
-import { DECK_PARAMETERS, prepareSpatialDeck } from './deck.js'
+import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
 import { createRingFit } from './fit.js'
 import type { Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
@@ -382,8 +382,9 @@ export function degreesOf(value: string, fallbackDeg: number): number {
 /**
  * The ring primitive.
  *
- * `renderer: 'javascript'` and two channels together are the honest declaration: this file paints
- * nothing itself — it publishes numbers — but `carousel.css` does, and both of the things it writes
+ * `renderer: 'javascript'` and its channels together are the honest declaration: this file paints
+ * nothing itself — it publishes numbers (and the `data-kui-step` index, its third channel) — but
+ * `carousel.css` does, and both of the things that stylesheet writes
  * have to be declared or the conflict detector waves through a composition that silently loses one
  * effect's output.
  *
@@ -411,7 +412,15 @@ export function degreesOf(value: string, fallbackDeg: number): number {
 export const SPATIAL_RING_PRIMITIVE: Primitive = {
   id: 'spatial-ring',
   renderer: 'javascript',
-  channels: [CHANNEL.skew, 'discrete'],
+  // What `deck.ts` writes on the host (the cards, the step index, the drag), then the two
+  // attributes only the ring's own layout publishes.
+  channels: [
+    CHANNEL.skew,
+    'discrete',
+    ...SPATIAL_DECK_CHANNELS,
+    attributeChannel('data-kui-ring-facing'),
+    attributeChannel('data-kui-ring-plane'),
+  ],
   parameters: RING_PARAMETERS,
   supportedTimelines: ['time'],
   // `load`, not `enter`: a carousel that only wires its arrows once scrolled into view is broken,
@@ -448,7 +457,7 @@ export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL
  *
  * `phase: 'idle'` on all of them too, and for the same reason `target` does not change the answer:
  * `channelsFor`/`findConflicts` (`core/channels.ts`) reason about the channels *this preset
- * declares* on the host it is authored on (`CHANNEL.skew` and `'discrete'`, from
+ * declares* on the host it is authored on (`CHANNEL.skew`, `'discrete'` and `data-kui-step`, from
  * `SPATIAL_RING_PRIMITIVE`), not about which element in the subtree physically paints them — the
  * compiler has no notion of "the primitive's own target moved the real work three nodes down," and
  * does not need one here, because `requiresOwnSubtree` already keeps this preset off of anything

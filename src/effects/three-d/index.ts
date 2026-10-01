@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type {
   Cleanup,
   EffectInstance,
@@ -131,8 +131,10 @@ const CARD_TOGGLE_PRIMITIVE: Primitive = {
   // `'discrete'` alongside `rotate`: the unconditional `[data-kui-fx~='flip-card']` rule pins
   // `display: grid` so the two faces stack in one cell instead of flowing as normal block
   // siblings — unrelated to `catalog/discrete.ts`'s show/hide use of the same physical property,
-  // but `display` is tracked as one channel regardless of the value written into it.
-  channels: [CHANNEL.rotate, 'discrete'],
+  // but `display` is tracked as one channel regardless of the value written into it. The subtree
+  // because the host's children are the two faces (`flip-parts.ts` marks them, and injects the
+  // toggle button when none is authored).
+  channels: [CHANNEL.rotate, 'discrete', SUBTREE_CHANNEL],
   parameters: {
     duration: { type: 'time', default: '700ms', cssProperty: '--kui-duration' },
     // The turn has a start moment — the click, or the pointer arriving — so a delay before it is

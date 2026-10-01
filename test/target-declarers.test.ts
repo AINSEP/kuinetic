@@ -42,9 +42,13 @@ function allPrimitives(registry: Registry) {
 // triggers), `hotspots` (notes), `slideshow` (slides), and `scroll-story` (media); the carousel
 // work adds `spatial-stack` (cards), a deck like `spatial-ring`. All consume
 // `target:` in their own prepare path, so the compiler must leave that parameter on the host.
+// `hover-intent` and `anchored-preview` declare it so `target:` names their hint/preview part
+// instead of moving the effect onto it (`interaction-reveal.ts`'s `claimPart`).
 const EXPECTED_TARGET_DECLARERS = [
+  'anchored-preview',
   'audio-source',
   'horizontal-track',
+  'hover-intent',
   'hotspots',
   'lightbox',
   'media-scrub',

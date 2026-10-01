@@ -1,6 +1,8 @@
 import type { PrepareContext } from '../core/effect-context.js'
 import { deferredInstance } from '../core/instances.js'
 import { timingProperty } from '../core/registry.js'
+import { ALL_TIMING_TOKENS, declareTimingContract } from '../core/timing-contract.js'
+import type { TimingContract, TimingToken } from '../core/timing-contract.js'
 import type {
   Activation,
   EffectParams,
@@ -38,38 +40,9 @@ export const TRIGGER_DELAY_PARAM: ParameterSchema = {
   delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
 }
 
-/** The three positional timing tokens of the grammar: `data-kui="fade-up 600ms 200ms linear"`. */
-export type TimingToken = 'duration' | 'delay' | 'ease'
-
-/** All three, in grammar order. Also the `honours` list of a primitive that supports the lot. */
-export const ALL_TIMING_TOKENS: readonly TimingToken[] = ['duration', 'delay', 'ease']
-
-/**
- * What a JS-rendered primitive can actually *do* with authored timing.
- *
- * The problem this closes: the two spellings of a timing value fail differently, and one of them
- * fails silently. `pin-section delay:300ms` reaches `readParams`, is not in the schema, and warns
- * as an unknown parameter — the author is told. `pin-section 0ms 300ms` parses into
- * `spec.delay`, is lifted out to `params.timing` (see `core/js-effect-preparer.ts`), and is then
- * simply never read by a primitive that has no clock to shift. Nothing warns, nothing happens,
- * and the page gives the author no way to find out which of those two it was.
- *
- * So a primitive that cannot honour a token has to say so, and it has to say so about the
- * positional spelling too. Declaring the contract is how it does that.
- */
-export interface TimingContract {
-  /**
-   * Tokens this primitive genuinely acts on. Anything omitted warns by name when authored.
-   * Omit the field entirely for a primitive that honours none of the three.
-   */
-  honours?: readonly TimingToken[]
-  /**
-   * Completes `"<id>" cannot honour <token>: <because>`. Write the *reason*, not the symptom —
-   * "it tracks pointer position continuously, so there is no start moment to delay" tells an
-   * author to stop looking for a spelling that works, where "unsupported" does not.
-   */
-  because: string
-}
+// Defined in core so `describe()` can read a primitive's contract without importing the catalog.
+export { ALL_TIMING_TOKENS } from '../core/timing-contract.js'
+export type { TimingContract, TimingToken } from '../core/timing-contract.js'
 
 /** The authored positional value for one token, as a CSS string, or `undefined` if unwritten. */
 function authoredTiming(params: EffectParams, token: TimingToken): string | undefined {
@@ -190,10 +163,10 @@ export function withTimingContract(
   contract: TimingContract,
   prepare: NonNullable<Primitive['prepare']>,
 ): NonNullable<Primitive['prepare']> {
-  return (el, params, ctx) => {
+  return declareTimingContract<NonNullable<Primitive['prepare']>>((el, params, ctx) => {
     warnUnhonouredTiming(id, contract, params, ctx.warn)
     return prepare(el, params, ctx)
-  }
+  }, contract)
 }
 
 /**
@@ -215,7 +188,7 @@ export function stylesheetTimingPrepare(
   id: string,
   contract: TimingContract,
 ): NonNullable<Primitive['prepare']> {
-  return (el, params, ctx) => {
+  return declareTimingContract<NonNullable<Primitive['prepare']>>((el, params, ctx) => {
     warnUnhonouredTiming(id, contract, params, ctx.warn)
     // Deferred like every other JS primitive so an `on:click`/`on:enter` author still controls
     // when the library touches their element, even though the write itself is only a few custom
@@ -225,7 +198,7 @@ export function stylesheetTimingPrepare(
       mirrorTimingToCss(id, contract.honours ?? [], params, ctx)
       return () => {}
     })
-  }
+  }, contract)
 }
 
 /**

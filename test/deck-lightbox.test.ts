@@ -244,3 +244,21 @@ describe('lightbox:true on the carousel step deck', () => {
     expect(byId('deck').getAttribute('data-kui-step')).toBe('1')
   })
 })
+
+describe('lightbox:true beside the lightbox effect on one deck', () => {
+  it('a click on a bare picture opens the viewer once, from the effect', () => {
+    // Both listen: the effect on the picture, the deck on its host. The effect used to leave a bare
+    // picture's click unprevented, so the host listener opened its own gallery over the first.
+    start(`<div id="deck" data-kui="carousel-3d lightbox:true, lightbox caption:alt">` +
+      `<figure id="b0"><img src="/b.jpg" alt="Bravo"></figure>` +
+      `<figure id="b1"><img src="/c.jpg" alt="Charlie"></figure>` +
+      `<figure id="b2"><img src="/d.jpg" alt="Delta"></figure></div>`)
+    const opens = vi.spyOn(HTMLDialogElement.prototype, 'setAttribute')
+    const event = click(byId('b0').querySelector('img')!)
+    expect(opens.mock.calls.filter(([name]) => name === 'aria-label')).toHaveLength(1)
+    expect(event.defaultPrevented).toBe(true)
+    expect(isOpen()).toBe(true)
+    expect(shownAlt()).toBe('Bravo')
+    opens.mockRestore()
+  })
+})

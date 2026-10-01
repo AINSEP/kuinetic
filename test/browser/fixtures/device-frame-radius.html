@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kuinetic — device-frame screen radius fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Page chrome only. The frames, their bezels and their screens are the library's. */
+      body { margin: 0; padding: 16px; background: #f5efe8; font-family: system-ui, sans-serif; }
+      .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: start; }
+      .row > * { inline-size: min(100%, 220px); }
+      /* Fixed height: a browser frame has no aspect-ratio, so a 100% child would be 0 tall. */
+      .fill { inline-size: 100%; block-size: 160px; background: #c33; }
+    </style>
+  </head>
+  <body>
+    <!-- data-expect: the child's [horizontal tl tr br bl, vertical tl tr br bl] inner radii in px. Corners are circular, so the vertical four equal the horizontal four.
+         radius:0px squares the floor too, which is what makes #square a negative control. -->
+    <div class="row">
+      <div id="phone-img" data-kui="device-frame kind:phone" data-expect="27 27 27 27 27 27 27 27">
+        <img src="../../../demo/assets/spotted-shirt.jpg" alt="" />
+      </div>
+      <div id="phone-video" data-kui="device-frame kind:phone radius:20px" data-expect="11 11 11 11 11 11 11 11">
+        <video src="../../../demo/assets/webdesign/iris-ai-motion.webm" muted playsinline></video>
+      </div>
+      <div id="tablet-iframe" data-kui="device-frame kind:tablet radius:40px" data-expect="21 21 21 21 21 21 21 21">
+        <iframe title="frame" srcdoc="<body style='margin:0;background:#c33'></body>"></iframe>
+      </div>
+      <div id="laptop-picture" data-kui="device-frame kind:laptop radius:30px" data-expect="19 19 8 8 19 19 8 8">
+        <picture><img src="../../../demo/assets/black-cover.jpg" alt="" /></picture>
+      </div>
+      <div id="browser-div" data-kui="device-frame kind:browser radius:24px" data-expect="9 9 9 9 9 9 9 9">
+        <div><div class="fill"></div></div>
+      </div>
+      <!-- The owner's case: a video in a default browser frame. Its 30px bar outruns the 10px
+           radius, so the screen sits on the floor (the frame's radius, up to 8px), not square. -->
+      <div id="browser-video" data-kui="device-frame" data-expect="8 8 8 8 8 8 8 8">
+        <video src="../../../demo/assets/webdesign/iris-ai-motion.webm" muted playsinline></video>
+      </div>
+      <div id="screen-radius" data-kui="device-frame kind:laptop screen-radius:12px" data-expect="12 12 12 12 12 12 12 12">
+        <div><div class="fill"></div></div>
+      </div>
+      <!-- Negative control: a square screen, so the corner probe must land on the screen. -->
+      <div id="square" data-kui="device-frame kind:tablet radius:0px" data-expect="0 0 0 0 0 0 0 0">
+        <div><div class="fill"></div></div>
+      </div>
+    </div>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.silentReporter() }).start()
+    </script>
+  </body>
+</html>

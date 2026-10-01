@@ -2,7 +2,7 @@ import { CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
-import { DECK_PARAMETERS, prepareSpatialDeck } from './deck.js'
+import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
 import type { Face } from './deck.js'
 import { wrapPlace } from './drag.js'
 
@@ -124,7 +124,8 @@ function prepareSpatialStack(el: Element, params: EffectParams, ctx: PrepareCont
 export const SPATIAL_STACK_PRIMITIVE: Primitive = {
   id: 'spatial-stack',
   renderer: 'javascript',
-  channels: [CHANNEL.skew, 'discrete', CHANNEL.opacity, CHANNEL.filter],
+  // What `deck.ts` writes on the host: the cards (the subtree), the step index, the drag.
+  channels: [CHANNEL.skew, 'discrete', CHANNEL.opacity, CHANNEL.filter, ...SPATIAL_DECK_CHANNELS],
   parameters: STACK_PARAMETERS,
   supportedTimelines: ['time'],
   supportedActivations: ['load', 'enter', 'click', 'manual'],

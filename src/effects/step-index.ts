@@ -1,15 +1,17 @@
 import type { Cleanup, EffectParams } from '../core/types.js'
 import type { PrepareContext } from '../core/effect-context.js'
 import { createAttributeLedger, createStyleLedger } from '../core/owned-styles.js'
-import { queryScoped, resolveTarget } from '../core/target.js'
-import type { TargetScope } from '../core/target.js'
+import { queryControls, resolveTarget } from '../core/target.js'
 import { createStepMarker } from './step-marking.js'
 
 export interface StepIndexOptions {
   el: Element
   params: EffectParams
   ctx: PrepareContext
-  scope: TargetScope
+  /**
+   * The steps, already scoped by the caller's `scope:`. Controls take no scope — see
+   * `core/target.ts`'s `queryControls`.
+   */
   resolveSteps: () => Iterable<Element>
   onRender?: (index: number, total: number) => void
   clickFallback?: boolean
@@ -117,7 +119,34 @@ export interface ControlGroup {
 }
 
 /**
- * Bind every named control group with a *single* delegated listener on the scope root.
+ * Read one control parameter into a group, or `null` when it is not authored or not usable.
+ *
+ * The one place a control selector is resolved, for every deck: `next:`/`prev:`/`jump:` on the
+ * step deck and the spatial decks, and `pause:` (`auto-motion.ts`). Where it is then *searched* is
+ * {@link queryControls}' rule — inside the host first, the page only when nothing inside matches —
+ * and deliberately not `scope:`, which is the steps' alone (see that function for why).
+ *
+ * Registered even when nothing matches yet, with a warning: a control the page renders after setup
+ * is still reached, because {@link delegateControls} re-queries on every press.
+ *
+ * @param label - The effect name an author would recognise, for the warning.
+ * @complexity O(n) in one setup query's matches; O(1) space beyond the group.
+ * @overallScore 100
+ */
+export function bindControl(
+  request: { el: Element; ctx: PrepareContext; params: EffectParams; label: string },
+  param: string,
+  run: ControlGroup['run'],
+): ControlGroup | null {
+  const { el, ctx, params, label } = request
+  const selector = resolveTarget(params.text(param), ctx, `${label} ${param}`)
+  if (!selector) return null
+  if (queryControls(el, ctx, selector).length === 0) ctx.warn(`${label} ${param} "${selector}" matched nothing`)
+  return { selector, run }
+}
+
+/**
+ * Bind every named control group with a *single* delegated listener.
  *
  * One listener per matched node was the obvious form and it had a hole with no warning attached:
  * the nodes are matched once, at prepare time, so a dot rendered afterwards was inert forever. The
@@ -127,40 +156,37 @@ export interface ControlGroup {
  * the selector at the moment of the press, which is the same rule `resolveSteps` and `countSteps`
  * already follow, and it collapses teardown from N removals to one.
  *
- * The root is the *scope* root, not simply the host. Under the page scope `step-progress` has
- * always resolved with, a control may legitimately sit outside the element it drives — arrows in a
- * section header above the deck — and a listener on the host would never see those clicks.
+ * Two listeners, each owning half the presses. A control may sit outside the element it drives —
+ * arrows in a section header, one pause button for a band of rings — which {@link queryControls}
+ * reaches by falling back to the page, so the document listens for presses *outside* the host. The
+ * host listens for presses inside itself, which keeps a detached or shadow-hosted deck working and
+ * bounds the walk below at the host: with no control inside, a wrapper *around* the deck that
+ * matches `next:` is a page match, and an unbounded walk from a press on a slide would climb into
+ * it and step the deck on every press. Each press is handled by exactly one of the two.
  *
  * Exported for `effects/carousel` alongside `countSteps`: `next:`/`prev:`/`jump:` mean the same
  * thing on a ring as they do on a bar, and every subtlety in the walk below (the `:scope` root, the
- * per-press re-query, the `scope:self` containment) was found once and should not be found again.
+ * per-press re-query, the containment at the host) was found once and should not be found again.
  *
- * @returns The teardown for the one listener.
- * @complexity O(g × (m + d)) per click — one scoped query and one ancestor walk per named group,
+ * @returns The teardown for both listeners.
+ * @complexity O(g × (m + d)) per click — at most two queries and one ancestor walk per named group,
  *   in that group's matches `m` and the pressed node's depth `d`; O(m) space for the largest group.
  * @overallScore 100
  */
 export function delegateControls(request: {
   el: Element
   ctx: PrepareContext
-  scope: TargetScope
   groups: ControlGroup[]
 }): Cleanup {
-  const { el, ctx, scope, groups } = request
+  const { el, ctx, groups } = request
   if (groups.length === 0) return () => {}
-  const root: Element | Document = scope === 'page' ? ctx.doc : el
-  const onClick = (event: Event): void => {
-    const from = event.target as Element | null
-    // Not `instanceof Element`: the document a primitive is handed need not be this realm's, and a
-    // cross-realm `instanceof` is false for a perfectly good element. Every Element carries
-    // `closest`, so duck-typing it is the realm-agnostic way to ask whether this target is one.
-    if (typeof from?.closest !== 'function') return
+  const press = (from: Element, inside: boolean): void => {
     for (const { selector, run } of groups) {
       // Looked up on the press, never captured. Captured, it goes stale the moment the deck
       // changes: with three slides doubling as their own jump controls, select the third, remove
       // the second, and the third still believes it is index 2 — which now wraps to 0, so two
       // controls select the same slide and one is unreachable.
-      const matches = queryScoped(el, ctx, selector, scope)
+      const matches = queryControls(el, ctx, selector)
       /*
        * Walked up from the pressed node against that set, rather than compared against it: a
        * control is usually a `<button>` with a label or an icon inside it, and the press lands on
@@ -172,24 +198,42 @@ export function delegateControls(request: {
        * `from.closest(selector)` was the obvious way to do that walk and is the wrong root:
        * `closest` evaluates `:scope` against the node it is called on, so `next:":scope > .next"`
        * asked for a child of the pressed button and matched nothing, ever — while setup had
-       * already rooted the same `:scope` at the host. Matching against what `queryScoped` returns
+       * already rooted the same `:scope` at the host. Matching against what `queryControls` returns
        * puts the press and the setup on one root, whatever the selector says.
        *
-       * It is also what enforces the `scope:self` containment `closest` needed a separate guard
-       * for: `closest` searched *past* the host as well as inside it, so a deck wrapped in an
-       * element that happened to match `next:` advanced on any press inside it. Under `'self'`
-       * `queryScoped` only ever returns descendants of the host, so there is nothing above the
-       * host in the set to walk into.
+       * A press inside the host stops at the host. Above it is the page, and a page match there (a
+       * wrapper that happens to match `next:`) is a control for presses *on the wrapper*, not for
+       * every press inside the deck.
        */
       const matched = new Set(matches)
+      const stop = inside ? el : null
       let node: Element | null = from
-      while (node && !matched.has(node)) node = node.parentElement
-      if (!node) continue
+      while (node && node !== stop && !matched.has(node)) node = node.parentElement
+      if (!node || node === stop) continue
       run(node, matches.indexOf(node))
     }
   }
-  root.addEventListener('click', onClick)
-  return () => root.removeEventListener('click', onClick)
+  // Not `instanceof Element`: the document a primitive is handed need not be this realm's, and a
+  // cross-realm `instanceof` is false for a perfectly good element. Every Element carries
+  // `closest`, so duck-typing it is the realm-agnostic way to ask whether this target is one.
+  const pressed = (event: Event): Element | null => {
+    const from = event.target as Element | null
+    return typeof from?.closest === 'function' ? from : null
+  }
+  const onInside = (event: Event): void => {
+    const from = pressed(event)
+    if (from) press(from, true)
+  }
+  const onOutside = (event: Event): void => {
+    const from = pressed(event)
+    if (from && !el.contains(from)) press(from, false)
+  }
+  el.addEventListener('click', onInside)
+  ctx.doc.addEventListener('click', onOutside)
+  return () => {
+    el.removeEventListener('click', onInside)
+    ctx.doc.removeEventListener('click', onOutside)
+  }
 }
 
 /**
@@ -202,7 +246,7 @@ export function delegateControls(request: {
  * @overallScore 100
  */
 export function createStepIndex(options: StepIndexOptions): StepIndex {
-  const { el, params, ctx, scope, resolveSteps, onRender } = options
+  const { el, params, ctx, resolveSteps, onRender } = options
   const name = options.name ?? 'step-progress'
   const marker = createStepMarker(resolveSteps, (message) => ctx.warn(`${name} ${message}`))
   const self = createAttributeLedger(el)
@@ -222,30 +266,21 @@ export function createStepIndex(options: StepIndexOptions): StepIndex {
   }
   const next = (): void => goTo(nextStep(step, total()))
   const prev = (): void => goTo(prevStep(step, total()))
-  const groups: ControlGroup[] = []
-  const bindControl = (param: string, run: ControlGroup['run']): boolean => {
-    const selector = resolveTarget(params.text(param), ctx, `${name} ${param}`)
-    if (!selector) return false
-    if (queryScoped(el, ctx, selector, scope).length === 0) {
-      ctx.warn(`${name} ${param} "${selector}" matched nothing`)
-    }
-    groups.push({ selector, run })
-    return true
-  }
   const byHand = (move: () => void): void => {
     options.onInput?.()
     move()
   }
-  const named = [
-    bindControl('next', () => byHand(next)),
-    bindControl('prev', () => byHand(prev)),
-    bindControl('jump', (_node, position) => { if (position >= 0) byHand(() => goTo(position)) }),
-  ].some(Boolean) || (options.controls?.length ?? 0) > 0
-  groups.push(...(options.controls ?? []))
-  const fallback = options.clickFallback !== false && !named
+  const request = { el, ctx, params, label: name }
+  const groups: ControlGroup[] = [
+    bindControl(request, 'next', () => byHand(next)),
+    bindControl(request, 'prev', () => byHand(prev)),
+    bindControl(request, 'jump', (_node, position) => { if (position >= 0) byHand(() => goTo(position)) }),
+    ...(options.controls ?? []),
+  ].filter((group): group is ControlGroup => group !== null)
+  const fallback = options.clickFallback !== false && groups.length === 0
   const onContainerClick = (): void => byHand(next)
   if (fallback) el.addEventListener('click', onContainerClick)
-  const releaseControls = delegateControls({ el, ctx, scope, groups })
+  const releaseControls = delegateControls({ el, ctx, groups })
   render()
   return {
     goTo, next, prev, current: () => step, total,

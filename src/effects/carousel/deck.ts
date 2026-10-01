@@ -1,3 +1,4 @@
+import { attributeChannel, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema } from '../../core/types.js'
 import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import type { PrepareContext } from '../../core/effect-context.js'
@@ -6,11 +7,11 @@ import { createAttributeLedger, createStyleLedger } from '../../core/owned-style
 import type { AttributeLedger, StyleLedger } from '../../core/owned-styles.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepMarker } from '../step-marking.js'
-import { countSteps, delegateControls, nextStep, prevStep } from '../forms/primitives.js'
-import type { ControlGroup } from '../forms/primitives.js'
+import { bindControl, countSteps, delegateControls, nextStep, prevStep } from '../step-index.js'
+import type { ControlGroup } from '../step-index.js'
 import { ALL_TIMING_TOKENS, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { createRingDrag, wrapPlace } from './drag.js'
-import { AUTOPLAY_PARAM, createDeckMotion, PAUSE_PARAM } from '../auto-motion.js'
+import { AUTOPLAY_PARAM, createDeckMotion, HOVER_PARAM, PAUSE_PARAM } from '../auto-motion.js'
 
 /**
  * The spatial deck: the index, the continuous position, the controls, the grab and the auto-motion
@@ -28,6 +29,19 @@ import { AUTOPLAY_PARAM, createDeckMotion, PAUSE_PARAM } from '../auto-motion.js
 
 /** Attribute this module owns on the host while a pointer is dragging the deck. */
 export const DRAGGING_ATTR = 'data-kui-ring-dragging'
+
+/**
+ * The composition channels for what {@link prepareSpatialDeck} writes on the host, whichever
+ * layout it is handed: the children it takes as cards, the step index, the drag flag, and the
+ * `tabindex` the drag grants a host that had none. Each spatial primitive spreads this beside its
+ * own geometry's channels, so a second writer of any of them is refused rather than overwritten.
+ */
+export const SPATIAL_DECK_CHANNELS: readonly string[] = [
+  SUBTREE_CHANNEL,
+  attributeChannel('data-kui-step'),
+  attributeChannel(DRAGGING_ATTR),
+  attributeChannel('tabindex'),
+]
 
 /**
  * Attribute this module owns on the host while frames — not the stylesheet — are moving the deck.
@@ -83,6 +97,34 @@ export const WRAP_ATTR = 'data-kui-ring-wrap'
  */
 function commitStyle(win: Window, node: Element): string | undefined {
   return win.getComputedStyle?.(node).transform
+}
+
+/**
+ * Which way a deck's cards travel across the screen as its position grows, as the sign a drag's
+ * pixels are multiplied by: `1` when the next card sits to the right of the live one (so advancing
+ * pulls the cards left, and a leftward drag advances), `-1` when it sits to the left.
+ *
+ * Read off the rendered geometry rather than off a name or a parameter, because no one parameter
+ * owns it. Outside a ring (`translateZ(+r)`) the next card is on the right; from the centre of one
+ * (`carousel-3d-inside`, `translateZ(-r)`) the same angle puts it on the left, and a drag that
+ * ignored that moved the cards against the finger. A flat ring's next card is clockwise of twelve,
+ * so right; a stack's is wherever `shift:` steps it. The one rule that is right for all of them is
+ * "the card under the pointer follows the pointer", and that is a question about where the cards
+ * are on screen.
+ *
+ * Pure and exported so the rule is assertable without a layout engine. `null` for a side that has
+ * no card (a one-card deck) and a tie (a realm with no layout, where every box is at 0) both answer
+ * `1`, the outside ring's long-standing direction.
+ *
+ * @param liveX - Screen x of the live card's centre.
+ * @param nextX - Screen x of the next card's centre, or `null` if there is none.
+ * @param previousX - Screen x of the previous card's centre, consulted only without a next card.
+ * @complexity O(1) time and space.
+ */
+export function travelSign(liveX: number, nextX: number | null, previousX: number | null): 1 | -1 {
+  if (nextX !== null) return nextX < liveX ? -1 : 1
+  if (previousX !== null) return previousX > liveX ? -1 : 1
+  return 1
 }
 
 /**
@@ -147,6 +189,8 @@ export const DECK_PARAMETERS: ParameterSchema = {
   jump: { type: 'text', default: '', cssProperty: '--kui-jump' },
   /** A control that pauses and resumes `spin:`/`autoplay:`. See `PAUSE_PARAM` (`auto-motion.ts`). */
   pause: PAUSE_PARAM,
+  /** `hover:none`: a resting pointer no longer pauses `spin:`/`autoplay:`. See `HOVER_PARAM`. */
+  hover: HOVER_PARAM,
   /*
    * Continuous rotation: how long one full cycle of the deck takes. `0s` is off.
    *
@@ -392,7 +436,6 @@ export function prepareSpatialDeck(
     ctx,
     params,
     label,
-    scope,
     settleMs: effectDurationMs(params, 620),
     step(direction) {
       const count = total()
@@ -416,26 +459,31 @@ export function prepareSpatialDeck(
     render()
   }
 
-  const groups: ControlGroup[] = []
-  const bindControl = (param: string, run: ControlGroup['run']): void => {
-    const control = resolveTarget(params.text(param), ctx, `${label} ${param}`)
-    if (!control) return
-    if (queryScoped(el, ctx, control, scope).length === 0) {
-      ctx.warn(`${label} ${param} "${control}" matched nothing`)
-    }
-    groups.push({ selector: control, run })
-  }
-
   /*
    * Unlike `step-progress` there is no click-the-container fallback for naming a control to retire.
    * This container is *grabbable*: a press on it is the opening of a possible drag, and advancing
    * the deck on that press as well would mean every abandoned drag also stepped it.
    */
-  bindControl('next', () => goTo(nextStep(snapPosition(position, total()).step, total())))
-  bindControl('prev', () => goTo(prevStep(snapPosition(position, total()).step, total())))
-  bindControl('jump', (_node, at) => { if (at >= 0) goTo(at) })
-  if (pause) groups.push(pause)
-  const releaseControls = delegateControls({ el, ctx, scope, groups })
+  const request = { el, ctx, params, label }
+  const groups = [
+    bindControl(request, 'next', () => goTo(nextStep(snapPosition(position, total()).step, total()))),
+    bindControl(request, 'prev', () => goTo(prevStep(snapPosition(position, total()).step, total()))),
+    bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(at) }),
+    pause,
+  ].filter((group): group is ControlGroup => group !== null)
+  const releaseControls = delegateControls({ el, ctx, groups })
+
+  /** {@link travelSign} for the cards as last rendered: the live one and its two neighbours. */
+  const screenTravel = (): 1 | -1 => {
+    const centres = new Map<number, number>()
+    for (const node of rendered.nodes) {
+      const offset = Number(node.getAttribute('data-kui-step-offset'))
+      if (Math.abs(offset) > 1) continue
+      const box = node.getBoundingClientRect()
+      centres.set(offset, box.left + box.width / 2)
+    }
+    return travelSign(centres.get(0) ?? 0, centres.get(1) ?? null, centres.get(-1) ?? null)
+  }
 
   const releaseDrag = createRingDrag({
     el,
@@ -444,6 +492,7 @@ export function prepareSpatialDeck(
     travelPx: params.num('travel', 220),
     total,
     positionOf: () => position,
+    travelSign: screenTravel,
     moveTo: goTo,
     setDragging: (dragging) => {
       hostAttributes.set(DRAGGING_ATTR, String(dragging))

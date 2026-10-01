@@ -638,7 +638,10 @@ const cursorDotParams: ParameterSchema = {
 }
 
 export const POINTER_PRIMITIVES: Primitive[] = [
-  pointerPrimitive('tilt-3d', ['rotate'], tiltParams, deferPrepare(prepareTilt3d)),
+  // `skew` is the `transform` shorthand's channel, which is what `prepareTilt3d` writes (a
+  // perspective and two axis rotations) — never the `rotate` property — beside an inline
+  // `transition` for its settle.
+  pointerPrimitive('tilt-3d', ['skew', 'transition'], tiltParams, deferPrepare(prepareTilt3d)),
   pointerPrimitive('tilt-parallax', ['translate'], parallaxParams, deferPrepare(prepareTiltParallax)),
   pointerPrimitive('cursor-follow', ['translate'], cursorDotParams, deferPrepare(prepareCursorFollow)),
   pointerPrimitive('cursor-lag', ['translate'], cursorDotParams, deferPrepare(prepareCursorLag)),
@@ -647,7 +650,13 @@ export const POINTER_PRIMITIVES: Primitive[] = [
   // `pseudo-before`: the glow overlay is a `::before` rule in `interaction.css`, so this primitive
   // owns that box the same way the border family does. See `border-draw`'s comment in
   // `HOVER_PRIMITIVES` for what the token means and why it was added here in the same change.
-  pointerPrimitive('cursor-spotlight', ['spotlight', 'pseudo-before'], {}, deferPrepare(prepareSpotlight)),
+  // `position`: the `relative` it gives an unpositioned host so that overlay has an anchor.
+  pointerPrimitive(
+    'cursor-spotlight',
+    ['spotlight', 'pseudo-before', 'position'],
+    {},
+    deferPrepare(prepareSpotlight),
+  ),
 ]
 
 function prepareCursorFollow(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {

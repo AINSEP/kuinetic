@@ -1,5 +1,6 @@
 import { createStyleLedger } from '../core/owned-styles.js'
 import type { StyleLedger } from '../core/owned-styles.js'
+import { announceViewer } from '../core/deck-viewer.js'
 
 export interface ModalContent {
   node: HTMLElement
@@ -15,6 +16,12 @@ export interface ModalContent {
    * inside the content node counts; a viewer whose node fills the screen narrows it to its media.
    */
   inside?: (target: Element) => boolean
+  /**
+   * The element that opened this content — a deck's card, a `lightbox` trigger. The shell announces
+   * `kui:viewer` from it on open and on close (`core/deck-viewer.ts`), which is how a deck it sits in
+   * pauses its own motion for exactly as long as the viewer shows one of its cards.
+   */
+  opener?: Element
 }
 
 export interface ModalShell {
@@ -53,10 +60,12 @@ function lock(state: ShellState): void {
 }
 
 function clearContent(state: ShellState): void {
-  state.current?.onClose?.()
+  const closing = state.current
+  closing?.onClose?.()
   state.current = undefined
   state.currentOwner = undefined
   state.slot?.replaceChildren()
+  if (closing?.opener) announceViewer(state.doc, closing.opener, false)
 }
 
 function onClose(state: ShellState): void {
@@ -136,6 +145,7 @@ function open(state: ShellState, content: ModalContent, owner: object): void {
   // requestAnimationFrame can be throttled there and leave an invisible modal blocking the page.
   forceReflow(dialog)
   dialog.classList.add('is-open')
+  if (content.opener) announceViewer(state.doc, content.opener, true)
 }
 
 function closeNow(state: ShellState): void {

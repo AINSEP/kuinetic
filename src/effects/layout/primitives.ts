@@ -289,14 +289,16 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
 
   layoutPrimitive(
     'auto-height',
-    ['layout'],
+    // The two properties it writes on the panel: `overflow: hidden`, and the `height` it animates.
+    ['overflow', 'height'],
     { attribute: { type: 'text', default: 'data-open', cssProperty: '--kui-attribute' } },
     deferPrepare(prepareAutoHeight),
   ),
 
   layoutPrimitive(
     'flip-indicator',
-    ['translate', 'layout'],
+    // The bar's landing spot (`translate`) and its `width`, matched to the selected tab.
+    ['translate', 'width'],
     {
       follow: { type: 'text', default: '', cssProperty: '--kui-follow' },
       attribute: { type: 'text', default: 'aria-selected', cssProperty: '--kui-attribute' },

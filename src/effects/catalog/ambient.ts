@@ -80,12 +80,12 @@ export const AMBIENT_PRIMITIVES: Primitive[] = [
    * What the ring rules actually write (`ambient.css`) beyond the gradient: `mask` +
    * `mask-composite`, which subtract the element's own content box to leave a ring — the same
    * physical property `media-mask` claims under the `'mask'` channel — and `position: relative`
-   * plus a `padding` that *is* the ring's thickness, which is a claim on the host's box in the
-   * sense `pin` and `background-media` already use `'layout'` for. Declared only as
-   * `background`, a `gradient-border, pin-section` pair composed silently while both decided the
-   * host's `position`, and `gradient-border, mask-reveal` while both wrote `mask`.
+   * plus a `padding` that *is* the ring's thickness — `position` as `pin` and `background-media`
+   * claim it, `padding` as `header-shrink` does. Declared only as `background`, a
+   * `gradient-border, pin-section` pair composed silently while both decided the host's
+   * `position`, and `gradient-border, mask-reveal` while both wrote `mask`.
    */
-  cssPrimitive('ambient-gradient-ring', [CHANNEL.background, 'mask', 'layout'], {
+  cssPrimitive('ambient-gradient-ring', [CHANNEL.background, 'mask', 'position', 'padding'], {
     parameters: drift,
     defaultActivation: 'load',
     reducedMotion: 'disable',

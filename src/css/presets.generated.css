@@ -18,18 +18,21 @@
   }
 
   [data-kui-fx~='anchored-preview-bottom'] {
+    --kui-anchored-preview-place: bottom;
     --kui-anchored-preview-duration: 220ms;
     --kui-anchored-preview-delay: 0ms;
     --kui-anchored-preview-ease: ease-out;
   }
 
   [data-kui-fx~='anchored-preview-left'] {
+    --kui-anchored-preview-place: left;
     --kui-anchored-preview-duration: 220ms;
     --kui-anchored-preview-delay: 0ms;
     --kui-anchored-preview-ease: ease-out;
   }
 
   [data-kui-fx~='anchored-preview-right'] {
+    --kui-anchored-preview-place: right;
     --kui-anchored-preview-duration: 220ms;
     --kui-anchored-preview-delay: 0ms;
     --kui-anchored-preview-ease: ease-out;

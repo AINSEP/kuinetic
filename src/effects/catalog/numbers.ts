@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import type { Registry } from '../../core/registry.js'
@@ -101,7 +101,9 @@ function countPrimitive(id: string, parameters: ParameterSchema, prepare: Primit
   return {
     id,
     renderer: 'javascript',
-    channels: ['content'],
+    // The subtree too: both counters rebuild the host's children (the number, or the odometer's
+    // digit columns), so a deck or a widget beside one would lose what it put there.
+    channels: ['content', SUBTREE_CHANNEL],
     parameters,
     supportedTimelines: ['time'],
     supportedActivations: ['load', 'enter', 'hover', 'focus', 'click', 'manual'],

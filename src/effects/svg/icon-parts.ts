@@ -1,5 +1,6 @@
 import { ATTR } from '../../core/attrs.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
+import { inheritTimingContract } from '../../core/timing-contract.js'
 import type { Primitive } from '../../core/types.js'
 
 /**
@@ -62,7 +63,7 @@ function findBars(el: Element): Element[] {
  * @overallScore 100
  */
 export function withIconParts(inner: NonNullable<Primitive['prepare']>): NonNullable<Primitive['prepare']> {
-  return (el, params, ctx) => {
+  return inheritTimingContract<NonNullable<Primitive['prepare']>>(inner, (el, params, ctx) => {
     if (!el.querySelector('.kui-bar')) {
       const bars = findBars(el)
       if (bars.length > 0) {
@@ -84,5 +85,5 @@ export function withIconParts(inner: NonNullable<Primitive['prepare']>): NonNull
       }
     }
     return inner(el, params, ctx)
-  }
+  })
 }

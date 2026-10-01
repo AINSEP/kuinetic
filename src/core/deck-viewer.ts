@@ -59,6 +59,40 @@ export function attachDeckViewer(request: DeckViewerRequest): Cleanup | null {
 }
 
 /**
+ * The event the shared viewer announces when it opens and when it closes, so a deck can pause its
+ * own motion while a visitor looks at one of its cards.
+ *
+ * Dispatched on the element that opened the viewer (a deck's card, a `lightbox` trigger), bubbling,
+ * so a deck listening on its document can ask "was that opened from inside me?" with `contains` —
+ * which covers `lightbox:true` and a `lightbox` effect composed on the same deck alike, without the
+ * viewer knowing that decks exist. A close whose opener has left the document goes to the document
+ * itself, so a removed card can never leave a deck paused for good.
+ *
+ * An event rather than a callback in {@link DeckViewerRequest} for the reason `kui:swipe` is one:
+ * the `lightbox` effect opens the same viewer and has no deck to call.
+ */
+export const VIEWER_EVENT = 'kui:viewer'
+
+/** The payload of {@link VIEWER_EVENT}. */
+export interface ViewerDetail {
+  /** True when the viewer opened, false when it closed. */
+  open: boolean
+}
+
+/**
+ * Announce the viewer opening or closing, from `opener` when it is still in the document.
+ *
+ * Built with the document's own realm's `CustomEvent`, so a deck in an iframe hears its viewer.
+ *
+ * @complexity O(depth) for the bubble; O(1) space.
+ */
+export function announceViewer(doc: Document, opener: Element, open: boolean): void {
+  const Ctor = (doc.defaultView as (Window & { CustomEvent: typeof CustomEvent }) | null)?.CustomEvent ?? CustomEvent
+  const source: EventTarget = opener.isConnected ? opener : doc
+  source.dispatchEvent(new Ctor<ViewerDetail>(VIEWER_EVENT, { bubbles: true, detail: { open } }))
+}
+
+/**
  * The `lightbox:` parameter every deck takes. One declaration, so the name, the keywords and the
  * default cannot drift between the three decks.
  */

@@ -27,20 +27,67 @@
 
   /* device-frame: keyed on `data-kui-device`, the kind `device-frame.ts` stamps — never on
      `[data-kui-fx~='device-frame']`, because no shipped browser can branch a rule on a custom
-     property's *value*. */
+     property's *value*. Each kind sets only the outer corner radii and the bezel's padding; the
+     box and the screen's inner radius below are derived from them. */
   [data-kui-device] {
+    --kui-device-outer-top: var(--kui-device-radius, 18px);
+    --kui-device-outer-bottom: var(--kui-device-outer-top);
+    --kui-device-pad-top: 14px;
+    --kui-device-pad-bottom: 14px;
+    --kui-device-pad-side: 14px;
+    /* The least a screen corner is rounded: the frame's own top radius, up to 8px. A bezel deeper
+       than its radius (browser, tablet, laptop) would otherwise leave the screen square. */
+    --kui-device-screen-floor: min(var(--kui-device-outer-top), 8px);
     position: relative;
     display: inline-block;
     box-sizing: border-box;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--kui-device-color, #111) 55%, transparent);
-    border-radius: var(--kui-device-radius, 18px);
-    padding: 14px;
+    border-radius: var(--kui-device-outer-top) var(--kui-device-outer-top)
+      var(--kui-device-outer-bottom) var(--kui-device-outer-bottom);
+    padding: var(--kui-device-pad-top) var(--kui-device-pad-side) var(--kui-device-pad-bottom);
     background: var(--kui-device-color, #111);
   }
 
-  [data-kui-device] > img,
-  [data-kui-device] > video {
+  /* The screen: each corner is the outer radius less the 1px border and the thinner of the two
+     bezels meeting there, never below the screen floor. Circular, not per axis: where the side
+     and top bezels differ (phone, laptop), a strictly concentric corner is an ellipse — 11px
+     across by 3px down on a `radius:20px` phone — which reads as square. `screen-radius:`
+     replaces all of it with one authored value. Radius plus overflow on the child itself clips
+     img/video/iframe and a picture's or div's own content. */
+  [data-kui-device] > * {
+    box-sizing: border-box;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: hidden;
+    border-radius: var(
+      --kui-device-screen-radius,
+      max(
+          var(--kui-device-screen-floor),
+          var(--kui-device-outer-top) - min(var(--kui-device-pad-side), var(--kui-device-pad-top)) - 1px
+        )
+        max(
+          var(--kui-device-screen-floor),
+          var(--kui-device-outer-top) - min(var(--kui-device-pad-side), var(--kui-device-pad-top)) - 1px
+        )
+        max(
+          var(--kui-device-screen-floor),
+          var(--kui-device-outer-bottom) - min(var(--kui-device-pad-side), var(--kui-device-pad-bottom)) - 1px
+        )
+        max(
+          var(--kui-device-screen-floor),
+          var(--kui-device-outer-bottom) - min(var(--kui-device-pad-side), var(--kui-device-pad-bottom)) - 1px
+        )
+    );
+  }
+
+  [data-kui-device] > :is(img, video, iframe, picture) {
+    display: block;
+    border: 0;
+    object-fit: cover;
+  }
+
+  [data-kui-device] > picture > img {
     display: block;
     inline-size: 100%;
     block-size: 100%;
@@ -50,8 +97,8 @@
   /* Browser: a top bar deep enough for three traffic-light dots, drawn as background-images so a
      screen reader never meets three empty circles. */
   [data-kui-device='browser'] {
-    padding: 30px 14px 14px;
-    border-radius: var(--kui-device-radius, 10px);
+    --kui-device-outer-top: var(--kui-device-radius, 10px);
+    --kui-device-pad-top: 30px;
   }
 
   [data-kui-device='browser']::before {
@@ -72,8 +119,10 @@
 
   /* Phone: a tall narrow bezel; a notch/dynamic-island cut from the top edge. */
   [data-kui-device='phone'] {
-    padding: 16px 8px;
-    border-radius: var(--kui-device-radius, 36px);
+    --kui-device-outer-top: var(--kui-device-radius, 36px);
+    --kui-device-pad-top: 16px;
+    --kui-device-pad-bottom: 16px;
+    --kui-device-pad-side: 8px;
     aspect-ratio: 9 / 19.5;
     max-inline-size: 20rem;
     margin-inline: auto;
@@ -94,8 +143,10 @@
 
   /* Tablet: the same bezel language, a squarer aspect-ratio, no notch. */
   [data-kui-device='tablet'] {
-    padding: 18px;
-    border-radius: var(--kui-device-radius, 22px);
+    --kui-device-outer-top: var(--kui-device-radius, 22px);
+    --kui-device-pad-top: 18px;
+    --kui-device-pad-bottom: 18px;
+    --kui-device-pad-side: 18px;
     aspect-ratio: 3 / 4;
     max-inline-size: 28rem;
     margin-inline: auto;
@@ -103,8 +154,11 @@
 
   /* Laptop: a thin screen bezel over a deep base strip standing in for the keyboard deck/hinge. */
   [data-kui-device='laptop'] {
-    padding: 10px 10px 34px;
-    border-radius: var(--kui-device-radius, 12px) var(--kui-device-radius, 12px) 4px 4px;
+    --kui-device-outer-top: var(--kui-device-radius, 12px);
+    --kui-device-outer-bottom: 4px;
+    --kui-device-pad-top: 10px;
+    --kui-device-pad-bottom: 34px;
+    --kui-device-pad-side: 10px;
     aspect-ratio: 16 / 10;
   }
 
@@ -236,6 +290,24 @@
   [data-kui-fx~='compare'] > .kui-compare-range:focus-visible + .kui-compare-handle::before {
     outline: 2px solid Highlight;
     outline-offset: 2px;
+  }
+
+  /* Three or more media: the ranges are keyboard/AT only; one surface takes the pointer for every divider. */
+  [data-kui-fx~='compare'][data-kui-compare-dividers] > .kui-compare-range {
+    pointer-events: none;
+  }
+
+  [data-kui-fx~='compare'] > .kui-compare-surface {
+    grid-area: 1 / 1;
+    position: relative;
+    z-index: 3;
+    cursor: ew-resize;
+    touch-action: pan-y;
+  }
+
+  [data-kui-fx~='compare'][data-kui-compare-axis='y'] > .kui-compare-surface {
+    cursor: ns-resize;
+    touch-action: pan-x;
   }
 
   /* hotspots: image markers + popover notes */

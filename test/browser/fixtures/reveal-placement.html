@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kuinetic — reveal-placement fixture</title>
+    <link rel="stylesheet" href="../../../demo/kuinetic.css" />
+    <style>
+      /* Layout only: where each trigger sits. Every tooltip style comes from the library. */
+      body {
+        margin: 0;
+        height: 100vh;
+        background: #f5efe8;
+        color: #14110f;
+        font-family: system-ui, sans-serif;
+      }
+      button {
+        position: absolute;
+        font: inherit;
+      }
+      #edge-top {
+        top: 4px;
+        left: 40%;
+      }
+      #middle {
+        top: 50%;
+        left: 40%;
+      }
+      #fixed-bottom {
+        top: 50%;
+        left: 10%;
+      }
+      #edge-right {
+        top: 30%;
+        right: 4px;
+      }
+      #styled {
+        top: 75%;
+        left: 40%;
+      }
+      #targeted {
+        top: 20%;
+        left: 10%;
+      }
+      #teased {
+        top: 75%;
+        left: 10%;
+      }
+      /* SHIFT: triggers hard against an edge, so a part centred on them would leave the viewport. */
+      #shift-left {
+        top: 40%;
+        left: 2px;
+      }
+      #shift-top {
+        top: 2px;
+        left: 30%;
+      }
+      /* The showcase bug: a trigger word inside running text, at the end of a right-aligned line. */
+      #shift-line {
+        position: absolute;
+        top: 62%;
+        left: 0;
+        right: 0;
+        margin: 0 16px;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="edge-top" data-kui="hover-intent 0ms 0ms place:auto">Edge
+      <span data-kui-hint>Not enough room above, so this opens below.</span>
+    </button>
+    <button id="middle" data-kui="hover-intent 0ms 0ms place:auto">Middle
+      <span data-kui-hint>Plenty of room above.</span>
+    </button>
+    <button id="fixed-bottom" data-kui="hover-intent 0ms 0ms place:bottom">Fixed
+      <span data-kui-hint>Pinned below.</span>
+    </button>
+    <button id="edge-right" data-kui="anchored-preview-right 0ms place:auto">Right edge
+      <span data-kui-preview style="display: block; width: 200px; height: 40px">No room on the right.</span>
+    </button>
+    <button id="styled" data-kui="hover-intent 0ms 0ms color:#000000 bg-color:#e4f222 radius:2px">Styled
+      <span data-kui-hint>Authored colours.</span>
+    </button>
+    <!-- No data-kui-preview in the markup: target: names the part. -->
+    <button id="targeted" data-kui="anchored-preview-bottom 0ms target:.preview-img">Targeted
+      <span class="preview-img" style="display: block; width: 120px; height: 30px">Named by target:</span>
+    </button>
+    <!-- Never hovered: the tease alone has to open it. -->
+    <button id="teased" data-kui="hover-intent 0ms 0ms tease:5s">Teased
+      <span data-kui-hint>Shown once, unasked.</span>
+    </button>
+
+    <button id="shift-left" data-kui="hover-intent 0ms 0ms">L
+      <span data-kui-hint>A hint far wider than its one-letter trigger, against the left edge.</span>
+    </button>
+    <button id="shift-top" data-kui="anchored-preview-right 0ms">Top
+      <span data-kui-preview style="display: block; width: 120px; height: 200px">Tall preview</span>
+    </button>
+    <p id="shift-line">Some running text that ends on a
+      <span id="shift-word" tabindex="0" data-kui="anchored-preview-bottom 0ms target:.pic">word<span
+          class="pic" style="display: inline-block; width: 234px; height: 60px; background: #888"></span></span>
+    </p>
+
+    <script src="../../../demo/kuinetic.js"></script>
+    <script>
+      window.__kui = kuinetic.kuinetic({ reporter: kuinetic.consoleReporter() }).start()
+    </script>
+  </body>
+</html>

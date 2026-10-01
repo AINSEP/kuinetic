@@ -9,7 +9,9 @@
 // against it lands nowhere.
 import { readdirSync, readFileSync } from 'node:fs'
 import process from 'node:process'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import * as kuinetic from '../src/index.js'
+import { PARAM_NOTES } from '../src/notes/index.js'
 
 /**
  * Guard the rule the "Show code" popover highlights by: a class or id is marked **exactly** when
@@ -323,7 +325,9 @@ function librarySelectorParams(): Set<string> {
     for (const match of text.matchAll(/const (\w+) = params\.text\('(\w+)'\)/g)) {
       if (new RegExp(`resolveTarget\\(\\s*${match[1]}\\b`).test(text)) names.add(match[2]!)
     }
-    for (const match of text.matchAll(/bindControl\('(\w+)'/g)) names.add(match[1]!)
+    // `bindControl(request, 'next', …)` — the shared one in `effects/step-index.ts`, whose first
+    // argument is the deck's context and whose second is the parameter name.
+    for (const match of text.matchAll(/bindControl\(\s*\w+,\s*'(\w+)'/g)) names.add(match[1]!)
   }
   return names
 }
@@ -441,5 +445,366 @@ describe('show-code highlighting', () => {
     expect(marksAfterClicking('[data-show-code-target="attr-demo"]')).toEqual([
       "data-kui=\"lightbox target:a[href$='.mp4']\"",
     ])
+  })
+})
+
+/* ------------------------------------------------------------------------------------------------
+ * Code | Args tabs.
+ *
+ * The Args tab draws everything from the runtime's `kuinetic.describeSteps()`. These tests hand the
+ * script that API straight from `src/` rather than from the built `demo/kuinetic.js`, so they need
+ * no build and always test the source the bundle would be built from. The oracles below read the
+ * registry directly, not through `describe()`, so a wrong default in either place shows up.
+ * ---------------------------------------------------------------------------------------------- */
+
+const REGISTRY = kuinetic.createRegistry()
+
+interface RuntimeWindow {
+  kuinetic?: unknown
+  kuineticNotes?: unknown
+  __kui?: unknown
+}
+
+/** What a page has after `kuinetic.js` (and, once Args has opened, `kuinetic.notes.js`) loaded. */
+function installRuntime({ notes }: { notes: boolean }): void {
+  const win = window as unknown as RuntimeWindow
+  win.kuinetic = {
+    describe: kuinetic.describe,
+    describeSteps: kuinetic.describeSteps,
+    describeElement: kuinetic.describeElement,
+  }
+  if (notes) win.kuineticNotes = { PARAM_NOTES }
+  else delete win.kuineticNotes
+  // Apply's replay sequence; the tests only care that Args follows the applied value.
+  win.__kui = { reset() {}, process() {}, activate() {} }
+}
+
+function uninstallRuntime(): void {
+  const win = window as unknown as RuntimeWindow
+  delete win.kuinetic
+  delete win.kuineticNotes
+  delete win.__kui
+}
+
+/** A step's own effect-arg rows — not the reserved-key rows nested in the same step block. */
+const ARG_ROWS = ':scope > .kui-args-list > .kui-args-param'
+
+function tab(id: 'code' | 'args'): HTMLElement {
+  return document.getElementById(`kui-code-tab-${id}`)!
+}
+
+function panel(id: 'code' | 'args'): HTMLElement {
+  return document.getElementById(`kui-code-panel-${id}`)!
+}
+
+function press(key: string): void {
+  document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+}
+
+/** The effect names the Args panel lists, in order: known ones by their summary, unknown by the
+ * name its message quotes. */
+function listedEffects(): string[] {
+  return [...panel('args').querySelectorAll('.kui-args-step')].map((step) =>
+    step.classList.contains('is-unknown')
+      ? step.querySelector('.kui-args-unknown code')!.textContent!
+      : step.querySelector(':scope > summary .kui-args-effect')!.textContent!,
+  )
+}
+
+/** The registry's own default for `param` on `name`: the preset's override, else the primitive's. */
+function registryDefault(name: string, param: string): string | undefined {
+  const resolved = REGISTRY.resolve(name)
+  if (!resolved) return undefined
+  return resolved.preset.params?.[param] ?? resolved.primitive.parameters[param]?.default
+}
+
+/**
+ * Every parameter row the Args panel shows that disagrees with the registry: a declared parameter
+ * missing, one listed that is not declared, or a default other than the registry's.
+ */
+function argsMismatches(label: string): string[] {
+  const found: string[] = []
+  for (const step of panel('args').querySelectorAll('.kui-args-step:not(.is-unknown)')) {
+    const name = step.querySelector(':scope > summary .kui-args-effect')!.textContent!
+    const resolved = REGISTRY.resolve(name)
+    if (!resolved) continue // a tier effect this registry does not carry; the page's own registry does
+    const rows = [...step.querySelectorAll(`${ARG_ROWS}:not(.is-stray)`)]
+    const shown = rows.map((row) => row.querySelector('.kui-args-name')!.textContent!)
+    const declared = Object.keys(resolved.primitive.parameters)
+    if (JSON.stringify([...shown].sort(byText)) !== JSON.stringify([...declared].sort(byText))) {
+      found.push(`${label} ${name}: lists ${JSON.stringify(shown)}, registry declares ${JSON.stringify(declared)}`)
+    }
+    found.push(...defaultMismatches(`${label} ${name}`, name, rows))
+  }
+  return found
+}
+
+/** Rows whose "defaults to …" is not the registry's default (or that claim one where it is empty). */
+function defaultMismatches(label: string, name: string, rows: Element[]): string[] {
+  const found: string[] = []
+  for (const row of rows) {
+    const param = row.querySelector('.kui-args-name')!.textContent!
+    const status = row.querySelector('.kui-args-status')!.textContent!
+    const expected = registryDefault(name, param)!
+    const ok = expected === '' ? !status.includes('defaults to') : status.includes(`defaults to ${expected}`)
+    if (!ok) found.push(`${label}.${param}: shows "${status}", registry default is "${expected}"`)
+  }
+  return found
+}
+
+describe('show-code Code | Args tabs', () => {
+  beforeEach(async () => {
+    installRuntime({ notes: true })
+    await mountShowCode(FIXTURE_BODY)
+  })
+  afterEach(uninstallRuntime)
+
+  it('opens on Code, with the ARIA tab wiring in place', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    const list = document.querySelector('.kui-code-modal [role="tablist"]')!
+    expect(list.getAttribute('aria-label')).toBeTruthy()
+    const tabs = [...list.querySelectorAll('[role="tab"]')]
+    expect(tabs.map((t) => t.textContent)).toEqual(['Code', 'Args'])
+    for (const t of tabs) {
+      const p = document.getElementById(t.getAttribute('aria-controls')!)!
+      expect(p.getAttribute('role')).toBe('tabpanel')
+      expect(p.getAttribute('aria-labelledby')).toBe(t.id)
+    }
+    expect(tab('code').getAttribute('aria-selected')).toBe('true')
+    expect(tab('args').getAttribute('aria-selected')).toBe('false')
+    expect([tab('code').tabIndex, tab('args').tabIndex]).toEqual([0, -1])
+    expect(panel('code').hidden).toBe(false)
+    expect(panel('args').hidden).toBe(true)
+    // The Code tab is the view this file's highlighting tests already pin.
+    expect(panel('code').querySelector('pre code')).not.toBeNull()
+  })
+
+  it('moves between tabs with Left/Right/Home/End and keeps one tab stop', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('code').focus()
+    const state = () => [document.activeElement!.id, tab('code').tabIndex, tab('args').tabIndex, panel('args').hidden]
+    press('ArrowRight')
+    expect(state()).toEqual(['kui-code-tab-args', -1, 0, false])
+    press('ArrowRight') // wraps
+    expect(state()).toEqual(['kui-code-tab-code', 0, -1, true])
+    press('ArrowLeft') // wraps the other way
+    expect(state()).toEqual(['kui-code-tab-args', -1, 0, false])
+    press('Home')
+    expect(state()).toEqual(['kui-code-tab-code', 0, -1, true])
+    press('End')
+    expect(state()).toEqual(['kui-code-tab-args', -1, 0, false])
+    expect(tab('args').getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('goes back to Code on the next open', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    expect(panel('args').hidden).toBe(false)
+    document.querySelector<HTMLElement>('[data-show-code-target="nested-demo"]')!.click()
+    expect(tab('code').getAttribute('aria-selected')).toBe('true')
+    expect(panel('args').hidden).toBe(true)
+  })
+
+  it('lists every preset of every data-kui in the printed markup, nested ones included', () => {
+    document.querySelector<HTMLElement>('[data-show-code-target="nested-demo"]')!.click()
+    tab('args').click()
+    expect(listedEffects()).toEqual(['swipe-y', 'carousel'])
+    expect(panel('args').querySelectorAll('.kui-args-group')).toHaveLength(2)
+    expect(argsMismatches('fixture')).toEqual([])
+  })
+
+  it('re-renders Args from the applied value, and Reset brings the original back', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    expect(listedEffects()).toEqual(['scroll-progress', 'fade-up'])
+    const input = document.querySelector<HTMLInputElement>('.kui-code-tryit-input')!
+    input.value = 'fade-up 900ms, lift'
+    document.querySelector<HTMLElement>('.kui-code-tryit-apply')!.click()
+    expect(listedEffects()).toEqual(['fade-up', 'lift', 'fade-up'])
+    document.querySelector<HTMLElement>('.kui-code-tryit-reset')!.click()
+    expect(listedEffects()).toEqual(['scroll-progress', 'fade-up'])
+    expect(input.value).toBe("scroll-progress target:'#panel-body'")
+  })
+
+  it('names the likely effect for an unknown name', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    const input = document.querySelector<HTMLInputElement>('.kui-code-tryit-input')!
+    input.value = 'fade-upp'
+    document.querySelector<HTMLElement>('.kui-code-tryit-apply')!.click()
+    const unknown = panel('args').querySelector('.kui-args-step.is-unknown')!
+    expect(unknown.textContent).toBe('fade-upp is not an effect name. Did you mean fade-up?')
+  })
+
+  it('phrases required, defaulted and empty-default rows the way the brief asks', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    const status = (effect: string, param: string) => {
+      const step = [...panel('args').querySelectorAll('.kui-args-step')].find(
+        (s) => s.querySelector('summary .kui-args-effect')!.textContent === effect,
+      )!
+      const row = [...step.querySelectorAll(ARG_ROWS)].find(
+        (r) => r.querySelector('.kui-args-name')!.textContent === param,
+      )!
+      return row.querySelector('.kui-args-status')!.textContent
+    }
+    expect(status('fade-up', 'duration')).toBe(`optional, defaults to ${registryDefault('fade-up', 'duration')}`)
+    expect(registryDefault('scroll-progress', 'target')).toBe('')
+    expect(status('scroll-progress', 'target')).toBe('optional')
+  })
+
+  it('highlights the args the markup sets, with their values, first', () => {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    const input = document.querySelector<HTMLInputElement>('.kui-code-tryit-input')!
+    input.value = 'fade-up 900ms 120ms distance:40px'
+    document.querySelector<HTMLElement>('.kui-code-tryit-apply')!.click()
+    const step = panel('args').querySelector('.kui-args-step')!
+    const set = [...step.querySelectorAll(`${ARG_ROWS}.is-set`)].map((row) => [
+      row.querySelector('.kui-args-name')!.textContent,
+      row.querySelector('.kui-args-set mark')!.textContent,
+    ])
+    set.sort((a, b) => byText(a[0]!, b[0]!))
+    expect(set).toEqual([
+      ['delay', '120ms'],
+      ['distance', '40px'],
+      ['duration', '900ms'],
+    ])
+    // Set rows lead the list.
+    const names = [...step.querySelectorAll(ARG_ROWS)].map((row) => row.querySelector('.kui-args-name')!.textContent)
+    expect(names.slice(0, 3).sort(byText)).toEqual(['delay', 'distance', 'duration'])
+  })
+
+  /** Apply `value` on the fixture's `.panel` demo with Args open. */
+  function applyOnPanel(value: string): void {
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    document.querySelector<HTMLInputElement>('.kui-code-tryit-input')!.value = value
+    document.querySelector<HTMLElement>('.kui-code-tryit-apply')!.click()
+  }
+
+  /** `[name, value]` for every set row in a keys block; value is '' for an unset row. */
+  function keyRows(block: Element): [string, string][] {
+    return [...block.querySelectorAll(':scope > .kui-args-list > .kui-args-param')].map((row) => [
+      row.querySelector('.kui-args-name')!.textContent!,
+      row.querySelector('.kui-args-set mark')?.textContent ?? '',
+    ])
+  }
+
+  function stepNamed(name: string): Element {
+    return [...panel('args').querySelectorAll('.kui-args-step')].find(
+      (s) => s.querySelector(':scope > summary .kui-args-effect')?.textContent === name,
+    )!
+  }
+
+  const KEYS = kuinetic.describeKeys(PARAM_NOTES)
+  const ELEMENT_KEYS = KEYS.filter((key) => key.scope === 'element').map((key) => key.name)
+  const STEP_KEYS = KEYS.filter((key) => key.scope === 'step').map((key) => key.name)
+
+  it('lists the element keys once per element and the step keys in each step, marking what is set', () => {
+    applyOnPanel('fade-up on:click, lift at:-200ms')
+    const group = panel('args').querySelector('.kui-args-group')!
+    const elementBlocks = group.querySelectorAll(':scope > .kui-args-keys')
+    expect(elementBlocks).toHaveLength(1)
+    const elementRows = keyRows(elementBlocks[0]!)
+    expect(elementRows.map(([name]) => name).sort(byText)).toEqual([...ELEMENT_KEYS].sort(byText))
+    // Set rows lead, with the value the markup wrote.
+    expect(elementRows[0]).toEqual(['on', 'click'])
+    expect(elementRows.slice(1).every(([, value]) => value === '')).toBe(true)
+    expect((elementBlocks[0] as HTMLDetailsElement).open).toBe(true)
+
+    const liftKeys = stepNamed('lift').querySelector(':scope > .kui-args-keys')!
+    expect(keyRows(liftKeys).map(([name]) => name).sort(byText)).toEqual([...STEP_KEYS].sort(byText))
+    expect(keyRows(liftKeys)[0]).toEqual(['at', '-200ms'])
+    const fadeKeys = stepNamed('fade-up').querySelector(':scope > .kui-args-keys') as HTMLDetailsElement
+    expect(keyRows(fadeKeys).every(([, value]) => value === '')).toBe(true)
+    expect(fadeKeys.open).toBe(false)
+    // A reserved key is never reported as an ignored arg.
+    expect(panel('args').querySelector('.is-stray')).toBeNull()
+  })
+
+  it('lists a key a target: step scopes to itself in that step, not on the element', () => {
+    applyOnPanel('carousel target:.slide on:click')
+    const stepKeys = keyRows(stepNamed('carousel').querySelector(':scope > .kui-args-keys')!)
+    expect(stepKeys).toContainEqual(['on', 'click'])
+    const elementRows = keyRows(panel('args').querySelector('.kui-args-group > .kui-args-keys')!)
+    expect(elementRows).toContainEqual(['on', ''])
+  })
+
+  it('prints whenOmitted for a key, never "defaults to"', () => {
+    applyOnPanel('fade-up')
+    const on = KEYS.find((key) => key.name === 'on')!
+    expect(on.whenOmitted).toBeTruthy()
+    const row = [...panel('args').querySelectorAll('.kui-args-group > .kui-args-keys .kui-args-param')].find(
+      (r) => r.querySelector('.kui-args-name')!.textContent === 'on',
+    )!
+    expect(row.querySelector('.kui-args-status')!.textContent).toBe('optional')
+    expect(row.querySelector('.kui-args-omitted')!.textContent).toBe(`Left out: ${on.whenOmitted}`)
+    expect(row.querySelector('.kui-args-spell')!.textContent).toMatch(/^Write it as /)
+  })
+
+  it('marks a bare slot the effect ignores, with the runtime reason', () => {
+    // Found, not named: whichever registered effect the timing contract says ignores a slot.
+    const name = REGISTRY.names().find((n) =>
+      kuinetic.describe(n)!.positionalOrder.some((slot) => slot.honoured === false),
+    )!
+    const described = kuinetic.describe(name)!
+    const ignored = described.positionalOrder.filter((slot) => slot.honoured === false).map((slot) => slot.slot)
+    expect(described.unhonouredBecause).toBeTruthy()
+    applyOnPanel(name)
+    const line = stepNamed(name).querySelector('.kui-args-positional')!
+    expect([...line.querySelectorAll('s.kui-args-ignored')].map((s) => s.textContent!.split(' → ')[1])).toEqual(ignored)
+    expect(line.textContent).toContain(described.unhonouredBecause)
+    // An honoured effect strikes nothing.
+    applyOnPanel('fade-up')
+    expect(panel('args').querySelector('s.kui-args-ignored')).toBeNull()
+  })
+
+  it('reads fine without notes, and fetches them once, next to show-code.js', () => {
+    installRuntime({ notes: false })
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('args').click()
+    tab('code').click()
+    tab('args').click()
+    const scripts = [...document.querySelectorAll('script[src$="kuinetic.notes.js"]')]
+    expect(scripts).toHaveLength(1)
+    expect(panel('args').querySelector('.kui-args-note')).toBeNull()
+    expect(panel('args').querySelectorAll('.kui-args-param').length).toBeGreaterThan(0)
+    expect(argsMismatches('no-notes')).toEqual([])
+  })
+})
+
+describe('show-code Args on every page', () => {
+  beforeAll(() => installRuntime({ notes: true }))
+
+  /**
+   * Through the real script, on every demo: the Args panel lists one group per printed `data-kui`
+   * and, in each, one block per comma step, named as the runtime parses it — and every row's
+   * default is the registry's. A preset the panel skipped, or a default it got wrong, fails here.
+   */
+  it.each(PAGES)('%s lists every preset its printed markup uses, with registry defaults', async (page) => {
+    const found: string[] = []
+    for (const root of PARSED.get(page)!.roots) {
+      const clone = root.el.cloneNode(true) as Element
+      for (const nested of clone.querySelectorAll('[data-show-code]')) nested.removeAttribute('data-show-code')
+      clone.setAttribute('data-show-code', '')
+      await mountShowCode(clone.outerHTML)
+      document.querySelector<HTMLElement>('.kui-show-code-toggle:not([data-show-code-target])')!.click()
+      const label = `${page} ${describeEl(root.el)} (${root.via})`
+      if (tab('code').getAttribute('aria-selected') !== 'true') found.push(`${label}: did not open on Code`)
+      tab('args').click()
+      const printed = printedElements(root.el).filter((el) => el.hasAttribute('data-kui'))
+      const expected = printed.flatMap((el) =>
+        kuinetic.describeSteps(el.getAttribute('data-kui')!).map((step) => step.name),
+      )
+      const groups = panel('args').querySelectorAll('.kui-args-group').length
+      if (groups !== printed.length) found.push(`${label}: ${groups} groups for ${printed.length} data-kui`)
+      const listed = listedEffects()
+      if (JSON.stringify(listed) !== JSON.stringify(expected)) {
+        found.push(`${label}: lists ${JSON.stringify(listed)}, markup has ${JSON.stringify(expected)}`)
+      }
+      found.push(...argsMismatches(label))
+    }
+    expect(found).toEqual([])
   })
 })

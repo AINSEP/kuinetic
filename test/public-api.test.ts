@@ -4,17 +4,26 @@ import {
   Animator,
   CHANNEL,
   Registry,
+  KEY_NOTE_OWNER,
   KUI_EVENT,
+  SUBTREE_CHANNEL,
+  attributeChannel,
   collectingReporter,
   consoleReporter,
   control,
   createActivationBinder,
   createAnimator,
+  describeAttribute,
+  describeEffect,
+  describeElementAttribute,
+  describeKeys,
   detect,
   inertInstance,
   play,
   resolveTargets,
   silentReporter,
+  spellingsFor,
+  timingContractOf,
   toAttributeValue,
 } from 'kuinetic/core'
 import type {
@@ -27,7 +36,21 @@ import type {
   Cleanup,
   CollectingReporter,
   ControlHandle,
+  DescribedStep,
+  EffectDescription,
   EffectInstance,
+  ElementDescription,
+  KeyDescription,
+  KeyScope,
+  ParamDescription,
+  ParamNote,
+  ParamNoteDetail,
+  ParamNotes,
+  PositionalSlot,
+  StepWritten,
+  TimingContract,
+  TimingToken,
+  UnknownEffect,
   EffectParams,
   EffectVariant,
   InstanceControl,
@@ -51,6 +74,10 @@ import type {
   Timeline,
 } from 'kuinetic/core'
 import * as CoreBarrel from 'kuinetic/core'
+// `describe` renamed on import: the bare name is vitest's.
+import { describe as describeByName, describeElement, describeSteps } from 'kuinetic'
+import type { DescribeOptions } from 'kuinetic'
+import { PARAM_NOTES } from 'kuinetic/notes'
 
 /**
  * Guards `kuinetic/core`'s published export list.
@@ -86,6 +113,38 @@ describe('kuinetic/core public surface', () => {
     expect(typeof createActivationBinder).toBe('function')
     expect(typeof inertInstance).toBe('function')
     expect(CHANNEL.opacity).toBe('opacity')
+    // The two channel names a third-party primitive needs that `CHANNEL` cannot list: an attribute
+    // it writes on its host, and the host's children when it builds inside them.
+    expect(attributeChannel('data-x')).toBe('attr:data-x')
+    expect(SUBTREE_CHANNEL).toBe('subtree')
+  })
+
+  it('exports the describe tier', () => {
+    // What a documentation page or a third-party tool reads an effect's parameters through. The
+    // registry-taking forms are the contract; `kuinetic`'s own `describe*` below are conveniences.
+    expect(typeof describeEffect).toBe('function')
+    expect(typeof describeAttribute).toBe('function')
+    expect(typeof describeElementAttribute).toBe('function')
+    expect(typeof describeKeys).toBe('function')
+    expect(typeof spellingsFor).toBe('function')
+    expect(typeof timingContractOf).toBe('function')
+    // The owner a note table keys the reserved `data-kui` words under (`'data-kui.on'`), so a
+    // hand-written table outside this package has to agree with it.
+    expect(KEY_NOTE_OWNER).toBe('data-kui')
+    expectTypeOf<EffectDescription>().not.toBeNever()
+    expectTypeOf<ParamDescription>().not.toBeNever()
+    expectTypeOf<PositionalSlot>().not.toBeNever()
+    expectTypeOf<DescribedStep>().not.toBeNever()
+    expectTypeOf<StepWritten>().not.toBeNever()
+    expectTypeOf<UnknownEffect>().not.toBeNever()
+    expectTypeOf<ElementDescription>().not.toBeNever()
+    expectTypeOf<KeyDescription>().not.toBeNever()
+    expectTypeOf<KeyScope>().not.toBeNever()
+    expectTypeOf<ParamNotes>().not.toBeNever()
+    expectTypeOf<ParamNote>().not.toBeNever()
+    expectTypeOf<ParamNoteDetail>().not.toBeNever()
+    expectTypeOf<TimingContract>().not.toBeNever()
+    expectTypeOf<TimingToken>().not.toBeNever()
   })
 
   it('type-checks the authoring-contract tier', () => {
@@ -154,5 +213,25 @@ describe('kuinetic/core public surface', () => {
     for (const name of dropped) {
       expect(CoreBarrel).not.toHaveProperty(name)
     }
+  })
+})
+
+/**
+ * The `kuinetic` entry's own describe conveniences, and the separate notes entry they read.
+ *
+ * Called rather than only type-checked: their whole job is to default the registry to the bundled
+ * catalog, and a `typeof` check would pass for a function that never reached it.
+ */
+describe('kuinetic describe entry points', () => {
+  it('describes a bundled effect without being handed a registry', () => {
+    expectTypeOf<DescribeOptions>().not.toBeNever()
+    expect(describeByName('fade-up')?.name).toBe('fade-up')
+    expect(describeByName('no-such-effect')).toBeUndefined()
+    expect(describeSteps('fade-up 600ms, lift').map((step: DescribedStep) => step.name)).toEqual(['fade-up', 'lift'])
+    expect(typeof describeElement).toBe('function')
+  })
+
+  it('publishes the notes table as its own subpath', () => {
+    expect(typeof PARAM_NOTES['*.duration']).toBe('string')
   })
 })

@@ -1,3 +1,4 @@
+import { attributeChannel } from '../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
 import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
@@ -16,6 +17,13 @@ import { widgetPrimitive } from './shared.js'
  * Firefox — so the one thing JavaScript does here is stamp `data-kui-device="<kind>"`, an
  * attribute the stylesheet branches on freely.
  *
+ * The child is the screen: CSS rounds it concentric with the bezel — each corner the outer radius
+ * less the border and that side's padding — from the same custom properties the bezel is drawn
+ * with, so `radius:` moves both and nothing here measures a box. Where the bezel is deeper than
+ * the radius (the browser bar, the laptop's base) that difference is negative, so each corner is
+ * floored at the frame's own radius, up to 8px: a framed screen never reads square unless the
+ * frame itself is (`radius:0px`). `screen-radius:` replaces the derived value outright.
+ *
  * That is also the whole reason this primitive is `renderer: 'javascript'` rather than
  * `'css-keyframes'`: there is no keyframe, and the stamp is the entire effect.
  */
@@ -26,7 +34,8 @@ const DEVICE_FRAME_KINDS = ['browser', 'phone', 'tablet', 'laptop'] as const
  * `radius`'s unset sentinel — see `catalog/materials.ts`'s `UNSET` for the full argument. Each
  * `kind` has its own resting corner radius in `showcase.css`'s `var(--kui-device-radius, …)`
  * fallback; a real default here would pick one of those four for every kind, overriding the other
- * three's own look the moment an author left `radius:` unwritten.
+ * three's own look the moment an author left `radius:` unwritten. `screen-radius:` shares it for
+ * the same reason: its resting value is derived per kind, per corner, in `showcase.css`.
  */
 const RADIUS_UNSET = ''
 
@@ -44,6 +53,9 @@ const deviceFrameParams: ParameterSchema = {
   },
   color: { type: 'color', default: '#111', cssProperty: '--kui-device-color' },
   radius: { type: 'length', default: RADIUS_UNSET, cssProperty: '--kui-device-radius' },
+  // Its own knob rather than a reading of `radius:`: the frame's corner and the screen's are two
+  // shapes, and the derived screen value already follows `radius:` when this is left unwritten.
+  'screen-radius': { type: 'length', default: RADIUS_UNSET, cssProperty: '--kui-device-screen-radius' },
 }
 
 /**
@@ -68,8 +80,9 @@ export const DEVICE_FRAME_PRIMITIVE: Primitive = widgetPrimitive(
     // Exclusive ownership of the frame chrome. Its static box-model declarations are outside
     // the channel-property audit, as they are for the existing catalog. The chrome also reaches
     // into the direct media child (`object-fit: cover` etc.); that is a `requiresOwnSubtree`
-    // question, as with the other showcase widgets.
-    channels: ['frame'],
+    // question, as with the other showcase widgets. The frame kind it stamps on the host is an
+    // attribute it writes, so it claims that too.
+    channels: ['frame', attributeChannel('data-kui-device')],
     parameters: deviceFrameParams,
     // `'layout'`: the bezel's `border`+`padding` are box-model properties added once, at
     // activation, which is a real (if one-time) layout — not the "transform/opacity only" budget

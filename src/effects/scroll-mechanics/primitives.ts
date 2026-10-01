@@ -3,6 +3,7 @@ import { continuousSetup, deferPrepare } from '../../core/instances.js'
 import type { ContinuousSetup } from '../../core/instances.js'
 import { toPixels, ABSOLUTE_BASIS } from '../../core/js-params.js'
 import { isSameOriginPath } from '../../core/params.js'
+import { attributeChannel, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
@@ -707,7 +708,10 @@ function installSnapContainer(axis: 'x' | 'y', ctx: PrepareContext): void {
 export const SCROLL_PRIMITIVES: Primitive[] = [
   scrollPrimitive({
     id: 'pin',
-    channels: ['layout', 'progress'],
+    // `position: sticky` and its `top` (`installSticky`): the host's position is what it holds. The
+    // spacer it can insert is a sibling, not a child, so the host's subtree is not claimed. And the
+    // `data-kui-pinned` flag it publishes while holding.
+    channels: ['position', 'progress', attributeChannel('data-kui-pinned')],
     parameters: {
       ...distanceParam,
       ...stickyParams,
@@ -718,7 +722,13 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'scroll-progress',
-    channels: ['progress'],
+    // `data-kui-step` beside `progress`: with `steps:` this publishes the same index attribute (and
+    // its `--kui-step` twin) a `carousel` does, so the two on one element would overwrite each
+    // other's step every frame. The claim is static, so it holds with `steps:0` too — a list can't
+    // be composed or refused per param value. One claim covers both writes: every primitive that
+    // writes the `--kui-step` index also writes the attribute, so a separate channel for the
+    // property could never change a decision.
+    channels: ['progress', attributeChannel('data-kui-step')],
     parameters: {
       ...distanceParam,
       steps: { type: 'number', default: '0', cssProperty: '--kui-steps' },
@@ -756,7 +766,8 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'media-scrub',
-    channels: ['media', 'progress'],
+    // `position`: it holds its host the way a pin does (`position: sticky` and its `top`).
+    channels: ['media', 'progress', 'position'],
     parameters: {
       ...distanceParam,
       // A scrub is a hold, so it needs the same two knobs a pin does. Declaring them here is what
@@ -776,7 +787,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'scroll-spy',
-    channels: ['state'],
+    channels: [attributeChannel('data-kui-active')],
     parameters: {
       // `distance`: the per-section form only. `offset-top`: the container form only. Each is a
       // no-op — warned, not silent — in the other; see `prepareScrollSpySingle` and
@@ -803,8 +814,8 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
   scrollPrimitive({
     id: 'smooth-scroll',
     /*
-     * Its own channel, not the `'layout'` it used to share with `pin`, `stacking-cards` and
-     * `scroll-snap`. The channel model exists to stop two effects fighting over the same CSS
+     * Its own channel, not the `'layout'` bucket it used to share with `pin`, `stacking-cards` and
+     * `scroll-snap` (a bucket since split into the properties each writes). The channel model exists to stop two effects fighting over the same CSS
      * property, and this one writes exactly `scroll-behavior` — a property that describes how a
      * *user-or-script-initiated* scroll is performed, and that no other primitive touches.
      *
@@ -826,7 +837,11 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'scroll-snap',
-    channels: ['layout'],
+    // `scroll-snap-type`, and with `target:` the container it makes of the host (`installSnapContainer`):
+    // `overflow`, and `display: flex` on the x axis — `discrete`'s property. A claim is static, so
+    // it holds without `target:` too. The subtree likewise: with no `target:` the host's children
+    // are the snap items, each given a `scroll-snap-align`.
+    channels: ['scroll-snap-type', 'overflow', 'discrete', SUBTREE_CHANNEL],
     parameters: {
       axis: { type: 'keyword', default: 'y', cssProperty: '--kui-axis', keywords: ['x', 'y'] },
       strictness: {

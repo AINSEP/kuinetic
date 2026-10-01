@@ -174,3 +174,35 @@ export function queryScoped(
 ): Element[] {
   return [...(scope === 'page' ? ctx.doc : el).querySelectorAll(selector)]
 }
+
+/**
+ * Resolve a *control* selector — `next:`, `prev:`, `jump:`, `pause:` — inside the host first, and
+ * across the page only when nothing inside matches.
+ *
+ * Controls do not read `scope:`. They used to, and that coupled two unrelated questions: a ring
+ * whose pause button sat in a band header outside it had to say `scope:page` to reach the button,
+ * and `scope:page` also widened `target:'.ring-slot'` to every ring's slots on the page — the
+ * showcase spelled `target:'#ring-landing > .ring-slot'` to get its own back. `scope:` now answers
+ * "where are my steps" alone.
+ *
+ * Inside-first is unambiguous because an inside match always wins: two decks on one page each
+ * with their own `.next` drive only themselves, whatever either says about `scope:`, and the page
+ * is consulted only by a deck that has no such control of its own. Which makes the remaining
+ * ambiguity the author's to name: a page-level control shared by several decks (one pause button
+ * for a band of rings) is exactly the case the fallback exists for, and a deck that should *not*
+ * hear a page-level match must not name a selector that has one.
+ *
+ * Asked on every press rather than once, by the same rule `delegateControls` already follows, so a
+ * control rendered inside the deck after setup takes over from a page match at the next press.
+ *
+ * @param el - The host. Its descendants are searched first; the host itself never matches.
+ * @param ctx - For `doc`, the fallback root.
+ * @param selector - A validated, non-empty control selector.
+ * @returns The inside matches, or every page match when there are none — in document order.
+ * @complexity O(n) time and space in matches; at most two DOM queries.
+ * @overallScore 100
+ */
+export function queryControls(el: Element, ctx: Pick<TargetContext, 'doc'>, selector: string): Element[] {
+  const inside = [...el.querySelectorAll(selector)]
+  return inside.length > 0 ? inside : [...ctx.doc.querySelectorAll(selector)]
+}

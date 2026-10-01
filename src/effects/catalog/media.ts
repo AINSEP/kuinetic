@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { continuousSetup, deferPrepare } from '../../core/instances.js'
@@ -469,7 +469,9 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
   {
     id: 'slat-assemble',
     renderer: 'javascript',
-    channels: [CHANNEL.opacity, CHANNEL.translate, CHANNEL.rotate],
+    // `position` for the `relative` it gives an unpositioned host, and the subtree because
+    // `installSlatStage` appends its slat stage there.
+    channels: [CHANNEL.opacity, CHANNEL.translate, CHANNEL.rotate, 'position', SUBTREE_CHANNEL],
     parameters: slatParams,
     supportedTimelines: ['time'],
     supportedActivations: ['load', 'enter', 'hover', 'focus', 'click', 'manual'],
@@ -493,12 +495,15 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
      * and it is what makes `background-media, video-scrub` on one element a reported conflict
      * rather than two effects silently fighting over the same picture.
      *
-     * `layout` is claimed for the same reason `pin` claims it: preparation writes `position` and
-     * `isolation` on the *host*, which is a stacking-context claim on someone else's element. Left
-     * undeclared, `background-media, pin-section` composed silently while both decided what
-     * `position` the host has — the conflict detector cannot report a claim it was never told about.
+     * `position` and `isolation` are the two properties preparation writes on the *host*, a
+     * stacking-context claim on someone else's element. Left undeclared, `background-media,
+     * pin-section` composed silently while both decided what `position` the host has — the
+     * conflict detector cannot report a claim it was never told about.
+     *
+     * And the subtree, because the layer is appended into the host (`installBackgroundMedia`): it
+     * would become a deck's last slide, or `scroll-story`'s `:last-child` in place of its sections.
      */
-    channels: ['media', 'layout'],
+    channels: ['media', 'position', 'isolation', SUBTREE_CHANNEL],
     renderer: 'javascript',
     parameters: backgroundMediaParams,
     // Not a claim to support four timelines — an abstention. A backdrop is not driven by progress

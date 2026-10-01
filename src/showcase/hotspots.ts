@@ -1,3 +1,4 @@
+import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { EffectParams, ParameterSchema, PrepareContext, Preset, Primitive } from '../core/types.js'
 import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
@@ -241,7 +242,8 @@ function prepareHotspots(el: Element, params: EffectParams, ctx: PrepareContext)
 export const HOTSPOTS_PRIMITIVE: Primitive = widgetPrimitive(
   'hotspots',
   {
-    channels: ['widget'],
+    // The marker buttons it appends, placed in percent of the host, and the marker style it writes.
+    channels: [SUBTREE_CHANNEL, attributeChannel('data-kui-hotspot-marker')],
     parameters: hotspotsParams,
     perfClass: 'layout',
   },

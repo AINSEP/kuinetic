@@ -3,7 +3,7 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
 import { resolveEasing } from '../catalog/numbers-shared.js'
 import {
@@ -163,7 +163,16 @@ const LOGO_BUILD_PRIMITIVE: Primitive = cssPrimitive('logo-assemble', [
 const ICON_TOGGLE_PRIMITIVE: Primitive = {
   id: 'icon-toggle',
   renderer: 'javascript',
-  channels: [CHANNEL.translate, CHANNEL.rotate, CHANNEL.scale, CHANNEL.opacity, CHANNEL.clip],
+  // The subtree too: with no `.kui-bar` markup the host's own children are the bars
+  // (`icon-parts.ts` stamps them), so a deck or widget beside it would have its children moved.
+  channels: [
+    CHANNEL.translate,
+    CHANNEL.rotate,
+    CHANNEL.scale,
+    CHANNEL.opacity,
+    CHANNEL.clip,
+    SUBTREE_CHANNEL,
+  ],
   parameters: {
     duration: { type: 'time', default: '260ms', cssProperty: '--kui-duration' },
     // The state flip is the start moment: `aria-expanded` goes true and the bars begin to move.

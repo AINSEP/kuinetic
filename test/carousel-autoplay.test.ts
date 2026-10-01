@@ -135,6 +135,13 @@ describe('carousel autoplay:', () => {
     expect(step()).toBe('1')
   })
 
+  it('keeps stepping under the pointer with hover:none', () => {
+    start(`<div id="deck" data-kui="carousel autoplay:3s hover:none">${SLIDES}</div>`)
+    deck().dispatchEvent(new Event('pointerenter'))
+    vi.advanceTimersByTime(3000)
+    expect(step()).toBe('1')
+  })
+
   it('starts paused under reduced motion, until the visitor presses play', () => {
     start(`<div id="deck" data-kui="carousel autoplay:3s pause:.pp">${SLIDES}<button class="pp">Pause</button></div>`, true)
     const control = document.querySelector('.pp')!

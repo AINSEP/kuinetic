@@ -1,5 +1,25 @@
-import type { ParameterSchema, Preset, Primitive, Renderer } from '../../core/types.js'
-import { ALL_TIMING_TOKENS, stylesheetTimingPrepare } from '../shared.js'
+import { ATTR } from '../../core/attrs.js'
+import type { PrepareContext } from '../../core/effect-context.js'
+import { frameScheduler } from '../../core/element-size.js'
+import { deferredInstance } from '../../core/instances.js'
+import { createAttributeLedger } from '../../core/owned-styles.js'
+import { queryScoped, resolveTarget } from '../../core/target.js'
+import { attributeChannel } from '../../core/types.js'
+import type {
+  Cleanup,
+  EffectParams,
+  ParameterSchema,
+  Preset,
+  Primitive,
+  Renderer,
+} from '../../core/types.js'
+import {
+  ALL_TIMING_TOKENS,
+  mirrorTimingToCss,
+  stylesheetTimingPrepare,
+  withTimingContract,
+  type TimingContract,
+} from '../shared.js'
 
 /**
  * The two *two-box* effects of catalog section I — `masked-label-swap` and `hover-intent`.
@@ -49,8 +69,14 @@ import { ALL_TIMING_TOKENS, stylesheetTimingPrepare } from '../shared.js'
  * `[data-kui-hint]` / `[data-kui-swap]` selector with no `[data-kui-fx~=…]` prefix at all — reads it
  * and computes its own `opacity`/`translate` from it. No rule in either family carries a combinator
  * after an fx compound, so neither name is in the re-derived reaching set, neither needs
- * `requiresOwnSubtree`, and `target:` relocates both cleanly: the inherited property simply flows
- * from wherever the fx attribute landed.
+ * `requiresOwnSubtree`, and `target:` relocates `masked-label-swap` cleanly: the inherited property
+ * simply flows from wherever the fx attribute landed.
+ *
+ * `hover-intent` (and `anchored-preview`, further down) read `target:` the other way round: it
+ * names the *part*, and the effect stays on the trigger. Moving a tooltip's effect onto its hint
+ * would make the hint its own trigger with nothing inside it to reveal — see `claimPart`. The
+ * standalone part rule matters there too: it is what lets a marker the library stamped and one the
+ * page wrote be styled by the same rule.
  *
  * The library still owns every structural declaration — the grid stacking, the clip, the absolute
  * placement, the transition. The page contributes markup and no CSS, which is the standing contract.
@@ -83,34 +109,506 @@ import { ALL_TIMING_TOKENS, stylesheetTimingPrepare } from '../shared.js'
  *   `registry.ts`'s `namespaceTiming` writes and `interaction.css` reads.
  * @param channels - CSS property groups this primitive claims, for the composition model.
  * @param parameters - The family's full schema, timing included.
- * @param perfClass - Defaults to `'compositor'`, right for every member that only moves
+ * @param options.perfClass - Defaults to `'compositor'`, right for every member that only moves
  *   `opacity`/`translate`/`scale` (`label-swap`, `hover-intent`, `anchored-preview`). `search-expand`
  *   passes `'layout'` explicitly: its `inline-size` transition triggers reflow on every frame the
  *   way `opacity`/`translate` never do, and docs/design.md §13 is explicit that this has to be
  *   classified per effect rather than defaulted — an `inline-size` grow held to a compositor budget
  *   would be measuring the wrong cost.
+ * @param options.placed - The two families with a `place:` parameter pass how to find their part
+ *   and which attribute carries the resolved side; see `PLACEMENT` below. Everything else stays a
+ *   pure stylesheet effect.
  * @complexity O(1) time and space.
  */
 function revealPrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  perfClass: Primitive['perfClass'] = 'compositor',
+  { perfClass = 'compositor', placed }: { perfClass?: Primitive['perfClass']; placed?: PlacementSpec } = {},
 ): Primitive {
+  const contract: TimingContract = {
+    honours: ALL_TIMING_TOKENS,
+    because: 'interaction.css pins that value on this effect',
+  }
   return {
     id,
     renderer: 'javascript' as Renderer,
-    channels,
+    // A placed family publishes the resolved side, and a running tease, on its host.
+    channels: placed
+      ? [...channels, attributeChannel(placed.attribute), attributeChannel(placed.tease)]
+      : channels,
     parameters,
     supportedTimelines: ['time'],
     supportedActivations: ['load'],
     defaultActivation: 'load',
     perfClass,
     reducedMotion: 'shorten',
-    prepare: stylesheetTimingPrepare(id, {
-      honours: ALL_TIMING_TOKENS,
-      because: 'interaction.css pins that value on this effect',
-    }),
+    prepare: placed
+      ? withTimingContract(id, contract, (el, params, ctx) =>
+          deferredInstance(() => {
+            mirrorTimingToCss(id, ALL_TIMING_TOKENS, params, ctx)
+            return prepareReveal(el, params, placed, ctx)
+          }),
+        )
+      : stylesheetTimingPrepare(id, contract),
+  }
+}
+
+/**
+ * ### `PLACEMENT` — `place:top|bottom|auto`, and the one piece of JavaScript it costs
+ *
+ * `label-swap`'s and `anchored-preview`'s doc comments both record why a placement *keyword* was
+ * once refused: CSS cannot branch on a custom property's value without `@container style()`, so
+ * the word has to be read by script. That is still true, and this is the script — kept to the one
+ * job CSS genuinely cannot do, so the geometry itself stays in the stylesheet.
+ *
+ * The script never writes a length. It stamps the *resolved side* as an attribute on the host
+ * (`data-kui-hint-place` / `data-kui-preview-place`), and `interaction.css` keys the geometry on
+ * `[data-kui-fx][data-kui-…-place='…']`: a compound on the host itself, no combinator, so the
+ * `INHERITED_STATE` contract above holds. The `[data-kui-fx]`
+ * half lifts the rule to two attributes of specificity, which is what lets an explicit side beat
+ * an `anchored-preview-left` preset rule regardless of source order.
+ *
+ * A fixed side is stamped once at activation. Measuring happens only when the part is about to be
+ * seen: on `pointerenter`/`focusin`, the two events that precede every state the stylesheet reveals
+ * on (`:hover`, `:focus-visible`, and the coarse-pointer `:active`, which a touch `pointerenter`
+ * also precedes). While shown, a passive capture-phase `scroll` and a `resize` listener re-measure
+ * at most once per frame, because the reader can scroll a hovered trigger into the viewport edge;
+ * both are removed the moment neither hover nor focus remains. Nothing runs per frame while the
+ * part is hidden. `auto` measures which side; every side, fixed or not, measures `SHIFT` below.
+ *
+ * The flip is along the preferred side's own axis only — top↔bottom, left↔right. Moving a
+ * left-anchored preview to the top is a different layout, not a correction of this one.
+ */
+type Side = 'top' | 'bottom' | 'left' | 'right'
+
+const OPPOSITE: Record<Side, Side> = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' }
+
+function isSide(value: string): value is Side {
+  return Object.hasOwn(OPPOSITE, value)
+}
+
+/** How one family finds its part, records its side, and decides which side it prefers. */
+interface PlacementSpec {
+  /** The primitive's id, for warnings. */
+  name: string
+  /** The attribute that marks the revealed part — authored, or stamped by `target:`. */
+  marker: string
+  /** Host attribute `interaction.css` keys the side's geometry on. */
+  attribute: string
+  /** Host attribute `interaction.css` opens the part on while a `tease:` runs. */
+  tease: string
+  /** Host custom property the part's cross-axis `translate` adds; see `SHIFT`. */
+  shift: string
+  /** The side `auto` tries first, before any measuring. */
+  preferred(el: Element): Side
+}
+
+/**
+ * Pick the side a part should sit on, given the room around its trigger.
+ *
+ * The preferred side wins whenever the part fits there. When it does not, the opposite side is
+ * taken only if it has *more* room — not merely if it fits — so a part too big for either side
+ * lands where the least of it is clipped rather than flipping to a side that clips more.
+ *
+ * @param preferred - The side to try first.
+ * @param room - Free space, in CSS px, between each edge of the trigger and the viewport.
+ * @param extent - How far the part reaches from the trigger along its axis, gap included.
+ * @complexity O(1) time and space.
+ */
+export function chooseSide(preferred: Side, room: Record<Side, number>, extent: number): Side {
+  if (room[preferred] >= extent) return preferred
+  const opposite = OPPOSITE[preferred]
+  return room[opposite] > room[preferred] ? opposite : preferred
+}
+
+/**
+ * How far `part` reaches out of `host` on the side it currently sits on.
+ *
+ * From layout offsets, not `getBoundingClientRect`, on purpose: the rect includes the part's
+ * `translate` nudge and `anchored-preview`'s sprung-from `scale`, both of which are mid-transition
+ * or at their hidden values exactly when this runs. The offsets are the resting layout box, gap
+ * included, which is the box that will be on screen. The host is the part's offset parent because
+ * both host rules set `position: relative`. The extent is the same on either side of the axis,
+ * which is what lets one measurement answer for the side the part is not on yet.
+ *
+ * @complexity O(1) time and space; reads layout.
+ */
+function extentOf(part: HTMLElement, host: Element, side: Side): number {
+  switch (side) {
+    case 'top':
+      return -part.offsetTop
+    case 'bottom':
+      return part.offsetTop + part.offsetHeight - host.clientHeight
+    case 'left':
+      return -part.offsetLeft
+    case 'right':
+      return part.offsetLeft + part.offsetWidth - host.clientWidth
+  }
+}
+
+type AttributeLedger = ReturnType<typeof createAttributeLedger>
+
+/**
+ * The script half of both families: mark a `target:`-named part, stamp the resolved side, keep
+ * `auto` resolved while the part is on screen, and run a `tease:` once on first entry.
+ *
+ * @param params - Read for `target`, `place` and `tease`. Empty values (no schema behind the
+ *   reader) are a no-op, as is the schema's own `tease` default of `0ms`.
+ * @returns Teardown: cancels the tease, removes the listeners and restores every attribute it
+ *   wrote, on the host and on the part.
+ * @complexity O(1) per event; O(n) once in the host's descendants when `target:` is authored.
+ */
+function prepareReveal(
+  el: Element,
+  params: EffectParams,
+  spec: PlacementSpec,
+  ctx: PrepareContext,
+): Cleanup {
+  const release = claimPart(el, params, spec, ctx)
+  const attrs = createAttributeLedger(el)
+  const restore = (): void => {
+    attrs.restore()
+    release()
+  }
+  const place = params.text('place')
+  const teaseMs = params.ms('tease', 0)
+  const auto = place === 'auto'
+  if (!auto && isSide(place)) attrs.set(spec.attribute, place)
+
+  // Order is free: `auto` only flips along its own axis, so the shift's axis is the same either way.
+  const placeSide = auto ? autoPlacer(el, spec, attrs, ctx.win) : undefined
+  const shift = shifter(el, spec, ctx)
+  const measure = (): void => {
+    placeSide?.()
+    shift()
+  }
+  let endTease = (): void => {}
+  const shown = whileShown(el, ctx, measure, () => endTease())
+  const tease =
+    teaseMs > 0
+      ? teaseOnEnter(el, ctx, { ms: teaseMs, attribute: spec.tease, attrs, shown })
+      : undefined
+  if (tease) endTease = tease.end
+  return () => {
+    tease?.stop()
+    shown.stop()
+    restore()
+  }
+}
+
+/**
+ * `target:` — name the part with a selector instead of marking it in the markup.
+ *
+ * `data-kui="anchored-preview-bottom target:.preview-img"` keeps the effect on the element that
+ * carries `data-kui` (the trigger) and stamps the part's marker attribute (`data-kui-preview` /
+ * `data-kui-hint`) on the first match inside it. Every rule in `interaction.css` keys the part on
+ * that standalone attribute, so a stamped part and an authored one are the same thing to the
+ * stylesheet — nothing there needed to change.
+ *
+ * Both primitives *declare* `target` for this reason. A primitive that does not has the key lifted
+ * off by `compile.ts`'s `liftTarget`, which moves the whole effect onto the match — here that would
+ * make the part its own trigger, with no part inside it, and nothing would ever show. Declaring the
+ * parameter is the per-primitive opt-out `horizontal-track`, `scroll-spy` and `media-scrub` already
+ * use for the same "`target:` names my inner participant" meaning.
+ *
+ * Searched inside the host only, and deliberately with no `scope:`: the part is positioned against
+ * the host and reads the host's inherited state, so a match anywhere else could not work. One part
+ * per host — a second match is refused out loud, the convention `horizontal-track` set for a
+ * plural selector. An authored marker is left untouched, and the ledger restores exactly what was
+ * there, so teardown removes only a marker this added.
+ *
+ * @returns The release that restores the part's marker — a no-op when `target:` is unset or matched
+ *   nothing, where the authored marker is the part, as it always was.
+ * @complexity O(n) time in the host's descendants, once; O(1) space.
+ */
+function claimPart(
+  el: Element,
+  params: EffectParams,
+  spec: PlacementSpec,
+  ctx: PrepareContext,
+): Cleanup {
+  const selector = resolveTarget(params.text('target'), ctx, spec.name)
+  if (!selector) return () => {}
+  const matches = queryScoped(el, ctx, selector, 'self')
+  const part = matches[0]
+  if (!part) {
+    ctx.warn(`${spec.name} target "${selector}" matched nothing inside this element`)
+    return () => {}
+  }
+  if (matches.length > 1) {
+    ctx.warn(
+      `${spec.name} target "${selector}" matched ${matches.length} elements; only the first is used`,
+    )
+  }
+  const ledger = createAttributeLedger(part)
+  if (!part.hasAttribute(spec.marker)) ledger.set(spec.marker, '')
+  return () => ledger.restore()
+}
+
+/**
+ * The `auto` measurement: stamps the preferred side now, and returns the re-check `whileShown`
+ * runs each time the part is about to be seen.
+ *
+ * The part is searched by its marker each time, so a part named by `target:` is found the same way
+ * as an authored one — `claimPart` has stamped the marker on it by then.
+ *
+ * @complexity O(n) time in the host's descendants per call (the marker lookup); reads layout.
+ */
+function autoPlacer(el: Element, spec: PlacementSpec, attrs: AttributeLedger, win: Window): () => void {
+  const preferred = spec.preferred(el)
+  let side = preferred
+  attrs.set(spec.attribute, side)
+
+  return (): void => {
+    const part = el.querySelector<HTMLElement>(`[${spec.marker}]`)
+    if (!part) return
+    const rect = el.getBoundingClientRect()
+    const room = {
+      top: rect.top,
+      bottom: win.innerHeight - rect.bottom,
+      left: rect.left,
+      right: win.innerWidth - rect.right,
+    }
+    const next = chooseSide(preferred, room, extentOf(part, el, side))
+    if (next === side) return
+    side = next
+    attrs.set(spec.attribute, side)
+  }
+}
+
+/**
+ * ### `SHIFT` — keep the part inside the viewport along its cross axis
+ *
+ * `place:` picks the side; it cannot stop a part centred on a trigger near the viewport's edge from
+ * running past that edge — a 234px preview on a word near the right of a 390px phone loses ~33px
+ * to the page's `overflow-x: clip`. So whenever the part is about to be seen (the same measure
+ * `whileShown` runs for `auto`), it is slid along the axis it is centred on — horizontally for
+ * `top`/`bottom`, vertically for `left`/`right` — until it clears the edge by `VIEWPORT_MARGIN`.
+ * The standard "shift" of tooltip libraries, on by default with no switch: a clipped tooltip is
+ * never the intent.
+ *
+ * Like the side, the script hands the stylesheet one value and the geometry stays there: the shift
+ * is a host custom property (`--kui-hover-intent-shift` / `--kui-anchored-preview-shift`) written
+ * through `ctx.style`, the host's ledger, which teardown restores. The host, not the part, because
+ * `anchored-preview`'s `-travel` is resolved on the host; and every host rule resets it to `0px`,
+ * so a nested trigger never inherits an outer one's shift. It is left in place when the part hides,
+ * so the exit transition does not slide sideways.
+ *
+ * @complexity O(1) time and space.
+ */
+const VIEWPORT_MARGIN = 8
+
+/**
+ * How far to move a span on one axis so it sits inside `[margin, viewport - margin]`.
+ *
+ * A span longer than that room cannot fit either way, so it is aligned to the start edge — the
+ * reading edge, where its first words are.
+ *
+ * @param start - The span's start coordinate in the viewport, unshifted, in CSS px.
+ * @param size - Its length on the same axis.
+ * @param viewport - The viewport's length on that axis.
+ * @returns The signed offset to add, `0` when it already fits.
+ * @complexity O(1) time and space.
+ */
+export function shiftWithin(start: number, size: number, viewport: number, margin = VIEWPORT_MARGIN): number {
+  const low = margin
+  const high = viewport - margin
+  if (start < low || size > high - low) return low - start
+  if (start + size > high) return high - start - size
+  return 0
+}
+
+/**
+ * The `SHIFT` measurement, run on every measure `whileShown` makes.
+ *
+ * From layout offsets, for `extentOf`'s reason: the transformed rect carries the entrance's
+ * `translate`/`scale` and the current shift itself. Both families centre the part on the cross axis
+ * with `50%` and a `-50%` translate, so its resting start is its offset minus half its size. The
+ * host's `clientLeft`/`clientTop` turn its border-box rect into the padding box the offsets are
+ * measured from. The viewport is the root's client box — it excludes a classic scrollbar, which the
+ * part would otherwise slide under — falling back to `innerWidth`/`innerHeight` only where nothing
+ * is laid out.
+ *
+ * @complexity O(n) time in the host's descendants per call (the marker lookup); reads layout.
+ */
+function shifter(el: Element, spec: PlacementSpec, ctx: PrepareContext): () => void {
+  let written = 0
+  return (): void => {
+    const part = el.querySelector<HTMLElement>(`[${spec.marker}]`)
+    if (!part) return
+    const stamped = el.getAttribute(spec.attribute) ?? ''
+    const side = isSide(stamped) ? stamped : spec.preferred(el)
+    const rect = el.getBoundingClientRect()
+    const root = ctx.doc.documentElement
+    const next =
+      side === 'top' || side === 'bottom'
+        ? shiftWithin(
+            rect.left + el.clientLeft + part.offsetLeft - part.offsetWidth / 2,
+            part.offsetWidth,
+            root.clientWidth || ctx.win.innerWidth,
+          )
+        : shiftWithin(
+            rect.top + el.clientTop + part.offsetTop - part.offsetHeight / 2,
+            part.offsetHeight,
+            root.clientHeight || ctx.win.innerHeight,
+          )
+    if (next === written) return
+    written = next
+    ctx.style.set(spec.shift, `${next}px`)
+  }
+}
+
+/** What `whileShown` hands back: a third "shown" source for the tease, and teardown. */
+interface ShownTracker {
+  setTeasing(on: boolean): void
+  stop: Cleanup
+}
+
+/**
+ * Run `measure` when `el` starts being shown, and again (at most once per frame) on any scroll or
+ * resize until it stops — the "no per-frame work while hidden" half of `PLACEMENT`.
+ *
+ * "Shown" is hovered, focused, or teasing. Focus moving between two of the host's own descendants
+ * keeps it focused, which is why `focusout` checks `relatedTarget` instead of clearing the flag
+ * outright. A tease counts so that `auto` measures *before* the teased part appears and keeps it
+ * placed if the reader is still scrolling while it shows.
+ *
+ * @param onUser - Called when real hover or focus arrives, so a running tease can hand over.
+ * @returns The tease switch and a teardown for the viewport listeners and any pending frame; the
+ *   host's own listeners ride `ctx.signal`.
+ * @complexity O(1) per event; O(1) space.
+ */
+function whileShown(
+  el: Element,
+  ctx: PrepareContext,
+  measure: () => void,
+  onUser: () => void,
+): ShownTracker {
+  const { win } = ctx
+  const frame = frameScheduler(win, measure)
+  let hovered = false
+  let focused = false
+  let teasing = false
+  let watching: AbortController | undefined
+
+  const sync = (): void => {
+    const shown = hovered || focused || teasing
+    if (shown && !watching) {
+      measure()
+      watching = new AbortController()
+      const options = { capture: true, passive: true, signal: watching.signal }
+      win.addEventListener('scroll', frame.request, options)
+      win.addEventListener('resize', frame.request, options)
+    } else if (!shown && watching) {
+      watching.abort()
+      watching = undefined
+      frame.cancel()
+    }
+  }
+  const on = (type: string, update: (event: Event) => void): void =>
+    el.addEventListener(type, (event) => {
+      update(event)
+      sync()
+    }, { signal: ctx.signal })
+
+  on('pointerenter', () => {
+    hovered = true
+    onUser()
+  })
+  on('pointerleave', () => (hovered = false))
+  on('focusin', () => {
+    focused = true
+    onUser()
+  })
+  on('focusout', (event) => {
+    focused = el.contains((event as FocusEvent).relatedTarget as Node | null)
+  })
+
+  return {
+    setTeasing(on) {
+      teasing = on
+      sync()
+    },
+    stop() {
+      watching?.abort()
+      frame.cancel()
+    },
+  }
+}
+
+/**
+ * `tease:` — show the part once, unasked, the first time the host scrolls into view.
+ *
+ * Its own `IntersectionObserver`, not the animator's `on:enter` binder, for two reasons the binder's
+ * shape decides. It is not reachable from `prepare` (it lives on the animator and is handed to no
+ * primitive), and it keeps one observed binding *per element* — a second `bind` on the host would
+ * evict the animator's own entry for that element. `background-media`'s `autoplayInView` records
+ * the same choice. It is one observer per teasing host, and it disconnects on the first entry.
+ *
+ * The open state is a host attribute (`data-kui-hint-tease` / `data-kui-preview-tease`) that
+ * `interaction.css` treats exactly like `:hover` with a zero lag, so the part arrives through the
+ * family's own transition — and under reduced motion through the same 1ms one, so it still shows,
+ * just without moving. Real hover or focus during the tease ends it early: the attribute comes off
+ * while `:hover`/`:focus-visible` is already holding the part open, so nothing closes under the
+ * reader's pointer, and it then closes when *they* leave rather than on the tease's timer.
+ *
+ * Threshold `0.5` of the host: a trigger is a word or a button, so half of it on screen means the
+ * reader can see what the part is attached to. No observer in this realm means no tease — it is a
+ * courtesy, and failing closed leaves the effect exactly as it was without one.
+ *
+ * @returns `end` (finish now, idempotent) and `stop` (teardown: observer and timer).
+ * @complexity O(1) time and space.
+ */
+function teaseOnEnter(
+  el: Element,
+  ctx: PrepareContext,
+  {
+    ms,
+    attribute,
+    attrs,
+    shown,
+  }: { ms: number; attribute: string; attrs: AttributeLedger; shown: ShownTracker },
+): { end(): void; stop: Cleanup } {
+  const { win } = ctx
+  let timer: number | undefined
+  let observer: IntersectionObserver | undefined
+
+  const end = (): void => {
+    if (timer === undefined) return
+    win.clearTimeout(timer)
+    timer = undefined
+    attrs.remove(attribute)
+    shown.setTeasing(false)
+  }
+  const start = (): void => {
+    // Measure first: `setTeasing` runs `auto`'s placement before the attribute reveals anything.
+    shown.setTeasing(true)
+    attrs.set(attribute, '')
+    timer = win.setTimeout(end, ms)
+  }
+
+  const Observer = (win as Window & { IntersectionObserver?: typeof IntersectionObserver })
+    .IntersectionObserver
+  if (Observer) {
+    observer = new Observer(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        observer!.disconnect()
+        start()
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+  }
+
+  return {
+    end,
+    stop() {
+      observer?.disconnect()
+      if (timer !== undefined) win.clearTimeout(timer)
+      timer = undefined
+    },
   }
 }
 
@@ -238,12 +736,43 @@ export const LABEL_SWAP_PRESETS: Preset[] = [
  * `'length|percentage'` union `label-swap` uses, because there is no box here a percentage would
  * usefully resolve against: the hint's travel is a fixed visual nudge, not a fraction of its own
  * height.
+ *
+ * **The card is the library's, and it is on by default.** `color`, `bg-color` and `radius` default
+ * to a dark tooltip card (`#f4f4f0` on `#111111`, `12px` corners — the showcase page's card, which
+ * was page CSS before these existed). That is a change to the unauthored look, made on purpose: a
+ * hint with no surface is bare text floating over whatever is behind it, which no page wants, so
+ * every page using this effect had to restate the same card. A page that styles its own hint still
+ * wins without `!important` — this file's rules sit in `@layer kui.effects`, and an unlayered page
+ * rule beats any layered one. `bg-color` is the owner's chosen spelling, not `bg` or `background`.
+ *
+ * `place` is `top` by default (where the hint has always gone); `bottom` pins it below, and `auto`
+ * starts on top and flips below when the top does not fit the viewport — see `PLACEMENT`.
+ *
+ * `tease` shows the hint once, unasked, for that long the first time the trigger scrolls into view
+ * — for a demo or an onboarding hint that would otherwise look like nothing is there. `0ms` (the
+ * default) is off. It skips `delay` on purpose: the point is to be seen without a hand on the
+ * trigger. See `teaseOnEnter`.
  */
 const hoverIntentParams: ParameterSchema = {
   duration: { type: 'time', default: '160ms', cssProperty: '--kui-duration' },
   delay: { type: 'time', default: '1000ms', cssProperty: '--kui-delay' },
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
   distance: { type: 'length', default: '4px', cssProperty: '--kui-hover-intent-distance' },
+  color: { type: 'color', default: '#f4f4f0', cssProperty: '--kui-hover-intent-color' },
+  'bg-color': { type: 'color', default: '#111111', cssProperty: '--kui-hover-intent-bg-color' },
+  radius: { type: 'length', default: '12px', cssProperty: '--kui-hover-intent-radius' },
+  // `place` and `tease` are read by `prepareReveal`, not by any stylesheet — see
+  // `ParamSpecBase.cssProperty`.
+  place: {
+    type: 'keyword',
+    default: 'top',
+    keywords: ['top', 'bottom', 'auto'],
+    cssProperty: '--kui-hover-intent-place',
+  },
+  tease: { type: 'time', default: '0ms', cssProperty: '--kui-hover-intent-tease' },
+  // Names the hint, in place of a `data-kui-hint` in the markup — see `claimPart`. Declared, so
+  // `compile.ts` leaves it here rather than moving the effect onto the hint.
+  target: { type: 'text', default: '', cssProperty: '--kui-target' },
 }
 
 /**
@@ -296,7 +825,16 @@ const hoverIntentParams: ParameterSchema = {
  * it honest about which of the two it is.
  */
 export const HOVER_INTENT_PRIMITIVES: Primitive[] = [
-  revealPrimitive('hover-intent', ['hint'], hoverIntentParams),
+  revealPrimitive('hover-intent', ['hint'], hoverIntentParams, {
+    placed: {
+      name: 'hover-intent',
+      marker: 'data-kui-hint',
+      attribute: 'data-kui-hint-place',
+      tease: 'data-kui-hint-tease',
+      shift: '--kui-hover-intent-shift',
+      preferred: () => 'top',
+    },
+  }),
 ]
 
 // `phase: 'state'` for the same reason as the label swaps above — a dwell-triggered reveal is a
@@ -320,6 +858,17 @@ export const HOVER_INTENT_PRESETS: Preset[] = [
  * channel. Bounded `0..1`: above `1` is not "sprung from small," it is a preview that *overshoots*
  * on the way in, which is a different (and currently unbuilt) request best served by an easing
  * curve rather than this parameter.
+ *
+ * `color`, `bg-color` and `radius` default to *no change* — `currentcolor`, `transparent`, `0px` —
+ * unlike `hover-intent`'s card. The preview is as often an `<img>` as a name tag, and a default
+ * surface or rounding would restyle every image anyone has already anchored. They are there for
+ * the name-tag case, so it no longer needs page CSS either.
+ *
+ * `place` takes all four sides plus `auto`, a superset of `hover-intent`'s `top|bottom|auto`,
+ * because each placement preset below *is* a `place` value (`anchored-preview-left` carries
+ * `params: { place: 'left' }`) — without `left`/`right` in the list those two presets could not
+ * say what they are. `auto` keeps the preset's own side as the preferred one and flips along its
+ * axis: `anchored-preview-right place:auto` falls back to the left, never to the top.
  */
 const anchoredPreviewParams: ParameterSchema = {
   duration: { type: 'time', default: '220ms', cssProperty: '--kui-duration' },
@@ -335,6 +884,43 @@ const anchoredPreviewParams: ParameterSchema = {
     minimum: 0,
     maximum: 1,
   },
+  color: { type: 'color', default: 'currentcolor', cssProperty: '--kui-anchored-preview-color' },
+  'bg-color': {
+    type: 'color',
+    default: 'transparent',
+    cssProperty: '--kui-anchored-preview-bg-color',
+  },
+  radius: { type: 'length', default: '0px', cssProperty: '--kui-anchored-preview-radius' },
+  // `place` and `tease` are read by `prepareReveal`, not by any stylesheet — see
+  // `ParamSpecBase.cssProperty`. `tease` is `hover-intent`'s, unchanged: `0ms` is off.
+  place: {
+    type: 'keyword',
+    default: 'top',
+    keywords: ['top', 'bottom', 'left', 'right', 'auto'],
+    cssProperty: '--kui-anchored-preview-place',
+  },
+  tease: { type: 'time', default: '0ms', cssProperty: '--kui-anchored-preview-tease' },
+  // Names the preview, in place of a `data-kui-preview` in the markup — see `claimPart`.
+  target: { type: 'text', default: '', cssProperty: '--kui-target' },
+}
+
+/**
+ * The side `anchored-preview place:auto` prefers: the one its preset name spells.
+ *
+ * Read from `data-kui-fx` because `auto` *replaces* the preset's own `place` value — the preparer
+ * merges `{ ...preset.params, ...authored }` — so by the time `prepare` runs the preset's side is
+ * gone from the parameters. The fx attribute is stamped before any JS effect prepares
+ * (`animator.ts`'s `installMatch`), and two `anchored-preview*` names cannot share one host (they
+ * collide on the `preview` channel), so the first match is the only one.
+ *
+ * @complexity O(t) time in the fx token count; O(t) space.
+ */
+function previewSideOf(el: Element): Side {
+  for (const token of (el.getAttribute(ATTR.normalized) ?? '').split(/\s+/)) {
+    const side = /^anchored-preview(?:-(bottom|left|right))?$/.exec(token)
+    if (side) return (side[1] as Side | undefined) ?? 'top'
+  }
+  return 'top'
 }
 
 /**
@@ -374,15 +960,15 @@ const anchoredPreviewParams: ParameterSchema = {
  * That mechanism needs no feature detection and no fallback branch, because it already works in
  * every browser the rest of the catalog does.
  *
- * ### Why four preset names and not a `placement:` parameter
+ * ### Four preset names, and a `place:` parameter behind them
  *
- * The same reasoning `label-swap`'s own doc comment gives for its axis: CSS cannot branch on a
- * custom property's *value* without `@container style()`, which is not portable enough to build a
- * shipped effect on. A `placement:` keyword would have to be read by JavaScript, turning a pure
- * stylesheet effect into a JS one for the sake of one word. Four preset names cost nothing extra —
- * they share this one primitive's schema, timing namespace, reduced-motion policy and channel
- * claim — and it is how the rest of the catalog already spells "one mechanism, several fixed
- * shapes" (`masked-label-swap-x`/`-diagonal`, `card-flip-x`/`-y`, `flip-in-x`/`-y`).
+ * The four names came first, for the reasoning `label-swap`'s own doc comment gives for its axis:
+ * CSS cannot branch on a custom property's *value*, so a placement keyword has to be read by
+ * JavaScript. `place:auto` — flip to whichever side fits the viewport — is a measurement CSS cannot
+ * make at all, so that JavaScript now exists (`PLACEMENT`, above), and the names became four
+ * spellings of `place:` (each preset carries its side in `params`). They stay because they are how
+ * the rest of the catalog spells "one mechanism, several fixed shapes" (`masked-label-swap-x`,
+ * `card-flip-y`), and because the stylesheet still places them before any script has run.
  *
  * `anchored-preview` (no suffix) is `top`, matching `hover-intent`'s own default placement for the
  * same reason: a name tag or a tooltip reads naturally above its trigger unless told otherwise.
@@ -397,7 +983,13 @@ const anchoredPreviewParams: ParameterSchema = {
  * absolute; inset: var(--kui-anchored-preview-inset); translate: var(--kui-anchored-preview-travel)`
  * and nothing placement-specific. No rule anywhere carries a combinator after an fx compound, so
  * `anchored-preview` never enters the reaching-selector set `css-requires-own-subtree.test.ts`
- * derives, needs no `requiresOwnSubtree`, and `target:` relocates all four cleanly.
+ * derives and needs no `requiresOwnSubtree`.
+ *
+ * ### `target:` names the preview
+ *
+ * `data-kui="anchored-preview-bottom target:.preview-img"` needs no `data-kui-preview` in the
+ * markup: the effect stays on the trigger and the library stamps the marker on the match, then
+ * takes it off again on teardown — see `claimPart`.
  *
  * ### Channels
  *
@@ -414,17 +1006,44 @@ const anchoredPreviewParams: ParameterSchema = {
  * than smuggled in here.
  */
 export const ANCHORED_PREVIEW_PRIMITIVES: Primitive[] = [
-  revealPrimitive('anchored-preview', ['preview'], anchoredPreviewParams),
+  revealPrimitive('anchored-preview', ['preview'], anchoredPreviewParams, {
+    placed: {
+      name: 'anchored-preview',
+      marker: 'data-kui-preview',
+      attribute: 'data-kui-preview-place',
+      tease: 'data-kui-preview-tease',
+      shift: '--kui-anchored-preview-shift',
+      preferred: previewSideOf,
+    },
+  }),
 ]
 
 // `phase: 'state'`, the same reasoning as `HOVER_INTENT_PRESETS` above: a hover/focus reveal with
 // no `transitions` field resolves to undeclared phase unless said here, and undeclared conflicts
 // with everything.
+//
+// Each suffixed name carries its side as `params.place`, so the schema's `top` default never
+// overrides it in `prepare` — the preparer merges preset params under the authored ones.
 export const ANCHORED_PREVIEW_PRESETS: Preset[] = [
   { name: 'anchored-preview', phase: 'state', primitive: 'anchored-preview' },
-  { name: 'anchored-preview-bottom', phase: 'state', primitive: 'anchored-preview' },
-  { name: 'anchored-preview-left', phase: 'state', primitive: 'anchored-preview' },
-  { name: 'anchored-preview-right', phase: 'state', primitive: 'anchored-preview' },
+  {
+    name: 'anchored-preview-bottom',
+    phase: 'state',
+    primitive: 'anchored-preview',
+    params: { place: 'bottom' },
+  },
+  {
+    name: 'anchored-preview-left',
+    phase: 'state',
+    primitive: 'anchored-preview',
+    params: { place: 'left' },
+  },
+  {
+    name: 'anchored-preview-right',
+    phase: 'state',
+    primitive: 'anchored-preview',
+    params: { place: 'right' },
+  },
 ]
 
 /**
@@ -502,7 +1121,7 @@ export const SEARCH_EXPAND_PRIMITIVES: Primitive[] = [
     'search-expand',
     ['expand', 'discrete', 'search-field'],
     searchExpandParams,
-    'layout',
+    { perfClass: 'layout' },
   ),
 ]
 

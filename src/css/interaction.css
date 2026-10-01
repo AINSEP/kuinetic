@@ -727,6 +727,29 @@
     position: relative;
     --kui-hover-intent-shown: 0;
     --kui-hover-intent-lag: 0ms;
+    /* Placement, as inherited geometry: `top`/`bottom` for the hint's two insets, `dir` for which
+       way its arrival nudge travels (it always rises *toward* its trigger's far side). Above the
+       trigger by default; `place:bottom`/`auto` stamp `data-kui-hint-place` and the rule below
+       swaps all three. */
+    --kui-hover-intent-top: auto;
+    --kui-hover-intent-bottom: 100%;
+    --kui-hover-intent-dir: 1;
+    /* Cross-axis slide that keeps the hint inside the viewport; the script writes it inline on this
+       host while shown (`SHIFT` in `interaction-reveal.ts`). Reset here so a nested trigger never
+       inherits an outer one's. */
+    --kui-hover-intent-shift: 0px;
+  }
+  /* `[data-kui-fx]` in front so this outranks the host rule above by specificity, not source order.
+     A compound on the host, no combinator — `target:` is unaffected. */
+  /* `tease:` — open with no lag while the script holds this attribute; see `teaseOnEnter`. */
+  [data-kui-fx][data-kui-hint-tease] {
+    --kui-hover-intent-shown: 1;
+    --kui-hover-intent-lag: 0ms;
+  }
+  [data-kui-fx][data-kui-hint-place='bottom'] {
+    --kui-hover-intent-top: 100%;
+    --kui-hover-intent-bottom: auto;
+    --kui-hover-intent-dir: -1;
   }
   [data-kui-fx~='hover-intent']:focus-visible,
   [data-kui-fx~='hover-intent']:has(:focus-visible) {
@@ -736,15 +759,33 @@
   /* `pointer-events: none` in every state, deliberately and permanently. A revealed panel the
      pointer can move *into* is a menu, and a menu has to survive the pointer leaving its trigger —
      which is trajectory intent, a genuinely different feature needing pointer history rather than a
-     delay. Keeping this one uninteractive is what stops it being mistaken for that. */
+     delay. Keeping this one uninteractive is what stops it being mistaken for that.
+
+     The card — surface, ink, corners, padding, a readable measure — is the library's too, so a
+     page writes markup and no CSS. `max-content` because an absolutely positioned box shrinks to
+     its trigger's width otherwise, wrapping a sentence one word per line under a short button.
+     `z-index: 1` lifts it over the trigger's positioned siblings (a row of chips, each one
+     `position: relative`), which would otherwise paint over a hint that opens toward them.
+     `margin-block` on both sides because only the one facing the trigger takes effect. */
   [data-kui-hint] {
     position: absolute;
-    bottom: 100%;
+    top: var(--kui-hover-intent-top, auto);
+    bottom: var(--kui-hover-intent-bottom, 100%);
     left: 50%;
-    margin-bottom: var(--kui-hover-intent-gap, 8px);
+    z-index: 1;
+    inline-size: max-content;
+    max-inline-size: min(16rem, 70vw);
+    margin-block: var(--kui-hover-intent-gap, 8px);
+    padding: 0.5em 0.75em;
+    border-radius: var(--kui-hover-intent-radius, 12px);
+    background-color: var(--kui-hover-intent-bg-color, #111111);
+    color: var(--kui-hover-intent-color, #f4f4f0);
     opacity: var(--kui-hover-intent-shown, 0);
-    translate: -50%
-      calc(var(--kui-hover-intent-distance, 4px) * (1 - var(--kui-hover-intent-shown, 0)));
+    translate: calc(-50% + var(--kui-hover-intent-shift, 0px))
+      calc(
+        var(--kui-hover-intent-distance, 4px) * var(--kui-hover-intent-dir, 1) *
+          (1 - var(--kui-hover-intent-shown, 0))
+      );
     pointer-events: none;
     transition:
       opacity var(--kui-hover-intent-duration, 160ms) var(--kui-hover-intent-ease, ease-out)
@@ -991,8 +1032,9 @@
      sets `--kui-anchored-preview-shown`/`-lag` on itself, plus two placement-specific custom
      properties precomputed once per preset name, and `[data-kui-preview]` is a wholly generic
      standalone rule with no `[data-kui-fx~=…]` prefix at all — so no rule here carries a combinator
-     past the fx compound, `requiresOwnSubtree` is never needed, and `target:` relocates all four
-     placements cleanly. */
+     past the fx compound and `requiresOwnSubtree` is never needed. `target:` names the preview
+     (the script stamps `data-kui-preview` on it), so this rule styles a named part and a marked
+     one alike. */
 
   [data-kui-fx~='anchored-preview'],
   [data-kui-fx~='anchored-preview-bottom'],
@@ -1001,36 +1043,49 @@
     position: relative;
     --kui-anchored-preview-shown: 0;
     --kui-anchored-preview-lag: 0ms;
+    /* Reset per host, written inline by the script while shown — as `--kui-hover-intent-shift`. */
+    --kui-anchored-preview-shift: 0px;
   }
 
   /* Placement geometry, precomputed per preset so the child rule below stays generic. `-inset` is
      the four-value `inset` shorthand for that side (`top right bottom left`), `-travel` is the
-     `translate` pair combining the constant `-50%` cross-axis centering with the main-axis spring
+     `translate` pair combining the `-50%` cross-axis centering (plus the viewport `-shift`, which
+     is why `-travel` must resolve on the host that carries it) with the main-axis spring
      distance — sign and axis already resolved here, so `[data-kui-preview]` never has to know
-     which placement it belongs to. */
-  [data-kui-fx~='anchored-preview'] {
+     which placement it belongs to.
+
+     Each side is matched two ways: by its preset name (the pre-script placement), and by the
+     `data-kui-preview-place` side `place:` stamps on the host. The second selector carries two
+     attributes of specificity to the first's one, so a stamped side beats whichever preset the
+     host also carries — `anchored-preview-left place:auto` flipping right has to override the
+     `-left` rule, and must not depend on which of the four happens to come later in this file. */
+  [data-kui-fx~='anchored-preview'],
+  [data-kui-fx][data-kui-preview-place='top'] {
     --kui-anchored-preview-inset: auto auto calc(100% + var(--kui-anchored-preview-gap, 10px)) 50%;
-    --kui-anchored-preview-travel: -50%
+    --kui-anchored-preview-travel: calc(-50% + var(--kui-anchored-preview-shift, 0px))
       calc(var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0)));
   }
-  [data-kui-fx~='anchored-preview-bottom'] {
+  [data-kui-fx~='anchored-preview-bottom'],
+  [data-kui-fx][data-kui-preview-place='bottom'] {
     --kui-anchored-preview-inset: calc(100% + var(--kui-anchored-preview-gap, 10px)) auto auto 50%;
-    --kui-anchored-preview-travel: -50%
+    --kui-anchored-preview-travel: calc(-50% + var(--kui-anchored-preview-shift, 0px))
       calc(-1 * var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0)));
   }
-  [data-kui-fx~='anchored-preview-left'] {
+  [data-kui-fx~='anchored-preview-left'],
+  [data-kui-fx][data-kui-preview-place='left'] {
     --kui-anchored-preview-inset: 50% calc(100% + var(--kui-anchored-preview-gap, 10px)) auto auto;
     --kui-anchored-preview-travel: calc(
         var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0))
       )
-      -50%;
+      calc(-50% + var(--kui-anchored-preview-shift, 0px));
   }
-  [data-kui-fx~='anchored-preview-right'] {
+  [data-kui-fx~='anchored-preview-right'],
+  [data-kui-fx][data-kui-preview-place='right'] {
     --kui-anchored-preview-inset: 50% auto auto calc(100% + var(--kui-anchored-preview-gap, 10px));
     --kui-anchored-preview-travel: calc(
         -1 * var(--kui-anchored-preview-distance, 10px) * (1 - var(--kui-anchored-preview-shown, 0))
       )
-      -50%;
+      calc(-50% + var(--kui-anchored-preview-shift, 0px));
   }
 
   [data-kui-fx~='anchored-preview']:focus-visible,
@@ -1044,14 +1099,27 @@
     --kui-anchored-preview-shown: 1;
     --kui-anchored-preview-lag: var(--kui-anchored-preview-delay, 0ms);
   }
+  /* `tease:` — the script holds this attribute for the tease's length on first entry. Open with
+     no lag, like a hover that has already waited; a compound on the host, no combinator. */
+  [data-kui-fx][data-kui-preview-tease] {
+    --kui-anchored-preview-shown: 1;
+    --kui-anchored-preview-lag: 0ms;
+  }
 
   /* The marked part: fully generic, reads only the inherited custom properties above. `scale`
      springs from `--kui-anchored-preview-scale` (the "sprung from" size) up to `1` as `shown` goes
      0→1 — one `calc()` rather than a second custom property, since the two ends of that ramp are
-     already the primitive's own knobs. */
+     already the primitive's own knobs.
+
+     `color`/`bg-color`/`radius` fall back to no change at all — `currentcolor` is `inherit` for
+     `color`, and `transparent`/`0px` are the initial values — because the part is as often an image
+     as a name tag; see the schema's comment in `interaction-reveal.ts`. */
   [data-kui-preview] {
     position: absolute;
     inset: var(--kui-anchored-preview-inset, auto);
+    border-radius: var(--kui-anchored-preview-radius, 0px);
+    background-color: var(--kui-anchored-preview-bg-color, transparent);
+    color: var(--kui-anchored-preview-color, currentcolor);
     translate: var(--kui-anchored-preview-travel, 0 0);
     opacity: var(--kui-anchored-preview-shown, 0);
     scale: calc(

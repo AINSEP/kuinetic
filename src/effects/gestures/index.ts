@@ -43,10 +43,9 @@ import { GESTURE_PRIMITIVES } from './primitives.js'
  *   there via the same inline style until the next drag picks it up again. None of that is an
  *   `entrance`: there is no hidden from-state and no `cloak`, just an idle rest value between
  *   gestures.
- * - `swipeable` (`swipe`, `swipe-x`, `swipe-y`) and `pressable` (`long-press`) claim the primitive-level
- *   `'state'` *channel* (a bucket for "writes an attribute, not a CSS property" — see
- *   `gestures/primitives.ts`'s `channels: ['state']` — a name that collides with this same-named
- *   `EffectPhase` value only in spelling, not in meaning). `long-press` is the clean case: it
+ * - `swipeable` (`swipe`, `swipe-x`, `swipe-y`) and `pressable` (`long-press`) write an attribute,
+ *   not a CSS property, and their *channel* names it (`attributeChannel` in `core/types.ts`) —
+ *   which is unrelated to this `state` *phase*. `long-press` is the clean case: it
  *   flips `data-kui-pressed` on the hold and back off on release, precisely the `:active`-shaped
  *   "held only while the visitor is doing something" case the `state` phase doc describes.
  *   `swipe`/`swipe-x` are a discrete, already-over gesture by the time `data-kui-swipe` is

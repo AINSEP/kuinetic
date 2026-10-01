@@ -14,7 +14,8 @@
   </head>
   <body>
     <p class="lead">A swipe-y deck, a plain vertical deck, and a long page.</p>
-    <!-- carousel and swipe-y both write state, so they sit on nested elements (see docs/catalog.md).
+    <!-- The wrapper arrangement: swipe-y on a section, carousel inside it. The two can also share one
+         element (compose-stateful.html covers that); this fixture keeps the nested form covered.
          No script maps the swipe onto the deck: the library's kui:swipe event does. -->
     <section id="swiped" class="deck" data-kui="swipe-y"><div id="swiped-deck" data-kui="carousel"><div class="slide">One</div><div class="slide">Two</div></div></section>
     <section id="plain" class="deck" data-kui="carousel"><div class="slide">One</div><div class="slide">Two</div></section>

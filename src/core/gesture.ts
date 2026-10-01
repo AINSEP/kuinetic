@@ -184,6 +184,21 @@ export function recognise(
   }
 
   function onDown(event: PointerEvent): void {
+    /*
+     * A second pointer pressed while one is already being followed — a second finger on a touch
+     * screen — ends the first gesture; it does not replace it. Replacing it reset `active` with no
+     * `onEnd`, so a consumer holding state from `onStart` to `onEnd` kept holding it until the next
+     * whole drag: a deck's drag hold (its `autoplay:`/`spin:` frozen) and `carousel/drag.ts`'s
+     * page-wide `user-select: none`. The first gesture ends as a release where its pointer was last
+     * seen, and the new pointer starts nothing: two fingers are not one drag.
+     */
+    if (origin && pointerId !== null && event.pointerId !== pointerId) {
+      clearLongPress()
+      const last = samples[samples.length - 1]!
+      releaseCapture(pointerId)
+      finish({ x: last.x, y: last.y, time: deps.now() })
+      return
+    }
     if (options.accept && !options.accept(event)) {
       origin = null
       return
@@ -331,7 +346,11 @@ export function recognise(
     // able to abort the payload.
     releaseCapture(event.pointerId)
     if (!origin) return
-    const sample = sampleOf(event)
+    finish(sampleOf(event))
+  }
+
+  /** Report the gesture's end at `sample` and forget it. `origin` is set. */
+  function finish(sample: Sample): void {
     samples.push(sample)
     reportEnd(vectorNow(sample), sample)
     origin = null
@@ -345,8 +364,14 @@ export function recognise(
    * consumer released it. No `pointerup` is coming, so this is a cancellation: end the gesture the
    * way `pointercancel` does. Only a capture this recogniser holds counts; its own release in `onUp`
    * reports as lost too, by which point the gesture is already over.
+   *
+   * Only the host's own loss counts. `lostpointercapture` bubbles, and a touch press is implicitly
+   * captured by the child it landed on; taking capture for the host at the drag threshold takes it
+   * from that child, whose loss then bubbled here and ended every touch drag that began on a card a
+   * fraction of a pixel in. A mouse press is never implicitly captured, so only touch broke.
    */
   function onLostCapture(event: PointerEvent): void {
+    if (event.target !== el) return
     if (!captured || event.pointerId !== pointerId) return
     captured = false
     onUp(event)

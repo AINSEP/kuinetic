@@ -83,11 +83,13 @@ describe('scroll-mechanics: every preset declares phase: idle', () => {
 })
 
 describe('scroll-mechanics phase does not paper over a real collision', () => {
-  it('two scroll primitives sharing "layout" still refuse — idle exempts nothing', () => {
-    // `pin` and `scroll-snap` both claim the `layout` channel and both hold it unconditionally for
+  it('two idle scroll presets sharing "position" still refuse — idle exempts nothing', () => {
+    // `pin-section` and `stacking-cards` both hold the host's `position: sticky` unconditionally for
     // the instance's whole life. `idle|idle` is not in `INDEPENDENT_PHASES`, so this must still warn
-    // and keep only the first effect — exactly as it did before either preset had a phase.
-    const result = plan('pin-section, scroll-snap-y')
+    // and keep only the first effect — exactly as it did before either preset had a phase. (This
+    // used to be `pin-section, scroll-snap-y`, refused on the shared `layout` bucket; the two write
+    // disjoint properties, and since the bucket was split they compose.)
+    const result = plan('pin-section, stacking-cards')
     expect(result.refused.length).toBeGreaterThan(0)
     expect(result.fx).toEqual(['pin-section'])
   })
@@ -104,7 +106,7 @@ describe('scroll-mechanics phase does not paper over a real collision', () => {
   })
 
   it('a disjoint channel still composes cleanly, unaffected by the phase declaration', () => {
-    // `pin-section` claims `layout`/`progress`; `fade-up` claims `opacity`/`translate`. No shared
+    // `pin-section` claims `position`/`progress`; `fade-up` claims `opacity`/`translate`. No shared
     // channel, so this always composed — the phase declaration must not have broken it.
     const result = plan('fade-up on:enter, pin-section')
     expect(result.refused).toEqual([])
