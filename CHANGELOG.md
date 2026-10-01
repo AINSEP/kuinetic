@@ -5,6 +5,8 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-09-30
+
 ### Added
 
 - **Tooltip styling on `hover-intent` and `anchored-preview`.** `color:`, `bg-color:` and `radius:`
