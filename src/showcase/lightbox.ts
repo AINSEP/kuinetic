@@ -358,6 +358,28 @@ function vocabulary(items: LightboxItem[]): { noun: string; label: string } {
   return kinds.has('video') ? { noun: 'video', label: 'Video viewer' } : { noun: 'image', label: 'Image viewer' }
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+/**
+ * A drawn chevron for a gallery arrow, decorative (the button carries the label).
+ *
+ * Not a `‹`/`›` character: a glyph sits on its font's baseline, not the button's centre, so it rode
+ * low and off-axis in the round button and the arrows looked crooked. A stroked path centred in its
+ * own 24-unit box is centred by construction. `currentColor`, so the stylesheet owns its colour.
+ *
+ * @complexity O(1).
+ */
+function chevron(doc: Document, path: string): SVGSVGElement {
+  const svg = doc.createElementNS(SVG_NS, 'svg')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('focusable', 'false')
+  const stroke = doc.createElementNS(SVG_NS, 'path')
+  stroke.setAttribute('d', path)
+  svg.append(stroke)
+  return svg
+}
+
 interface ViewerOptions extends Pick<ModalContent, 'duration' | 'scale' | 'ease' | 'reducedMotion'> {
   loop: boolean
   aspect: string
@@ -379,8 +401,8 @@ function galleryContent(items: LightboxItem[], initial: number, options: ViewerO
   const previous = doc.createElement('button')
   const next = doc.createElement('button')
   previous.type = next.type = 'button'
-  previous.textContent = '‹'
-  next.textContent = '›'
+  previous.append(chevron(doc, 'M15 5l-7 7 7 7'))
+  next.append(chevron(doc, 'M9 5l7 7-7 7'))
   const { noun, label } = vocabulary(items)
   previous.setAttribute('aria-label', `Previous ${noun}`)
   next.setAttribute('aria-label', `Next ${noun}`)

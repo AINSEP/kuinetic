@@ -735,8 +735,32 @@
     cursor: pointer;
   }
   .kui-lightbox-close { position: fixed; inset-block-start: clamp(0.75rem, 2vw, 1.25rem); inset-inline-end: clamp(0.75rem, 2vw, 1.25rem); z-index: 1; inline-size: 40px; block-size: 40px; font-size: 1.5rem; }
+  /* The arrows: the brand pair, a yellow chevron on a solid black disc, with the same fixed values in
+     both themes. They sit over a blurred, dimmed page, so the disc carries its own contrast (~17:1)
+     whatever is behind it. Override `--kui-lightbox-arrow-bg`/`-fg` to restyle them. `translate`
+     centres them on the viewport's middle; `inset-block-start: 50%` alone puts their top edge
+     there, half a button too low. */
   .kui-lightbox-prev,
-  .kui-lightbox-next { position: fixed; inset-block-start: 50%; inline-size: 40px; block-size: 40px; font-size: 2rem; }
+  .kui-lightbox-next {
+    position: fixed; inset-block-start: 50%; translate: 0 -50%;
+    display: grid; place-items: center; padding: 0;
+    inline-size: 44px; block-size: 44px;
+    border-color: rgb(255 255 255 / 0.18);
+    color: var(--kui-lightbox-arrow-fg, #e4f222);
+    background: var(--kui-lightbox-arrow-bg, #000);
+    transition: transform 160ms ease;
+  }
+  .kui-lightbox-prev svg,
+  .kui-lightbox-next svg {
+    inline-size: 22px; block-size: 22px;
+    fill: none; stroke: currentColor; stroke-width: 2.75; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .kui-lightbox-prev:hover,
+  .kui-lightbox-next:hover { transform: scale(1.08); }
+  @media (prefers-reduced-motion: reduce) {
+    .kui-lightbox-prev,
+    .kui-lightbox-next { transition: none; }
+  }
   .kui-lightbox-prev { inset-inline-start: 0.75rem; }
   .kui-lightbox-next { inset-inline-end: 0.75rem; }
   .kui-lightbox-counter { font-size: 0.85rem; color: rgb(255 255 255 / 0.8); }
