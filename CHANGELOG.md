@@ -5,6 +5,16 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Carousels no longer flash flat on load.** `carousel-3d`, `-high`, `-low`, `-inside`,
+  `carousel-orbit` and `carousel-stack` are now `cloak: true`: under `<html data-kui-cloak>` they stay
+  hidden until the ring is placed, instead of showing their cards in normal flow for a frame first.
+  Without the script, the CSS-only two-second release still shows them.
+- **Lightbox arrows.** Drawn chevrons centred in the button and on the viewport's middle (the
+  `‹`/`›` glyphs sat on their baseline, and the buttons sat half a button low), in yellow on black.
+  Restyle with `--kui-lightbox-arrow-fg` / `--kui-lightbox-arrow-bg`.
+
 ## [0.2.3] — 2026-09-30
 
 ### Added

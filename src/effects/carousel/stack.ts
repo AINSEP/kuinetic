@@ -138,8 +138,8 @@ export const SPATIAL_STACK_PRIMITIVE: Primitive = {
 /**
  * `carousel-stack` — the family name first, the shape second, as `carousel-fade`/`carousel-slide`/
  * `carousel-3d` already read. One name: the diagonal's direction is two signed lengths (`shift:`,
- * `rise:`), so a left-hand or downward stack is a parameter, not a catalogue entry. `requiresOwnSubtree`
- * and `phase: 'idle'` for the reasons `CAROUSEL_PRESETS` gives for the ring.
+ * `rise:`), so a left-hand or downward stack is a parameter, not a catalogue entry. `requiresOwnSubtree`,
+ * `phase: 'idle'` and `cloak: true` for the reasons `CAROUSEL_PRESETS` gives for the ring.
  */
 export const STACK_PRESETS: Preset[] = [
   {
@@ -147,5 +147,6 @@ export const STACK_PRESETS: Preset[] = [
     primitive: 'spatial-stack',
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
 ]

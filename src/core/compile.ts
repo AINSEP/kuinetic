@@ -855,7 +855,7 @@ function refusePlayback(entry: Entry, timeline: Timeline, warnings: string[]): E
  * entrance in the catalog carries it and no exit does — but the exemption is not really about
  * *starting* hidden, it is about *ending* released: an entrance may hand its channel back only
  * because its keyframes name no endpoint, so CSS resolves the missing one against the underlying
- * value. Fifteen of the fifty-four `cloak: true` presets close their block anyway (`wipe-up`,
+ * value. Fifteen of the fifty-four `cloak: true` entrances close their block anyway (`wipe-up`,
  * `blur-up`, `slat-assemble` and the rest), and eleven of those share a channel with a preset the
  * derivation calls `state`. Deriving from `cloak` would have composed those eleven into a fill that
  * pins the property and a hover that silently does nothing — a loud drop traded for a quiet clobber,

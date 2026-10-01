@@ -478,6 +478,13 @@ export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL
  *
  * None of them declares `transitions`: nothing here renders through a CSS `transition:` on the
  * host box for `phaseOf` to derive `state` from — the ring is `renderer: 'javascript'` throughout.
+ *
+ * All of them are `cloak: true`. Before the script runs, a ring is its cards laid out flat in the
+ * page's flow, and the first frame after start snaps them onto the ring: a flash of the wrong
+ * layout on every load (the showcase hero showed it). Under `<html data-kui-cloak>` the host and its
+ * cards stay hidden until the host's `data-kui-state` lands, which happens in the same task that
+ * places the cards (no frame or timer in between), and the CSS-only two-second release still shows
+ * them if the script never runs.
  */
 export const CAROUSEL_PRESETS: Preset[] = [
   {
@@ -486,6 +493,7 @@ export const CAROUSEL_PRESETS: Preset[] = [
     params: { tilt: '12deg' },
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
   {
     name: 'carousel-3d-high',
@@ -493,6 +501,7 @@ export const CAROUSEL_PRESETS: Preset[] = [
     params: { tilt: '30deg', perspective: '1200px' },
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
   {
     name: 'carousel-3d-low',
@@ -500,6 +509,7 @@ export const CAROUSEL_PRESETS: Preset[] = [
     params: { tilt: '-18deg', perspective: '1800px' },
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
   /*
    * The concave name. `arc:120deg` is the default the outside names cannot want and this one cannot
@@ -515,6 +525,7 @@ export const CAROUSEL_PRESETS: Preset[] = [
     params: { arc: '120deg', facing: 'camera', perspective: '900px' },
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
   /*
    * The flat ring: cards on a clock face around whatever sits in the middle of the host (a word, a
@@ -536,6 +547,7 @@ export const CAROUSEL_PRESETS: Preset[] = [
     params: { plane: 'screen', facing: 'camera' },
     requiresOwnSubtree: true,
     phase: 'idle',
+    cloak: true,
   },
 ]
 
