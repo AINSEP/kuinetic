@@ -1694,7 +1694,11 @@ need to track.
 > `video-lightbox`, both for `media:mixed`); `scope:self|page`, `scale:` (default `0.965`),
 > `duration:` (default `280ms`), `ease:`, `loop:false` (hold at the ends), and
 > `caption:figcaption|alt|title|none` (default `figcaption`, falling back to `alt`; `none` on
-> `video-lightbox`). Video accepts `aspect:wide|tall|square` (YouTube Shorts default to tall).
+> `video-lightbox`), `arrows:bottom-right|bottom-left|bottom|bottom-apart|top-right|top-left|sides`
+> (default `bottom-right`: side by side in the corner, with room kept so the picture never sits
+> under them; the sides are physical, left is left even on an RTL page; `sides` is the old
+> mid-screen layout), `arrow-gap:` (default `0.5rem`). Place them anywhere with
+> `--kui-lightbox-nav-top/-right/-bottom/-left` on `.kui-lightbox-nav`. Video accepts `aspect:wide|tall|square` (YouTube Shorts default to tall).
 > A focused native player keeps its own arrow keys for seeking, and keys pressed inside an embed
 > stay in the embed; the prev/next buttons still move on. The same goes for touch: a drag along a
 > native player scrubs it, and taps on an embed are the embed's — swipe on the space around them.

@@ -648,7 +648,11 @@
     box-sizing: border-box;
     margin: 0;
     border: 0;
-    padding: clamp(1rem, 4vw, 3rem);
+    --kui-lightbox-pad: clamp(1rem, 4vw, 3rem);
+    --kui-lightbox-edge: clamp(0.75rem, 2vw, 1.25rem);
+    --kui-lightbox-arrow-size: 44px;
+    --kui-lightbox-nav-room: max(0px, calc(var(--kui-lightbox-edge) + var(--kui-lightbox-arrow-size) + 0.5rem - var(--kui-lightbox-pad)));
+    padding: var(--kui-lightbox-pad);
     overflow: auto;
     overscroll-behavior: contain;
     display: grid;
@@ -734,17 +738,15 @@
     background: rgb(8 9 10 / 0.7);
     cursor: pointer;
   }
-  .kui-lightbox-close { position: fixed; inset-block-start: clamp(0.75rem, 2vw, 1.25rem); inset-inline-end: clamp(0.75rem, 2vw, 1.25rem); z-index: 1; inline-size: 40px; block-size: 40px; font-size: 1.5rem; }
+  .kui-lightbox-close { position: fixed; inset-block-start: calc(var(--kui-lightbox-edge) + env(safe-area-inset-top, 0px)); inset-inline-end: calc(var(--kui-lightbox-edge) + env(safe-area-inset-right, 0px)); z-index: 1; inline-size: 40px; block-size: 40px; font-size: 1.5rem; }
   /* The arrows: the brand pair, a yellow chevron on a solid black disc, with the same fixed values in
      both themes. They sit over a blurred, dimmed page, so the disc carries its own contrast (~17:1)
-     whatever is behind it. Override `--kui-lightbox-arrow-bg`/`-fg` to restyle them. `translate`
-     centres them on the viewport's middle; `inset-block-start: 50%` alone puts their top edge
-     there, half a button too low. */
+     whatever is behind it. Override `--kui-lightbox-arrow-bg`/`-fg` to restyle them. Placement
+     lives on `.kui-lightbox-nav`, the group that holds both. */
   .kui-lightbox-prev,
   .kui-lightbox-next {
-    position: fixed; inset-block-start: 50%; translate: 0 -50%;
     display: grid; place-items: center; padding: 0;
-    inline-size: 44px; block-size: 44px;
+    inline-size: var(--kui-lightbox-arrow-size); block-size: var(--kui-lightbox-arrow-size);
     border-color: rgb(255 255 255 / 0.18);
     color: var(--kui-lightbox-arrow-fg, #e4f222);
     background: var(--kui-lightbox-arrow-bg, #000);
@@ -761,8 +763,59 @@
     .kui-lightbox-prev,
     .kui-lightbox-next { transition: none; }
   }
-  .kui-lightbox-prev { inset-inline-start: 0.75rem; }
-  .kui-lightbox-next { inset-inline-end: 0.75rem; }
+  /* The arrows are one fixed group, so they never move between items, however tall each one is.
+     `arrows:` picks the corner; --kui-lightbox-nav-top/-right/-bottom/-left override any side,
+     --kui-lightbox-arrow-gap the space between, --kui-lightbox-nav-room the band kept clear. */
+  .kui-lightbox-nav {
+    position: fixed; z-index: 1;
+    display: flex; align-items: center; direction: ltr;
+    gap: var(--kui-lightbox-arrow-gap, 0.5rem);
+    inset: var(--kui-lightbox-nav-top, auto) var(--kui-lightbox-nav-right, auto)
+           var(--kui-lightbox-nav-bottom, auto) var(--kui-lightbox-nav-left, auto);
+  }
+  .kui-lightbox-nav--bottom-right {
+    bottom: var(--kui-lightbox-nav-bottom, calc(var(--kui-lightbox-edge) + env(safe-area-inset-bottom, 0px)));
+    right: var(--kui-lightbox-nav-right, calc(var(--kui-lightbox-edge) + env(safe-area-inset-right, 0px)));
+  }
+  .kui-lightbox-nav--bottom-left {
+    bottom: var(--kui-lightbox-nav-bottom, calc(var(--kui-lightbox-edge) + env(safe-area-inset-bottom, 0px)));
+    left: var(--kui-lightbox-nav-left, calc(var(--kui-lightbox-edge) + env(safe-area-inset-left, 0px)));
+  }
+  .kui-lightbox-nav--bottom {
+    bottom: var(--kui-lightbox-nav-bottom, calc(var(--kui-lightbox-edge) + env(safe-area-inset-bottom, 0px)));
+    left: 50%; translate: -50% 0;
+  }
+  .kui-lightbox-nav--bottom-apart {
+    bottom: var(--kui-lightbox-nav-bottom, calc(var(--kui-lightbox-edge) + env(safe-area-inset-bottom, 0px)));
+    left: var(--kui-lightbox-nav-left, calc(var(--kui-lightbox-edge) + env(safe-area-inset-left, 0px)));
+    right: var(--kui-lightbox-nav-right, calc(var(--kui-lightbox-edge) + env(safe-area-inset-right, 0px)));
+    justify-content: space-between; pointer-events: none;
+  }
+  /* The -2px centres the 44px discs on the 40px close button's row. */
+  .kui-lightbox-nav--top-left {
+    top: var(--kui-lightbox-nav-top, calc(var(--kui-lightbox-edge) + env(safe-area-inset-top, 0px) - 2px));
+    left: var(--kui-lightbox-nav-left, calc(var(--kui-lightbox-edge) + env(safe-area-inset-left, 0px)));
+  }
+  /* The 40px + 0.5rem clear the close button. */
+  .kui-lightbox-nav--top-right {
+    top: var(--kui-lightbox-nav-top, calc(var(--kui-lightbox-edge) + env(safe-area-inset-top, 0px) - 2px));
+    right: var(--kui-lightbox-nav-right, calc(var(--kui-lightbox-edge) + env(safe-area-inset-right, 0px) + 40px + 0.5rem));
+  }
+  .kui-lightbox-nav--sides {
+    top: 50%; translate: 0 -50%;
+    left: var(--kui-lightbox-nav-left, calc(var(--kui-lightbox-edge) + env(safe-area-inset-left, 0px)));
+    right: var(--kui-lightbox-nav-right, calc(var(--kui-lightbox-edge) + env(safe-area-inset-right, 0px)));
+    justify-content: space-between; pointer-events: none;
+  }
+  .kui-lightbox-nav--bottom-apart > button,
+  .kui-lightbox-nav--sides > button { pointer-events: auto; }
+  /* Keep the media clear of the arrows: the band they sit in is taken off the gallery. */
+  .kui-lightbox-gallery:has(> [class*='kui-lightbox-nav--bottom']) {
+    padding-block-end: calc(var(--kui-lightbox-nav-room) + env(safe-area-inset-bottom, 0px));
+  }
+  .kui-lightbox-gallery:has(> [class*='kui-lightbox-nav--top']) {
+    padding-block-start: calc(var(--kui-lightbox-nav-room) + env(safe-area-inset-top, 0px));
+  }
   .kui-lightbox-counter { font-size: 0.85rem; color: rgb(255 255 255 / 0.8); }
   .kui-lightbox button:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
   /*

@@ -63,6 +63,14 @@ export const SHOWCASE_NOTES: ParamNotes = {
     whenOmitted: 'Tall for a YouTube Shorts link, wide for every other video.',
   },
   'lightbox.caption': 'Where the line under each item comes from, or none to hide it.',
+  'lightbox.arrows': {
+    why: 'Where the previous and next arrows sit: a corner, top or bottom, apart, or on the sides.',
+    whenOmitted: 'Bottom right, side by side, clear of the picture.',
+  },
+  'lightbox.arrow-gap': {
+    why: 'The space between the two arrows when they sit together.',
+    whenOmitted: 'Half a line of space.',
+  },
 
   'scroll-story.target': {
     why: 'Which elements are the pictures or clips that change as you scroll.',

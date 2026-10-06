@@ -85,6 +85,7 @@ describe('lightbox:true on a spatial deck', () => {
     expect(event.defaultPrevented).toBe(true)
     expect(shownAlt()).toBe('Bravo')
     expect(counter()).toBe('2 of 6')
+    expect(dialog()!.querySelector('.kui-lightbox-nav--bottom-right')).not.toBeNull()
   })
 
   it('cycles the deck\'s cards in the viewer, linked image first', () => {

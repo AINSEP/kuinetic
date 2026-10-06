@@ -32,6 +32,26 @@ async function checkCycle(page, check, label) {
   check(`${label}: the gallery is announced as media, not images`,
     (await page.getAttribute('dialog.kui-lightbox', 'aria-label')) === 'Media viewer')
 
+  // The arrows are one fixed group in the bottom-right corner, clear of the media, close and counter.
+  await page.waitForTimeout(350)
+  const nav = await page.evaluate(() => {
+    const rect = (sel) => document.querySelector(sel).getBoundingClientRect()
+    const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+    const group = rect('.kui-lightbox-nav')
+    const media = rect('dialog.kui-lightbox figure > img, dialog.kui-lightbox .kui-lightbox-frame')
+    const prev = rect('.kui-lightbox-prev')
+    const next = rect('.kui-lightbox-next')
+    return { inside: group.left >= 0 && group.top >= 0 && group.right <= innerWidth && group.bottom <= innerHeight,
+      clearOfMedia: !hit(group, media), clearOfClose: !hit(group, rect('.kui-lightbox-close')),
+      clearOfCounter: !hit(group, rect('.kui-lightbox-counter')),
+      corner: innerWidth - group.right <= 24 && innerHeight - group.bottom <= 24,
+      sideBySide: Math.abs(prev.top - next.top) < 1 && Math.abs(next.left - prev.right - 8) < 1.5 }
+  })
+  check(`${label}: the arrows sit inside the screen, bottom-right`, nav.inside && nav.corner, JSON.stringify(nav))
+  check(`${label}: the arrows clear the media, the close button and the counter`,
+    nav.clearOfMedia && nav.clearOfClose && nav.clearOfCounter, JSON.stringify(nav))
+  check(`${label}: prev and next sit side by side`, nav.sideBySide, JSON.stringify(nav))
+
   await page.click('.kui-lightbox-next')
   const first = await stash(page, '__a')
   check(`${label}: next lands on the video without closing`, first && (await page.evaluate(() => document.querySelector('dialog.kui-lightbox').open)))
@@ -153,10 +173,12 @@ async function checkShortScreen(browser, check) {
         const box = media.getBoundingClientRect()
         const counterBox = document.querySelector('.kui-lightbox-counter').getBoundingClientRect()
         const caption = document.querySelector('dialog.kui-lightbox figcaption')
+        const navBox = document.querySelector('.kui-lightbox-nav').getBoundingClientRect()
+        const clearOfNav = !(box.left < navBox.right && navBox.left < box.right && box.top < navBox.bottom && navBox.top < box.bottom)
         const lowest = Math.max(counterBox.bottom, caption.hidden ? 0 : caption.getBoundingClientRect().bottom)
         const natural = media.localName === 'video' ? 16 / 9 : media.naturalWidth / media.naturalHeight
         return { item: document.querySelector('.kui-lightbox-counter').textContent, kind: media.localName, tall: media.classList.contains('is-tall'),
-          top: Math.round(box.top), bottom: Math.round(lowest), height: innerHeight,
+          clearOfNav, top: Math.round(box.top), bottom: Math.round(lowest), height: innerHeight,
           ratio: +(box.width / box.height).toFixed(3), natural: +natural.toFixed(3),
           scrolls: document.querySelector('dialog.kui-lightbox').scrollHeight > innerHeight + 1 }
       })
@@ -164,8 +186,12 @@ async function checkShortScreen(browser, check) {
       // design; it must start at the top, where the scroll does reach it.
       if (fit.tall) check(`short screen ${viewport.width}x${viewport.height}, ${fit.item}: a tall picture scrolls from its top edge`,
         fit.top >= 0 && fit.scrolls, JSON.stringify(fit))
-      else check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): media, caption and counter all on screen`,
-        fit.top >= 0 && fit.bottom <= fit.height && !fit.scrolls, JSON.stringify(fit))
+      else {
+        check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): media, caption and counter all on screen`,
+          fit.top >= 0 && fit.bottom <= fit.height && !fit.scrolls, JSON.stringify(fit))
+        check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): the media does not sit under the arrows`,
+          fit.clearOfNav, JSON.stringify(fit))
+      }
       check(`short screen ${viewport.width}x${viewport.height}, ${fit.item} (${fit.kind}): keeps its aspect ratio`,
         Math.abs(fit.ratio - fit.natural) < 0.02, JSON.stringify(fit))
       await page.keyboard.press('ArrowRight')

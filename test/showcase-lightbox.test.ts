@@ -279,6 +279,42 @@ describe('lightbox', () => {
     expect(dialog().open).toBe(true)
   })
 
+  const PAIR = '<a href="/a.jpg"><img src="/a-t.jpg" alt="A"></a><a href="/b.jpg"><img src="/b-t.jpg" alt="B"></a>'
+
+  it('places the arrows as one group, bottom-right by default', () => {
+    start(`<div data-kui="lightbox">${PAIR}</div>`)
+    click(document.querySelector('a')!)
+    const box = dialog().querySelector('.kui-lightbox-gallery')!
+    const nav = box.querySelector('.kui-lightbox-nav.kui-lightbox-nav--bottom-right')!
+    expect(nav).not.toBeNull()
+    expect([...nav.children].map((child) => child.className)).toEqual(['kui-lightbox-prev', 'kui-lightbox-next'])
+    expect(box.lastElementChild!.classList.contains('kui-lightbox-counter')).toBe(true)
+    expect(nav.getAttribute('style')).toBeNull()
+  })
+
+  it('takes the arrow placement and gap from arrows: and arrow-gap:', () => {
+    start(`<div data-kui="lightbox arrows:sides arrow-gap:1rem">${PAIR}</div>`)
+    click(document.querySelector('a')!)
+    const nav = dialog().querySelector('.kui-lightbox-nav') as HTMLElement
+    expect(nav.classList.contains('kui-lightbox-nav--sides')).toBe(true)
+    expect(nav.style.getPropertyValue('--kui-lightbox-arrow-gap')).toBe('1rem')
+  })
+
+  it('keeps the gallery open when the gap between the arrows is clicked', () => {
+    vi.useFakeTimers()
+    start(`<div data-kui="lightbox duration:10ms">${PAIR}</div>`)
+    click(document.querySelector('a')!)
+    click(dialog().querySelector('.kui-lightbox-nav')!)
+    vi.advanceTimersByTime(10)
+    expect(dialog().open).toBe(true)
+  })
+
+  it('draws no arrow group for a single item', () => {
+    start('<a data-kui="lightbox" href="/full.jpg"><img src="/thumb.jpg" alt="Map"></a>')
+    click(document.querySelector('a')!)
+    expect(dialog().querySelector('.kui-lightbox-nav')).toBeNull()
+  })
+
   it('closes immediately for a reduced-motion visitor', () => {
     vi.useFakeTimers()
     document.body.innerHTML = '<a data-kui="lightbox" href="/full.jpg"><img src="/thumb.jpg" alt="Map"></a>'
@@ -345,6 +381,19 @@ describe('lightbox', () => {
     for (const button of ['.kui-lightbox-close', '.kui-lightbox-prev', '.kui-lightbox-next']) {
       expect(inBlocks(forced, button)).toContain('border-color: CanvasText;')
     }
+  })
+
+  it('positions the arrows as one fixed group and reserves the band they sit in', () => {
+    for (const selector of ['.kui-lightbox-prev', '.kui-lightbox-next']) {
+      const bodies = ruleBodies(showcaseCss, selector)
+      expect(bodies.length).toBeGreaterThan(0)
+      for (const body of bodies) expect(body).not.toContain('position: fixed')
+    }
+    expect(ruleBodies(showcaseCss, '.kui-lightbox-nav')[0]).toContain('position: fixed')
+    expect(ruleBodies(showcaseCss, '.kui-lightbox-nav--bottom-right')[0]).toContain('safe-area-inset-bottom')
+    const band = ruleBodies(showcaseCss, ".kui-lightbox-gallery:has(> [class*='kui-lightbox-nav--bottom'])")
+    expect(band).toHaveLength(1)
+    expect(band[0]).toContain('padding-block-end')
   })
 
   it('keeps the dialog and gallery from becoming the containing block of the fixed controls', () => {

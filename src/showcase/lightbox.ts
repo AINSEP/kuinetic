@@ -29,6 +29,9 @@ const paramsSchema: ParameterSchema = {
   loop: { type: 'keyword', default: 'true', cssProperty: '--kui-lightbox-loop', keywords: ['true', 'false'] },
   aspect: { type: 'keyword', default: '', cssProperty: '--kui-lightbox-aspect', keywords: ['wide', 'tall', 'square'] },
   caption: { type: 'keyword', default: 'figcaption', cssProperty: '--kui-lightbox-caption', keywords: ['figcaption', 'alt', 'title', 'none'] },
+  arrows: { type: 'keyword', default: 'bottom-right', cssProperty: '--kui-lightbox-arrows',
+    keywords: ['bottom-right', 'bottom-left', 'bottom', 'bottom-apart', 'top-right', 'top-left', 'sides'] },
+  'arrow-gap': { type: 'length', default: '', cssProperty: '--kui-lightbox-arrow-gap' },
 }
 
 /**
@@ -383,8 +386,15 @@ function chevron(doc: Document, path: string): SVGSVGElement {
 interface ViewerOptions extends Pick<ModalContent, 'duration' | 'scale' | 'ease' | 'reducedMotion'> {
   loop: boolean
   aspect: string
+  arrows: string
+  arrowGap: string
 }
 
+/**
+ * The gallery's content. The arrows are one fixed group (`.kui-lightbox-nav`), not loose buttons in
+ * the flow, so they never move between items however tall each picture is: clicking back and forth
+ * stays under the cursor.
+ */
 function galleryContent(items: LightboxItem[], initial: number, options: ViewerOptions): ModalContent {
   const doc = items[initial]!.trigger.ownerDocument
   const box = doc.createElement('div')
@@ -411,7 +421,11 @@ function galleryContent(items: LightboxItem[], initial: number, options: ViewerO
   const state: Viewer = { items, index: initial, loop: options.loop, aspect: options.aspect, figure, view, caption,
     counter, previous, next, players: new Map() }
   if (items.length > 1) {
-    box.append(previous, next, counter)
+    const nav = doc.createElement('div')
+    nav.className = `kui-lightbox-nav kui-lightbox-nav--${options.arrows}`
+    if (options.arrowGap) nav.style.setProperty('--kui-lightbox-arrow-gap', options.arrowGap)
+    nav.append(previous, next)
+    box.append(nav, counter)
     previous.addEventListener('click', () => clickGallery(state, -1, previous))
     next.addEventListener('click', () => clickGallery(state, 1, next))
   }
@@ -419,8 +433,9 @@ function galleryContent(items: LightboxItem[], initial: number, options: ViewerO
   const unswipe = items.length > 1 ? swipeGallery(state, box) : undefined
   const { duration, scale, ease, reducedMotion } = options
   return { duration, scale, ease, reducedMotion, node: box, label,
-    // The media and the controls keep the viewer open; the empty figure around them closes it.
-    inside: (target) => box.contains(target) && target.closest('img, video, iframe, button') !== null,
+    // The media and the controls (the arrow group included, so a click in the gap between the
+    // arrows is not a close) keep the viewer open; the empty figure around them closes it.
+    inside: (target) => box.contains(target) && target.closest('img, video, iframe, button, .kui-lightbox-nav') !== null,
     onClose: () => {
       unswipe?.()
       closeViewer(state)
@@ -513,7 +528,8 @@ const OWN_CLICK = 'button, input, select, textarea, label, summary, [contentedit
  *
  * Every card of the deck becomes one gallery, opened at the card clicked, through the same
  * `galleryContent` the `lightbox` effect opens — buttons, keys, swipe, `loop`, the media rules and
- * the one shared modal shell, unforked.
+ * the one shared modal shell, unforked. Decks have no params of their own here, so they always get
+ * the default arrow placement (`bottom-right`).
  *
  * What counts as a click is the deck's to say, and it already says it. The listener is on the host
  * in the *bubble* phase, and a deck's drag consumes the click that ends a drag in the *capture*
@@ -531,7 +547,7 @@ export function attachDeckLightbox(request: DeckViewerRequest): Cleanup {
   const { host, cards, doc, reducedMotion } = request
   const shell = acquireModalShell(doc)
   const options: ViewerOptions = { duration: DEFAULT_DURATION_MS, scale: DEFAULT_SCALE, ease: DEFAULT_EASE,
-    reducedMotion, loop: true, aspect: '' }
+    reducedMotion, loop: true, aspect: '', arrows: 'bottom-right', arrowGap: '' }
   /** Open the deck's gallery at the first card `pick` accepts; false when that card is no item. */
   const turnedAway = (card: Element): boolean => card.getAttribute('data-kui-ring-face') === 'back'
   /** Open at the first card `pick` accepts; a pressed card was already checked when it was pressed. */
@@ -630,7 +646,8 @@ function prepareLightbox(el: Element, params: EffectParams, ctx: PrepareContext)
   if (triggers.length === 0) return () => {}
   const controller = new AbortController()
   const shell = acquireModalShell(ctx.doc)
-  const options = { ...modalOptions(params, ctx), loop: params.is('loop'), aspect: params.text('aspect') }
+  const options = { ...modalOptions(params, ctx), loop: params.is('loop'), aspect: params.text('aspect'),
+    arrows: params.text('arrows', 'bottom-right'), arrowGap: params.text('arrow-gap') }
   const restore = wireTriggers(triggers, { shell, options, signal: controller.signal, media,
     captionSource: params.text('caption', 'figcaption'), ctx, warned: new Set() })
   return continuousSetup(() => {
