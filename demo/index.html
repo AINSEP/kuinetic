@@ -1837,7 +1837,8 @@
      The one show-code chip, copied verbatim from `demo/system.css` because this page does not
      load it — see system.css for the full design rationale (solid --accent-ink fill, --accent
      label, both fixed values so the chip needs no per-surface ink logic). See CLAUDE.md: styled
-     once, never per page. */
+     once, never per page. The dialog's CSS is not copied here: it arrives via show-code.css,
+     which show-code.js links. */
   .kui-show-code-toggle {
     display: inline-flex;
     align-items: center;
@@ -1916,131 +1917,6 @@
     mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
   }
   main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
-
-  .kui-code-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    place-items: center;
-    padding: 2rem;
-    background: rgb(0 0 0 / 0.5);
-  }
-
-  .kui-code-modal {
-    position: relative;
-    max-width: 720px;
-    max-height: 80vh;
-    width: 100%;
-    overflow: auto;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
-  }
-
-  /* Middle track holds the label, so it centres on the dialog rather than sitting jammed against
-     the × the way `justify-content: flex-end` left it. Matches system.css. */
-  .kui-code-modal-header {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    margin: -0.9rem -0.9rem 0.6rem 0;
-  }
-
-  .kui-code-modal-header > .kui-code-modal-grip { grid-column: 2; }
-  .kui-code-modal-header > .kui-code-modal-close { grid-column: 3; justify-self: end; }
-
-  .kui-code-modal-close {
-    width: 2rem;
-    height: 2rem;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    font-size: 1.3rem;
-    line-height: 1;
-    color: var(--muted);
-    background: none;
-    border: none;
-  }
-
-  .kui-code-modal-close:hover {
-    color: var(--fg);
-  }
-
-  .kui-code-tryit {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .kui-code-tryit-input {
-    flex: 1;
-    min-width: 0;
-    font: inherit;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-    color: var(--fg);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.4rem 0.6rem;
-  }
-
-  .kui-code-tryit-input:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
-
-  .kui-code-tryit-copy,
-  .kui-code-tryit-apply,
-  .kui-code-tryit-reset {
-    flex: none;
-    font: inherit;
-    font-size: 0.78rem;
-    color: var(--muted);
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.4rem 0.65rem;
-  }
-
-  .kui-code-tryit-copy {
-    display: grid;
-    place-items: center;
-    padding: 0.4rem;
-    color: var(--muted);
-  }
-
-  .kui-code-tryit-copy.is-copied {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-
-  .kui-code-tryit-copy:hover,
-  .kui-code-tryit-apply:hover,
-  .kui-code-tryit-reset:hover {
-    color: var(--fg);
-    border-color: var(--accent);
-  }
-
-  .kui-code-modal pre {
-    margin: 0;
-    padding: 0;
-  }
-
-  .kui-code-modal code {
-    display: block;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: var(--fg);
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-    background: none;
-    border: none;
-    padding: 0;
-  }
 
   /* ---------- install: chip picker feeding one shared panel ---------- */
 

@@ -1,0 +1,428 @@
+/* Sheet for the show-code dialog (backdrop, panel, Code|Args tabs, args cards).
+   Linked by show-code.js itself, inserted before the page's first <style>, so a page that loads
+   the script cannot forget the CSS. Not in an @layer, on purpose: a layered sheet loses to any
+   unlayered page rule (e.g. a page's own `code { … }`), which would break `.kui-code-modal code`.
+   Reads --bg / --fg / --muted / --border / --accent / --accent-ink from the page.
+   The chip (`.kui-show-code-toggle`) is NOT here: it is page markup that must be styled at first
+   paint, so it stays in system.css (see CLAUDE.md "Show-code chips"). */
+
+.kui-code-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  place-items: center;
+  padding: 2rem;
+  /* Undimmed and click-through on purpose: the whole point of the draggable panel is to edit a
+     `data-kui` value and watch the real element behind it react, which a dimming, event-swallowing
+     overlay makes impossible. Escape and the × still close it; the panel itself re-enables its own
+     pointer events below. */
+  pointer-events: none;
+  background: none;
+}
+
+.kui-code-modal {
+  position: relative;
+  max-width: 720px;
+  max-height: 80vh;
+  width: 100%;
+  overflow: auto;
+  pointer-events: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+  /* A column whose last child — the open tab panel — takes the leftover height and scrolls inside
+     it, so the drag handle, the try-it row and the tab strip stay put while a long Args list
+     scrolls. `overflow: auto` above stays as the fallback for a page that restates the dialog. */
+  display: flex;
+  flex-direction: column;
+}
+
+.kui-code-modal > :not(.kui-code-panel) { flex: none; }
+
+/* Three equal-weight tracks with the label in the middle one, rather than flex: the label is then
+   centred on the dialog itself and does not shift when the close button changes size. Under
+   `space-between` it sat hard left, and under the `flex-end` the inline copies used it sat jammed
+   against the ×; neither read as a title. */
+.kui-code-modal-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  /* The header is the drag handle. `touch-action: none` keeps a touch drag from being stolen by
+     the browser's own pan gesture before the pointermove handler ever sees it. */
+  cursor: grab;
+  touch-action: none;
+  margin: -0.9rem -0.9rem 0.6rem 0;
+}
+
+.kui-code-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+.kui-code-modal-close:hover {
+  color: var(--fg);
+}
+
+.kui-code-modal-header > .kui-code-modal-grip { grid-column: 2; }
+.kui-code-modal-header > .kui-code-modal-close { grid-column: 3; justify-self: end; }
+
+.kui-code-modal-grip {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  /* The whole header is the drag handle, so the label just has to advertise it. */
+  cursor: grab;
+  user-select: none;
+}
+
+.kui-code-modal-header.is-dragging,
+.kui-code-modal-header.is-dragging .kui-code-modal-grip {
+  cursor: grabbing;
+}
+
+.kui-code-tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.kui-code-tryit-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.kui-code-tryit-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kui-code-tryit-copy,
+.kui-code-tryit-apply,
+.kui-code-tryit-reset {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+}
+
+.kui-code-tryit-copy {
+  display: grid;
+  place-items: center;
+  padding: 0.4rem;
+  color: var(--muted);
+}
+
+.kui-code-tryit-copy.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.kui-code-tryit-copy:hover,
+.kui-code-tryit-apply:hover,
+.kui-code-tryit-reset:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.kui-code-modal pre {
+  margin: 0;
+  padding: 0;
+}
+
+/* Code | Args. The tabs are the try-it row's ghost buttons, joined into one segmented strip; the
+   selected one takes the `.kui-code-key` highlighter band below plus weight, so selection never
+   rests on colour alone. */
+.kui-code-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.kui-code-tab {
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.kui-code-tab + .kui-code-tab { border-left: 1px solid var(--border); }
+
+.kui-code-tab:hover { color: var(--fg); }
+
+.kui-code-tab:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+
+.kui-code-tab[aria-selected='true'] {
+  color: var(--fg);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+:root[data-theme='dark'] .kui-code-tab[aria-selected='true'] {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.kui-code-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.kui-code-panel[hidden] { display: none; }
+
+.kui-code-panel:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* Args. Names and values are monospace, as everywhere in this panel; the plain-words note is the
+   one line in body type, because it is the one line written to be read as a sentence. */
+.kui-args {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+/* Two classes deep on purpose: `.kui-code-modal code` (the base rule, further down in this file)
+   makes every `<code>` in the dialog a pre-wrapped block for the Code tab. Here they are inline. */
+.kui-code-modal .kui-args code {
+  display: inline;
+  white-space: normal;
+  line-height: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: none;
+  border: none;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+.kui-args-group + .kui-args-group {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.kui-args-element {
+  margin: 0 0 0.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.kui-code-modal .kui-args-element code { font-size: inherit; color: inherit; }
+
+.kui-args-step {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.kui-args-step > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+}
+
+.kui-args-step[open] > summary { border-bottom: 1px solid var(--border); }
+
+/* Reserved keys (`on:`, `at:` …): the same row list under a quieter, collapsed heading — a step's
+   own keys as the last band of its block, the element's keys as one more block after its steps. */
+.kui-args-keys { border-top: 1px solid var(--border); }
+
+.kui-args-group > .kui-args-keys {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.kui-args-keys > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.kui-args-keys[open] > summary { border-bottom: 1px solid var(--border); }
+
+.kui-args-keys-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kui-args-keys > summary:focus-visible,
+.kui-args-step > summary:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: -2px;
+}
+
+.kui-args-effect { font-weight: 600; }
+.kui-code-modal .kui-args .kui-args-effect { font-size: 0.85rem; }
+
+.kui-args-count {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.kui-args-positional {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.kui-args-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.kui-args-param {
+  padding: 0.55rem 0.7rem;
+}
+
+.kui-args-param + .kui-args-param { border-top: 1px solid var(--border); }
+
+/* A row the markup sets carries the same highlighter band the Code tab puts on `data-kui`, faint
+   across the row and full strength on the name and the value, so the two tabs mark "this is what
+   the markup uses" the same way. */
+.kui-args-param.is-set { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+:root[data-theme='dark'] .kui-args-param.is-set { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+.kui-args-param p { margin: 0.2rem 0 0; }
+.kui-args-param > p:first-child { margin-top: 0; }
+
+.kui-args-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+}
+
+.kui-args-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; font-weight: 600; }
+
+.kui-args-type,
+.kui-args-status {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.kui-args-status { margin-left: auto; }
+
+.kui-args-note { font-family: inherit; }
+
+.kui-args-spell,
+.kui-args-omitted,
+.kui-args-set,
+.kui-args-empty { color: var(--muted); }
+
+.kui-args-set .kui-code-key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+
+/* A bare slot the effect cannot act on: struck through, and the line says "(ignored)" in words. */
+.kui-args-ignored { color: var(--muted); }
+
+.kui-args-step.is-unknown { padding: 0.5rem 0.7rem; }
+.kui-args-unknown { margin: 0; }
+.kui-args-param.is-stray .kui-args-status { color: var(--fg); }
+
+/* `<mark>` for the semantics — this is highlighted text, and a screen reader should say so — and
+   now for the look as well: an actual highlighter band, not recoloured letters.
+
+   This used to be `background: none` with `--accent-text` type, on the reasoning that a block fill
+   is wrong inside a code panel. It reads worse than that reasoning predicted. Recolouring letters
+   inside a panel that is *already* full of syntax-ish colour asks the eye to notice a hue shift in
+   a monospace line; a band behind the line is pre-attentive — you see which rows are marked before
+   you read a character of them. It is also the thing a highlighter actually is, which is the
+   metaphor the reader arrives with. That legibility difference is why the legend sentence could be
+   deleted at all: the mark no longer needs a caption to explain it.
+
+   The letters go back to plain `--fg`, so contrast is the panel's own black-on-white or
+   white-on-black and never a question. The band carries the accent instead, at 32% of #e4f222
+   on the light panel's white.
+
+   Dark mode cannot reuse that percentage: `--accent` is itself a near-white, high-luminance
+   yellow-green, so mixing it into black scales its luminance down along with everything else —
+   at 22% the band measured under 2:1 contrast against the panel's own black, i.e. next to
+   invisible, not "crushed glyphs" (the white text sitting on top of it was never the problem).
+   45% clears roughly 3:1 against black, which is what a highlighter band needs to read as a
+   band at all; white text on top of it still clears 5:1. `box-decoration-break: clone` so a
+   line long enough to wrap gets the padding and radius on every fragment rather than one long
+   band with two square ends in the middle of the text. */
+.kui-code-key {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--fg);
+  font-weight: 600;
+  border-radius: 3px;
+  padding: 0.1em 0.25em;
+  margin: 0 -0.25em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+:root[data-theme='dark'] .kui-code-key {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.kui-code-modal code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  background: none;
+  border: none;
+  padding: 0;
+}

@@ -19,6 +19,18 @@
   // any click handler runs. The notes file sits next to this one, wherever the page loads it from.
   const SCRIPT_URL = document.currentScript ? document.currentScript.src : ''
 
+  // The dialog is this script's DOM, so this script brings its sheet: a page that loads
+  // show-code.js cannot forget the CSS. Before the first <style> = where system.css sits, so a
+  // page's own same-specificity override still wins. Skipped when a page already links it.
+  function ensureStylesheet() {
+    if (document.querySelector('link[rel="stylesheet"][href$="show-code.css"]')) return
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = new URL('show-code.css', SCRIPT_URL || document.baseURI).href
+    document.head.insertBefore(link, document.head.querySelector('style'))
+  }
+  ensureStylesheet()
+
   /**
    * Split on top-level commas only — a comma inside quotes (`'…'`/`"…"`) or parens is data, not a
    * separator (`target:'.yt-play, .x'`, `ease:cubic-bezier(.2, .8, .2, 1)`). Mirrors
@@ -851,7 +863,7 @@
       if (!argsPanel.hidden) renderArgsPanel()
     }
 
-    // The backdrop itself is `pointer-events: none` (see system.css/style.css) so the page stays
+    // The backdrop itself is `pointer-events: none` (see show-code.css) so the page stays
     // clickable underneath — which means a plain `backdrop.addEventListener('click', ...)` would
     // never fire; the backdrop never receives the click to begin with. Closing on an outside click
     // instead listens on `document` for any pointerdown that lands outside the dialog. It's added

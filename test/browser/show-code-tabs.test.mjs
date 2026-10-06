@@ -11,16 +11,22 @@ import { VIEWPORTS, openDemoPage } from './lib/demo-pages.mjs'
  * drags the panel while a click on a tab never does, and the selected tab is visibly marked in
  * both themes.
  *
- * Runs on `reveals.html`: a real page with many chips, so the popover is the shipped one with the
- * shipped stylesheet, not a fixture's copy of it.
+ * Runs on `reveals.html` and `index.html`: real pages, so the popover is the shipped one with the
+ * shipped stylesheet, not a fixture's copy of it. index.html links no system.css, so it proves
+ * `show-code.js` links `show-code.css` itself.
  */
 export const name = 'show-code-tabs'
 
-const PAGE = 'reveals.html'
+// reveals.html loads system.css; index.html does not, so it proves show-code.js brings its own
+// sheet. On index the first chip is a video-hero one, so target the lab bar's chip instead.
+const PAGES = [
+  { page: 'reveals.html', chip: '.kui-show-code-toggle' },
+  { page: 'index.html', chip: '[data-show-code-target="lab-target"]' },
+]
 
-async function openFirstChip(page) {
-  await page.waitForSelector('.kui-show-code-toggle')
-  const chip = page.locator('.kui-show-code-toggle').first()
+async function openFirstChip(page, selector) {
+  await page.waitForSelector(selector)
+  const chip = page.locator(selector).first()
   await chip.scrollIntoViewIfNeeded()
   await chip.click()
   await page.waitForSelector('.kui-code-modal', { state: 'visible' })
@@ -53,17 +59,24 @@ function readState(page) {
       pageScrollWidth: document.documentElement.scrollWidth,
       selectedBg: selected ? getComputedStyle(selected).backgroundColor : '',
       selectedWeight: selected ? Number(getComputedStyle(selected).fontWeight) : 0,
+      dialogDisplay: getComputedStyle(dialog).display,
+      tabsDisplay: getComputedStyle(document.querySelector('.kui-code-tabs')).display,
+      sheets: document.querySelectorAll('link[href$="show-code.css"]').length,
       idleWeight: Number(getComputedStyle(document.querySelector('.kui-code-tab[aria-selected="false"]')).fontWeight),
     }
   })
 }
 
-async function checkAt({ browser, origin, check, viewportName, contextOptions, theme }) {
-  const label = `${viewportName}/${theme}`
-  const { page, context } = await openDemoPage(browser, origin, PAGE, contextOptions, { theme })
+async function checkAt({ browser, origin, check, viewportName, contextOptions, theme, target }) {
+  const label = `${target.page}/${viewportName}/${theme}`
+  const { page, context } = await openDemoPage(browser, origin, target.page, contextOptions, { theme })
   try {
-    await openFirstChip(page)
+    await openFirstChip(page, target.chip)
     let state = await readState(page)
+    // The sheet arrived (once) and styled the dialog: not raw buttons and a bare list.
+    check(`${label}: show-code.css is linked exactly once`, state.sheets === 1, `sheets=${state.sheets}`)
+    check(`${label}: the dialog is styled (flex)`, state.dialogDisplay === 'flex', state.dialogDisplay)
+    check(`${label}: the tab strip is styled (inline-flex)`, state.tabsDisplay === 'inline-flex', state.tabsDisplay)
     check(`${label}: opens on the Code tab`, state.selected === 'kui-code-tab-code' && !state.codeHidden && state.argsHidden, JSON.stringify(state.selected))
 
     // Keyboard: real focus on the Code tab, then the arrow keys.
@@ -119,9 +132,11 @@ export async function run({ browser }) {
   const { check, results } = createChecker()
   const { origin, close } = await startStaticServer()
   try {
-    for (const viewportName of ['phone', 'desktop']) {
-      for (const theme of ['light', 'dark']) {
-        await checkAt({ browser, origin, check, viewportName, contextOptions: VIEWPORTS[viewportName], theme })
+    for (const target of PAGES) {
+      for (const viewportName of ['phone', 'desktop']) {
+        for (const theme of ['light', 'dark']) {
+          await checkAt({ browser, origin, check, viewportName, contextOptions: VIEWPORTS[viewportName], theme, target })
+        }
       }
     }
   } finally {
