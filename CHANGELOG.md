@@ -5,14 +5,24 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-10-06
+
+### Added
+
+- **`lightbox` `arrows:` and `arrow-gap:`.** Prev and next now sit together in one fixed group,
+  bottom-right by default, clear of the picture, and they no longer move between items of different
+  sizes. `arrows:` takes `bottom-right`, `bottom-left`, `bottom`, `bottom-apart`, `top-right`,
+  `top-left` or `sides` (the old layout); `arrow-gap:` sets the space between them. For any other
+  spot, set `--kui-lightbox-nav-top` / `-right` / `-bottom` / `-left`.
+
 ### Fixed
 
 - **Carousels no longer flash flat on load.** `carousel-3d`, `-high`, `-low`, `-inside`,
   `carousel-orbit` and `carousel-stack` are now `cloak: true`: under `<html data-kui-cloak>` they stay
   hidden until the ring is placed, instead of showing their cards in normal flow for a frame first.
   Without the script, the CSS-only two-second release still shows them.
-- **Lightbox arrows.** Drawn chevrons centred in the button and on the viewport's middle (the
-  `‹`/`›` glyphs sat on their baseline, and the buttons sat half a button low), in yellow on black.
+- **Lightbox arrows.** Drawn chevrons centred in the button (the `‹`/`›` glyphs sat on their
+  baseline), in yellow on black.
   Restyle with `--kui-lightbox-arrow-fg` / `--kui-lightbox-arrow-bg`.
 
 ## [0.2.3] — 2026-09-30
