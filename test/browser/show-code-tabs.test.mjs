@@ -76,7 +76,9 @@ async function checkAt({ browser, origin, check, viewportName, contextOptions, t
     // The sheet arrived (once) and styled the dialog: not raw buttons and a bare list.
     check(`${label}: show-code.css is linked exactly once`, state.sheets === 1, `sheets=${state.sheets}`)
     check(`${label}: the dialog is styled (flex)`, state.dialogDisplay === 'flex', state.dialogDisplay)
-    check(`${label}: the tab strip is styled (inline-flex)`, state.tabsDisplay === 'inline-flex', state.tabsDisplay)
+    // The sheet says inline-flex, but the strip is a child of the flex dialog, so it computes as flex.
+    // Unstyled, it would be a plain block.
+    check(`${label}: the tab strip is styled (flex)`, state.tabsDisplay === 'flex', state.tabsDisplay)
     check(`${label}: opens on the Code tab`, state.selected === 'kui-code-tab-code' && !state.codeHidden && state.argsHidden, JSON.stringify(state.selected))
 
     // Keyboard: real focus on the Code tab, then the arrow keys.
