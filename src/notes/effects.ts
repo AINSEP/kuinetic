@@ -34,10 +34,8 @@ function onOwnChildren(name: string): Bullets {
   ]
 }
 
-// Left/right entrances are named for where the element comes IN FROM (fade-left starts at the left).
-// Up/down entrances (fade-up starts below and rises) get no note: they read the way they look, and
-// they sit on so many demos that a note there was noise the owner asked to remove.
-const ENTER_FROM_SIDE: readonly string[] = ['fade-left', 'fade-right', 'slide-left', 'slide-right']
+// Directional entrances (fade-left/-up, slide-left/-up, …) get no note: they sit on so many demos
+// that a note there was noise the owner asked to remove (2026-10-08).
 // Exits are named for the way the element leaves.
 const EXIT_TOWARD: readonly string[] = [
   'fade-out-left',
@@ -53,11 +51,6 @@ const WIPES_HORIZONTAL: readonly string[] = ['wipe-left', 'wipe-right']
 const WIPES_VERTICAL: readonly string[] = ['wipe-up', 'wipe-down']
 const CURSOR_DOT_PRESETS: readonly string[] = ['cursor-follow', 'cursor-lag', 'cursor-label', 'cursor-invert']
 
-function enterFromSide(name: string): Bullets {
-  const side = name.endsWith('left') ? 'left' : 'right'
-  const away = side === 'left' ? 'right' : 'left'
-  return [`The side in the name is where it comes in from. ${name} starts off to the ${side} and moves ${away} into place.`]
-}
 
 function exitToward(name: string): Bullets {
   const direction = name.slice(name.lastIndexOf('-') + 1)
@@ -97,7 +90,6 @@ export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
     ...onOwnChildren('flip-card'),
   ],
   ...fromEntriesOf(OWN_CHILDREN_PRESETS, (name) => onOwnChildren(name)),
-  ...fromEntriesOf(ENTER_FROM_SIDE, (name) => enterFromSide(name)),
   ...fromEntriesOf(EXIT_TOWARD, (name) => exitToward(name)),
   ...fromEntriesOf(WIPES_HORIZONTAL, (name) => wipeHorizontal(name)),
   ...fromEntriesOf(WIPES_VERTICAL, (name) => wipeVertical(name)),
