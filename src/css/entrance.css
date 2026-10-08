@@ -19,7 +19,9 @@
     }
   }
 
-  /* --- directional: named for the direction of travel, so `fade-left` starts on the right --- */
+  /* --- directional: these KEYFRAMES are named for the direction of travel (`kui-in-left` starts on
+     the right). The left/right PRESETS map the other way, by origin: `fade-left` uses `kui-in-right`
+     and so starts on the left (core.ts, 2465954). Up/down presets keep travel naming. --- */
   @keyframes kui-in-up {
     from {
       opacity: var(--kui-from-opacity, 0);
