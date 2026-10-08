@@ -5,7 +5,7 @@ import { describeEffect, describeKeys, KEY_NOTE_OWNER } from '../src/core/descri
 import type { ParamNotes } from '../src/core/describe.js'
 import type { ParamNote } from '../src/core/types.js'
 import { createRegistry } from '../src/effects/index.js'
-import { PARAM_NOTES } from '../src/notes/index.js'
+import { EFFECT_NOTES, PARAM_NOTES } from '../src/notes/index.js'
 
 /**
  * Keeps the plain-words notes table (`src/notes/`) in step with the registry, in both directions.
@@ -64,7 +64,10 @@ describe('parameter notes', () => {
   it('no key is written twice across the family files', async () => {
     const seen = new Map<string, string>()
     const duplicates: string[] = []
-    const files = readdirSync(NOTES_DIR).filter((file) => file.endsWith('.ts') && file !== 'index.ts')
+    // effects.ts is keyed by preset name, a different table from the parameter families.
+    const files = readdirSync(NOTES_DIR).filter(
+      (file) => file.endsWith('.ts') && file !== 'index.ts' && file !== 'effects.ts',
+    )
     for (const file of files) {
       const module = (await import(`${NOTES_DIR}${file}`)) as Record<string, ParamNotes>
       const keys = Object.values(module).flatMap((table) => Object.keys(table))
@@ -91,5 +94,22 @@ describe('parameter notes', () => {
       }
     }
     expect(problems).toEqual([])
+  })
+})
+
+describe('effect notes', () => {
+  it('every key names a registered preset', () => {
+    const presets = new Set(registry.names())
+    expect(Object.keys(EFFECT_NOTES).filter((key) => !presets.has(key))).toEqual([])
+  })
+
+  it('every entry is a non-empty list of non-empty strings', () => {
+    const problems = Object.entries(EFFECT_NOTES).filter(
+      ([, bullets]) =>
+        !Array.isArray(bullets) ||
+        bullets.length === 0 ||
+        bullets.some((bullet) => typeof bullet !== 'string' || bullet.trim() === ''),
+    )
+    expect(problems.map(([key]) => key)).toEqual([])
   })
 })

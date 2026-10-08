@@ -11,7 +11,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import process from 'node:process'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import * as kuinetic from '../src/index.js'
-import { PARAM_NOTES } from '../src/notes/index.js'
+import { EFFECT_NOTES, PARAM_NOTES } from '../src/notes/index.js'
 
 /**
  * Guard the rule the "Show code" popover highlights by: a class or id is marked **exactly** when
@@ -473,7 +473,7 @@ function installRuntime({ notes }: { notes: boolean }): void {
     describeSteps: kuinetic.describeSteps,
     describeElement: kuinetic.describeElement,
   }
-  if (notes) win.kuineticNotes = { PARAM_NOTES }
+  if (notes) win.kuineticNotes = { PARAM_NOTES, EFFECT_NOTES }
   else delete win.kuineticNotes
   // Apply's replay sequence; the tests only care that Args follows the applied value.
   win.__kui = { reset() {}, process() {}, activate() {} }
@@ -489,11 +489,13 @@ function uninstallRuntime(): void {
 /** A step's own effect-arg rows — not the reserved-key rows nested in the same step block. */
 const ARG_ROWS = ':scope > .kui-args-list > .kui-args-param'
 
-function tab(id: 'code' | 'args'): HTMLElement {
+type TabId = 'code' | 'args' | 'notes'
+
+function tab(id: TabId): HTMLElement {
   return document.getElementById(`kui-code-tab-${id}`)!
 }
 
-function panel(id: 'code' | 'args'): HTMLElement {
+function panel(id: TabId): HTMLElement {
   return document.getElementById(`kui-code-panel-${id}`)!
 }
 
@@ -564,7 +566,9 @@ describe('show-code Code | Args tabs', () => {
     const list = document.querySelector('.kui-code-modal [role="tablist"]')!
     expect(list.getAttribute('aria-label')).toBeTruthy()
     const tabs = [...list.querySelectorAll('[role="tab"]')]
-    expect(tabs.map((t) => t.textContent)).toEqual(['Code', 'Args'])
+    // Notes is in the strip but hidden: nothing in this fixture has an effect note.
+    expect(tabs.map((t) => t.textContent)).toEqual(['Code', 'Args', 'Notes'])
+    expect((tab('notes') as HTMLElement).hidden).toBe(true)
     for (const t of tabs) {
       const p = document.getElementById(t.getAttribute('aria-controls')!)!
       expect(p.getAttribute('role')).toBe('tabpanel')
@@ -762,6 +766,8 @@ describe('show-code Code | Args tabs', () => {
 
   it('reads fine without notes, and fetches them once, next to show-code.js', () => {
     installRuntime({ notes: false })
+    // Earlier opens in this document may have appended the script; this test counts its own.
+    for (const old of document.querySelectorAll('script[src$="kuinetic.notes.js"]')) old.remove()
     document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
     tab('args').click()
     tab('code').click()
@@ -771,6 +777,63 @@ describe('show-code Code | Args tabs', () => {
     expect(panel('args').querySelector('.kui-args-note')).toBeNull()
     expect(panel('args').querySelectorAll('.kui-args-param').length).toBeGreaterThan(0)
     expect(argsMismatches('no-notes')).toEqual([])
+  })
+
+  const FLIP_BODY = '<div class="card" data-show-code data-kui="flip-card"><div>Front</div><div>Back</div></div>'
+
+  it('shows Notes only when an effect in the printed markup has a note', async () => {
+    await mountShowCode(FLIP_BODY)
+    document.querySelector<HTMLElement>('.kui-show-code-toggle')!.click()
+    expect(tab('notes').hidden).toBe(false)
+    const bullets = [...panel('notes').querySelectorAll('.kui-notes-group li')].map((li) => li.textContent)
+    expect(bullets).toEqual(EFFECT_NOTES['flip-card'])
+    expect(panel('notes').querySelector('.kui-notes-effect code')!.textContent).toBe('flip-card')
+  })
+
+  it('lists each noted effect once, in first-seen order', async () => {
+    await mountShowCode(
+      '<div data-show-code data-kui="flip-card, fade-up"><div data-kui="flip-card"></div></div>',
+    )
+    document.querySelector<HTMLElement>('.kui-show-code-toggle')!.click()
+    const names = [...panel('notes').querySelectorAll('.kui-notes-effect code')].map((code) => code.textContent)
+    expect(names).toEqual(['flip-card'])
+  })
+
+  it('arrow keys include Notes when shown and skip it when hidden', async () => {
+    await mountShowCode(FLIP_BODY)
+    document.querySelector<HTMLElement>('.kui-show-code-toggle')!.click()
+    tab('code').focus()
+    press('End')
+    expect(document.activeElement!.id).toBe('kui-code-tab-notes')
+    expect(panel('notes').hidden).toBe(false)
+    press('ArrowRight') // wraps past Notes
+    expect(document.activeElement!.id).toBe('kui-code-tab-code')
+    // The earlier fixture has no noted effect: End stops at Args.
+    await mountShowCode(FIXTURE_BODY)
+    document.querySelector<HTMLElement>('.panel .kui-show-code-toggle')!.click()
+    tab('code').focus()
+    press('End')
+    expect(document.activeElement!.id).toBe('kui-code-tab-args')
+  })
+
+  it('falls back to Code when Apply removes the only noted effect', async () => {
+    await mountShowCode(FLIP_BODY)
+    document.querySelector<HTMLElement>('.kui-show-code-toggle')!.click()
+    tab('notes').click()
+    expect(panel('notes').hidden).toBe(false)
+    document.querySelector<HTMLInputElement>('.kui-code-tryit-input')!.value = 'fade-up'
+    document.querySelector<HTMLElement>('.kui-code-tryit-apply')!.click()
+    expect(tab('notes').hidden).toBe(true)
+    expect(tab('code').getAttribute('aria-selected')).toBe('true')
+    expect(panel('code').hidden).toBe(false)
+    expect(panel('notes').hidden).toBe(true)
+  })
+
+  it('keeps Notes hidden when the notes script is missing', async () => {
+    installRuntime({ notes: false })
+    await mountShowCode(FLIP_BODY)
+    document.querySelector<HTMLElement>('.kui-show-code-toggle')!.click()
+    expect(tab('notes').hidden).toBe(true)
   })
 })
 

@@ -406,16 +406,63 @@
   }
 
   let notesRequested = false
-  /** Fetch the notes table once, on the first Args open; `onLoad` re-renders with the text. A
-   * failed load is fine: every row already reads correctly without a note. */
+  const notesWaiters = new Set()
+  /** Fetch the notes script once, when the modal first opens (the Notes tab's visibility depends
+   * on it) or Args does; `onLoad` re-renders with what arrived. A callback registered while the
+   * fetch is still in flight is kept, so a second open before it lands is not left waiting. A
+   * failed load is fine: every Args row already reads correctly without a note, and Notes stays
+   * hidden. */
   function loadNotes(onLoad) {
-    if (notesRequested || (window.kuineticNotes && window.kuineticNotes.PARAM_NOTES)) return
+    if (window.kuineticNotes && window.kuineticNotes.PARAM_NOTES) return
+    notesWaiters.add(onLoad)
+    if (notesRequested) return
     notesRequested = true
     const script = document.createElement('script')
     script.src = new URL('kuinetic.notes.js', SCRIPT_URL || document.baseURI).href
     script.async = true
-    script.addEventListener('load', onLoad)
+    script.addEventListener('load', () => {
+      for (const waiter of notesWaiters) waiter()
+      notesWaiters.clear()
+    })
     document.head.appendChild(script)
+  }
+
+  /**
+   * The whole-effect notes for the effects in the printed markup, as `{ name, bullets }` in
+   * first-seen order. It walks the same way Args does — `dataKuiElements`, then `describeValue`
+   * honouring `overrides` — so the Notes tab names exactly the effects the Args tab lists. Empty
+   * until `kuinetic.notes.js` has loaded, which is what keeps the tab hidden.
+   */
+  function effectNotesFor(sourceEl, overrides) {
+    const table = window.kuineticNotes && window.kuineticNotes.EFFECT_NOTES
+    if (!table || !sourceEl) return []
+    const seen = new Set()
+    const out = []
+    for (const el of dataKuiElements(sourceEl)) {
+      const value = overrides.has(el) ? overrides.get(el) : el.getAttribute('data-kui') || ''
+      const described = describeValue(value)
+      if (described === null) continue
+      for (const step of described.steps) {
+        if (seen.has(step.name)) continue
+        seen.add(step.name)
+        const bullets = Object.hasOwn(table, step.name) ? table[step.name] : null
+        if (bullets && bullets.length) out.push({ name: step.name, bullets })
+      }
+    }
+    return out
+  }
+
+  /** Fill the Notes panel: per effect, its name in `<code>` over a bulleted list. */
+  function renderNotes(panel, notes) {
+    panel.replaceChildren()
+    for (const { name, bullets } of notes) {
+      const group = node('div', 'kui-notes-group')
+      group.append(node('h3', 'kui-notes-effect', node('code', null, name)))
+      const list = node('ul', 'kui-notes-list')
+      for (const bullet of bullets) list.append(node('li', null, bullet))
+      group.append(list)
+      panel.append(group)
+    }
   }
 
   /** "optional, defaults to 12deg" / "required" — the API's phrasing hints, applied. */
@@ -715,18 +762,21 @@
     const code = document.createElement('code')
     pre.appendChild(code)
 
-    // Code | Args, as WAI-ARIA tabs: one tab stop for the strip (roving tabindex), arrows move
-    // between tabs, and a tab activates as it takes focus — two cheap panels, so there is no reason
-    // to make keyboard users press Enter as well. The strip sits below the header, outside the drag
-    // handle, so a click on a tab is only ever a click.
+    // Code | Args | Notes, as WAI-ARIA tabs: one tab stop for the strip (roving tabindex), arrows
+    // move between tabs, and a tab activates as it takes focus — cheap panels, so there is no
+    // reason to make keyboard users press Enter as well. Notes is `hidden` unless an effect in the
+    // printed markup has a note, and the arrow keys skip a hidden tab. The strip sits below the
+    // header, outside the drag handle, so a click on a tab is only ever a click.
     const tabList = node('div', 'kui-code-tabs')
     tabList.setAttribute('role', 'tablist')
     tabList.setAttribute('aria-label', 'Source view')
     const codePanel = node('div', 'kui-code-panel', pre)
     const argsPanel = node('div', 'kui-code-panel kui-args')
+    const notesPanel = node('div', 'kui-code-panel kui-notes')
     const tabs = [
       { id: 'code', label: 'Code', panel: codePanel },
       { id: 'args', label: 'Args', panel: argsPanel },
+      { id: 'notes', label: 'Notes', panel: notesPanel },
     ].map(({ id, label, panel }) => {
       const tab = node('button', 'kui-code-tab', label)
       tab.type = 'button'
@@ -742,7 +792,7 @@
       return { id, tab, panel }
     })
 
-    dialog.append(header, tryIt, tabList, codePanel, argsPanel)
+    dialog.append(header, tryIt, tabList, codePanel, argsPanel, notesPanel)
     backdrop.appendChild(dialog)
     document.body.appendChild(backdrop)
 
@@ -757,7 +807,11 @@
       if (sourceRoot) renderArgs(argsPanel, sourceRoot, overrides)
     }
 
-    function selectTab(id, focus) {
+    const notesEntry = tabs.find((entry) => entry.id === 'notes')
+
+    function selectTab(requested, focus) {
+      // A hidden tab cannot be selected; Code is the always-present fallback.
+      const id = tabs.some((entry) => entry.id === requested && !entry.tab.hidden) ? requested : 'code'
       for (const entry of tabs) {
         const selected = entry.id === id
         entry.tab.setAttribute('aria-selected', String(selected))
@@ -767,11 +821,25 @@
       }
       if (id === 'args') {
         renderArgsPanel()
-        loadNotes(() => {
-          if (!argsPanel.hidden) renderArgsPanel()
-        })
+        loadNotes(onNotesLoaded)
       }
     }
+
+    /** Re-derive the Notes tab from the printed markup and what Apply last put on it: show it when
+     * some effect has a note, hide it when none does, and leave a hidden Notes behind for Code. */
+    function refreshNotes() {
+      const notes = sourceRoot ? effectNotesFor(sourceRoot, overrides) : []
+      renderNotes(notesPanel, notes)
+      notesEntry.tab.hidden = notes.length === 0
+      if (notesEntry.tab.hidden && notesEntry.tab.getAttribute('aria-selected') === 'true') selectTab('code', false)
+    }
+
+    function onNotesLoaded() {
+      refreshNotes()
+      if (!argsPanel.hidden) renderArgsPanel()
+    }
+
+    notesEntry.tab.hidden = true
     selectTab('code', false)
 
     tabList.addEventListener('click', (e) => {
@@ -779,18 +847,20 @@
       if (entry) selectTab(entry.id, true)
     })
     tabList.addEventListener('keydown', (e) => {
-      const current = tabs.findIndex(({ tab }) => tab === document.activeElement)
-      if (current < 0) return
-      const last = tabs.length - 1
+      // Roving runs over the tabs that are showing, so a hidden Notes is never a stop.
+      const shown = tabs.filter(({ tab }) => !tab.hidden)
+      const position = shown.findIndex(({ tab }) => tab === document.activeElement)
+      if (position < 0) return
+      const last = shown.length - 1
       const next = {
-        ArrowRight: current === last ? 0 : current + 1,
-        ArrowLeft: current === 0 ? last : current - 1,
+        ArrowRight: position === last ? 0 : position + 1,
+        ArrowLeft: position === 0 ? last : position - 1,
         Home: 0,
         End: last,
       }[e.key]
       if (next === undefined) return
       e.preventDefault()
-      selectTab(tabs[next].id, true)
+      selectTab(shown[next].id, true)
     })
 
     /**
@@ -861,6 +931,7 @@
       window.__kui.activate(targetEl)
       if (targetSourceEl) overrides.set(targetSourceEl, value)
       if (!argsPanel.hidden) renderArgsPanel()
+      refreshNotes()
     }
 
     // The backdrop itself is `pointer-events: none` (see show-code.css) so the page stays
@@ -899,6 +970,10 @@
       // marked line, and one legend repeated forty times teaches nobody anything the fortieth time.
       renderSource(code, prettyPrint(sourceEl, 0), tokens)
       input.value = originalValue
+      // Whether Notes shows depends on the notes script, so fetch it now rather than at first Args
+      // open; `onNotesLoaded` re-evaluates the tab when it lands. Already loaded: evaluate at once.
+      loadNotes(onNotesLoaded)
+      refreshNotes()
       // Every open starts on Code, the default; Args is one click or one arrow key away.
       selectTab('code', false)
       backdrop.style.display = 'grid'

@@ -1,6 +1,7 @@
 import type { ParamNotes } from '../core/describe.js'
 import { CATALOG_NOTES } from './catalog.js'
 import { CATALOG_CORE_NOTES } from './catalog-core.js'
+import { EFFECT_NOTES } from './effects.js'
 import { INTERACTION_NOTES } from './interaction.js'
 import { INTERACTION_REVEAL_NOTES } from './interaction-reveal.js'
 import { KEY_NOTES } from './keys.js'
@@ -33,3 +34,14 @@ export const PARAM_NOTES: ParamNotes = {
   ...SHOWCASE_NOTES,
   ...KEY_NOTES,
 }
+
+/**
+ * Plain-words notes about whole effects, keyed by preset name, shown on the Notes tab of the
+ * "Show code" popover. Prose only documentation pages read, so it lives in this entry beside
+ * `PARAM_NOTES` rather than on each preset, for the same reason: inline, it would ship to every
+ * visitor of every site using the library.
+ *
+ * Kept in step with the registry by `test/param-notes.test.ts`: every key must name a registered
+ * preset. Not every preset needs an entry; the tab only appears for those that have one.
+ */
+export { EFFECT_NOTES }

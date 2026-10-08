@@ -130,6 +130,58 @@ async function checkAt({ browser, origin, check, viewportName, contextOptions, t
   }
 }
 
+/**
+ * The Notes tab: hidden when no effect in the printed markup has a note (the lab bar's demo),
+ * present on the hero flip card, and skipped by the arrow keys while hidden. Notes loads when the
+ * popover opens, so the tab has to be waited for rather than read straight away.
+ */
+async function checkNotes({ browser, origin, check, viewportName, contextOptions, theme }) {
+  const label = `index.html/${viewportName}/${theme}/notes`
+  const { page, context } = await openDemoPage(browser, origin, 'index.html', contextOptions, { theme })
+  const notesState = () =>
+    page.evaluate(() => {
+      const tab = document.getElementById('kui-code-tab-notes')
+      const panel = document.getElementById('kui-code-panel-notes')
+      return {
+        tabHidden: tab.hidden,
+        panelHidden: panel.hidden,
+        effects: [...panel.querySelectorAll('.kui-notes-effect code')].map((code) => code.textContent),
+        bullets: panel.querySelectorAll('.kui-notes-list li').length,
+        pageScrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: innerWidth,
+        panelOverflowX: panel.scrollWidth > panel.clientWidth,
+        focused: document.activeElement?.id ?? '',
+      }
+    })
+  try {
+    // A non-flip demo: Notes stays hidden and End stops at Args.
+    await openFirstChip(page, '[data-show-code-target="lab-target"]')
+    await page.waitForFunction(() => Boolean(window.kuineticNotes?.EFFECT_NOTES), undefined, { timeout: 10000 })
+    let state = await notesState()
+    check(`${label}: Notes is hidden when no effect has a note`, state.tabHidden, JSON.stringify(state))
+    await page.focus('#kui-code-tab-code')
+    await page.keyboard.press('End')
+    state = await notesState()
+    check(`${label}: End skips the hidden Notes tab`, state.focused === 'kui-code-tab-args', `focused=${state.focused}`)
+    await page.keyboard.press('ArrowRight')
+    state = await notesState()
+    check(`${label}: ArrowRight past Args wraps to Code, not Notes`, state.focused === 'kui-code-tab-code', `focused=${state.focused}`)
+    await page.keyboard.press('Escape')
+
+    // The hero flip card: Notes is present, lists flip-card, and fits at this width.
+    await openFirstChip(page, '[data-show-code-target="hero-flip-demo"]')
+    await page.waitForFunction(() => !document.getElementById('kui-code-tab-notes').hidden, undefined, { timeout: 10000 })
+    await page.focus('#kui-code-tab-code')
+    await page.keyboard.press('End')
+    state = await notesState()
+    check(`${label}: End reaches Notes on the hero flip card`, state.focused === 'kui-code-tab-notes' && !state.panelHidden, `focused=${state.focused}`)
+    check(`${label}: Notes lists flip-card with its bullets`, state.effects.join() === 'flip-card' && state.bullets === 3, JSON.stringify(state.effects))
+    check(`${label}: Notes does not scroll sideways or push the page`, !state.panelOverflowX && state.pageScrollWidth <= state.viewportWidth, `scrollWidth=${state.pageScrollWidth} width=${state.viewportWidth}`)
+  } finally {
+    await context.close()
+  }
+}
+
 export async function run({ browser }) {
   const { check, results } = createChecker()
   const { origin, close } = await startStaticServer()
@@ -139,6 +191,11 @@ export async function run({ browser }) {
         for (const theme of ['light', 'dark']) {
           await checkAt({ browser, origin, check, viewportName, contextOptions: VIEWPORTS[viewportName], theme, target })
         }
+      }
+    }
+    for (const viewportName of ['phone', 'desktop']) {
+      for (const theme of ['light', 'dark']) {
+        await checkNotes({ browser, origin, check, viewportName, contextOptions: VIEWPORTS[viewportName], theme })
       }
     }
   } finally {
