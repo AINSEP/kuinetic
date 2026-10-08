@@ -177,6 +177,14 @@ async function checkNotes({ browser, origin, check, viewportName, contextOptions
     check(`${label}: End reaches Notes on the hero flip card`, state.focused === 'kui-code-tab-notes' && !state.panelHidden, `focused=${state.focused}`)
     check(`${label}: Notes lists flip-card with its bullets`, state.effects.join() === 'flip-card' && state.bullets === 3, JSON.stringify(state.effects))
     check(`${label}: Notes does not scroll sideways or push the page`, !state.panelOverflowX && state.pageScrollWidth <= state.viewportWidth, `scrollWidth=${state.pageScrollWidth} width=${state.viewportWidth}`)
+
+    // The dialog is top-anchored: its top edge (so the tab strip) must not move between tabs.
+    const tops = []
+    for (const id of ['code', 'args', 'notes']) {
+      await page.click(`#kui-code-tab-${id}`)
+      tops.push(await page.evaluate(() => document.querySelector('.kui-code-modal').getBoundingClientRect().top))
+    }
+    check(`${label}: dialog top edge is identical on Code, Args and Notes`, Math.max(...tops) - Math.min(...tops) <= 1, `tops=${tops.join()}`)
   } finally {
     await context.close()
   }

@@ -10,8 +10,13 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  place-items: center;
-  padding: 2rem;
+  /* Top-anchored, not vertically centred: switching Code / Args / Notes changes the dialog's
+     height, and a centred dialog's top edge would jump on every switch, moving the tab strip out
+     from under the cursor. Anchoring the top keeps the strip put; only the bottom edge moves.
+     10vh top + the 80vh max-height still fits the viewport (90vh). */
+  align-items: start;
+  justify-items: center;
+  padding: 10vh 2rem 2rem;
   /* Undimmed and click-through on purpose: the whole point of the draggable panel is to edit a
      `data-kui` value and watch the real element behind it react, which a dimming, event-swallowing
      overlay makes impossible. Escape and the × still close it; the panel itself re-enables its own
