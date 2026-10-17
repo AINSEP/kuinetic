@@ -26,6 +26,41 @@ describe('parsePath', () => {
     expect(segments[0]?.c2).toEqual({ x: 20, y: 0 })
   })
 
+  it('reads exponent coordinates as complete numbers', () => {
+    const { segments, reason } = parsePath('M0,0 L1e3,1e3')
+    expect(reason).toBeUndefined()
+    expect(segments).toHaveLength(1)
+    expect(segments[0]?.to).toEqual({ x: 1000, y: 1000 })
+  })
+
+  it('reads signed exponents and decimal coordinates', () => {
+    const { segments, reason } = parsePath('M0,0 L+1.E+3,-.5e-2')
+    expect(reason).toBeUndefined()
+    expect(segments).toHaveLength(1)
+    expect(segments[0]?.to).toEqual({ x: 1000, y: -0.005 })
+  })
+
+  it.each(['X', 'x', 'E', 'e'])('refuses unknown command %s without dropping it', (command) => {
+    const { segments, subpaths, reason } = parsePath(`M0,0 ${command}10,10 L5,5`)
+    expect(reason).toBe(`command '${command}' is not supported`)
+    expect(segments).toEqual([])
+    expect(subpaths).toEqual([])
+  })
+
+  it.each(['@M0,0 L5,5', 'M0,0 L1@0,10 L5,5', 'M0,0 L5,5@'])(
+    'refuses an unconsumed character in %s',
+    (path) => {
+      const { segments, subpaths, reason } = parsePath(path)
+      expect(reason).toBe("unexpected character '@'")
+      expect(segments).toEqual([])
+      expect(subpaths).toEqual([])
+    },
+  )
+
+  it('refuses an incomplete exponent without dropping its letter', () => {
+    expect(parsePath('M0,0 L1e+,5').reason).toBe("command 'e' is not supported")
+  })
+
   it('reads a cubic command', () => {
     const { segments } = parsePath(CURVE)
     expect(segments).toHaveLength(1)

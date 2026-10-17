@@ -51,8 +51,24 @@ export interface ParseResult {
 }
 
 // The `i` flag covers the uppercase (absolute) forms; listing both would duplicate the class.
-const COMMAND = /([mlhvcz])|(-?(?:\d+(?:\.\d+)?|\.\d+))/gi
+const COMMAND = /([mlhvcz])|([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)|([^\s,])/gi
 const UNSUPPORTED = /[AaSsQqTt]/
+
+/** Tokenise every non-separator character, refusing anything outside the supported syntax. */
+function tokenise(d: string): { tokens: string[]; reason?: string } {
+  const tokens: string[] = []
+  for (const match of d.matchAll(COMMAND)) {
+    const invalid = match[3]
+    if (invalid !== undefined) {
+      const reason = /^[a-z]$/i.test(invalid)
+        ? `command '${invalid}' is not supported`
+        : `unexpected character '${invalid}'`
+      return { tokens: [], reason }
+    }
+    tokens.push(match[1] ?? match[2]!)
+  }
+  return { tokens }
+}
 
 /**
  * Record a command letter, and refuse one whose arguments do not follow it.
@@ -88,7 +104,7 @@ function takeCommand(tokens: string[], index: number, state: PathState): string 
   if (token.toLowerCase() === 'z') closeSubpath(state)
   const expected = ARITY[token.toLowerCase()]!
   const next = tokens[index + 1]
-  if (expected > 0 && (next === undefined || /[a-z]/i.test(next))) {
+  if (expected > 0 && (next === undefined || /^[a-z]$/i.test(next))) {
     return argumentError(token, expected, '0')
   }
   return undefined
@@ -111,7 +127,7 @@ function walkTokens(tokens: string[], state: PathState): string | undefined {
   let index = 0
   while (index < tokens.length) {
     const token = tokens[index]!
-    if (/[a-z]/i.test(token)) {
+    if (/^[a-z]$/i.test(token)) {
       const reason = takeCommand(tokens, index, state)
       if (reason !== undefined) return reason
       index++
@@ -147,7 +163,10 @@ export function parsePath(d: string): ParseResult {
     }
   }
 
-  const tokens = [...d.matchAll(COMMAND)].map((m) => m[1] ?? m[2]!)
+  const tokenised = tokenise(d)
+  if (tokenised.reason !== undefined) {
+    return { segments: [], subpaths: [], reason: tokenised.reason }
+  }
   const state: PathState = {
     subpaths: [],
     open: undefined,
@@ -156,7 +175,7 @@ export function parsePath(d: string): ParseResult {
     command: '',
   }
 
-  const reason = walkTokens(tokens, state)
+  const reason = walkTokens(tokenised.tokens, state)
   if (reason !== undefined) return { segments: [], subpaths: [], reason }
 
   // A subpath is only ever created when a segment lands in it, so an empty list here means the
@@ -256,7 +275,7 @@ function consume(tokens: string[], index: number, state: PathState): ConsumeResu
   const key = state.command.toLowerCase()
   const relative = state.command === key
   // `state.command` is only ever '' before the first command letter, and the caller now rejects
-  // that case before reaching here — every other value came from the `/[a-z]/i` match in the main
+  // that case before reaching here — every other value came from the `/^[a-z]$/i` match in the main
   // loop, which is one of `mlhvcz`, so this key is always present in `ARITY`.
   const arity = ARITY[key]!
 
@@ -299,7 +318,7 @@ function consume(tokens: string[], index: number, state: PathState): ConsumeResu
   // message can name it as one: every token came from the `COMMAND` regex, so it is either a
   // letter from `mlhvcz` or a fully-formed number, and only the letters fail `Number`. Nor can
   // this fire for `h`/`v`: their single argument is the very token the caller already tested
-  // against `/[a-z]/i` before calling in, so only the two-or-more-argument commands (`m`, `l`,
+  // against `/^[a-z]$/i` before calling in, so only the two-or-more-argument commands (`m`, `l`,
   // `c`) have a slot far enough in for a letter to hide.
   const bad = args.findIndex(Number.isNaN)
   if (bad !== -1) {
