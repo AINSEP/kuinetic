@@ -275,6 +275,27 @@ describe('published tokens', () => {
     }
   })
 
+  it("an author's inert on a slot survives the slot turning front", () => {
+    const { host, instance } = mount(
+      `<div>
+         <div class="slide">one</div>
+         <div class="slide" inert>two</div>
+         <div class="slide">three</div>
+       </div>`,
+      { target: '.slide' },
+    )
+    const slot = host.querySelectorAll('.slide')[1]!
+    expect(slot.getAttribute('data-kui-ring-face')).toBe('back')
+    expect(slot.hasAttribute('inert')).toBe(true)
+
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(slot.getAttribute('data-kui-ring-face')).toBe('front')
+    expect(slot.hasAttribute('inert')).toBe(true)
+
+    instance.destroy()
+    expect(slot.hasAttribute('inert')).toBe(true)
+  })
+
   it('publishes facing as an attribute, because CSS cannot select on a custom property value', () => {
     const { host, instance } = mount(DECK, { target: '.slide', facing: 'camera' })
     expect(host.getAttribute('data-kui-ring-facing')).toBe('camera')

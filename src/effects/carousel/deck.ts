@@ -337,6 +337,7 @@ export function prepareSpatialDeck(
   const hostStyles = createStyleLedger(el)
   for (const [name, value] of Object.entries(layout.hostAttributes ?? {})) hostAttributes.set(name, value)
   const slots: SlotLedgers = { attributes: new Map() }
+  const ownedInert = new WeakSet<Element>()
   const attachment = layout.attach?.(hostStyles)
 
   /*
@@ -381,8 +382,13 @@ export function prepareSpatialDeck(
       // Skipped when unchanged: this runs every spin frame, and re-setting an attribute to the value
       // it already holds still invalidates style for every selector that mentions it.
       if (node.getAttribute(FACE_ATTR) !== face) ledgerFor(slots, node).set(FACE_ATTR, face)
-      if (face === 'back' && !node.hasAttribute('inert')) ledgerFor(slots, node).set('inert', '')
-      else if (face === 'front' && node.hasAttribute('inert')) ledgerFor(slots, node).remove('inert')
+      if (face === 'back' && !node.hasAttribute('inert')) {
+        ownedInert.add(node)
+        ledgerFor(slots, node).set('inert', '')
+      } else if (face === 'front' && ownedInert.has(node)) {
+        ledgerFor(slots, node).remove('inert')
+        ownedInert.delete(node)
+      }
     }
   }
 
