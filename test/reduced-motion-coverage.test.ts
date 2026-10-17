@@ -164,26 +164,28 @@ function extractSelectorRules(css: string): { selectors: string[]; body: string 
   return rules
 }
 
-describe('reduced-motion carousel ring slot coverage', () => {
-  const ringNames = [
-    'carousel-3d',
-    'carousel-3d-high',
-    'carousel-3d-low',
-    'carousel-3d-inside',
-    'carousel-orbit',
+describe('reduced-motion carousel slot coverage', () => {
+  const slotSelectors = [
+    ...new Set(
+      extractSelectorRules(readCss('carousel.css'))
+        .filter(({ body }) => declaresTransition(body))
+        .flatMap(({ selectors }) => selectors)
+        // Effect-scoped slots only: the drag/spin/wrap states set `transition: none`, not motion.
+        .filter((selector) => /^\[data-kui-fx~='[a-z0-9-]+'\] \[data-kui-step-offset\]$/.test(selector)),
+    ),
   ]
-  const ringRules = extractSelectorRules(readCss('carousel.css')).filter(({ body }) =>
-    declaresTransition(body),
-  )
   const media = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{/.exec(baseCss)!
   const policyRules = extractSelectorRules(
     readBalancedBlock(baseCss, media.index + media[0].length),
   )
 
-  it.each(ringNames)('%s slot transitions are shortened through the marked host', (name) => {
-    const slot = `[data-kui-fx~='${name}'] [data-kui-step-offset]`
-    // Assert the source binding too: missing comma-list entries must not pass vacuously.
-    expect(ringRules.some(({ selectors }) => selectors.includes(slot))).toBe(true)
+  it('parses at least six carousel slot bindings including stack transition longhands', () => {
+    // Backstop against vacuous coverage and missing the stack's transition-property longhand.
+    expect(slotSelectors.length).toBeGreaterThanOrEqual(6)
+    expect(slotSelectors).toContain("[data-kui-fx~='carousel-stack'] [data-kui-step-offset]")
+  })
+
+  it.each(slotSelectors)('%s transitions are shortened through the marked host', (slot) => {
     const policy = policyRules.find(({ selectors }) => selectors.includes(`[data-kui-rm]${slot}`))
     expect(policy).toBeDefined()
     expect(policy?.body).toMatch(/transition-duration:\s*1ms\s*!important\s*;/)

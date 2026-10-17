@@ -119,7 +119,8 @@ function prepareSpatialStack(el: Element, params: EffectParams, ctx: PrepareCont
  * list), `opacity` and `filter` for the recession, `discrete` for the host's `display: grid` — the
  * same reasoning `SPATIAL_RING_PRIMITIVE` gives for its own pair, widened by what a stack paints.
  * `reducedMotion: 'shorten'` for the same reason as the ring: the deck must keep working, and the
- * policy layer already shortens the transition, while `deck.ts` starts any auto-motion paused.
+ * base.css policy shortens the marked host's slot transitions, while `deck.ts` starts any
+ * auto-motion paused.
  */
 export const SPATIAL_STACK_PRIMITIVE: Primitive = {
   id: 'spatial-stack',
