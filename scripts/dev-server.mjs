@@ -83,18 +83,23 @@ async function resolveFile(pathname) {
 function parseRange(header, size) {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header?.trim() ?? '')
   if (!match || (match[1] === '' && match[2] === '')) return null
-  let start, end
-  if (match[1] === '') {
-    // Suffix form `bytes=-N`: the last N bytes.
-    const length = Number(match[2])
-    if (length === 0) return 'unsatisfiable'
-    start = Math.max(0, size - length)
-    end = size - 1
-  } else {
-    start = Number(match[1])
-    end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1)
-    if (end < start && match[2] !== '') return null
-  }
+  return match[1] === '' ? parseSuffixRange(match[2], size) : parseExplicitRange(match[1], match[2], size)
+}
+
+function parseSuffixRange(suffix, size) {
+  // Suffix form `bytes=-N`: the last N bytes.
+  const length = Number(suffix)
+  if (length === 0) return 'unsatisfiable'
+  const start = Math.max(0, size - length)
+  const end = size - 1
+  if (start >= size) return 'unsatisfiable'
+  return { start, end }
+}
+
+function parseExplicitRange(first, last, size) {
+  const start = Number(first)
+  const end = last === '' ? size - 1 : Math.min(Number(last), size - 1)
+  if (end < start && last !== '') return null
   if (start >= size) return 'unsatisfiable'
   return { start, end }
 }

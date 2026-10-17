@@ -50,8 +50,10 @@ export interface ParseResult {
   reason?: string
 }
 
+const NUMBER = /[+-]?(?:\d+(?:\.\d*)?|\.\d+)/
+const EXPONENT = /(?:e[+-]?\d+)?/
 // The `i` flag covers the uppercase (absolute) forms; listing both would duplicate the class.
-const COMMAND = /([mlhvcz])|([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)|([^\s,])/gi
+const COMMAND = new RegExp(`([mlhvcz])|(${NUMBER.source}${EXPONENT.source})|([^\\s,])`, 'gi')
 const UNSUPPORTED = /[AaSsQqTt]/
 
 /** Tokenise every non-separator character, refusing anything outside the supported syntax. */

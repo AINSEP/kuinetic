@@ -155,10 +155,14 @@ describe('reduced-motion sibling-satellite coverage', () => {
 function extractSelectorRules(css: string): { selectors: string[]; body: string }[] {
   const rules: { selectors: string[]; body: string }[] = []
   const source = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const block of source.split('}').slice(0, -1)) {
+    const parts = block.split('{')
+    const body = parts.pop()!
+    const selectors = parts.pop()
+    if (!selectors) continue
     rules.push({
-      selectors: match[1]!.split(',').map(normalizeSelector),
-      body: match[2]!,
+      selectors: selectors.split(',').map(normalizeSelector),
+      body,
     })
   }
   return rules
