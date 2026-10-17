@@ -98,6 +98,19 @@ describe('parameter notes', () => {
 })
 
 describe('effect notes', () => {
+  it.each([
+    ['cursor-follow', 'The dot follows the pointer closely.'],
+    ['cursor-lag', 'The dot trails a little behind the pointer on purpose.'],
+    ['cursor-label', 'The dot is a small pill of text. Set the words with label: (the default is View).'],
+    ['cursor-invert', 'The dot flips the colours of whatever it passes over.'],
+  ])('%s has exactly three unchanged bullets including its own line', (name, line) => {
+    expect(EFFECT_NOTES[name]).toEqual([
+      `${name} adds a small dot to the page that follows the pointer. The box you put data-kui on doesn't move.`,
+      line,
+      'The dot only shows while the pointer is over the box, or when the box has keyboard focus. It is skipped on touch screens.',
+    ])
+  })
+
   it('every key names a registered preset', () => {
     const presets = new Set(registry.names())
     expect(Object.keys(EFFECT_NOTES).filter((key) => !presets.has(key))).toEqual([])

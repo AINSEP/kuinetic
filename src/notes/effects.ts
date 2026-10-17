@@ -9,7 +9,7 @@
 type Bullets = readonly string[]
 
 /** Build `{ name: bullets(name) }` entries for a list of preset names. */
-function fromEntriesOf(names: readonly string[], bullets: (name: string) => Bullets): Record<string, Bullets> {
+function fromEntriesOf<Name extends string>(names: readonly Name[], bullets: (name: Name) => Bullets): Record<string, Bullets> {
   return Object.fromEntries(names.map((name) => [name, bullets(name)]))
 }
 
@@ -49,7 +49,8 @@ const EXIT_TOWARD: readonly string[] = [
 ]
 const WIPES_HORIZONTAL: readonly string[] = ['wipe-left', 'wipe-right']
 const WIPES_VERTICAL: readonly string[] = ['wipe-up', 'wipe-down']
-const CURSOR_DOT_PRESETS: readonly string[] = ['cursor-follow', 'cursor-lag', 'cursor-label', 'cursor-invert']
+const CURSOR_DOT_PRESETS = ['cursor-follow', 'cursor-lag', 'cursor-label', 'cursor-invert'] as const
+type CursorDotPreset = (typeof CURSOR_DOT_PRESETS)[number]
 
 
 function exitToward(name: string): Bullets {
@@ -67,19 +68,19 @@ function wipeVertical(name: string): Bullets {
   return [`${name} reveals the box starting from its ${up ? 'bottom' : 'top'} edge, sweeping ${up ? 'up' : 'down'}.`]
 }
 
-const CURSOR_DOT_LINES: Readonly<Record<string, string>> = {
+const CURSOR_DOT_LINES: Readonly<Record<CursorDotPreset, string>> = {
   'cursor-follow': 'The dot follows the pointer closely.',
   'cursor-lag': 'The dot trails a little behind the pointer on purpose.',
   'cursor-label': 'The dot is a small pill of text. Set the words with label: (the default is View).',
   'cursor-invert': 'The dot flips the colours of whatever it passes over.',
 }
 
-function cursorDot(name: string): Bullets {
+function cursorDot(name: CursorDotPreset): Bullets {
   return [
     `${name} adds a small dot to the page that follows the pointer. The box you put data-kui on doesn't move.`,
-    CURSOR_DOT_LINES[name] ?? '',
+    CURSOR_DOT_LINES[name],
     'The dot only shows while the pointer is over the box, or when the box has keyboard focus. It is skipped on touch screens.',
-  ].filter((line) => line !== '')
+  ]
 }
 
 export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
