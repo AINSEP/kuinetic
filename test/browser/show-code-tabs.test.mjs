@@ -147,6 +147,8 @@ async function checkNotes({ browser, origin, check, viewportName, contextOptions
         panelHidden: panel.hidden,
         effects: [...panel.querySelectorAll('.kui-notes-effect code')].map((code) => code.textContent),
         bullets: panel.querySelectorAll('.kui-notes-list li').length,
+        // From the notes bundle itself, so adding a bullet to flip-card doesn't break this check.
+        flipBullets: window.kuineticNotes?.EFFECT_NOTES?.['flip-card']?.length ?? -1,
         pageScrollWidth: document.documentElement.scrollWidth,
         viewportWidth: innerWidth,
         panelOverflowX: panel.scrollWidth > panel.clientWidth,
@@ -175,7 +177,7 @@ async function checkNotes({ browser, origin, check, viewportName, contextOptions
     await page.keyboard.press('End')
     state = await notesState()
     check(`${label}: End reaches Notes on the hero flip card`, state.focused === 'kui-code-tab-notes' && !state.panelHidden, `focused=${state.focused}`)
-    check(`${label}: Notes lists flip-card with its bullets`, state.effects.join() === 'flip-card' && state.bullets === 3, JSON.stringify(state.effects))
+    check(`${label}: Notes lists flip-card with its bullets`, state.effects.join() === 'flip-card' && state.flipBullets > 0 && state.bullets === state.flipBullets, `${JSON.stringify(state.effects)} bullets=${state.bullets}/${state.flipBullets}`)
     check(`${label}: Notes does not scroll sideways or push the page`, !state.panelOverflowX && state.pageScrollWidth <= state.viewportWidth, `scrollWidth=${state.pageScrollWidth} width=${state.viewportWidth}`)
 
     // The dialog is top-anchored: its top edge (so the tab strip) must not move between tabs.
