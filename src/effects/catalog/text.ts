@@ -190,7 +190,7 @@ export const TEXT_CSS_PRESETS: Preset[] = [
   { name: 'marquee', phase: 'idle', primitive: 'text-marquee', keyframes: 'kui-marquee' },
   { name: 'marquee-scroll-linked', primitive: 'text-marquee', keyframes: 'kui-marquee' },
   { name: 'redaction-reveal', primitive: 'redaction-reveal', keyframes: 'kui-redaction-reveal' },
-  { name: 'text-3d-extrude', primitive: 'text-3d-extrude', keyframes: 'kui-text-3d-extrude' },
+  { name: 'text-3d-extrude', primitive: 'text-3d-extrude', keyframes: 'kui-text-3d-extrude', cloak: true },
 ]
 
 // --- JS-tier: segmentation, typing, scrambling, cycling ---
@@ -815,9 +815,12 @@ const WORDS_STAGGER = '90ms'
 const LINES_STAGGER = '160ms'
 
 export const TEXT_JS_PRESETS: Preset[] = [
-  { name: 'split-chars', primitive: 'split-text', params: { unit: 'chars', direction: 'fade', stagger: CHARS_STAGGER } },
-  { name: 'split-words', primitive: 'split-text', params: { unit: 'words', direction: 'fade', stagger: WORDS_STAGGER } },
-  { name: 'split-lines', primitive: 'split-text', params: { unit: 'lines', direction: 'fade', stagger: LINES_STAGGER } },
+  // `cloak: true` on the three fades too: their from-state is the text *unsplit and invisible per
+  // piece*, installed by JS at start. Without the cloak the whole heading painted at rest for a
+  // frame, vanished, then faded in piece by piece (a flash on `on:load`).
+  { name: 'split-chars', primitive: 'split-text', params: { unit: 'chars', direction: 'fade', stagger: CHARS_STAGGER }, cloak: true },
+  { name: 'split-words', primitive: 'split-text', params: { unit: 'words', direction: 'fade', stagger: WORDS_STAGGER }, cloak: true },
+  { name: 'split-lines', primitive: 'split-text', params: { unit: 'lines', direction: 'fade', stagger: LINES_STAGGER }, cloak: true },
   { name: 'text-reveal-up', primitive: 'split-text', params: { unit: 'words', direction: 'up', stagger: WORDS_STAGGER }, cloak: true },
   { name: 'text-reveal-down', primitive: 'split-text', params: { unit: 'words', direction: 'down', stagger: WORDS_STAGGER }, cloak: true },
   { name: 'text-reveal-mask', primitive: 'split-text', params: { unit: 'lines', direction: 'mask', stagger: LINES_STAGGER }, cloak: true },
@@ -825,12 +828,15 @@ export const TEXT_JS_PRESETS: Preset[] = [
   { name: 'text-wave', primitive: 'split-text-motion', params: { motion: 'wave' } },
   { name: 'text-jitter', primitive: 'split-text-motion', params: { motion: 'jitter' } },
 
-  { name: 'typewriter', primitive: 'typewriter', params: { loop: 'false' } },
-  { name: 'typewriter-loop', primitive: 'typewriter', params: { loop: 'true' } },
+  // Typewriter starts blank (the decorative layer is emptied and refilled grapheme by grapheme) and
+  // scramble/decode/glitch start as noise — both differ from the static text, so both cloak.
+  // text-wave/text-jitter above do not: their from-state is the text itself, already readable.
+  { name: 'typewriter', primitive: 'typewriter', params: { loop: 'false' }, cloak: true },
+  { name: 'typewriter-loop', primitive: 'typewriter', params: { loop: 'true' }, cloak: true },
 
-  { name: 'scramble', primitive: 'scramble-text', params: { charset: 'upper' } },
-  { name: 'decode', primitive: 'scramble-text', params: { charset: 'binary' } },
-  { name: 'glitch', primitive: 'scramble-text', params: { charset: 'symbols' } },
+  { name: 'scramble', primitive: 'scramble-text', params: { charset: 'upper' }, cloak: true },
+  { name: 'decode', primitive: 'scramble-text', params: { charset: 'binary' }, cloak: true },
+  { name: 'glitch', primitive: 'scramble-text', params: { charset: 'symbols' }, cloak: true },
 
   {
     name: 'word-cycler',

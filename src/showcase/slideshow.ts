@@ -369,7 +369,7 @@ export const SLIDESHOW_PRIMITIVE: Primitive = widgetPrimitive(
 )
 
 export const SLIDESHOW_PRESETS: Preset[] = [
-  { name: 'carousel-fade', primitive: 'slideshow', params: { transition: 'fade' }, requiresOwnSubtree: true },
-  { name: 'carousel-slide', primitive: 'slideshow', params: { transition: 'slide' }, requiresOwnSubtree: true },
-  { name: 'video-hero-slideshow', primitive: 'slideshow', params: { transition: 'fade', autoplay: '7s', controls: 'dots' }, requiresOwnSubtree: true },
+  { name: 'carousel-fade', primitive: 'slideshow', params: { transition: 'fade' }, requiresOwnSubtree: true, cloak: true },
+  { name: 'carousel-slide', primitive: 'slideshow', params: { transition: 'slide' }, requiresOwnSubtree: true, cloak: true },
+  { name: 'video-hero-slideshow', primitive: 'slideshow', params: { transition: 'fade', autoplay: '7s', controls: 'dots' }, requiresOwnSubtree: true, cloak: true },
 ]

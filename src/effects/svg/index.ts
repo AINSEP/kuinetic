@@ -236,18 +236,18 @@ export const SVG_PRESETS: Preset[] = [
   // Stroke draws. One keyframe block each rather than one shared block, matching the
   // progress-ring/gauge-sweep/donut-sweep/sparkline-draw group in numbers.ts: identical bodies
   // today, but each name is free to diverge and a consumer can restyle one without the others.
-  { name: 'draw-stroke', primitive: 'path-draw', keyframes: 'kui-draw-stroke', params: { duration: '800ms', ease: 'ease-in-out' } },
-  { name: 'draw-signature', primitive: 'path-draw', keyframes: 'kui-draw-signature', params: { duration: '1600ms', ease: 'ease-in-out' } },
-  { name: 'draw-underline', primitive: 'path-draw', keyframes: 'kui-draw-underline', params: { duration: '420ms' } },
-  { name: 'checkmark-draw', primitive: 'path-draw', keyframes: 'kui-checkmark-draw', params: { duration: '320ms' } },
-  { name: 'cross-draw', primitive: 'path-draw', keyframes: 'kui-cross-draw', params: { duration: '260ms' } },
-  { name: 'chart-line-draw', primitive: 'path-draw', keyframes: 'kui-chart-line-draw', params: { duration: '1200ms', ease: 'ease-in-out' } },
+  { name: 'draw-stroke', primitive: 'path-draw', keyframes: 'kui-draw-stroke', params: { duration: '800ms', ease: 'ease-in-out' }, cloak: true },
+  { name: 'draw-signature', primitive: 'path-draw', keyframes: 'kui-draw-signature', params: { duration: '1600ms', ease: 'ease-in-out' }, cloak: true },
+  { name: 'draw-underline', primitive: 'path-draw', keyframes: 'kui-draw-underline', params: { duration: '420ms' }, cloak: true },
+  { name: 'checkmark-draw', primitive: 'path-draw', keyframes: 'kui-checkmark-draw', params: { duration: '320ms' }, cloak: true },
+  { name: 'cross-draw', primitive: 'path-draw', keyframes: 'kui-cross-draw', params: { duration: '260ms' }, cloak: true },
+  { name: 'chart-line-draw', primitive: 'path-draw', keyframes: 'kui-chart-line-draw', params: { duration: '1200ms', ease: 'ease-in-out' }, cloak: true },
   { name: 'gradient-stroke', phase: 'idle', primitive: 'path-draw', keyframes: 'kui-gradient-stroke', params: { duration: '2400ms', ease: 'ease-in-out' } },
 
   // Fills.
-  { name: 'heart-fill', primitive: 'shape-fill', keyframes: 'kui-heart-fill', params: { duration: '420ms' } },
-  { name: 'bookmark-fill', primitive: 'shape-fill', keyframes: 'kui-bookmark-fill', params: { duration: '360ms' } },
-  { name: 'chart-area-fill', primitive: 'shape-fill', keyframes: 'kui-chart-area-fill', params: { duration: '900ms' } },
+  { name: 'heart-fill', primitive: 'shape-fill', keyframes: 'kui-heart-fill', params: { duration: '420ms' }, cloak: true },
+  { name: 'bookmark-fill', primitive: 'shape-fill', keyframes: 'kui-bookmark-fill', params: { duration: '360ms' }, cloak: true },
+  { name: 'chart-area-fill', primitive: 'shape-fill', keyframes: 'kui-chart-area-fill', params: { duration: '900ms' }, cloak: true },
   // `cloak: true`: `kui-chart-bar-grow`'s `from { scale: 1 0 }` (svg.css) is a zero-height box
   // while paused, not just an invisible one — so it occupies no space in layout for the whole
   // wait. Same defect `fold-panel` has, and the same fix shape: see svg.css's
@@ -260,7 +260,7 @@ export const SVG_PRESETS: Preset[] = [
     cloak: true,
   },
 
-  { name: 'logo-build', primitive: 'logo-assemble', keyframes: 'kui-logo-build', params: { duration: '520ms', ease: 'back-out' } },
+  { name: 'logo-build', primitive: 'logo-assemble', keyframes: 'kui-logo-build', params: { duration: '520ms', ease: 'back-out' }, cloak: true },
 
   // Icon toggles — no `keyframes`, because their motion is a CSS transition in svg.css keyed off
   // aria state, not a compiled animation. Same shape as forms.ts's native-state presets.

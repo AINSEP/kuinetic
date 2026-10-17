@@ -154,7 +154,7 @@ describe('the catalog declares the phases this change specified', () => {
   }
 
   it('leaves every excluded name unphased', () => {
-    // The nineteen `cloak: true` presets that close their keyframe block, or whose block is not in
+    // The nineteen presets (all but `card-flip-x`/`-y` are `cloak: true`) that close their keyframe block, or whose block is not in
     // the scanned stylesheets at all. Declaring any of them `entrance` is the silent-clobber bug
     // this whole axis was shaped to avoid, so it is asserted by name rather than left to the
     // stylesheet scan below — that scan can only see the ones with a block to read.

@@ -175,8 +175,9 @@ export const MEDIA_CSS_PRESETS: Preset[] = [
   // condition, so `state` would misdescribe them. They are the same closed-keyframe shape as the ten
   // `cloak: true` presets this file already excludes from `entrance`, but — unlike those ten — they
   // are not yet in `test/composition-phase.test.ts`'s `excluded` list. That is a fact about a file
-  // this task does not own; left for whoever does.
-  { name: 'before-after-wipe', primitive: 'media-wipe', keyframes: 'kui-before-after-wipe' },
+  // this task does not own; left for whoever does. `before-after-wipe` has since become `cloak: true`
+  // itself (it starts from a collapsed clip, like the `wipe-*` above).
+  { name: 'before-after-wipe', primitive: 'media-wipe', keyframes: 'kui-before-after-wipe', cloak: true },
   { name: 'lightbox-open', primitive: 'media-lightbox', keyframes: 'kui-lightbox-open' },
 ]
 

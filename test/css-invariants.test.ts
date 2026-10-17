@@ -386,6 +386,12 @@ const GENERATED_CSS = readFileSync(
   fileURLToPath(new URL('../src/css/presets.generated.css', import.meta.url)),
   'utf8',
 )
+// The showcase tier (carousel-fade/-slide, video-hero-slideshow, compare) ships its own generated
+// sheet with its own cloak layer, so the declared-vs-emitted check has to read both.
+const SHOWCASE_GENERATED_CSS = readFileSync(
+  fileURLToPath(new URL('../src/showcase/presets.generated.css', import.meta.url)),
+  'utf8',
+)
 
 describe('pre-JS cloak', () => {
   const generated = GENERATED_CSS
@@ -399,7 +405,7 @@ describe('pre-JS cloak', () => {
       // comma forms, target:-everywhere reconcile R-4) — `[^',]+` anchors on the bare form only
       // (a comma-suffixed/prefixed variant always has a `,` right against the closing/opening
       // quote, which this class excludes), so this still extracts exactly one name per rule.
-      [...generated.matchAll(/html\[data-kui-cloak\] :is\(\[data-kui~='([^',]+)'\]/g)]
+      [...(generated + SHOWCASE_GENERATED_CSS).matchAll(/html\[data-kui-cloak\] :is\(\[data-kui~='([^',]+)'\]/g)]
         .map((m) => m[1]!)
         // The cloak layer also carries the viewport-gate release, which keys on the *gate* token
         // in the same authored attribute (`above:md`) rather than on a preset name. Those are
@@ -414,6 +420,43 @@ describe('pre-JS cloak', () => {
 
   it('emits exactly the presets that declare cloak, and no others', () => {
     expect(emitted).toEqual(declared)
+  })
+
+  it('cloaks every text effect whose from-state differs from the static text', () => {
+    // Split, typewriter and scramble all swap the element's text for a hidden/blank/noise
+    // from-state at start. Uncloaked, the heading painted whole first, vanished, then animated.
+    // `text-wave`/`text-jitter` start from the readable text itself and must stay uncloaked.
+    for (const name of [
+      'split-chars', 'split-words', 'split-lines',
+      'typewriter', 'typewriter-loop', 'scramble', 'decode', 'glitch',
+    ]) {
+      expect(declared, name).toContain(name)
+      expect(emitted, name).toContain(name)
+    }
+    expect(declared).not.toContain('text-wave')
+    expect(declared).not.toContain('text-jitter')
+  })
+
+  it('cloaks the draw, fill, sweep, count, page, wipe and slideshow effects that start hidden or blank', () => {
+    // Each of these paints its finished (or empty-box) state for a frame before JS installs the
+    // from-state. `card-flip-x`/`-y` are the opposite case: `to`-only keyframes, so their rest
+    // state *is* the plain card and a cloak would only hide a card that was meant to be visible.
+    const cloaked = [
+      'draw-stroke', 'draw-signature', 'draw-underline', 'checkmark-draw', 'cross-draw', 'chart-line-draw',
+      'heart-fill', 'bookmark-fill', 'chart-area-fill', 'logo-build',
+      'progress-ring', 'gauge-sweep', 'donut-sweep', 'sparkline-draw', 'star-rating-fill',
+      'count-up', 'count-down', 'count-currency', 'count-percent', 'count-compact', 'odometer-roll',
+      'text-3d-extrude', 'page-fade', 'page-slide', 'curtain-wipe', 'before-after-wipe',
+      'carousel-fade', 'carousel-slide', 'video-hero-slideshow', 'compare',
+    ]
+    for (const name of cloaked) {
+      expect(declared, name).toContain(name)
+      expect(emitted, name).toContain(name)
+    }
+    for (const name of ['card-flip-x', 'card-flip-y']) {
+      expect(declared, name).not.toContain(name)
+      expect(emitted, name).not.toContain(name)
+    }
   })
 
   it('never cloaks an exit, which starts at the rest state', () => {
@@ -442,8 +485,10 @@ describe('pre-JS cloak', () => {
   it('keys the cloak only on the authored attribute, never on runtime-stamped state', () => {
     // `data-kui-fx` is written by `start()`. A cloak keyed on it matches nothing until the exact
     // moment it is no longer needed, which is the one way to build a cloak that does nothing.
-    const cloakLayer = generated.slice(generated.indexOf('@layer kui.cloak'))
-    expect(cloakLayer).not.toContain('data-kui-fx')
+    for (const css of [generated, SHOWCASE_GENERATED_CSS]) {
+      const cloakLayer = css.slice(css.indexOf('@layer kui.cloak'))
+      expect(cloakLayer).not.toContain('data-kui-fx')
+    }
   })
 
   it('releases the cloak at any width where a viewport gate is off', () => {

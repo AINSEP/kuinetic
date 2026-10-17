@@ -198,13 +198,14 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
 
 export const THREE_D_PRESETS: Preset[] = [
   // --- 3D & perspective ---
+  // `card-flip-x`/`-y` are deliberately NOT `cloak: true`: their keyframes are `to`-only, so the
+  // paused/waiting box is the ordinary untransformed card — nothing to hide before JS starts.
   // `requiresOwnSubtree`: `three-d.css:106-154` branches on `:has(> :nth-child(2))` — a flip
   // relocated onto a childless element silently takes the single-face branch and spins a bare box.
   {
     name: 'card-flip-y',
     primitive: 'flip-face',
     keyframes: 'kui-card-flip-y',
-    cloak: true,
     requiresOwnSubtree: true,
     establishes3d: true,
   },
@@ -212,7 +213,6 @@ export const THREE_D_PRESETS: Preset[] = [
     name: 'card-flip-x',
     primitive: 'flip-face',
     keyframes: 'kui-card-flip-x',
-    cloak: true,
     requiresOwnSubtree: true,
     establishes3d: true,
   },
@@ -248,9 +248,9 @@ export const THREE_D_PRESETS: Preset[] = [
   },
 
   // --- page transitions ---
-  { name: 'page-fade', primitive: 'page-reveal', keyframes: 'kui-page-fade' },
-  { name: 'page-slide', primitive: 'page-reveal', keyframes: 'kui-page-slide' },
-  { name: 'curtain-wipe', primitive: 'wipe', keyframes: 'kui-curtain-wipe', params: { duration: '800ms' } },
+  { name: 'page-fade', primitive: 'page-reveal', keyframes: 'kui-page-fade', cloak: true },
+  { name: 'page-slide', primitive: 'page-reveal', keyframes: 'kui-page-slide', cloak: true },
+  { name: 'curtain-wipe', primitive: 'wipe', keyframes: 'kui-curtain-wipe', params: { duration: '800ms' }, cloak: true },
   // `cloak: true` for the same reason as `fold-panel`: `kui-loading-bar`'s `from { scale: 0 1 }`
   // (three-d.css) is a zero-width box, not just an invisible one — see that file's
   // `[data-kui-fx~='loading-bar'][data-kui-state='ready']` rule.

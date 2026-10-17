@@ -5,6 +5,24 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Text effects no longer flash the finished text on load.** `split-chars`, `split-words`,
+  `split-lines`, `typewriter`, `typewriter-loop`, `scramble`, `decode` and `glitch` are now
+  `cloak: true`: under `<html data-kui-cloak>` they stay hidden until the effect starts, instead of
+  showing the full text for a frame, then blanking and animating in. `text-wave` and `text-jitter`
+  start from the readable text, so they are unchanged.
+- **The same flash is gone from draws, fills, counters, page transitions and slideshows.** Now
+  `cloak: true`: `draw-stroke`, `draw-signature`, `draw-underline`, `checkmark-draw`, `cross-draw`,
+  `chart-line-draw`, `heart-fill`, `bookmark-fill`, `chart-area-fill`, `logo-build`, `progress-ring`,
+  `gauge-sweep`, `donut-sweep`, `sparkline-draw`, `star-rating-fill`, `count-up`, `count-down`,
+  `count-currency`, `count-percent`, `count-compact`, `odometer-roll`, `text-3d-extrude`,
+  `page-fade`, `page-slide`, `curtain-wipe`, `before-after-wipe`, `carousel-fade`, `carousel-slide`,
+  `video-hero-slideshow` and `compare`. Each used to paint its finished state for a frame before
+  its from-state was installed.
+- **`card-flip-x` and `card-flip-y` are no longer cloaked.** Their keyframes only animate *to* a
+  flipped pose, so the waiting card is the ordinary visible card; cloaking hid it for nothing.
+
 ## [0.2.4] — 2026-10-06
 
 ### Added

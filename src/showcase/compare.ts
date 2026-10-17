@@ -701,5 +701,6 @@ export const COMPARE_PRESETS: Preset[] = [
     name: 'compare',
     primitive: 'compare',
     requiresOwnSubtree: true,
+    cloak: true,
   },
 ]

@@ -292,7 +292,8 @@ export const TWEEN_PRIMITIVES: Primitive[] = [
  * 0) ...`, not a missing endpoint — so, per D1's correction #5, `animation-fill-mode: both` pins that
  * exact authored value on the channel forever once the animation finishes; it never resolves against
  * whatever the cascade underneath would otherwise say. That is precisely the shape `EffectPhase`'s
- * own doc calls out as the trap: fifteen of the catalog's fifty-four `cloak: true` entrances close
+ * own doc calls out as the trap: fifteen of the catalog's `cloak: true` entrances (ninety-six presets carry the flag in all,
+ * counted from the registry) close
  * their block the same way and are *deliberately* left unphased rather than marked `entrance`,
  * because `entrance` specifically means "plays once and releases the channel". `tween` is that same
  * closed shape by construction — every property group's `to` block closes, with no exception — so it

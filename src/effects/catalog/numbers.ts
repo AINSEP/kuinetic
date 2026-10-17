@@ -454,24 +454,27 @@ export const COUNT_PRIMITIVES: Primitive[] = [
 ]
 
 export const COUNT_PRESETS: Preset[] = [
-  { name: 'count-up', primitive: 'count', params: { from: '0', to: '100' } },
-  { name: 'count-down', primitive: 'count', params: { from: '100', to: '0' } },
+  { name: 'count-up', primitive: 'count', params: { from: '0', to: '100' }, cloak: true },
+  { name: 'count-down', primitive: 'count', params: { from: '100', to: '0' }, cloak: true },
   {
     name: 'count-currency',
     primitive: 'count',
     params: { from: '0', to: '4820', format: 'currency', currency: 'USD', decimals: '0' },
+    cloak: true,
   },
   {
     name: 'count-percent',
     primitive: 'count',
     params: { from: '0', to: '0.82', format: 'percent', decimals: '0' },
+    cloak: true,
   },
   {
     name: 'count-compact',
     primitive: 'count',
     params: { from: '0', to: '128400', format: 'compact' },
+    cloak: true,
   },
-  { name: 'odometer-roll', primitive: 'count-odometer', params: { from: '0', to: '4820' } },
+  { name: 'odometer-roll', primitive: 'count-odometer', params: { from: '0', to: '4820' }, cloak: true },
 ]
 
 // --- CSS-tier: stroke draws, bar scale, segment stagger, star clip ---
@@ -491,10 +494,10 @@ export const METER_PRIMITIVES: Primitive[] = [
 ]
 
 export const METER_PRESETS: Preset[] = [
-  { name: 'progress-ring', primitive: 'stroke-sweep', keyframes: 'kui-progress-ring' },
-  { name: 'gauge-sweep', primitive: 'stroke-sweep', keyframes: 'kui-gauge-sweep' },
-  { name: 'donut-sweep', primitive: 'stroke-sweep', keyframes: 'kui-donut-sweep' },
-  { name: 'sparkline-draw', primitive: 'stroke-sweep', keyframes: 'kui-sparkline-draw' },
+  { name: 'progress-ring', primitive: 'stroke-sweep', keyframes: 'kui-progress-ring', cloak: true },
+  { name: 'gauge-sweep', primitive: 'stroke-sweep', keyframes: 'kui-gauge-sweep', cloak: true },
+  { name: 'donut-sweep', primitive: 'stroke-sweep', keyframes: 'kui-donut-sweep', cloak: true },
+  { name: 'sparkline-draw', primitive: 'stroke-sweep', keyframes: 'kui-sparkline-draw', cloak: true },
   // `cloak: true`: `kui-progress-bar`'s `from { scale: 0 1 }` (numbers.css) is a zero-width box
   // while paused, not just an invisible one — so while it waits it occupies no space in layout at
   // all. Not, despite the tidier story, because an observer refuses to fire on it: Chromium was
@@ -503,7 +506,7 @@ export const METER_PRESETS: Preset[] = [
   // `cloak` keeps the pre-JS and post-JS "waiting" look the same (invisible) either side of it.
   { name: 'progress-bar', primitive: 'meter-bar', keyframes: 'kui-progress-bar', cloak: true },
   { name: 'progress-segments', primitive: 'meter-segments', keyframes: 'kui-progress-segments' },
-  { name: 'star-rating-fill', primitive: 'meter-stars', keyframes: 'kui-star-rating-fill' },
+  { name: 'star-rating-fill', primitive: 'meter-stars', keyframes: 'kui-star-rating-fill', cloak: true },
 ]
 
 export const NUMBERS_PRIMITIVES: Primitive[] = [...COUNT_PRIMITIVES, ...METER_PRIMITIVES]
