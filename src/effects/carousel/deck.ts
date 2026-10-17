@@ -4,7 +4,7 @@ import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
-import type { AttributeLedger, StyleLedger } from '../../core/owned-styles.js'
+import type { StyleLedger } from '../../core/owned-styles.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepMarker } from '../step-marking.js'
 import { bindControl, countSteps, delegateControls, nextStep, prevStep } from '../step-index.js'
@@ -60,8 +60,8 @@ export const SPINNING_ATTR = 'data-kui-ring-spinning'
  * A published fact rather than a CSS derivation, because it is a branch on the sign or magnitude of
  * a `calc()`, which CSS cannot take. The ring answers it with "is this slot's plane turned more
  * than a quarter turn away" (`faceAt`); the stack with "has it left the visible depth". The
- * stylesheet hangs `pointer-events` on it for every shape, and `visibility` where a hidden slot
- * must also leave the tab order.
+ * stylesheet hangs `pointer-events` on it for every shape; `inert` also takes back-facing slots
+ * and their descendants out of the tab order without hiding the outward ring.
  *
  * That matters for more than tidiness. A card turned away from the viewer still occupies its
  * projected screen rectangle for hit-testing purposes — `backface-visibility: hidden` stops it
@@ -256,7 +256,7 @@ export interface DeckAttachment {
 
 /** Every per-slot ledger this instance has ever written, so teardown gives each element back. */
 interface SlotLedgers {
-  attributes: Map<Element, AttributeLedger>
+  attributes: Map<Element, ReturnType<typeof createAttributeLedger>>
 }
 
 /**
@@ -268,7 +268,7 @@ interface SlotLedgers {
  *
  * @complexity O(1) amortised time; O(n) space in slots ever touched.
  */
-function ledgerFor(store: SlotLedgers, node: Element): AttributeLedger {
+function ledgerFor(store: SlotLedgers, node: Element): ReturnType<typeof createAttributeLedger> {
   let ledger = store.attributes.get(node)
   if (!ledger) {
     ledger = createAttributeLedger(node)
@@ -381,6 +381,8 @@ export function prepareSpatialDeck(
       // Skipped when unchanged: this runs every spin frame, and re-setting an attribute to the value
       // it already holds still invalidates style for every selector that mentions it.
       if (node.getAttribute(FACE_ATTR) !== face) ledgerFor(slots, node).set(FACE_ATTR, face)
+      if (face === 'back' && !node.hasAttribute('inert')) ledgerFor(slots, node).set('inert', '')
+      else if (face === 'front' && node.hasAttribute('inert')) ledgerFor(slots, node).remove('inert')
     }
   }
 

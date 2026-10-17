@@ -248,6 +248,33 @@ describe('published tokens', () => {
     instance.destroy()
   })
 
+  it('back-facing ring cards are not focusable', () => {
+    const { host, instance } = mount(
+      `<div>
+         <div class="slide" tabindex="0"><button>one</button></div>
+         <div class="slide" tabindex="0"><a href="#two">two</a></div>
+         <div class="slide" tabindex="0"><input aria-label="three"></div>
+       </div>`,
+      { target: '.slide' },
+    )
+    const slots = [...host.querySelectorAll('.slide')]
+    // jsdom does not implement inert focus suppression; assert the native subtree boundary.
+    expect(slots.map((slot) => slot.hasAttribute('inert'))).toEqual([false, true, true])
+    expect(slots[1]!.querySelector('a')!.closest('[inert]')).toBe(slots[1])
+
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(slots.map((slot) => slot.getAttribute('data-kui-ring-face')))
+      .toEqual(['back', 'front', 'back'])
+    expect(slots.map((slot) => slot.hasAttribute('inert'))).toEqual([true, false, true])
+    expect(slots[1]!.querySelector('a')!.closest('[inert]')).toBeNull()
+
+    instance.destroy()
+    for (const slot of slots) {
+      expect(slot.hasAttribute('inert')).toBe(false)
+      expect(slot.getAttribute('tabindex')).toBe('0')
+    }
+  })
+
   it('publishes facing as an attribute, because CSS cannot select on a custom property value', () => {
     const { host, instance } = mount(DECK, { target: '.slide', facing: 'camera' })
     expect(host.getAttribute('data-kui-ring-facing')).toBe('camera')
