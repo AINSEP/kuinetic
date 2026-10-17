@@ -65,15 +65,17 @@
         { href: './ambient-feedback.html', label: 'Ambient & Feedback', page: 'ambient-feedback.html' },
         // { href: './tween.html', label: 'Tween', page: 'tween.html' },
       ],
+      comingSoon: 'Micro-Intxns (Soon)',
     },
     {
       id: 'advanced',
       label: 'Advanced',
-      pages: ['scroll.html', 'interactive.html', 'data-hover.html', 'shaders-audio.html', 'tween-advanced.html'],
+      pages: ['scroll.html', 'interactive.html', 'data-hover.html', 'shaders-audio.html', 'tween-advanced.html', 'showcase.html'],
       links: [
         { href: './scroll.html', label: 'Scroll', page: 'scroll.html' },
         { href: './interactive.html', label: 'Interactive', page: 'interactive.html' },
         { href: './data-hover.html', label: 'Data & Hover', page: 'data-hover.html' },
+        { href: './showcase.html', label: 'Showcase', page: 'showcase.html' },
         // { href: './shaders-audio.html', label: 'Shaders & Audio', page: 'shaders-audio.html' },
         // { href: './tween-advanced.html', label: 'Tween Advanced', page: 'tween-advanced.html' },
       ],
@@ -124,10 +126,11 @@
         menu.appendChild(a)
       })
 
+      // `comingSoon` is `true` for the generic line, or a string naming the page that is coming.
       if (group.comingSoon) {
         var soon = document.createElement('span')
         soon.className = 'kui-nav-coming-soon'
-        soon.textContent = 'Coming soon'
+        soon.textContent = typeof group.comingSoon === 'string' ? group.comingSoon : 'Coming soon'
         menu.appendChild(soon)
       }
 

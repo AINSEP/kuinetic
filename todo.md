@@ -359,6 +359,16 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 
 ## Open
 
+- [ ] **showcase.html: `carousel-stack` autoplay 3s → 0.5s, and find the slow first start.**
+      Owner's request, 2026-10-06: not now, later. `#stack-demo` (demo/showcase.html:613, and the
+      contract line at :610) says `autoplay:3s`; make it `autoplay:500ms`. Separately, the stack
+      takes a long time to start playing at first, longer than the autoplay interval. Find out
+      why (cloak release? on:enter? image load? the first tick waiting a full interval?) before
+      just shortening the number, which may only hide it.
+- [ ] **showcase.html: better visual assets.** Owner's request, 2026-10-06: not now, later. The
+      page needs stronger images across its sections. Note: showcase.html is untracked on purpose
+      and stays off GitHub.
+
 - [ ] **Demo page for the showcase components.** Owner's request, 2026-09-27: not now, later.
       One page (`demo/showcase.html` or similar) that shows all ten showcase presets working:
       `device-frame`, `lightbox`, `video-lightbox`, `compare` (both axes), `hotspots`,
@@ -710,6 +720,36 @@ shipped), and #8 is the one genuinely unbuilt item left in the whole list.
 - [ ] **Micro-interactions from a reference video — 6 of 7 "genuinely missing" items turned out to
       already exist or shipped 2026-09-08; only 1 remains.** Owner's ask, 2026-09-08 (transcript
       supplied; the video itself was not watched). Mapped against the catalog:
+      **2026-10-10 — re-check against the real video before calling anything done** (owner's ask, not
+      now, later). The mapping below came from transcript words only. Video:
+      "11 Micro Animations That Will Instantly Level Up Your UI",
+      https://www.youtube.com/watch?v=ld1zhQMXxXU. The timed transcript is saved, gitignored and
+      kept off GitHub because it's someone else's words, at
+      `ADS-memory/knowledge/micro-animations-video/transcript-timed.txt`.
+      Section start times: 1 button 0:14 · 2 shortcuts 0:59 · 3 toasts 1:38 · 4 name tag 2:11 ·
+      5 shimmer 3:19 · 6 tooltip 4:17 · 7 text pop-out 5:04 · 8 progress 5:38 · 9 card swipe 6:12 ·
+      10 search 7:00 · 11 upgrade hover 7:40 · end 8:10.
+      Method: `yt-dlp` the video into a fresh scratch dir. `yt-dlp` and `ffmpeg` are both in
+      `~/.local/bin`. For each range, use `ffmpeg` to cut 6–8 frames into one image with the `tile`
+      filter, and read the motion from that. Then compare each frame strip to our effect and
+      fix what doesn't match.
+      **Also research beyond this one video** (owner's ask, 2026-10-10, not now). The goal is a map
+      of the kinds of micro-interactions and the sites known for them:
+      - Group them by type: hover, press, toggle, feedback/toast, loading, form/validation, input,
+        navigation, drag/swipe, reveal-on-hover, cursor, empty and success states.
+      - For each type, list 2–3 sites that do it well. The video names Linear, Vercel, dub.co,
+        Rainbow Wallet, Huddle, Obsidian, Apple, Figma community, Ace Studio, microinteraction.co,
+        and a Webflow micro-interaction library.
+      - Check each type against the catalog, the way this entry already does.
+      - The result feeds the nav's "Micro-Intxns (Soon)" placeholder under Basic, added
+        2026-10-10 in `demo/nav.js`.
+      - Reference to look at, saved by the owner on 2026-10-10: "Micro Inspire" on Made in Webflow,
+        https://webflow.com/made-in-webflow/website/wladek-micro-inspire
+      These are not in the mapping below and need checking:
+      - #4: the spring feel (stiffness 636, damping 24, 500ms).
+      - #6: the tooltip's bounce.
+      - #11: hover for upgrade details (dub.co), where the new limit slides in and the old number
+        leaves.
       **Already covered — do not rebuild.** The shimmer/gradient stroke is `beam-border` +
       `beam-border-auto`. The progress bar drawing along a stroke is `border-draw` / `draw-stroke` /
       `loading-bar`. The toast sequence is `toast-slide-in` → `spinner` → `confetti-burst` composed
