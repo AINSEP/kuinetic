@@ -210,8 +210,9 @@
      * wherever it actually is. That is a transition's entire job, and it is the same reason
      * `flip-card` is a transition while `card-flip-y` is a keyframe.
      *
-     * `base.css`'s policy layer already shortens this under `prefers-reduced-motion`, which is the
-     * right treatment: the ring keeps working and stops sliding.
+     * `base.css`'s policy layer reaches these slots through the ring effect name on the
+     * `data-kui-rm` host and shortens their transition under `prefers-reduced-motion`: the ring
+     * keeps working and stops sliding.
      */
     transition: transform var(--kui-spatial-ring-duration, 620ms)
       var(--kui-spatial-ring-ease, cubic-bezier(0.22, 1, 0.36, 1))

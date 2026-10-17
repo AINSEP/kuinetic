@@ -149,3 +149,44 @@ describe('reduced-motion sibling-satellite coverage', () => {
     expect(stale).toEqual([])
   })
 })
+
+/** Read every selector in a comma list, including the first four names in the shared ring rule.
+ * Strip comments first so prose examples cannot stand in for real policy selectors. */
+function extractSelectorRules(css: string): { selectors: string[]; body: string }[] {
+  const rules: { selectors: string[]; body: string }[] = []
+  const source = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    rules.push({
+      selectors: match[1]!.split(',').map(normalizeSelector),
+      body: match[2]!,
+    })
+  }
+  return rules
+}
+
+describe('reduced-motion carousel ring slot coverage', () => {
+  const ringNames = [
+    'carousel-3d',
+    'carousel-3d-high',
+    'carousel-3d-low',
+    'carousel-3d-inside',
+    'carousel-orbit',
+  ]
+  const ringRules = extractSelectorRules(readCss('carousel.css')).filter(({ body }) =>
+    declaresTransition(body),
+  )
+  const media = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{/.exec(baseCss)!
+  const policyRules = extractSelectorRules(
+    readBalancedBlock(baseCss, media.index + media[0].length),
+  )
+
+  it.each(ringNames)('%s slot transitions are shortened through the marked host', (name) => {
+    const slot = `[data-kui-fx~='${name}'] [data-kui-step-offset]`
+    // Assert the source binding too: missing comma-list entries must not pass vacuously.
+    expect(ringRules.some(({ selectors }) => selectors.includes(slot))).toBe(true)
+    const policy = policyRules.find(({ selectors }) => selectors.includes(`[data-kui-rm]${slot}`))
+    expect(policy).toBeDefined()
+    expect(policy?.body).toMatch(/transition-duration:\s*1ms\s*!important\s*;/)
+    expect(policy?.body).toMatch(/transition-delay:\s*0ms\s*!important\s*;/)
+  })
+})

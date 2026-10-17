@@ -397,6 +397,9 @@
      * above: an unscoped `[data-kui-rm] .kui-bar` would shorten any consumer element that happened
      * to be called `.kui-bar` under any marked element.
      *
+     * The carousel ring slots also move below the marked host. Scope their `data-kui-step-offset`
+     * reach to the five ring effects, matching carousel.css rather than every step-driven child.
+     *
      * `test/reduced-motion-coverage.test.ts` statically checks this list against every
      * transition-declaring `[data-kui-fx~='name'] ~ selector` rule in forms.css (and any sibling
      * stylesheet using the same pattern) in both directions, so a new native-state satellite added
@@ -419,6 +422,11 @@
     [data-kui-rm][data-kui-fx~='plus-to-minus'] .kui-bar,
     [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-front,
     [data-kui-rm][data-kui-fx~='flip-card'] > .kui-face-back,
+    [data-kui-rm][data-kui-fx~='carousel-3d'] [data-kui-step-offset],
+    [data-kui-rm][data-kui-fx~='carousel-3d-high'] [data-kui-step-offset],
+    [data-kui-rm][data-kui-fx~='carousel-3d-low'] [data-kui-step-offset],
+    [data-kui-rm][data-kui-fx~='carousel-3d-inside'] [data-kui-step-offset],
+    [data-kui-rm][data-kui-fx~='carousel-orbit'] [data-kui-step-offset],
     /*
      * `step-progress`'s own segments. This one is a *descendant*, not a sibling satellite, so
      * `reduced-motion-coverage.test.ts` — which derives its allowlist from the `~` pattern the
