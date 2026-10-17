@@ -36,10 +36,11 @@ import {
  *
  * Both are stylesheet effects in the same sense the hover family is: `renderer: 'javascript'` and a
  * near-no-op `prepare`, registered so the name parses, channel-conflicts and picks up authored
- * parameters, with the motion living as ordinary CSS in `interaction.css`. "Near"-no-op for the one
- * reason that file records — `stylesheetTimingPrepare` mirrors the *positional* timing spelling
- * (`hover-intent 160ms 1s`) onto the namespaced custom properties the rules read, because only the
- * `key:value` spelling gets there on its own.
+ * parameters, with the motion living as ordinary CSS in `interaction.css`. "Near"-no-op for two
+ * reasons. The one that file records: `stylesheetTimingPrepare` mirrors the *positional* timing
+ * spelling (`hover-intent 160ms 1s`) onto the namespaced custom properties the rules read, because
+ * only the `key:value` spelling gets there on its own. And the label swap aria-hides its incoming
+ * copy, so assistive technology reads the label once rather than twice.
  */
 
 /**
@@ -118,13 +119,22 @@ import {
  * @param options.placed - The two families with a `place:` parameter pass how to find their part
  *   and which attribute carries the resolved side; see `PLACEMENT` below. Everything else stays a
  *   pure stylesheet effect.
+ * @param options.setup - Optional setup for child attributes, with a matching teardown.
  * @complexity O(1) time and space.
  */
 function revealPrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  { perfClass = 'compositor', placed }: { perfClass?: Primitive['perfClass']; placed?: PlacementSpec } = {},
+  {
+    perfClass = 'compositor',
+    placed,
+    setup,
+  }: {
+    perfClass?: Primitive['perfClass']
+    placed?: PlacementSpec
+    setup?: (el: Element) => Cleanup
+  } = {},
 ): Primitive {
   const contract: TimingContract = {
     honours: ALL_TIMING_TOKENS,
@@ -143,11 +153,11 @@ function revealPrimitive(
     defaultActivation: 'load',
     perfClass,
     reducedMotion: 'shorten',
-    prepare: placed
+    prepare: placed || setup
       ? withTimingContract(id, contract, (el, params, ctx) =>
           deferredInstance(() => {
             mirrorTimingToCss(id, ALL_TIMING_TOKENS, params, ctx)
-            return prepareReveal(el, params, placed, ctx)
+            return placed ? prepareReveal(el, params, placed, ctx) : setup!(el)
           }),
         )
       : stylesheetTimingPrepare(id, contract),
@@ -683,7 +693,17 @@ const labelSwapParams: ParameterSchema = {
  * they collide on every channel it declares, and they would fight over one `--kui-label-swap-dx`.
  */
 export const LABEL_SWAP_PRIMITIVES: Primitive[] = [
-  revealPrimitive('label-swap', ['discrete', 'label-swap'], labelSwapParams),
+  revealPrimitive('label-swap', ['discrete', 'label-swap'], labelSwapParams, {
+    setup(el) {
+      // The incoming copy is visual only; keep the outgoing label as the accessible name.
+      const copies = Array.from(el.querySelectorAll('[data-kui-swap="to"]'), (copy) => {
+        const attrs = createAttributeLedger(copy)
+        attrs.set('aria-hidden', 'true')
+        return attrs
+      })
+      return () => copies.forEach((attrs) => attrs.restore())
+    },
+  }),
 ]
 
 /**

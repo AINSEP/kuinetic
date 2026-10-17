@@ -652,6 +652,8 @@
    *   `inline-grid`, and a button holding an icon beside its label would stack the two. `cloak` is
    *   the library's real answer if a page needs the window closed, at the price of hiding the whole
    *   control until JavaScript arrives.
+   *   Once activated, setup aria-hides the incoming copy so only the outgoing label contributes
+   *   to the accessible name; teardown restores the authored attribute.
    */
 
   [data-kui-fx~='masked-label-swap'],

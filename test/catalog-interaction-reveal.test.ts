@@ -52,6 +52,39 @@ function fakeCtx(el: Element): PrepareContext {
 const REVEAL_NAMES = REVEAL_PRESETS.map((preset) => preset.name)
 
 describe('two-box registration', () => {
+  it('masked-label-swap leaves exactly one label in the accessible name', () => {
+    const reg = registry()
+    for (const { name } of LABEL_SWAP_PRESETS) {
+      for (const hidden of [null, 'false', 'true']) {
+        const el = document.createElement('button')
+        el.innerHTML =
+          '<span data-kui-swap="from">Download</span><span data-kui-swap="to">Download</span>'
+        const from = el.children[0]!
+        const to = el.children[1]!
+        if (hidden !== null) to.setAttribute('aria-hidden', hidden)
+        const original = el.outerHTML
+        const instance = reg.resolve(name)!.primitive.prepare!(el, createParams({}), fakeCtx(el))
+        expect(el.outerHTML).toBe(original)
+
+        instance.activate()
+        expect(from.hasAttribute('aria-hidden')).toBe(false)
+        expect(to.getAttribute('aria-hidden')).toBe('true')
+        expect(
+          Array.from(el.children)
+            .filter((part) => part.getAttribute('aria-hidden') !== 'true')
+            .map((part) => part.textContent)
+            .join(''),
+        ).toBe('Download')
+        expect(el.hasAttribute('aria-label')).toBe(false)
+
+        instance.destroy()
+        expect(el.outerHTML).toBe(original)
+        expect(el.children[0]).toBe(from)
+        expect(el.children[1]).toBe(to)
+      }
+    }
+  })
+
   it('registers four names across two primitives', () => {
     expect(LABEL_SWAP_PRESETS.map((p) => p.name)).toEqual([
       'masked-label-swap',
