@@ -59,21 +59,23 @@ export const NAV_CSS_PRIMITIVES: Primitive[] = [
  * show, because the fullscreen panel's own `to` step has already claimed the property for good.
  */
 export const NAV_CSS_PRESETS: Preset[] = [
-  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'kui-nav-reveal', phase: 'entrance' },
-  { name: 'menu-fullscreen', primitive: 'menu-fullscreen', keyframes: 'kui-menu-fullscreen' },
-  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'kui-panel-reveal', phase: 'entrance' },
+  { name: 'menu-stagger-open', primitive: 'nav-reveal', keyframes: 'kui-nav-reveal', phase: 'entrance', cloak: true },
+  { name: 'menu-fullscreen', primitive: 'menu-fullscreen', keyframes: 'kui-menu-fullscreen', cloak: true },
+  { name: 'dropdown-open', primitive: 'panel-reveal', keyframes: 'kui-panel-reveal', phase: 'entrance', cloak: true },
   {
     name: 'mega-menu-drop',
     primitive: 'panel-reveal',
     keyframes: 'kui-panel-reveal',
     params: { duration: '550ms' },
     phase: 'entrance',
+    cloak: true,
   },
   {
     name: 'drawer-slide',
     primitive: 'drawer-slide',
     keyframes: 'kui-drawer-slide-right',
     phase: 'entrance',
+    cloak: true,
   },
 ]
 

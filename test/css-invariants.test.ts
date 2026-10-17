@@ -448,6 +448,7 @@ describe('pre-JS cloak', () => {
       'count-up', 'count-down', 'count-currency', 'count-percent', 'count-compact', 'odometer-roll',
       'text-3d-extrude', 'page-fade', 'page-slide', 'curtain-wipe', 'before-after-wipe',
       'carousel-fade', 'carousel-slide', 'video-hero-slideshow', 'compare',
+      'menu-stagger-open', 'menu-fullscreen', 'dropdown-open', 'mega-menu-drop', 'drawer-slide',
     ]
     for (const name of cloaked) {
       expect(declared, name).toContain(name)
