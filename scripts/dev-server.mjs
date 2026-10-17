@@ -8,7 +8,7 @@
  */
 import { createServer } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
-import { watch } from 'node:fs'
+import { createReadStream, watch } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,6 +75,58 @@ async function resolveFile(pathname) {
   }
 }
 
+/**
+ * Parses a single `bytes=` Range header against a file of `size` bytes. Returns `{ start, end }`
+ * (inclusive), `null` to fall back to a full 200 (absent, malformed or multi-range — all valid to
+ * ignore), or `'unsatisfiable'` for a well-formed range that lies outside the file.
+ */
+function parseRange(header, size) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header?.trim() ?? '')
+  if (!match || (match[1] === '' && match[2] === '')) return null
+  let start, end
+  if (match[1] === '') {
+    // Suffix form `bytes=-N`: the last N bytes.
+    const length = Number(match[2])
+    if (length === 0) return 'unsatisfiable'
+    start = Math.max(0, size - length)
+    end = size - 1
+  } else {
+    start = Number(match[1])
+    end = match[2] === '' ? size - 1 : Math.min(Number(match[2]), size - 1)
+    if (end < start && match[2] !== '') return null
+  }
+  if (start >= size) return 'unsatisfiable'
+  return { start, end }
+}
+
+/**
+ * Streams a file as-is, honouring byte ranges so `<video>` can seek (Chrome won't scrub a
+ * response that doesn't advertise `Accept-Ranges`).
+ */
+async function sendStatic(req, res, file, type) {
+  const { size } = await stat(file)
+  const range = parseRange(req.headers.range, size)
+
+  if (range === 'unsatisfiable') {
+    res.writeHead(416, { 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes', 'Content-Length': 0 })
+    res.end()
+    return
+  }
+
+  const { start, end } = range ?? { start: 0, end: size - 1 }
+  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': size === 0 ? 0 : end - start + 1 }
+  if (range) headers['Content-Range'] = `bytes ${start}-${end}/${size}`
+  res.writeHead(range ? 206 : 200, headers)
+
+  if (req.method === 'HEAD' || size === 0) {
+    res.end()
+    return
+  }
+  createReadStream(file, { start, end })
+    .on('error', () => res.destroy())
+    .pipe(res)
+}
+
 let clients = []
 let reloadTimeout = null
 function triggerReload() {
@@ -114,11 +166,10 @@ const server = createServer(async (req, res) => {
   }
 
   try {
-    const body = await readFile(file)
     const type = MIME_TYPES[extname(file)] ?? 'application/octet-stream'
-    
+
     if (type === 'text/html; charset=utf-8' && process.env.NODE_ENV !== 'production') {
-      let html = body.toString('utf-8')
+      let html = await readFile(file, 'utf-8')
       const script = `<script>new EventSource('/livereload').onmessage = () => location.reload()</script>`
       if (html.includes('</body>')) {
         html = html.replace('</body>', `${script}</body>`)
@@ -128,8 +179,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': type })
       res.end(html)
     } else {
-      res.writeHead(200, { 'Content-Type': type })
-      res.end(body)
+      await sendStatic(req, res, file, type)
     }
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
