@@ -13,6 +13,7 @@ import { TIME_SCALE_ATTR } from '../src/core/time-scale.js'
 import { collectingReporter, silentReporter } from '../src/core/reporter.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
 import type { EffectInstance, Primitive } from '../src/core/types.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Runtime control.
@@ -632,6 +633,28 @@ const DETAIL: LifecycleDetail = {
 }
 
 describe('lifecycle events', () => {
+  it('restarts a default-activation pin-section after a kui:start listener cancels it', async () => {
+    const animator = buildLifecycle('<div id="a" data-kui="pin-section"></div>', {
+      registry: catalogRegistry(),
+    })
+    const el = document.getElementById('a')! as HTMLElement
+    const onStart = vi.fn()
+    el.addEventListener(KUI_EVENT.start, onStart)
+    el.addEventListener(KUI_EVENT.start, () => animator.cancel(el), { once: true })
+
+    animator.start()
+    expect(onStart).toHaveBeenCalledOnce()
+    // Check before a microtask can mask the missing gate: the next activate must work immediately.
+    expect(el.getAttribute(ATTR.state)).not.toBe('running')
+
+    animator.activate(el)
+    await tick()
+    expect(onStart).toHaveBeenCalledTimes(2)
+    expect(el.getAttribute(ATTR.state)).toBe('running')
+    expect(el.style.position).toBe('sticky')
+    animator.cancel(el)
+  })
+
   it('dispatches start then finish, bubbling to document with the effect identity', async () => {
     const seen = recordOnDocument()
     const animator = buildLifecycle('<div id="a" data-kui="fake-fade" data-kui-on="load"></div>')

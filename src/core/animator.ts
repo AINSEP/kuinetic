@@ -1047,10 +1047,11 @@ export class Animator {
     // started, and telling a listener otherwise would be the same lie `status = 'failed'` exists
     // to avoid. An element with no instances at all — a pure `css-keyframes` plan whose animation
     // longhands were written straight to the style — has started, and does reach this.
+    // Record the settle gate before a start listener can cancel this run. In particular, a
+    // continuous run has no completion callback to clear its running status after cancellation.
+    this.settleWhen({ el, state, run }, started, 'finished')
     this.emit(el, state, KUI_EVENT.start, 'activated')
     this.syncHost(state)
-
-    this.settleWhen({ el, state, run }, started, 'finished')
   }
 
   /**
