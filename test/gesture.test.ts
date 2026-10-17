@@ -645,6 +645,35 @@ describe('recognise', () => {
     expect(onEnd).toHaveBeenCalledOnce()
   })
 
+  it('pointercancel after capture still resets and fires onEnd', () => {
+    const el = document.createElement('div')
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn(() => {
+      throw new DOMException('no such pointer', 'NotFoundError')
+    })
+    Object.defineProperty(el, 'setPointerCapture', { value: setPointerCapture })
+    Object.defineProperty(el, 'releasePointerCapture', { value: releasePointerCapture })
+    const onStart = vi.fn()
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    recognise(el, { onStart, onMove, onEnd }, { threshold: 1 }, deps)
+    el.dispatchEvent(pointer('pointerdown', 0, 0))
+    clock = 16
+    el.dispatchEvent(pointer('pointermove', 40, 0))
+    expect(setPointerCapture).toHaveBeenCalledOnce()
+    expect(onStart).toHaveBeenCalledOnce()
+
+    el.dispatchEvent(pointer('pointercancel', 40, 0))
+    expect(releasePointerCapture).toHaveBeenCalledOnce()
+    expect(onEnd).toHaveBeenCalledOnce()
+    onMove.mockClear()
+    el.dispatchEvent(pointer('pointermove', 60, 0))
+    el.dispatchEvent(pointer('pointerup', 60, 0))
+    expect(onMove).not.toHaveBeenCalled()
+    expect(onEnd).toHaveBeenCalledOnce()
+    expect(releasePointerCapture).toHaveBeenCalledOnce()
+  })
+
   it('ends a drag when a second pointer lands, and lets that pointer start nothing', () => {
     // Replacing the first gesture used to drop its `onEnd`: a deck's drag hold stayed on forever.
     const el = document.createElement('div')

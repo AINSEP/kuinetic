@@ -309,7 +309,11 @@ export function recognise(
   }
 
   function releaseCapture(id: number): void {
-    if (captured) el.releasePointerCapture?.(id)
+    try {
+      if (captured) el.releasePointerCapture?.(id)
+    } catch {
+      // The pointer may already be gone; cleanup must still finish the gesture.
+    }
     captured = false
     pointerId = null
   }
