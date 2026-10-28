@@ -4,12 +4,24 @@ import { describe, expect, it } from 'vitest'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { readEffectParams } from '../src/core/js-params.js'
+import { describeEffect } from '../src/core/describe.js'
+import { PARAM_NOTES } from '../src/notes/index.js'
 import { TEXT_CSS_PRESETS, TEXT_JS_PRESETS, TEXT_PRESETS } from '../src/effects/catalog/text.js'
 import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/text.css', import.meta.url)), 'utf8')
 
 describe('text catalog', () => {
+  it('uses display: contents only for the authored-structure marker, keeping plain text inline', () => {
+    const styles = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const contentsSelectors = styles.split('}')
+      .filter((rule) => /\bdisplay:\s*contents\s*;/.test(rule.slice(rule.lastIndexOf('{') + 1)))
+      .map((rule) => rule.slice(0, rule.lastIndexOf('{')).trim())
+    // Checking every contents rule also catches an unscoped rule added alongside the scoped one.
+    expect(contentsSelectors).toEqual(['.kui-split-decorative.kui-split-structured'])
+    expect(styles).toMatch(/\.kui-split-decorative\s*\{\s*display:\s*inline\s*;/)
+  })
+
   // The literal is a deliberate speed bump, not a value to be re-derived from `TEXT_PRESETS` —
   // a self-referential count would assert nothing. Bumping it means an effect was added or
   // removed on purpose; `docs/catalog.md`'s section D heading and its row in the totals table
@@ -101,6 +113,25 @@ describe('text catalog', () => {
       () => {},
     )
     expect(params.ms('stagger', 0)).toBe(200)
+  })
+
+  it('accepts rise-mask on the existing split-text owner with each unit', () => {
+    const registry = catalogRegistry()
+    const resolved = registry.resolve('text-reveal-up')!
+    for (const unit of ['chars', 'words', 'lines']) {
+      const warnings: string[] = []
+      const params = readEffectParams({ ...resolved.preset.params, unit, direction: 'rise-mask' },
+        resolved.primitive.parameters, (warning) => warnings.push(warning))
+      expect(params.text('direction')).toBe('rise-mask')
+      expect(params.text('unit')).toBe(unit)
+      expect(warnings).toEqual([])
+      expect(compile(parse(`text-reveal-up direction:rise-mask unit:${unit}`), registry, 'time').warnings).toEqual([])
+    }
+    const direction = describeEffect(registry, 'text-reveal-up', PARAM_NOTES)!.params.find((param) => param.name === 'direction')!
+    expect(direction.note).toContain('rise-mask')
+    expect(direction.whenOmitted).toContain('--kui-mask-bleed')
+    expect(direction.note!.length).toBeLessThanOrEqual(120)
+    expect(direction.whenOmitted!.length).toBeLessThanOrEqual(120)
   })
 
   it('resolves scramble/decode/glitch to distinct charsets', () => {

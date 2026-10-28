@@ -59,17 +59,18 @@ export interface SplitLayers {
  * — the decorative layer is free to sit mid-scramble, mid-type, or split into spans without a
  * screen reader ever seeing an incomplete or garbled read of the content.
  *
- * @param el - Element whose text is being taken over. Assumed to hold plain text (no children) —
- *   every DOM-surgery primitive in this module shares that constraint. Callers are expected to
+ * @param el - Element whose text is being taken over. Callers are expected to
  *   have already checked {@link hasInteractiveDescendant} and bailed out if it is true; this
  *   function itself does not guard, so a caller that skips the check still flattens a link.
  * @param doc - Document to create nodes in, rather than the ambient global, so callers can point
  *   this at a test document.
  * @returns The decorative layer to populate, the captured text, and a cleanup.
- * @complexity O(1) time and space beyond the caller's own population work.
+ * @param preserveMarkup - Seed the decorative layer with a trimmed copy of the authored tree
+ *   for segmentation. Typing and scrambling instead start with an empty display layer.
+ * @complexity O(n) time and space in subtree size when preserving markup.
  * @overallScore 100
  */
-export function installSplitLayers(el: Element, doc: Document): SplitLayers {
+export function installSplitLayers(el: Element, doc: Document, preserveMarkup = false): SplitLayers {
   // Trimmed: authored HTML source formatting (indentation, line breaks around the text) lands in
   // `textContent` as literal leading/trailing whitespace, which is insignificant to a reader but
   // was not insignificant to `appendLineSpans` — a leading whitespace text node with no preceding
@@ -81,6 +82,7 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
   const decorative = doc.createElement('span')
   decorative.setAttribute('aria-hidden', 'true')
   decorative.className = DECORATIVE_CLASS
+  if (preserveMarkup) copySplitContent(el, decorative, doc)
 
   const srOnly = doc.createElement('span')
   srOnly.className = SR_ONLY_CLASS
@@ -95,6 +97,33 @@ export function installSplitLayers(el: Element, doc: Document): SplitLayers {
     originalText,
     restore: restoreChildren,
   }
+}
+
+/** Clone before detaching: originals (including text nodes and listeners) remain untouched. */
+function copySplitContent(el: Element, decorative: Element, doc: Document): void {
+  // Decide from authored nodes, before segmentation adds its own word/character elements.
+  // Plain text needs one inline layer so flex/grid hosts retain inter-word whitespace.
+  if (el.childElementCount > 0) decorative.classList.add('kui-split-structured')
+  decorative.append(...Array.from(el.childNodes, (node) => node.cloneNode(true)))
+  const nodes = textNodes(decorative, doc)
+  // Trim only the outer text edges, even when indentation lives inside a wrapper. Internal
+  // whitespace and all elements/attributes remain authored; cleanup restores the untrimmed nodes.
+  for (const node of nodes) {
+    node.data = node.data.trimStart()
+    if (node.data) break
+  }
+  nodes.reverse()
+  for (const node of nodes) {
+    node.data = node.data.trimEnd()
+    if (node.data) break
+  }
+}
+
+function textNodes(container: Node, doc: Document): Text[] {
+  const walker = doc.createTreeWalker(container, 4 /* SHOW_TEXT */)
+  const nodes: Text[] = []
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text)
+  return nodes
 }
 
 /**
@@ -435,6 +464,11 @@ export function appendLineSpans(container: Element, doc: Document, text: string)
  * @overallScore 100
  */
 export function rewrapLineSpans(container: Element, doc: Document): HTMLElement[] {
+  const template = lineTemplates.get(container)
+  if (template) {
+    container.replaceChildren(...template.map((node) => node.cloneNode(true)))
+    return splitAuthoredTree('lines', container, doc)
+  }
   const nodes = Array.from(container.childNodes).flatMap((line) => Array.from(line.childNodes))
   container.replaceChildren(...nodes)
   let index = 0
@@ -454,11 +488,147 @@ export function appendSpansFor(
   unit: SplitUnit,
   container: Element,
   doc: Document,
-  text: string,
+  text?: string,
 ): HTMLElement[] {
+  if (text === undefined) return splitAuthoredTree(unit, container, doc)
   if (unit === 'words') return appendWordSpans(container, doc, text)
   if (unit === 'lines') return appendLineSpans(container, doc, text)
   return appendCharSpans(container, doc, text)
+}
+
+/** A stationary clipping box around each moving item; whitespace remains in normal flow. */
+export function applySplitMask(items: HTMLElement[], doc: Document, direction: string): void {
+  if (direction !== 'rise-mask') return
+  for (const item of items) {
+    const clip = doc.createElement('span')
+    clip.className = item.classList.contains('kui-split-line')
+      ? 'kui-split-clip kui-split-clip-line'
+      : 'kui-split-clip'
+    item.replaceWith(clip)
+    clip.append(item)
+  }
+}
+
+// Rebuild from unsplit markup on resize: a visual line can bisect an inline wrapper. Keeping
+// those fragments as the next measurement's input would accumulate empty/fragmented elements.
+const lineTemplates = new WeakMap<Element, Node[]>()
+
+/** Segment text nodes in place, retaining the author's elements and their layout attributes. */
+function splitAuthoredTree(unit: SplitUnit, container: Element, doc: Document): HTMLElement[] {
+  if (unit === 'lines') {
+    lineTemplates.set(container, Array.from(container.childNodes, (node) => node.cloneNode(true)))
+  }
+  const items: HTMLElement[] = []
+  for (const node of textNodes(container, doc)) {
+    const fragment = doc.createElement('span')
+    const split = unit === 'chars' ? appendCharSpans : appendWordSpans
+    items.push(...split(fragment, doc, node.data))
+    node.replaceWith(...fragment.childNodes)
+  }
+  if (unit === 'lines') return wrapStructuredLines(container, doc, items)
+  items.forEach((item, index) => markItem(item, index))
+  return items
+}
+
+/** Block boxes and explicit breaks divide line scopes, independent of their measured top. */
+function lineBoundaries(container: Element, doc: Document): Set<Element> {
+  const boundaries = new Set<Element>()
+  for (const el of container.querySelectorAll('*')) {
+    const display = doc.defaultView!.getComputedStyle(el).display
+    if (el.localName !== 'br' && !/^(block|flow-root|flex|grid|list-item|table)/.test(display)) continue
+    for (let parent: Element | null = el; parent && parent !== container; parent = parent.parentElement) {
+      boundaries.add(parent)
+    }
+  }
+  return boundaries
+}
+
+/** offsetTop uses offsetParent coordinates; add ancestors so nested emphasis shares a baseline. */
+function lineTop(el: HTMLElement): number {
+  let top = 0
+  for (let node: HTMLElement | null = el; node; node = node.offsetParent as HTMLElement | null) {
+    top += node.offsetTop
+  }
+  return top
+}
+
+/** Include the authored inline wrapper when a line starts at its first content. */
+function lineStart(word: Node, container: Element): Node {
+  let start = word
+  while (start.parentNode !== container && start.previousSibling === null) start = start.parentNode!
+  return start
+}
+
+/** Collect only generated measurement words, without scanning every word for every sibling. */
+function wordsInRun(nodes: Node[], words: ReadonlySet<HTMLElement>): HTMLElement[] {
+  const found: HTMLElement[] = []
+  for (const node of nodes) {
+    if (node.nodeType !== 1) continue
+    const el = node as HTMLElement
+    if (words.has(el)) found.push(el)
+    else found.push(...Array.from(el.querySelectorAll<HTMLElement>('.kui-split-item'))
+      .filter((word) => words.has(word)))
+  }
+  return found
+}
+
+/** Measure all words before inserting line boxes; Range retains inline markup across wraps. */
+function wrapInlineRun(nodes: Node[], words: ReadonlySet<HTMLElement>, doc: Document): HTMLElement[] {
+  const runWords = wordsInRun(nodes, words)
+  if (runWords.length === 0) return []
+  const tops = runWords.map(lineTop)
+  const starts = runWords.filter((_, index) =>
+    index === 0 || Math.abs(tops[index]! - tops[index - 1]!) > 1)
+  const remaining = doc.createRange()
+  remaining.setStartBefore(nodes[0]!)
+  remaining.setEndAfter(nodes.at(-1)!)
+  return starts.map((_, index) => {
+    const range = remaining.cloneRange()
+    const next = starts[index + 1]
+    if (next) range.setEndBefore(lineStart(next, remaining.commonAncestorContainer as Element))
+    const line = doc.createElement('span')
+    line.className = 'kui-split-line'
+    line.append(range.extractContents())
+    range.insertNode(line)
+    remaining.setStartAfter(line)
+    return line
+  })
+}
+
+/** Preserve block children as containers; only wrap contiguous inline runs inside each scope. */
+function wrapLineScopes(
+  container: Element,
+  boundaries: Set<Element>,
+  words: ReadonlySet<HTMLElement>,
+  doc: Document,
+): HTMLElement[] {
+  const lines: HTMLElement[] = []
+  let run: Node[] = []
+  const flush = (): void => {
+    lines.push(...wrapInlineRun(run, words, doc))
+    run = []
+  }
+  for (const node of Array.from(container.childNodes)) {
+    if (node.nodeType === 1 && boundaries.has(node as Element)) {
+      flush()
+      lines.push(...wrapLineScopes(node as Element, boundaries, words, doc))
+    } else {
+      run.push(node)
+    }
+  }
+  flush()
+  return lines
+}
+
+function wrapStructuredLines(container: Element, doc: Document, words: HTMLElement[]): HTMLElement[] {
+  const boundaries = lineBoundaries(container, doc)
+  const lines = wrapLineScopes(container, boundaries, new Set(words), doc)
+  for (const word of words) {
+    word.classList.remove('kui-split-item')
+    word.style.removeProperty('--kui-i')
+  }
+  lines.forEach((line, index) => markItem(line, index, 'kui-split-line'))
+  return lines
 }
 
 export interface TypeState {

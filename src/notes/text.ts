@@ -41,7 +41,10 @@ export const TEXT_NOTES: ParamNotes = {
 
   'split-text.stagger': 'Wait between each piece, so letters or words arrive one by one.',
   'split-text.unit': 'What the text is cut into: single letters, whole words, or lines.',
-  'split-text.direction': 'How each piece arrives: fade, slide up, slide down, or rise from a mask.',
+  'split-text.direction': {
+    why: 'How pieces arrive: fade, up/down, a mask wipe, or rise-mask sliding up 120% behind a still clip.',
+    whenOmitted: "Uses the preset's direction; --kui-mask-bleed adds room for letters above and below a mask's edge.",
+  },
 
   'split-text-motion.stagger': 'Offset between neighbouring letters, which shapes the wave or jitter.',
   'split-text-motion.motion': 'The style of letter movement: a smooth wave or a nervous jitter.',

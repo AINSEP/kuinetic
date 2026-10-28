@@ -9,7 +9,7 @@ import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
 import {
   SCRAMBLE_CHARSETS,
   applyStaggerVars,
-  appendCharSpans,
+  applySplitMask,
   appendSpansFor,
   createStepRunner,
   hasInteractiveDescendant,
@@ -237,7 +237,7 @@ const splitTiming: ParameterSchema = {
     type: 'keyword',
     default: 'fade',
     cssProperty: '--kui-direction',
-    keywords: ['fade', 'up', 'down', 'mask'],
+    keywords: ['fade', 'up', 'down', 'mask', 'rise-mask'],
   },
 }
 
@@ -319,10 +319,11 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
   const unit = params.text('unit', 'chars') as SplitUnit
   if (unit === 'lines') return prepareResponsiveLines(el, params, ctx)
   const direction = params.text('direction', 'fade')
-  const layers = installSplitLayers(el, doc)
+  const layers = installSplitLayers(el, doc, true)
   layers.decorative.setAttribute('data-kui-split-fx', direction)
   applyStaggerVars(layers.decorative, params)
-  const items = appendSpansFor(unit, layers.decorative, doc, layers.originalText)
+  const items = appendSpansFor(unit, layers.decorative, doc)
+  applySplitMask(items, doc, direction)
 
   // A `Promise` executor runs synchronously, so `settle` is always assigned before the
   // `setTimeout` callback below or `finish` (both later closures) can ever run.
@@ -432,10 +433,11 @@ function watchLineChanges(
  */
 function prepareResponsiveLines(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
   const doc = el.ownerDocument
-  const layers = installSplitLayers(el, doc)
+  const layers = installSplitLayers(el, doc, true)
   layers.decorative.setAttribute('data-kui-split-fx', params.text('direction', 'fade'))
   applyStaggerVars(layers.decorative, params)
-  const items = appendSpansFor('lines', layers.decorative, doc, layers.originalText)
+  const items = appendSpansFor('lines', layers.decorative, doc)
+  applySplitMask(items, doc, params.text('direction', 'fade'))
   let inlineSize = textInlineSize(el, ctx.win)
   let force = false
   const completion = lineCompletion(ctx, params, layers, items.length)
@@ -446,6 +448,7 @@ function prepareResponsiveLines(el: Element, params: EffectParams, ctx: PrepareC
     force = false
     inlineSize = nextSize
     const lines = rewrapLineSpans(layers.decorative, doc)
+    applySplitMask(lines, doc, params.text('direction', 'fade'))
     // New elements start new CSS animations. Keep the completion gate open until the last of
     // those newly staggered lines has reached its final frame.
     completion.rearm(lines.length)
@@ -478,10 +481,10 @@ function prepareSplitMotion(el: Element, params: EffectParams, ctx: PrepareConte
   }
   const doc = el.ownerDocument
   const motion = params.text('motion', 'wave')
-  const layers = installSplitLayers(el, doc)
+  const layers = installSplitLayers(el, doc, true)
   layers.decorative.setAttribute('data-kui-split-fx', motion)
   applyStaggerVars(layers.decorative, params)
-  appendCharSpans(layers.decorative, doc, layers.originalText)
+  appendSpansFor('chars', layers.decorative, doc)
   return layers.restore
 }
 

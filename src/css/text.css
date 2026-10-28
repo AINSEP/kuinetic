@@ -29,6 +29,12 @@
     display: inline;
   }
 
+  /* Only authored element trees need to expose their layout boxes. Plain text keeps one inline
+   * layer so flex/grid whitespace survives; limit display: contents on the aria-hidden layer. */
+  .kui-split-decorative.kui-split-structured {
+    display: contents;
+  }
+
   .kui-split-item {
     display: inline-block;
     animation-duration: var(--kui-duration, 500ms);
@@ -87,6 +93,27 @@
     margin-block: calc(-1 * var(--kui-mask-bleed, 0px));
   }
 
+  /* The clip stays at rest while its child rises. clip-path preserves the text baseline;
+   * padding/negative margins extend the paint window using the existing descender allowance. */
+  .kui-split-clip {
+    display: inline-block;
+    clip-path: inset(0);
+    padding-block: var(--kui-mask-bleed, 0px);
+    margin-block: calc(-1 * var(--kui-mask-bleed, 0px));
+  }
+
+  .kui-split-clip-line {
+    display: block;
+  }
+
+  [data-kui-split-fx='rise-mask'] .kui-split-item {
+    animation-name: kui-split-rise-mask;
+  }
+
+  [data-kui-state='finished'] > [data-kui-split-fx='rise-mask'] .kui-split-clip {
+    clip-path: none;
+  }
+
   /* A finished line reveal stays in the DOM for responsive re-measurement. New wrappers must
    * display their final frame without restarting, and the mask must not clip a long word.
    * `>`, not a descendant combinator: the decorative layer is the host's direct child, and a
@@ -126,6 +153,15 @@
     }
     to {
       clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes kui-split-rise-mask {
+    from {
+      translate: 0 120%;
+    }
+    to {
+      translate: 0 0;
     }
   }
 

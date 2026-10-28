@@ -330,6 +330,78 @@ describe('responsive split lines and flip indicator', () => {
     expect(FakeResizeObserver.instances[0]!.disconnect).toHaveBeenCalledOnce()
   })
 
+  it('keeps authored block lines separate at identical offsets, including after resize', () => {
+    const { el, setWidth } = makeText()
+    el.innerHTML = '\n <span style="display:block" class="authored" data-line="a">First <em title="keep">line!</em></span><span style="display:block" class="authored" data-line="b">Second line.</span>\n'
+    const original = el.innerHTML
+    const originalChild = el.querySelector('em')
+    const instance = activateLines(el)
+    const check = (): void => {
+      const layer = el.querySelector('.kui-split-decorative')!
+      expect(layer.querySelectorAll(':scope > .authored')).toHaveLength(2)
+      expect(Array.from(layer.querySelectorAll('.kui-split-line'), (line) => line.textContent)).toEqual(['First line!', 'Second line.'])
+      expect(layer.querySelector('[data-line="a"] > .kui-split-line em')?.getAttribute('title')).toBe('keep')
+      expect(layer.querySelectorAll('.kui-split-line .kui-split-item')).toHaveLength(0)
+      expect(Array.from(layer.querySelectorAll<HTMLElement>('.kui-split-line'), (line) => line.style.getPropertyValue('--kui-i'))).toEqual(['0', '1'])
+    }
+    check()
+    setWidth(220)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    check()
+    instance.destroy()
+    expect(el.innerHTML).toBe(original)
+    expect(el.querySelector('em')).toBe(originalChild)
+  })
+
+  it('retains inline emphasis when a visual line bisects it and remeasures the unsplit tree', () => {
+    const { el, setWidth } = makeText()
+    el.innerHTML = '<strong data-tone="loud">alpha bravo charlie delta</strong>'
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) { return /^(charlie|delta)$/.test(this.textContent ?? '') ? 20 : 0 },
+    })
+    const instance = activateLines(el)
+    const check = (): void => {
+      const lines = Array.from(el.querySelectorAll('.kui-split-line'))
+      expect(lines.map((line) => line.textContent?.trim())).toEqual(['alpha bravo', 'charlie delta'])
+      expect(lines.every((line) => line.querySelector('strong[data-tone="loud"]'))).toBe(true)
+      expect(el.querySelector('.kui-split-decorative')?.textContent).toBe('alpha bravo charlie delta')
+    }
+    check()
+    setWidth(200)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    check()
+    instance.destroy()
+  })
+
+  it('recreates stationary masks after a rise-mask line resize and settles unclipped', () => {
+    const { el, setWidth, setWordsPerLine } = makeText()
+    const instance = split.prepare!(el,
+      createParams({ unit: 'lines', direction: 'rise-mask', duration: '100ms', stagger: '10ms' }), context(el))
+    instance.activate()
+    expect(el.querySelectorAll('.kui-split-clip > .kui-split-line')).toHaveLength(2)
+    setWidth(200)
+    setWordsPerLine(2)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    expect(el.querySelectorAll('.kui-split-clip > .kui-split-line')).toHaveLength(3)
+    expect(el.querySelectorAll('.kui-split-clip .kui-split-clip')).toHaveLength(0)
+    expect(lineWords(el)).toEqual(words)
+    vi.advanceTimersByTime(120)
+    el.setAttribute('data-kui-state', 'finished')
+    expect(el.querySelector('.kui-sr-only')).toBeNull()
+    expect(el.querySelectorAll("[data-kui-state='finished'] > [data-kui-split-fx='rise-mask'] .kui-split-clip")).toHaveLength(3)
+    setWidth(160)
+    setWordsPerLine(1)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    expect(el.querySelectorAll('.kui-split-clip > .kui-split-line')).toHaveLength(6)
+    expect(lineWords(el)).toEqual(words)
+    instance.destroy()
+  })
+
   it('moves flip-indicator on target resize without an attribute change and disconnects', () => {
     const container = document.createElement('div')
     const el = document.createElement('div')

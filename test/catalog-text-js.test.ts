@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { createActivationBinder } from '../src/core/activation.js'
+import { Animator } from '../src/core/animator.js'
+import { collectingReporter } from '../src/core/reporter.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -16,6 +20,7 @@ import {
   splitRevealFinishMs,
 } from '../src/effects/catalog/text-shared.js'
 import { catalogRegistry } from './support/registry.js'
+import { CAPS, fakeRoot, idleScheduler } from './support/js-effect-harness.js'
 
 /**
  * A real per-element `StyleLedger` alongside `win` — `scramble`/`decode`/`glitch` read `ctx.style`
@@ -55,6 +60,29 @@ describe('segmentGraphemes', () => {
 })
 
 describe('installSplitLayers', () => {
+  it.each(['inline-flex', 'grid'])('marks only authored element trees in a %s host', (display) => {
+    const cases: Array<[string, boolean]> = [
+      ['Get started', false],
+      ['Get<!-- authored comment --> started', false],
+      ['<span class="label">Get</span> started', true],
+    ]
+    for (const [html, structured] of cases) {
+      const el = document.createElement('button')
+      el.style.display = display
+      el.innerHTML = html
+      const layers = installSplitLayers(el, document, true)
+      expect(layers.decorative.classList.contains('kui-split-structured')).toBe(structured)
+      expect(layers.decorative.getAttribute('aria-hidden')).toBe('true')
+      appendSpansFor('words', layers.decorative, document)
+      // Synthetic word spans must not make an originally plain-text host "structured".
+      expect(layers.decorative.classList.contains('kui-split-structured')).toBe(structured)
+      expect(layers.decorative.textContent).toBe('Get started')
+      expect(layers.srOnly.textContent).toBe('Get started')
+      layers.restore()
+      expect(el.innerHTML).toBe(html)
+    }
+  })
+
   it('exposes exactly one accessible reading representation and restores plain text on cleanup', () => {
     const el = document.createElement('p')
     el.textContent = 'Hi there'
@@ -239,6 +267,110 @@ describe('appendLineSpans', () => {
 })
 
 describe('split-chars / split-text', () => {
+  it.each(['chars', 'words', 'lines'])('clips rise-mask %s with a stationary per-unit parent', (unit) => {
+    vi.useFakeTimers()
+    const el = document.createElement('h1')
+    el.innerHTML = '<em class="authored">Good day!</em>'
+    const original = el.firstChild
+    const instance = registry.resolve('text-reveal-up')!.primitive.prepare!(el,
+      createParams({ unit, direction: 'rise-mask', duration: '100ms', stagger: '50ms', delay: '20ms' }), fakeCtx(el))
+    instance.activate()
+    const layer = el.querySelector<HTMLElement>('[data-kui-split-fx="rise-mask"]')!
+    expect(layer).not.toBeNull()
+    expect(layer.style.getPropertyValue('--kui-duration')).toBe('100ms')
+    expect(layer.style.getPropertyValue('--kui-delay')).toBe('20ms')
+    expect(layer.style.getPropertyValue('--kui-stagger')).toBe('50ms')
+    const items = Array.from(layer.querySelectorAll<HTMLElement>('.kui-split-item'))
+    expect(items.length).toBeGreaterThan(0)
+    expect(layer.querySelectorAll('.kui-split-clip')).toHaveLength(items.length)
+    items.forEach((item, index) => {
+      expect(item.parentElement?.classList.contains('kui-split-clip')).toBe(true)
+      expect(item.parentElement?.classList.contains('kui-split-item')).toBe(false)
+      expect(item.style.getPropertyValue('--kui-i')).toBe(String(index))
+    })
+    if (unit === 'lines') expect(items[0]!.parentElement?.classList.contains('kui-split-clip-line')).toBe(true)
+    instance.finish()
+    if (unit !== 'lines') {
+      expect(el.querySelector('.kui-split-clip')).toBeNull()
+      expect(el.firstChild).toBe(original)
+    }
+    instance.destroy()
+    expect(el.firstChild).toBe(original)
+    vi.useRealTimers()
+  })
+
+  it('uses a static bleed-aware clip, translation-only keyframes and an unclipped finished state', () => {
+    const css = readFileSync('src/css/text.css', 'utf8')
+    const clip = /\.kui-split-clip \{([^}]+)\}/.exec(css)![1]!
+    expect(clip).toContain('clip-path: inset(0)')
+    expect(clip).toContain('padding-block: var(--kui-mask-bleed, 0px)')
+    expect(clip).toContain('margin-block: calc(-1 * var(--kui-mask-bleed, 0px))')
+    expect(clip).not.toMatch(/animation|translate|overflow/)
+    expect(css).toMatch(/\[data-kui-split-fx='rise-mask'\] \.kui-split-item \{\s*animation-name: kui-split-rise-mask;/)
+    const keyframe = /@keyframes kui-split-rise-mask \{([\s\S]*?)\n {2}\}/.exec(css)![1]!
+    expect(keyframe).toMatch(/from\s*\{\s*translate: 0 120%;/)
+    expect(keyframe).toMatch(/to\s*\{\s*translate: 0 0;/)
+    expect(keyframe).not.toMatch(/opacity|clip-path/)
+    expect(css).toMatch(/\[data-kui-state='finished'\] > \[data-kui-split-fx='rise-mask'\] \.kui-split-clip \{\s*clip-path: none;/)
+  })
+
+  it.each(['', ' rm:disable'])('leaves authored rise-mask text unsplit under reduced motion%s', (policy) => {
+    document.body.innerHTML = `<h1 data-kui="text-reveal-up direction:rise-mask on:load${policy}"><span>Visible words.</span></h1>`
+    const host = document.body.querySelector('h1')!
+    const original = host.firstChild
+    const reporter = collectingReporter()
+    const animator = new Animator({
+      root: document.body, registry, capabilities: { ...CAPS, reducedMotion: true },
+      binder: createActivationBinder({ createObserver: undefined }),
+      scheduler: idleScheduler, rootResolver: () => fakeRoot, reporter,
+    })
+    animator.start()
+    expect(host.firstChild).toBe(original)
+    expect(host.textContent).toBe('Visible words.')
+    expect(host.querySelector('.kui-split-item, .kui-split-clip, .kui-sr-only')).toBeNull()
+    expect(host.style.opacity).not.toBe('0')
+    expect(host.style.animationName).not.toContain('kui-split')
+    expect(reporter.messages).toEqual([])
+    animator.destroy()
+    document.body.replaceChildren()
+  })
+
+  it.each([
+    ['text-reveal-up', 'words', ['“First', 'line!”', 'Second', 'line.']],
+    ['split-chars', 'chars', Array.from('“Firstline!”Secondline.')],
+    ['text-wave', 'chars', Array.from('“Firstline!”Secondline.')],
+    ['text-jitter', 'chars', Array.from('“Firstline!”Secondline.')],
+  ])('preserves authored wrappers during %s and restores the same nodes', (name, unit, expected) => {
+    const el = document.createElement('h1')
+    el.innerHTML = '\n  <span class="stack" style="display:block" data-line="1">  “First <em title="accent">line!”</em></span><span class="stack" style="display:block" data-line="2">Second line.  </span>\n'
+    const original = el.innerHTML
+    const nodes = Array.from(el.childNodes)
+    const emphasis = el.querySelector('em')!
+    const textNode = emphasis.firstChild
+    const listener = vi.fn()
+    emphasis.addEventListener('example', listener)
+    const instance = registry.resolve(name)!.primitive.prepare!(el, createParams({ unit }), fakeCtx(el))
+    instance.activate()
+    const decorative = el.querySelector('.kui-split-decorative')!
+    expect(decorative.getAttribute('aria-hidden')).toBe('true')
+    expect(decorative.classList.contains('kui-split-structured')).toBe(true)
+    expect(decorative.querySelectorAll(':scope > .stack')).toHaveLength(2)
+    expect(decorative.querySelector('[data-line="1"]')?.getAttribute('style')).toBe('display:block')
+    expect(decorative.querySelector('em')?.getAttribute('title')).toBe('accent')
+    expect(decorative.textContent).toBe('“First line!”Second line.')
+    expect(el.querySelector('.kui-sr-only')?.textContent).toBe('“First line!”Second line.')
+    const items = Array.from(decorative.querySelectorAll<HTMLElement>('.kui-split-item'))
+    expect(items.map((item) => item.textContent)).toEqual(expected)
+    expect(items.map((item) => item.style.getPropertyValue('--kui-i'))).toEqual(expected.map((_, i) => String(i)))
+    instance.destroy()
+    expect(el.innerHTML).toBe(original)
+    expect(Array.from(el.childNodes)).toEqual(nodes)
+    expect(el.querySelector('em')).toBe(emphasis)
+    expect(emphasis.firstChild).toBe(textNode)
+    emphasis.dispatchEvent(new Event('example'))
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
   it('hides punctuation in text-reveal-up and restores the exact reading text', () => {
     vi.useFakeTimers()
     const source = 'A self-hosted content management system. Write blog posts, create videos.'
