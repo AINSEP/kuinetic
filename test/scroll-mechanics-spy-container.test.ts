@@ -289,15 +289,24 @@ describe('scroll-spy, container form', () => {
     // simply has no link anywhere whose hash points at it.
     const animator = build(
       `<div data-kui="scroll-spy sections:'.sec' target:'.spy-nav a'">
-        <nav class="spy-nav"></nav>
+        <nav class="spy-nav">
+          <a id="claimed-1" href="#s1">One</a>
+          <a id="claimed-2" href="#s2">Two</a>
+        </nav>
+        <section id="s1" class="sec"></section>
         <section id="unclaimed" class="sec"></section>
+        <section id="s2" class="sec"></section>
       </div>`,
     )
+    stubRect(section('s1'), -310, 300)
     stubRect(section('unclaimed'), -10, 300)
+    stubRect(section('s2'), 290, 300)
     animator.start()
     expect(() => scheduler.emit(50)).not.toThrow()
 
     expect(section('unclaimed').getAttribute('data-kui-active')).toBe('true')
+    expect(link('claimed-1').hasAttribute('data-kui-active')).toBe(false)
+    expect(link('claimed-2').hasAttribute('data-kui-active')).toBe(false)
     expect(reporter.messages.join()).toBe('')
   })
 

@@ -374,6 +374,41 @@ describe('view-swap starts a same-document transition', () => {
     expect(panel.hasAttribute('data-open')).toBe(false)
   })
 
+  it.each(['[', '#', '*', 'html', 'body', '*, .panel'])(
+    'warns and skips unusable controls:%s without falling back to aria-controls',
+    (controls) => {
+      stubApi(false)
+      const { control, panel } = swapPage()
+      const { warnings } = run('view-swap', control, { controls })
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain(`view-swap controls:"${controls}"`)
+      expect(warnings[0]).toContain('will be ignored')
+      control.click()
+      control.click()
+      expect(started).toEqual([])
+      expect(panel.hasAttribute('data-open')).toBe(false)
+      expect(control.getAttribute('aria-expanded')).toBe('false')
+      expect(warnings).toHaveLength(1)
+    },
+  )
+
+  it.each(['data state', 'bad/name', '1bad', 'bad<name'])(
+    'warns and skips malformed attribute:%s before installing the click listener',
+    (attribute) => {
+      stubApi(false)
+      const { control, panel } = swapPage()
+      const { warnings } = run('view-swap', control, { attribute })
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]).toContain(`view-swap attribute:"${attribute}"`)
+      expect(warnings[0]).toContain('not a valid attribute name')
+      control.click()
+      expect(started).toEqual([])
+      expect(panel.attributes).toHaveLength(1)
+      expect(control.getAttribute('aria-expanded')).toBe('false')
+      expect(warnings).toHaveLength(1)
+    },
+  )
+
   it('falls back to data-open when the attribute the author named is all whitespace', () => {
     // A blank attribute name is not a name: `setAttribute('')` is an `InvalidCharacterError`, so
     // taking the author's text literally here turns the first click into an exception swallowed by

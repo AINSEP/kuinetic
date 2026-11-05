@@ -41,9 +41,6 @@ animates. Until the boxes below are ticked, treat "fixed" as "compiles as intend
       activation win silently. A warning was measured and rejected: it would fire on 4,882–6,098
       pairs including `fade-up, lift`. Census is in the doc comment. Owner call — keep silent, or
       warn only when both halves explicitly declare and differ?
-- [ ] **Confirm the delivery invariant actually bites.** `css-composition-invariants.test.ts`
-      claims bidirectional set equality against `src/css/*.css`. Add a fifth host-level hover
-      `animation:` rule without declaring `delivery` and confirm tests go red.
 
 ### Audit findings deliberately NOT fixed — decide on each
 
@@ -53,11 +50,6 @@ animates. Until the boxes below are ticked, treat "fixed" as "compiles as intend
       and then asserts them as an accepted baseline. Sonnet 5 read that as a deliberate argued
       decision; Codex and Gemini Pro both called it ship-blocking. **Genuine disagreement — needs
       the owner.**
-- [ ] **`additiveResolution()` over-includes.** Pulls in claims excluded by gate or phase, so one
-      non-additive bystander sinks a valid rescue. Codex's case:
-      `fade-up below:md, parallax-y above:md, depth-layer above:md`. Not reproduced yet.
-- [ ] **`view-swap` `controls:` bypasses `selectorBreadth()`**, and `attribute:` is unvalidated —
-      both throw instead of warning. (Codex 11)
 
 **Rejected finding, recorded so it is not re-raised:** Gemini 3.1 Pro claimed the `ParamSpec`
 migration broke `motion-path anchor:50%`. False — `git show f75d5cf^` shows `anchor` was
@@ -233,21 +225,6 @@ dispatching it.
          corresponding `composition-phase.test.ts` contract.
       3. **Still silent.** Composition warnings go to a reporter that is silent by default;
          the original "make this warning loud" ask remains.
-
-- [ ] **Four `media.ts` presets are the same closed-keyframe shape as the presets
-      `composition-phase.test.ts` already excludes from `phase: 'entrance'`, but are missing from
-      that exclusion list.** Found and verified 2026-09-08 by two different phasing agents working
-      the same file independently (`build-phase-materials.md`, `build-phase-media-nav.md`), and
-      re-verified directly against the test file today: `ken-burns`, `ken-burns-out`,
-      `before-after-wipe` and `lightbox-open` all close their keyframe block with an explicit
-      `to`/`100%` step (checked against `src/css/media.css`), the identical shape as the 19 names
-      currently in `composition-phase.test.ts`'s `excluded` array (that array itself grew from an
-      original 10 to 19 sometime today, but never picked up these four). They are correctly
-      unphased *today* — nobody has mis-declared them `entrance` — but the missing exclusion means
-      nothing stops a future edit from doing so by pattern-matching the file, and the invariant that
-      exists specifically to catch that would not catch it here. Cheap, mechanical fix: add the four
-      names to the array. Both agents that found this flagged it rather than fixing it because
-      `composition-phase.test.ts` was off-limits to them at the time.
 
 
 - [ ] **`gradient-rotate-border` still defaces the element it is put on.** Remaining from the
@@ -579,11 +556,6 @@ dispatching it.
       audit now records the remaining pairs as an accepted baseline; ownership is still unresolved.
 
 
-- [ ] **Remove `demo/nav-forms.html`.** Owner's ask, 2026-08-26: "this is just not even stuff we
-      should be doing" — the page isn't earning its place in the showcase. Not started; check the
-      nav generator (`e6c132b`, see the hide-pages entry below) and `docs.html`'s page list for
-      references before deleting so nothing links to a 404.
-
 
 - [ ] **14 of the entrance/exit matrix's original 48 names still have no demo coverage.**
       Remaining from the 2026-08-26 check: `fade-out`, `fade-out-up`, `fade-out-down`,
@@ -642,14 +614,6 @@ dispatching it.
       `scroll-progress-bar`, `scroll-progress-bar-y`, `scroll-progress-ring`, and
       `scroll-desaturate` have no card there.
 
-
-- [ ] **Codex audit — remaining unverified findings from 2026-08-23.** (3)
-      `test/entrance-zero-area.test.ts` still describes transformed geometry as removing space
-      from layout; the invariant should distinguish zero visual/intersection area from layout
-      collapse. (6) Two coverage tests remain underasserted: the detached-element case in
-      `test/scroll-horizontal-managed.test.ts` only checks activation does not throw, and the
-      unclaimed-section case in `test/scroll-mechanics-spy-container.test.ts` has no links, so
-      a wrong `links[0]` fallback still yields `undefined` and passes.
 
 - [ ] **Switch out svg `draw-stroke`** — owner's ask, 2026-08-23. **Get one line of clarification
       first; the intent is genuinely ambiguous.** `draw-stroke` is a real library effect

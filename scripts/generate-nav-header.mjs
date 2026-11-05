@@ -47,10 +47,9 @@ const BASIC_PAGES = [
   ['reveals.html', 'Reveals'],
   ['text.html', 'Text'],
   ['ambient-feedback.html', 'Ambient &amp; Feedback'],
-  // Hidden from the dropdown at the owner's direction — not deleted. All three pages still exist,
+  // Hidden from the dropdown at the owner's direction — not deleted. Both pages still exist,
   // still build, still appear in PAGES below so they keep getting a current nav header; they are
   // simply not linked from it. Re-listing any of them here is the whole undo.
-  // ['nav-forms.html', 'Nav &amp; Forms'],                    // hidden 2026-08-26
   // ['icons-transitions.html', 'Icons &amp; Transitions'],    // hidden 2026-08-23
   // ['three-d.html', '3D &amp; Perspective'],                 // hidden 2026-08-23
 ]
@@ -117,7 +116,6 @@ const PAGES = [
   { file: 'index-old.html', selfIndex: true, hamburgerVariant: 'legacy' },
   { file: 'index.html', selfIndex: true },
   'interactive.html',
-  'nav-forms.html',
   'reveals.html',
   'scroll.html',
   'text.html',

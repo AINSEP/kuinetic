@@ -218,12 +218,31 @@ describe('delivery mechanism (stylesheet-owned host animation)', () => {
     .filter((name) => registry.resolve(name)?.preset.delivery === 'stylesheet-animation')
     .sort(byName)
 
+  function deliveryMismatches(css: string) {
+    const hostNames = [...extractHostAnimationBindings(css, extractKeyframes(css)).keys()]
+    return {
+      undeclared: hostNames.filter((name) => !declared.includes(name)).sort(byName),
+      withoutHostRule: declared.filter((name) => !hostNames.includes(name)),
+    }
+  }
+
   it('finds host-level animation rules in the stylesheets, so this suite cannot pass vacuously', () => {
     expect(derived.length).toBeGreaterThan(0)
   })
 
   it('declares delivery for exactly the names the stylesheets animate on their own box', () => {
-    expect(declared).toEqual(derived)
+    expect(deliveryMismatches(scannedCss)).toEqual({ undeclared: [], withoutHostRule: [] })
+  })
+
+  it('reports an extra host hover animation when its registered preset declares no delivery', () => {
+    expect(registry.resolve('lift')!.preset.delivery).toBeUndefined()
+    const synthetic = `${scannedCss}
+      @keyframes kui-undeclared-hover { to { translate: 0 -8px; } }
+      [data-kui-fx~='lift']:hover { animation: 200ms ease kui-undeclared-hover; }
+    `
+    expect(deliveryMismatches(synthetic)).toEqual({
+      undeclared: ['lift'], withoutHostRule: [],
+    })
   })
 })
 

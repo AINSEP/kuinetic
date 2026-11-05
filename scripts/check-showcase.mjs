@@ -12,7 +12,7 @@
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 
-const PAGES = ['reveals', 'scroll', 'interactive', 'text', 'data-hover', 'ambient-feedback', 'nav-forms']
+const PAGES = ['reveals', 'scroll', 'interactive', 'text', 'data-hover', 'ambient-feedback']
 const dir = fileURLToPath(new URL('../demo/', import.meta.url))
 
 const browser = await chromium.launch({ headless: true })

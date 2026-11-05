@@ -154,7 +154,7 @@ describe('the catalog declares the phases this change specified', () => {
   }
 
   it('leaves every excluded name unphased', () => {
-    // The nineteen presets (all but `card-flip-x`/`-y` are `cloak: true`) that close their keyframe block, or whose block is not in
+    // The excluded presets that close their keyframe block, or whose block is not in
     // the scanned stylesheets at all. Declaring any of them `entrance` is the silent-clobber bug
     // this whole axis was shaped to avoid, so it is asserted by name rather than left to the
     // stylesheet scan below — that scan can only see the ones with a block to read.
@@ -162,7 +162,7 @@ describe('the catalog declares the phases this change specified', () => {
       'blur-up', 'card-flip-x', 'card-flip-y', 'chart-bar-grow', 'curtain-reveal', 'mask-reveal',
       'path-swoop', 'progress-bar', 'slat-assemble', 'wipe-circle', 'wipe-diagonal', 'wipe-down',
       'wipe-left', 'wipe-right', 'wipe-up', 'text-reveal-down', 'text-reveal-mask', 'text-reveal-up',
-      'tween-from',
+      'tween-from', 'ken-burns', 'ken-burns-out', 'before-after-wipe', 'lightbox-open',
     ]
     const declared = excluded.filter((name) => presetNamed(name).phase !== undefined)
     expect(declared).toEqual([])

@@ -1,6 +1,7 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
+import { selectorBreadth } from '../../core/target.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
 import { effectDelayMs, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 
@@ -239,6 +240,12 @@ function resolveSwapTarget(
 ): Element | undefined {
   const selector = params.text('controls', '').trim()
   if (selector) {
+    const breadth = selectorBreadth(selector, ctx.doc)
+    if (breadth !== 'ok') {
+      const reason = breadth === 'invalid' ? 'is not a valid selector' : 'matches the whole document'
+      ctx.warn(`view-swap controls:"${selector}" ${reason} and will be ignored`)
+      return undefined
+    }
     const found = ctx.doc.querySelector(selector)
     if (found) return found
     ctx.warn(`view-swap controls:${selector} matched nothing — the click will do nothing`)
@@ -258,6 +265,18 @@ function resolveSwapTarget(
       'whose state changes, or name it with controls:#selector',
   )
   return undefined
+}
+
+/** Validate with the DOM's attribute-name grammar without changing the target. */
+function resolveSwapAttribute(params: EffectParams, ctx: PrepareContext): string | undefined {
+  const attribute = params.text('attribute', 'data-open').trim() || 'data-open'
+  try {
+    ctx.doc.createAttribute(attribute)
+    return attribute
+  } catch {
+    ctx.warn(`view-swap attribute:"${attribute}" is not a valid attribute name and will be ignored`)
+    return undefined
+  }
 }
 
 /**
@@ -393,7 +412,8 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
     )
   }
 
-  const attribute = params.text('attribute', 'data-open').trim() || 'data-open'
+  const attribute = resolveSwapAttribute(params, ctx)
+  if (attribute === undefined) return () => {}
   const type = usableType(params.text('type', '').trim(), ctx)
   const delay = effectDelayMs(params)
 

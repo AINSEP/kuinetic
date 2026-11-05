@@ -171,6 +171,12 @@ export function additiveChannels(channels: readonly Channel[]): boolean {
   return channels.length > 0 && channels.every((channel) => CHANNEL_COMPOSITION[channel] === 'add')
 }
 
+/** Whether two claims really contest one of the channels being rescued. */
+function contestsChannel(a: ChannelClaim, b: ChannelClaim, contested: Set<Channel>): boolean {
+  return gatesOverlap(a.gate, b.gate) && !independentPhases(a, b) &&
+    a.channels.some((channel) => contested.has(channel) && b.channels.includes(channel))
+}
+
 /**
  * Rescue a surviving clash by summing the claims that caused it instead of letting one replace the
  * other.
@@ -184,7 +190,7 @@ export function additiveChannels(channels: readonly Channel[]): boolean {
  *
  * @returns Indices of the claims to compile additively, or `undefined` when the rescue does not
  *   apply and the caller should refuse the list.
- * @complexity O(n * c) time in claims and their channels; O(n + c) space.
+ * @complexity O(n^2 * c^2) time in claims and their channels; O(n + c) space.
  * @overallScore 100
  */
 export function additiveResolution(
@@ -199,7 +205,12 @@ export function additiveResolution(
   const contested = new Set(conflicts.map((conflict) => conflict.channel))
   const involved = new Set<number>()
   claims.forEach((claim, index) => {
-    if (claim.channels.some((channel) => contested.has(channel))) involved.add(index)
+    // A shared channel alone is insufficient: a gate- or phase-excluded bystander must stay
+    // replacing, and its non-additive channels must not veto the actual participants' rescue.
+    // Check every pair because findConflicts reports only the first prior clash per channel.
+    if (claims.some((other, otherIndex) =>
+      otherIndex !== index && contestsChannel(claim, other, contested),
+    )) involved.add(index)
   })
   for (const index of involved) if (!claims[index]!.additive) return undefined
   return involved

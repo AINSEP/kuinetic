@@ -6,7 +6,8 @@
 // `rotateX`/`rotateY` at exactly ±90deg (edge-on to the viewport), a zero factor on `scale`, or an
 // outright `height`/`width: 0`. Because that start state is exactly what paints while a deferred
 // `on:enter` activation sits paused waiting for its `IntersectionObserver` to fire, the element
-// held no space in layout — and no visible area — for the entire wait.
+// had zero visual/intersection area for the entire wait. Transforms preserve its layout space;
+// explicit zero width/height can also collapse the layout box.
 //
 // The fix was never to stop collapsing the box in the keyframe (every one of the six still does,
 // including the parameterized `var(--kui-bar-from, 0)`/`var(--kui-from-angle, 90deg)` forms below —

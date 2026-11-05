@@ -122,7 +122,7 @@ describe('horizontal-scroll, managed by target:', () => {
     expect(second.style.width).toBe('')
   })
 
-  it('still prepares cleanly on an element with no parent at all', () => {
+  it('drives the rail and tears down on an element with no parent at all', () => {
     const registry = catalogRegistry()
     const resolved = registry.resolve('horizontal-scroll')!
     const detached = document.createElement('div')
@@ -130,9 +130,10 @@ describe('horizontal-scroll, managed by target:', () => {
     // Never appended to the document, so parentElement is null. This used to be the case that
     // needed a `?? host` fallback, because the tracker was pointed at the parent; it now always
     // measures the host against its own spacer, so there is no parent to be missing. Kept as a
-    // guard that the no-parent path still prepares and tears down without throwing.
+    // guard that the no-parent path still drives frames and releases its subscription and styles.
     expect(detached.parentElement).toBeNull()
     const sched = fakeScheduler()
+    const style = createStyleLedger(detached)
     const ctx = {
       win: window,
       doc: document,
@@ -140,10 +141,31 @@ describe('horizontal-scroll, managed by target:', () => {
       rootFor: () => fakeRoot,
       invalidate: () => {},
       warn: () => {},
-      style: createStyleLedger(detached),
+      style,
     } as unknown as PrepareContext
-    const instance = resolved.primitive.prepare!(detached, createParams({ target: '.rail' }), ctx)
-    expect(() => instance.activate()).not.toThrow()
+    const rail = detached.querySelector('.rail') as HTMLElement
+    const instance = resolved.primitive.prepare!(detached, createParams({
+      target: '.rail', distance: '400px', travel: '1000px', 'offset-top': '0px',
+    }), ctx)
+    instance.activate()
+    expect(detached.parentElement).toBeNull()
+    expect(detached.nextElementSibling).toBeNull()
+    expect(detached.style.position).toBe('sticky')
+    expect(rail.style.display).toBe('flex')
+    expect(rail.style.width).toBe('max-content')
+    expect(sched.subscriberCount()).toBe(1)
+    // Detached boxes have zero rects in this harness. Cache the starting offset, then advance
+    // half the authored distance in the same geometry epoch to verify an actual frame update.
+    sched.emit(0)
+    sched.emit(200)
+    expect(rail.style.translate).toBe('-500px 0')
+    expect(Number(detached.style.getPropertyValue('--kui-progress'))).toBe(0.5)
     instance.destroy()
+    style.restore()
+    expect(sched.subscriberCount()).toBe(0)
+    expect(rail.getAttribute('style') ?? '').toBe('')
+    expect(detached.getAttribute('style') ?? '').toBe('')
+    sched.emit(400)
+    expect(rail.style.translate).toBe('')
   })
 })
