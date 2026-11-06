@@ -225,6 +225,13 @@ export interface DeckLayout {
   label: string
   /** Whether a slot at this place is presented to the viewer. `place` is `offset - drift`. */
   faceOf(place: number, offset: number, count: number): Face
+  /** A depth ring's cached view through author transforms; absent for other layouts. */
+  view?: {
+    measure(nodes: readonly Element[]): void
+    faceOf(place: number, count: number): Face | undefined
+    travelSign(): 1 | -1 | undefined
+    watch(refresh: () => void): Cleanup
+  }
   /**
    * The shape's own reading of a circular offset, when it is not the offset itself.
    *
@@ -378,7 +385,7 @@ export function prepareSpatialDeck(
       // from. `Number(null)` is `0`, so a slide appended between the mark and this read (a custom
       // element reacting to `data-kui-step-state`) is treated as the live place rather than NaN.
       const offset = Number(node.getAttribute('data-kui-step-offset'))
-      const face = layout.faceOf(offset - drift, offset, count)
+      const face = layout.view?.faceOf(offset - drift, count) ?? layout.faceOf(offset - drift, offset, count)
       // Skipped when unchanged: this runs every spin frame, and re-setting an attribute to the value
       // it already holds still invalidates style for every selector that mentions it.
       if (node.getAttribute(FACE_ATTR) !== face) ledgerFor(slots, node).set(FACE_ATTR, face)
@@ -481,8 +488,15 @@ export function prepareSpatialDeck(
   ].filter((group): group is ControlGroup => group !== null)
   const releaseControls = delegateControls({ el, ctx, groups })
 
-  /** {@link travelSign} for the cards as last rendered: the live one and its two neighbours. */
+  /** Fresh screen travel at drag start; layouts without a view retain the rect comparison. */
   const screenTravel = (): 1 | -1 => {
+    // The gesture holds this answer until release. Never measure cards in the spin/drag loop.
+    layout.view?.measure(rendered.nodes)
+    const measured = layout.view?.travelSign()
+    if (measured !== undefined) {
+      markFaces(rendered.nodes, rendered.count, snapPosition(position, rendered.count).drift)
+      return measured
+    }
     const centres = new Map<number, number>()
     for (const node of rendered.nodes) {
       const offset = Number(node.getAttribute('data-kui-step-offset'))
@@ -515,8 +529,13 @@ export function prepareSpatialDeck(
   )
 
   render()
+  const releaseView = layout.view?.watch(() => {
+    layout.view!.measure(rendered.nodes)
+    markFaces(rendered.nodes, rendered.count, snapPosition(position, rendered.count).drift)
+  })
 
   return () => {
+    releaseView?.()
     releaseViewer()
     releaseMotion()
     releaseDrag()

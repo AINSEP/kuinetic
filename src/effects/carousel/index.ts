@@ -8,10 +8,11 @@ import type {
 } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import { frameScheduler } from '../../core/element-size.js'
 import type { Registry } from '../../core/registry.js'
 import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
 import { createRingFit } from './fit.js'
-import type { Face } from './deck.js'
+import type { DeckLayout, Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
 
 export { snapPosition } from './deck.js'
@@ -184,6 +185,77 @@ export function normaliseDegrees(angleDeg: number): number {
   return wrapped > 180 ? wrapped - 360 : wrapped
 }
 
+const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1] as const
+/** Resolved transform only; separate rotate:/scale: properties are outside this view's contract. */
+function linearOf(value: string): readonly number[] {
+  const v = value.slice(value.indexOf('(') + 1, -1).split(',').map(Number)
+  if (value.startsWith('matrix3d(')) return [0, 4, 8, 1, 5, 9, 2, 6, 10].map(i => v[i]!)
+  if (value.startsWith('matrix(')) return [v[0]!, v[2]!, 0, v[1]!, v[3]!, 0, 0, 0, 1]
+  return IDENTITY
+}
+function multiply(a: readonly number[], b: readonly number[]): number[] {
+  return Array.from({ length: 9 }, (_, i) => {
+    const row = i - i % 3, col = i % 3
+    return a[row]! * b[col]! + a[row + 1]! * b[col + 3]! + a[row + 2]! * b[col + 6]!
+  })
+}
+/** One shared slot-parent chain, bounded by its 3D context; never measured in a spin frame. */
+function createRingView(el: Element, ctx: PrepareContext, arcDeg: number, tiltDeg: number): NonNullable<DeckLayout['view']> {
+  const tilt = Math.min(80, Math.max(-80, -tiltDeg)) * Math.PI / 180
+  const c = Math.cos(tilt), s = Math.sin(tilt)
+  const read = (node: Element): CSSStyleDeclaration | undefined => ctx.win.getComputedStyle?.(node)
+  const preserves = (node: Element, style: CSSStyleDeclaration | undefined): boolean =>
+    style?.transformStyle === 'preserve-3d' && !flatteningDeclaration(node, ctx)
+  let m: readonly number[] = IDENTITY, links = 0, turned = false, above: Element | null = null
+  const measure = (nodes: readonly Element[]): void => {
+    m = IDENTITY
+    links = 0
+    above = nodes[0]?.parentElement ?? null
+    for (; above; above = above.parentElement, links++) {
+      const style = read(above)
+      if (!preserves(above, style)) break
+      m = multiply(linearOf(style!.transform), m)
+    }
+    turned = m.some((value, i) => Math.abs(value - IDENTITY[i]!) > 1e-10)
+  }
+  const faceOf = (place: number, count: number): Face | undefined => {
+    if (!turned) return undefined // Preserve faceAt's exact edge-on boundary.
+    const angle = place * arcDeg / count * Math.PI / 180
+    return m[6]! * Math.sin(angle) + (c * m[8]! - s * m[7]!) * Math.cos(angle) > 1e-10 ? 'front' : 'back'
+  }
+  const travelSign = (): 1 | -1 | undefined => {
+    if (links === 0) return undefined // No rendered context: keep the existing rect fallback.
+    const pole = (c * m[8]! - s * m[7]!) * m[0]! - (c * m[2]! - s * m[1]!) * m[6]!
+    if (Math.abs(pole) < 1e-10) return undefined
+    const inside = el.matches("[data-kui-fx~='carousel-3d-inside']") ? -1 : 1
+    // Compose the finished picture above the context, flattening depth at each flat boundary.
+    let picture: readonly number[] = IDENTITY
+    for (let node = above; node; node = node.parentElement) {
+      const style = read(node)
+      if (!preserves(node, style)) picture = multiply([1, 0, 0, 0, 1, 0, 0, 0, 0], picture)
+      picture = multiply(linearOf(style?.transform ?? ''), picture)
+    }
+    return pole * arcDeg * inside * picture[0]! < 0 ? -1 : 1
+  }
+  const watch = (refresh: () => void): Cleanup => {
+    const frame = frameScheduler(ctx.win, refresh)
+    const onScroll = (): void => { if (turned || links > 1) frame.request() }
+    el.ownerDocument.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    el.addEventListener('pointerenter', refresh)
+    el.addEventListener('focusin', refresh)
+    el.ownerDocument.defaultView?.addEventListener('resize', refresh)
+    refresh()
+    return () => {
+      el.ownerDocument.removeEventListener('scroll', onScroll, true)
+      el.removeEventListener('pointerenter', refresh)
+      el.removeEventListener('focusin', refresh)
+      el.ownerDocument.defaultView?.removeEventListener('resize', refresh)
+      frame.cancel()
+    }
+  }
+  return { measure, faceOf, travelSign, watch }
+}
+
 const RING_PARAMETERS: ParameterSchema = {
   ...DECK_PARAMETERS,
   /*
@@ -306,6 +378,7 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
     id: 'spatial-ring',
     label: 'carousel',
     faceOf,
+    view: plane === 'depth' ? createRingView(el, ctx, arcDeg, degreesOf(params.text('tilt', '0deg'), 0)) : undefined,
     /*
      * A derived radius needs a card width; a flat ring also needs a card's size to reserve its own
      * circle (the host is sized to it, since transformed slots take no layout space), so it measures
