@@ -6,6 +6,8 @@ import type { ParamNotes } from '../core/describe.js'
  * step-progress).
  */
 export const SHOWCASE_NOTES: ParamNotes = {
+  'spatial-ring.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
+  'spatial-stack.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
   'slideshow.enter-delay': 'Extra wait before a fade arrives; match duration for out-then-in order. Slide mode does not use it.',
   'compare.position': 'Where the divider starts between two images, as a share of the width.',
   'compare.positions': {
@@ -220,6 +222,11 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-stack.blur': 'How much blurrier each card behind gets, per place back.',
   'spatial-stack.fade': 'How much fainter each card behind gets, per place back.',
   'spatial-stack.depth': 'How many cards show behind the front one; the rest wait hidden.',
+  'spatial-stack.leave': 'Use swipe for a sideways exit that advances one card when dragged either way.',
+  'spatial-stack.leave-x': 'How far the leaving card moves sideways, multiplied by the swipe direction.',
+  'spatial-stack.leave-rotate': 'How far the leaving card rotates, multiplied by the swipe direction.',
+  'spatial-stack.leave-fade': 'Opacity lost over one leaving place, with zero keeping a swipe opaque.',
+  'spatial-stack.rest-rotate': 'Alternate resting card angles by stable card index using this angle.',
 
   'step-progress.duration': 'Passed to your slide styles; autoplay also waits this long after someone moves it.',
   'step-progress.delay': 'Passed to your slide styles to use as a start wait; the library adds no pause itself.',
@@ -268,3 +275,25 @@ export const SHOWCASE_NOTES: ParamNotes = {
     whenOmitted: 'Looks anywhere on the page, except under the carousel name, which looks inside.',
   },
 }
+
+const STACK_ONLY_PARAMS = new Set([
+  'travel', 'shift', 'rise', 'shrink', 'blur', 'fade', 'depth',
+  'leave', 'leave-x', 'leave-rotate', 'leave-fade', 'rest-rotate',
+])
+
+export const ROW_NOTES: ParamNotes = Object.fromEntries(
+  Object.entries(SHOWCASE_NOTES)
+    .filter(([key]) => {
+      const [owner, parameter] = key.split('.')
+      return owner === 'spatial-stack' && !STACK_ONLY_PARAMS.has(parameter!)
+    })
+    .map(([key, note]) => [
+      key.replace('spatial-stack.', 'spatial-row.'),
+      typeof note === 'string'
+        ? note.replace('stack', 'row')
+        : {
+            why: note.why.replace('stack', 'row'),
+            whenOmitted: note.whenOmitted!.replace('stack', 'row'),
+          },
+    ]),
+)
