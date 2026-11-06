@@ -40,13 +40,16 @@ library should own it. Never call something "not the library's job" without grep
       these yet, because they cost extra JS drivers for few effects: `magnetic-filings`, `split-text-scatter`,
       `collision-hover-grid`, `apple-watch-home-screen`, `multifollow-pointer-with-spring`, `reorder-grid`, `apple-intelligence`.
       Frames are in `sheets/<effect>.jpg` in that folder.
-- [ ] **Motion back burner: heavy GPU work.** Owner, 2026-11-06: wait until round 16's three.js works, then decide.
+- [ ] **HIGH PRIORITY, later: Motion lane D, three.js and the bend.** Owner, 2026-11-06: "have lane D be a high priority for another time. 3D stuff is too heavy right now."
+      Do this first when 3D work restarts: shared three.js renderer host and 3D packaging (610-920 lines, model loading left out), `three-tsl` and `vgpu-effect` (160-240), `particle-orb` (90-140), then `bend` (220-340, plus an unpriced grid landing; the checker guesses 400-600 in all).
+      Adds 135-190 KB gzip for three.js, in the separate 3D file only. Needs `three` installed. Design and options: `ADS-memory/.local-artifacts/motion-examples/build/BEND-SPEC.md`. Plan and corrections: `TRIMMED-SCOPE.md`, `REST-PLAN-CHECK.md`, `REST-PLAN-CHECK-2.md` there. JS effects need `repeat:` support first (check item X1).
+- [ ] **Motion back burner: heavy GPU work.** Owner, 2026-11-06: wait until lane D's three.js works, then decide.
       Watch them: `open ADS-memory/.local-artifacts/motion-examples/later.html`. Costs are in `ADS-memory/.local-artifacts/motion-examples/build/REST-PLAN.md`. Estimates, nothing built.
       Flat shaders (shared 80-120 lines): `three-shader-topography` (70-110), `three-uniforms` and `vgpu-vectors` (100-150),
       `threejs-ocarina-watercolour` and `vgpu-majora-watercolour` (170-250). three.js scenes, all needing the foundation below:
       `three-materials` (25-45), `three-motion-values` and `vgpu-motion-values` (60-90), `three-orbit` and `vgpu-orbit` (190-280),
-      `vgpu-uniforms` (55-85). `three-tsl`, `vgpu-effect` and `particle-orb` moved into the build (round 16), which also pays for the foundation.
-- [ ] **Effects from the owner's pins, not in any plan yet.** Owner sent these as animations they like; the planning brief left them out by mistake.
+      `vgpu-uniforms` (55-85). `three-tsl`, `vgpu-effect` and `particle-orb` are in the high-priority lane D item above, which also pays for the foundation.
+- [ ] **Effects from the owner's pins: being built, lane P (2026-11-06).** Owner sent these as animations they like; the planning brief left them out by mistake.
       Frames: `ADS-memory/.local-artifacts/motion-examples/sheets/pin2-reference.jpg`, video `videos/pin2-reference.mp4` there.
       (a) A small image grows to fill the screen, on scroll (`parallax-scale` plus a pin gets part of it, no preset). (b) A row of cards where the hovered one widens and the others narrow (missing).
       Pin 1's cards settling into a grid is covered by `bend land:grid`, see `build/BEND-SPEC.md` there.
