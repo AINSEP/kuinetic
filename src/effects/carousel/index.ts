@@ -14,6 +14,7 @@ import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './de
 import { createRingFit } from './fit.js'
 import type { DeckLayout, Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
+import { SPATIAL_ROW_PRIMITIVE, ROW_PRESETS } from './row.js'
 
 export { snapPosition } from './deck.js'
 
@@ -505,7 +506,7 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
   prepare: deferPrepare(prepareSpatialRing),
 }
 
-export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL_STACK_PRIMITIVE]
+export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL_STACK_PRIMITIVE, SPATIAL_ROW_PRIMITIVE]
 
 /**
  * Convex and concave are two names, not one parameter with two values.
@@ -636,4 +637,5 @@ export function registerCarousel(registry: Registry): Registry {
     .registerPrimitives(CAROUSEL_PRIMITIVES)
     .registerPresets(CAROUSEL_PRESETS)
     .registerPresets(STACK_PRESETS)
+    .registerPresets(ROW_PRESETS)
 }

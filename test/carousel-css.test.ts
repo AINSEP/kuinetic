@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { SPATIAL_STACK_PRIMITIVE } from '../src/effects/carousel/stack.js'
 import { catalogRegistry } from './support/registry.js'
+import { stripComments } from './support/css-scan.js'
 
 /**
  * The carousel stylesheet keys every rule on preset *names*, and a name the stylesheet forgot is the
@@ -22,6 +23,29 @@ import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/css/carousel.css', import.meta.url)), 'utf8')
 const registry = catalogRegistry()
+
+describe('row structure and runtime ownership', () => {
+  const rules = [...stripComments(css).matchAll(/(?<=[{}])([^{}]*)\{([^{}]*)\}/g)]
+    .map((match) => ({ selectors: match[1]!, body: match[2]! }))
+
+  it('keeps raw row selectors scrollable and free of motion, including non-slide children', () => {
+    const raw = rules.filter(rule => rule.selectors.includes("[data-kui~='carousel-loop']"))
+    expect(raw.length).toBeGreaterThan(0)
+    for (const rule of raw) expect(rule.body).not.toMatch(/(?:transform|transition|--kui-ring-drift)\s*:/)
+    expect(raw.some(rule => rule.body.includes('overflow-x: auto'))).toBe(true)
+  })
+
+  it('clips looping overflow without scrolling, and moves only direct marked slides', () => {
+    const runtime = rules.filter(rule => rule.selectors.includes("[data-kui-fx~='carousel-loop']"))
+    expect(runtime.some(rule => rule.body.includes('overflow: clip'))).toBe(true)
+    const motion = runtime.filter(rule => /transform\s*:/.test(rule.body))
+    expect(motion.length).toBeGreaterThan(0)
+    for (const rule of motion) expect(rule.selectors).toContain("[data-kui-fx~='carousel-loop'] > [data-kui-step-offset]")
+    expect(runtime.some(rule => rule.selectors.includes("[data-kui-ring-wrap='true']") && rule.body.includes('transition: none'))).toBe(true)
+    const base = readFileSync(fileURLToPath(new URL('../src/css/base.css', import.meta.url)), 'utf8')
+    expect(base).toContain("[data-kui-rm][data-kui-fx~='carousel-loop'] [data-kui-step-offset]")
+  })
+})
 
 const deckNames = (primitive: string): string[] =>
   registry.names().filter((name) => registry.resolve(name)?.primitive.id === primitive)

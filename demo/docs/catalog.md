@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **306** named effects, **47 primitive families** — the table below enumerates all 47,
+**Counts:** **307** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -54,7 +54,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 
 ---
 
-## The 47 primitive families
+## The 48 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -105,6 +105,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 | 45 | `slow-mo` | js | x | playback-rate control for a subtree |
 | 46 | `spatial-stack` | js | o,f,x | cards receding diagonally into depth — the depth-stack carousel |
 | 47 | `curtain` | js | x | solid colour cover, one state commit, independent reveal shape |
+| 48 | `spatial-row` | js | x | measured mixed-width flex slides with seamless horizontal looping |
 
 ---
 
@@ -958,13 +959,13 @@ Primitives 1, 5, 35, 36, 47, plus the View Transitions API.
 
 ---
 
-## N. 3D & perspective — 12 shipped, 2 planned
+## N. 3D & perspective — 13 shipped, 2 planned
 
-Primitives 14, 22, 38, 46.
+Primitives 14, 22, 38, 46, 48.
 
 `card-flip-x` · `card-flip-y` · `flip-card` · `cube-rotate` · `book-page-turn` ·
 `fold-panel` · `carousel-3d` · `carousel-3d-high` · `carousel-3d-low` ·
-`carousel-3d-inside` · `carousel-orbit` · `carousel-stack` · `depth-layers-pointer`† ·
+`carousel-3d-inside` · `carousel-orbit` · `carousel-stack` · `carousel-loop` · `depth-layers-pointer`† ·
 `perspective-grid`†
 
 > **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
@@ -1293,6 +1294,52 @@ Primitives 14, 22, 38, 46.
 >
 > With at least `depth + 3` cards, a card going from the front to the back of the deck is never seen
 > crossing it. With fewer, it appears at the back as it arrives.
+
+> **`carousel-loop` is a horizontal flex row with mixed-width slides.** Author slide widths and
+> the host's `gap` in CSS; direct children are the slides unless `target:` selects direct children.
+> The host clips horizontal overflow, keeps vertical touch scrolling, and centres the live slide.
+> It shares the deck's keyboard, optional controls and automatic-motion parameters, but has no
+> `travel:` parameter: dragging follows measured slide spacing and releases to the nearest place.
+> No controls are generated. A loop needs one cycle at least as wide as the viewport plus its
+> widest slide and largest centre-to-centre step (room to recycle between animated steps).
+> Otherwise it becomes a static, locally scrollable strip with native touch scrolling;
+> resize rechecks coverage. No clones, RTL, vertical mode or free coast are provided.
+> In that static fallback, deck arrow keys are consumed without visible motion, and spin/autoplay
+> still tick invisibly. While looping, keyboard-visible focus centres its slide without moving on
+> mouse focus. Measured relayouts and jumps beyond the recycling room land without a transition.
+> `spin:` advances places at a constant rate, so wider intervals travel faster in pixels.
+>
+> ```html
+> <div data-kui="carousel-loop" aria-label="Artwork" style="gap:20px">
+>   <a href="/one" style="width:180px">One</a>
+>   <a href="/two" style="width:260px">Two</a>
+>   <a href="/three" style="width:200px">Three</a>
+>   <a href="/four" style="width:240px">Four</a>
+> </div>
+> ```
+>
+> For authored child motion, `calc(var(--kui-offset) - var(--kui-ring-drift))` is the signed
+> number of places from the live slide; multiply it by a length, angle or opacity slope in CSS.
+> Give child transforms and opacity the row's timing so keys, autoplay and release move together:
+>
+> ```css
+> .motion-row.item-offset img, .motion-row.parallax img {
+>   transition-property: transform, opacity;
+>   transition-duration: var(--kui-spatial-row-duration, 620ms);
+>   transition-timing-function: var(--kui-spatial-row-ease, ease);
+>   transition-delay: var(--kui-spatial-row-delay, 0ms);
+> }
+> .motion-row:is([data-kui-ring-dragging='true'], [data-kui-ring-spinning='true'], [data-kui-ring-wrap='true']) img {
+>   transition: none;
+> }
+> @media (prefers-reduced-motion: reduce) {
+>   .motion-row.item-offset img, .motion-row.parallax img { transition-duration: .01ms; }
+> }
+> ```
+>
+> The lab parallax recipe overscans by 60px per edge and moves 24px per place, covering 2.5 places.
+> Its signed offset flips at the circular seam; wider viewports with few slides may expose an image
+> edge. The recipe is sized for the 560px lab viewport; increase overscan or reduce travel for others.
 
 > **The one thing that will silently break it: a flattening property on the ring itself.**
 >
@@ -1921,7 +1968,7 @@ need to track.
 | K Feedback & status | 17 |
 | L Page transitions | 8 |
 | M Navigation | 8 |
-| N 3D & perspective | 12 (+2 planned) |
+| N 3D & perspective | 13 (+2 planned) |
 | O Forms & inputs | 13 |
 | P Motion paths | 5 |
 | Q Discrete open/close | 6 |
@@ -1929,10 +1976,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **306** |
+| **Total shipped** | **307** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **141 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **142 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

@@ -207,6 +207,12 @@
     --kui-spatial-ring-ease: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  [data-kui-fx~='carousel-loop'] {
+    --kui-spatial-row-duration: 620ms;
+    --kui-spatial-row-delay: 0ms;
+    --kui-spatial-row-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   [data-kui-fx~='carousel-orbit'] {
     --kui-ring-plane: screen;
     --kui-facing: camera;
@@ -1707,6 +1713,7 @@
   html[data-kui-cloak] :is([data-kui~='carousel-3d-high'], [data-kui~='carousel-3d-high,'], [data-kui~=',carousel-3d-high'], [data-kui~=',carousel-3d-high,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-3d-inside'], [data-kui~='carousel-3d-inside,'], [data-kui~=',carousel-3d-inside'], [data-kui~=',carousel-3d-inside,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-3d-low'], [data-kui~='carousel-3d-low,'], [data-kui~=',carousel-3d-low'], [data-kui~=',carousel-3d-low,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='carousel-loop'], [data-kui~='carousel-loop,'], [data-kui~=',carousel-loop'], [data-kui~=',carousel-loop,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-orbit'], [data-kui~='carousel-orbit,'], [data-kui~=',carousel-orbit'], [data-kui~=',carousel-orbit,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-stack'], [data-kui~='carousel-stack,'], [data-kui~=',carousel-stack'], [data-kui~=',carousel-stack,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='chart-area-fill'], [data-kui~='chart-area-fill,'], [data-kui~=',chart-area-fill'], [data-kui~=',chart-area-fill,']):not([data-kui-state]),
@@ -1817,6 +1824,7 @@
   html[data-kui-cloak] :is([data-kui~='carousel-3d-high'], [data-kui~='carousel-3d-high,'], [data-kui~=',carousel-3d-high'], [data-kui~=',carousel-3d-high,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-3d-inside'], [data-kui~='carousel-3d-inside,'], [data-kui~=',carousel-3d-inside'], [data-kui~=',carousel-3d-inside,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-3d-low'], [data-kui~='carousel-3d-low,'], [data-kui~=',carousel-3d-low'], [data-kui~=',carousel-3d-low,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='carousel-loop'], [data-kui~='carousel-loop,'], [data-kui~=',carousel-loop'], [data-kui~=',carousel-loop,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-orbit'], [data-kui~='carousel-orbit,'], [data-kui~=',carousel-orbit'], [data-kui~=',carousel-orbit,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-stack'], [data-kui~='carousel-stack,'], [data-kui~=',carousel-stack'], [data-kui~=',carousel-stack,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='chart-area-fill'], [data-kui~='chart-area-fill,'], [data-kui~=',chart-area-fill'], [data-kui~=',chart-area-fill,']):not([data-kui-state]),

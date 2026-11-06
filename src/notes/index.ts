@@ -8,7 +8,7 @@ import { KEY_NOTES } from './keys.js'
 import { MECHANICS_NOTES } from './mechanics.js'
 import { SCROLL_NAV_FORMS_NOTES } from './scroll-nav-forms.js'
 import { SHARED_NOTES } from './shared.js'
-import { SHOWCASE_NOTES } from './showcase.js'
+import { SHOWCASE_NOTES, ROW_NOTES } from './showcase.js'
 import { TEXT_NOTES } from './text.js'
 
 /**
@@ -32,6 +32,7 @@ export const PARAM_NOTES: ParamNotes = {
   ...SCROLL_NAV_FORMS_NOTES,
   ...MECHANICS_NOTES,
   ...SHOWCASE_NOTES,
+  ...ROW_NOTES,
   ...KEY_NOTES,
 }
 

@@ -99,6 +99,15 @@ function commitStyle(win: Window, node: Element): string | undefined {
   return win.getComputedStyle?.(node).transform
 }
 
+/** Commit a layout change while its transitions are suspended, then restore the author's flag. */
+export function commitWithoutTransition(win: Window, node: Element, write: () => void = () => {}): void {
+  const flag = createAttributeLedger(node)
+  flag.set(WRAP_ATTR, 'true')
+  write()
+  commitStyle(win, node)
+  flag.restore()
+}
+
 /**
  * Which way a deck's cards travel across the screen as its position grows, as the sign a drag's
  * pixels are multiplied by: `1` when the next card sits to the right of the live one (so advancing
@@ -231,7 +240,9 @@ export interface DeckLayout {
     measure(nodes: readonly Element[]): void
     faceOf(place: number, count: number): Face | undefined
     travelSign(): 1 | -1 | undefined
-    watch(refresh: () => void): Cleanup
+    watch(refresh: () => void, goTo: (position: number) => void): Cleanup
+    render?(position: number, settle: (nodes: readonly Element[]) => void): void
+    positionAt?(from: number, dx: number): number
   }
   /**
    * The shape's own reading of a circular offset, when it is not the offset itself.
@@ -328,6 +339,7 @@ export function prepareSpatialDeck(
   layout: DeckLayout,
 ): Cleanup {
   const { label } = layout
+  const frameView = layout.view?.render ? layout.view : undefined
   // Only the `key:value` spelling of a timing token reaches CSS on its own — `pushTrack` writes the
   // positional tokens for `css-keyframes` primitives and no others, and these render through
   // JavaScript. Without this, `carousel-3d 900ms` would travel at the 620ms default while
@@ -362,19 +374,14 @@ export function prepareSpatialDeck(
 
   /** Commit a wrapped slot's jump without a transition. See {@link WRAP_ATTR}. */
   const settleWrapped = (nodes: readonly Element[], count: number): void => {
+    if (layout.view?.render) return
     for (const node of nodes) {
       const raw = Number(node.getAttribute('data-kui-step-offset'))
       const offset = layout.placeOf ? layout.placeOf(raw, count) : raw
       const previous = lastOffsets.get(node)
       lastOffsets.set(node, offset)
       if (previous === undefined || !offsetWrapped(previous, offset, count)) continue
-      const flag = createAttributeLedger(node)
-      flag.set(WRAP_ATTR, 'true')
-      // A forced style resolution is the whole point: it is the "before" state of the next style
-      // change, so the jump is committed here, untransitioned, and removing the flag afterwards
-      // changes nothing that could start one.
-      commitStyle(ctx.win, node)
-      flag.restore()
+      commitWithoutTransition(ctx.win, node)
     }
   }
 
@@ -409,9 +416,18 @@ export function prepareSpatialDeck(
      * value CSS subtracts (`--kui-step-position - --kui-step`) inside half a place either way.
      */
     hostStyles.set('--kui-step-position', (step + drift).toFixed(4))
+    layout.view?.render?.(position, shifted => {
+      for (const node of shifted) commitWithoutTransition(ctx.win, node)
+    })
   }
 
   const render = (): void => {
+    if (frameView) {
+      const nodes = [...resolveSlots()]
+      if (nodes.length !== rendered.nodes.length || nodes.some((node, i) => node !== rendered.nodes[i])) {
+        frameView.measure(nodes)
+      }
+    }
     // No `count > 0` guard anywhere below: `countSteps` floors its answer at 1, so a deck with no
     // slots at all still counts one place and nothing divides by zero.
     const count = total()
@@ -422,8 +438,9 @@ export function prepareSpatialDeck(
     // whose *host* has to size itself from how many slides there are — a flat ring reserves a box
     // as wide as its own circle, and the slots cannot tell their parent that.
     hostStyles.set('--kui-item-count', String(count))
-    publishPosition(step, drift)
+    if (!frameView) publishPosition(step, drift)
     marker.mark(step)
+    if (frameView) publishPosition(step, drift)
     jumpMarker?.mark(step, drift)
     const nodes = [...resolveSlots()]
     if (layout.measure) measureItem(hostStyles, nodes)
@@ -475,7 +492,8 @@ export function prepareSpatialDeck(
   const goTo = (next: number): void => {
     motion.interrupt()
     position = next
-    render()
+    if (layout.view?.render && total() === rendered.count) renderFrame()
+    else render()
   }
 
   /*
@@ -521,6 +539,7 @@ export function prepareSpatialDeck(
     total,
     positionOf: () => position,
     travelSign: screenTravel,
+    positionAt: layout.view?.positionAt,
     moveTo: goTo,
     setDragging: (dragging) => {
       hostAttributes.set(DRAGGING_ATTR, String(dragging))
@@ -536,9 +555,15 @@ export function prepareSpatialDeck(
 
   render()
   const releaseView = layout.view?.watch(() => {
+    if (layout.view?.render) {
+      rendered.nodes = [...resolveSlots()]
+      layout.view.measure(rendered.nodes)
+      render()
+      return
+    }
     layout.view!.measure(rendered.nodes)
     markFaces(rendered.nodes, rendered.count, snapPosition(position, rendered.count).drift)
-  })
+  }, goTo)
 
   return () => {
     releaseView?.()

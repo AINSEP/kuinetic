@@ -21,6 +21,28 @@
  * ordinary CSS on properties the `skew` channel covers (`transform`).
  */
 @layer kui.effects {
+  [data-kui~='carousel-loop'], [data-kui-fx~='carousel-loop'] {
+    display: flex;
+    position: relative;
+    gap: 24px;
+    overflow-x: auto;
+    min-width: 0;
+  }
+  [data-kui~='carousel-loop'] > *, [data-kui-fx~='carousel-loop'] > [data-kui-step-offset] {
+    flex: 0 0 auto;
+  }
+  [data-kui-fx~='carousel-loop'] {
+    overflow: clip;
+    --kui-ring-drift: calc(var(--kui-step-position, 0) - var(--kui-step, 0));
+  }
+  [data-kui-fx~='carousel-loop'] > [data-kui-step-offset] {
+    transform: translateX(calc(var(--kui-row-x, 0px) + var(--kui-row-cycle, 0px)));
+    transition: transform var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease) var(--kui-spatial-row-delay, 0ms);
+  }
+  [data-kui-fx~='carousel-loop'][data-kui-row-static='true'] { overflow-x: auto; }
+  [data-kui-fx~='carousel-loop'][data-kui-ring-wrap='true'] > [data-kui-step-offset] {
+    transition: none;
+  }
   /*
    * --- the camera (channel: skew) ---
    *

@@ -163,6 +163,8 @@ describe('authored spatial-deck outputs', () => {
     expect(query).not.toHaveBeenCalled()
     expect(style).not.toHaveBeenCalled()
     expect(host().style.getPropertyValue('--kui-autoplay-progress')).toBe('')
+    expect(host().style.getPropertyValue('--kui-row-x')).toBe('')
+    expect([...host().children].every(node => !(node as HTMLElement).style.getPropertyValue('--kui-row-cycle'))).toBe(true)
     expect(controls().every(node => !node.hasAttribute('style'))).toBe(true)
     expect(vi.getTimerCount()).toBe(1)
     animator!.destroy()

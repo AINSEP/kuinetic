@@ -66,6 +66,7 @@ export interface RingDragRequest {
    * the card under the pointer follows it whatever the shape.
    */
   travelSign(): 1 | -1
+  positionAt?(from: number, dx: number): number
   /** Move the ring to a continuous position and re-render. */
   moveTo(position: number): void
   /** Publish or clear the dragging state the stylesheet suspends its transition on. */
@@ -321,13 +322,13 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
             setDragging(true)
           },
           onMove(vector) {
-            moveTo(dragFrom - (sign * vector.dx) / travelPx)
+            moveTo(request.positionAt?.(dragFrom, vector.dx) ?? dragFrom - (sign * vector.dx) / travelPx)
           },
           onEnd(vector) {
             selection.release()
             setDragging(false)
             clicks.arm()
-            const settled = snapTo(projectRelease(positionOf(), sign * vector.vx, travelPx))
+            const settled = snapTo(request.positionAt ? positionOf() : projectRelease(positionOf(), sign * vector.vx, travelPx))
             moveTo(wrapPlace(settled, total()))
           },
         },
