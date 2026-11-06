@@ -165,3 +165,24 @@ describe('helix paint safety', () => {
     expect(bare.slice(start, bare.indexOf('}', start))).toContain('opacity: 1')
   })
 })
+
+it('keeps line yaw constant and fades using the measured row coordinate', () => {
+  expect(css).toContain('rotateY(var(--kui-line-yaw, -25deg))')
+  expect(css).toContain('--kui-line-place: calc(var(--kui-row-centre)')
+  expect(css).toContain('min(var(--kui-line-high) - var(--kui-line-place), var(--kui-line-place) - var(--kui-line-low))')
+  expect(css).toContain('opacity: clamp(0, tan(atan2(var(--kui-line-room), var(--kui-line-fade))), 1)')
+  expect(css).toContain('calc(-1 * var(--kui-line-place) * var(--kui-line-depth-ratio))')
+})
+
+it('gives the column the line function list, so a switch interpolates, and lets a commit or a drag end the flight', () => {
+  const functions = (selector: string): string[] => {
+    const start = css.indexOf(selector)
+    expect(start).toBeGreaterThan(-1)
+    const body = css.slice(css.indexOf('transform:', start), css.indexOf('}', start))
+    return [...body.matchAll(/\b(translate3d|rotateY|scale)\(/g)].map(match => match[1]!)
+  }
+  const list = ['translate3d', 'rotateY', 'scale']
+  expect(functions("[data-kui-row-shape='line'] > :is([data-kui-step-offset], [data-kui-row-copy]) {\n    --kui-line-place")).toEqual(list)
+  expect(functions("[data-kui-row-arrangement='column'] > [data-kui-step-offset] {")).toEqual(list)
+  expect(css).toContain("[data-kui-row-flight='true']:not([data-kui-ring-wrap='true'], [data-kui-ring-dragging='true'])")
+})

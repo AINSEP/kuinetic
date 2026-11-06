@@ -14,6 +14,7 @@ import type { StyleLedger } from '../../core/owned-styles.js'
 import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
 import { deckSourceVariant } from './sources.js'
 import { createHelixFit } from './shape-fit.js'
+import { createSphereAttachment, createSpherePitch, sphereLatitude, sphereNormal } from './sphere.js'
 import { createRingFit } from './fit.js'
 import type { DeckLayout, Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
@@ -203,8 +204,9 @@ function multiply(a: readonly number[], b: readonly number[]): number[] {
     return a[row]! * b[col]! + a[row + 1]! * b[col + 3]! + a[row + 2]! * b[col + 6]!
   })
 }
+interface RingViewShape { arcDeg: number; tiltDeg: number; spherePitch?: () => number }
 /** One shared slot-parent chain, bounded by its 3D context; never measured in a spin frame. */
-function createRingView(el: Element, ctx: PrepareContext, arcDeg: number, tiltDeg: number): NonNullable<DeckLayout['view']> {
+function createRingView(el: Element, ctx: PrepareContext, { arcDeg, tiltDeg, spherePitch }: RingViewShape): NonNullable<DeckLayout['view']> {
   const tilt = Math.min(80, Math.max(-80, -tiltDeg)) * Math.PI / 180
   const c = Math.cos(tilt), s = Math.sin(tilt)
   const read = (node: Element): CSSStyleDeclaration | undefined => ctx.win.getComputedStyle?.(node)
@@ -222,9 +224,13 @@ function createRingView(el: Element, ctx: PrepareContext, arcDeg: number, tiltDe
     }
     turned = m.some((value, i) => Math.abs(value - IDENTITY[i]!) > 1e-10)
   }
-  const faceOf = (place: number, count: number): Face | undefined => {
-    if (!turned) return undefined // Preserve faceAt's exact edge-on boundary.
+  const faceOf = (place: number, count: number, index: number): Face | undefined => {
+    if (!turned && !spherePitch) return undefined // Preserve faceAt's exact edge-on boundary.
     const angle = place * arcDeg / count * Math.PI / 180
+    if (spherePitch) {
+      const [x, y, z] = sphereNormal(angle, sphereLatitude(index, count) * Math.PI / 180, tilt + spherePitch() * Math.PI / 180)
+      return m[6]! * x + m[7]! * y + m[8]! * z > 1e-10 ? 'front' : 'back'
+    }
     return m[6]! * Math.sin(angle) + (c * m[8]! - s * m[7]!) * Math.cos(angle) > 1e-10 ? 'front' : 'back'
   }
   const travelSign = (): 1 | -1 | undefined => {
@@ -262,7 +268,8 @@ function createRingView(el: Element, ctx: PrepareContext, arcDeg: number, tiltDe
 
 const RING_PARAMETERS: ParameterSchema = {
   ...DECK_PARAMETERS,
-  shape: { type: 'keyword', default: 'ring', keywords: ['ring', 'helix'], cssProperty: '--kui-ring-shape' },
+  shape: { type: 'keyword', default: 'ring', keywords: ['ring', 'helix', 'sphere'], cssProperty: '--kui-ring-shape' },
+  'drag-axis': { type: 'keyword', default: 'x', keywords: ['x', 'both'], cssProperty: '--kui-drag-axis' },
   rise: { type: 'length', default: '32px', cssProperty: '--kui-helix-rise' },
   /*
    * A real CSS `<angle>`, not a normalised scalar.
@@ -363,19 +370,21 @@ const RING_PARAMETERS: ParameterSchema = {
   },
 }
 
-function useHelix(el: Element, params: EffectParams, ctx: PrepareContext): boolean {
-  if (!params.is('shape', 'helix')) return false
+function ringShape(el: Element, params: EffectParams, ctx: PrepareContext): 'helix' | 'sphere' | undefined {
+  const shape = (['helix', 'sphere'] as const).find(name => params.is('shape', name))
+  if (!shape) return undefined
   if (params.is('plane', 'screen') || el.matches("[data-kui-fx~='carousel-3d-inside']")) {
-    ctx.warn('shape:helix and rise: are only supported on an outward depth ring; ignored.')
-    return false
+    ctx.warn('shape:helix, shape:sphere and rise: are only supported on an outward depth ring; ignored.')
+    return undefined
   }
-  return true
+  return shape
 }
 
 function ringFitAttachment(el: Element, params: EffectParams, ctx: PrepareContext,
-  geometry: { helix: boolean; plane: string; arc: number; tilt: number }) {
+  geometry: { shape: 'helix' | 'sphere' | undefined; plane: string; arc: number; tilt: number }) {
   if (geometry.plane !== 'depth') return undefined
-  if (geometry.helix) return (styles: StyleLedger) => createHelixFit({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
+  if (geometry.shape === 'helix') return (styles: StyleLedger) => createHelixFit({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
+  if (geometry.shape === 'sphere') return (styles: StyleLedger) => createSphereAttachment({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
   return (styles: StyleLedger) => createRingFit({ el, ctx, styles, arcDeg: geometry.arc,
     tiltParamDeg: geometry.tilt, facing: params.is('facing', 'camera') ? 'camera' : 'radial' })
 }
@@ -394,7 +403,10 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
   // The flattening trap only exists for the 3D plane; a flat ring has no `preserve-3d` to defeat.
   if (plane === 'depth') warnFlattenedHost(el, ctx)
   const arcDeg = degreesOf(params.text('arc', '360deg'), 360)
-  const helix = useHelix(el, params, ctx)
+  const shape = ringShape(el, params, ctx)
+  const tiltDeg = degreesOf(params.text('tilt', '0deg'), 0)
+  const pitch = shape === 'sphere' && params.is('drag-axis', 'both') ? createSpherePitch(ctx, tiltDeg, arcDeg) : undefined
+  const spherePitch = shape === 'sphere' ? () => pitch?.value() ?? 0 : undefined
   const faceOf = (place: number, _offset: number, count: number): Face =>
     plane === 'screen' ? 'front' : faceAt(place * (arcDeg / count))
 
@@ -402,15 +414,16 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
     id: 'spatial-ring',
     label: 'carousel',
     faceOf,
-    view: plane === 'depth' ? createRingView(el, ctx, arcDeg, degreesOf(params.text('tilt', '0deg'), 0)) : undefined,
+    view: plane === 'depth' ? createRingView(el, ctx, { arcDeg, tiltDeg, spherePitch }) : undefined,
+    pitch,
     /*
      * A derived radius needs a card width; a flat ring also needs a card's size to reserve its own
      * circle (the host is sized to it, since transformed slots take no layout space), so it measures
      * even when the author named a radius.
      */
-    measure: !helix && (params.text('radius') === '' || plane === 'screen'),
+    measure: !shape && (params.text('radius') === '' || plane === 'screen'),
     hostAttributes: {
-      ...(helix ? { 'data-kui-ring-shape': 'helix' } : {}),
+      ...(shape ? { 'data-kui-ring-shape': shape } : {}),
       /*
        * `facing:` and `plane:` reach CSS as attributes, not only as the custom properties their
        * specs declare. A stylesheet cannot select on the *value* of a custom property — `@container
@@ -427,7 +440,7 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
      * its own square (`carousel.css`, `[data-kui-ring-plane='screen']`), and its cards never leave
      * the plane that square is measured in.
      */
-    attach: ringFitAttachment(el, params, ctx, { helix, plane, arc: arcDeg, tilt: degreesOf(params.text('tilt', '0deg'), 0) }),
+    attach: ringFitAttachment(el, params, ctx, { shape, plane, arc: arcDeg, tilt: tiltDeg }),
   })
 }
 
@@ -519,8 +532,10 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
   prepare: deferPrepare(prepareSpatialRing),
   variantFor: (spec, warn) => {
     if (spec.params.rise && spec.params.shape !== 'helix') warn('carousel rise: requires shape:helix; ignored.')
+    if (spec.params['drag-axis'] === 'both' && spec.params.shape !== 'sphere') warn('carousel drag-axis:both requires shape:sphere; ignored.')
     return { channels: [...(deckSourceVariant(spec).channels ?? []),
-      ...(spec.params.shape === 'helix' ? [CHANNEL.opacity, CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : [])] }
+      ...(spec.params.shape === 'helix' ? [CHANNEL.opacity, CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : []),
+      ...(spec.params.shape === 'sphere' ? [CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : [])] }
   },
 }
 

@@ -75,7 +75,11 @@ export interface RingDragRequest {
    * the card under the pointer follows it whatever the shape.
    */
   travelSign(): 1 | -1
-  positionAt?(from: number, dx: number): number
+  positionAt?(from: number, dx: number, dy?: number): number
+  /** A shape with real ends clamps a place before a key press can wrap it. */
+  bound?(place: number): number | undefined
+  /** A second axis: the gesture recognises either direction, and touch-action stays pan-y. */
+  pitch?: { begin(): void; move(turns: number): void }
   /** Move the ring to a continuous position and re-render. */
   moveTo(position: number): void
   /** Publish or clear the dragging state the stylesheet suspends its transition on. */
@@ -158,7 +162,7 @@ export function nearestPlace(place: number, current: number, total: number): num
 }
 
 function dragPlace(request: RingDragRequest, place: number): number {
-  return request.unwrapped ? place : wrapPlace(place, request.total())
+  return request.bound?.(place) ?? (request.unwrapped ? place : wrapPlace(place, request.total()))
 }
 
 function releasePlace(request: RingDragRequest, from: number, vector: GestureVector, sign: number): number {
@@ -378,16 +382,18 @@ export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(
             beginPickup(request, coast)
             dragFrom = positionOf()
             sign = request.travelSign()
+            request.pitch?.begin()
             selection.hold()
             setDragging(true)
           },
           onMove(vector) {
+            request.pitch?.move(vector.dy / travelPx / request.total())
             if (request.advanceBoth) {
               ctx.style.set('--kui-stack-swipe-sign', vector.dx < 0 ? '-1' : '1')
               moveTo(dragFrom + Math.min(0.999, Math.abs(vector.dx) / travelPx))
               return
             }
-            moveTo(request.positionAt?.(dragFrom, vector.dx) ?? dragFrom - (sign * vector.dx) / travelPx)
+            moveTo(request.positionAt?.(dragFrom, vector.dx, vector.dy) ?? dragFrom - (sign * vector.dx) / travelPx)
           },
           onEnd(vector) {
             selection.release()
@@ -408,7 +414,12 @@ export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(
         // link and button inside a card dead in a real browser while jsdom (which has no capture)
         // stayed green. The host never moves under the pointer — its cards do — so the press has
         // nothing to stay captured for until it is a drag, and a drag's click is swallowed above.
-        { axis: 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag', cancelVelocity: request.free },
+        //
+        // A sphere's second axis opens both directions for a mouse. A finger keeps `pan-y` below, so
+        // a touch that starts vertically is still the page scrolling, and only one that starts
+        // sideways can also tumble the sphere. A shape with real ends opens both the same way, since
+        // it can move vertically without a pitch.
+        { axis: request.pitch || request.bound ? 'both' : 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag', cancelVelocity: request.free },
       )
     : () => {}
 

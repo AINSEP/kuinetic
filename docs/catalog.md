@@ -2264,3 +2264,9 @@ The timeline also scrubs composed effects on that host and `control()` refuses i
 
 Keep scroll-driven text paths in a sticky stage for their full distance so the SVG stays visible throughout the travel.
 The clipped `gallery-backstage` recipe is a near match per the owner’s Chrome check: its flat cards have small gaps where the sheet’s trapezoids touch; it adds no parameters.
+
+`carousel-3d shape:sphere gap:0px spin:30s` keeps the ring's places and adds one latitude per card, so controls and the live card work as usual; the live card can sit near a pole. Far cards stay visible and cannot be clicked. `drag-axis:both` also tumbles it vertically: a mouse in any direction, a finger only after starting sideways, because a vertical touch still scrolls the page. Keys step the ring and do not pitch.
+
+`carousel-loop shape:line rise:-36px depth:70px yaw:-25deg spin:30s` places parallel cards on a depth line; clip an outer wrapper, never the host. `rise:` and `depth:` are per card stride, and a negative end margin on the cards overlaps them. Six cards is the least that loops; more cards reach further down the line. `timeline:scroll distance:200vh speed:true` drives the same line from page scroll and publishes speed.
+
+`carousel-loop shape:line attribute:data-layout` moves the same cards between the line and a bounded column when the app sets `data-layout="column"` on the host; any other value is the line. The live card stays live, and the flight is a CSS transition. In the column, keys, `next:`, `spin:`, `autoplay:`, a mouse drag and `timeline:scroll` stop at the real first and last cards; a finger still scrolls the page, so use `timeline:scroll` for phones. Clip an outer wrapper, never the host. The app owns the switch, captions and theme. `copies:auto` is ignored here.

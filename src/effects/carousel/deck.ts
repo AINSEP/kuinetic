@@ -246,15 +246,19 @@ export interface DeckLayout {
   /** A depth ring's cached view through author transforms; absent for other layouts. */
   view?: {
     measure(nodes: readonly Element[]): void
-    faceOf(place: number, count: number): Face | undefined
+    faceOf(place: number, count: number, index: number): Face | undefined
     travelSign(): 1 | -1 | undefined
     keyboardSign?(): 1 | -1
     pixelPosition?(): number
     pickup?(position: number): number | undefined
-    watch(refresh: () => void, goTo: (position: number) => void): Cleanup
+    watch(refresh: () => void, goTo: (position: number) => void, hold: (holding: boolean) => void): Cleanup
     render?(position: number, settle: (nodes: readonly Element[]) => void): void
-    positionAt?(from: number, dx: number): number
+    positionAt?(from: number, dx: number, dy?: number): number
+    /** A shape with real ends clamps a place; `undefined` means it is circular right now. */
+    bound?(position: number): number | undefined
   }
+  /** A second drag axis, for a shape that has one. */
+  pitch?: { begin(): void; move(turns: number): void }
   /**
    * The shape's own reading of a circular offset, when it is not the offset itself.
    *
@@ -290,7 +294,8 @@ interface SlotLedgers {
 }
 
 function dragCoordinates(layout: DeckLayout) {
-  return { positionAt: layout.view?.positionAt, keyboardSign: layout.view?.keyboardSign }
+  return { positionAt: layout.view?.positionAt, keyboardSign: layout.view?.keyboardSign, pitch: layout.pitch,
+    bound: layout.view?.bound }
 }
 
 /**
@@ -408,14 +413,14 @@ export function prepareSpatialDeck(
   }
 
   const markFaces = (nodes: readonly Element[], count: number, drift: number): void => {
-    for (const node of nodes) {
+    nodes.forEach((node, index) => {
       // Read back off the marker's own output rather than recomputed from each node's position:
       // the marker numbers per parent group and wraps per group, and a second numbering here would
       // be a second answer to "which place is this" that could disagree with the one CSS is placing
       // from. `Number(null)` is `0`, so a slide appended between the mark and this read (a custom
       // element reacting to `data-kui-step-state`) is treated as the live place rather than NaN.
       const offset = Number(node.getAttribute('data-kui-step-offset'))
-      const face = layout.view?.faceOf(offset - drift, count) ?? layout.faceOf(offset - drift, offset, count)
+      const face = layout.view?.faceOf(offset - drift, count, index) ?? layout.faceOf(offset - drift, offset, count)
       // Skipped when unchanged: this runs every spin frame, and re-setting an attribute to the value
       // it already holds still invalidates style for every selector that mentions it.
       if (node.getAttribute(FACE_ATTR) !== face) ledgerFor(slots, node).set(FACE_ATTR, face)
@@ -426,7 +431,7 @@ export function prepareSpatialDeck(
         ledgerFor(slots, node).remove('inert')
         ownedInert.delete(node)
       }
-    }
+    })
   }
 
   const publishPosition = (step: number, drift: number): void => {
@@ -495,6 +500,9 @@ export function prepareSpatialDeck(
     markFaces(rendered.nodes, rendered.count, drift)
   }
 
+  const placed = (next: number, count: number): number =>
+    layout.view?.bound?.(next) ?? (layout.unwrapped ? next : wrapPlace(next, count))
+
   const motionParams = deckMotionParams(params, ctx, label)
   const { motion, pause, release: releaseMotion } = createDeckMotion({
     el,
@@ -505,14 +513,12 @@ export function prepareSpatialDeck(
     onAutoplayProgress: params.is('timer')
       ? (progress) => hostStyles.set('--kui-autoplay-progress', progress.toFixed(4)) : undefined,
     step(direction) {
-      const next = Math.round(position) + direction
-      position = layout.unwrapped ? next : wrapPlace(next, total())
+      position = placed(Math.round(position) + direction, total())
       render()
     },
     spin: {
       advance(cycles) {
-        const next = position + cycles * rendered.count
-        position = layout.unwrapped ? next : wrapPlace(next, rendered.count)
+        position = placed(position + cycles * rendered.count, rendered.count)
         renderFrame()
       },
       setSpinning: (spinning) => hostAttributes.set(SPINNING_ATTR, String(spinning)),
@@ -525,7 +531,7 @@ export function prepareSpatialDeck(
     motion.interrupt()
     discrete = !dragging
     if (ctx.timeline === 'scroll' && discrete) hostAttributes.set(SPINNING_ATTR, 'false')
-    position = next
+    position = layout.view?.bound?.(next) ?? next
     if (layout.view?.render && total() === rendered.count) renderFrame()
     else render()
     discrete = false
@@ -539,8 +545,7 @@ export function prepareSpatialDeck(
   const request = { el, ctx, params, label }
   const atPlace = (at: number): number => layout.unwrapped ? nearestPlace(at, position, total()) : at
   const stepTo = (direction: number): void => {
-    const next = Math.round(position) + direction
-    goTo(layout.unwrapped ? next : wrapPlace(next, total()))
+    goTo(placed(Math.round(position) + direction, total()))
   }
   const jump = bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(atPlace(at)) })
   const jumpMarker = jump ? createStepMarker(() => queryControls(el, ctx, jump.selector), undefined, total) : null
@@ -614,14 +619,17 @@ export function prepareSpatialDeck(
     }
     layout.view!.measure(rendered.nodes)
     markFaces(rendered.nodes, rendered.count, snapPosition(position, rendered.count).drift)
-  }, next => goTo(atPlace(next)))
-  const releaseScroll = trackDeckScroll({ el, ctx, params, count: total, position: () => position,
+  // `motion.hold` is one boolean, so a flight that ends under a drag must not lift the drag's own.
+  }, next => goTo(atPlace(next)), holding => motion.hold(holding || dragging))
+  const releaseScroll = trackDeckScroll({ el, ctx, params, position: () => position,
+    // A shape with real ends has n-1 places to cross, so the whole distance ends on its last card.
+    count: () => layout.view?.bound?.(Infinity) ?? total(),
     dragging: () => dragging, resetSpeed: () => speed?.reset(),
     driving: active => hostAttributes.set(SPINNING_ATTR, String(active)),
     move: next => {
       releaseDrag.interrupt()
       hostAttributes.set(SPINNING_ATTR, 'true')
-      position = next
+      position = layout.view?.bound?.(next) ?? next
       renderFrame()
     },
   })

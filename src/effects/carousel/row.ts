@@ -11,6 +11,8 @@ import { wrapPlace } from './drag.js'
 import { createRowCopies, watchCopySources } from './row-copies.js'
 import { deckSourceVariant } from './sources.js'
 import { clampPeriod } from '../auto-motion.js'
+import { createLine } from './line.js'
+import { createArchive } from './archive.js'
 
 function rowGap({ lefts, widths }: { lefts: number[]; widths: number[] }, host: HTMLElement, ctx: PrepareContext, copying: boolean): number {
   if (lefts.length > 1) return lefts[1]! - lefts[0]! - widths[0]!
@@ -23,11 +25,14 @@ function rowGap({ lefts, widths }: { lefts: number[]; widths: number[] }, host: 
 // eslint-disable-next-line max-lines-per-function
 function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
   const host = el as HTMLElement
+  const line = params.is('shape', 'line') ? createLine(host, params, ctx) : undefined
   const originalScrollLeft = host.scrollLeft
   const attributes = createAttributeLedger(el)
+  const archive = line && params.text('attribute') ? createArchive(host, params, ctx, attributes) : undefined
   const slideStyles = new Map<Element, ReturnType<typeof createStyleLedger>>()
   const shifts = new Map<Element, number>()
-  const copies = params.is('copies', 'auto') ? createRowCopies(el, ctx) : undefined
+  // Copies have no place in a column, whose ends are real.
+  const copies = !archive && params.is('copies', 'auto') ? createRowCopies(el, ctx) : undefined
   let slides: readonly HTMLElement[] = []
   let visuals: readonly HTMLElement[] = []
   let visualCentres: number[] = []
@@ -37,9 +42,12 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
   let cycleLength = 0
   let viewportWidth = 0
   let widest = 0
+  let lineReach = 0
   let pixelPosition = 0
   let looping = false
   let measured = true
+  /** The one render after column to line: its transform change is the flight, so nothing commits. */
+  let arriving = false
   let inlineSign: 1 | -1 = 1
   let sizeWatch: SizeWatch | undefined
 
@@ -70,8 +78,9 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
       const shift = cycle * visualCycle
       const previous = shifts.get(slide)
       if (previous === shift) return
+      const reach = line ? lineReach : (viewportWidth + slideWidths[index % slides.length]!) / 2
       const wasVisible = previous !== undefined && previous % visualCycle === 0 &&
-        Math.abs(centre + previous - pixelPosition) <= (viewportWidth + slideWidths[index % slides.length]!) / 2
+        Math.abs(centre + previous - pixelPosition) <= reach
       // Keep a leaving card until it is offscreen; instant relayouts use the arrival geometry.
       if (!instant && looping && wasVisible) return
       shifts.set(slide, shift)
@@ -81,18 +90,8 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     return shifted
   }
 
-  const measureCopies = (stride: number): void => {
-    for (const visual of visuals) {
-      if (!visual.hasAttribute('data-kui-row-copy')) continue
-      slideStyles.delete(visual)
-      shifts.delete(visual)
-    }
-    const extra = copies?.measure(slides, slideWidths, cycleLength, viewportWidth + widest + stride) ?? []
-    visuals = [...slides, ...extra]
-    visualCentres = visuals.map((_, index) => centres[index % slides.length]! + Math.floor(index / slides.length) * cycleLength)
-    visualCycle = slides.length ? cycleLength * (visuals.length / slides.length) : 0
-    for (const copy of extra) slideStyles.set(copy, createStyleLedger(copy))
-    if (copies || params.is('speed')) {
+  const publishCentres = (): void => {
+    if (copies || params.is('speed') || line) {
       visuals.forEach((visual, index) => {
         slideStyles.get(visual)!.set('--kui-row-centre', `${inlineSign * visualCentres[index]!}px`)
       })
@@ -100,27 +99,61 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     }
   }
 
+  const measureCopies = (stride: number): void => {
+    for (const visual of visuals) {
+      if (!visual.hasAttribute('data-kui-row-copy')) continue
+      slideStyles.delete(visual)
+      shifts.delete(visual)
+    }
+    const required = viewportWidth + widest + stride
+    // A line fades halfway round its cycle, so the cycle must cover the view twice.
+    const extra = copies?.measure(slides, slideWidths, cycleLength, line ? 2 * required : required) ?? []
+    visuals = [...slides, ...extra]
+    visualCentres = visuals.map((_, index) => centres[index % slides.length]! + Math.floor(index / slides.length) * cycleLength)
+    visualCycle = slides.length ? cycleLength * (visuals.length / slides.length) : 0
+    for (const copy of extra) slideStyles.set(copy, createStyleLedger(copy))
+    publishCentres()
+  }
+
+  const measureLine = (stride: number): number =>
+    line?.({ stride, cycle: visualCycle, width: viewportWidth,
+      height: Math.max(0, ...slides.map(slide => slide.offsetHeight)) }) ?? 0
+
+  const renderColumn = (y: number): void => {
+    const write = (): void => ctx.style.set('--kui-column-y', `${y}px`)
+    if (measured) commitWithoutTransition(ctx.win, el, write)
+    else write()
+    measured = false
+  }
+
   const render = (position: number, settle: (nodes: readonly Element[]) => void): void => {
+    if (archive?.isColumn()) {
+      renderColumn(archive.pixelAt(position))
+      return
+    }
     const target = pixelAt(wrapPlace(position, centres.length))
     let turns = Math.floor(position / centres.length)
     if (!copies) turns = Math.round((pixelPosition - target) / cycleLength)
     const nextPixel = cycleLength > 0 ? target + turns * cycleLength : 0
-    const instant = measured || Math.abs(nextPixel - pixelPosition) > visualCycle - viewportWidth - widest
+    const travelLimit = line ? visualCycle / 2 : visualCycle - viewportWidth - widest
+    const instant = measured || Math.abs(nextPixel - pixelPosition) > travelLimit
     const write = (): void => {
-      const shifted = shiftSlides(nextPixel, instant)
-      if (!instant) settle(shifted)
+      const shifted = shiftSlides(nextPixel, instant || arriving)
+      if (!instant && !arriving) settle(shifted)
       pixelPosition = nextPixel
       ctx.style.set('--kui-row-x', `${looping ? viewportWidth / 2 - inlineSign * nextPixel : 0}px`)
     }
-    if (instant) commitWithoutTransition(ctx.win, el, write)
+    if (instant && !arriving) commitWithoutTransition(ctx.win, el, write)
     else write()
     measured = false
+    arriving = false
   }
 
   const view = {
     measure(elements) {
       observeSlides(elements)
       slides = elements as readonly HTMLElement[]
+      archive?.measure(slides, slideStyles)
       viewportWidth = host.offsetWidth
       inlineSign = ctx.win.getComputedStyle(host).direction === 'rtl' ? -1 : 1
       slideWidths = slides.map(slide => slide.offsetWidth)
@@ -131,15 +164,19 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
       widest = Math.max(...slideWidths)
       const stride = Math.max(...centres.map((centre, index) => (centres[index + 1] ?? centres[0]! + cycleLength) - centre))
       measureCopies(stride)
+      lineReach = measureLine(stride)
       // Viewport coverage, a recycled slide's width, and one animated step must all fit.
-      looping = visuals.length > 1 && visualCycle - widest - stride >= viewportWidth && viewportWidth > 0
+      const covers = line ? lineReach > 0 : visualCycle - widest - stride >= viewportWidth
+      looping = visuals.length > 1 && covers && viewportWidth > 0
       attributes.set('data-kui-row-static', String(!looping))
       if (looping) host.scrollLeft = 0
       ctx.style.set('touch-action', looping ? 'pan-y' : 'auto')
       measured = true
     },
     render,
-    positionAt(from, dx) {
+    bound: archive?.bound,
+    positionAt(from, dx, dy = 0) {
+      if (archive?.isColumn()) return archive.positionAt(from, dy)
       if (!looping) return 0
       const count = centres.length
       const pixel = pixelAt(wrapPlace(from, count)) - inlineSign * dx
@@ -167,8 +204,15 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
       const shown = inlineSign * (viewportWidth / 2 - translation) + shifts.get(visual)!
       return view.positionAt(position, inlineSign * (pixelPosition - shown))
     },
-    watch(refresh, goTo) {
+    watch(refresh, goTo, hold) {
       const releaseSources = copies ? watchCopySources(el, ctx, refresh) : () => {}
+      // One task from the attribute to the new transforms, so the flight starts at the current picture.
+      const releaseArchive = archive ? archive.watch(() => {
+        const live = Number(host.getAttribute('data-kui-step'))
+        arriving = !archive.isColumn()
+        archive.fly(live, slides, slideStyles, hold)
+        goTo(live)
+      }) : undefined
       sizeWatch = watchElementSize(ctx.win, refresh)
       sizeWatch.observe(el)
       const onFocus = (event: Event): void => {
@@ -181,6 +225,7 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
       refresh()
       return () => {
         releaseSources()
+        releaseArchive?.()
         sizeWatch!.disconnect()
         el.removeEventListener('focusin', onFocus)
       }
@@ -195,6 +240,7 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     },
     label: 'carousel-loop',
     measure: false,
+    hostAttributes: line ? { 'data-kui-row-shape': 'line' } : undefined,
     includeSlot: copies ? node => !node.hasAttribute('data-kui-row-copy') : undefined,
     view,
     faceOf: view.faceOf,
@@ -207,6 +253,8 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     host.scrollLeft = originalScrollLeft
   }
 }
+
+const LINE_ONLY = ['rise', 'depth', 'yaw', 'perspective', 'attribute'] as const
 
 export const SPATIAL_ROW_PRIMITIVE: Primitive = {
   id: 'spatial-row',
@@ -222,6 +270,12 @@ export const SPATIAL_ROW_PRIMITIVE: Primitive = {
     ...Object.fromEntries(Object.entries(DECK_PARAMETERS).filter(([name]) => name !== 'travel')),
     copies: { type: 'keyword', default: 'none', keywords: ['none', 'auto'], cssProperty: '--kui-copies' },
     release: { type: 'keyword', default: 'snap', keywords: ['snap', 'free'], cssProperty: '--kui-release' },
+    shape: { type: 'keyword', default: 'row', keywords: ['row', 'line'], cssProperty: '--kui-row-shape' },
+    rise: { type: 'length', default: '-36px', cssProperty: '--kui-line-rise' },
+    depth: { type: 'length', default: '70px', cssProperty: '--kui-line-depth' },
+    yaw: { type: 'angle', default: '-25deg', cssProperty: '--kui-line-yaw' },
+    perspective: { type: 'length', default: '1600px', cssProperty: '--kui-perspective' },
+    attribute: { type: 'text', default: '', cssProperty: '--kui-row-attribute' },
   },
   supportedTimelines: ['time', 'scroll'],
   supportedActivations: ['load', 'enter', 'click', 'manual'],
@@ -229,7 +283,14 @@ export const SPATIAL_ROW_PRIMITIVE: Primitive = {
   perfClass: 'compositor',
   reducedMotion: 'shorten',
   prepare: deferPrepare(prepareRow),
-  variantFor: deckSourceVariant,
+  variantFor: (spec, warn) => {
+    const line = spec.params.shape === 'line'
+    if (!line && LINE_ONLY.some(name => spec.params[name])) warn(`carousel-loop ${LINE_ONLY.join(', ')} require shape:line; ignored.`)
+    if (spec.params.attribute && spec.params.copies === 'auto') warn('carousel-loop attribute: ignores copies:auto; a column has real ends.')
+    return { channels: [...(deckSourceVariant(spec).channels ?? []),
+      ...(line ? [CHANNEL.opacity, attributeChannel('data-kui-row-shape')] : []),
+      ...(line && spec.params.attribute ? [attributeChannel('data-kui-row-arrangement'), attributeChannel('data-kui-row-flight')] : [])] }
+  },
 }
 
 export const ROW_PRESETS: Preset[] = [

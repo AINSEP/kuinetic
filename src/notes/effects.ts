@@ -90,7 +90,8 @@ export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
   'number-formatting': ['The app writes the formatted string to data-value; matching characters keep their identity without rolling digits.'],
   'text-path': ['Put text-path on an SVG textPath to drive startOffset on scroll or a native SVG timer.'],
   'carousel-loop': ['Mixed-width slides loop horizontally; give each direct child a width in CSS.',
-    'A short row stays a static, locally scrollable strip until it can cover the viewport while recycling.'],
+    'A short row stays a static, locally scrollable strip until it can cover the viewport while recycling.',
+    'shape:line uses constant yaw with rise and depth per measured stride and fades before recycling.'],
   'drop-open': ['Parent data-open, open or popover-open opens its direct children.'],
   curtain: [
     'Covers with a solid colour, commits one attribute change, then reveals. Cover and reveal shapes are independent.',
