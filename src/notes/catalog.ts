@@ -2,6 +2,10 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/ambient.ts`, `media.ts`, `materials.ts`, `transforms.ts`, `view-transitions.ts`. */
 export const CATALOG_NOTES: ParamNotes = {
+  'image-flight.image': 'Find this image inside the button’s closest data-kui-flight-source wrapper, without moving the original.',
+  'image-flight.destination': 'Fly toward the first page element matching this selector, while the app owns basket state.',
+  'image-flight.lift': 'How far the flight lifts above its straight path, in absolute length units such as pixels.',
+  'number-tokens.attribute': 'Read the app-formatted string from this attribute and animate matching characters when it changes.',
   'curtain.controls': 'Selector for the element whose state changes; defaults to aria-controls, as view-swap does.',
   'curtain.attribute': 'Attribute to change only after the colour panel fully covers.',
   'curtain.value': 'Destination value, or next to advance through values; omit to toggle attribute presence.',

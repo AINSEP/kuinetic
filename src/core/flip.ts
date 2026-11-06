@@ -48,6 +48,10 @@ export interface FlipOptions {
   watchRest?: (refresh: () => void) => Cleanup
   /** Convert cached boxes and update the measurement batch when its scroll chain changes. */
   rebase?: (before: FlipSnapshot) => FlipSnapshot
+  /** Opt-in departure hooks; ordinary FLIP never reads animated styles. */
+  interrupt?: (before: FlipSnapshot) => FlipSnapshot
+  prepareChange?: () => void
+  exclude?: (el: Element) => boolean
 }
 
 export interface FlipRun {
@@ -384,7 +388,7 @@ export function observeLayout(
   observe: (callback: () => void) => Cleanup,
 ): Cleanup {
   const elements = (): Iterable<Element> =>
-    options.nested ? [container, ...container.querySelectorAll('*')] : container.children
+    options.nested ? [container, ...container.querySelectorAll('*')] : [...container.children].filter((el) => !options.exclude?.(el))
   let before = engine.snapshot(elements())
   const runs = trackFlipRuns()
   let dirty = false
@@ -398,10 +402,12 @@ export function observeLayout(
   }
 
   const cleanup = observe(() => {
+    if (runs.active() && options.interrupt) before = options.interrupt(before)
     // Cancel first: a box read while a run is in flight includes its inverted transform.
     runs.cancelAll()
     dirty = false
     before = options.rebase?.(before) ?? before
+    options.prepareChange?.()
     const after = engine.snapshot(elements())
     const run = engine.play(before, elements(), options)
     runs.track(run)
@@ -431,7 +437,7 @@ export function observeLayout(
  * @complexity O(1) to install; callback cost is the caller's.
  * @overallScore 100
  */
-export function mutationWatcher(container: Element, attribute = ''): (callback: () => void) => Cleanup {
+export function mutationWatcher(container: Element, attribute = '', extra: string[] = []): (callback: () => void) => Cleanup {
   return (callback) => {
     if (typeof MutationObserver === 'undefined') return () => {}
     const observer = new MutationObserver(callback)
@@ -444,7 +450,7 @@ export function mutationWatcher(container: Element, attribute = ''): (callback: 
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: attribute ? ['hidden', attribute] : ['hidden'],
+      attributeFilter: [...(attribute ? ['hidden', attribute] : ['hidden']), ...extra],
     })
     return () => observer.disconnect()
   }

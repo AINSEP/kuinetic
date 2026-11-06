@@ -782,6 +782,7 @@ export class Animator {
         plan: target.plan,
         signal: context.signal,
         ledger: matchLedger,
+        cancel: () => this.cancel(match),
       }),
     )
   }
@@ -1026,7 +1027,10 @@ export class Animator {
       this.turnAround(el, state)
       return
     }
-    if (state.status === 'running') return
+    if (state.status === 'running') {
+      if (!state.instances.some((instance) => instance.replaceOnActivate)) return
+      this.cancelOne(el)
+    }
     // A one-shot binding is spent by whichever path actually starts the effect, not only by the
     // observer callback that would otherwise be the sole releaser. See `openGate`.
     state.releaseActivation?.()

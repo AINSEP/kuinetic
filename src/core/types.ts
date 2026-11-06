@@ -385,6 +385,8 @@ export type Cleanup = () => void
 export interface EffectInstance {
   /** Prepares a CSS effect's geometry or parts without adding a separate playhead. */
   readonly setupOnly?: true
+  /** Opt-in finite decoration: a new activation cancels and replaces the current run. */
+  readonly replaceOnActivate?: boolean
   /** Start. Called by the animator once its gate opens, never by `prepare`. */
   activate(): void
   /**

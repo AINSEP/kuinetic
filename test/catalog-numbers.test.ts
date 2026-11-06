@@ -37,8 +37,8 @@ function fakeCtx(reducedMotion = false, warn: (message: string) => void = () => 
 }
 
 describe('numbers catalog registration', () => {
-  it('registers all 13 section F names', () => {
-    expect(NUMBERS_PRESETS).toHaveLength(13)
+  it('registers all 14 section F names', () => {
+    expect(NUMBERS_PRESETS).toHaveLength(14)
     const reg = registry()
     expect(NUMBERS_PRESETS.every((preset) => reg.has(preset.name))).toBe(true)
   })

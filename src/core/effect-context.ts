@@ -39,6 +39,8 @@ export interface PrepareContext {
   reducedMotion: boolean
   /** Aborted on teardown, so a primitive can pass it straight to `addEventListener`. */
   signal: AbortSignal
+  /** Cancel this host through its animator, suppressing completion when geometry invalidates it. */
+  cancel?(): void
   /**
    * Ledger for this element's inline style.
    *

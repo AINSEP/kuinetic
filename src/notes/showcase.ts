@@ -57,6 +57,7 @@ export const SHOWCASE_NOTES: ParamNotes = {
     whenOmitted: 'Looks only inside this element.',
   },
   'lightbox.scale': 'How small the picture starts as it grows into the viewer; 1 means no zoom.',
+  'lightbox.flight': 'Fly a fitted image from its thumbnail and back, with a short decode wait and plain fallback.',
   'lightbox.loop': {
     why: 'Whether the arrows wrap from the last item back to the first.',
     whenOmitted: 'On: it wraps around.',

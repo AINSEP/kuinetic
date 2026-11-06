@@ -20,6 +20,7 @@ import {
   tweenValue,
 } from './numbers-shared.js'
 import type { CountFormat, CountFormatOptions, CountLayers } from './numbers-shared.js'
+import { prepareNumberTokens } from './number-tokens.js'
 
 /**
  * Numbers and data-viz effects (catalog section F).
@@ -530,9 +531,16 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
 export const COUNT_PRIMITIVES: Primitive[] = [
   countPrimitive('count', countParams, deferPrepare(prepareCount)),
   { ...countPrimitive('count-odometer', odometerParams, deferPrepare(prepareOdometer)), perfClass: 'layout' },
+  { ...countPrimitive('number-tokens', {
+    attribute: { type: 'text', default: 'data-value', cssProperty: '--kui-number-attribute' },
+    duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },
+    ...TRIGGER_DELAY_PARAM,
+    ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  }, deferPrepare(prepareNumberTokens)), defaultActivation: 'load', perfClass: 'layout' },
 ]
 
 export const COUNT_PRESETS: Preset[] = [
+  { name: 'number-formatting', primitive: 'number-tokens' },
   { name: 'count-up', primitive: 'count', params: { from: '0', to: '100' }, cloak: true },
   { name: 'count-down', primitive: 'count', params: { from: '100', to: '0' }, cloak: true },
   {

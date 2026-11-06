@@ -378,7 +378,8 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
       finished = new Promise((resolve) => {
         settle = resolve
       })
-      void work.then(() => settle?.())
+      const resolve = settle
+      void work.then(() => resolve?.())
     },
     cancel: teardown,
     finish() {

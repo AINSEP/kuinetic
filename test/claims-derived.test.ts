@@ -207,6 +207,8 @@ const FIXTURES: Record<string, [string, string]> = {
   // Text effects refuse a host with a link inside (they would replace it).
   count: ['count-compact', '12345'],
   'count-odometer': ['odometer-roll', '1234'],
+  'number-tokens': ['number-formatting', '1234'],
+  'image-flight': ['image-flight image:img destination:img', '<img src="/flight.jpg" alt="Flight">'],
   'scramble-text': ['decode', TEXT],
   'split-text': ['split-chars', TEXT],
   'split-text-motion': ['text-jitter', TEXT],
@@ -233,6 +235,7 @@ const OPEN_SHEET = 'its stylesheet paints the open state; prepare writes only --
  * its children or the page: the check above has nothing to say about them. Each with why.
  */
 const SILENT: Record<string, string> = {
+  'image-flight': 'creates only a temporary image on the body and leaves the trigger and its source unchanged',
   lift: HOVER_SHEET,
   pop: HOVER_SHEET,
   'lift-shadow': HOVER_SHEET,

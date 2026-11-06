@@ -1,12 +1,13 @@
 import type { DeckViewerRequest } from '../core/deck-viewer.js'
 import type { PrepareContext } from '../core/effect-context.js'
+import { waapiEasingValue } from '../core/easing.js'
 import { recognise } from '../core/gesture.js'
 import { continuousSetup, deferPrepare } from '../core/instances.js'
 import type { SetupResult } from '../core/instances.js'
 import { createAttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
-import { withTimingContract } from '../effects/shared.js'
+import { effectEasing, withTimingContract } from '../effects/shared.js'
 import { STEP_STATE_ATTR } from '../effects/step-marking.js'
 import { swipeStep } from '../effects/swipe-event.js'
 import { acquireModalShell } from './modal-shell.js'
@@ -14,6 +15,7 @@ import type { ModalContent, ModalShell } from './modal-shell.js'
 import { resolveMediaSource } from './media-source.js'
 import type { MediaSource } from './media-source.js'
 import { widgetPrimitive } from './shared.js'
+import { lightboxFlight } from './lightbox-flight.js'
 
 const DEFAULT_DURATION_MS = 280
 const DEFAULT_SCALE = '0.965'
@@ -27,6 +29,7 @@ const paramsSchema: ParameterSchema = {
   duration: { type: 'time', default: `${DEFAULT_DURATION_MS}ms`, cssProperty: '--kui-lightbox-duration' },
   ease: { type: 'easing', default: DEFAULT_EASE, cssProperty: '--kui-lightbox-ease' },
   loop: { type: 'keyword', default: 'true', cssProperty: '--kui-lightbox-loop', keywords: ['true', 'false'] },
+  flight: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-lightbox-flight' },
   aspect: { type: 'keyword', default: '', cssProperty: '--kui-lightbox-aspect', keywords: ['wide', 'tall', 'square'] },
   caption: { type: 'keyword', default: 'figcaption', cssProperty: '--kui-lightbox-caption', keywords: ['figcaption', 'alt', 'title', 'none'] },
   arrows: { type: 'keyword', default: 'bottom-right', cssProperty: '--kui-lightbox-arrows',
@@ -384,6 +387,7 @@ function chevron(doc: Document, path: string): SVGSVGElement {
 }
 
 interface ViewerOptions extends Pick<ModalContent, 'duration' | 'scale' | 'ease' | 'reducedMotion'> {
+  flight?: { easing: string; warn: PrepareContext['warn'] }
   loop: boolean
   aspect: string
   arrows: string
@@ -433,6 +437,10 @@ function galleryContent(items: LightboxItem[], initial: number, options: ViewerO
   const unswipe = items.length > 1 ? swipeGallery(state, box) : undefined
   const { duration, scale, ease, reducedMotion } = options
   return { duration, scale, ease, reducedMotion, node: box, label,
+    ...(options.flight && !reducedMotion && items[initial]!.kind === 'image' ? {
+      motion: (dialog: HTMLElement) => lightboxFlight(dialog, { view, duration, ...options.flight!,
+        source: () => imageIn(items[state.index]!.trigger) }),
+    } : {}),
     // The media and the controls (the arrow group included, so a click in the gap between the
     // arrows is not a close) keep the viewer open; the empty figure around them closes it.
     inside: (target) => box.contains(target) && target.closest('img, video, iframe, button, .kui-lightbox-nav') !== null,
@@ -647,6 +655,7 @@ function prepareLightbox(el: Element, params: EffectParams, ctx: PrepareContext)
   const controller = new AbortController()
   const shell = acquireModalShell(ctx.doc)
   const options = { ...modalOptions(params, ctx), loop: params.is('loop'), aspect: params.text('aspect'),
+    flight: params.is('flight') ? { easing: waapiEasingValue(effectEasing(params, DEFAULT_EASE), el, ctx.warn)!, warn: ctx.warn } : undefined,
     arrows: params.text('arrows', 'bottom-right'), arrowGap: params.text('arrow-gap') }
   const restore = wireTriggers(triggers, { shell, options, signal: controller.signal, media,
     captionSource: params.text('caption', 'figcaption'), ctx, warned: new Set() })

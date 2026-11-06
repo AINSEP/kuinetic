@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **308** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **309** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -453,12 +453,12 @@ pauses the loop. Reduced motion and zero duration keep the starting shape.
 
 ---
 
-## F. Numbers & data viz — 13 names
+## F. Numbers & data viz — 14 names
 
 Primitive 20, plus 15 and 26.
 
 `count-up` · `count-down` · `count-currency` · `count-percent` · `count-compact` ·
-`odometer-roll` · `progress-ring` · `progress-bar` · `progress-segments` · `gauge-sweep` ·
+`odometer-roll` · `number-formatting` · `progress-ring` · `progress-bar` · `progress-segments` · `gauge-sweep` ·
 `star-rating-fill` · `sparkline-draw` · `donut-sweep`
 
 > Counters expose the final value to assistive tech and never spam `aria-live` mid-animation.
@@ -466,9 +466,15 @@ Primitive 20, plus 15 and 26.
 > Set each destination with `document.getElementById('total').setAttribute('data-value', String(nextValue))`; increases roll up, decreases down, and width follows the digit count.
 > The accessible value updates immediately; `from`/`to` still govern fixed playback when `attribute:` is omitted.
 
+> **App-formatted character changes.** `<span data-kui="number-formatting attribute:data-value 400ms" data-value="$123.49">$123.49</span>`
+> animates matching characters, new and removed characters, and measured width whenever the app
+> writes `data-value`. The app owns currency, decimal and compact toggles; the effect never formats
+> or rounds the string. First scope is ordinary LTR text, including proportional fonts.
+> Reduced motion updates immediately; ordinary `odometer-roll` remains a rolling integer renderer.
+
 ---
 
-## G. Media & images — 22 names
+## G. Media & images — 23 names
 
 Primitives 5, 6, 7, 4, 30, 31.
 
@@ -476,7 +482,18 @@ Primitives 5, 6, 7, 4, 30, 31.
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
 `before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
-`video-backdrop` · `video-hero`
+`video-backdrop` · `video-hero` · `image-flight`
+
+> **Measured image flight:** put a button inside an authored `data-kui-flight-source` wrapper
+> holding its product image, with `data-kui="image-flight image:img destination:#basket lift:60px on:click"`.
+> The image selector searches that closest wrapper; destination searches the page. These are separate
+> selectors because `target:` would relocate the effect away from the trigger. The app owns basket
+> state and button availability. Landing emits the normal `kui:finish`; cancellation emits `kui:cancel`
+> and suppresses finish. Repeated taps replace the previous flight; scroll, resize and removed endpoints
+> cancel decoration. Lift accepts absolute lengths. Failed/late image decode cancels after 150ms.
+> A basket with `data-kui="ripple extent:2 startScale:1 450ms"`
+> and `data-kui-on="kui:finish from:.add-to-basket"` supplies the landing response; override its
+> `::after` to a transparent square with a border in `var(--accent)` for a square outline.
 
 `curtain-reveal start-size:60vmin` opens a centred square crop to the full image;
 use a viewport or pixel length for a square, since percentages resolve separately on each axis.
@@ -625,6 +642,14 @@ the page, such as content growing in a fixed-height panel above the host, is not
 change, which then includes it.
 Any watched DOM change inside the host ends a move in flight, so avoid live-updating content in the
 moving items. Removed nodes are not kept: selection, removal and notifications stay yours.
+
+With `flip-reorder leave:fade 300ms`, the app marks an attached direct child with
+the `data-kui-leaving` attribute and removes it on its bubbling `kui:leave-end` event. The original row fades
+out of flow while survivors close the gap; removing the mark reverses the request and restores
+its styles and inert state. Scroll or resize completes pending departures immediately.
+Reduced motion completes every signal immediately without animation, even before activation.
+This mode installs at preparation and ignores cancel; it supports axis-aligned direct children and refuses `nested:true`.
+It never captures already removed content; the app still owns focus and list state.
 
 For the todo strike animation, use `underline-draw position:50% 300ms on:click` on the text.
 The existing background-size keyframe draws the line at mid-height; omission keeps the underline at
@@ -1925,6 +1950,14 @@ need to track.
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
 
+> **Thumbnail flight:** `data-kui="lightbox flight:true"` flies fitted images through the dialog's
+> top layer and back to their current thumbnails. The larger image gets a bounded 150ms decode wait;
+> failed or late decodes, missing/offscreen thumbnails and unsupported crops use the
+> ordinary viewer. Cover crops support percentage object positions with uniform scale and a clip.
+> Tall images fly to the visible viewport slice; navigation cancels opening motion and close targets the current visible thumbnail.
+> Resize, scroll, release and re-entry cancel the decoration. Reduced motion skips it.
+> This option belongs to `lightbox`; carousel `lightbox:true` keeps its existing viewer defaults.
+
 > **Interactive before/after media slider (`compare`).** Stacks two media elements (images or videos)
 > and overlays an accessible range slider. Dragging or arrowing the slider reveals the "after"
 > state via `clip-path` without layout reflows.
@@ -2051,8 +2084,8 @@ need to track.
 | C Scroll mechanics | 12 |
 | D Text & typography | 27 |
 | E SVG & icons | 17 |
-| F Numbers & data viz | 13 |
-| G Media & images | 22 |
+| F Numbers & data viz | 14 |
+| G Media & images | 23 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 36 |
 | J Ambient backgrounds | 15 |
@@ -2067,7 +2100,7 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **308** |
+| **Total shipped** | **309** |
 | Documented but not yet shipped | 3 |
 
 Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
