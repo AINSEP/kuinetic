@@ -848,8 +848,8 @@
      `[data-kui-preview]` (`anchored-preview`) and `[data-kui-search-field]` (`search-expand`), both
      below, join this same block rather than each carrying their own: every standalone child-box
      selector in this file needs the identical treatment for the identical reason, and one shared
-     rule is what keeps `catalog-interaction-reveal.test.ts`'s "last reduced-motion block in the
-     file" check pointed at a block that actually lists every one of them. */
+     rule is what keeps `catalog-interaction-reveal.test.ts`'s check (which finds this block by the
+     `[data-kui-swap]` it lists) pointed at a block that actually lists every one of them. */
   @media (prefers-reduced-motion: reduce) {
     [data-kui-swap],
     .kui-label-letter,

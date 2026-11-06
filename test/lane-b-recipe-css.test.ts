@@ -1,9 +1,18 @@
 // @vitest-environment node
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
 
-const lab = readFileSync(fileURLToPath(new URL('../demo/motion-lab.html', import.meta.url)), 'utf8')
+// The recipe CSS and markup, inline. The demo page they came from is deliberately untracked, so a test must not read it.
+const lab = `
+<style>
+.lane-b-rtl { gap:32px; }
+.lane-b-rtl > img { --left: clamp(0, calc((var(--kui-row-centre) + var(--kui-row-cycle) + var(--kui-row-x)) / var(--kui-row-width)), 1); filter: blur(calc((1 - var(--left)) * 4px)); transform:translateX(calc(var(--kui-row-x) + var(--kui-row-cycle))) scale(clamp(.55, calc(.55 + var(--left) * .35), .9)); transform-origin:center; opacity: calc(.3 + var(--left) * .7); }
+.lane-b-scroll-area { min-block-size:300vh; }
+.lane-b-scroll-stage { position:sticky; top:20vh; }
+.lane-b-ripple > img { --phase:calc((var(--kui-row-centre) + var(--kui-row-cycle) + var(--kui-row-x)) / var(--kui-row-width) * 360deg); translate:0 calc(clamp(-24, var(--kui-motion-speed, 0) / 12, 24) * 1px * sin(var(--phase))); }
+.lane-b-tilt > img { transform:translateX(calc(var(--kui-row-x) + var(--kui-row-cycle))) rotate(clamp(-10deg, calc(var(--kui-motion-speed, 0) / 48 * 1deg), 10deg)); }
+</style>
+<section class="lane-b-scroll-area"><h2>text-path — native curved letters on scroll and on a timer</h2><div class="lane-b-scroll-stage"><svg viewBox="0 0 600 180"></svg></div></section>
+`
 function rule(selector: string): string {
   const start = lab.indexOf(selector + ' {')
   expect(start).toBeGreaterThan(0)

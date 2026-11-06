@@ -11,13 +11,13 @@ import { catalogRegistry } from './support/registry.js'
 
 const RAD = Math.PI / 180
 let animator: Animator | undefined
-function mount(effect: string, count = 12) {
+function mount(effect: string, count = 12, width = 390) {
   document.body.innerHTML = `<div data-kui="${effect}">${'<a href="#art"><img src="/art.jpg" alt="Art"></a>'.repeat(count)}</div>`
   const host = document.body.firstElementChild as HTMLElement
   const reads = vi.fn()
-  Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 390 })
-  Object.defineProperty(host, 'offsetWidth', { value: 390 })
-  host.getBoundingClientRect = () => ({ left: 0, width: 390, height: 300 }) as DOMRect
+  Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: width })
+  Object.defineProperty(host, 'offsetWidth', { value: width })
+  host.getBoundingClientRect = () => ({ left: 0, width, height: 300 }) as DOMRect
   for (const child of host.children) {
     Object.defineProperty(child, 'offsetWidth', { get: () => { reads(); return 100 } })
     Object.defineProperty(child, 'offsetHeight', { get: () => { reads(); return 130 } })
@@ -73,7 +73,9 @@ it('bounds the silhouette as a circle and refuses one that reaches the camera', 
 })
 
 it('places latitudes and a derived radius, keeps the ring index, and restores ownership', () => {
-  const { host, reporter, reads } = mount('carousel-3d shape:sphere gap:0px', 16)
+  // A desktop-width page (800): the derived radius (about 235px for 16 cards) plus perspective needs
+  // roughly 255px each side, so 390px would shrink it by design. This test is about a sphere that fits.
+  const { host, reporter, reads } = mount('carousel-3d shape:sphere gap:0px', 16, 800)
   expect(reporter.messages).toEqual([])
   expect(host.getAttribute('data-kui-ring-shape')).toBe('sphere')
   expect(parseFloat(host.style.getPropertyValue('--kui-sphere-radius'))).toBeCloseTo(Math.sqrt(16 * 100 * 130 / (4 * Math.PI * .3)))

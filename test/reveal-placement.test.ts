@@ -911,9 +911,11 @@ describe('tease: in the stylesheet', () => {
   })
 
   it('the reduced-motion block covers both parts, so a tease shows without moving', () => {
-    const blocks = css.split('@media (prefers-reduced-motion: reduce)')
-    const last = blocks[blocks.length - 1]!
-    expect(last.slice(0, last.indexOf('}'))).toMatch(/\[data-kui-hint\],[\s\S]*\[data-kui-preview\],/)
+    // Found by what it lists, not by position: other families carry their own reduced-motion blocks.
+    const shared = css.split('@media (prefers-reduced-motion: reduce)')
+      .map((part) => part.slice(0, part.indexOf('}')))
+      .find((part) => part.includes('[data-kui-swap]')) ?? ''
+    expect(shared).toMatch(/\[data-kui-hint\],[\s\S]*\[data-kui-preview\],/)
   })
 })
 

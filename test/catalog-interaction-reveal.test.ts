@@ -227,7 +227,11 @@ describe('every state is reachable by pointer, keyboard and touch', () => {
     // Shortened lands on the end value, so no part can be stranded mid-slide — the choice
     // `base.css` makes for the whole transition tier. Written out here because `base.css` shortens
     // `[data-kui-rm]` and its pseudo-elements, and both families move a *child* box.
-    const block = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'))
+    // Found by what it lists, not by position: other families (group-dim, group-expand) carry their
+    // own reduced-motion blocks, and which one is last in the file is not part of this contract.
+    const block = css.split('@media (prefers-reduced-motion: reduce)')
+      .map((part) => part.slice(0, part.indexOf('}')))
+      .find((part) => part.includes('[data-kui-swap]')) ?? ''
     expect(block).toContain('[data-kui-swap]')
     expect(block).toContain('[data-kui-hint]')
     expect(block).toContain('transition-duration: 1ms')

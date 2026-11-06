@@ -1,11 +1,28 @@
 // @vitest-environment jsdom
 import { expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { compile } from '../src/core/compile.js'
 import { parse } from '../src/core/parse.js'
 import { catalogRegistry } from './support/registry.js'
 
-const lab = new DOMParser().parseFromString(readFileSync('demo/motion-lab.html', 'utf8'), 'text/html')
+// The recipe markup, inline. The demo page it came from is deliberately untracked, so a test must not read it.
+const SPIRAL = 'M150 10 C-30 10 -30 290 150 290 C310 290 310 40 150 40 C10 40 10 260 150 260 C270 260 270 70 150 70 C50 70 50 230 150 230 C230 230 230 100 150 100 C90 100 90 200 150 200 C190 200 190 130 150 130'
+const labHtml = `
+<style>
+  .lane-a-cursor-stage { position:relative; padding-block:3rem; text-align:center; }
+  @media (prefers-reduced-motion:reduce) { .lane-a-loop[data-kui-rm='shorten'] { animation-iteration-count:1 !important; } }
+</style>
+<div class="lane-a-cursor-stage" data-kui="cursor-follow over:.lane-a-badge snap:center dot-class:lane-a-photo-cursor">
+  AMSTER<span class="lane-a-badge" aria-label="Artwork badge"><svg class="lane-a-loop" viewBox="0 0 120 120" aria-hidden="true" data-kui="tween rotate:360 12s ease:linear repeat:infinite"><defs><path id="lane-a-label-circle" d="M60 10 A50 50 0 1 1 60 110 A50 50 0 1 1 60 10"/></defs><text><textPath href="#lane-a-label-circle">SEE MORE</textPath></text></svg><span class="lane-a-photo-content" style="width:80px;height:80px" data-kui-cursor-content hidden><img class="lane-a-photo" src="./assets/black-cover.jpg" alt=""></span></span>DAM
+</div>
+<div style="position:relative;width:min(100%,420px);aspect-ratio:1">
+  <svg viewBox="0 0 300 300" aria-hidden="true"><path pathLength="100" d="${SPIRAL}" data-kui="draw-stroke 4s ease:linear on:load"/></svg>
+  <div style="width:32px;height:32px" data-kui="motion-path path:'${SPIRAL}' viewbox:'0 0 300 300' anchor:center rotate:auto 4s ease:linear on:load"><div style="width:100%;height:100%" data-kui="tween scale:'1,0.2' 4s ease:linear on:load"></div></div>
+</div>
+<svg class="lane-a-loop" viewBox="0 0 200 200" data-kui="tween rotate:360 10s ease:linear repeat:infinite"></svg>
+<svg class="lane-a-loop" viewBox="0 0 200 200" data-kui="tween rotate:360 12s ease:linear repeat:infinite"></svg>
+<svg class="lane-a-loop" viewBox="0 0 200 200" data-kui="tween rotate:360 14s ease:linear repeat:infinite"></svg>
+`
+const lab = new DOMParser().parseFromString(labHtml, 'text/html')
 
 it('normalizes the actual drawn path and puts shrink and tangent rotation on separate elements', () => {
   const traveller = lab.querySelector<HTMLElement>('[data-kui*="viewbox:"]')!

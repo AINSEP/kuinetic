@@ -167,11 +167,10 @@ function flipVariant(spec: EffectSpec, warn: (message: string) => void): EffectV
   const nested = spec.params.nested === 'true'
   const leaving = spec.params.leave === 'fade'
   if (nested && leaving) warn('leave:fade requires direct children; remove nested:true to enable departures.')
-  let channels: string[] = []
-  if (nested) channels = ['transform-origin', SUBTREE_CHANNEL]
-  else if (leaving) channels = ['position', SUBTREE_CHANNEL]
+  const channels = nested ? ['transform-origin', SUBTREE_CHANNEL] : leaving ? ['position', SUBTREE_CHANNEL] : undefined
   return {
-    channels,
+    // A plain host claims nothing: no `channels` key at all, not an empty list.
+    ...(channels ? { channels } : {}),
     // App signals must complete even while activation is gated, including reduced motion.
     ...(leaving && !nested ? { prepare: (el, params, ctx) => {
       const stop = prepareFlipContainer(el, params, ctx)

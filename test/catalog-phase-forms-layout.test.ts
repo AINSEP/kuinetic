@@ -108,10 +108,10 @@ describe('layout: only tab-indicator-slide declares a phase', () => {
   })
 })
 
-describe('numbers: all thirteen presets stay unphased', () => {
-  it('covers all six counters and seven meters', () => {
+describe('numbers: all fourteen presets stay unphased', () => {
+  it('covers the number-token formatter, six counters and seven meters', () => {
     expect(COUNT_PRESETS.map((preset) => preset.name)).toEqual([
-      'count-up', 'count-down', 'count-currency', 'count-percent', 'count-compact', 'odometer-roll',
+      'number-formatting', 'count-up', 'count-down', 'count-currency', 'count-percent', 'count-compact', 'odometer-roll',
     ])
     expect(METER_PRESETS.map((preset) => preset.name)).toEqual([
       'progress-ring', 'gauge-sweep', 'donut-sweep', 'sparkline-draw', 'progress-bar',
@@ -119,8 +119,9 @@ describe('numbers: all thirteen presets stay unphased', () => {
     ])
   })
 
-  it('declares no phase for any of the thirteen', () => {
+  it('declares no phase for any of the fourteen', () => {
     assertPhases({
+      'number-formatting': undefined,
       'count-up': undefined,
       'count-down': undefined,
       'count-currency': undefined,
