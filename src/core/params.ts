@@ -682,9 +682,9 @@ export function resolveParams(
     const result = validate(raw, spec)
     if (!result.ok) {
       warn(`parameter "${key}": ${result.reason} — got "${raw}", using default "${spec.default}"`)
-      continue
+    } else if (spec.cssProperty) {
+      out[spec.cssProperty] = cssValueFor(result.value, spec, key, warn)
     }
-    out[spec.cssProperty] = cssValueFor(result.value, spec, key, warn)
   }
 
   return out

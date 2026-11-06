@@ -244,7 +244,7 @@ export function waapiEasingValue(
  * @complexity O(1) time and space, but forces a style recalculation.
  * @overallScore 100
  */
-function customEasing(name: string, el: Element): string {
+export function customEasing(name: string, el: Element): string {
   const view = el.ownerDocument.defaultView
   if (!view) return ''
   return view.getComputedStyle(el).getPropertyValue(`--kui-ease-${name}`).trim()

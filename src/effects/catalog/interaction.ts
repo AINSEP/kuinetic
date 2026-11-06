@@ -24,6 +24,7 @@ import type { TimingContract, TimingToken } from '../shared.js'
 import { BEAM_PARAMS, BORDER_DRAW_PARAMS, COLOR_PARAMS, HOVER_TRANSITIONS, parallaxOffset, SHINE_PARAMS, STYLESHEET_ANIMATED_HOVERS, supportsFineHover, tiltAngles } from './interaction-shared.js'
 import { STATE_PRESETS, STATE_PRIMITIVES } from './interaction-states.js'
 import { REVEAL_PRESETS, REVEAL_PRIMITIVES } from './interaction-reveal.js'
+import { CURSOR_TRAIL } from './cursor-trail.js'
 
 /**
  * Hover and pointer effects (catalog section I).
@@ -726,6 +727,7 @@ const cursorDotParams: ParameterSchema = {
 }
 
 export const POINTER_PRIMITIVES: Primitive[] = [
+  CURSOR_TRAIL,
   // `skew` is the `transform` shorthand's channel, which is what `prepareTilt3d` writes (a
   // perspective and two axis rotations) — never the `rotate` property — beside an inline
   // `transition` for its settle.
@@ -769,6 +771,7 @@ function prepareCursorInvert(el: Element, params: EffectParams, ctx: PrepareCont
 }
 
 export const POINTER_PRESETS: Preset[] = [
+  { name: 'cursor-trail', primitive: 'cursor-trail' },
   { name: 'tilt-3d', primitive: 'tilt-3d' },
   { name: 'tilt-parallax', primitive: 'tilt-parallax' },
   { name: 'cursor-follow', primitive: 'cursor-follow', params: { stiffness: '300', damping: '30' } },

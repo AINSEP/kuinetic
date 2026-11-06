@@ -25,6 +25,18 @@ const angleWithLiterals: ParamSpec = {
 const color: ParamSpec = { type: 'color', default: '#000', cssProperty: '--kui-color' }
 
 describe('validate', () => {
+  it('validates JS-only keyword and numeric params without emitting an empty CSS property', () => {
+    const schema: ParameterSchema = {
+      direction: { type: 'keyword', default: '', keywords: ['pointer'], cssProperty: '' },
+      pieces: { type: 'number', default: '0', integer: true, cssProperty: '' },
+    }
+    const warn = (message: string) => warnings.push(message)
+    const warnings: string[] = []
+    expect(resolveParams({ direction: 'pointer', pieces: '3' }, schema, warn)).toEqual({})
+    expect(warnings).toEqual([])
+    expect(resolveParams({ pieces: '0.4' }, schema, warn)).toEqual({})
+    expect(warnings).toEqual([expect.stringContaining('expected an integer')])
+  })
   it.each(['24px', '2rem', '50%', '1.5em', '0', '100vh'])('accepts length %s', (value) => {
     expect(validate(value, length)).toEqual({ value, ok: true })
   })

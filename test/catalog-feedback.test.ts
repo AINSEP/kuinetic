@@ -22,6 +22,12 @@ function feedbackRegistry(): Registry {
 const CONTINUOUS_NAMES = ['skeleton-shimmer', 'spinner', 'spinner-dots', 'spinner-ring', 'progress-indeterminate']
 
 describe('feedback catalog', () => {
+  it('keeps generated confetti narrow and spreads the falling endpoints with the rise', () => {
+    const start = css.indexOf('[data-kui-confetti-piece] {')
+    const body = readBalancedBlock(css, css.indexOf('{', start) + 1)
+    expect(body).toContain('width: calc(var(--kui-confetti-size, 6px) / 2);')
+    expect(css).toContain('calc(80px - var(--kui-piece-rise) * 0.5)')
+  })
   it('registers all 17 section K names', () => {
     const registry = feedbackRegistry()
     expect(FEEDBACK_PRESETS).toHaveLength(17)

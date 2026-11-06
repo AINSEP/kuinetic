@@ -87,8 +87,9 @@ describe('Motion CSS additions and existing routes', () => {
     expect(plan.warnings).toEqual([])
     expect(plan.vars['--kui-wobble-y']).toBe('-6px')
     const body = frames(sheet('feedback'), 'kui-wobble')
-    expect(body).toContain('translate: -6px var(--kui-wobble-y, 0px)')
-    expect(body).toContain('translate: 4px calc(var(--kui-wobble-y, 0px) * -0.6667)')
+    expect(body).toContain('translate: calc(-6px * var(--kui-wobble-x, 1)) var(--kui-wobble-y, 0px)')
+    expect(body).toContain('translate: calc(4px * var(--kui-wobble-x, 1)) calc(var(--kui-wobble-y, 0px) * -0.6667)')
+    expect(body).toContain('rotate: calc(-6deg * var(--kui-wobble-angle, 1))')
     expect(body.slice(body.indexOf('100%'))).toContain('translate: 0 0;')
   })
 

@@ -441,6 +441,7 @@ describe('FLIP effects honour a delay without showing the finished layout first'
  * fails, which is the point — the author has to decide, rather than defaulting into silence.
  */
 const TIMING_REFUSALS: Record<string, string> = {
+  'cursor-trail': 'pointer distance',
   // Pointer-driven: the effect is a function of where the pointer is right now.
   'tilt-3d': 'pointer position',
   'tilt-parallax': 'pointer position',

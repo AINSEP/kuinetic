@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { catalogRegistry } from './support/registry.js'
+import { ruleBodies } from './support/css-scan.js'
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/css/three-d.css', import.meta.url)), 'utf8')
 
@@ -53,6 +54,28 @@ const FLIPS: { name: string; rotateFn: 'rotateX' | 'rotateY' }[] = [
 ]
 
 describe('3D flip keyframes carry their own perspective', () => {
+  it('places all six marked cube faces on distinct joined planes', () => {
+    const transforms: Record<string, string> = {
+      front: 'translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+      back: 'rotateY(180deg) translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+      right: 'rotateY(90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+      left: 'rotateY(-90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+      top: 'rotateX(90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+      bottom: 'rotateX(-90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2))',
+    }
+    for (const [face, transform] of Object.entries(transforms)) {
+      const bodies = ruleBodies(CSS, `[data-kui-cube-face='${face}']`)
+      expect(bodies).toHaveLength(1)
+      expect(bodies[0]).toContain(`transform: ${transform};`)
+    }
+  })
+  it('projects both ends of the opt-in tumble and limits reduced-motion cubes to one shortened turn', () => {
+    const body = keyframeBody(CSS, 'kui-cube-tumble')
+    expect(body.match(/perspective\(/g)).toHaveLength(2)
+    expect(body).toContain('rotateX(340deg) rotateY(360deg) rotateZ(360deg)')
+    expect(CSS).toContain("[data-kui-cube][data-kui-rm='shorten']")
+    expect(CSS).toContain('animation-iteration-count: 1 !important')
+  })
   it.each(FLIPS)('$name writes perspective() and $rotateFn() in the same transform value', ({ name, rotateFn }) => {
     const body = keyframeBody(CSS, name)
     // No separate `\s*` before the capture: `[^;]` already matches whitespace, so pairing it with

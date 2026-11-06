@@ -203,6 +203,7 @@ const LIST = `<ul><li>${img('a')}</li><li>${img('b')}</li><li>${img('c')}</li></
  * registered primitive is checked, with its first preset name and `GENERIC` by default.
  */
 const FIXTURES: Record<string, [string, string]> = {
+  'cursor-trail': ['cursor-trail images:img', '<h2>Title</h2><img src="/a.jpg" alt="Source">'],
   // Text effects refuse a host with a link inside (they would replace it).
   count: ['count-compact', '12345'],
   'count-odometer': ['odometer-roll', '1234'],

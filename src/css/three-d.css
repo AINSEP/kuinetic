@@ -48,6 +48,44 @@
     }
   }
 
+  @keyframes kui-cube-tumble {
+    from {
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(-20deg) rotateY(0deg) rotateZ(0deg);
+    }
+    to {
+      transform: perspective(var(--kui-perspective, 1200px)) rotateX(340deg) rotateY(360deg) rotateZ(360deg);
+    }
+  }
+
+  [data-kui-cube-face] {
+    position: absolute;
+    inset: 0;
+  }
+  [data-kui-cube-face='front'] {
+    transform: translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+  [data-kui-cube-face='back'] {
+    transform: rotateY(180deg) translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+  [data-kui-cube-face='right'] {
+    transform: rotateY(90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+  [data-kui-cube-face='left'] {
+    transform: rotateY(-90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+  [data-kui-cube-face='top'] {
+    transform: rotateX(90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+  [data-kui-cube-face='bottom'] {
+    transform: rotateX(-90deg) translateZ(calc(var(--kui-cube-size, 120px) / 2));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-kui-cube][data-kui-rm='shorten'] {
+      animation-iteration-count: 1 !important;
+    }
+  }
+
   @keyframes kui-book-page-turn {
     to {
       transform: perspective(var(--kui-perspective, 1200px)) rotateY(var(--kui-gate-from-angle, var(--kui-from-angle, -160deg)));

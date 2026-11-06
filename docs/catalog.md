@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **307** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **308** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -394,6 +394,8 @@ Primitives 15, 16. All CSS except the two morphs.
 > length with `length:` — `data-kui="checkmark-draw length:48"` — or with `--kui-path-length` in
 > your own CSS. The library never measures your SVG: `getTotalLength()` is a layout read on every
 > element on every mount, to recover a number already sitting in your markup.
+> For a continuous `draw-stroke` without measuring the real length, author `pathLength="100"`
+> on the path so its normalized length matches the default dash length of 100.
 
 > **`gradient-stroke`** travels the stroke *colour* between `--kui-stroke-from`, `--kui-stroke-via`,
 > and `--kui-stroke-to`, and loops. The literal reading of the name — an animated
@@ -632,7 +634,7 @@ the bottom. This is a one-shot animation; the application owns checked state and
 
 ---
 
-## I. Hover & pointer — 35 names
+## I. Hover & pointer — 36 names
 
 Primitives 21, 22, plus CSS.
 
@@ -649,10 +651,17 @@ Primitives 21, 22, plus CSS.
 | intent | `hover-intent` |
 | preview | `anchored-preview` `anchored-preview-bottom` `anchored-preview-left` `anchored-preview-right` |
 | search | `search-expand` |
-| cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` |
+| cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` `cursor-trail` |
 | proximity | `proximity-field` `proximity-glow` |
 
 The four dot followers accept `over:` for descendants supplying per-target shapes and content.
+
+`cursor-trail images:'.trail-source' spacing:60px` samples pointer distance into a pool of at most
+24 fresh inert photos inside the host, underneath its text. Images must be descendants of the host;
+their source markup stays untouched. `--kui-trail-width` and `--kui-trail-height` size the photos.
+Fine hover pointers only; reduced motion leaves ordinary content. CSS fades the photos;
+leave, scrolling and visibility changes clear pointer history while existing photos finish fading.
+Teardown removes the trail.
 `match:rect` fits the hovered box; `match:text` uses its font size for a thin caret; `snap:center` springs to its centre.
 Without these options the existing pointer tracking, focus placement, listeners and geometry reads are unchanged.
 The `dot-class:` option adds authors' classes for size and paint to this instance's generated dot.
@@ -897,6 +906,16 @@ Primitives 9, 10, 13, 15.
 `ripple` · `badge-pop` · `count-bump` · `heart-burst` · `confetti-burst` · `copy-confirm` ·
 `pull-to-refresh`
 
+`wobble direction:pointer on:hover` chooses its initial displacement and tilt from the fine
+pointer's entry side; plain `wobble` keeps its fixed motion and `y:` option.
+
+`confetti-burst pieces:48 on:click` replaces the five gradient dots with a bounded set of strips
+and dots that rise, tumble and fall after release. `size:`, `fan:` and `color1:`–`color5:` apply;
+generated pieces fall back through `--kui-confetti-cN`, `--kui-cN`, `--accent` and `currentColor`,
+and stay hidden at rest. `pieces:` accepts integers from 1 to 96; pieces play once even when
+`repeat:` repeats the host pop, and that combination warns. Keep overflow visible on
+the host and its ancestors; `distance:` and `spill:` still describe the five-gradient default.
+
 ---
 
 ## L. Page transitions — 8 names
@@ -1005,6 +1024,14 @@ Primitives 14, 22, 38, 46, 48.
 `fold-panel` · `carousel-3d` · `carousel-3d-high` · `carousel-3d-low` ·
 `carousel-3d-inside` · `carousel-orbit` · `carousel-stack` · `carousel-loop` · `depth-layers-pointer`† ·
 `perspective-grid`†
+
+`cube-rotate parts:cube` stamps exactly six authored children as front, back, right, left, top
+and bottom, without injecting controls. Set `--kui-cube-size` and matching host width/height;
+`tumble:true 8s ease:linear repeat:infinite` selects a continuous three-axis turn. Plain cube-rotate
+keeps its 90-degree result and target relocation. Face paint is authored, so fixed brightness is
+an approximation of world lighting. For entrance sequences, animate an outer wrapper and use
+`angle:` on the inner cube for a still pose. Tilt wrappers around rotating dashed SVG circles
+provide the ring recipe; these are flat strokes with no tube shading.
 
 > **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
 > reading twice. `card-flip-y` is an *entrance*: one keyframe, half a turn, played once, nothing on
@@ -1590,6 +1617,13 @@ Primitive 32. All `css`.
 
 `motion-path` · `path-arc` · `path-wave` · `path-loop` · `path-swoop`
 
+`viewbox:'0 0 300 300'` uniformly fits path coordinates into the parent, reserving
+the traveller's size and subtracting its layout offset. It observes parent/traveller size changes;
+CSS still drives progress. Omit `viewbox:` to keep the original fixed-pixel path.
+Put a shrinking scale tween on a child of the traveller, since scaling the traveller also scales
+its offset-path displacement. `anchor:center` places the frame's centre on the path;
+`rotate:auto` separately turns it along the tangent.
+
 > **What this closes.** `orbit` and `float` are fixed shapes — a full turn, a bob. These follow an
 > arbitrary curve, which is the one thing the catalog previously could not express at all and the
 > reason GSAP's MotionPathPlugin had no counterpart here. It is native CSS end to end: `offset-path`
@@ -2001,7 +2035,7 @@ need to track.
 | F Numbers & data viz | 13 |
 | G Media & images | 22 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 35 |
+| I Hover & pointer | 36 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 8 |
@@ -2014,10 +2048,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **307** |
+| **Total shipped** | **308** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **142 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

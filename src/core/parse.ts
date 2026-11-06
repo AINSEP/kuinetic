@@ -52,7 +52,7 @@ const TIME_RE = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:ms|s)$/
  */
 const EASING_FUNCTIONS = ['cubic-bezier(', 'steps(', 'linear(', 'spring(']
 
-const EASING_KEYWORDS: ReadonlySet<string> = new Set([
+export const EASING_KEYWORDS: ReadonlySet<string> = new Set([
   'linear',
   'ease',
   'ease-in',

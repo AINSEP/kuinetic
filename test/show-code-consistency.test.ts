@@ -44,7 +44,7 @@ const SKIPPED_CLASSES = ['kui-show-code-toggle', 'kui-contract']
  * of `show-code.js` — reading it would make the sweep below compare that script with itself. The
  * test after the sweep ties both lists to what the library actually resolves.
  */
-const SELECTOR_PARAMS = ['target', 'sections', 'next', 'prev', 'jump', 'pause', 'mute', 'follow', 'over']
+const SELECTOR_PARAMS = ['target', 'sections', 'next', 'prev', 'jump', 'pause', 'mute', 'follow', 'over', 'images']
 
 const SELECTOR_PARAM_RE = new RegExp(
   `(?:^|[\\s,])(${SELECTOR_PARAMS.join('|')})\\s*:\\s*(?:'([^']*)'|"([^"]*)"|([^\\s,]+))`,

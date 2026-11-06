@@ -1,6 +1,7 @@
 import type { ParameterSchema, Preset, Primitive, Timeline } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive as css } from '../shared.js'
+import { preparePathFit } from './fit.js'
 
 /**
  * Motion paths — an element travelling along an arbitrary curve.
@@ -13,8 +14,8 @@ import { cssPrimitive as css } from '../shared.js'
  * how far along it the element sits, and `offset-rotate` decides whether the element turns to face
  * where it is going. So the whole feature is one `css-keyframes` primitive animating
  * `offset-distance` from one percentage to another, with the geometry arriving as a custom
- * property. No JavaScript drives a frame, nothing is measured, and the animation composites off
- * the main thread like every other keyframe in the library.
+ * property. No JavaScript drives progress; only the optional viewbox fit measures at setup and
+ * resize. Fixed paths keep their entirely native geometry.
  *
  * ### The coordinate system, because it decides how every path below is written
  *
@@ -62,6 +63,7 @@ const OFFSET: string = 'offset'
 const PATH_TIMELINES: Timeline[] = ['time', 'view', 'scroll', 'pin']
 
 const MOTION_PATH_PARAMS: ParameterSchema = {
+  viewbox: { type: 'text', default: '', cssProperty: '' },
   /**
    * The curve, as SVG path data: `path:"M 0 0 C 40 -70 120 -70 160 0"`.
    *
@@ -147,7 +149,12 @@ const MOTION_PATH_PARAMS: ParameterSchema = {
  * a composed effect that forces that policy cannot strand a path-driven element off its mark.
  */
 export const MOTION_PATH_PRIMITIVES: Primitive[] = [
-  css('motion-path', [OFFSET], { timelines: PATH_TIMELINES, parameters: MOTION_PATH_PARAMS }),
+  {
+    ...css('motion-path', [OFFSET], { timelines: PATH_TIMELINES, parameters: MOTION_PATH_PARAMS }),
+    variantFor(spec) {
+      return spec.params.viewbox ? { prepare: preparePathFit } : {}
+    },
+  },
 ]
 
 /**

@@ -72,6 +72,8 @@ export const MECHANICS_NOTES: ParamNotes = {
 
   'flip-face.angle': 'How far the face turns, in degrees; 180deg is a full flip.',
   'flip-face.perspective': 'How deep the 3D looks while turning; smaller is more dramatic.',
+  'flip-face.parts': 'Use six authored faces to form a cube on cube-rotate.',
+  'flip-face.tumble': 'Turn a six-faced cube continuously around all three axes.',
 
   'flip-indicator.follow': {
     why: 'Which element the indicator slides to, such as the active tab; the first match on the page.',
@@ -105,6 +107,7 @@ export const MECHANICS_NOTES: ParamNotes = {
     whenOmitted: 'Its top-left corner.',
   },
   'motion-path.from': 'Where along the path it starts, as a percentage of the length.',
+  'motion-path.viewbox': 'Source coordinate bounds for fitting the path into its parent.',
   'motion-path.to': 'Where along the path it stops, as a percentage of the length.',
 
   'page-reveal.distance': 'How far the page slides as it fades in. Only the slide version moves.',

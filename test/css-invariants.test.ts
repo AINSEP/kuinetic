@@ -85,6 +85,8 @@ describe('CSS keyframes', () => {
     const referenced = new Set(ALL_PRESETS.map((preset) => preset.keyframes))
     const edges = compile(parse('mask-reveal edges:24px'), registry, 'scroll')
     for (const name of edges.declarations['animation-name']!.split(', ')) referenced.add(name)
+    const tumble = compile(parse('cube-rotate parts:cube tumble:true'), registry, 'time')
+    referenced.add(tumble.declarations['animation-name'])
     const orphans = [...keyframes.keys()].filter(
       (name) => !referenced.has(name) && !inlineAnimationRefs.has(name),
     )

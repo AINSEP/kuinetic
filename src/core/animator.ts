@@ -50,10 +50,11 @@ import type { AnimatorPort, DerivedBook, InstallRequest, ResolvedGroup } from '.
 import { createDomWatcher } from './dom-watcher.js'
 import type { DomWatcher } from './dom-watcher.js'
 import { readAttributes, resolveConfig } from './element-config.js'
+import { customEasing } from './easing.js'
 import type { ElementAttributes, ElementConfig } from './element-config.js'
 import { createJsEffectPreparer } from './js-effect-preparer.js'
 import type { JsEffectPreparer, JsEffectPreparerOptions } from './js-effect-preparer.js'
-import { parse } from './parse.js'
+import { EASING_KEYWORDS, parse } from './parse.js'
 import { createRootResolver, createScrollScheduler } from './scroll-scheduler.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
 import { play } from './play.js'
@@ -73,6 +74,7 @@ import type { Crossing, ToggleActions } from './toggle-actions.js'
 import type {
   Activation,
   EffectInstance,
+  EffectSpec,
   InstanceControl,
   InstanceState,
   ParsedValue,
@@ -626,7 +628,9 @@ export class Animator {
       timeline: config.timeline,
       fxNames: document.targets.flatMap((target) => target.plan.fxNames),
       jsEffectNames: document.targets.flatMap((target) =>
-        target.plan.jsEffects.map((entry) => entry.spec.name),
+        target.plan.jsEffects
+          .filter((entry) => entry.resolved.primitive.renderer !== 'css-keyframes')
+          .map((entry) => entry.spec.name),
       ),
       progressDriven:
         elementStylePlan.gate === 'scrubbed' || elementStylePlan.gate === 'native-timeline',
@@ -659,6 +663,7 @@ export class Animator {
       elementHasCssAnimation,
     }
     for (const group of groups) this.installGroup(group, context)
+    warnNamedEasings(el, state.specs, this.reporter)
 
     this.openGate({ el, state, stylePlan: elementStylePlan, config, plan: groups[0]!.target.plan })
   }
@@ -1086,8 +1091,7 @@ export class Animator {
     if (state.status !== 'running' && state.status !== 'finished') return
     if (state.direction === 'reverse') return
 
-    const reversible = state.instances.filter(isDirectional)
-    if (reversible.length < state.instances.length) {
+    if (state.instances.some((instance) => !instance.setupOnly && !isDirectional(instance))) {
       this.reporter.warn(
         'effect cannot play backwards, so the exit half of this activation does nothing for it ' +
           '(JS-rendered effects have no playhead — see EffectInstance.reverse)',
@@ -1695,7 +1699,17 @@ function defaultRootResolver(root: ParentNode | undefined): (el: Element) => Scr
  * @overallScore 100
  */
 function isDirectional(instance: EffectInstance): boolean {
-  return instance.play !== undefined && instance.reverse !== undefined
+  return !instance.setupOnly && instance.play !== undefined && instance.reverse !== undefined
+}
+
+function warnNamedEasings(el: Element, specs: EffectSpec[], reporter: Reporter): void {
+  const names = new Set(specs.flatMap((spec) => [spec.easing, spec.params.ease]))
+  for (const name of names) {
+    if (!name || EASING_KEYWORDS.has(name) || name.includes('(')) continue
+    if (!customEasing(name, el)) {
+      reporter.warn(`easing "${name}" has no --kui-ease-${name} definition — using ease-out`, el)
+    }
+  }
 }
 
 /** Teardown must never throw into the caller; a failing cleanup cannot block the others. */
