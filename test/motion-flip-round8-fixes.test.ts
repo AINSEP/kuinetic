@@ -30,6 +30,7 @@ const flush = async (): Promise<void> => {
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  document.documentElement.scrollTop = 0
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -40,10 +41,12 @@ describe('a cached FLIP baseline', () => {
     const app = build(`<div data-kui="${effect}"><i>a</i></div>`)
     const host = el()
     const child = host.querySelector('i')!
+    place(host.parentElement!, () => 0, () => scroll)
     place(host, () => 1000, () => scroll)
     place(child, () => childTop, () => scroll)
     return { app, host, child, frames: capture(child),
-      scrollTo: (y: number) => { scroll = y }, moveTo: (y: number) => { childTop = y } }
+      scrollTo: (y: number) => { scroll = y; document.documentElement.scrollTop = y },
+      moveTo: (y: number) => { childTop = y } }
   }
 
   it('is not moved by scrolling the page between install and the change', async () => {
@@ -66,19 +69,30 @@ describe('a cached FLIP baseline', () => {
     expect(frames[0]?.[0]).toMatchObject({ translate: '0px -52px' })
   })
 
-  it('cancels a plain run in flight before measuring the next change', async () => {
+  it('cancels the live inversion before capturing the next baseline', async () => {
     const { app, host, child, moveTo } = mount('flip-reorder 500ms')
-    const cancel = vi.fn()
-    ;(child as HTMLElement).animate = (() => ({ finished: new Promise(() => {}), cancel })) as never
+    const frames: Keyframe[][] = []
+    let rest = 1052
+    const cancel = vi.fn(() => moveTo(rest))
+    ;(child as HTMLElement).animate = ((keys: Keyframe[]) => {
+      frames.push(keys)
+      moveTo(1000) // the live inversion stays visible until cancellation
+      return { finished: new Promise(() => {}), cancel }
+    }) as never
     app.start()
-    moveTo(1052)
+    moveTo(rest)
     host.append(document.createElement('b'))
     await flush()
     expect(cancel).not.toHaveBeenCalled()
-    moveTo(1100)
+    rest = 1100
     host.append(document.createElement('b'))
     await flush()
-    expect(cancel).toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledOnce()
+    rest = 1150
+    host.append(document.createElement('b'))
+    await flush()
+    expect(frames[2]?.[0]).toMatchObject({ translate: '0px -50px' })
+    app.destroy()
   })
 
   it('refreshes after a resting layout change, and not during a flight', async () => {
@@ -99,12 +113,16 @@ describe('a cached FLIP baseline', () => {
     expect(frames).toHaveLength(1) // endpoint kept: no movement from 1152 to 1152
   })
 
-  it('leaves a plain host on viewport boxes and off the resize path', async () => {
-    const add = vi.spyOn(window, 'addEventListener')
-    const { app } = mount('flip-reorder 500ms')
+  it('refreshes a plain host after a viewport resize', async () => {
+    const { app, host, frames, moveTo } = mount('flip-reorder 500ms')
     app.start()
-    expect(add.mock.calls.filter(([type]) => type === 'resize')).toEqual([])
-    add.mockRestore()
+    moveTo(1100)
+    window.dispatchEvent(new Event('resize'))
+    moveTo(1152)
+    host.append(document.createElement('b'))
+    await flush()
+    expect(frames[0]?.[0]).toMatchObject({ translate: '0px -52px' })
+    app.destroy()
   })
 })
 
@@ -176,15 +194,18 @@ describe('measureWithin', () => {
     const frame = document.createElement('div')
     const child = document.createElement('i')
     Object.defineProperty(frame, 'scrollTop', { value: 30 })
+    Object.defineProperty(frame, 'scrollLeft', { value: 7 })
     frame.getBoundingClientRect = (() => ({ left: 5, top: 100, width: 0, height: 0 })) as never
     child.getBoundingClientRect = (() => ({ left: 15, top: 130, width: 10, height: 10 })) as never
-    expect(measureWithin(frame)(child)).toEqual({ x: 10, y: 60, width: 10, height: 10 })
+    expect(measureWithin(frame)(child)).toEqual({ x: 17, y: 60, width: 10, height: 10 })
     expect(measureWithin(null)(child)).toEqual({ x: 15, y: 130, width: 10, height: 10 })
+    child.getBoundingClientRect = (() => ({ left: 15, top: 130, width: 0, height: 10 })) as never
+    expect(measureWithin(frame)(child)).toEqual({ x: 17, y: 60, width: 0, height: 10 })
   })
 
   it.each([
-    ['in flow, framed by its parent', true, () => 500],
-    ['fixed, on viewport boxes', false, () => 0],
+    ['in flow, with page scroll removed', true, () => 500],
+    ['fixed, on viewport boxes', false, () => 500],
   ])('a nested host %s ignores the scroll', async (_name, positioned, moved) => {
     vi.stubGlobal('requestAnimationFrame', () => 1)
     vi.stubGlobal('cancelAnimationFrame', () => {})
@@ -193,7 +214,7 @@ describe('measureWithin', () => {
     const app = build('<section><div data-kui="flip-reorder nested:true 500ms"><i>a</i></div></section>')
     const host = el()
     const child = host.firstElementChild!
-    if (positioned) Object.defineProperty(host, 'offsetParent', { value: host.parentElement })
+    if (!positioned) host.style.position = 'fixed'
     place(host.parentElement!, () => 900, () => scroll)
     place(host, () => 1000, () => (positioned ? scroll : 0))
     place(child, () => childTop, () => (positioned ? scroll : 0))
@@ -203,6 +224,7 @@ describe('measureWithin', () => {
     ;(child as HTMLElement).animate = (host as HTMLElement).animate
     app.start()
     scroll = moved()
+    document.documentElement.scrollTop = scroll
     childTop = 1052
     host.append(document.createElement('u'))
     await flush()

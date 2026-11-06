@@ -110,6 +110,17 @@ describe('createFlipEngine', () => {
     expect(() => run.cancel()).not.toThrow()
   })
 
+  it.each([
+    [box(0, 0, 0, 0), box(5000, 5000)],
+    [box(5000, 5000), box(0, 0, 0, 0)],
+  ])('skips an unpainted endpoint instead of animating from or to junk geometry', (first, last) => {
+    const el = makeElement()
+    const { deps, captured } = fakeDeps(new Map([[el, [first, last]]]))
+    const engine = createFlipEngine(deps)
+    expect(engine.play(engine.snapshot([el]), [el]).moved).toEqual([])
+    expect(captured).toEqual([])
+  })
+
   it('treats sub-pixel drift as noise', () => {
     const el = makeElement()
     const { deps, captured } = fakeDeps(new Map([[el, [box(0, 0), box(0.2, 0.1)]]]))
@@ -378,7 +389,7 @@ describe('observeLayout teardown', () => {
 
     cleanup()
 
-    for (const animation of animations) expect(animation.cancel).toHaveBeenCalled()
+    for (const animation of animations) expect(animation.cancel).toHaveBeenCalledOnce()
   })
 
   it('lets a move that already completed go, instead of holding it until teardown', async () => {

@@ -46,6 +46,8 @@ export interface FlipOptions {
   attribute?: string
   /** Refresh the cached layout when it changes with no watched mutation. */
   watchRest?: (refresh: () => void) => Cleanup
+  /** Convert cached boxes and update the measurement batch when its scroll chain changes. */
+  rebase?: (before: FlipSnapshot) => FlipSnapshot
 }
 
 export interface FlipRun {
@@ -63,6 +65,10 @@ export interface FlipDeps {
 
 /** Sub-pixel differences are layout noise, not motion. Animating them wastes a compositor layer. */
 const EPSILON = 0.5
+
+function emptyBox(box: Box): boolean {
+  return box.width === 0 && box.height === 0
+}
 
 export interface FlipEngine {
   snapshot(elements: Iterable<Element>): FlipSnapshot
@@ -255,6 +261,7 @@ function collectDeltas(
     const first = before.boxes.get(el)
     if (!first) continue
     const last = measure(el)
+    if (emptyBox(first) || emptyBox(last)) continue
     const delta = deltaFor(el, first, last, scale)
     if (delta) deltas.push(delta)
   }
@@ -380,24 +387,38 @@ export function observeLayout(
     options.nested ? [container, ...container.querySelectorAll('*')] : container.children
   let before = engine.snapshot(elements())
   const runs = trackFlipRuns()
+  let dirty = false
+  let stopped = false
+  const refresh = (): void => {
+    if (stopped) return
+    dirty = runs.active()
+    if (dirty) return
+    options.rebase?.(before)
+    before = engine.snapshot(elements())
+  }
 
   const cleanup = observe(() => {
     // Cancel first: a box read while a run is in flight includes its inverted transform.
     runs.cancelAll()
+    dirty = false
+    before = options.rebase?.(before) ?? before
     const after = engine.snapshot(elements())
-    runs.track(engine.play(before, elements(), options))
+    const run = engine.play(before, elements(), options)
+    runs.track(run)
+    void run.finished.then(() => {
+      if (dirty) refresh()
+    })
     before = after
   })
 
   // Late images, fonts and viewport resizes change the resting layout with no watched mutation.
-  // A box read mid-flight includes the animation, so a flight keeps the endpoint it already holds.
-  const stopRest = options.watchRest?.(() => {
-    if (!runs.active()) before = engine.snapshot(elements())
-  })
+  // A box read mid-flight includes the animation; defer it until all runs have finished.
+  const stopRest = options.watchRest?.(refresh)
 
   // Disconnecting the observer only stops *new* moves being started. Teardown has to reach the
   // ones already in the air too, or the container keeps animating after the effect is gone.
   return () => {
+    stopped = true
     cleanup()
     stopRest?.()
     runs.cancelAll()

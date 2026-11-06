@@ -609,7 +609,13 @@ flight, so `attribute:class` restarts on unrelated class changes too. `nested:tr
 host and all descendants and corrects inherited scale and translation; it expects positive,
 axis-aligned boxes with no authored transforms. New or zero-size nodes appear at once. An interrupted
 change restarts from the previous endpoint. The cached layout survives scrolling and refreshes when
-the host resizes. Removed nodes are not kept: selection, removal and notifications stay yours.
+the host, its parent, the page or the viewport resizes; a resize during a move refreshes after it finishes.
+Make the layout change and the DOM change in the same task: a resize between them becomes the new
+starting point, and the move does not animate. A shift that resizes neither the host, its parent nor
+the page, such as content growing in a fixed-height panel above the host, is not seen until the next
+change, which then includes it.
+Any watched DOM change inside the host ends a move in flight, so avoid live-updating content in the
+moving items. Removed nodes are not kept: selection, removal and notifications stay yours.
 
 For the todo strike animation, use `underline-draw position:50% 300ms on:click` on the text.
 The existing background-size keyframe draws the line at mid-height; omission keeps the underline at

@@ -3,7 +3,8 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { timeScaleOf } from '../../core/time-scale.js'
 import { frameScheduler, watchElementSize } from '../../core/element-size.js'
-import { createFlipEngine, measureWithin, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
+import { createFlipEngine, domMeasure, measureWithin, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
+import type { Box, FlipSnapshot } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
 import { SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
@@ -60,19 +61,64 @@ function layoutPrimitive(
   }
 }
 
-/**
- * The host's own box moves in nested mode, so it needs its parent as the frame. A fixed host has no
- * offsetParent: scrolling moves its parent but not it, so viewport boxes are the stable ones.
- */
-function flipFrame(el: Element, nested: boolean): Element | null {
-  if (!nested) return el
-  return (el as HTMLElement).offsetParent ? el.parentElement : null
+/** A fixed box ends the scroll chain; an absolute box skips intervening static scrollers. */
+function scrollChain(node: Element, win: Window): Element[] {
+  const chain: Element[] = []
+  let at: Element | null = node
+  while (at) {
+    const { position } = win.getComputedStyle(at)
+    if (position === 'fixed') break
+    at = (position === 'absolute' ? (at as HTMLElement).offsetParent : null) ?? at.parentElement
+    if (at) chain.push(at)
+  }
+  return chain
+}
+
+function scrolled(chain: Element[]): { x: number; y: number } {
+  let x = 0
+  let y = 0
+  for (const el of chain) {
+    x += el.scrollLeft
+    y += el.scrollTop
+  }
+  return { x, y }
+}
+
+/** Preserve viewport movement except scrolling, converting old boxes when the scroll chain changes. */
+function flipCoordinates(host: Element, win: Window): { measure(el: Element): Box; rebase(before: FlipSnapshot): FlipSnapshot } {
+  const pinned = win.getComputedStyle(host).position === 'sticky'
+  const inHost = measureWithin(host)
+  let chain = scrollChain(host, win)
+  let batch = scrolled(chain)
+  return {
+    measure(el) {
+      if (pinned && el !== host) return inHost(el)
+      const box = domMeasure(el)
+      const own = el === host ? { x: 0, y: 0 } : { x: host.scrollLeft, y: host.scrollTop }
+      return { ...box, x: box.x + batch.x + own.x, y: box.y + batch.y + own.y }
+    },
+    rebase(before) {
+      const next = scrollChain(host, win)
+      const same = next.length === chain.length && next.every((el, i) => el === chain[i])
+      const from = same ? null : scrolled(chain)
+      chain = next
+      batch = scrolled(chain)
+      if (!from) return before
+      const boxes = new Map<Element, Box>()
+      for (const [el, box] of before.boxes) {
+        boxes.set(el, { ...box, x: box.x - from.x + batch.x, y: box.y - from.y + batch.y })
+      }
+      return { boxes }
+    },
+  }
 }
 
 function hostSizeWatcher(el: Element, win: Window): (refresh: () => void) => Cleanup {
   return (refresh) => {
     const size = watchElementSize(win, refresh)
     size.observe(el)
+    if (el.parentElement) size.observe(el.parentElement)
+    size.observe(win.document.documentElement)
     return size.disconnect
   }
 }
@@ -86,8 +132,8 @@ function hostSizeWatcher(el: Element, win: Window): (refresh: () => void) => Cle
 function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const attribute = params.text('attribute')
   const nested = params.is('nested')
-  const stateDriven = nested || attribute !== ''
-  const engine = createFlipEngine({ measure: measureWithin(flipFrame(el, nested)) })
+  const { measure, rebase } = flipCoordinates(el, ctx.win)
+  const engine = createFlipEngine({ measure })
   return observeLayout(
     el,
     engine,
@@ -98,7 +144,8 @@ function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareCon
       scale: params.is('scale'),
       nested,
       attribute,
-      ...(stateDriven && { watchRest: hostSizeWatcher(el, ctx.win) }),
+      rebase,
+      watchRest: hostSizeWatcher(el, ctx.win),
     },
     mutationWatcher(el, attribute),
   )

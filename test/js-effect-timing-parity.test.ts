@@ -361,10 +361,10 @@ describe('FLIP effects honour a delay without showing the finished layout first'
     }
     vi.stubGlobal('MutationObserver', FakeMutationObserver)
 
-    // The snapshot is taken at `activate()`, with jsdom's all-zero rects; moving the child
-    // afterwards is what the observer callback then measures as a delta.
-    build('<div data-kui="flip-reorder 300ms delay:150ms"><i>a</i></div>').start()
+    const app = build('<div data-kui="flip-reorder 300ms delay:150ms"><i>a</i></div>')
     const child = el().querySelector('i')!
+    atLeft(child, 0) // a painted starting box; zero-size nodes appear instantly
+    app.start()
     atLeft(child, 80)
     const options = captureAnimate(child)
 
@@ -412,8 +412,10 @@ describe('FLIP effects honour a delay without showing the finished layout first'
     }
     vi.stubGlobal('MutationObserver', FakeMutationObserver)
 
-    build('<div data-kui="flip-reorder 300ms"><i>a</i></div>').start()
+    const app = build('<div data-kui="flip-reorder 300ms"><i>a</i></div>')
     const child = el().querySelector('i')!
+    atLeft(child, 0)
+    app.start()
     atLeft(child, 80)
     const options = captureAnimate(child)
 
