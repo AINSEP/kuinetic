@@ -478,6 +478,13 @@ Primitives 5, 6, 7, 4, 30, 31.
 `before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
 `video-backdrop` · `video-hero`
 
+`curtain-reveal start-size:60vmin` opens a centred square crop to the full image;
+use a viewport or pixel length for a square, since percentages resolve separately on each axis.
+It beats `start-inset:`. Inside a viewport-sized
+`pin-section distance:150vh`, a viewport-sized image with `object-fit:cover` can use
+`curtain-reveal start-size:60vmin timeline:pin ease:linear, parallax-scale from:0.35 scale:1 timeline:pin ease:linear`.
+The initial visible square is about 21vmin.
+
 > **`bg`** and **`background`** are two names for one effect: they turn an element into its own
 > full-bleed backdrop and leave every child the author wrote rendering on top of it, untouched.
 > `src:` is the only required parameter, and it takes a path *or* a full URL — `/media/hero.mp4`,
@@ -646,7 +653,7 @@ Primitives 21, 22, plus CSS.
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
 | card | `tilt-3d` `tilt-parallax` |
-| group | `group-dim` |
+| group | `group-dim` `group-expand` |
 | label | `masked-label-swap` `masked-label-swap-x` `masked-label-swap-diagonal` |
 | intent | `hover-intent` |
 | preview | `anchored-preview` `anchored-preview-bottom` `anchored-preview-left` `anchored-preview-right` |
@@ -856,6 +863,18 @@ The `stagger` option suits the vertical and diagonal presets; on `-x` each lette
 > It claims a channel of its own (`group`) because it paints its children's opacity rather than
 > its own, so `fade-in, group-dim` on one container composes; a second `group-*` effect would not.
 > Because its rules reach past the element carrying them, `target:` refuses to relocate it.
+
+`group-expand grow:4 400ms` goes on a row of authored cards or links. Above 48rem on a
+fine pointer with hover, the hovered card grows to four shares and its neighbours keep
+one each. Keyboard focus always takes priority over hover; a mouse click does not pin a card open.
+Mark the detail image and text with `data-kui-expand-content`; titles stay outside that marker. With no hover
+or below 48rem, the cards stack with every detail visible and taps follow normal links.
+Reduced motion changes size and visibility immediately, including when a delay is authored.
+It refuses `target:` relocation.
+Keep a visible link or focusable card outside any hidden detail so keyboard users can reach it.
+Use wrapping content and responsive media; the library bounds card widths and breaks long words.
+Hidden details keep their box, so give the row a `min-height` taller than its tallest narrow card,
+or the page below moves on hover.
 
 ---
 

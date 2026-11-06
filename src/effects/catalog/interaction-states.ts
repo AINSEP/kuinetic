@@ -1,8 +1,9 @@
 import type { ParameterSchema, Preset, Primitive, Renderer } from '../../core/types.js'
+import { SUBTREE_CHANNEL } from '../../core/types.js'
 import { ALL_TIMING_TOKENS, stylesheetTimingPrepare, TRIGGER_DELAY_PARAM } from '../shared.js'
 
 /**
- * The two *state* effects of catalog section I — `press-depth` and `group-dim`.
+ * Stylesheet state effects of catalog section I: `press-depth`, `group-dim` and `group-expand`.
  *
  * Section I shipped 22 names before these and every one of them animated exactly one element in
  * exactly one of two states: the pointer is over me, or focus has landed on me. Two whole
@@ -18,7 +19,7 @@ import { ALL_TIMING_TOKENS, stylesheetTimingPrepare, TRIGGER_DELAY_PARAM } from 
  *    recedes" pattern had nowhere to live: the effect is a property of the *container*, and no
  *    primitive in section I had ever looked at an element's children.
  *
- * Both are stylesheet effects in the same sense the hover family is (`interaction.ts`'s file
+ * These are stylesheet effects in the same sense the hover family is (`interaction.ts`'s file
  * comment has the long version): `renderer: 'javascript'` and a near-no-op `prepare`, registered
  * so the name parses, channel-conflicts, and picks up authored parameters, with the actual motion
  * living as ordinary CSS in `interaction.css`. "Near"-no-op for the one reason that file records —
@@ -240,6 +241,18 @@ export const PRESS_PRESETS: Preset[] = [
  */
 export const GROUP_PRIMITIVES: Primitive[] = [
   statePrimitive('group-dim', ['group'], '260ms', groupParams),
+  {
+    ...statePrimitive('group-expand', ['group', SUBTREE_CHANNEL, 'discrete'], '400ms', {
+      grow: {
+        type: 'number',
+        default: '4',
+        cssProperty: '--kui-group-expand-grow',
+        finite: true,
+        minimum: 1,
+      },
+    }),
+    perfClass: 'layout',
+  },
 ]
 
 export const GROUP_PRESETS: Preset[] = [
@@ -254,6 +267,7 @@ export const GROUP_PRESETS: Preset[] = [
    * did would have to be on this channel and would be refused before it got there.
    */
   { name: 'group-dim', phase: 'state', primitive: 'group-dim', requiresOwnSubtree: true },
+  { name: 'group-expand', phase: 'state', primitive: 'group-expand', requiresOwnSubtree: true },
 ]
 
 /** Both state families, for `interaction.ts`'s catalog-wide exports. */
