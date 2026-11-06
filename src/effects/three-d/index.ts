@@ -12,6 +12,7 @@ import type { Registry } from '../../core/registry.js'
 import { ALL_TIMING_TOKENS, cssPrimitive, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { supportsFineHover } from '../catalog/interaction-shared.js'
 import { CONTROL_SELECTOR, prepareFlipParts } from './flip-parts.js'
+import { cubeVariant } from './cube.js'
 
 /**
  * 3D, perspective, and page-transition effects — all CSS-rendered.
@@ -170,12 +171,17 @@ export const THREE_D_PRIMITIVES: Primitive[] = [
   // rule in three-d.css — undeclared until channel-properties.ts gained an entry for it.
   // `card-flip-x`/`-y`/`cube-rotate` don't write it, but the channel only says what this primitive
   // is *allowed* to paint, not what every preset built on it does.
-  cssPrimitive('flip-face', [CHANNEL.skew, 'transform-origin'], {
-    parameters: {
-      angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
-      perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
-    },
-  }),
+  {
+    ...cssPrimitive('flip-face', [CHANNEL.skew, 'transform-origin'], {
+      parameters: {
+        angle: { type: 'angle', default: '180deg', cssProperty: '--kui-from-angle' },
+        perspective: { type: 'length', default: '1200px', cssProperty: '--kui-perspective' },
+        parts: { type: 'keyword', default: '', keywords: ['cube'], cssProperty: '' },
+        tumble: { type: 'keyword', default: '', keywords: ['true', 'false'], cssProperty: '' },
+      },
+    }),
+    variantFor: cubeVariant,
+  },
 
   cssPrimitive('page-reveal', [CHANNEL.opacity, CHANNEL.translate], {
     parameters: { distance: { type: 'length', default: '40px', cssProperty: '--kui-distance' } },

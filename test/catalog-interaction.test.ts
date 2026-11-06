@@ -87,9 +87,9 @@ describe('interaction catalog registration', () => {
     // matching `:hover` *and* `:focus-visible` rule, which is exactly the contract all twelve exist
     // outside of — see `catalog-interaction-states.test.ts` and `catalog-interaction-reveal.test.ts`
     // for the contract each keeps instead.
-    expect(INTERACTION_PRESETS).toHaveLength(32)
+    expect(INTERACTION_PRESETS).toHaveLength(33)
     expect(HOVER_PRESETS).toHaveLength(13)
-    expect(POINTER_PRESETS).toHaveLength(7)
+    expect(POINTER_PRESETS).toHaveLength(8)
     const reg = registry()
     expect(INTERACTION_PRESETS.every((preset) => reg.has(preset.name))).toBe(true)
   })

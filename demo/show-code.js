@@ -187,7 +187,7 @@
    * (slideshow), plus `follow:` (layout's tab indicator, which queries directly). Every other
    * `text` parameter is a URL, an attribute name, a colour or a length, none of which name markup.
    */
-  const SELECTOR_PARAMS = ['target', 'sections', 'next', 'prev', 'jump', 'pause', 'mute', 'follow', 'over']
+  const SELECTOR_PARAMS = ['target', 'sections', 'next', 'prev', 'jump', 'pause', 'mute', 'follow', 'over', 'images']
   const SELECTOR_PARAM_RE = new RegExp(
     `(?:^|[\\s,])(?:${SELECTOR_PARAMS.join('|')})\\s*:\\s*(?:'([^']*)'|"([^"]*)"|([^\\s,]+))`,
     'g',

@@ -1343,3 +1343,35 @@
     }
   }
 }
+@layer kui.effects {
+  [data-kui-trail-layer] {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: clip;
+  }
+  [data-kui-trail-layer] img {
+    display: none;
+    position: absolute;
+    width: var(--kui-trail-width, 120px);
+    height: var(--kui-trail-height, 88px);
+    object-fit: cover;
+    translate: -50% -50%;
+    animation: kui-trail-photo 800ms ease-out both;
+  }
+  @keyframes kui-trail-photo {
+    0% {
+      opacity: 0;
+      scale: 0.7;
+    }
+    15%, 55% {
+      opacity: 1;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+}

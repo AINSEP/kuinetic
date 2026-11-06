@@ -1,7 +1,9 @@
-import { CHANNEL } from '../../core/types.js'
+import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Preset, Primitive } from '../../core/types.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive } from './shared.js'
+import { preparePointerWobble } from './wobble.js'
+import { prepareConfetti } from './confetti.js'
 
 const loop = {
   duration: { type: 'time', default: '1.6s', cssProperty: '--kui-duration' },
@@ -101,10 +103,10 @@ const ripple = {
  *   is unreachable from `data-kui` no matter what the primitive declares. `ripple` above had that
  *   exact bug and is now `extent`; this one was named around it from the start.
  *
- * - **Particle count is not a parameter.** Five layers are five `radial-gradient`s written out in
+ * - **Gradient particle count is fixed.** Five layers are five `radial-gradient`s written out in
  *   the stylesheet and five position pairs written out in the keyframe; CSS cannot generate an
- *   nth one from a number. A `count` parameter would validate cleanly and do nothing, which is
- *   the failure `ambient.ts` documents for a shared `to:`. Colour, size, distance, fan and the
+ *   nth one from a number. `pieces:` selects a separate generated-child renderer instead.
+ *   For these five gradients, colour, size, distance, fan and the
  *   timing knobs are the values that *can* change, so those are the values exposed.
  *
  * `heart-burst` used to share this object and ignore everything below `scale` — it has its own
@@ -113,6 +115,7 @@ const ripple = {
  */
 const burst = {
   ...pop,
+  pieces: { type: 'number', default: '0', cssProperty: '', finite: true, integer: true, minimum: 0, maximum: 96 },
   // How far the furthest particle travels, defaulting to a *percentage* of the host rather than a
   // fixed length. A background layer is clipped to the element that paints it, so a fixed `34px`
   // would be almost entirely off-box on the 18px dot the demo page celebrates with and a timid
@@ -217,10 +220,16 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     parameters: shake,
     defaultActivation: 'manual',
   }),
-  cssPrimitive('feedback-wobble', [CHANNEL.translate, CHANNEL.rotate], {
-    parameters: { y: { type: 'length', default: '0px', cssProperty: '--kui-wobble-y' } },
-    defaultActivation: 'click',
-  }),
+  {
+    ...cssPrimitive('feedback-wobble', [CHANNEL.translate, CHANNEL.rotate], {
+      parameters: {
+        y: { type: 'length', default: '0px', cssProperty: '--kui-wobble-y' },
+        direction: { type: 'keyword', default: '', keywords: ['pointer'], cssProperty: '' },
+      },
+      defaultActivation: 'click',
+    }),
+    variantFor: (spec) => spec.params.direction === 'pointer' ? { prepare: preparePointerWobble } : {},
+  },
   /**
    * Every channel this primitive now touches is on its own `::after`, not on the host.
    *
@@ -275,10 +284,18 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
    *
    * `color` is gone: only `heart-burst` ever painted it, and it left with `heart-burst`.
    */
-  cssPrimitive('feedback-burst', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'sweep'], {
-    parameters: burst,
-    defaultActivation: 'click',
-  }),
+  {
+    ...cssPrimitive('feedback-burst', [CHANNEL.scale, CHANNEL.opacity, CHANNEL.background, 'sweep'], {
+      parameters: burst,
+      defaultActivation: 'click',
+    }),
+    variantFor(spec, warn) {
+      const count = Number(spec.params.pieces)
+      if (!Number.isInteger(count) || count <= 0 || count > 96) return {}
+      if (spec.repeat !== undefined) warn('confetti-burst pieces play once; repeat: applies only to the host pop')
+      return { prepare: prepareConfetti, channels: [SUBTREE_CHANNEL] }
+    },
+  },
   /**
    * `heart-burst`'s own primitive, split off `feedback-burst` above so its declared channels match
    * what it actually paints: `[data-kui-fx~='heart-burst']` in `feedback.css` sets `color` on the

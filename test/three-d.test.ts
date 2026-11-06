@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { GESTURE_PRESETS } from '../src/effects/gestures/index.js'
 import { THREE_D_PRESETS } from '../src/effects/three-d/index.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
 import { catalogRegistry } from './support/registry.js'
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/css/three-d.css', import.meta.url)), 'utf8')
@@ -79,6 +81,8 @@ describe('three-d stylesheet', () => {
 
   it('every keyframe block is referenced by a preset', () => {
     const referenced = new Set(THREE_D_PRESETS.map((preset) => preset.keyframes))
+    const tumble = compile(parse('cube-rotate parts:cube tumble:true'), registry, 'time')
+    referenced.add(tumble.declarations['animation-name'])
     expect([...keyframes.keys()].filter((name) => !referenced.has(name))).toEqual([])
   })
 

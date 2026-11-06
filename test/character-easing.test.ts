@@ -292,6 +292,13 @@ describe('both easing spellings reach CSS through one resolver', () => {
   const registry = catalogRegistry()
   const run = (source: string) => compile(parse(source), registry, 'time')
 
+  it('accepts every shipped easing and native function without warnings', () => {
+    const names = [...BASE_CSS.matchAll(/--kui-ease-([a-z-]+):/g)].map((match) => match[1]!)
+    names.push('linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end',
+      'cubic-bezier(.2, 0, .4, 1)', 'steps(4)', 'linear(0, 1)', 'spring(bounce:0.5)')
+    for (const name of names) expect(run(`fade-up ease:${name}`).warnings, name).toEqual([])
+  })
+
   it('accepts spring() unquoted in the positional slot, spaces and colons included', () => {
     // The tokenizer is paren-aware and `splitPair` only splits on a *top-level* colon, so neither
     // the inner spaces nor the inner colons need quoting — the same reason

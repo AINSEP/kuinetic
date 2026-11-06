@@ -197,24 +197,24 @@
       rotate: 0deg;
     }
     15% {
-      translate: -6px var(--kui-wobble-y, 0px);
-      rotate: -6deg;
+      translate: calc(-6px * var(--kui-wobble-x, 1)) var(--kui-wobble-y, 0px);
+      rotate: calc(-6deg * var(--kui-wobble-angle, 1));
     }
     30% {
-      translate: 4px calc(var(--kui-wobble-y, 0px) * -0.6667);
-      rotate: 4deg;
+      translate: calc(4px * var(--kui-wobble-x, 1)) calc(var(--kui-wobble-y, 0px) * -0.6667);
+      rotate: calc(4deg * var(--kui-wobble-angle, 1));
     }
     45% {
-      translate: -3px calc(var(--kui-wobble-y, 0px) * 0.5);
-      rotate: -3deg;
+      translate: calc(-3px * var(--kui-wobble-x, 1)) calc(var(--kui-wobble-y, 0px) * 0.5);
+      rotate: calc(-3deg * var(--kui-wobble-angle, 1));
     }
     60% {
-      translate: 2px calc(var(--kui-wobble-y, 0px) * -0.3333);
-      rotate: 2deg;
+      translate: calc(2px * var(--kui-wobble-x, 1)) calc(var(--kui-wobble-y, 0px) * -0.3333);
+      rotate: calc(2deg * var(--kui-wobble-angle, 1));
     }
     75% {
-      translate: -1px calc(var(--kui-wobble-y, 0px) * 0.1667);
-      rotate: -1deg;
+      translate: calc(-1px * var(--kui-wobble-x, 1)) calc(var(--kui-wobble-y, 0px) * 0.1667);
+      rotate: calc(-1deg * var(--kui-wobble-angle, 1));
     }
     100% {
       translate: 0 0;
@@ -541,8 +541,41 @@
     }
   }
 
-  /* --- copy-confirm: fade in, hold, fade out — one keyframe, no JS timer needed --- */
+  [data-kui-confetti-pieces]::after {
+    content: none;
+  }
+  [data-kui-confetti-piece] {
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--kui-confetti-size, 6px) / 2);
+    pointer-events: none;
+    animation: kui-confetti-piece 900ms linear both paused;
+  }
+  @keyframes kui-confetti-piece {
+    0% {
+      translate: 0 0;
+      rotate: 0deg;
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    40% {
+      translate: calc(var(--kui-piece-x) * 0.4 * var(--kui-confetti-fan, 1)) var(--kui-piece-rise);
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      translate: calc(var(--kui-piece-x) * var(--kui-confetti-fan, 1)) calc(80px - var(--kui-piece-rise) * 0.5);
+      rotate: var(--kui-piece-turn);
+      opacity: 0;
+    }
+  }
 
+  /* --- copy-confirm: fade in, hold, fade out — one keyframe, no JS timer needed --- */
   @keyframes kui-copy-confirm {
     0% {
       opacity: 0;

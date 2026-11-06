@@ -14,6 +14,8 @@ export const CATALOG_NOTES: ParamNotes = {
   'curtain.scope': 'Keep the curtain inside the controlled element, following its rounded corners.',
   'curtain.duration': 'Duration of each cover and reveal phase; zero commits synchronously.',
   'feedback-wobble.y': 'Vertical displacement on the first wobble; negative values reverse its vertical direction.',
+  'feedback-wobble.direction': 'Use pointer entry to choose the wobble direction.',
+  'feedback-burst.pieces': 'Create up to 96 decorative strips and dots instead of the five gradient particles.',
   'media-mask.direction': 'Direction the soft reveal edge travels: right by default, or left.',
   'media-mask.edges': 'Fade both horizontal scroll edges by this width and remove each fade at its matching end.',
   'media-wipe.start-inset': 'Set the horizontal inset at the start of curtain-reveal.',

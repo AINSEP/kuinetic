@@ -383,6 +383,8 @@ export type Cleanup = () => void
  * cancellation — is enforced here rather than re-implemented per renderer.
  */
 export interface EffectInstance {
+  /** Prepares a CSS effect's geometry or parts without adding a separate playhead. */
+  readonly setupOnly?: true
   /** Start. Called by the animator once its gate opens, never by `prepare`. */
   activate(): void
   /**
