@@ -8,6 +8,47 @@ library should own it. Never call something "not the library's job" without grep
 
 ---
 
+## GSAP showcase study — owner's ask, 2026-11-05
+
+- [ ] **Be able to do what the sites on https://gsap.com/showcase/ do.** Owner: "The animations, the
+      videos, they're just so beautiful." **Later, and owner-led: do not start until asked.** The
+      owner will point at the videos when ready. For each one: break it down, understand the
+      animations, then abstract them into kUInetic. Take the mechanism, not the look: the result
+      should be a library effect or param, in kUInetic's own design, not a copy of that site.
+- [ ] **Check https://www.ripplix.com too.** Owner's ask, 2026-11-05. Same deal: later, owner-led,
+      take the mechanism and not the look.
+- [ ] **Go through https://motion.dev/examples and be able to do its animations.** Owner's ask, 2026-11-05.
+      List done 2026-11-05: `ADS-memory/.local-artifacts/motion-examples/final.md` (284 effects, from video
+      frames and code, nothing rendered: HAVE 77, SMALL 117, NEW 15, WEBGL 15, SKIP 50, UNCLEAR 10). Build order is `batches.md` there: 31 batches,
+      library then 3D. Ignore the batches in `plan.md`, which came from names only. Names mislead, so trust the frames. Rebuild from what the preview
+      shows. Do not use Motion's source code: the page sells source for its Plus examples.
+      Owner, 2026-11-05: animations only, not components, so UI parts come from DaisyUI. Order: library additions, then
+      three.js and 3D effects, then look at it, then edit pages. New demos go on `showcase.html` or one holding page for
+      now and get split up later (rough idea: carousels and galleries, page transitions, 3D).
+- [ ] **Images and words that follow a line, including a carousel of images on a 3D line.** Owner's ask,
+      2026-11-05. Reference: https://www.pinterest.com/pin/1107181889668067699 (a strip of images sweeps along a
+      curve in perspective, and the pictures bend with it) and https://www.pinterest.com/pin/1010917447609301375/.
+      Three parts, on scroll and on a timer: (A) one element rides a curve: `motion-path ... timeline:scroll`
+      moved correctly in Chrome at desktop width on 2026-11-05, but curves are fixed pixels, so phones are still open,
+      and it is a flat 2D path; (B) letters curve along a line: not built; (C) many images spaced along one line in
+      3D, as a carousel, bending like a ribbon: not built. Bending needs a decision: WebGL add-on (recommended) or
+      CSS slices. See the Canvas / WebGL entry below: opt-in only, never the main bundle.
+- [ ] **Motion effects the owner wants later, not now.** Owner, 2026-11-05: "I do want to build that, but not now."
+      Codex's plan (`ADS-memory/.local-artifacts/motion-examples/build/newjs-plan.md`, batches 23-25 and 30) advised against building
+      these yet, because they cost extra JS drivers for few effects: `magnetic-filings`, `split-text-scatter`,
+      `collision-hover-grid`, `apple-watch-home-screen`, `multifollow-pointer-with-spring`, `reorder-grid`, `apple-intelligence`.
+      Frames are in `sheets/<effect>.jpg` in that folder.
+- [ ] **3D card shapes: helix and sphere.** Owner's ask, 2026-11-05, from the helix/barrel/ring/sphere
+      demo on motion.dev. Plain CSS 3D, no WebGL. Barrel (`carousel-3d`, `carousel-3d-inside`) and ring
+      (`carousel-3d plane:screen facing:radial`) should already exist: compare them in a browser first,
+      including the dark card backs. New: a per-card height step for helix, and per-card latitude for
+      sphere, on the shared deck in `src/effects/carousel/`. Watch for: helix's jump when the last card
+      wraps to the first; sphere dragging on more than one axis is extra work (the deck tracks one
+      position); `fit.ts` assumes a flat circle, so both shapes need their own fit, especially on phones.
+      Code was read, nothing was built or run.
+
+---
+
 ## 2026-09-08 audit fixes — UNVERIFIED IN A BROWSER, check these
 
 Four commits landed from a four-auditor review (Codex `gpt-5.6-sol` xhigh, Sonnet 5, Gemini 3.1
@@ -139,7 +180,12 @@ dispatching it.
     **Architecture, owner's call:** a separate `kuinetic/3d` subpath export — the pattern already
     exists (`./core`, `./effects`, `./css` ship today). three.js as an **optional peer dependency**,
     so the package keeps its current zero-dependency posture and only an author who opts into 3D
-    installs or downloads it.
+    installs or downloads it. Owner, 2026-11-05, script-tag files: `kuinetic.min.js` has no 3D;
+    `kuinetic.3d.min.js` is the separate add-on; `kuinetic.all.min.js` has everything, three.js included. Known
+    cost: `.all` roughly doubles (about 520 KB + 535 KB minified, before compression), so pages using it for
+    anything else should move to `kuinetic.min.js`. Owner's call: `kuinetic.min.js` injects `kuinetic.css` itself, the way
+    `.all` does today (`scripts/build-standalone.mjs`), so one script tag works. That adds about 200 KB minified before
+    compression. Decide then whether a no-CSS build stays for people who link the CSS themselves.
     **three.js over OGL, decided once size stops mattering.** Measured 2026-09-10 with esbuild,
     tree-shaking verified: OGL minimum mesh surface 15.1 KB gzip, 22.2 KB with glTF; three.js at
     feature parity 133.2 KB gzip. Behind an opt-in entry point that 10x is acceptable — nobody
@@ -700,27 +746,6 @@ often an author would actually hit them.
 
 ---
 
-## Tier 3 — parked, low priority
-
-Owner parked these on 2026-08-23: "not interested in spending time on it right now."
-Do not start any of them without asking first. Each entry carries everything needed to pick it
-up cold, so nobody has to re-derive the diagnosis.
-
-
-- [ ] **PARKED 2026-08-23 — do not start without asking.** **`tilt-3d` has no depth coverage in any
-      test tier.** The browser sweep names this as a real gap, not an equivalent-coverage exclusion:
-      nothing anywhere verifies the Z-axis behaviour actually happens. Carried debt since the
-      2026-08-22 handoff. A unit test alone will not close it — unit tests never render a frame, so
-      100% coverage proves registration, not animation. Note while working here: **never nest a 3D
-      effect inside an element another effect animates.** `card-flip-x/-y`, `cube-rotate`,
-      `book-page-turn` and `fold-panel` all carry `transform-style: preserve-3d`, and a preserve-3d
-      child inside a 3D-transformed parent composites into the parent's space — this broke
-      `fold-panel` and made `wipe-circle` look reversed on `index.html` (reverted in `82ffe08`).
-
-- [ ] **Owner asked to hide `icons-transitions.html` and `three-d.html` from the CSS-animations
-      nav** (2026-08-23), then softened it — not done, needs confirmation. The nav is generated; see
-      commit `e6c132b`. Note that hiding the pages does not fix the two entries above.
-
 ## Needs JavaScript — do not start without asking
 
 Four documented names cannot be done in CSS. The stated position is *"the whole point of this
@@ -741,3 +766,24 @@ CSS-only — but a new JS primitive is a decision, not a default.
 - [ ] **Improve the tags under the named effects in `index.html`** — replace with better, more
       engaging animations.
 - [ ] **Adjust card layouts** — wider cards, "Show code" directly beneath the `data-kui=*` line.
+
+## Tier 3 — parked, low priority
+
+Owner parked these on 2026-08-23: "not interested in spending time on it right now."
+Do not start any of them without asking first. Each entry carries everything needed to pick it
+up cold, so nobody has to re-derive the diagnosis.
+
+
+- [ ] **PARKED 2026-08-23 — do not start without asking.** **`tilt-3d` has no depth coverage in any
+      test tier.** The browser sweep names this as a real gap, not an equivalent-coverage exclusion:
+      nothing anywhere verifies the Z-axis behaviour actually happens. Carried debt since the
+      2026-08-22 handoff. A unit test alone will not close it — unit tests never render a frame, so
+      100% coverage proves registration, not animation. Note while working here: **never nest a 3D
+      effect inside an element another effect animates.** `card-flip-x/-y`, `cube-rotate`,
+      `book-page-turn` and `fold-panel` all carry `transform-style: preserve-3d`, and a preserve-3d
+      child inside a 3D-transformed parent composites into the parent's space — this broke
+      `fold-panel` and made `wipe-circle` look reversed on `index.html` (reverted in `82ffe08`).
+
+- [ ] **Owner asked to hide `icons-transitions.html` and `three-d.html` from the CSS-animations
+      nav** (2026-08-23), then softened it — not done, needs confirmation. The nav is generated; see
+      commit `e6c132b`. Note that hiding the pages does not fix the two entries above.
