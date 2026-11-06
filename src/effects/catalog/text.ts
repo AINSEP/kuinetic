@@ -106,7 +106,10 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
       } }
     },
   },
-  cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
+  cssPrimitive('text-sweep', [CHANNEL.background], { parameters: {
+    ...textSweepParams,
+    position: { type: 'percentage', default: '100%', cssProperty: '--kui-sweep-position' },
+  } }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
   /*
    * The three named axes stay, and stay implemented the way they are.
@@ -304,7 +307,7 @@ const scrambleParams: ParameterSchema = {
 
 const wordCyclerParams: ParameterSchema = {
   swap: { type: 'keyword', default: 'fade', keywords: ['fade', 'scramble'], cssProperty: '--kui-word-swap' },
-  order: { type: 'keyword', default: 'start', keywords: ['start', 'end', 'center', 'edges'], cssProperty: '--kui-resolve-order' },
+  from: { type: 'keyword', default: 'start', keywords: ['start', 'end', 'center', 'edges'], cssProperty: '--kui-resolve-order' },
   step: { type: 'time', default: '40ms', cssProperty: '--kui-step' },
   words: { type: 'text', default: '', cssProperty: '--kui-words' },
   interval: { type: 'time', default: '2200ms', cssProperty: '--kui-interval' },
@@ -801,7 +804,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
 
 function prepareScrambleCycle(el: Element, params: EffectParams, ctx: PrepareContext, words: string[]): SetupResult {
   const layers = installSplitLayers(el, el.ownerDocument)
-  const order = params.text('order', 'start') as 'start' | 'end' | 'center' | 'edges'
+  const order = params.text('from', 'start') as 'start' | 'end' | 'center' | 'edges'
   let index = 0
   let graphemes = segmentGraphemes(words[index]!)
   let ranks = staggerRanks(graphemes.length, order)

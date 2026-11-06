@@ -334,7 +334,7 @@ Primitives 17–19, 13, 23, 24.
 `typewriter words:'Websites|Apps|Games'` types and fully deletes each word before advancing, looping the list.
 Use `interval:1500ms` to set how long each completed list word rests before deletion.
 `word-cycler words:'Animate|Spring|Easing' swap:scramble step:40ms` replaces its fade with symbol scrambling.
-Its `order:start|end|center|edges` chooses where letters scramble and resolve, in both directions.
+Its `from:start|end|center|edges` chooses where letters scramble and resolve, in both directions.
 `split-words hold:true on:load` keeps the split until teardown and lights each word from inherited `--kui-progress`.
 Place it inside `pin-section distance:150vh` to reuse its scroll progress; the held split installs no timers or listeners.
 Authored markup and the accessible reading copy are retained; `hold` uses an opacity scrub instead of timed direction and stagger.
@@ -429,6 +429,14 @@ Primitives 15, 16. All CSS except the two morphs.
 
 > `icon-morph` / `blob-morph` use primitive 16 (arbitrary path interpolation). The named
 > icon pairs are precomputed matched-point-count morphs — cheap and exact.
+
+Use `icon-morph loop:true to:'M0 0H20V20H0Z|M10 0L20 20H0Z'` with a starting `d` to loop through
+the starting path, each destination and back to the start. `duration` is per leg, the delay waits
+once before the first leg, and easing applies to each leg. Unlike outlines work; commands are
+`M/L/H/V/C/Z`, and the whole chain must fit the 200-character text limit.
+Optional `colors:'var(--accent)|var(--accent-ink)|var(--accent)'` gives one fill per shape, including
+the start, and claims the stroke/fill channel. Without WAAPI, geometry still loops. A hidden tab
+pauses the loop. Reduced motion and zero duration keep the starting shape.
 
 ---
 
@@ -583,6 +591,18 @@ Primitive 28. `js`. One technique unlocks the whole group.
 
 `flip-reorder` · `flip-filter` · `flip-sort` · `flip-shuffle` · `accordion-height` ·
 `expand-to-modal` · `grid-to-list` · `tab-indicator-slide` · `masonry-reflow`
+
+`flip-reorder attribute:data-layout scale:true 500ms` also animates when that attribute changes on
+the host or a descendant. Use an attribute only your layout changes: any change to it stops a move in
+flight, so `attribute:class` restarts on unrelated class changes too. `nested:true` also measures the
+host and all descendants and corrects inherited scale and translation; it expects positive,
+axis-aligned boxes with no authored transforms. New or zero-size nodes appear at once. An interrupted
+change restarts from the previous endpoint. The cached layout survives scrolling and refreshes when
+the host resizes. Removed nodes are not kept: selection, removal and notifications stay yours.
+
+For the todo strike animation, use `underline-draw position:50% 300ms on:click` on the text.
+The existing background-size keyframe draws the line at mid-height; omission keeps the underline at
+the bottom. This is a one-shot animation; the application owns checked state and row removal.
 
 > **Boundary:** these animate elements *you* control. `accordion-height` animates height or `axis:width`;
 > it does not own `aria-expanded`, focus, or keyboard handling. Accessible accordion/carousel/

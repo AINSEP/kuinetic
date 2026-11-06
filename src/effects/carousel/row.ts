@@ -3,9 +3,9 @@ import type { SizeWatch } from '../../core/element-size.js'
 import { deferPrepare } from '../../core/instances.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import type { PrepareContext } from '../../core/effect-context.js'
-import { CHANNEL } from '../../core/types.js'
+import { attributeChannel, CHANNEL } from '../../core/types.js'
 import type { EffectParams, Primitive, Preset } from '../../core/types.js'
-import { commitWithoutTransition, DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
+import { commitWithoutTransition, DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS, WRAP_ATTR } from './deck.js'
 import type { DeckLayout } from './deck.js'
 import { wrapPlace } from './drag.js'
 
@@ -154,7 +154,13 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
 export const SPATIAL_ROW_PRIMITIVE: Primitive = {
   id: 'spatial-row',
   renderer: 'javascript',
-  channels: [CHANNEL.skew, 'discrete', ...SPATIAL_DECK_CHANNELS],
+  channels: [
+    CHANNEL.skew,
+    'discrete',
+    ...SPATIAL_DECK_CHANNELS,
+    attributeChannel('data-kui-row-static'),
+    attributeChannel(WRAP_ATTR),
+  ],
   parameters: Object.fromEntries(Object.entries(DECK_PARAMETERS).filter(([name]) => name !== 'travel')),
   supportedTimelines: ['time'],
   supportedActivations: ['load', 'enter', 'click', 'manual'],

@@ -6,6 +6,8 @@ import type { ParamNotes } from '../core/describe.js'
  * `rotate`, `skew`, `progress` primitives in `effects/catalog/core.ts`.
  */
 export const MECHANICS_NOTES: ParamNotes = {
+  'flip-container.attribute': 'Also animate layout changes when this attribute changes on the host or its descendants.',
+  'flip-container.nested': 'Include the host and descendants with corrected inherited translation and scale.',
   'auto-height.axis': 'Animate height or width from its displayed size when interrupted.',
   'tween.toggle': 'Click to transition between the resting style and a scalar destination.',
   'tween-from.toggle': 'Use toggle on tween to transition between two positions.',
@@ -117,11 +119,13 @@ export const MECHANICS_NOTES: ParamNotes = {
     whenOmitted: "Uses the path's own shape.",
   },
   'path-morph.to': {
-    why: 'The shape it morphs into, as SVG path data.',
+    why: 'The destination path, or a pipe-separated chain of destination paths with loop enabled.',
     whenOmitted: 'Nothing to morph into: a warning, and the shape never changes.',
     required: true,
   },
   'path-morph.delay': 'Wait this long after the pointer arrives before morphing; moving away is never delayed.',
+  'path-morph.loop': 'Loop through the starting path and each destination, pausing while the tab is hidden.',
+  'path-morph.colors': 'With loop enabled, blend pipe-separated fill colors with one color for every shape including the start.',
 
   'pressable.duration': 'How long you must hold before it counts as a press.',
   'pressable.held': 'Mark the host while a pointer is held and clear it on cancellation.',

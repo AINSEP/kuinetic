@@ -372,11 +372,13 @@ describe('observeLayout teardown', () => {
 
     for (let i = 0; i < moves; i++) fire()
     expect(animations).toHaveLength(moves)
-    for (const animation of animations) expect(animation.cancel).not.toHaveBeenCalled()
+    // A new change cancels the run still in flight before it measures; teardown takes the last one.
+    for (const animation of animations.slice(0, -1)) expect(animation.cancel).toHaveBeenCalled()
+    expect(animations.at(-1)!.cancel).not.toHaveBeenCalled()
 
     cleanup()
 
-    for (const animation of animations) expect(animation.cancel).toHaveBeenCalledOnce()
+    for (const animation of animations) expect(animation.cancel).toHaveBeenCalled()
   })
 
   it('lets a move that already completed go, instead of holding it until teardown', async () => {

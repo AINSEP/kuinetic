@@ -40,6 +40,12 @@ export interface FlipOptions {
   easing?: string
   /** Animate width/height differences as a scale. Off for elements with visible borders. */
   scale?: boolean
+  /** Include the container and descendants, correcting inherited transforms. Opt-in only. */
+  nested?: boolean
+  /** A state watcher needs to cache destination geometry before animation writes. */
+  attribute?: string
+  /** Refresh the cached layout when it changes with no watched mutation. */
+  watchRest?: (refresh: () => void) => Cleanup
 }
 
 export interface FlipRun {
@@ -74,6 +80,25 @@ export function domMeasure(el: Element): Box {
   return { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
 }
 
+/**
+ * Measure inside a frame rather than the viewport.
+ *
+ * A mutation observer sees only the end state, so "first" is a box cached before the change, and it
+ * can be very old. Viewport boxes go stale on every scroll. Boxes in the frame's scrolled-content
+ * coordinates do not. `null` keeps viewport boxes, for a host that scrolling does not move.
+ *
+ * @complexity O(1) time per element; reads geometry and scroll offsets.
+ * @overallScore 100
+ */
+export function measureWithin(frame: Element | null): (el: Element) => Box {
+  return (el) => {
+    const box = domMeasure(el)
+    if (!frame) return box
+    const origin = domMeasure(frame)
+    return { ...box, x: box.x - origin.x + frame.scrollLeft, y: box.y - origin.y + frame.scrollTop }
+  }
+}
+
 function domAnimate(
   el: Element,
   keyframes: Keyframe[],
@@ -103,6 +128,7 @@ export function createFlipEngine(deps: Partial<FlipDeps> = {}): FlipEngine {
     },
 
     play(before, elements, options = {}) {
+      if (options.nested) return playNested(before, elements, { measure, animate }, options)
       const deltas = collectDeltas(before, elements, measure, options.scale ?? false)
       if (deltas.length === 0) {
         return { moved: [], finished: Promise.resolve(), cancel: () => {} }
@@ -110,6 +136,94 @@ export function createFlipEngine(deps: Partial<FlipDeps> = {}): FlipEngine {
       return runDeltas(deltas, animate, options)
     },
   }
+}
+
+/** Project each box through its parent's current FLIP instead of applying the scale twice. */
+function nestedFrame(first: Box, last: Box, progress: number): Box {
+  return {
+    x: last.x + (first.x - last.x) * (1 - progress),
+    y: last.y + (first.y - last.y) * (1 - progress),
+    width: last.width + (first.width - last.width) * (1 - progress),
+    height: last.height + (first.height - last.height) * (1 - progress),
+  }
+}
+
+function relativeFrame(box: Box, last: Box, parent: Box, parentLast: Box): Keyframe {
+  const sx = parent.width / parentLast.width
+  const sy = parent.height / parentLast.height
+  return {
+    transformOrigin: '0px 0px',
+    translate: `${(box.x - parent.x) / sx - (last.x - parentLast.x)}px ${(box.y - parent.y) / sy - (last.y - parentLast.y)}px`,
+    scale: `${box.width / last.width / sx} ${box.height / last.height / sy}`,
+  }
+}
+
+/** A skipped wrapper has no transform of its own: the nearest painted ancestor is what is inherited. */
+function paintedAncestor(el: Element, painted: Map<Element, Box>): Element | null {
+  let parent = el.parentElement
+  while (parent && !painted.has(parent)) parent = parent.parentElement
+  return parent
+}
+
+function nestedClock(el: Element, animate: FlipDeps['animate'], options: FlipOptions): Animation | null {
+  const clock = animate(el, [{}, {}], {
+    duration: options.durationMs ?? 400,
+    delay: options.delayMs ?? 0,
+    easing: options.easing ?? 'cubic-bezier(0.2, 0, 0, 1)',
+    fill: 'both',
+  })
+  if (clock) clock.playbackRate = timeScaleOf(el)
+  return clock
+}
+
+/**
+ * One native timing clock, with corrected local transforms updated without geometry reads.
+ * Paused animations own the writes, so cancellation restores authored styles automatically.
+ */
+function playNested(before: FlipSnapshot, elements: Iterable<Element>, deps: FlipDeps, options: FlipOptions): FlipRun {
+  const last = new Map<Element, Box>()
+  for (const el of elements) last.set(el, deps.measure(el))
+  const unit: Box = { x: 0, y: 0, width: 1, height: 1 }
+  const entries = [...last].filter(([el, box]) => {
+    const first = before.boxes.get(el)
+    return first && first.width > 0 && first.height > 0 && box.width > 0 && box.height > 0
+  })
+  const scale = options.scale ?? false
+  if (!entries.some(([el, box]) => deltaFor(el, before.boxes.get(el)!, box, scale))) {
+    return { moved: [], finished: Promise.resolve(), cancel: () => {} }
+  }
+  const clock = nestedClock(entries[0]![0], deps.animate, options)
+  const paints = new Map<Element, Animation>()
+  for (const [el] of entries) {
+    const paint = deps.animate(el, [{}, {}], { duration: 1, fill: 'both' })
+    if (paint) {
+      paint.pause()
+      paint.currentTime = 0
+      paints.set(el, paint)
+    }
+  }
+  let frame = 0
+  const draw = (): void => {
+    const progress = clock ? clock.effect!.getComputedTiming().progress ?? 0 : 1
+    const projected = new Map<Element, Box>()
+    for (const [el, box] of entries) {
+      const start = before.boxes.get(el)!
+      const current = nestedFrame(scale ? start : { ...start, width: box.width, height: box.height }, box, progress)
+      projected.set(el, current)
+      const parent = paintedAncestor(el, projected)
+      const keyframe = relativeFrame(current, box, parent ? projected.get(parent)! : unit, parent ? last.get(parent)! : unit)
+      ;(paints.get(el)?.effect as KeyframeEffect | undefined)?.setKeyframes([keyframe, keyframe])
+    }
+    if (progress < 1) frame = requestAnimationFrame(draw)
+  }
+  const cancel = (): void => {
+    cancelAnimationFrame(frame)
+    clock?.cancel()
+    for (const paint of paints.values()) paint.cancel()
+  }
+  draw()
+  const finished = (clock ? clock.finished.catch(() => undefined) : Promise.resolve()).then(cancel)
+  return { moved: entries.map(([el]) => el), finished, cancel }
 }
 
 interface Delta {
@@ -224,7 +338,7 @@ function runDeltas(deltas: Delta[], animate: FlipDeps['animate'], options: FlipO
  * @complexity O(1) per run tracked; O(k) space in runs currently playing.
  * @overallScore 100
  */
-export function trackFlipRuns(): { track(run: FlipRun): void; cancelAll(): void } {
+export function trackFlipRuns(): { track(run: FlipRun): void; cancelAll(): void; active(): boolean } {
   const playing = new Set<FlipRun>()
 
   return {
@@ -238,6 +352,7 @@ export function trackFlipRuns(): { track(run: FlipRun): void; cancelAll(): void 
       for (const run of playing) run.cancel()
       playing.clear()
     },
+    active: () => playing.size > 0,
   }
 }
 
@@ -261,18 +376,30 @@ export function observeLayout(
   options: FlipOptions,
   observe: (callback: () => void) => Cleanup,
 ): Cleanup {
-  let before = engine.snapshot(container.children)
+  const elements = (): Iterable<Element> =>
+    options.nested ? [container, ...container.querySelectorAll('*')] : container.children
+  let before = engine.snapshot(elements())
   const runs = trackFlipRuns()
 
   const cleanup = observe(() => {
-    runs.track(engine.play(before, container.children, options))
-    before = engine.snapshot(container.children)
+    // Cancel first: a box read while a run is in flight includes its inverted transform.
+    runs.cancelAll()
+    const after = engine.snapshot(elements())
+    runs.track(engine.play(before, elements(), options))
+    before = after
+  })
+
+  // Late images, fonts and viewport resizes change the resting layout with no watched mutation.
+  // A box read mid-flight includes the animation, so a flight keeps the endpoint it already holds.
+  const stopRest = options.watchRest?.(() => {
+    if (!runs.active()) before = engine.snapshot(elements())
   })
 
   // Disconnecting the observer only stops *new* moves being started. Teardown has to reach the
   // ones already in the air too, or the container keeps animating after the effect is gone.
   return () => {
     cleanup()
+    stopRest?.()
     runs.cancelAll()
   }
 }
@@ -283,7 +410,7 @@ export function observeLayout(
  * @complexity O(1) to install; callback cost is the caller's.
  * @overallScore 100
  */
-export function mutationWatcher(container: Element): (callback: () => void) => Cleanup {
+export function mutationWatcher(container: Element, attribute = ''): (callback: () => void) => Cleanup {
   return (callback) => {
     if (typeof MutationObserver === 'undefined') return () => {}
     const observer = new MutationObserver(callback)
@@ -296,7 +423,7 @@ export function mutationWatcher(container: Element): (callback: () => void) => C
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['hidden'],
+      attributeFilter: attribute ? ['hidden', attribute] : ['hidden'],
     })
     return () => observer.disconnect()
   }

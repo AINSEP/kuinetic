@@ -122,7 +122,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
     expect(reaching.length).toBeGreaterThan(0)
   })
 
-  it('matches the hand-maintained list exactly — 30 names, including seven showcase widgets', () => {
+  it('matches the hand-maintained list exactly — 31 names, including seven showcase widgets', () => {
     // Not a tautology: this is read from the shipped CSS, compared against a literal list. Its
     // core names were transcribed from `docs/plan-scope-page.md` §0.3 by a human; the showcase
     // names came from their own stylesheet, not from the scan's result.
@@ -157,6 +157,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'carousel-3d-inside',
         'carousel-3d-low',
         'carousel-fade',
+        'carousel-loop',
         'carousel-orbit',
         'carousel-slide',
         'carousel-stack',

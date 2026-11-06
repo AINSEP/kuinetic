@@ -59,12 +59,13 @@ const EXPECTED_TARGET_DECLARERS = [
   'scroll-story',
   'slideshow',
   'spatial-ring',
+  'spatial-row',
   'spatial-stack',
   'step-progress',
 ].sort((a, b) => a.localeCompare(b))
 
 describe('target:-everywhere — primitives that declare target: themselves (5a)', () => {
-  it('is exactly the 14 target-declaring primitives in the full registry', () => {
+  it('is exactly the target-declaring primitives in the full registry', () => {
     const byId = allPrimitives(fullRegistry())
     const declarers = [...byId.values()]
       .filter((resolved) => Object.hasOwn(resolved!.primitive.parameters, 'target'))

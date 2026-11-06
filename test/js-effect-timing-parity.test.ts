@@ -483,6 +483,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   compare: 'its only motion, the autoplay: sweep, starts on autoplay: (always / in-view), not after a delay',
   hotspots: 'it places interactive hotspot markers and binds popovers; there is no motion to time',
   slideshow: 'its controls and index are live on load; it has no delayed start',
+  curtain: 'the panel must answer the click at once; its cover and reveal phases use duration only',
   'slow-mo': 'it controls existing playheads on load and has no animation timeline to delay',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a

@@ -431,8 +431,7 @@ const NUMBER = /^-?(?:\d+(?:\.\d+)?|\.\d+)/
  * @overallScore 100
  */
 export function spellingsFor(spec: ParamSpec, fallback: string = spec.default): string[] {
-  // A default is not always an authorable value — `offset-top` defaults to a `var()` reaching for
-  // the page's own property — so one the validator would refuse is not offered as an example.
+  // A default the validator would refuse is not offered as an example.
   const value = validate(fallback, spec).ok ? fallback.trim() : ''
   return EXAMPLES[spec.type](value, spec.keywords ?? [])
 }

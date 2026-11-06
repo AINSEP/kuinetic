@@ -167,8 +167,9 @@ describe('spellings', () => {
   })
 
   it('does not offer a default the validator would refuse', () => {
-    // `offset-top`'s real default reaches for the page's own property.
-    expect(spellingsFor(spec('length', 'var(--kui-pin-offset, 0px)'))).toEqual(['24px', 'calc(1rem + 4px)'])
+    expect(spellingsFor(spec('length', 'nonsense'))).toEqual(['24px', 'calc(1rem + 4px)'])
+    // `offset-top`'s real default: a var() with a fallback has been authorable since c2ecbd6.
+    expect(spellingsFor(spec('length', 'var(--kui-pin-offset, 0px)'))).toEqual(['var(--kui-pin-offset, 0px)', 'calc(1rem + 4px)'])
   })
 })
 

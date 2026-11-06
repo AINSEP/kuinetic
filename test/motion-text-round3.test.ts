@@ -16,7 +16,7 @@ const examples = [
   'masked-label-swap stagger:25ms',
   'lift, masked-label-swap stagger:25ms',
   "word-cycler words:'Animate|Spring|Easing' swap:scramble step:40ms interval:1200ms on:load",
-  "word-cycler words:Stagger swap:scramble order:center step:40ms interval:1200ms on:load",
+  "word-cycler words:Stagger swap:scramble from:center step:40ms interval:1200ms on:load",
   'pin-section distance:150vh',
   'split-words hold:true on:load',
   "typewriter words:'Websites|Apps|Games|Experiences|Products' step:90ms on:load",
@@ -117,7 +117,7 @@ describe('Motion batch 7', () => {
   it.each(['start', 'end', 'center', 'edges'])('scrambles both ways in %s order and finishes on a complete word', (order) => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const { host, instance, visual } = prepare('word-cycler', {
-      words: 'abcde|👩‍👩‍👧‍👦é', swap: 'scramble', order, step: '10ms', interval: '30ms',
+      words: 'abcde|👩‍👩‍👧‍👦é', swap: 'scramble', from: order, step: '10ms', interval: '30ms',
     })
     expect(visual().textContent).toBe('!!!!!')
     const incoming: Record<string, string> = { start: 'a!!!!', end: '!!!!e', center: '!!c!!', edges: 'a!!!e' }
@@ -169,7 +169,7 @@ describe('Motion batch 7', () => {
   it('resolves a five-letter word from its centre outward after clearing the previous word', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const { instance, visual } = prepare('word-cycler', {
-      words: 'abcde|vwxyz', swap: 'scramble', order: 'center', step: '10ms',
+      words: 'abcde|vwxyz', swap: 'scramble', from: 'center', step: '10ms',
     })
     expect(visual().textContent).toBe('!!!!!')
     vi.advanceTimersByTime(10)

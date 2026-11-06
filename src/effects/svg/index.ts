@@ -1,10 +1,11 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
+import type { SetupResult } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createMorph } from '../../core/path-morph.js'
 import type { Registry } from '../../core/registry.js'
 import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
-import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
+import type { EffectParams, Preset, Primitive } from '../../core/types.js'
 import { resolveEasing } from '../catalog/numbers-shared.js'
 import {
   ALL_TIMING_TOKENS,
@@ -13,6 +14,7 @@ import {
   TRIGGER_DELAY_PARAM,
 } from '../shared.js'
 import { withIconParts } from './icon-parts.js'
+import { prepareMorphLoop } from './morph-loop.js'
 
 /**
  * SVG shape morphing.
@@ -28,7 +30,8 @@ import { withIconParts } from './icon-parts.js'
  * @complexity O(s) per frame in segment count; O(s) space. Parsing happens once in `prepare`.
  * @overallScore 100
  */
-function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareMorph(el: Element, params: EffectParams, ctx: PrepareContext): SetupResult {
+  if (params.is('loop')) return prepareMorphLoop(el, params, ctx)
   const path = el as SVGPathElement
   const startPath = params.text('from') || path.getAttribute('d') || ''
   const { morph, reason } = createMorph(startPath, params.text('to'))
@@ -204,6 +207,8 @@ export const SVG_PRIMITIVES: Primitive[] = [
     parameters: {
       from: { type: 'text', default: '', cssProperty: '--kui-path-from' },
       to: { type: 'text', default: '', cssProperty: '--kui-path-to' },
+      loop: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-path-loop' },
+      colors: { type: 'text', default: '', cssProperty: '--kui-path-colors' },
       duration: { type: 'time', default: '300ms', cssProperty: '--kui-duration' },
       // Both new, both no-ops at their defaults. The morph drives its own frames, so unlike the
       // stylesheet-backed members of this file it honours them in JS — see `prepareMorph`.
@@ -221,6 +226,9 @@ export const SVG_PRIMITIVES: Primitive[] = [
     // No `withTimingContract` wrapper: this primitive honours all three tokens, so there is
     // nothing for one to warn about.
     prepare: deferPrepare(prepareMorph),
+    variantFor: (spec) => spec.params.loop === 'true' && spec.params.colors
+      ? { channels: [CHANNEL.stroke] }
+      : {},
   },
   PATH_DRAW_PRIMITIVE,
   SHAPE_FILL_PRIMITIVE,

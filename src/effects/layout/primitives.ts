@@ -3,8 +3,9 @@ import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { timeScaleOf } from '../../core/time-scale.js'
 import { frameScheduler, watchElementSize } from '../../core/element-size.js'
-import { createFlipEngine, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
+import { createFlipEngine, measureWithin, mutationWatcher, observeLayout, trackFlipRuns } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
+import { SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
 import { effectDelayMs, effectEasing, TRIGGER_DELAY_PARAM } from '../shared.js'
 
@@ -60,13 +61,33 @@ function layoutPrimitive(
 }
 
 /**
+ * The host's own box moves in nested mode, so it needs its parent as the frame. A fixed host has no
+ * offsetParent: scrolling moves its parent but not it, so viewport boxes are the stable ones.
+ */
+function flipFrame(el: Element, nested: boolean): Element | null {
+  if (!nested) return el
+  return (el as HTMLElement).offsetParent ? el.parentElement : null
+}
+
+function hostSizeWatcher(el: Element, win: Window): (refresh: () => void) => Cleanup {
+  return (refresh) => {
+    const size = watchElementSize(win, refresh)
+    size.observe(el)
+    return size.disconnect
+  }
+}
+
+/**
  * FLIP a container's children whenever its child list or their visibility changes.
  *
  * @complexity O(n) per mutation batch in the number of children; O(n) space for the snapshot.
  * @overallScore 100
  */
 function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
-  const engine = createFlipEngine()
+  const attribute = params.text('attribute')
+  const nested = params.is('nested')
+  const stateDriven = nested || attribute !== ''
+  const engine = createFlipEngine({ measure: measureWithin(flipFrame(el, nested)) })
   return observeLayout(
     el,
     engine,
@@ -75,8 +96,11 @@ function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareCon
       delayMs: effectDelayMs(params),
       easing: waapiEasingValue(effectEasing(params), el, ctx.warn),
       scale: params.is('scale'),
+      nested,
+      attribute,
+      ...(stateDriven && { watchRest: hostSizeWatcher(el, ctx.win) }),
     },
-    mutationWatcher(el),
+    mutationWatcher(el, attribute),
   )
 }
 
@@ -261,10 +285,12 @@ function watchAttribute(root: Element, attribute: string, onChange: () => void):
 }
 
 export const LAYOUT_PRIMITIVES: Primitive[] = [
-  layoutPrimitive(
+  { ...layoutPrimitive(
     'flip-container',
     ['translate', 'scale'],
     {
+      attribute: { type: 'text', default: '', cssProperty: '--kui-flip-attribute' },
+      nested: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-flip-nested' },
       scale: {
         type: 'keyword',
         default: 'false',
@@ -273,7 +299,9 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       },
     },
     deferPrepare(prepareFlipContainer),
-  ),
+  ), variantFor: (spec) => spec.params.nested === 'true'
+    ? { channels: ['transform-origin', SUBTREE_CHANNEL] }
+    : {} },
 
   { ...layoutPrimitive(
     'auto-height',

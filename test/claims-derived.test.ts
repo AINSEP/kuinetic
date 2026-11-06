@@ -221,6 +221,7 @@ const FIXTURES: Record<string, [string, string]> = {
   'tilt-parallax': ['tilt-parallax', `<div data-depth="2">Layer</div>${GENERIC}`],
   'icon-toggle': ['hamburger-to-x', '<span></span><span></span><span></span>'],
   'view-swap': ['view-swap controls:#panel', `<div id="panel">Panel</div>`],
+  curtain: ['curtain controls:#panel', `<div id="panel">Panel</div>`],
 }
 
 const HOVER_SHEET = 'its stylesheet paints the hover; prepare writes only --kui-transition'

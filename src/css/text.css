@@ -324,7 +324,7 @@
       var(--kui-sweep-color, currentColor)
     );
     background-repeat: no-repeat;
-    background-position: 0 100%;
+    background-position: 0 var(--kui-sweep-position, 100%);
     background-size: 0% 2px;
     padding-bottom: 0.15em;
   }

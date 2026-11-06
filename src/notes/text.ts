@@ -75,6 +75,7 @@ export const TEXT_NOTES: ParamNotes = {
     why: 'The colour of the highlight bar or underline.',
     whenOmitted: "Uses the text's own colour; the highlight preset uses gold.",
   },
+  'text-sweep.position': 'Place the underline vertically, with 50% drawing a strike through the text.',
 
   'typewriter.step': 'How long each typed letter takes; ignored when a total duration is given.',
   'typewriter.words': 'The words to type and fully delete in turn, separated by |.',
@@ -106,6 +107,6 @@ export const TEXT_NOTES: ParamNotes = {
   },
   'word-cycler.interval': 'How long each word stays before the next one swaps in.',
   'word-cycler.swap': 'Whether words fade or scramble into the next word.',
-  'word-cycler.order': 'Where letters start scrambling and returning: start, end, centre or edges.',
+  'word-cycler.from': 'Where letters start scrambling and returning: start, end, centre or edges.',
   'word-cycler.step': 'The pause between scramble steps.',
 }
