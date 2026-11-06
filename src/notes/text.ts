@@ -80,6 +80,8 @@ export const TEXT_NOTES: ParamNotes = {
   'typewriter.step': 'How long each typed letter takes; ignored when a total duration is given.',
   'typewriter.words': 'The words to type and fully delete in turn, separated by |.',
   'typewriter.interval': 'How long each whole word stays before it deletes.',
+  'typewriter.erase': 'Use scatter to drift and fade typed letters away before the next word.',
+  'typewriter.rhythm': 'Use natural for modestly uneven typing with longer pauses after punctuation.',
   'typewriter.loop': {
     why: 'Delete the text and type it again, over and over.',
     whenOmitted: 'Off: it types once and stops.',

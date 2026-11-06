@@ -84,6 +84,7 @@ export const MECHANICS_NOTES: ParamNotes = {
   },
 
   'icon-toggle.delay': 'Wait this long before opening; closing is never delayed.',
+  'icon-toggle.parts': 'Use dots on hamburger-to-x to stretch four decorative dots into two crossing strokes.',
 
   'magnetic.stiffness': 'How firmly it springs toward the pointer; higher follows tighter.',
   'magnetic.damping': 'How quickly the spring wobble dies out; lower wobbles longer.',

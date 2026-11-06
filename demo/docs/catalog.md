@@ -332,6 +332,14 @@ Primitives 17–19, 13, 23, 24.
 | structural | `word-cycler` `marquee` `marquee-scroll-linked` `redaction-reveal` `text-3d-extrude` |
 
 `typewriter words:'Websites|Apps|Games'` types and fully deletes each word before advancing, looping the list.
+The `erase:scatter` option keeps typed graphemes as decorative spans, holds each complete word for `interval`,
+then drifts, rotates and fades them out over 400ms before the next word types.
+Without a word list, `loop:true` repeats the original text; a non-looping sentence still ends fully typed.
+Finishing during the exit restores the complete current word; teardown restores the authored nodes.
+The `rhythm:natural` option varies typing delays from 0.75 to 1.23 times `step`, with 1.8-step
+comma/semicolon/colon pauses and 3-step sentence punctuation pauses, bounded below by 1ms.
+It also combines with scatter; omitted rhythm and scramble keep their fixed interval.
+Deletion and whole-word holds keep their existing timing; finish and teardown cancel the pending timeout.
 Use `interval:1500ms` to set how long each completed list word rests before deletion.
 `word-cycler words:'Animate|Spring|Easing' swap:scramble step:40ms` replaces its fade with symbol scrambling.
 Its `from:start|end|center|edges` chooses where letters scramble and resolve, in both directions.
@@ -411,6 +419,9 @@ Primitives 15, 16. All CSS except the two morphs.
 >
 > `--kui-bar-gap` is how far an outer bar travels to meet the centre. Set it to match your own
 > bar spacing.
+> `hamburger-to-x parts:dots 260ms` uses four decorative HTML parts in a square instead;
+> they pair into two crossing strokes when `aria-expanded` becomes true and reverse when false.
+> Both `.kui-bar` and automatically marked parts work; the application still owns the state.
 >
 > **The `.kui-bar` classes are optional too**, the same positional fallback `flip-card` gets: a
 > host with none of its own gets `data-kui-part="bar"` stamped on its bars instead — the children
@@ -892,7 +903,8 @@ Primitives 1, 5, 35, 36, 47, plus the View Transitions API.
 > **Colour panel:** `curtain` shares `view-swap`'s `controls` / `aria-controls`, `attribute`,
 > `value` and quoted space-separated `values` grammar. The panel covers before the state changes.
 > `cover` and `reveal` independently accept `wipe`, `clip-wipe`, `doors`, `fade`, `iris`, `blinds`,
-> `stagger-wipe`, or `shutter`. `scope:true` confines it to the controlled element. `origin:click` follows
+> `stagger-wipe`, `shutter`, or `pixels`. Pixels fade a bounded grid with stagger inside each phase;
+> a resize during cover finishes the accepted state and removes the decoration. `scope:true` confines it to the controlled element. `origin:click` follows
 > the pointer for an iris, falling back to centre for keyboard activation. `value:next` cycles
 > `values`; `colors:'one=var(--accent) two=var(--secondary)'` maps destination colours, falling back
 > to `color:var(--accent)`. Map entries cannot contain whitespace. `duration` sets each phase.

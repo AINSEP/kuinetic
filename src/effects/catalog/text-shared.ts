@@ -213,6 +213,14 @@ export function stepMsFor(params: EffectParams, ticks: number, fallback: number)
   return Math.max(1, total / ticks)
 }
 
+/** Deterministic variation stays within .75–3 steps, with pauses after punctuation. */
+export function naturalTypeDelay(graphemes: string[], count: number, step: number): number {
+  const grapheme = graphemes[count - 1] ?? ''
+  if (/[.!?…]/u.test(grapheme)) return Math.max(1, step * 3)
+  if (/[,;:]/u.test(grapheme)) return Math.max(1, step * 1.8)
+  return Math.max(1, step * (.75 + (count * 7 % 5) * .12))
+}
+
 /**
  * Total time before every staggered `.kui-split-item` has finished its reveal keyframe: the last
  * item's `--kui-i * --kui-stagger` delay (text.css), plus its own duration. `prepareSplitText`
@@ -237,6 +245,7 @@ export interface StepRunOptions {
   delayMs: number
   /** Milliseconds between ticks. */
   stepMs: number
+  nextDelay?: () => number
   /** One frame of work. Returns `true` when there is nothing left to do. */
   tick(): boolean
 }
@@ -269,14 +278,25 @@ export function createStepRunner(win: Window, options: StepRunOptions): StepRun 
     settle = resolve
   })
   let interval: number | undefined
+  let timeout: number | undefined
+  const nextDelay = options.nextDelay
 
   function stop(): void {
     win.clearTimeout(start)
+    win.clearTimeout(timeout)
     if (interval !== undefined) win.clearInterval(interval)
     settle?.()
   }
 
   const start = win.setTimeout(() => {
+    if (nextDelay) {
+      const tick = (): void => {
+        if (options.tick()) stop()
+        else timeout = win.setTimeout(tick, nextDelay())
+      }
+      timeout = win.setTimeout(tick, nextDelay())
+      return
+    }
     interval = win.setInterval(() => {
       if (options.tick()) stop()
     }, options.stepMs)

@@ -1,4 +1,5 @@
 import type { PrepareContext } from '../../core/effect-context.js'
+import { watchElementSize } from '../../core/element-size.js'
 import { deferPrepare } from '../../core/instances.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
@@ -24,6 +25,26 @@ interface Request {
 
 const coordinators = new WeakMap<Element, ReturnType<typeof coordinator>>()
 
+function pixelGrid(panel: HTMLElement, rect: { width: number; height: number }, ctx: PrepareContext): void {
+  const grid = panel.appendChild(ctx.doc.createElement('div'))
+  grid.className = 'kui-curtain-pixels'
+  const aspect = (rect.width || 1) / (rect.height || 1)
+  const columns = Math.max(2, Math.min(24, Math.round(Math.sqrt(180 * aspect))))
+  const rows = Math.max(2, Math.min(24, Math.round(columns / aspect)))
+  grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`
+  grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`
+  for (let i = 0; i < columns * rows; i++) {
+    const tile = grid.appendChild(ctx.doc.createElement('span'))
+    // Hash each tile independently so changing the row width cannot create a phase lattice.
+    let hash = i + 1
+    hash = Math.imul(hash ^ (hash >>> 16), 0x21f0aaad)
+    hash = Math.imul(hash ^ (hash >>> 15), 0x735a2d97)
+    const scatter = ((hash ^ (hash >>> 15)) >>> 0) / 2 ** 32
+    const delay = Math.floor(i / columns) / (rows - 1) * .8 + scatter * .2
+    tile.style.setProperty('--kui-pixel-delay', String(delay))
+  }
+}
+
 // One panel per target; controls own registrations, never one another's requests.
 // eslint-disable-next-line max-lines-per-function -- The phase callbacks share this target's owned node and cancellation state.
 function coordinator(target: Element, ctx: PrepareContext) {
@@ -39,12 +60,16 @@ function coordinator(target: Element, ctx: PrepareContext) {
   let active: Request | undefined
   let timer = 0
   let users = 0
+  let stopSize: Cleanup | undefined
   const observer = new MutationObserver(() => cancel())
   const state = { version: 0, cancel }
   swapOwners.set(target, state)
 
   function cancel(): void {
     ctx.win.clearTimeout(timer)
+    stopSize?.()
+    stopSize = undefined
+    panel.querySelector('.kui-curtain-pixels')?.remove()
     observer.disconnect()
     active = undefined
     panel.remove()
@@ -71,12 +96,24 @@ function coordinator(target: Element, ctx: PrepareContext) {
     panel.style.setProperty('--kui-curtain-x', `${x * 100}%`)
     panel.style.setProperty('--kui-curtain-y', `${y * 100}%`)
     panel.style.setProperty('--kui-curtain-radius', `${Math.hypot(Math.max(x, 1 - x) * rect.width, Math.max(y, 1 - y) * rect.height) / (Math.hypot(rect.width, rect.height) || 1) * 141.43 + 1}%`)
+    if (request.cover === 'pixels' || request.reveal === 'pixels') {
+      pixelGrid(panel, rect, ctx)
+      const size = () => request.scope ? [target.clientWidth, target.clientHeight] : [ctx.win.innerWidth, ctx.win.innerHeight]
+      const [width, height] = size()
+      const watch = watchElementSize(ctx.win, () => {
+        const [nextWidth, nextHeight] = size()
+        if (nextWidth !== width || nextHeight !== height) finish()
+      })
+      if (request.scope) watch.observe(target)
+      stopSize = watch.disconnect
+    }
   }
   function phase(request: Request, name: 'cover' | 'reveal'): void {
     panel.dataset.shape = request[name]
     panel.dataset.phase = name
     timer = ctx.win.setTimeout(() => {
       if (name === 'reveal') { cancel(); return }
+      stopSize?.()
       commit(request)
       phase(request, 'reveal')
     }, request.duration + 34)
@@ -161,7 +198,7 @@ function destination(keyed: { value: string; values: string[] }, current: string
   return keyed.value || (current === null ? '' : null)
 }
 
-const shapes = ['wipe', 'clip-wipe', 'fade', 'iris', 'doors', 'blinds', 'stagger-wipe', 'shutter']
+const shapes = ['wipe', 'clip-wipe', 'fade', 'iris', 'doors', 'blinds', 'stagger-wipe', 'shutter', 'pixels']
 const text = (cssProperty: string) => ({ type: 'text' as const, default: '', cssProperty })
 const CURTAIN: Primitive = {
   id: 'curtain', renderer: 'javascript', channels: ['view-transition-run'],

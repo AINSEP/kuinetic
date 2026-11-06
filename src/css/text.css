@@ -210,6 +210,19 @@
 
   /* --- typewriter / typewriter-loop --- */
 
+  .kui-typewriter-letter { display: inline-block; }
+  .kui-typewriter[data-kui-typewriter-phase='scatter'] .kui-typewriter-letter {
+    animation: kui-typewriter-scatter var(--kui-scatter-duration) ease-in both;
+  }
+  .kui-typewriter[data-kui-typewriter-phase='scatter']::after { visibility: hidden; }
+  @keyframes kui-typewriter-scatter {
+    to {
+      translate: var(--kui-scatter-x) var(--kui-scatter-y);
+      rotate: var(--kui-scatter-rotate);
+      opacity: 0;
+    }
+  }
+
   .kui-typewriter::after {
     content: '';
     display: inline-block;

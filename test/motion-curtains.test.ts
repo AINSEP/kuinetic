@@ -11,6 +11,7 @@ import { catalogRegistry } from './support/registry.js'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ruleBodies } from './support/css-scan.js'
 
 const registry = catalogRegistry()
 const examples = [
@@ -26,6 +27,10 @@ const examples = [
   'curtain attribute:data-scene value:two values:"one two three"',
   'curtain attribute:data-scene value:two values:"one two three" cover:shutter reveal:shutter',
   'curtain, fade-up on:enter',
+  'curtain attribute:data-scene value:next values:"one two three" cover:pixels reveal:pixels scope:true',
+  'curtain controls:#scene attribute:data-scene value:two cover:pixels reveal:pixels',
+  'curtain cover:wipe reveal:pixels, fade-up on:enter',
+  'curtain cover:pixels reveal:iris',
 ]
 let instances: EffectInstance[] = []
 let reduced = false
@@ -61,6 +66,171 @@ afterEach(() => {
 })
 
 describe('colour curtain lifecycle', () => {
+  it.each([
+    ['pixels', 'pixels'], ['wipe', 'pixels'], ['pixels', 'iris'],
+  ])('keeps one lifecycle and one commit for %s to %s', (cover, reveal) => {
+    const plan = compile(parse(`curtain cover:${cover} reveal:${reveal}`), registry, 'time')
+    expect(plan.warnings).toEqual([])
+    const { button } = mount(plan.jsEffects[0]!.spec.params)
+    const write = vi.spyOn(target(), 'setAttribute')
+    button.click()
+    const grid = panel().querySelector('.kui-curtain-pixels')!
+    expect(grid.children.length).toBeGreaterThan(100)
+    expect(grid.children.length).toBeLessThanOrEqual(576)
+    expect(panel().querySelectorAll(':scope > i')).toHaveLength(12)
+    expect(panel().dataset.shape).toBe(cover)
+    vi.advanceTimersByTime(134)
+    expect(target().dataset.scene).toBe('two')
+    expect(panel().dataset.shape).toBe(reveal)
+    vi.advanceTimersByTime(134)
+    expect(panel()).toBeNull()
+    expect(write).toHaveBeenCalledOnce()
+  })
+
+  it('sizes portrait tiles once per request, ignores unchanged size, then finishes on resize', () => {
+    let height = 360
+    const rect = vi.spyOn(target(), 'getBoundingClientRect').mockImplementation(() => ({ width: 180, height, left: 0, top: 0 }) as DOMRect)
+    vi.spyOn(target(), 'clientWidth', 'get').mockReturnValue(180)
+    const layout = vi.spyOn(target(), 'clientHeight', 'get').mockImplementation(() => height)
+    const { button, instance } = mount({ cover: 'pixels', reveal: 'pixels', scope: 'true' })
+    button.click()
+    const grid = panel().querySelector<HTMLElement>('.kui-curtain-pixels')!
+    expect(grid.style.gridTemplateColumns).toBe('repeat(9, 1fr)')
+    expect(grid.style.gridTemplateRows).toBe('repeat(18, 1fr)')
+    expect(rect).toHaveBeenCalledOnce()
+    window.dispatchEvent(new Event('resize'))
+    expect(target().dataset.scene).toBe('one')
+    height = 400
+    window.dispatchEvent(new Event('resize'))
+    expect(target().dataset.scene).toBe('two')
+    expect(panel()).toBeNull()
+    instance.destroy()
+    layout.mockClear()
+    window.dispatchEvent(new Event('resize'))
+    expect(layout).not.toHaveBeenCalled()
+  })
+
+  it('ignores transformed box changes on the initial ResizeObserver notification', () => {
+    const notifications: Array<() => void> = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { notifications.push(callback) }
+      observe = vi.fn()
+      disconnect = vi.fn()
+    })
+    const rect = vi.spyOn(target(), 'getBoundingClientRect').mockReturnValue({ width: 180, height: 360, left: 0, top: 0 } as DOMRect)
+    vi.spyOn(target(), 'clientWidth', 'get').mockReturnValue(180)
+    const height = vi.spyOn(target(), 'clientHeight', 'get').mockReturnValue(360)
+    mount({ cover: 'pixels', scope: 'true' }).button.click()
+    rect.mockReturnValue({ width: 360, height: 720, left: 0, top: 0 } as DOMRect)
+    notifications[0]!()
+    expect(panel().dataset.phase).toBe('cover')
+    expect(target().dataset.scene).toBe('one')
+    expect(rect).toHaveBeenCalledOnce()
+    height.mockReturnValue(400)
+    notifications[0]!()
+    expect(target().dataset.scene).toBe('two')
+    expect(panel()).toBeNull()
+  })
+
+  it('preserves reveal when the committed scene resizes the scope', () => {
+    vi.spyOn(target(), 'getBoundingClientRect').mockReturnValue({ width: 180, height: 360, left: 0, top: 0 } as DOMRect)
+    vi.spyOn(target(), 'clientWidth', 'get').mockReturnValue(180)
+    vi.spyOn(target(), 'clientHeight', 'get').mockImplementation(() => target().dataset.scene === 'one' ? 360 : 400)
+    mount({ cover: 'pixels', reveal: 'pixels', scope: 'true' }).button.click()
+    const node = panel()
+    vi.advanceTimersByTime(134)
+    expect(target().dataset.scene).toBe('two')
+    window.dispatchEvent(new Event('resize'))
+    expect(panel()).toBe(node)
+    expect(node.dataset.phase).toBe('reveal')
+    vi.advanceTimersByTime(134)
+    expect(panel()).toBeNull()
+  })
+
+  it('caps a very tall scope at two columns and twenty-four rows', () => {
+    vi.spyOn(target(), 'getBoundingClientRect').mockReturnValue({ width: 10, height: 4000, left: 0, top: 0 } as DOMRect)
+    mount({ cover: 'pixels', scope: 'true' }).button.click()
+    const grid = panel().querySelector<HTMLElement>('.kui-curtain-pixels')!
+    expect(grid.style.gridTemplateColumns).toBe('repeat(2, 1fr)')
+    expect(grid.style.gridTemplateRows).toBe('repeat(24, 1fr)')
+    expect(grid.children).toHaveLength(48)
+  })
+
+  it.each(Array.from({ length: 23 }, (_, index) => index + 2))('sweeps down with nonuniform bounded scatter at %s columns in both phases', columns => {
+    vi.spyOn(target(), 'getBoundingClientRect').mockReturnValue({ width: columns ** 2 * 100, height: 18000, left: 0, top: 0 } as DOMRect)
+    mount({ cover: 'pixels', reveal: 'pixels', scope: 'true' }).button.click()
+    const grid = panel().querySelector<HTMLElement>('.kui-curtain-pixels')!
+    expect(grid.style.gridTemplateColumns).toBe(`repeat(${columns}, 1fr)`)
+    const delays = [...grid.children].map(tile => Number((tile as HTMLElement).style.getPropertyValue('--kui-pixel-delay')))
+    const rows = delays.length / columns
+    const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+    expect(average(delays.slice(0, columns)) + .5).toBeLessThan(average(delays.slice(-columns)))
+    expect(delays.every(delay => delay >= 0 && delay < 1)).toBe(true)
+    expect(delays.every(delay => .65 + delay * .35 <= 1)).toBe(true)
+    const neighbourDifferences = new Set<number>()
+    for (let row = 0; row < rows; row++) {
+      const values = delays.slice(row * columns, (row + 1) * columns)
+      expect(new Set(values).size).toBe(columns)
+      neighbourDifferences.add(Math.round((values[1]! - values[0]!) * 1e6))
+    }
+    expect(neighbourDifferences.size).toBeGreaterThan(3)
+    vi.advanceTimersByTime(134)
+    expect(panel().dataset.phase).toBe('reveal')
+    expect([...grid.children].map(tile => Number((tile as HTMLElement).style.getPropertyValue('--kui-pixel-delay')))).toEqual(delays)
+  })
+
+  it('keeps the pixel grid visible, strips hidden, and both staggered fades inside the phase', () => {
+    const css = readFileSync('src/css/curtains.css', 'utf8')
+    const grid = ruleBodies(css, ".kui-curtain-panel[data-shape='pixels'] > .kui-curtain-pixels").join(' ')
+    expect(ruleBodies(css, '.kui-curtain-pixels').join(' ')).toContain('display: none;')
+    expect(grid).toContain('display: grid;')
+    expect(grid).toContain('position: absolute;')
+    expect(grid).toContain('inset: 0;')
+    expect(ruleBodies(css, ".kui-curtain-panel[data-shape='pixels'] > i").join(' ')).toContain('display: none;')
+    const tiles = ruleBodies(css, '.kui-curtain-pixels > span').join(' ')
+    expect(tiles).toContain('background: currentColor;')
+    expect(tiles).toContain('animation: kui-page-fade calc(var(--kui-curtain-duration) * .65) linear both;')
+    expect(tiles).toContain('animation-delay: calc(var(--kui-pixel-delay) * var(--kui-curtain-duration) * .35);')
+    expect(ruleBodies(css, ".kui-curtain-panel[data-phase='reveal'] > .kui-curtain-pixels > span").join(' ')).toContain('animation-name: kui-panel-fade-out;')
+  })
+
+  it('cancels pixel requests, replays deterministic tiles and keeps plain strips free of pixel work', () => {
+    const a = mount({ cover: 'pixels', reveal: 'pixels' })
+    a.button.click()
+    const delays = [...panel().querySelectorAll<HTMLElement>('.kui-curtain-pixels > span')].map(tile => tile.style.cssText)
+    a.instance.destroy()
+    vi.advanceTimersByTime(1000)
+    expect(target().dataset.scene).toBe('one')
+    mount({ cover: 'pixels' }).button.click()
+    expect([...panel().querySelectorAll<HTMLElement>('.kui-curtain-pixels > span')].map(tile => tile.style.cssText)).toEqual(delays)
+    const plain = mount({ value: 'three' })
+    plain.button.click()
+    expect(panel().children).toHaveLength(12)
+    expect(panel().style.cssText).not.toContain('--kui-pixel')
+    window.dispatchEvent(new Event('resize'))
+    expect(target().dataset.scene).toBe('one')
+    vi.advanceTimersByTime(268)
+    expect(target().dataset.scene).toBe('three')
+  })
+
+  it('bounds empty pixel scopes and finishes fullscreen resize and reduced motion', () => {
+    vi.spyOn(target(), 'getBoundingClientRect').mockReturnValue({ width: 0, height: 0, left: 0, top: 0 } as DOMRect)
+    const a = mount({ cover: 'pixels', scope: 'true' })
+    a.button.click()
+    expect(panel().innerHTML).not.toMatch(/NaN|Infinity/)
+    a.instance.destroy()
+    const b = mount({ cover: 'pixels' })
+    b.button.click()
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(390)
+    window.dispatchEvent(new Event('resize'))
+    expect(target().dataset.scene).toBe('two')
+    expect(panel()).toBeNull()
+    b.instance.destroy()
+    mount({ cover: 'pixels', value: 'three' }, 'curtain', true).button.click()
+    expect(target().dataset.scene).toBe('three')
+    expect(panel()).toBeNull()
+  })
+
   it.each(examples)('compiles and prepares without warnings: %s', source => {
     const plan = compile(parse(source), registry, 'time')
     expect(plan.warnings).toEqual([])

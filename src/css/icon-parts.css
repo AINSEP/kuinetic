@@ -75,6 +75,53 @@
   }
 }
 
+/* Both authored and automatically marked parts share the opt-in dots geometry. */
+@layer kui.effects {
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] { position: relative; }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :is(.kui-bar, [data-kui-part='bar']) {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    translate: var(--kui-dot-x) var(--kui-dot-y);
+    transition:
+      translate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      rotate var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out),
+      scale var(--kui-icon-toggle-duration, 260ms) var(--kui-icon-toggle-ease, ease-out);
+  }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :nth-child(1 of :is(.kui-bar, [data-kui-part='bar'])) {
+    --kui-dot-x: -6px;
+    --kui-dot-y: -6px;
+    --kui-dot-angle: 45deg;
+  }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :nth-child(2 of :is(.kui-bar, [data-kui-part='bar'])) {
+    --kui-dot-x: 6px;
+    --kui-dot-y: -6px;
+    --kui-dot-angle: -45deg;
+  }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :nth-child(3 of :is(.kui-bar, [data-kui-part='bar'])) {
+    --kui-dot-x: -6px;
+    --kui-dot-y: 6px;
+    --kui-dot-angle: -45deg;
+  }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :nth-child(4 of :is(.kui-bar, [data-kui-part='bar'])) {
+    --kui-dot-x: 6px;
+    --kui-dot-y: 6px;
+    --kui-dot-angle: 45deg;
+  }
+  [data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'][aria-expanded='true'] :is(.kui-bar, [data-kui-part='bar']):nth-child(n) {
+    translate: 0 0;
+    rotate: var(--kui-dot-angle);
+    scale: 4 .5;
+    opacity: 1;
+    transition-delay: var(--kui-icon-toggle-delay, 0ms);
+  }
+}
+
 /* Reduced motion twin of base.css's `kui.policy` block (~L417-419): those three entries only
  * reach an authored `.kui-bar`, so a positional host stamped `data-kui-part="bar"` needs its own
  * copy of the same shortening or its bars would animate at full speed under

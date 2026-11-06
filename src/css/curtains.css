@@ -6,11 +6,28 @@
     z-index: 2147483647; background: transparent; color: var(--kui-curtain-color);
   }
   .kui-curtain-panel[data-scope='true'] { position: absolute; border-radius: inherit; }
+  .kui-curtain-pixels { display: none; }
+  .kui-curtain-panel[data-shape='pixels'] > .kui-curtain-pixels {
+    display: grid;
+    position: absolute;
+    inset: 0;
+  }
+  .kui-curtain-pixels > span {
+    min-width: 0;
+    min-height: 0;
+    background: currentColor;
+    animation: kui-page-fade calc(var(--kui-curtain-duration) * .65) linear both;
+    animation-delay: calc(var(--kui-pixel-delay) * var(--kui-curtain-duration) * .35);
+  }
+  .kui-curtain-panel[data-phase='reveal'] > .kui-curtain-pixels > span {
+    animation-name: kui-panel-fade-out;
+  }
   .kui-curtain-panel > i {
     display: none; position: absolute; inset: 0; background: currentColor;
     animation: var(--kui-cover) var(--kui-curtain-duration) ease-in-out both;
   }
   .kui-curtain-panel > i:first-child { display: block; }
+  .kui-curtain-panel[data-shape='pixels'] > i { display: none; }
   .kui-curtain-panel[data-phase='reveal'] > i { animation-name: var(--kui-reveal); }
   .kui-curtain-panel[data-shape='wipe'] { --kui-cover: kui-panel-wipe-in; --kui-reveal: kui-panel-wipe-out; }
   .kui-curtain-panel[data-shape='clip-wipe'] { --kui-cover: kui-panel-curve-in; --kui-reveal: kui-panel-curve-out; }

@@ -11,6 +11,13 @@ import { createStyleLedger } from '../src/core/owned-styles.js'
 import { inertInstance } from '../src/core/types.js'
 import type { EffectInstance } from '../src/core/types.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
+import { catalogRegistry } from './support/registry.js'
+import { Animator } from '../src/core/animator.js'
+import { createActivationBinder } from '../src/core/activation.js'
+import { collectingReporter } from '../src/core/reporter.js'
+import { CAPS, fakeRoot, idleScheduler } from './support/js-effect-harness.js'
 
 /** A minimal `PrepareContext` with a real `AbortController`, so `ctx.signal.dispatchEvent`-style
  *  teardown (via `controller.abort()`) exercises the same path the animator's own release does. */
@@ -52,6 +59,58 @@ afterEach(() => {
 })
 
 describe('withIconParts', () => {
+  it.each([false, true])('keeps dot geometry installed under reduced motion through Animator (classes: %s)', classed => {
+    document.body.innerHTML = '<button data-kui="hamburger-to-x parts:dots 260ms" aria-expanded="false"></button>'
+    const host = document.querySelector('button')!
+    host.innerHTML = Array.from({ length: 4 }, () => `<span${classed ? ' class="kui-bar"' : ''}></span>`).join('')
+    const reporter = collectingReporter()
+    const animator = new Animator({
+      root: document.body, registry: catalogRegistry(), capabilities: { ...CAPS, reducedMotion: true },
+      binder: createActivationBinder({ createObserver: undefined }), scheduler: idleScheduler,
+      rootResolver: () => fakeRoot, reporter,
+    })
+    try {
+      animator.start()
+      expect(host.getAttribute('data-kui-icon-parts')).toBe('dots')
+      expect(host.querySelectorAll(classed ? '.kui-bar' : '[data-kui-part="bar"]')).toHaveLength(4)
+      expect(host.getAttribute('aria-expanded')).toBe('false')
+      expect(reporter.messages).toEqual([])
+    } finally {
+      animator.destroy()
+    }
+    expect(host.hasAttribute('data-kui-icon-parts')).toBe(false)
+  })
+
+  it.each([false, true])('opts four dots in, restores the marker, and keeps aria app-owned (classes: %s)', classed => {
+    const registry = catalogRegistry()
+    const plan = compile(parse('hamburger-to-x parts:dots 260ms'), registry, 'time')
+    expect(plan.warnings).toEqual([])
+    const host = document.body.appendChild(document.createElement('button'))
+    host.innerHTML = Array.from({ length: 4 }, () => `<span${classed ? ' class="kui-bar"' : ''}></span>`).join('')
+    host.setAttribute('data-kui-icon-parts', 'authored')
+    host.setAttribute('aria-expanded', 'false')
+    const before = host.outerHTML
+    const { ctx, abort } = fakeCtx(host)
+    const prepared = registry.resolve('hamburger-to-x')!.primitive.prepare!(host, createParams(plan.jsEffects[0]!.spec.params), ctx)
+    expect(host.getAttribute('data-kui-icon-parts')).toBe('dots')
+    expect(host.querySelectorAll(classed ? '.kui-bar' : '[data-kui-part="bar"]')).toHaveLength(4)
+    host.click()
+    expect(host.getAttribute('aria-expanded')).toBe('false')
+    host.setAttribute('aria-expanded', 'true')
+    expect(host.children).toHaveLength(4)
+    host.setAttribute('aria-expanded', 'false')
+    prepared.destroy()
+    abort()
+    expect(host.outerHTML).toBe(before)
+    const plain = compile(parse('hamburger-to-x'), registry, 'time')
+    expect(plain.warnings).toEqual([])
+    expect(plain.vars).not.toHaveProperty('--kui-icon-parts')
+    expect(plan.channels).toEqual(plain.channels)
+    expect(compile(parse('hamburger-to-x parts:dots, draw-stroke'), registry, 'time').warnings).toEqual([])
+    registry.resolve('hamburger-to-x')!.primitive.prepare!(host, createParams(plain.jsEffects[0]!.spec.params), fakeCtx(host).ctx)
+    expect(host.getAttribute('data-kui-icon-parts')).toBe('authored')
+  })
+
   it('stamps data-kui-part="bar" on class-free positional children', () => {
     const host = document.createElement('button')
     host.innerHTML = '<span></span><span></span><span></span>'

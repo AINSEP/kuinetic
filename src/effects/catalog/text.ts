@@ -15,6 +15,7 @@ import {
   createStepRunner,
   hasInteractiveDescendant,
   installSplitLayers,
+  naturalTypeDelay,
   nextTypeState,
   rewrapLineSpans,
   scrambledFrame,
@@ -25,6 +26,7 @@ import {
   varAxisVariant,
 } from './text-shared.js'
 import type { SplitLayers, SplitUnit, TypeState } from './text-shared.js'
+import { prepareScatterTypewriter } from './typewriter-scatter.js'
 
 /**
  * Text and typography effects (catalog section D).
@@ -277,6 +279,8 @@ const motionParams: ParameterSchema = {
 }
 
 const typewriterParams: ParameterSchema = {
+  rhythm: { type: 'keyword', default: 'fixed', keywords: ['fixed', 'natural'], cssProperty: '--kui-typewriter-rhythm' },
+  erase: { type: 'keyword', default: 'delete', keywords: ['delete', 'scatter'], cssProperty: '--kui-typewriter-erase' },
   words: { type: 'text', default: '', cssProperty: '--kui-words' },
   interval: { type: 'time', default: '1500ms', cssProperty: '--kui-interval' },
   step: { type: 'time', default: '55ms', cssProperty: '--kui-step' },
@@ -541,6 +545,7 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
   const loop = params.is('loop') || words.length > 0
   const layers = installSplitLayers(el, el.ownerDocument)
   layers.decorative.classList.add('kui-typewriter')
+  if (params.is('erase', 'scatter')) return prepareScatterTypewriter(layers, params, ctx, words)
   let wordIndex = 0
   let graphemes = segmentGraphemes(words[0] ?? layers.originalText)
   let state: TypeState = { index: 0, deleting: false }
@@ -558,6 +563,12 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
   const run = createStepRunner(ctx.win, {
     delayMs: params.timing.delayMs ?? params.ms('delay', 0),
     stepMs,
+    nextDelay: params.is('rhythm', 'natural')
+      ? () => {
+        if (state.deleting) return stepMs
+        return naturalTypeDelay(graphemes, state.index, stepMs)
+      }
+      : undefined,
     tick: () => {
       if (rest > 0) { rest -= stepMs; return false }
       if (state.deleting && state.index === 1 && words.length > 0) {
@@ -862,11 +873,16 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
     perfClass: 'continuous',
   }),
   // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
-  jsTextPrimitive('typewriter', [CHANNEL.clip, 'content'], {
-    parameters: typewriterParams,
-    prepare: deferPrepare(prepareTypewriter),
-    perfClass: 'continuous',
-  }),
+  {
+    ...jsTextPrimitive('typewriter', [CHANNEL.clip, 'content'], {
+      parameters: typewriterParams,
+      prepare: deferPrepare(prepareTypewriter),
+      perfClass: 'continuous',
+    }),
+    variantFor: spec => spec.params.erase === 'scatter'
+      ? { channels: [CHANNEL.translate, CHANNEL.rotate, CHANNEL.opacity] }
+      : {},
+  },
   // `min-width`/`min-height`: the rest box it pins while the glyphs churn (`prepareScramble`).
   jsTextPrimitive('scramble-text', ['content', 'min-width', 'min-height'], {
     parameters: scrambleParams,

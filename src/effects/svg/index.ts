@@ -177,6 +177,7 @@ const ICON_TOGGLE_PRIMITIVE: Primitive = {
     SUBTREE_CHANNEL,
   ],
   parameters: {
+    parts: { type: 'keyword', default: 'bars', keywords: ['bars', 'dots'], cssProperty: '--kui-icon-parts' },
     duration: { type: 'time', default: '260ms', cssProperty: '--kui-duration' },
     // The state flip is the start moment: `aria-expanded` goes true and the bars begin to move.
     // svg.css spends this as a `transition-delay` on the *expanded* rules only, so it delays

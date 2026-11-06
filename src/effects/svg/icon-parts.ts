@@ -64,6 +64,11 @@ function findBars(el: Element): Element[] {
  */
 export function withIconParts(inner: NonNullable<Primitive['prepare']>): NonNullable<Primitive['prepare']> {
   return inheritTimingContract<NonNullable<Primitive['prepare']>>(inner, (el, params, ctx) => {
+    if (params.is('parts', 'dots')) {
+      const marker = createAttributeLedger(el)
+      marker.set('data-kui-icon-parts', 'dots')
+      ctx.signal.addEventListener('abort', () => marker.restore(), { once: true })
+    }
     if (!el.querySelector('.kui-bar')) {
       const bars = findBars(el)
       if (bars.length > 0) {

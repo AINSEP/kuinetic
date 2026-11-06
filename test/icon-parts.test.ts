@@ -4,6 +4,7 @@
 // in `test/icon-parts-dom.test.ts` instead, which needs jsdom.
 import { describe, expect, it } from 'vitest'
 import { SOURCES } from './support/css-sources.js'
+import { ruleBodies } from './support/css-scan.js'
 
 const svgCss = SOURCES.get('svg.css')!
 const iconPartsCss = SOURCES.get('icon-parts.css')!
@@ -47,6 +48,28 @@ function toPartSelector(selector: string): string {
 }
 
 describe('icon-parts.css — drift guard against svg.css', () => {
+  it('scopes dot geometry and crossing endpoints to the opted-in host for both part spellings', () => {
+    const dots = iconPartsCss.slice(iconPartsCss.indexOf('/* Both authored'), iconPartsCss.indexOf('/* Reduced motion twin'))
+    const selectors = dots.split('\n').filter(line => line.includes('{') && !line.includes('@layer'))
+    expect(selectors).toHaveLength(7)
+    expect(selectors.every(line => line.includes("[data-kui-icon-parts='dots']"))).toBe(true)
+    expect(dots).toContain(":is(.kui-bar, [data-kui-part='bar'])")
+    expect(dots).toContain('scale var(--kui-icon-toggle-duration, 260ms)')
+    expect(dots).toContain('scale: 4 .5;')
+    expect(dots).toContain('opacity: 1;')
+    expect(dots).toContain('--kui-dot-angle: 45deg;')
+    expect(dots).toContain('--kui-dot-angle: -45deg;')
+    expect(dots).toContain("[aria-expanded='true']")
+    expect(dots).toContain('transition-delay: var(--kui-icon-toggle-delay, 0ms)')
+    expect(dots).toContain("[aria-expanded='true'] :is(.kui-bar, [data-kui-part='bar']):nth-child(n)")
+    const angles = [1, 2, 3, 4].map(index => {
+      const selector = `[data-kui-fx~='hamburger-to-x'][data-kui-icon-parts='dots'] :nth-child(${index} of :is(.kui-bar, [data-kui-part='bar']))`
+      const body = ruleBodies(dots, selector).join(' ')
+      return body.split('--kui-dot-angle:')[1]?.split(';')[0]?.trim()
+    })
+    expect(angles).toEqual(['45deg', '-45deg', '-45deg', '45deg'])
+  })
+
   const selectors = svgBarSelectors(svgCss)
   const normalizedIconParts = normalize(iconPartsCss)
 
