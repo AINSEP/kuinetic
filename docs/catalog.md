@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **308** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **312** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -666,7 +666,7 @@ the bottom. This is a one-shot animation; the application owns checked state and
 
 ---
 
-## I. Hover & pointer — 36 names
+## I. Hover & pointer — 37 names
 
 Primitives 21, 22, plus CSS.
 
@@ -2084,10 +2084,10 @@ need to track.
 | C Scroll mechanics | 12 |
 | D Text & typography | 27 |
 | E SVG & icons | 18 |
-| F Numbers & data viz | 13 |
-| G Media & images | 22 |
+| F Numbers & data viz | 14 |
+| G Media & images | 23 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 36 |
+| I Hover & pointer | 37 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 8 |
@@ -2100,7 +2100,7 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **308** |
+| **Total shipped** | **312** |
 | Documented but not yet shipped | 3 |
 
 Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).

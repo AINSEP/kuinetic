@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **307** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **312** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -73,7 +73,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 | 13 | `shimmer` | css | x | text/skeleton sweep |
 | 14 | `flip-3d` | css | r | card flip, cube, fold |
 | 15 | `stroke-draw` | css | x | SVG draw, checkmark, charts |
-| 16 | `path-morph` | js | x | arbitrary SVG `d` interpolation |
+| 16 | `path-morph`, `text-path` | js | x | SVG geometry interpolation and curved lettering offsets |
 | 17 | `split-text` | prep | — | chars/words/lines segmentation |
 | 18 | `type` | js | x | typewriter |
 | 19 | `scramble` | js | x | scramble, decode |
@@ -381,11 +381,11 @@ A held `split-lines` measures once and does not rewrap; prefer words for long te
 
 ---
 
-## E. SVG & icons — 17 names
+## E. SVG & icons — 18 names
 
-Primitives 15, 16. All CSS except the two morphs.
+Primitives 15, 16. CSS draws plus JavaScript morphs and text-path offsets.
 
-`draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
+`text-path` · `draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
 `chart-line-draw` · `gradient-stroke` · `heart-fill` · `bookmark-fill` · `chart-area-fill` ·
 `chart-bar-grow` · `logo-build` · `hamburger-to-x` · `play-to-pause` · `plus-to-minus` ·
 `icon-morph` · `blob-morph`
@@ -394,6 +394,8 @@ Primitives 15, 16. All CSS except the two morphs.
 > length with `length:` — `data-kui="checkmark-draw length:48"` — or with `--kui-path-length` in
 > your own CSS. The library never measures your SVG: `getTotalLength()` is a layout read on every
 > element on every mount, to recover a number already sitting in your markup.
+> For a continuous `draw-stroke` without measuring the real length, author `pathLength="100"`
+> on the path so its normalized length matches the default dash length of 100.
 
 > **`gradient-stroke`** travels the stroke *colour* between `--kui-stroke-from`, `--kui-stroke-via`,
 > and `--kui-stroke-to`, and loops. The literal reading of the name — an animated
@@ -451,12 +453,12 @@ pauses the loop. Reduced motion and zero duration keep the starting shape.
 
 ---
 
-## F. Numbers & data viz — 13 names
+## F. Numbers & data viz — 14 names
 
 Primitive 20, plus 15 and 26.
 
 `count-up` · `count-down` · `count-currency` · `count-percent` · `count-compact` ·
-`odometer-roll` · `progress-ring` · `progress-bar` · `progress-segments` · `gauge-sweep` ·
+`odometer-roll` · `number-formatting` · `progress-ring` · `progress-bar` · `progress-segments` · `gauge-sweep` ·
 `star-rating-fill` · `sparkline-draw` · `donut-sweep`
 
 > Counters expose the final value to assistive tech and never spam `aria-live` mid-animation.
@@ -464,9 +466,15 @@ Primitive 20, plus 15 and 26.
 > Set each destination with `document.getElementById('total').setAttribute('data-value', String(nextValue))`; increases roll up, decreases down, and width follows the digit count.
 > The accessible value updates immediately; `from`/`to` still govern fixed playback when `attribute:` is omitted.
 
+> **App-formatted character changes.** `<span data-kui="number-formatting attribute:data-value 400ms" data-value="$123.49">$123.49</span>`
+> animates matching characters, new and removed characters, and measured width whenever the app
+> writes `data-value`. The app owns currency, decimal and compact toggles; the effect never formats
+> or rounds the string. First scope is ordinary LTR text, including proportional fonts.
+> Reduced motion updates immediately; ordinary `odometer-roll` remains a rolling integer renderer.
+
 ---
 
-## G. Media & images — 22 names
+## G. Media & images — 23 names
 
 Primitives 5, 6, 7, 4, 30, 31.
 
@@ -474,7 +482,25 @@ Primitives 5, 6, 7, 4, 30, 31.
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
 `before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
-`video-backdrop` · `video-hero`
+`video-backdrop` · `video-hero` · `image-flight`
+
+> **Measured image flight:** put a button inside an authored `data-kui-flight-source` wrapper
+> holding its product image, with `data-kui="image-flight image:img destination:#basket lift:60px on:click"`.
+> The image selector searches that closest wrapper; destination searches the page. These are separate
+> selectors because `target:` would relocate the effect away from the trigger. The app owns basket
+> state and button availability. Landing emits the normal `kui:finish`; cancellation emits `kui:cancel`
+> and suppresses finish. Repeated taps replace the previous flight; scroll, resize and removed endpoints
+> cancel decoration. Lift accepts absolute lengths. Failed/late image decode cancels after 150ms.
+> A basket with `data-kui="ripple extent:2 startScale:1 450ms"`
+> and `data-kui-on="kui:finish from:.add-to-basket"` supplies the landing response; override its
+> `::after` to a transparent square with a border in `var(--accent)` for a square outline.
+
+`curtain-reveal start-size:60vmin` opens a centred square crop to the full image;
+use a viewport or pixel length for a square, since percentages resolve separately on each axis.
+It beats `start-inset:`. Inside a viewport-sized
+`pin-section distance:150vh`, a viewport-sized image with `object-fit:cover` can use
+`curtain-reveal start-size:60vmin timeline:pin ease:linear, parallax-scale from:0.35 scale:1 timeline:pin ease:linear`.
+The initial visible square is about 21vmin.
 
 > **`bg`** and **`background`** are two names for one effect: they turn an element into its own
 > full-bleed backdrop and leave every child the author wrote rendering on top of it, untouched.
@@ -617,6 +643,14 @@ change, which then includes it.
 Any watched DOM change inside the host ends a move in flight, so avoid live-updating content in the
 moving items. Removed nodes are not kept: selection, removal and notifications stay yours.
 
+With `flip-reorder leave:fade 300ms`, the app marks an attached direct child with
+the `data-kui-leaving` attribute and removes it on its bubbling `kui:leave-end` event. The original row fades
+out of flow while survivors close the gap; removing the mark reverses the request and restores
+its styles and inert state. Scroll or resize completes pending departures immediately.
+Reduced motion completes every signal immediately without animation, even before activation.
+This mode installs at preparation and ignores cancel; it supports axis-aligned direct children and refuses `nested:true`.
+It never captures already removed content; the app still owns focus and list state.
+
 For the todo strike animation, use `underline-draw position:50% 300ms on:click` on the text.
 The existing background-size keyframe draws the line at mid-height; omission keeps the underline at
 the bottom. This is a one-shot animation; the application owns checked state and row removal.
@@ -632,7 +666,7 @@ the bottom. This is a one-shot animation; the application owns checked state and
 
 ---
 
-## I. Hover & pointer — 35 names
+## I. Hover & pointer — 37 names
 
 Primitives 21, 22, plus CSS.
 
@@ -644,15 +678,22 @@ Primitives 21, 22, plus CSS.
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
 | card | `tilt-3d` `tilt-parallax` |
-| group | `group-dim` |
+| group | `group-dim` `group-expand` |
 | label | `masked-label-swap` `masked-label-swap-x` `masked-label-swap-diagonal` |
 | intent | `hover-intent` |
 | preview | `anchored-preview` `anchored-preview-bottom` `anchored-preview-left` `anchored-preview-right` |
 | search | `search-expand` |
-| cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` |
+| cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` `cursor-trail` |
 | proximity | `proximity-field` `proximity-glow` |
 
 The four dot followers accept `over:` for descendants supplying per-target shapes and content.
+
+`cursor-trail images:'.trail-source' spacing:60px` samples pointer distance into a pool of at most
+24 fresh inert photos inside the host, underneath its text. Images must be descendants of the host;
+their source markup stays untouched. `--kui-trail-width` and `--kui-trail-height` size the photos.
+Fine hover pointers only; reduced motion leaves ordinary content. CSS fades the photos;
+leave, scrolling and visibility changes clear pointer history while existing photos finish fading.
+Teardown removes the trail.
 `match:rect` fits the hovered box; `match:text` uses its font size for a thin caret; `snap:center` springs to its centre.
 Without these options the existing pointer tracking, focus placement, listeners and geometry reads are unchanged.
 The `dot-class:` option adds authors' classes for size and paint to this instance's generated dot.
@@ -848,6 +889,18 @@ The `stagger` option suits the vertical and diagonal presets; on `-x` each lette
 > its own, so `fade-in, group-dim` on one container composes; a second `group-*` effect would not.
 > Because its rules reach past the element carrying them, `target:` refuses to relocate it.
 
+`group-expand grow:4 400ms` goes on a row of authored cards or links. Above 48rem on a
+fine pointer with hover, the hovered card grows to four shares and its neighbours keep
+one each. Keyboard focus always takes priority over hover; a mouse click does not pin a card open.
+Mark the detail image and text with `data-kui-expand-content`; titles stay outside that marker. With no hover
+or below 48rem, the cards stack with every detail visible and taps follow normal links.
+Reduced motion changes size and visibility immediately, including when a delay is authored.
+It refuses `target:` relocation.
+Keep a visible link or focusable card outside any hidden detail so keyboard users can reach it.
+Use wrapping content and responsive media; the library bounds card widths and breaks long words.
+Hidden details keep their box, so give the row a `min-height` taller than its tallest narrow card,
+or the page below moves on hover.
+
 ---
 
 ## J. Ambient backgrounds — 15 names
@@ -896,6 +949,16 @@ Primitives 9, 10, 13, 15.
 `progress-indeterminate` · `toast-slide-in` · `toast-slide-out` · `shake-error` · `wobble` ·
 `ripple` · `badge-pop` · `count-bump` · `heart-burst` · `confetti-burst` · `copy-confirm` ·
 `pull-to-refresh`
+
+`wobble direction:pointer on:hover` chooses its initial displacement and tilt from the fine
+pointer's entry side; plain `wobble` keeps its fixed motion and `y:` option.
+
+`confetti-burst pieces:48 on:click` replaces the five gradient dots with a bounded set of strips
+and dots that rise, tumble and fall after release. `size:`, `fan:` and `color1:`–`color5:` apply;
+generated pieces fall back through `--kui-confetti-cN`, `--kui-cN`, `--accent` and `currentColor`,
+and stay hidden at rest. `pieces:` accepts integers from 1 to 96; pieces play once even when
+`repeat:` repeats the host pop, and that combination warns. Keep overflow visible on
+the host and its ancestors; `distance:` and `spill:` still describe the five-gradient default.
 
 ---
 
@@ -1005,6 +1068,14 @@ Primitives 14, 22, 38, 46, 48.
 `fold-panel` · `carousel-3d` · `carousel-3d-high` · `carousel-3d-low` ·
 `carousel-3d-inside` · `carousel-orbit` · `carousel-stack` · `carousel-loop` · `depth-layers-pointer`† ·
 `perspective-grid`†
+
+`cube-rotate parts:cube` stamps exactly six authored children as front, back, right, left, top
+and bottom, without injecting controls. Set `--kui-cube-size` and matching host width/height;
+`tumble:true 8s ease:linear repeat:infinite` selects a continuous three-axis turn. Plain cube-rotate
+keeps its 90-degree result and target relocation. Face paint is authored, so fixed brightness is
+an approximation of world lighting. For entrance sequences, animate an outer wrapper and use
+`angle:` on the inner cube for a still pose. Tilt wrappers around rotating dashed SVG circles
+provide the ring recipe; these are flat strokes with no tube shading.
 
 > **`card-flip-y` and `flip-card` are not the same thing**, and the similar names are worth
 > reading twice. `card-flip-y` is an *entrance*: one keyframe, half a turn, played once, nothing on
@@ -1341,7 +1412,7 @@ Primitives 14, 22, 38, 46, 48.
 > No controls are generated. A loop needs one cycle at least as wide as the viewport plus its
 > widest slide and largest centre-to-centre step (room to recycle between animated steps).
 > Otherwise it becomes a static, locally scrollable strip with native touch scrolling;
-> resize rechecks coverage. No clones, RTL, vertical mode or free coast are provided.
+> resize rechecks coverage. Direct images can opt into inert copies with `copies:auto` and coast with `release:free`.
 > In that static fallback, deck arrow keys are consumed without visible motion, and spin/autoplay
 > still tick invisibly. While looping, keyboard-visible focus centres its slide without moving on
 > mouse focus. Measured relayouts and jumps beyond the recycling room land without a transition.
@@ -1589,6 +1660,13 @@ Primitives 1, 10, 15.
 Primitive 32. All `css`.
 
 `motion-path` · `path-arc` · `path-wave` · `path-loop` · `path-swoop`
+
+`viewbox:'0 0 300 300'` uniformly fits path coordinates into the parent, reserving
+the traveller's size and subtracting its layout offset. It observes parent/traveller size changes;
+CSS still drives progress. Omit `viewbox:` to keep the original fixed-pixel path.
+Put a shrinking scale tween on a child of the traveller, since scaling the traveller also scales
+its offset-path displacement. `anchor:center` places the frame's centre on the path;
+`rotate:auto` separately turns it along the tangent.
 
 > **What this closes.** `orbit` and `float` are fixed shapes — a full turn, a bob. These follow an
 > arbitrary curve, which is the one thing the catalog previously could not express at all and the
@@ -1872,6 +1950,14 @@ need to track.
 > **No-JS:** linked images and videos open through their original URLs. A bare image stays visible.
 > `lightbox-open` is a one-shot image entrance effect, not this dialog widget.
 
+> **Thumbnail flight:** `data-kui="lightbox flight:true"` flies fitted images through the dialog's
+> top layer and back to their current thumbnails. The larger image gets a bounded 150ms decode wait;
+> failed or late decodes, missing/offscreen thumbnails and unsupported crops use the
+> ordinary viewer. Cover crops support percentage object positions with uniform scale and a clip.
+> Tall images fly to the visible viewport slice; navigation cancels opening motion and close targets the current visible thumbnail.
+> Resize, scroll, release and re-entry cancel the decoration. Reduced motion skips it.
+> This option belongs to `lightbox`; carousel `lightbox:true` keeps its existing viewer defaults.
+
 > **Interactive before/after media slider (`compare`).** Stacks two media elements (images or videos)
 > and overlays an accessible range slider. Dragging or arrowing the slider reveals the "after"
 > state via `clip-path` without layout reflows.
@@ -1997,11 +2083,11 @@ need to track.
 | B Scroll reveal & parallax | 12 (+1 planned) |
 | C Scroll mechanics | 12 |
 | D Text & typography | 27 |
-| E SVG & icons | 17 |
-| F Numbers & data viz | 13 |
-| G Media & images | 22 |
+| E SVG & icons | 18 |
+| F Numbers & data viz | 14 |
+| G Media & images | 23 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 35 |
+| I Hover & pointer | 37 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 8 |
@@ -2014,10 +2100,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **307** |
+| **Total shipped** | **312** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **142 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -2161,3 +2247,20 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 > it is not guaranteed, since observers can report zero-area intersections. Use a small non-zero
 > scale, or `on:load`. The check follows axis overrides and recognizes percentages and signed
 > zero. It cannot evaluate stylesheet values or `calc()` expressions at compile time.
+
+`carousel-loop copies:auto` fills short rows with inert copies of direct images; copies are not links or slides.
+`release:free` adds a finite drag coast; ordinary rows still snap on release.
+True `dir="rtl"` reverses inline layout, drag mapping and horizontal keys; positive `spin:` travels right in RTL.
+
+`scroll-progress smooth:true` smooths only visual progress; step marks keep raw progress. Add `page:true` for document-length progress.
+
+Spatial decks accept `timeline:scroll distance:200vh`; the span moves one logical cycle and disables spin/autoplay.
+The timeline also scrubs composed effects on that host and `control()` refuses its scroll-owned playhead; put time effects on a wrapper.
+`speed:true` publishes signed physical pixels per second as `--kui-motion-speed` for drag, spin and scroll, with a finite decay to zero.
+
+`text-path` on an SVG `<textPath>` drives `startOffset` using native glyph layout; use `timeline:scroll` or a timed duration with optional `loop:true`. Offsets must share a numeric unit.
+
+`carousel-3d shape:helix rise:32px arc:540deg radius:240px` makes a fitted vertical helix with visible far backs and faded open ends; inside and screen rings warn and ignore shape.
+
+Keep scroll-driven text paths in a sticky stage for their full distance so the SVG stays visible throughout the travel.
+The clipped `gallery-backstage` recipe is a near match per the owner’s Chrome check: its flat cards have small gaps where the sheet’s trapezoids touch; it adds no parameters.

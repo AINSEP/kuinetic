@@ -680,6 +680,12 @@
     --kui-group-dim-ease: ease-out;
   }
 
+  [data-kui-fx~='group-expand'] {
+    --kui-group-expand-duration: 400ms;
+    --kui-group-expand-delay: 0ms;
+    --kui-group-expand-ease: ease-out;
+  }
+
   [data-kui-fx~='hamburger-to-x'] {
     --kui-icon-toggle-duration: 260ms;
     --kui-icon-toggle-delay: 0ms;
@@ -733,6 +739,12 @@
     --kui-icon-wiggle-duration: 220ms;
     --kui-icon-wiggle-delay: 0ms;
     --kui-icon-wiggle-ease: ease-out;
+  }
+
+  [data-kui-fx~='image-flight'] {
+    --kui-image-flight-duration: 600ms;
+    --kui-image-flight-delay: 0ms;
+    --kui-image-flight-ease: ease-in-out;
   }
 
   [data-kui-fx~='image-parallax-frame'] {
@@ -863,6 +875,12 @@
     --kui-motion-path-duration: 1200ms;
     --kui-motion-path-delay: 0ms;
     --kui-motion-path-ease: ease-out;
+  }
+
+  [data-kui-fx~='number-formatting'] {
+    --kui-number-tokens-duration: 400ms;
+    --kui-number-tokens-delay: 0ms;
+    --kui-number-tokens-ease: ease-out;
   }
 
   [data-kui-fx~='odometer-roll'] {
@@ -1458,6 +1476,12 @@
     --kui-text-outline-fill-duration: 600ms;
     --kui-text-outline-fill-delay: 0ms;
     --kui-text-outline-fill-ease: ease-out;
+  }
+
+  [data-kui-fx~='text-path'] {
+    --kui-text-path-duration: 8s;
+    --kui-text-path-delay: 0ms;
+    --kui-text-path-ease: linear;
   }
 
   [data-kui-fx~='text-reveal-down'] {

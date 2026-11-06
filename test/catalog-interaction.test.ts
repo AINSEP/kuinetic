@@ -78,8 +78,8 @@ function stubFrames(): { tick: (count: number) => void } {
 }
 
 describe('interaction catalog registration', () => {
-  it('registers 33 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
-    // 13 hover + 7 pointer + `beam-border-auto` + the three state effects (`press-depth`,
+  it('registers 34 section I names (magnetic, already built elsewhere, is not part of this set)', () => {
+    // 13 hover + 8 pointer (incl. `cursor-trail`) + `beam-border-auto` + the three state effects (`press-depth`,
     // `group-dim`, `group-expand`, in `interaction-states.ts`) + the nine reveal-shaped names in
     // `interaction-reveal.ts` (`masked-label-swap` and its two axis siblings, `hover-intent`, the
     // four `anchored-preview` placements, `search-expand`). The last thirteen are counted here but
@@ -87,7 +87,7 @@ describe('interaction catalog registration', () => {
     // matching `:hover` *and* `:focus-visible` rule, which is exactly the contract all thirteen exist
     // outside of — see `catalog-interaction-states.test.ts` and `catalog-interaction-reveal.test.ts`
     // for the contract each keeps instead.
-    expect(INTERACTION_PRESETS).toHaveLength(33)
+    expect(INTERACTION_PRESETS).toHaveLength(34)
     expect(HOVER_PRESETS).toHaveLength(13)
     expect(POINTER_PRESETS).toHaveLength(8)
     const reg = registry()
