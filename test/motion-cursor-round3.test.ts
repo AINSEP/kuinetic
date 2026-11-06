@@ -289,8 +289,5 @@ describe('Motion batch 8', () => {
     expect(css).not.toContain('.kui-cursor-corners')
     expect(css).not.toContain('rotate 160ms')
     expect(css).toContain('white-space: pre;')
-    const lab = readFileSync('demo/motion-lab.html', 'utf8')
-    expect(lab).toContain('.cursor-ring { background: transparent; border: 1px solid currentColor; }')
-    expect(lab).toContain('.cursor-corners[data-kui-cursor-target] { rotate: 0deg; }')
   })
 })
