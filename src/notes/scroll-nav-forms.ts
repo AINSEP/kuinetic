@@ -74,6 +74,8 @@ export const SCROLL_NAV_FORMS_NOTES: ParamNotes = {
   'range-fill.ease': 'No visible effect; the fill timing is fixed in the stylesheet.',
 
   'scroll-progress.distance': 'How much scrolling it takes to go from 0 to 100 percent.',
+  'scroll-progress.smooth': 'Lets visual progress settle with a spring while step marks follow scrolling directly.',
+  'scroll-progress.page': 'Tracks the whole document from top to bottom instead of the element distance.',
   'scroll-progress.steps': {
     why: 'Split the scroll into this many numbered steps your styles can react to.',
     whenOmitted: '0: only a smooth progress value is published, no steps.',

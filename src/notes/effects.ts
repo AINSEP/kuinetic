@@ -88,6 +88,7 @@ export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
   'image-flight': ['Put this on the trigger button inside data-kui-flight-source; the app owns purchases and basket state.',
     'image: searches the closest source wrapper and destination: searches the page; target: would relocate the effect.'],
   'number-formatting': ['The app writes the formatted string to data-value; matching characters keep their identity without rolling digits.'],
+  'text-path': ['Put text-path on an SVG textPath to drive startOffset on scroll or a native SVG timer.'],
   'carousel-loop': ['Mixed-width slides loop horizontally; give each direct child a width in CSS.',
     'A short row stays a static, locally scrollable strip until it can cover the viewport while recycling.'],
   'drop-open': ['Parent data-open, open or popover-open opens its direct children.'],

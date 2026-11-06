@@ -10,7 +10,10 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { frameScheduler } from '../../core/element-size.js'
 import type { Registry } from '../../core/registry.js'
+import type { StyleLedger } from '../../core/owned-styles.js'
 import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
+import { deckSourceVariant } from './sources.js'
+import { createHelixFit } from './shape-fit.js'
 import { createRingFit } from './fit.js'
 import type { DeckLayout, Face } from './deck.js'
 import { SPATIAL_STACK_PRIMITIVE, STACK_PRESETS } from './stack.js'
@@ -259,6 +262,8 @@ function createRingView(el: Element, ctx: PrepareContext, arcDeg: number, tiltDe
 
 const RING_PARAMETERS: ParameterSchema = {
   ...DECK_PARAMETERS,
+  shape: { type: 'keyword', default: 'ring', keywords: ['ring', 'helix'], cssProperty: '--kui-ring-shape' },
+  rise: { type: 'length', default: '32px', cssProperty: '--kui-helix-rise' },
   /*
    * A real CSS `<angle>`, not a normalised scalar.
    *
@@ -358,6 +363,23 @@ const RING_PARAMETERS: ParameterSchema = {
   },
 }
 
+function useHelix(el: Element, params: EffectParams, ctx: PrepareContext): boolean {
+  if (!params.is('shape', 'helix')) return false
+  if (params.is('plane', 'screen') || el.matches("[data-kui-fx~='carousel-3d-inside']")) {
+    ctx.warn('shape:helix and rise: are only supported on an outward depth ring; ignored.')
+    return false
+  }
+  return true
+}
+
+function ringFitAttachment(el: Element, params: EffectParams, ctx: PrepareContext,
+  geometry: { helix: boolean; plane: string; arc: number; tilt: number }) {
+  if (geometry.plane !== 'depth') return undefined
+  if (geometry.helix) return (styles: StyleLedger) => createHelixFit({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
+  return (styles: StyleLedger) => createRingFit({ el, ctx, styles, arcDeg: geometry.arc,
+    tiltParamDeg: geometry.tilt, facing: params.is('facing', 'camera') ? 'camera' : 'radial' })
+}
+
 /**
  * Drive a ring of children from one index.
  *
@@ -372,6 +394,7 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
   // The flattening trap only exists for the 3D plane; a flat ring has no `preserve-3d` to defeat.
   if (plane === 'depth') warnFlattenedHost(el, ctx)
   const arcDeg = degreesOf(params.text('arc', '360deg'), 360)
+  const helix = useHelix(el, params, ctx)
   const faceOf = (place: number, _offset: number, count: number): Face =>
     plane === 'screen' ? 'front' : faceAt(place * (arcDeg / count))
 
@@ -385,8 +408,9 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
      * circle (the host is sized to it, since transformed slots take no layout space), so it measures
      * even when the author named a radius.
      */
-    measure: params.text('radius') === '' || plane === 'screen',
+    measure: !helix && (params.text('radius') === '' || plane === 'screen'),
     hostAttributes: {
+      ...(helix ? { 'data-kui-ring-shape': 'helix' } : {}),
       /*
        * `facing:` and `plane:` reach CSS as attributes, not only as the custom properties their
        * specs declare. A stylesheet cannot select on the *value* of a custom property — `@container
@@ -403,18 +427,7 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
      * its own square (`carousel.css`, `[data-kui-ring-plane='screen']`), and its cards never leave
      * the plane that square is measured in.
      */
-    attach:
-      plane === 'depth'
-        ? (styles) =>
-            createRingFit({
-              el,
-              ctx,
-              styles,
-              arcDeg,
-              tiltParamDeg: degreesOf(params.text('tilt', '0deg'), 0),
-              facing: params.text('facing', 'radial') === 'camera' ? 'camera' : 'radial',
-            })
-        : undefined,
+    attach: ringFitAttachment(el, params, ctx, { helix, plane, arc: arcDeg, tilt: degreesOf(params.text('tilt', '0deg'), 0) }),
   })
 }
 
@@ -496,7 +509,7 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
     attributeChannel('data-kui-ring-plane'),
   ],
   parameters: RING_PARAMETERS,
-  supportedTimelines: ['time'],
+  supportedTimelines: ['time', 'scroll'],
   // `load`, not `enter`: a carousel that only wires its arrows once scrolled into view is broken,
   // not lazy — the same distinction `Primitive.defaultActivation` documents.
   supportedActivations: ['load', 'enter', 'click', 'manual'],
@@ -504,6 +517,11 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
   perfClass: 'compositor',
   reducedMotion: 'shorten',
   prepare: deferPrepare(prepareSpatialRing),
+  variantFor: (spec, warn) => {
+    if (spec.params.rise && spec.params.shape !== 'helix') warn('carousel rise: requires shape:helix; ignored.')
+    return { channels: [...(deckSourceVariant(spec).channels ?? []),
+      ...(spec.params.shape === 'helix' ? [CHANNEL.opacity, CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : [])] }
+  },
 }
 
 export const CAROUSEL_PRIMITIVES: Primitive[] = [SPATIAL_RING_PRIMITIVE, SPATIAL_STACK_PRIMITIVE, SPATIAL_ROW_PRIMITIVE]

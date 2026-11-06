@@ -14,6 +14,7 @@ import type { TargetScope } from '../../core/target.js'
 import { prepareScrollSpy } from './scroll-spy.js'
 import { distanceParam, stickyParams } from './params.js'
 import { domPosition, trackProgress } from './tracker.js'
+import { smoothProgress, trackPageProgress } from './progress-output.js'
 
 /**
  * Scroll-mechanics primitives.
@@ -51,6 +52,7 @@ function installSticky(
 
 /** One primitive's distinguishing fields; the rest are identical across the category. */
 interface ScrollSpec {
+  variantFor?: Primitive['variantFor']
   id: string
   channels: string[]
   parameters: ParameterSchema
@@ -76,6 +78,7 @@ function scrollPrimitive(spec: ScrollSpec): Primitive {
     defaultActivation: 'load',
     perfClass,
     reducedMotion: 'disable',
+    variantFor: spec.variantFor,
     /*
      * The refusal side of `TIMELINE_AGNOSTIC` above, and for the same underlying reason: these
      * primitives are driven by *where the page is*, not by a clock. A pin engages when its range
@@ -240,9 +243,11 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
   // Frames are continuous; the step index is not. Re-stamping an unchanged index — and, worse,
   // re-querying the target set for it — was per-frame work with no per-frame result.
   let lastIndex: number | undefined
+  const output = params.is('smooth') ? smoothProgress(ctx, value => writeProgress(ctx, value)) : undefined
 
-  const untrack = trackProgress(el, ctx, { distance: params.text('distance') }, (progress) => {
-    writeProgress(ctx, progress)
+  const update = (progress: number): void => {
+    if (output) output.write(progress)
+    else writeProgress(ctx, progress)
     if (steps === 0) return
     const index = Math.min(steps - 1, Math.floor(progress * steps))
     if (index === lastIndex) return
@@ -258,11 +263,14 @@ function prepareProgress(el: Element, params: EffectParams, ctx: PrepareContext)
      */
     ctx.style.set('--kui-step', String(index))
     if (selector) marker.mark(index)
-  })
+  }
+  const untrack = params.is('page') ? trackPageProgress(ctx, update)
+    : trackProgress(el, ctx, { distance: params.text('distance') }, update)
 
   // Continuous: a progress track publishes for as long as the page scrolls and never completes.
   return continuousSetup(() => {
     untrack()
+    output?.release()
     self.restore()
     marker.restore()
   })
@@ -722,6 +730,7 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
 
   scrollPrimitive({
     id: 'scroll-progress',
+    variantFor: spec => ({ reducedMotion: spec.params.smooth === 'true' ? 'shorten' : 'disable' }),
     // `data-kui-step` beside `progress`: with `steps:` this publishes the same index attribute (and
     // its `--kui-step` twin) a `carousel` does, so the two on one element would overwrite each
     // other's step every frame. The claim is static, so it holds with `steps:0` too — a list can't
@@ -731,6 +740,8 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
     channels: ['progress', attributeChannel('data-kui-step')],
     parameters: {
       ...distanceParam,
+      smooth: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-smooth' },
+      page: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-page' },
       steps: { type: 'number', default: '0', cssProperty: '--kui-steps' },
       // Same name, same shape and the same validation as scroll-spy's: one `target:` convention
       // across the library rather than a second word for "the elements this effect marks".

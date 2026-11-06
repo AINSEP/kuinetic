@@ -1025,7 +1025,7 @@ function buildPlan(
     // the time an entry reaches here: every caller of `buildPlan` sequences first.
     const step = entry.step!
     plan.fxNames.push(preset.name)
-    plan.reducedMotion = strictestPolicy(plan.reducedMotion, primitive.reducedMotion)
+    plan.reducedMotion = strictestPolicy(plan.reducedMotion, entry.variant?.reducedMotion ?? primitive.reducedMotion)
     // `defaultActivation` is deliberately absent from this loop. It is the one element-scoped fact
     // that cannot be folded per group and then merged — see `resolveDefaultActivation`, which
     // decides it once over every group's composed entries, and `mergeHostFacts`, which writes the

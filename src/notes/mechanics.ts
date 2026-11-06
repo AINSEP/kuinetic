@@ -6,6 +6,13 @@ import type { ParamNotes } from '../core/describe.js'
  * `rotate`, `skew`, `progress` primitives in `effects/catalog/core.ts`.
  */
 export const MECHANICS_NOTES: ParamNotes = {
+  'text-path.from': 'The starting offset of the lettering along its SVG path.',
+  'text-path.to': 'The ending offset, using the same unit as from.',
+  'text-path.duration': 'How long timed lettering takes to travel along its path.',
+  'text-path.delay': 'How long timed lettering waits before moving.',
+  'text-path.ease': 'How timed lettering accelerates and slows along its path.',
+  'text-path.loop': 'Repeats timed lettering continuously when true.',
+  'text-path.distance': 'How much scrolling moves the lettering from its starting offset to its ending offset.',
   'flip-container.attribute': 'Also animate layout changes when this attribute changes on the host or its descendants.',
   'flip-container.nested': 'Include the host and descendants with corrected inherited translation and scale.',
   'flip-container.leave': 'Fade marked direct children out of flow and emit kui:leave-end so the app can remove each row.',

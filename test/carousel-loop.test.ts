@@ -34,7 +34,9 @@ function key(key: string): void {
 function mount(effect = 'carousel-loop', sizes = [100, 200, 140, 180], windowWidth = 300, beforeStart?: () => void): ReturnType<typeof collectingReporter> {
   widths = sizes
   viewport = windowWidth
-  const links = sizes.map((_, i) => `<a href="#slide-${i}"><span>${i}</span></a>`).join('')
+  const links = sizes.map((_, i) => effect.includes('copies:auto')
+    ? `<img src="/art-${i}.jpg" alt="Artwork ${i}">`
+    : `<a href="#slide-${i}"><span>${i}</span></a>`).join('')
   document.body.innerHTML = `<div data-kui="${effect}" style="gap:20px">${links}</div>`
   host = document.body.firstElementChild as HTMLElement
   slides = [...host.children] as HTMLElement[]
@@ -49,7 +51,12 @@ function mount(effect = 'carousel-loop', sizes = [100, 200, 140, 180], windowWid
 
 function stubSlide(slide: HTMLElement): void {
   Object.defineProperty(slide, 'offsetLeft', {
-    get: () => { reads(); return widths.slice(0, slides.indexOf(slide)).reduce((sum, width) => sum + width + 20, 0) },
+    get: () => {
+      reads()
+      const index = slides.indexOf(slide)
+      const start = widths.slice(0, index).reduce((sum, width) => sum + width + 20, 0)
+      return host.dir === 'rtl' ? viewport - start - widths[index]! : start
+    },
     configurable: true,
   })
   Object.defineProperty(slide, 'offsetWidth', {
@@ -396,16 +403,16 @@ describe('round 6 review regressions', () => {
     expectCoverage()
   })
 
-  it('warns once for a negative measured RTL period and stays static', () => {
+  it('normalizes descending RTL offsets without refusing the loop', () => {
     const reporter = mount('carousel-loop', [100, 200, 140, 180], 300, () => {
       host.dir = 'rtl'
-      slides.forEach((slide, i) => Object.defineProperty(slide, 'offsetLeft', { get: () => 600 - i * 220 }))
+      host.style.direction = 'rtl'
     })
     resize!()
     resize!()
-    expect(reporter.messages).toHaveLength(1)
-    expect(reporter.messages[0]).toMatch(/carousel-loop.*RTL/)
-    expect(x()).toBe(0)
+    expect(reporter.messages).toEqual([])
+    expect(host.getAttribute('data-kui-row-static')).toBe('false')
+    expect(x()).toBe(-100)
   })
 
   it.each([300, 1200])('restores the authored scroll position after a loop or static strip (%s)', windowWidth => {
@@ -415,4 +422,290 @@ describe('round 6 review regressions', () => {
     animator = undefined
     expect(host.scrollLeft).toBe(70)
   })
+})
+
+describe('ticker image copies and free release', () => {
+  it.each([[120], [100, 180]])('covers short cycles without adding semantic steps: %j', (...sizes) => {
+    expect(mount('carousel-loop copies:auto', sizes, 1000).messages).toEqual([])
+    const copies = [...host.querySelectorAll<HTMLImageElement>('[data-kui-row-copy]')]
+    expect(copies.length).toBeGreaterThan(0)
+    expect(host.style.getPropertyValue('--kui-item-count')).toBe(String(sizes.length))
+    expect(host.getAttribute('data-kui-row-static')).toBe('false')
+    expect(copies.every(copy => copy.inert && copy.alt === '' && !copy.hasAttribute('data-kui-step-offset'))).toBe(true)
+    expect(copies.every(copy => copy.style.boxSizing === 'border-box')).toBe(true)
+    const visualPeriod = period() * (1 + copies.length / sizes.length)
+    expect(copies.every(copy => number(copy, '--kui-row-cycle') % visualPeriod === 0)).toBe(true)
+    for (let n = 0; n < 5; n++) key('ArrowRight')
+    expect(host.getAttribute('data-kui-step')).toBe(String(5 % sizes.length))
+    viewport = 300
+    resize!()
+    expect(host.querySelectorAll('[data-kui-row-copy]').length).toBeLessThan(copies.length)
+    animator!.destroy()
+    animator = undefined
+    expect(host.querySelector('[data-kui-row-copy]')).toBeNull()
+  })
+
+  it('refuses copies of interactive cards once and preserves the static fallback', () => {
+    const reporter = mount('carousel-loop copies:auto', [100, 180], 1000, () => {
+      for (const slide of slides) slide.append(document.createElement('a'))
+      // The supported visual must itself be an image, not a wrapper.
+      slides[0]!.replaceWith(document.createElement('a'))
+    })
+    expect(reporter.messages).toHaveLength(1)
+    expect(host.getAttribute('data-kui-row-static')).toBe('true')
+    resize!()
+    expect(reporter.messages).toHaveLength(1)
+  })
+
+  it('coasts from a release while holding transitions, then stops and tears down', () => {
+    mount('carousel-loop copies:auto release:free', [100, 180], 300)
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    pointer('pointerdown', 0)
+    now = 20
+    pointer('pointermove', -30)
+    now = 40
+    pointer('pointermove', -70)
+    now = 50
+    pointer('pointerup', -80)
+    const released = x()
+    expect(host.getAttribute('data-kui-ring-dragging')).toBe('true')
+    vi.advanceTimersByTime(80)
+    expect(x()).toBeLessThan(released)
+    vi.advanceTimersByTime(2000)
+    expect(host.getAttribute('data-kui-ring-dragging')).toBe('false')
+    const stopped = x()
+    vi.advanceTimersByTime(1000)
+    expect(x()).toBe(stopped)
+    animator!.destroy()
+    animator = undefined
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('keeps a free reduced-motion release fractional without a decorative tail', () => {
+    CAPS.reducedMotion = true
+    expect(mount('carousel-loop copies:auto release:free spin:20s', [120, 180], 390).messages).toEqual([])
+    pointer('pointerdown', 0)
+    pointer('pointermove', -35)
+    const released = x()
+    pointer('pointerup', -35)
+    vi.advanceTimersByTime(1000)
+    expect(x()).toBe(released)
+    expect(host.getAttribute('data-kui-ring-dragging')).toBe('false')
+  })
+})
+
+
+describe('true RTL ticker', () => {
+  it('normalizes mixed widths and reverses physical keys and drag without extra reads', () => {
+    const reporter = mount('carousel-loop copies:auto', [100, 200, 140], 1000, () => { host.dir = 'rtl'; host.style.direction = 'rtl' })
+    expect(reporter.messages).toEqual([])
+    expect(host.getAttribute('data-kui-row-static')).toBe('false')
+    expect(x()).toBe(-450)
+    expect(number(slides[0]!, '--kui-row-centre')).toBe(950)
+    expect(number(host, '--kui-row-width')).toBe(1000)
+    reads.mockClear()
+    key('ArrowLeft')
+    expect(host.getAttribute('data-kui-step')).toBe('1')
+    expect(x()).toBe(-280)
+    key('ArrowRight')
+    expect(host.getAttribute('data-kui-step')).toBe('0')
+    pointer('pointerdown', 0)
+    pointer('pointermove', 40)
+    expect(x()).toBe(-410)
+    reads.mockClear()
+    pointer('pointermove', 80)
+    expect(x()).toBe(-370)
+    expect(reads).not.toHaveBeenCalled()
+    const copies = [...host.querySelectorAll<HTMLElement>('[data-kui-row-copy]')]
+    expect(copies.every(copy => Number.isFinite(number(copy, '--kui-row-centre')))).toBe(true)
+  })
+
+  it.each([['', '-4s', -1], ['rtl', '4s', -1], ['rtl', '-4s', 1]])('moves the intended physical direction: dir=%s spin=%s', (dir, spin, direction) => {
+    expect(mount(`carousel-loop copies:auto spin:${spin}`, [120, 180], 390, () => { host.dir = String(dir); host.style.direction = String(dir) }).messages).toEqual([])
+    const initial = x()
+    vi.advanceTimersByTime(160)
+    expect(Math.sign(x() - initial)).toBe(-Number(direction))
+  })
+})
+
+it('refreshes fixed-size copies when source images change without a resize', async () => {
+  mount('carousel-loop copies:auto', [120, 180], 1000)
+  const original = slides[0] as HTMLImageElement
+  original.src = '/replacement.jpg'
+  await Promise.resolve()
+  vi.advanceTimersByTime(20)
+  const copies = [...host.querySelectorAll<HTMLImageElement>('[data-kui-row-copy]')]
+  expect(copies.some(copy => copy.src.endsWith('/replacement.jpg'))).toBe(true)
+  expect(host.style.getPropertyValue('--kui-item-count')).toBe('2')
+  reads.mockClear()
+  copies[0]!.dispatchEvent(new Event('load'))
+  vi.advanceTimersByTime(20)
+  expect(reads).not.toHaveBeenCalled()
+  original.dispatchEvent(new Event('load'))
+  vi.advanceTimersByTime(20)
+  expect(reads).toHaveBeenCalled()
+})
+
+it('picks up a free row at its displayed CSS translation during an unfinished step', () => {
+  mount('carousel-loop copies:auto release:free', [100, 180], 390)
+  key('ArrowRight')
+  const nativeStyle = window.getComputedStyle.bind(window)
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(node => {
+    const style = nativeStyle(node)
+    if (node.isSameNode(slides[0]!)) Object.defineProperty(style, 'transform', { value: 'matrix(1, 0, 0, 1, 60, 0)' })
+    return style
+  })
+  pointer('pointerdown', 0)
+  pointer('pointermove', -20)
+  expect(x()).toBeCloseTo(40)
+  pointer('pointermove', -30)
+  expect(x()).toBeCloseTo(30)
+})
+
+it.each([[120], [100, 180]])('keeps whole turns through large copied-row drags: %j', (...sizes) => {
+  mount('carousel-loop copies:auto', sizes, 1000)
+  const initial = x()
+  pointer('pointerdown', 0)
+  pointer('pointermove', -20)
+  for (const distance of [300, 700, -400, 1200]) {
+    pointer('pointermove', -distance)
+    expect(x()).toBeCloseTo(initial - distance)
+  }
+})
+
+it('keeps the new physical-position properties absent on a bare row', () => {
+  expect(mount().messages).toEqual([])
+  expect(host.style.getPropertyValue('--kui-row-width')).toBe('')
+  expect(slides.every(slide => slide.style.getPropertyValue('--kui-row-centre') === '')).toBe(true)
+})
+
+it('publishes cached physical positions when speed alone opts in', () => {
+  mount('carousel-loop speed:true')
+  expect(number(host, '--kui-row-width')).toBe(viewport)
+  expect(number(slides[0]!, '--kui-row-centre')).toBe(50)
+})
+
+it('restores a removed original slide after remeasurement and teardown', () => {
+  mount()
+  const removed = slides.pop()!
+  widths.pop()
+  removed.remove()
+  resize!()
+  animator!.destroy()
+  animator = undefined
+  expect(removed.hasAttribute('style')).toBe(false)
+})
+
+it('cancels spin as well as coast when destroyed beyond the interrupt hold', () => {
+  mount('carousel-loop copies:auto release:free spin:20s', [100, 180], 390)
+  let now = 0
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  pointer('pointerdown', 0)
+  now = 20
+  pointer('pointermove', -30)
+  now = 40
+  pointer('pointermove', -70)
+  now = 50
+  pointer('pointerup', -80)
+  vi.advanceTimersByTime(700)
+  expect(host.getAttribute('data-kui-ring-dragging')).toBe('true')
+  animator!.destroy()
+  animator = undefined
+  expect(vi.getTimerCount()).toBe(0)
+  vi.advanceTimersByTime(200)
+  expect(host.style.getPropertyValue('--kui-row-x')).toBe('')
+  expect(host.style.getPropertyValue('--kui-step-position')).toBe('')
+})
+
+it('keeps Home, End, jump controls and visible focus on original copied-row steps', () => {
+  const reporter = mount('carousel-loop copies:auto jump:.b-jump', [100, 180, 140], 390, () => {
+    for (let i = 0; i < 3; i++) {
+      const button = document.createElement('button')
+      button.className = 'b-jump'
+      document.body.append(button)
+    }
+  })
+  key('ArrowLeft')
+  key('Home')
+  expect(host.getAttribute('data-kui-step')).toBe('0')
+  key('End')
+  expect(host.getAttribute('data-kui-step')).toBe('2')
+  document.querySelectorAll<HTMLButtonElement>('.b-jump')[1]!.click()
+  expect(host.getAttribute('data-kui-step')).toBe('1')
+  vi.spyOn(slides[2]!, 'matches').mockReturnValue(true)
+  slides[2]!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+  expect(host.getAttribute('data-kui-step')).toBe('2')
+  expect(host.style.getPropertyValue('--kui-item-count')).toBe('3')
+  expect(reporter.messages).toEqual([])
+})
+
+it('autoplays a copied row through its logical seam without rewinding', () => {
+  expect(mount('carousel-loop copies:auto autoplay:2s', [100, 180], 390).messages).toEqual([])
+  const initial = x()
+  vi.advanceTimersByTime(6000)
+  expect(host.getAttribute('data-kui-step')).toBe('1')
+  expect(x()).toBeCloseTo(initial - 480)
+})
+
+it.each([
+  { columnGap: '24px', gap: '20px', cycleLength: 144 },
+  { columnGap: '', gap: '20px', cycleLength: 140 },
+  { columnGap: '', gap: '', cycleLength: 120 },
+])('uses the available single-image gap: %j', ({ columnGap, gap, cycleLength }) => {
+  mount('carousel-loop copies:auto', [120], 390, () => {
+    host.style.columnGap = columnGap
+    host.style.gap = gap
+  })
+  const copy = host.querySelector<HTMLElement>('[data-kui-row-copy]')!
+  expect(number(copy, '--kui-row-centre') - number(slides[0]!, '--kui-row-centre')).toBe(cycleLength)
+})
+
+it('keeps a wide bare RTL row centered using the nearest-cycle formula', () => {
+  mount('carousel-loop', Array<number>(8).fill(160), 1000, () => { host.dir = 'rtl'; host.style.direction = 'rtl' })
+  expect(host.getAttribute('data-kui-row-static')).toBe('false')
+  expect(slides[0]!.offsetLeft + 80 + cycle(0) + x()).toBeCloseTo(500)
+})
+
+it('ignores free pickup on a static strip with no coverage', () => {
+  mount('carousel-loop release:free', [100], 1000)
+  pointer('pointerdown', 0)
+  pointer('pointermove', -20)
+  expect(x()).toBe(0)
+  pointer('pointerup', -20)
+})
+
+it('stops a running coast on a press below the drag threshold without swallowing the tap', () => {
+  mount('carousel-loop copies:auto release:free', [100, 180], 390)
+  let now = 0
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  pointer('pointerdown', 0)
+  now = 20
+  pointer('pointermove', -30)
+  now = 40
+  pointer('pointerup', -60)
+  vi.advanceTimersByTime(100)
+  expect(host.getAttribute('data-kui-ring-dragging')).toBe('true')
+  pointer('pointerdown', 0)
+  const stopped = x()
+  pointer('pointerup', 0)
+  vi.advanceTimersByTime(300)
+  expect(x()).toBe(stopped)
+  expect(host.getAttribute('data-kui-ring-dragging')).toBe('false')
+  expect(slides[0]!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))).toBe(true)
+})
+
+it('can pick up a freely resting row while a large authored gap occupies the viewport', () => {
+  mount('carousel-loop copies:auto release:free', [100, 180], 390, () => {
+    host.style.gap = '500px'
+    slides.forEach((slide, i) => Object.defineProperty(slide, 'offsetLeft', { get: () => i * 600, configurable: true }))
+  })
+  vi.spyOn(performance, 'now').mockReturnValue(0)
+  const initial = x()
+  pointer('pointerdown', 0)
+  pointer('pointermove', -320)
+  pointer('pointerup', -320)
+  pointer('pointerdown', 0)
+  pointer('pointermove', -20)
+  expect(x()).toBeCloseTo(initial - 340)
 })
