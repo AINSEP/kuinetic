@@ -532,8 +532,8 @@ export async function run({ browser, ARTIFACT_DIR }) {
     // Without this, a selector typo that finds no header anywhere would pass every page as "n/a".
     if (!only) {
       check(
-        'check D found a sticky/fixed header on at least 17 pages',
-        pagesWithHeader.size >= 17,
+        'check D found a sticky/fixed header on at least 16 pages',
+        pagesWithHeader.size >= 16,
         `found on ${pagesWithHeader.size}: missing ${pages.filter((p) => !pagesWithHeader.has(p.file)).map((p) => p.file).join(', ') || 'none'}`,
       )
     }

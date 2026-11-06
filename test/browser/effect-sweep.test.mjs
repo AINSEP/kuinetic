@@ -62,6 +62,15 @@ const PARAMETERIZED = new Map([
 ])
 
 /**
+ * Effects whose primitive refines itself per spec (`variantFor`) but whose bare form is a complete,
+ * animating effect: the refinement is an opt-in extra, not the effect. `gradient-sweep` animates
+ * `--kui-sweep-*` vars that all carry fallbacks and only `fill:true` swaps the paint; `mask-reveal`
+ * works bare and only `direction:left` / `edges:` reroute it. These are swept bare like everything
+ * else, so a plain host is still required to animate. Entries are checked to still have `variantFor`.
+ */
+const OPTIONAL_VARIANT = new Set(['gradient-sweep', 'mask-reveal'])
+
+/**
  * The effect this probe genuinely cannot read, with the reason. It was checked by hand
  * before being excused — "the probe saw nothing" is not evidence that nothing happened, and six
  * effects were wrongly called dead that way once already.
@@ -95,7 +104,7 @@ export async function run({ browser }) {
         activation: entry.primitive.defaultActivation,
         // A primitive that refines itself per spec reads its properties off the attribute, so the
         // probe cannot drive it by name alone. See `PARAMETERIZED`.
-        parameterDriven: typeof entry.primitive.variantFor === 'function',
+        hasVariant: typeof entry.primitive.variantFor === 'function',
       }))
   })
   const cssNames = catalog.map((entry) => entry.effect)
@@ -107,7 +116,17 @@ export async function run({ browser }) {
 
   // Both directions, so the map can neither miss a new parameter-driven effect nor keep an entry
   // for one that stopped being parameter-driven and should now be swept bare like everything else.
-  const parameterDriven = catalog.filter((entry) => entry.parameterDriven).map((entry) => entry.effect)
+  const parameterDriven = catalog
+    .filter((entry) => entry.hasVariant && !OPTIONAL_VARIANT.has(entry.effect))
+    .map((entry) => entry.effect)
+  const staleOptional = [...OPTIONAL_VARIANT].filter(
+    (effect) => !catalog.some((entry) => entry.effect === effect && entry.hasVariant),
+  )
+  check(
+    'every optional-variant effect still refines itself per spec',
+    staleOptional.length === 0,
+    staleOptional.length === 0 ? `${OPTIONAL_VARIANT.size} swept bare` : `stale entry: ${staleOptional.join(', ')}`,
+  )
   const undriven = parameterDriven.filter((effect) => !PARAMETERIZED.has(effect))
   const stale = [...PARAMETERIZED.keys()].filter((effect) => !parameterDriven.includes(effect))
   check(
