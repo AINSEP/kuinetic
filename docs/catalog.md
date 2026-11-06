@@ -440,6 +440,9 @@ Primitive 20, plus 15 and 26.
 `star-rating-fill` · `sparkline-draw` · `donut-sweep`
 
 > Counters expose the final value to assistive tech and never spam `aria-live` mid-animation.
+> For live rolling digits, use `<span id="total" data-kui="odometer-roll attribute:data-value 500ms on:load" data-value="9">9</span>`.
+> Set each destination with `document.getElementById('total').setAttribute('data-value', String(nextValue))`; increases roll up, decreases down, and width follows the digit count.
+> The accessible value updates immediately; `from`/`to` still govern fixed playback when `attribute:` is omitted.
 
 ---
 
@@ -580,9 +583,14 @@ Primitive 28. `js`. One technique unlocks the whole group.
 `flip-reorder` · `flip-filter` · `flip-sort` · `flip-shuffle` · `accordion-height` ·
 `expand-to-modal` · `grid-to-list` · `tab-indicator-slide` · `masonry-reflow`
 
-> **Boundary:** these animate elements *you* control. `accordion-height` animates height;
+> **Boundary:** these animate elements *you* control. `accordion-height` animates height or `axis:width`;
 > it does not own `aria-expanded`, focus, or keyboard handling. Accessible accordion/carousel/
 > menu **components** are deliberately out of scope.
+> For content resizing, replace content first, then change the watched `attribute:` (e.g. `el.toggleAttribute('data-size')`); intrinsic content changes alone are not observed.
+> Width hosts need intrinsic width (`display:inline-block; width:max-content; box-sizing:border-box`); width mode sets nowrap and resizes without scaling children.
+> Nest width and height hosts for two dimensions and change the inner watched attribute; the outer observer sees it too.
+> Both axes retain the displayed size on interruption; even plain `accordion-height` reads that size before cancelling instead of jumping to the old destination.
+> Renamed attributes require an authored closed state; for aspect-ratio, use `<div style="width:100px;height:auto;aspect-ratio:1" data-kui="accordion-height attribute:data-ratio 600ms"></div>` with CSS changing the ratio on `[data-ratio]`.
 
 ---
 
@@ -1976,7 +1984,7 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 >     <div data-kui="tween-from y:40 opacity:0 600ms on:enter">
 >
 > **Properties.** `x` `y` `z` (translate) · `rotate` · `scale` `scale-x` `scale-y` · `opacity` ·
-> `blur` `brightness` `saturate` `grayscale` `contrast` `hue-rotate` `invert` `sepia` (filter) · `color` · `background-color`. Anything
+> `blur` `brightness` `saturate` `grayscale` `contrast` `hue-rotate` `invert` `sepia` (filter) · `color` · `background-color` · `border-radius`. Anything
 > else is reported by name rather than ignored. A bare number takes the unit the property implies
 > — `x:100` is `100px`, `rotate:45` is `45deg` — and a value containing spaces or a comma must be
 > quoted, e.g. `x:"calc(100% - 20px)"`. Scientific notation and a leading plus work too:
@@ -2024,7 +2032,7 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 > are preserved: `color:'rgb(0,0,0),rgb(255,255,255)'` has two waypoints.
 >
 > **Easing per group.** Add `translate-ease`, `rotate-ease`, `scale-ease`, `opacity-ease`,
-> `filter-ease`, `color-ease`, or `background-ease` to give that group's segments their own curve:
+> `filter-ease`, `color-ease`, `background-ease`, or `border-radius-ease` to give that group's segments their own curve:
 >
 >     <div data-kui="tween x:'0,100,40' opacity:'0,1,1' translate-ease:back-out opacity-ease:linear 1200ms">
 >
@@ -2033,6 +2041,9 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 > then `ease-out`. `x` and `y` share one `translate` property and therefore one curve; the same
 > applies to scale axes and filter functions. The override works for both directions and for
 > each segment of a waypoint list, without JavaScript interpolation.
+>
+> **Two positions.** `tween x:140 toggle:true 900ms ease:spring` installs a host click listener; each click transitions to the scalar destination or back to the current resting style, retargeting interruptions with a curve each way.
+> This option supports scalars on `tween` only; waypoint lists and `tween-from` are excluded, and `delay:` is ignored by toggle transitions.
 >
 > Arbitrary per-waypoint offsets are not supported: this compiler selects shipped blocks and has
 > no custom-keyframe emission hook, while CSS selectors require literal percentages. Offsets

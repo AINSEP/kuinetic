@@ -17,10 +17,9 @@ export interface CountLayers {
   /** `aria-hidden` node the ticking display writes to on every frame. */
   decorative: HTMLElement
   /**
-   * Visually-hidden twin. Holds the final value from the moment it is installed and never
-   * changes again — the number is content, not a status update, so there is nothing to announce
-   * mid-count (design.md §12's "no aria-live spam from counters"). The caller writes it once, at
-   * install, from the same `to`/`format` the tween itself will settle on.
+   * Visually-hidden twin holding the destination value, never intermediate animation frames.
+   * A live odometer writes it once per incoming value; a fixed counter writes it at install.
+   * The number is content, so it carries no aria-live announcement.
    */
   srOnly: HTMLElement
   /**

@@ -33,6 +33,8 @@ library should own it. Never call something "not the library's job" without grep
       and it is a flat 2D path; (B) letters curve along a line: not built; (C) many images spaced along one line in
       3D, as a carousel, bending like a ribbon: not built. Bending needs a decision: WebGL add-on (recommended) or
       CSS slices. See the Canvas / WebGL entry below: opt-in only, never the main bundle.
+- [ ] **A misspelt easing name fails silently.** `EASING_KEYWORD` in `src/core/params.ts` accepts any name ending in -in, -out or
+      -in-out, so `ease:bounce-out` passes with no warning and falls back to `ease-out`. Found 2026-11-06. Make unknown names warn.
 - [ ] **Motion effects the owner wants later, not now.** Owner, 2026-11-05: "I do want to build that, but not now."
       Codex's plan (`ADS-memory/.local-artifacts/motion-examples/build/newjs-plan.md`, batches 23-25 and 30) advised against building
       these yet, because they cost extra JS drivers for few effects: `magnetic-filings`, `split-text-scatter`,

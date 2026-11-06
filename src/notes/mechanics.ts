@@ -6,6 +6,13 @@ import type { ParamNotes } from '../core/describe.js'
  * `rotate`, `skew`, `progress` primitives in `effects/catalog/core.ts`.
  */
 export const MECHANICS_NOTES: ParamNotes = {
+  'auto-height.axis': 'Animate height or width from its displayed size when interrupted.',
+  'tween.toggle': 'Click to transition between the resting style and a scalar destination.',
+  'tween-from.toggle': 'Use toggle on tween to transition between two positions.',
+  'tween.border-radius': 'How round the corners become, with optional waypoint values.',
+  'tween-from.border-radius': 'How round the corners start before returning to rest.',
+  'tween.border-radius-ease': 'The curve used only for the corner rounding.',
+  'tween-from.border-radius-ease': 'The curve used only for the corner rounding.',
   'auto-height.attribute': {
     why: 'Which attribute changing tells the panel it opened or closed, so it can animate its height.',
     whenOmitted: 'Watches data-open.',

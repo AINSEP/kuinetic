@@ -645,4 +645,80 @@
       background-color: var(--kui-tween-background-color-5, var(--kui-tween-background-color, transparent));
     }
   }
+
+  /* --- border-radius --- */
+  @keyframes kui-tween-to-border-radius {
+    from {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+    }
+    to {
+      border-radius: var(--kui-tween-border-radius, 0px);
+    }
+  }
+  @keyframes kui-tween-from-border-radius {
+    from {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius, 0px);
+    }
+  }
+  @keyframes kui-tween-keys2-border-radius {
+    0% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-1, var(--kui-tween-border-radius, 0px));
+    }
+    100% {
+      border-radius: var(--kui-tween-border-radius-2, var(--kui-tween-border-radius, 0px));
+    }
+  }
+  @keyframes kui-tween-keys3-border-radius {
+    0% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-1, var(--kui-tween-border-radius, 0px));
+    }
+    50% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-2, var(--kui-tween-border-radius, 0px));
+    }
+    100% {
+      border-radius: var(--kui-tween-border-radius-3, var(--kui-tween-border-radius, 0px));
+    }
+  }
+  @keyframes kui-tween-keys4-border-radius {
+    0% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-1, var(--kui-tween-border-radius, 0px));
+    }
+    33.333% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-2, var(--kui-tween-border-radius, 0px));
+    }
+    66.667% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-3, var(--kui-tween-border-radius, 0px));
+    }
+    100% {
+      border-radius: var(--kui-tween-border-radius-4, var(--kui-tween-border-radius, 0px));
+    }
+  }
+  @keyframes kui-tween-keys5-border-radius {
+    0% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-1, var(--kui-tween-border-radius, 0px));
+    }
+    25% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-2, var(--kui-tween-border-radius, 0px));
+    }
+    50% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-3, var(--kui-tween-border-radius, 0px));
+    }
+    75% {
+      animation-timing-function: var(--kui-tween-border-radius-ease, var(--kui-tween-border-radius-default-ease, ease-out));
+      border-radius: var(--kui-tween-border-radius-4, var(--kui-tween-border-radius, 0px));
+    }
+    100% {
+      border-radius: var(--kui-tween-border-radius-5, var(--kui-tween-border-radius, 0px));
+    }
+  }
 }

@@ -387,7 +387,7 @@ describe('tween.css', () => {
 
   it.each(expectedBlocks)('%s writes only properties on its own channel', (name) => {
     const group = TWEEN_GROUP_ORDER.find((candidate) => name.endsWith(`-${candidate}`))!
-    const allowed = CHANNEL_PROPERTIES[TWEEN_GROUP_CHANNELS[group]] ?? []
+    const allowed = group === 'border-radius' ? ['border-radius'] : CHANNEL_PROPERTIES[TWEEN_GROUP_CHANNELS[group]] ?? []
     expect([...blocks.get(name)!].filter((property) => property !== 'animation-timing-function' && !allowed.includes(property))).toEqual([])
   })
 

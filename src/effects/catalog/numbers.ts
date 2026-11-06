@@ -3,9 +3,12 @@ import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../cor
 import type { PrepareContext } from '../../core/effect-context.js'
 import type { Registry } from '../../core/registry.js'
 import { deferPrepare } from '../../core/instances.js'
-import type { SetupResult, TimedSetup } from '../../core/instances.js'
+import type { ContinuousSetup, SetupResult, TimedSetup } from '../../core/instances.js'
+import { timeScaleOf } from '../../core/time-scale.js'
+import { waapiEasingValue } from '../../core/easing.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
+import { effectDelayMs, effectEasing } from '../shared.js'
 import { hasInteractiveDescendant } from './text-shared.js'
 import {
   formatCount,
@@ -91,6 +94,7 @@ const countParams: ParameterSchema = {
 }
 
 const odometerParams: ParameterSchema = {
+  attribute: { type: 'text', default: '', cssProperty: '--kui-odometer-attribute' },
   duration: { type: 'time', default: '1600ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
   from: { type: 'number', default: '0', cssProperty: '--kui-from' },
@@ -246,8 +250,8 @@ function tweenNumber(ctx: PrepareContext, tween: NumberTween): TimedSetup {
 function withCountLayers(
   el: Element,
   doc: Document,
-  populate: (layers: CountLayers) => TimedSetup,
-): TimedSetup {
+  populate: (layers: CountLayers) => TimedSetup | ContinuousSetup,
+): TimedSetup | ContinuousSetup {
   const layers = installCountLayers(el, doc)
   try {
     const setup = populate(layers)
@@ -399,6 +403,79 @@ function updateOdometerColumns(strips: HTMLElement[], grouped: string): void {
   }
 }
 
+/** Read a safe rounded integer; malformed live input retains the last value. */
+function liveValue(el: Element, attribute: string, fallback: number, warn: PrepareContext['warn']): number {
+  const raw = el.getAttribute(attribute)
+  const value = Math.round(Number(raw))
+  if (raw !== null && raw.trim() && Number.isSafeInteger(value)) return value
+  warn(`odometer-roll attribute "${attribute}" needs a safe number; keeping ${fallback}`)
+  return fallback
+}
+
+/** Normalize a displayed strip offset into the middle of three repeated digit cycles. */
+function displayedDigit(strip: HTMLElement, ctx: PrepareContext): number {
+  const computed = ctx.win.getComputedStyle(strip)
+  const offset = -Number.parseFloat(computed.translate.split(' ').at(-1)!) / Number.parseFloat(computed.fontSize)
+  const current = Number.isFinite(offset) ? offset : Number(strip.style.getPropertyValue('--kui-o'))
+  return 10 + ((current % 10) + 10) % 10
+}
+
+/** Attribute-driven rolls; O(d) DOM work and reads per change, no per-frame JS. */
+function prepareLiveOdometer(
+  el: Element,
+  params: EffectParams,
+  ctx: PrepareContext,
+  layers: CountLayers,
+): ContinuousSetup {
+  const { decorative, srOnly } = layers
+  decorative.classList.add('kui-odometer-live')
+  const attribute = params.text('attribute')
+  const timing = { duration: effectDurationMs(params, 1600), delay: effectDelayMs(params),
+    easing: waapiEasingValue(effectEasing(params, 'ease-out'), el, ctx.warn), fill: 'backwards' as const }
+  let value: number | undefined
+  let strips: HTMLElement[] = []
+  let runs: Animation[] = []
+  const cancel = (): void => {
+    for (const run of runs) run.cancel()
+    runs = []
+  }
+  const play = (node: HTMLElement, frames: Keyframe[]): void => {
+    if (ctx.reducedMotion || typeof node.animate !== 'function') return
+    const run = node.animate(frames, timing)
+    run.playbackRate = timeScaleOf(el)
+    runs.push(run)
+  }
+  const update = (): void => {
+    const next = liveValue(el, attribute, value ?? 0, ctx.warn)
+    if (next === value) return
+    const direction = value === undefined ? 0 : Math.sign(next - value)
+    const fromWidth = decorative.getBoundingClientRect().width
+    const starts = strips.map((strip) => displayedDigit(strip, ctx)).reverse()
+    cancel()
+    decorative.replaceChildren()
+    const grouped = `${next < 0 ? '-' : ''}${groupDigits(String(Math.abs(next)))}`
+    srOnly.textContent = grouped
+    strips = buildOdometerColumns(decorative, el.ownerDocument, grouped)
+    for (const [index, strip] of strips.entries()) {
+      const rows = Array.from(strip.children)
+      strip.append(...rows.map((row) => row.cloneNode(true)), ...rows.map((row) => row.cloneNode(true)))
+      const digit = Number(strip.style.getPropertyValue('--kui-o'))
+      strip.style.setProperty('--kui-o', String(10 + digit))
+      if (!direction) continue
+      const from = starts[strips.length - index - 1] ?? 10
+      const delta = direction > 0 ? ((digit - from) % 10 + 10) % 10 : -((from - digit) % 10 + 10) % 10
+      play(strip, [{ translate: `0 ${-from}em` }, { translate: `0 ${-(from + delta)}em` }])
+    }
+    if (direction) play(decorative, [{ width: `${fromWidth}px` }, { width: `${decorative.getBoundingClientRect().width}px` }])
+    value = next
+  }
+  update()
+  if (typeof MutationObserver === 'undefined') return { continuous: true, cleanup: cancel }
+  const observer = new MutationObserver(update)
+  observer.observe(el, { attributes: true, attributeFilter: [attribute] })
+  return { continuous: true, cleanup: () => { observer.disconnect(); cancel() } }
+}
+
 /**
  * Roll a fixed-width digit odometer from `from` to `to`. Digit count is fixed at install time from
  * whichever of `from`/`to` is wider, so the column layout never reflows mid-count — only the
@@ -415,6 +492,8 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
     return () => {}
   }
   const doc = el.ownerDocument
+  if (params.text('attribute')) return withCountLayers(el, doc, (layers) =>
+    prepareLiveOdometer(el, params, ctx, layers))
   const from = Math.max(0, params.num('from', 0))
   const to = Math.max(0, params.num('to', 100))
   const width = Math.max(String(Math.round(from)).length, String(Math.round(to)).length)
@@ -450,7 +529,7 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
 
 export const COUNT_PRIMITIVES: Primitive[] = [
   countPrimitive('count', countParams, deferPrepare(prepareCount)),
-  countPrimitive('count-odometer', odometerParams, deferPrepare(prepareOdometer)),
+  { ...countPrimitive('count-odometer', odometerParams, deferPrepare(prepareOdometer)), perfClass: 'layout' },
 ]
 
 export const COUNT_PRESETS: Preset[] = [

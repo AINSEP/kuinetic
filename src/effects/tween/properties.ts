@@ -24,7 +24,7 @@ import type { Channel, ParamSpec, ParameterSchema, ValueParamSpec } from '../../
  */
 
 /** One rendering unit: a single CSS property (or filter list) written by one keyframe block. */
-export type TweenGroup = 'translate' | 'rotate' | 'scale' | 'opacity' | 'filter' | 'color' | 'background'
+export type TweenGroup = 'translate' | 'rotate' | 'scale' | 'opacity' | 'filter' | 'color' | 'background' | 'border-radius'
 
 /**
  * Declared in rendering order rather than derived from `TWEEN_PROPERTIES`'s key order, so
@@ -40,6 +40,7 @@ export const TWEEN_GROUP_ORDER: readonly TweenGroup[] = [
   'filter',
   'color',
   'background',
+  'border-radius',
 ]
 
 /**
@@ -57,6 +58,7 @@ export const TWEEN_GROUP_CHANNELS: Record<TweenGroup, Channel> = {
   filter: CHANNEL.filter,
   color: CHANNEL.color,
   background: CHANNEL.background,
+  'border-radius': 'border-radius',
 }
 
 interface TweenProperty {
@@ -138,6 +140,7 @@ export const TWEEN_PROPERTIES: Readonly<Record<string, TweenProperty>> = Object.
   property('color', 'color', 'color', 'currentcolor'),
 
   property('background', 'background-color', 'color', 'transparent'),
+  property('border-radius', 'border-radius', 'length', '0px'),
 ])
 
 /**

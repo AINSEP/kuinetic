@@ -8,6 +8,8 @@ import type {
   Timeline,
 } from '../../core/types.js'
 import { cssPrimitive } from '../shared.js'
+import { createJsInstance } from '../../core/instances.js'
+import { prepareToggle, toggleProperty } from './toggle.js'
 import {
   TWEEN_GROUP_CHANNELS,
   TWEEN_GROUP_ORDER,
@@ -170,6 +172,18 @@ function buildVariant(
     params,
     schema,
   }
+  if (params.toggle === 'true') {
+    if (waypoints.size || direction === 'from') {
+      warn('toggle:true needs a scalar tween')
+      return variant
+    }
+    variant.keyframes = []
+    variant.prepare = (el, _params, ctx) => {
+      const stop = prepareToggle(el, touched, ctx)
+      return createJsInstance({ activate() {}, destroy: stop })
+    }
+    variant.transitions = touched.map((group) => ({ property: toggleProperty(group), easing: `var(--kui-tween-${group}-ease, var(--kui-tween-${group}-default-ease, ease-out))` }))
+  }
   return variant
 }
 
@@ -263,7 +277,7 @@ function tweenPrimitive(id: string, direction: TweenDirection): Primitive {
   return {
     ...cssPrimitive(id, [], {
       timelines: TWEEN_TIMELINES,
-      parameters: TWEEN_SCHEMA,
+      parameters: { ...TWEEN_SCHEMA, toggle: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-tween-toggle' } },
       perfClass: 'paint',
     }),
     variantFor: (spec, warn) => buildVariant(direction, spec, warn),

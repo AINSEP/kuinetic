@@ -81,7 +81,7 @@ function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareCon
 }
 
 /**
- * Animate an element's height between its collapsed and natural sizes.
+ * Animate a measured dimension when the author's watched attribute changes.
  *
  * `height: auto` is not interpolable, so the natural height is measured and used as an explicit
  * endpoint. This is the accordion mechanism, and nothing more: it does not own `aria-expanded`,
@@ -92,11 +92,11 @@ function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareCon
  */
 function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const node = el as HTMLElement
+  const axis = params.is('axis', 'width') ? 'width' : 'height'
   ctx.style.set('overflow', 'hidden')
-  // Measuring the natural height means clearing any inline `height` first, and a collapsed start
-  // state is exactly the sort of thing an author writes inline. Claiming it makes that removal a
-  // tracked write, so teardown hands the value back instead of eating it.
-  ctx.style.claim('height')
+  if (axis === 'width') ctx.style.set('white-space', 'nowrap')
+  // Claim the dimension before clearing it to measure the stylesheet's destination.
+  ctx.style.claim(axis)
 
   const duration = effectDurationMs(params, 400)
   const delay = effectDelayMs(params)
@@ -105,19 +105,15 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
   const easing = waapiEasingValue(effectEasing(params), el, ctx.warn)
   let animation: Animation | null = null
 
-  // The height the last toggle settled on, seeded from whatever is actually rendered right now —
-  // this is the only moment the element's starting height can be read *before* any toggle has
-  // touched it, which is what lets the very first toggle start from a real number (a collapsed
-  // peek, a full open height) instead of guessing. From here on it is tracked rather than
-  // re-measured, because by the time the observer below runs, the stylesheet has *already*
-  // repainted at the new resting height, so the element can no longer be asked where it came from.
-  let previous: number = node.getBoundingClientRect().height
+  // Without a live animation the mutation has already changed layout; retain the old endpoint.
+  let previous: number = node.getBoundingClientRect()[axis]
 
   const observer = watchAttribute(node, params.text('attribute'), () => {
+    const from = animation && ['running', 'paused'].includes(animation.playState) ? node.getBoundingClientRect()[axis] : previous
     animation?.cancel()
-    const endpoints = heightEndpoints(node, previous)
+    const endpoints = sizeEndpoints(node, from, axis)
     previous = endpoints.to
-    animation = animateHeight(node, endpoints, { duration, delay, easing })
+    animation = animateSize(node, endpoints, { duration, delay, easing }, axis)
   })
 
   ctx.invalidate()
@@ -129,34 +125,25 @@ function prepareAutoHeight(el: Element, params: EffectParams, ctx: PrepareContex
 }
 
 /**
- * Decide which two heights this toggle runs between.
+ * Measure the stylesheet's destination on the selected axis after cancelling the old animation.
+ * The caller supplies the displayed size captured before cancellation when interrupted,
+ * otherwise the previous destination, since the attribute mutation already changed layout.
  *
- * A mutation observer is a *reaction*: the watched attribute has already flipped and the browser
- * has already laid the element out at whatever height the stylesheet now asks for. So the rendered
- * height is the animation's **end**, never its start — reading it as the start is what made closing
- * play forwards, snap open, and then cut to nothing.
- *
- * The start is simply the height the previous toggle settled on — `prepareAutoHeight` seeds that
- * record once, from the element's actual rendered height before any toggle has happened, so even
- * the first toggle has a real measurement to start from rather than a guess. That is what lets a
- * panel collapsed to a non-zero "peek" open from its peek instead of from zero: nothing here has to
- * infer that "collapsed" and "zero" mean the same thing.
- *
- * @returns The `from` and `to` heights in pixels.
+ * @returns The `from` and `to` dimensions in pixels.
  * @complexity O(1) time; forces one layout read.
  * @overallScore 100
  */
-function heightEndpoints(node: HTMLElement, previous: number): { from: number; to: number } {
-  // Removed rather than written, so the rendered height reports what the stylesheet actually wants
+function sizeEndpoints(node: HTMLElement, previous: number, axis: 'width' | 'height'): { from: number; to: number } {
+  // Removed rather than written, so the dimension reports what the stylesheet actually wants
   // rather than a stale inline value. `prepareAutoHeight` claims the property, which makes this
   // removal restorable.
-  node.style.removeProperty('height')
-  const to = node.getBoundingClientRect().height
+  node.style.removeProperty(axis)
+  const to = node.getBoundingClientRect()[axis]
   return { from: previous, to }
 }
 
 /**
- * Animate an element's height between two measured endpoints.
+ * Animate the selected dimension between two measured endpoints.
  *
  * `fill: 'none'` on purpose: the stylesheet owns the resting height at both ends, so the animation
  * hands it straight back instead of pinning an inline pixel value over `height: auto`. An authored
@@ -167,19 +154,20 @@ function heightEndpoints(node: HTMLElement, previous: number): { from: number; t
  * @complexity O(1) time and space.
  * @overallScore 100
  */
-function animateHeight(
+function animateSize(
   node: HTMLElement,
   endpoints: { from: number; to: number },
   timing: { duration: number; delay: number; easing: string | undefined },
+  axis: 'width' | 'height',
 ): Animation | null {
   const animate = (node as HTMLElement & { animate?: Element['animate'] }).animate
   if (typeof animate !== 'function') return null
   const animation = animate.call(
     node,
-    [{ height: `${endpoints.from}px` }, { height: `${endpoints.to}px` }],
+    [{ [axis]: `${endpoints.from}px` }, { [axis]: `${endpoints.to}px` }],
     // `fill: 'backwards'` only when there is a delay to fill, so the undelayed path stays exactly
     // as it was. It has to be there when there is one: by the time this runs the stylesheet has
-    // already repainted at the destination height (see `heightEndpoints`), so an unfilled delay
+    // already repainted at the destination size (see `sizeEndpoints`), so an unfilled delay
     // would show the panel already open for the wait and then snap shut to animate.
     { ...timing, fill: timing.delay > 0 ? 'backwards' : 'none' },
   )
@@ -287,13 +275,19 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
     deferPrepare(prepareFlipContainer),
   ),
 
-  layoutPrimitive(
+  { ...layoutPrimitive(
     'auto-height',
-    // The two properties it writes on the panel: `overflow: hidden`, and the `height` it animates.
-    ['overflow', 'height'],
-    { attribute: { type: 'text', default: 'data-open', cssProperty: '--kui-attribute' } },
+    // Only width hosts claim white-space and prevent text reflow while the box changes.
+    ['overflow'],
+    {
+      attribute: { type: 'text', default: 'data-open', cssProperty: '--kui-attribute' },
+      axis: { type: 'keyword', default: 'height', keywords: ['height', 'width'], cssProperty: '--kui-size-axis' },
+    },
     deferPrepare(prepareAutoHeight),
-  ),
+  ), variantFor: (spec) => spec.params.axis === 'width'
+    ? { channels: ['width', 'white-space'], params: { ...spec.params, 'closed[width]': 'auto' },
+      schema: { 'closed[width]': { type: 'keyword', default: '0', keywords: ['0', 'auto'], cssProperty: '--kui-auto-height-closed' } } }
+    : { channels: ['height'] } },
 
   layoutPrimitive(
     'flip-indicator',

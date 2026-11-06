@@ -8,12 +8,9 @@
   /*
    * --- accordion-height: the collapsed state ---
    *
-   * `prepareAutoHeight` already claims `overflow: hidden` and tracks `height`, and it animates
-   * from the panel's *current rendered height* to its natural `scrollHeight`. That is the whole
-   * mechanism and it is correct — but it means the library never decides what "closed" is. A page
-   * that did not write `height: 0` itself had a panel sitting at its natural height, so every
-   * toggle animated from N to N and nothing moved. Every consumer therefore had to write the same
-   * two rules by hand, which is the authoring burden this library exists to remove.
+   * JS measures the stylesheet's destination; this supplies the default closed height.
+   * Width variants compile an inline `auto` override before activation, including reduced motion.
+   * Reset the variable on every host so a nested height accordion does not inherit that override.
    *
    * Closed is `height: 0` here, because that is what closed means in every accordion anyone has
    * ever built. An author who wants a peek — a three-line preview that expands — overrides this
@@ -25,10 +22,11 @@
    * attribute-driven rule in this library has.
    */
   [data-kui-fx~='accordion-height'] {
+    --kui-auto-height-closed: 0;
     overflow: hidden;
   }
 
   [data-kui-fx~='accordion-height']:not([data-open]) {
-    height: 0;
+    height: var(--kui-auto-height-closed);
   }
 }

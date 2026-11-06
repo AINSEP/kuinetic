@@ -22,6 +22,7 @@ export const TEXT_NOTES: ParamNotes = {
 
   'count-odometer.from': 'The number the rolling digits start at; whole numbers from 0 up, so -5 counts as 0.',
   'count-odometer.to': 'The number the rolling digits land on; whole numbers from 0 up, so 2.5 rounds to 3.',
+  'count-odometer.attribute': 'Watch this host attribute for a live number instead of playing a fixed count.',
 
   'drop-open.distance': 'How far the element drops down into place as it opens.',
   'drop-open.radius': 'Distance from the group centre; use distance:0px to fan out from that centre.',

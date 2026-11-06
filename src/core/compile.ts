@@ -1048,7 +1048,7 @@ function buildPlan(
     )
 
     if (primitive.renderer === 'css-keyframes') pushTrack(tracks, entry, step)
-    else plan.jsEffects.push(positioned(entry, step))
+    if (primitive.renderer !== 'css-keyframes' || entry.variant?.prepare) plan.jsEffects.push(positioned(entry, step))
     pushTransitions(transitionSegments, transitionOwners, entry, warnings)
   }
 

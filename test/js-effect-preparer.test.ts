@@ -6,6 +6,9 @@ import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { CompiledPlan } from '../src/core/compile.js'
 import type { ScrollRoot, ScrollScheduler } from '../src/core/scroll-scheduler.js'
 import { defaultCapabilities } from '../src/core/capabilities.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
+import { catalogRegistry } from './support/registry.js'
 
 const CAPS = defaultCapabilities({
   individualTransforms: true,
@@ -73,6 +76,21 @@ function planWithThrowingEffect(): CompiledPlan {
 }
 
 describe('createJsEffectPreparer', () => {
+  it('prepares a CSS tween only for its opted-in toggle variant', () => {
+    const reporter = collectingReporter()
+    const preparer = createJsEffectPreparer({ scheduler: idleScheduler, rootResolver: () => fakeRoot,
+      capabilities: CAPS, reporter, respectReducedMotion: true })
+    const el = document.createElement('div')
+    const registry = catalogRegistry()
+    const plan = compile(parse('tween border-radius:50% toggle:true on:load'), registry, 'time')
+    const instances = preparer.prepare({ el, plan, signal: new AbortController().signal, ledger: createStyleLedger(el) })
+    expect(instances).toHaveLength(1)
+    instances[0]!.activate()
+    el.click()
+    expect(el.style.borderRadius).toBe('var(--kui-tween-border-radius, 0px)')
+    instances[0]!.destroy()
+    expect(compile(parse('tween border-radius:50%'), registry, 'time').jsEffects).toEqual([])
+  })
   it('isolates a primitive whose prepare() throws, warning instead of propagating', () => {
     const reporter = collectingReporter()
     const preparer = createJsEffectPreparer({

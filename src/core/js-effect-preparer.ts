@@ -105,7 +105,7 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
 
       for (const entry of plan.jsEffects) {
         const { spec, resolved } = entry
-        const prepare = resolved.primitive.prepare
+        const prepare = entry.variant?.prepare ?? resolved.primitive.prepare
         if (!prepare) continue
         const warn = (message: string): void => reporter.warn(message, el)
         // Validated and defaulted, never the raw attribute strings — a JS primitive branches on

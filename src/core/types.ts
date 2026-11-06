@@ -555,9 +555,11 @@ export interface EffectParams {
  * exists to prevent. So the primitive is asked, once per spec, instead.
  *
  * Every field is optional, and an absent field means "use the primitive's own declaration". A
- * primitive with no `variantFor` at all — which is all but two of them — is unaffected.
+ * primitive with no `variantFor` at all is unaffected.
  */
 export interface EffectVariant {
+  /** Setup needed only by this opt-in variant. */
+  prepare?: Primitive['prepare']
   /**
    * Channels this spec writes, unioned with the primitive's own declared list.
    *
