@@ -1171,6 +1171,27 @@ Primitives 14, 22, 38, 46.
 > next with the ordinary transition, like `carousel-fade autoplay:`. Negative steps backwards. If
 > both are set, `spin:` wins. Either one is floored at 2s.
 >
+> On spatial decks (`carousel-3d`, its variants, and `carousel-stack`), `timer:true` publishes
+> `--kui-autoplay-progress` as a number from 0 to 1 during the current autoplay wait. It resets
+> when the slide advances or autoplay pauses, and resumes with a full period, matching autoplay's
+> existing restart policy. It starts at zero under reduced motion. Without autoplay, or when spin
+> wins, no timer value is written. The option is off by default; only opted-in autoplay decks
+> schedule timer frames. An authored descendant can draw a bar with
+> `scale: var(--kui-autoplay-progress, 0) 1` and `transform-origin:left`.
+>
+> Authored spatial-deck `jump:` controls now receive `data-kui-step-state` (`before`, `active`,
+> `after`), `--kui-offset`, and `--kui-step-distance`: their signed circular distance from the live
+> position in places, including fractional drag/spin drift. These are written directly on each
+> control, including controls outside the host. Controls follow their flat click order, repeating
+> every slide count; wrappers do not affect numbering. Use one control per slide in each group.
+> Between step changes, frames update only cached distances, without queries or attribute stamps.
+> A scaling window can read
+> `scale: max(.1, calc(1 - abs(var(--kui-step-distance, 0)) * .3))` and
+> `translate: calc(var(--kui-step-distance, 0) * 44px) 0`. The active mark follows the rounded live
+> step. New controls are picked up on the next render. Both marks and styles restore on teardown.
+> With no `jump:`, no control query or marking runs. Controls are never generated. Existing host
+> `--kui-step-position`, `--kui-step`, `--kui-item-count` and slide `--kui-offset` are unchanged.
+>
 > Grabbing, the arrow keys and your `next:`/`prev:`/`jump:` controls all still work: they take over
 > immediately, their travel plays out, and the motion resumes from wherever the deck was left — it
 > never snaps back to where the spin would have been. The motion also pauses while the pointer is

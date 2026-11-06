@@ -5,7 +5,7 @@ import type { PrepareContext } from '../../core/effect-context.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
-import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
+import { queryControls, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepMarker } from '../step-marking.js'
 import { bindControl, countSteps, delegateControls, nextStep, prevStep } from '../step-index.js'
 import type { ControlGroup } from '../step-index.js'
@@ -207,6 +207,7 @@ export const DECK_PARAMETERS: ParameterSchema = {
    * deck cannot be both gliding and resting. See `AUTOPLAY_PARAM` (`auto-motion.ts`).
    */
   autoplay: AUTOPLAY_PARAM,
+  timer: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-timer' },
   /*
    * `lightbox:true`: a click on a card opens every card of this deck in the shared lightbox gallery,
    * at the card clicked. A drag still only moves the deck — its click is swallowed before it can
@@ -423,6 +424,7 @@ export function prepareSpatialDeck(
     hostStyles.set('--kui-item-count', String(count))
     publishPosition(step, drift)
     marker.mark(step)
+    jumpMarker?.mark(step, drift)
     const nodes = [...resolveSlots()]
     if (layout.measure) measureItem(hostStyles, nodes)
     markFaces(nodes, count, drift)
@@ -432,9 +434,8 @@ export function prepareSpatialDeck(
   }
 
   /**
-   * One spin frame. Only the sub-step position and the face marks change between two frames that
-   * share a live step, so that is all this writes; the moment the step itself changes it defers to
-   * the full render, which re-marks every slot's offset.
+   * Between step changes, update position, faces and cached control distances only. A step change
+   * defers to the full render, which resolves controls and re-marks every slot's offset.
    */
   const renderFrame = (): void => {
     const { step, drift } = snapPosition(position, rendered.count)
@@ -443,6 +444,7 @@ export function prepareSpatialDeck(
       return
     }
     publishPosition(step, drift)
+    jumpMarker?.updateDistance(drift)
     markFaces(rendered.nodes, rendered.count, drift)
   }
 
@@ -452,6 +454,8 @@ export function prepareSpatialDeck(
     params,
     label,
     settleMs: effectDurationMs(params, 620),
+    onAutoplayProgress: params.is('timer')
+      ? (progress) => hostStyles.set('--kui-autoplay-progress', progress.toFixed(4)) : undefined,
     step(direction) {
       const count = total()
       const { step } = snapPosition(position, count)
@@ -480,10 +484,12 @@ export function prepareSpatialDeck(
    * the deck on that press as well would mean every abandoned drag also stepped it.
    */
   const request = { el, ctx, params, label }
+  const jump = bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(at) })
+  const jumpMarker = jump ? createStepMarker(() => queryControls(el, ctx, jump.selector), undefined, total) : null
   const groups = [
     bindControl(request, 'next', () => goTo(nextStep(snapPosition(position, total()).step, total()))),
     bindControl(request, 'prev', () => goTo(prevStep(snapPosition(position, total()).step, total()))),
-    bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(at) }),
+    jump,
     pause,
   ].filter((group): group is ControlGroup => group !== null)
   const releaseControls = delegateControls({ el, ctx, groups })
@@ -540,6 +546,7 @@ export function prepareSpatialDeck(
     releaseMotion()
     releaseDrag()
     releaseControls()
+    jumpMarker?.restore()
     marker.restore()
     for (const ledger of slots.attributes.values()) ledger.restore()
     slots.attributes.clear()

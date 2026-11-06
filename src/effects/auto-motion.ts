@@ -120,6 +120,8 @@ export interface AutoMotionRequest {
   setSpinning?(spinning: boolean): void
   /** Called whenever the author-facing paused state changes, to mirror it onto pause controls. */
   onPausedChange(paused: boolean): void
+  /** Optional elapsed share of the current autoplay period; absent means no timer frames. */
+  onAutoplayProgress?(progress: number): void
 }
 
 export interface AutoMotion {
@@ -185,6 +187,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   }
 
   const win = ctx.win
+  request.onAutoplayProgress?.(0)
   /*
    * Reduced motion starts paused rather than disabling the feature, which is `slideshow`'s rule:
    * nothing moves on its own, and a visitor who presses the author's play control has asked for
@@ -268,15 +271,28 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   const armAutoplay = (): void => {
     if (timer !== null) return
     timer = win.setTimeout(() => {
-      timer = null
+      clearAutoplay()
       step(autoplayMs > 0 ? 1 : -1)
       update()
     }, Math.abs(autoplayMs))
+    if (request.onAutoplayProgress) {
+      const startedAt = Date.now()
+      const tickTimer = (): void => {
+        request.onAutoplayProgress!(Math.max(0, Math.min(1, (Date.now() - startedAt) / Math.abs(autoplayMs))))
+        frame = requestFrame(tickTimer)
+      }
+      tickTimer()
+    }
   }
   const clearAutoplay = (): void => {
     if (timer === null) return
     win.clearTimeout(timer)
     timer = null
+    if (request.onAutoplayProgress) {
+      cancelFrame(frame)
+      frame = 0
+      request.onAutoplayProgress(0)
+    }
   }
 
   function update(): void {
@@ -436,6 +452,7 @@ export interface DeckMotionRequest {
   settleMs: number
   /** Step the deck one place. */
   step(direction: 1 | -1): void
+  onAutoplayProgress?: AutoMotionRequest['onAutoplayProgress']
   /**
    * The continuous half, for a deck that has a continuous position to spin (`spin:`). Omitted, the
    * deck has no `spin:` parameter and only `autoplay:` is read.
@@ -517,6 +534,7 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
     advance: request.spin?.advance,
     step,
     setSpinning: request.spin?.setSpinning,
+    onAutoplayProgress: autoplay !== 0 ? request.onAutoplayProgress : undefined,
     onPausedChange: reflectPaused,
   })
 

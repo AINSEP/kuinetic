@@ -58,23 +58,26 @@ export type StepState = 'before' | 'active' | 'after'
  * link ledgers and the inline-style ledger they were both modelled on.
  */
 export interface StepMarker {
-  /** Stamp `before`/`active`/`after` across the tracked elements. Cheap enough to call per flip. */
-  mark(index: number): void
+  /** Stamp state; drift opts controls into live distance without the shape-only offset attribute. */
+  mark(index: number, drift?: number): void
+  /** Update only cached control distances between full marks; never resolves or stamps attributes. */
+  updateDistance(drift: number): void
   /** Give every touched element back the attribute value it had before this instance existed. */
   restore: Cleanup
 }
 
-/** One matched element, numbered within its own parent group. */
+/** One matched element, numbered within its parent or an explicit fixed-size group. */
 interface Placed {
   node: Element
-  parent: Element | null
+  parent: Element | number | null
   position: number
 }
 
 /**
  * Number the matched elements within their own parent groups, and count each group.
  *
- * Position is counted within each matched element's own parent, not across the whole match.
+ * By default, position is counted within each matched element's own parent, not the whole match.
+ * A fixed group size instead numbers controls in flat click order, independent of wrappers.
  * `querySelectorAll` returns document order, so a target naming two parallel groups — the copy
  * lines *and* the dots that track them, which is the shape every scrollytelling layout has — would
  * otherwise number them 0-3 and then 4-7, leaving the second group permanently `after`. Per-parent
@@ -88,11 +91,13 @@ interface Placed {
  * @complexity O(n) time and space in the matched elements.
  * @overallScore 100
  */
-function placeInGroups(nodes: Iterable<Element>): { order: Placed[]; sizes: Map<Element | null, number> } {
+function placeInGroups(
+  nodes: Iterable<Element>, groupSize?: number,
+): { order: Placed[]; sizes: Map<Placed['parent'], number> } {
   const order: Placed[] = []
-  const sizes = new Map<Element | null, number>()
+  const sizes = new Map<Placed['parent'], number>()
   for (const node of nodes) {
-    const parent = node.parentElement
+    const parent = groupSize === undefined ? node.parentElement : Math.floor(order.length / groupSize)
     const position = sizes.get(parent) ?? 0
     sizes.set(parent, position + 1)
     order.push({ node, parent, position })
@@ -131,11 +136,12 @@ function indexWithin(index: number, size: number): number {
  *
  * `resolve` is called per flip rather than once at setup, so a list rendered or reordered after
  * this element was prepared is still picked up. Flips are rare — the caller is expected to guard on
- * the index actually changing — while frames are not.
+ * the index actually changing — while frames use `updateDistance` with the cached control offsets.
  *
  * @param resolve - Produces the current step elements, in document order.
  * @param warn - Optional diagnostic sink, called at most once per marker. Callers prefix their own
  *   effect name, the way every other warning in this library names the attribute to go and fix.
+ * @param groupSize - For controls, use consecutive groups of this many slides instead of parents.
  * @returns A marker; call `restore` from the primitive's teardown.
  * @complexity O(n) per `mark` in the number of step elements; O(n) space in elements ever touched.
  * @overallScore 100
@@ -143,16 +149,20 @@ function indexWithin(index: number, size: number): number {
 export function createStepMarker(
   resolve: () => Iterable<Element>,
   warn?: (message: string) => void,
+  groupSize?: () => number,
 ): StepMarker {
   const ledgers = new Map<Element, AttributeLedger>()
   const styles = new Map<Element, StyleLedger>()
+  const distances: [StyleLedger, number][] = []
   // Once per marker, not once per flip. The condition is a property of the markup, so it is the
   // same on every flip, and a stepper flips as fast as a visitor can press an arrow.
   let warned = false
 
   return {
-    mark(index) {
-      const { order, sizes } = placeInGroups(resolve())
+    mark(index, drift) {
+      const count = groupSize?.()
+      const { order, sizes } = placeInGroups(resolve(), count)
+      distances.length = 0
       if (!warned && warn && new Set(sizes.values()).size > 1) {
         warned = true
         warn(
@@ -177,7 +187,7 @@ export function createStepMarker(
          * arriving here would make it `((index % 0) + 0) % 0` — `NaN`, a silently wrong ring
          * position rather than a crash. Measured, not assumed: see that function's note.
          */
-        const size = sizes.get(parent)!
+        const size = count ?? sizes.get(parent)!
         /*
          * Both facts below are derived from this one number, and that is the point.
          *
@@ -228,7 +238,11 @@ export function createStepMarker(
          */
         const offset = circularOffset(position, local, size)
         style.set('--kui-offset', String(offset))
-        ledger.set(STEP_OFFSET_ATTR, String(offset))
+        if (drift === undefined) ledger.set(STEP_OFFSET_ATTR, String(offset))
+        else {
+          style.set('--kui-step-distance', String(offset - drift))
+          distances.push([style, offset])
+        }
         /*
          * How many places the ring has, published beside the place this element occupies on it.
          *
@@ -254,11 +268,15 @@ export function createStepMarker(
         style.set('--kui-item-count', String(size))
       }
     },
+    updateDistance(drift) {
+      for (const [style, offset] of distances) style.set('--kui-step-distance', String(offset - drift))
+    },
     restore() {
       for (const ledger of ledgers.values()) ledger.restore()
       for (const style of styles.values()) style.restore()
       ledgers.clear()
       styles.clear()
+      distances.length = 0
     },
   }
 }
