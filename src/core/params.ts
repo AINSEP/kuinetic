@@ -204,8 +204,8 @@ function grammarsFor(type: ParamType): readonly ScalarParamType[] {
 const CALC_TYPES = new Set<ScalarParamType>(['length', 'percentage', 'number'])
 
 /**
- * Types whose accepted value is a bare number by the time {@link checkNumericConstraints} sees it,
- * and so can be held to `finite`/`integer`/`minimum`/`maximum`.
+ * Types that can be held to `finite`/`integer`/`minimum`/`maximum` after normalisation.
+ * Unresolved CSS functions are rejected when a constraint needs a concrete number.
  *
  * `'number|percentage'` qualifies precisely *because* {@link normalise} has already turned a
  * percentage into its number: `opacity:150%` is bounded by `maximum: 1` exactly as `opacity:1.5`
@@ -228,7 +228,7 @@ export interface ValidationResult {
  * @param spec - The parameter's declared type, default, and target custom property.
  * @returns The accepted value, or the declared default with a reason when rejected. Never throws
  *   and never returns an unvalidated string.
- * @complexity O(n) time in value length; O(1) space.
+ * @complexity O(n) time in value length; O(d) stack space for numeric function nesting depth d.
  * @overallScore 100
  */
 export function validate(raw: string, spec: ParamSpec): ValidationResult {
@@ -457,12 +457,15 @@ function isAcceptable(value: string, type: ParamType): boolean {
   if (type === 'color') return isColor(value)
   if (type === 'easing') return EASING_KEYWORD.test(value) || EASING_FUNCTION.test(value)
 
-  // A union passes if *any* of its grammars matches, and admits `calc()` if any of them does.
+  // A union passes if *any* of its grammars matches, and admits numeric functions if any does.
   // A scalar type is the one-member case of the same thing, so there is one code path.
   const grammars = grammarsFor(type)
   if (grammars.some((grammar) => PATTERNS[grammar]?.test(value))) return true
   if (!grammars.some((grammar) => CALC_TYPES.has(grammar))) return false
-  return isSafeCalc(value) && isWellFormedCalc(value)
+  return (
+    (value.startsWith('calc(') || value.startsWith('var(')) &&
+    nextCalcToken(value, 0, value.length) === value.length
+  )
 }
 
 /**
@@ -533,8 +536,8 @@ export function isSameOriginPath(value: string): boolean {
 function checkNumericConstraints(value: string, spec: ParamSpec): ValidationResult {
   if (!BOUNDED_TYPES.has(spec.type)) return { value, ok: true }
   const numeric = Number(value)
-  if (spec.finite && !Number.isFinite(numeric)) return reject(spec, 'expected a finite number')
-  if (spec.integer && !Number.isInteger(numeric)) return reject(spec, 'expected an integer')
+  const rejection = checkConcreteNumber(numeric, spec)
+  if (rejection) return rejection
   if (spec.minimum !== undefined && numeric < spec.minimum) {
     return reject(spec, `expected at least ${spec.minimum}`)
   }
@@ -544,62 +547,80 @@ function checkNumericConstraints(value: string, spec: ParamSpec): ValidationResu
   return { value, ok: true }
 }
 
+/** Constraints requiring a concrete number must reject unresolved CSS functions. */
+function checkConcreteNumber(numeric: number, spec: ParamSpec): ValidationResult | null {
+  if (spec.finite && !Number.isFinite(numeric)) return reject(spec, 'expected a finite number')
+  if (spec.integer && !Number.isInteger(numeric)) return reject(spec, 'expected an integer')
+  if (hasUnresolvedBounds(numeric, spec)) {
+    return reject(spec, 'expected a number for numeric bounds')
+  }
+  return null
+}
+
+/** An unresolved CSS function cannot be compared with a declared numeric bound. */
+function hasUnresolvedBounds(numeric: number, spec: ParamSpec): boolean {
+  return Number.isNaN(numeric) && (spec.minimum !== undefined || spec.maximum !== undefined)
+}
+
 function reject(spec: ParamSpec, reason: string): ValidationResult {
   return { value: spec.default, ok: false, reason }
 }
 
 /**
- * Tokenize the deliberately small supported `calc()` grammar without regex backtracking.
+ * Scan a numeric function body, including nested `var()` and `calc()` tokens.
  *
  * @param value - Candidate numeric value.
- * @returns Whether it contains only arithmetic text and exact `var(--name)` references.
- * @complexity O(n) time in value length; O(1) space.
+ * @returns The index after the closing paren, or `-1` for unsafe or unbalanced text.
+ * @complexity O(n) time in body length; O(d) stack space for nesting depth d.
  * @overallScore 100
  */
-function isSafeCalc(value: string): boolean {
-  if (!value.startsWith('calc(') || !value.endsWith(')')) return false
-
-  const end = value.length - 1
-  let index = 'calc('.length
+function consumeCalcBody(value: string, index: number, end: number): number {
   while (index < end) {
+    if (value[index] === ')') return index + 1
     index = nextCalcToken(value, index, end)
-    if (index < 0) return false
+    if (index < 0) return -1
   }
-  return true
+  return -1
 }
 
 /**
- * Advance over one calc character or variable token.
+ * Advance over one arithmetic character, variable, or nested calc token.
  *
  * @param value - Whole `calc()` candidate.
  * @param index - Current body index.
- * @param end - Exclusive end of the calc body.
+ * @param end - Exclusive end of the candidate.
  * @returns The next index, or `-1` when the token is unsupported.
- * @complexity O(n) time for a variable token; O(1) space.
+ * @complexity O(n) time for a function token; O(d) stack space for nesting depth d.
  * @overallScore 100
  */
 function nextCalcToken(value: string, index: number, end: number): number {
   if (value.startsWith('var(', index)) return consumeVar(value, index, end)
-  // Only called from `isSafeCalc`'s `while (index < end)` loop, and `end < value.length`, so
-  // `value[index]` is always in-bounds.
+  if (value.startsWith('calc(', index)) {
+    const start = index + 'calc('.length
+    const close = consumeCalcBody(value, start, end)
+    return close > 0 && isWellFormedCalc(value, start, close - 1) ? close : -1
+  }
+  // Callers only advance while the index is within the candidate.
   return CALC_CHARACTER.test(value[index]!) ? index + 1 : -1
 }
 
 /**
- * Consume one `var(--name)` token.
+ * Consume one `var(--name[, fallback])` token, screening the entire fallback recursively.
  *
  * @param value - Whole `calc()` candidate.
  * @param start - Index of the `v` in `var(`.
- * @param end - Exclusive end of the calc body.
+ * @param end - Exclusive end of the candidate.
  * @returns The first index after the token, or `-1` when malformed.
- * @complexity O(n) time in token length; O(1) space.
+ * @complexity O(n) time in token length; O(d) stack space for nesting depth d.
  * @overallScore 100
  */
 function consumeVar(value: string, start: number, end: number): number {
-  const close = value.indexOf(')', start + 'var('.length)
-  if (close < 0 || close >= end) return -1
-  const name = value.slice(start + 'var('.length, close)
-  return CUSTOM_PROPERTY_NAME.test(name) ? close + 1 : -1
+  const nameStart = start + 'var('.length
+  let index = nameStart
+  while (index < end && value[index] !== ',' && value[index] !== ')') index++
+  if (index === end || !CUSTOM_PROPERTY_NAME.test(value.slice(nameStart, index).trim())) return -1
+  if (value[index] === ')') return index + 1
+  return consumeCalcBody(value, index + 1, end)
 }
 
 /**
@@ -609,20 +630,19 @@ function consumeVar(value: string, start: number, end: number): number {
  * calc is not a security problem — CSS drops it at computed-value time — but accepting it
  * silently means the author sees no animation and no warning, which is the worst outcome.
  *
- * Only reached after `isSafeCalc` already tokenized `value` successfully (short-circuit `&&` at
- * the call site): its tokenizer accepts an outer `calc(`/`)` pair plus, for each `var(...)`
- * token, only ones whose closing paren `consumeVar` already located — so by construction every
- * paren here is already balanced, and there is nothing left to check but emptiness and a
- * trailing operator.
+ * Called for each nested calc after its body has been tokenized, so all parentheses and
+ * fallbacks have already been screened. Only emptiness and a trailing operator remain.
  *
- * @param value - A string already accepted by the safe calc tokenizer.
+ * @param value - The whole candidate, already screened by the safe numeric tokenizer.
+ * @param start - First character of this calc body.
+ * @param end - Exclusive end of this calc body.
  * @returns Whether the body is non-empty and has no dangling trailing operator.
  * @complexity O(n) time in value length; O(1) space.
  * @overallScore 100
  */
-function isWellFormedCalc(value: string): boolean {
-  const body = value.slice('calc('.length, -1).trim()
-  return body !== '' && !/[+\-*/]$/.test(body)
+function isWellFormedCalc(value: string, start: number, end: number): boolean {
+  while (end > start && /\s/.test(value[end - 1]!)) end--
+  return end > start && !/[+\-*/]/.test(value[end - 1]!)
 }
 
 /**

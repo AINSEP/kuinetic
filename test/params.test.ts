@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { decimalNumber, isSameOriginPath, resolveParams, validate } from '../src/core/params.js'
 import type { ParamSpec, ParameterSchema } from '../src/core/types.js'
+import { ABSOLUTE_BASIS, readParams, toNumber, toPixels } from '../src/core/js-params.js'
+import { parse } from '../src/core/parse.js'
+import { stickyParams } from '../src/effects/scroll-mechanics/params.js'
 
 const length: ParamSpec = { type: 'length', default: '24px', cssProperty: '--kui-distance' }
 const time: ParamSpec = { type: 'time', default: '600ms', cssProperty: '--kui-duration' }
@@ -36,6 +39,87 @@ describe('validate', () => {
 
   it('accepts var() references inside calc', () => {
     expect(validate('calc(var(--gap) * 2)', length).ok).toBe(true)
+  })
+
+  describe('numeric CSS functions', () => {
+    const values = [
+      'var(--x)',
+      'var(--x, 0px)',
+      'var(--x, var(--y))',
+      'var(--x, var(--y, 2px))',
+      'var(--x, calc(2px + 2vh))',
+      'var(--x, calc(var(--y, 2px) + 2vh))',
+      'calc(var(--x))',
+      'calc(var(--x, 0px) + 2vh)',
+      'calc(var(--x, var(--y, 2px)) + 2vh)',
+      'calc(var(--x, calc(var(--y, 2px) + 2vh)) * 2)',
+      'var( --x , 0px )',
+    ]
+
+    it.each(values)('accepts %s unchanged wherever calc is admitted', (value) => {
+      for (const type of ['length', 'percentage', 'number', 'length|percentage', 'number|percentage'] as const) {
+        expect(validate(value, { ...length, type })).toEqual({ value, ok: true })
+      }
+    })
+
+    it.each(values)('survives attribute parsing and both parameter readers: %s', (value) => {
+      const parsed = parse(`pin offset-top:${value}`)
+      expect(parsed.warnings).toEqual([])
+      const authored = parsed.specs[0]!.params
+      const warnings: string[] = []
+      expect(resolveParams(authored, stickyParams, (m) => warnings.push(m)))
+        .toEqual({ '--kui-offset-top': value })
+      expect(readParams(authored, stickyParams, (m) => warnings.push(m))['offset-top']).toBe(value)
+      expect(warnings).toEqual([])
+      // JS accessors deliberately do not evaluate CSS functions; preserve their fallback behavior.
+      expect(toPixels(value, ABSOLUTE_BASIS, 7)).toBe(7)
+      expect(toNumber(value, 7)).toBe(7)
+    })
+
+    it.each([
+      'var(notaproperty)', 'var(--)', 'var(--x extra, 0px)',
+      'var(--x', 'var(--x))', 'var(--x) + 2px',
+      'var(--x, var(--y, 0px)', 'var(--x, calc(2px + 2vh)',
+      'calc(var(--x, 0px) + 2vh', 'calc(var(--x, 0px)) extra',
+      'var(--x, (2px))', 'var(--x, calc())', 'var(--x, calc(2px +))',
+      'calc(var(--x, var(nope, 0px)))', 'calc(var(--x, 0px) +)',
+    ])('rejects malformed or unsupported functions: %s', (value) => {
+      expect(validate(value, length)).toMatchObject({ value: length.default, ok: false })
+    })
+
+    it.each([
+      'url(https://evil.test)', 'URL (https://evil.test)', '0px; color:red',
+      '{0px}', '0px}', '{0px', '"0px"', "'0px'", '0px/*comment*/',
+      'expression(alert(1))', 'image-set(foo)', '@import evil', '<style>',
+    ])('screens unsafe text throughout nested fallbacks: %s', (fallback) => {
+      for (const value of [
+        `var(--x, ${fallback})`,
+        `calc(var(--x, var(--y, calc(${fallback}))) + 2vh)`,
+      ]) {
+        expect(validate(value, length)).toMatchObject({ value: length.default, ok: false })
+      }
+    })
+
+    it('applies the 200 character limit to the entire fallback', () => {
+      const value = `var(--x, ${'0'.repeat(188)}px)`
+      expect(value).toHaveLength(200)
+      expect(validate(value, length)).toEqual({ value, ok: true })
+      expect(validate(value.replace('px', '0px'), length).reason).toBe('value exceeds 200 characters')
+    })
+
+    it.each(['var(--x)', 'var(--x, 2)', 'calc(2 + 2)', 'calc(var(--x, calc(2 + 2)))'])(
+      'keeps numeric constraints effective for %s', (value) => {
+        for (const type of ['number', 'number|percentage'] as const) {
+          for (const constraint of [{ finite: true }, { integer: true }, { minimum: 0 }, { maximum: 10 }]) {
+            expect(validate(value, { ...length, type, ...constraint }).ok).toBe(false)
+          }
+        }
+      },
+    )
+
+    it.each([time, angle, angleWithLiterals, color, keyword])('does not admit numeric functions for $type', (spec) => {
+      expect(validate('var(--x, 0)', spec).ok).toBe(false)
+    })
   })
 
   it('rejects adversarial calc input in bounded time', () => {

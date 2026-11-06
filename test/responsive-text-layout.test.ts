@@ -354,6 +354,35 @@ describe('responsive split lines and flip indicator', () => {
     expect(el.querySelector('em')).toBe(originalChild)
   })
 
+  it('carries an inline wrapper onto a line starting at its first word', () => {
+    const { el, setWidth } = makeText()
+    el.innerHTML = 'alpha <em title="keep">bravo charlie</em>'
+    const original = el.innerHTML
+    const emphasis = el.querySelector('em')
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) { return /^(bravo|charlie)$/.test(this.textContent ?? '') ? 20 : 0 },
+    })
+    const instance = activateLines(el)
+    const check = (): void => {
+      const lines = Array.from(el.querySelectorAll('.kui-split-line'))
+      expect(lines.map((line) => line.textContent?.trim())).toEqual(['alpha', 'bravo charlie'])
+      // Starting the range inside <em> would leave an empty clone on the preceding line.
+      expect(lines[0]!.querySelector('em')).toBeNull()
+      expect(lines[1]!.querySelector(':scope > em[title="keep"]')?.textContent).toBe('bravo charlie')
+      expect(el.querySelectorAll('.kui-split-decorative em')).toHaveLength(1)
+      expect(el.querySelector('.kui-split-decorative')?.textContent).toBe('alpha bravo charlie')
+    }
+    check()
+    setWidth(200)
+    FakeResizeObserver.instances[0]!.fire()
+    vi.advanceTimersByTime(16)
+    check()
+    instance.destroy()
+    expect(el.innerHTML).toBe(original)
+    expect(el.querySelector('em')).toBe(emphasis)
+  })
+
   it('retains inline emphasis when a visual line bisects it and remeasures the unsplit tree', () => {
     const { el, setWidth } = makeText()
     el.innerHTML = '<strong data-tone="loud">alpha bravo charlie delta</strong>'
