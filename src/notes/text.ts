@@ -23,7 +23,7 @@ export const TEXT_NOTES: ParamNotes = {
   'count-odometer.to': 'The number the rolling digits land on; whole numbers from 0 up, so 2.5 rounds to 3.',
 
   'drop-open.distance': 'How far the element drops down into place as it opens.',
-  'drop-open.radius': 'Distance from the group centre; use distance:0px to fan out from that centre. Parent data-open, open or popover-open opens its direct children.',
+  'drop-open.radius': 'Distance from the group centre; use distance:0px to fan out from that centre.',
   'drop-open.angle': 'Angle of the first item, with -90deg pointing up. Existing cascade: assigns each child its index and stagger.',
   'drop-open.step': 'Angle between items: 60deg gives six items a ring; a smaller step gives an arc.',
 

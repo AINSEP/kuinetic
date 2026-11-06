@@ -5,6 +5,18 @@ import { selectorBreadth } from '../../core/target.js'
 import type { Cleanup, EffectParams, Preset, Primitive } from '../../core/types.js'
 import { effectDelayMs, TRIGGER_DELAY_PARAM, withTimingContract } from '../shared.js'
 
+export const swapOwners = new WeakMap<Element, { version: number; cancel: () => void }>()
+
+/** Only curtain-enabled targets participate; ordinary view-swap retains its own lifecycle. */
+export function reserveSwap(target: Element): () => boolean {
+  // eslint-disable-next-line sonarjs/no-empty-collection -- Curtain registrations populate this exported map from the sibling module.
+  const owner = swapOwners.get(target)
+  if (!owner) return () => true
+  owner.cancel()
+  const version = ++owner.version
+  return () => owner.version === version
+}
+
 /**
  * View Transitions — catalog section L's other half.
  *
@@ -233,7 +245,7 @@ const VIEW_MORPH: Primitive = {
  * @complexity O(1) time and space beyond the one `querySelector`.
  * @overallScore 100
  */
-function resolveSwapTarget(
+export function resolveSwapTarget(
   el: Element,
   params: EffectParams,
   ctx: PrepareContext,
@@ -268,7 +280,7 @@ function resolveSwapTarget(
 }
 
 /** Validate with the DOM's attribute-name grammar without changing the target. */
-function resolveSwapAttribute(params: EffectParams, ctx: PrepareContext): string | undefined {
+export function resolveSwapAttribute(params: EffectParams, ctx: PrepareContext): string | undefined {
   const attribute = params.text('attribute', 'data-open').trim() || 'data-open'
   try {
     ctx.doc.createAttribute(attribute)
@@ -395,11 +407,11 @@ function runSwap(update: () => void, type: string, ctx: PrepareContext, backward
   void Promise.allSettled([transition.ready, transition.finished, transition.updateCallbackDone])
 }
 
-function resolveSwapValues(params: EffectParams, ctx: PrepareContext): { value: string; values: string[] } | undefined {
+export function resolveSwapValues(params: EffectParams, ctx: PrepareContext, next = false): { value: string; values: string[] } | undefined {
   const value = params.text('value', '').trim()
   const list = params.text('values', '').trim()
   const values = list ? list.split(/\s+/) : []
-  if (list && !values.includes(value)) {
+  if (list && !values.includes(value) && !(next && value === 'next')) {
     ctx.warn('view-swap value must occur in the space-separated values list')
     return undefined
   }
@@ -453,9 +465,10 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
 
   const swap = (): void => {
     const current = target.getAttribute(attribute)
+    const currentRequest = reserveSwap(target)
     if (keyed.value && current === keyed.value) return
     const backward = keyed.values.indexOf(keyed.value) < keyed.values.indexOf(current ?? '')
-    runSwap(flip, type, ctx, backward)
+    runSwap(() => { if (currentRequest()) flip() }, type, ctx, backward)
   }
 
   /*
@@ -513,7 +526,7 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
  * interaction-reveal families did: an honest record of *when* the channel is held is worth having
  * before a second `view-transition-run` claimant ever exists, not retrofitted the day one does.
  */
-const VIEW_SWAP: Primitive = {
+export const VIEW_SWAP: Primitive = {
   id: 'view-swap',
   /** Its own channel — see `view-morph`'s, above, for why the two are not the same one. */
   channels: ['view-transition-run'],

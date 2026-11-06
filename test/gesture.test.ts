@@ -105,6 +105,57 @@ describe('velocityFrom', () => {
   })
 })
 
+describe('opt-in drag axis and cancellation contracts', () => {
+  it('ends a second-pointer interruption once and suppresses velocity only for opted-in consumers', () => {
+    for (const cancelVelocity of [true, false]) {
+      const el = document.createElement('div')
+      const onEnd = vi.fn()
+      const stop = recognise(el, { onEnd }, { cancelVelocity }, deps)
+      const send = (type: string, id: number, x: number, y: number) => {
+        const event = pointer(type, x, y)
+        Object.defineProperty(event, 'pointerId', { value: id })
+        el.dispatchEvent(event)
+      }
+      clock = 0
+      send('pointerdown', 1, 0, 0)
+      clock = 100
+      send('pointermove', 1, 50, 20)
+      send('pointerdown', 2, 70, 30)
+      send('pointerup', 1, 50, 20)
+      expect(onEnd).toHaveBeenCalledOnce()
+      expect(onEnd.mock.calls[0]![0]).toMatchObject({ vx: cancelVelocity ? 0 : 500, vy: cancelVelocity ? 0 : 200 })
+      stop()
+    }
+  })
+  it('locks ties to x, preserves that axis in release velocity, and resets for a new gesture', () => {
+    const el = document.createElement('div')
+    const onMove = vi.fn()
+    const onEnd = vi.fn()
+    const stop = recognise(el, { onMove, onEnd }, { lock: 'dominant' }, deps)
+    drag(el, [[0, 0, 0], [3, 3, 10], [10, 50, 30]])
+    expect(onMove.mock.calls[0]![0]).toMatchObject({ dx: 3, dy: 0, vy: 0 })
+    expect(onEnd.mock.calls[0]![0]).toMatchObject({ dx: 10, dy: 0, vy: 0 })
+    drag(el, [[0, 0, 100], [2, 6, 110]])
+    expect(onEnd.mock.calls[1]![0]).toMatchObject({ dx: 0, dy: 6, vx: 0 })
+    stop()
+  })
+  it('only opts new users into zero velocity on cancellation', () => {
+    for (const cancelVelocity of [true, false]) {
+      const el = document.createElement('div')
+      const onEnd = vi.fn()
+      const stop = recognise(el, { onEnd }, { cancelVelocity }, deps)
+      clock = 0
+      el.dispatchEvent(pointer('pointerdown', 0, 0))
+      clock = 100
+      el.dispatchEvent(pointer('pointermove', 50, 20))
+      el.dispatchEvent(pointer('pointercancel', 50, 20))
+      expect(onEnd).toHaveBeenCalledOnce()
+      expect(onEnd.mock.calls[0]![0]).toMatchObject({ vx: cancelVelocity ? 0 : 500, vy: cancelVelocity ? 0 : 200 })
+      stop()
+    }
+  })
+})
+
 describe('swipeDirection', () => {
   const vector = (vx: number, vy: number): GestureVector => ({ dx: 0, dy: 0, vx, vy })
 

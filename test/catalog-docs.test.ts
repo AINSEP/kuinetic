@@ -260,6 +260,13 @@ describe('docs/catalog.md against the live registry', () => {
     expect(wrong).toEqual([])
   })
 
+  it('keeps the landing counter destination and its printed label aligned with the registry', () => {
+    const index = read('demo/index.html')
+    expect(index).toContain(`${registered.size} named effects from 47 primitive families`)
+    expect(index).toContain(`data-kui="count-up 1600ms to:${registered.size},`)
+    expect(index).toContain(`count-up to:${registered.size}, tween-from spring</span>`)
+  })
+
   it('design.md enumerates exactly the channels the source declares', () => {
     // The channel table is not illustrative — it is the reference for the composition model, and a
     // channel missing from it reads as "this cannot collide with anything", which is the one wrong

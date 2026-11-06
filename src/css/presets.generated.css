@@ -338,6 +338,10 @@
     --kui-damping: 14;
   }
 
+  [data-kui-fx~='curtain'] {
+    --kui-curtain-duration: 450ms;
+  }
+
   [data-kui-fx~='curtain-reveal'] {
     --kui-media-wipe-duration: 600ms;
     --kui-media-wipe-delay: 0ms;

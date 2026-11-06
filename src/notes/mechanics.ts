@@ -28,12 +28,15 @@ export const MECHANICS_NOTES: ParamNotes = {
   'draggable.damping': 'How quickly the spring wobble dies out; lower wobbles longer.',
   'draggable.mass': 'How heavy it feels; higher is slower and swingier.',
   'draggable.axis': 'Limit dragging to sideways only, up and down only, or both.',
+  'draggable.limits': 'Use parent or a box selector for uneven elastic edges, measured at pickup and resize.',
+  'draggable.lock': 'Choose dominant to freeze the stronger axis after the drag threshold, with ties choosing sideways.',
+  'draggable.wrap': 'One or two positive pixel periods wrap the final offset while the author repeats the content.',
   'draggable.bounds': {
     why: 'The furthest, in pixels, it can be pulled from its start; it gets stiffer near the limit.',
     whenOmitted: 'No limit.',
   },
   'draggable.return': {
-    why: 'Spring back to the starting spot when you let go.',
+    why: 'Use true to spring home, or edge with limits to return to the nearest valid offset without momentum.',
     whenOmitted: 'Off: it stays where you drop it.',
   },
   'draggable.inertia': {

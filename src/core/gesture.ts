@@ -41,6 +41,10 @@ export interface GestureOptions {
   /** Movement below this many pixels is a tap, not a drag. */
   threshold?: number
   axis?: Axis
+  /** Freeze the stronger axis at the first threshold-crossing move; ties choose x. */
+  lock?: 'dominant'
+  /** Opt-in: browser cancellation ends at rest instead of launching release inertia. */
+  cancelVelocity?: boolean
   /** Minimum speed, px/s, for a movement to count as a swipe. */
   swipeVelocity?: number
   /** Hold duration in ms before `onLongPress`. Zero disables it. */
@@ -153,6 +157,7 @@ export function recognise(
 ): Cleanup {
   const threshold = options.threshold ?? 4
   const axis = options.axis ?? 'both'
+  let gestureAxis = axis
   const swipeVelocity = options.swipeVelocity ?? 300
   const capturePointer = options.capturePointer ?? true
   const longPressMs = options.longPressMs ?? 0
@@ -175,7 +180,7 @@ export function recognise(
     // Both callers (`onMove`, `onUp`) already guard `if (!origin) return` before calling this.
     const start = origin!
     const { vx, vy } = velocityFrom(samples)
-    return applyAxis({ dx: sample.x - start.x, dy: sample.y - start.y, vx, vy }, axis)
+    return applyAxis({ dx: sample.x - start.x, dy: sample.y - start.y, vx, vy }, gestureAxis)
   }
 
   function clearLongPress(): void {
@@ -196,7 +201,7 @@ export function recognise(
       clearLongPress()
       const last = samples[samples.length - 1]!
       releaseCapture(pointerId)
-      finish({ x: last.x, y: last.y, time: deps.now() })
+      finish({ x: last.x, y: last.y, time: deps.now() }, true)
       return
     }
     if (options.accept && !options.accept(event)) {
@@ -204,6 +209,7 @@ export function recognise(
       return
     }
     origin = sampleOf(event)
+    gestureAxis = axis
     samples = [origin]
     active = false
     longPressFired = false
@@ -291,15 +297,22 @@ export function recognise(
     return true
   }
 
+  function lockVector(vector: GestureVector): GestureVector {
+    if (options.lock !== 'dominant' || axis !== 'both') return vector
+    gestureAxis = Math.abs(vector.dx) >= Math.abs(vector.dy) ? 'x' : 'y'
+    return applyAxis(vector, gestureAxis)
+  }
+
   function onMove(event: PointerEvent): void {
     if (!origin || !firstHearing(event)) return
     const sample = sampleOf(event)
     samples.push(sample)
     if (samples.length > MAX_SAMPLES) samples.shift()
 
-    const vector = vectorNow(sample)
+    let vector = vectorNow(sample)
     if (!active && Math.hypot(vector.dx, vector.dy) < threshold) return
     if (!active) {
+      vector = lockVector(vector)
       active = true
       clearLongPress()
       captureOnDrag(event)
@@ -350,13 +363,15 @@ export function recognise(
     // able to abort the payload.
     releaseCapture(event.pointerId)
     if (!origin) return
-    finish(sampleOf(event))
+    finish(sampleOf(event), event.type !== 'pointerup')
   }
 
   /** Report the gesture's end at `sample` and forget it. `origin` is set. */
-  function finish(sample: Sample): void {
+  function finish(sample: Sample, cancelled = false): void {
     samples.push(sample)
-    reportEnd(vectorNow(sample), sample)
+    const vector = vectorNow(sample)
+    if (cancelled && options.cancelVelocity) { vector.vx = 0; vector.vy = 0 }
+    reportEnd(vector, sample)
     origin = null
     active = false
     longPressFired = false

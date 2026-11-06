@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GESTURE_PRIMITIVES } from '../src/effects/gestures/primitives.js'
 import { createParams } from '../src/core/js-params.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
+import { createStyleLedger } from '../src/core/owned-styles.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
+import { catalogRegistry } from './support/registry.js'
 
 /**
  * Unit coverage for `draggable`, which had none.
@@ -24,23 +28,27 @@ import type { PrepareContext } from '../src/core/effect-context.js'
 const draggable = GESTURE_PRIMITIVES.find((primitive) => primitive.id === 'draggable')!
 
 /** Records every `translate` the primitive writes, in order. */
-function recordingCtx(): { ctx: PrepareContext; writes: string[] } {
+function recordingCtx(el: Element): { ctx: PrepareContext; writes: string[]; properties: Map<string, string> } {
   const writes: string[] = []
+  const properties = new Map<string, string>()
+  const ledger = createStyleLedger(el)
   const ctx = {
     doc: document,
     win: window,
     warn: vi.fn(),
     style: {
       set: (property: string, value: string) => {
+        properties.set(property, value)
         if (property === 'translate') writes.push(value)
+        ledger.set(property, value)
       },
       claim: vi.fn(),
-      restore: vi.fn(),
+      restore: () => ledger.restore(),
       owned: () => [],
     },
     invalidate: vi.fn(),
   } as unknown as PrepareContext
-  return { ctx, writes }
+  return { ctx, writes, properties }
 }
 
 /** The x/y of the most recent write, as numbers. */
@@ -90,21 +98,48 @@ const FAKE_CLOCK: Parameters<typeof vi.useFakeTimers>[0] = {
 /** Long enough for a default spring to reach its rest thresholds and snap onto its target. */
 const SETTLE_MS = 3000
 
-function mount(params: Record<string, string> = {}): {
+/** Layout boxes, including the translate already written by the effect. */
+function boxFixture(el: HTMLElement, large = false) {
+  const box = document.createElement('div')
+  el.before(box)
+  box.append(el)
+  const size = { width: 200, height: 150 }
+  Object.defineProperties(box, {
+    offsetWidth: { get: () => size.width }, offsetHeight: { get: () => size.height },
+    clientWidth: { get: () => size.width }, clientHeight: { get: () => size.height },
+  })
+  vi.spyOn(box, 'getBoundingClientRect').mockImplementation(() => ({ left: 0, top: 0, width: size.width, height: size.height } as DOMRect))
+  vi.spyOn(el, 'getBoundingClientRect').mockImplementation(() => {
+    const pos = latest([el.style.translate || '0px 0px'])
+    const left = (large ? 0 : 20) + pos.x
+    const top = (large ? 0 : 30) + pos.y
+    const width = large ? 500 : 50
+    return { left, top, right: left + width, bottom: top + 40, width, height: 40 } as DOMRect
+  })
+  return size
+}
+
+function mount(params: Record<string, string> = {}, configure?: (el: HTMLElement) => void): {
   el: HTMLElement
   writes: string[]
+  properties: Map<string, string>
+  warn: (message: string) => void
   destroy: () => void
 } {
   const el = document.createElement('div')
   document.body.append(el)
-  const { ctx, writes } = recordingCtx()
+  configure?.(el)
+  const { ctx, writes, properties } = recordingCtx(el)
   const instance = draggable.prepare!(el, createParams(params), ctx)
   instance.activate()
   return {
     el,
     writes,
+    properties,
+    warn: ctx.warn,
     destroy: () => {
       instance.destroy()
+      ctx.style.restore()
       el.remove()
     },
   }
@@ -150,7 +185,7 @@ describe('draggable', () => {
   it('continues from where the element rests when it is picked up again', () => {
     const el = document.createElement('div')
     document.body.append(el)
-    const { ctx, writes } = recordingCtx()
+    const { ctx, writes } = recordingCtx(el)
     // `deferPrepare` means the wiring only happens on `activate()` — the animator decides when a
     // gesture starts listening, the same as every other JS-rendered effect.
     const instance = draggable.prepare!(el, createParams({}), ctx)
@@ -175,7 +210,7 @@ describe('draggable', () => {
   it('tracks the pointer during a re-pickup, not only at the end of it', () => {
     const el = document.createElement('div')
     document.body.append(el)
-    const { ctx, writes } = recordingCtx()
+    const { ctx, writes } = recordingCtx(el)
     // `deferPrepare` means the wiring only happens on `activate()` — the animator decides when a
     // gesture starts listening, the same as every other JS-rendered effect.
     const instance = draggable.prepare!(el, createParams({}), ctx)
@@ -201,7 +236,7 @@ describe('draggable', () => {
   ])('accumulates only along the %s axis it is locked to', (_name, params, expected) => {
     const el = document.createElement('div')
     document.body.append(el)
-    const { ctx, writes } = recordingCtx()
+    const { ctx, writes } = recordingCtx(el)
     const instance = draggable.prepare!(el, createParams(params), ctx)
     instance.activate()
 
@@ -366,5 +401,296 @@ describe('draggable release physics', () => {
     // used whatever the author wrote.
     expect(latest(slack.writes).x).toBeCloseTo(83.33, 2)
     slack.destroy()
+  })
+})
+
+describe('drag review regressions', () => {
+  beforeEach(() => vi.useFakeTimers(FAKE_CLOCK))
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); document.body.innerHTML = '' })
+
+  it.each(['x', 'y'])('keeps the disabled axis still when limits exclude the rest position: axis:%s', axis => {
+    const a = mount({ axis, limits: 'parent' }, el => {
+      boxFixture(el)
+      vi.spyOn(el, 'getBoundingClientRect').mockImplementation(() => {
+        const pos = latest([el.style.translate || '0px 0px'])
+        return { left: 100 + pos.x, top: 100 + pos.y, right: 250 + pos.x, bottom: 250 + pos.y, width: 150, height: 150 } as DOMRect
+      })
+    })
+    drag(a.el, { x: 0, y: 0 }, { x: 40, y: 40 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)[axis === 'x' ? 'y' : 'x']).toBe(0)
+    a.destroy()
+  })
+
+  it('retains an in-range throw on resize, then removes size listeners on destroy', () => {
+    let size: { width: number; height: number }
+    const a = mount({ axis: 'x', limits: 'parent', inertia: 'true' }, el => {
+      size = boxFixture(el)
+      size.width = 600
+    })
+    throwBy(a.el, a.writes, { x: 100, y: 0 })
+    vi.advanceTimersByTime(32)
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(300)
+    const read = vi.mocked(a.el.getBoundingClientRect)
+    a.destroy()
+    const count = a.writes.length
+    read.mockClear()
+    size!.width = 50
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(a.writes).toHaveLength(count)
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('clamps a resized throw destination even when the current offset is still in range', () => {
+    let size: { width: number; height: number }
+    const a = mount({ axis: 'x', limits: 'parent', inertia: 'true' }, el => { size = boxFixture(el); size.width = 600 })
+    throwBy(a.el, a.writes, { x: 100, y: 0 })
+    vi.advanceTimersByTime(32)
+    expect(latest(a.writes).x).toBeLessThan(150)
+    size!.width = 220
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(150)
+    a.destroy()
+  })
+
+  it('remeasures an active drag without starting release springs before the pointer lifts', () => {
+    let size: { width: number; height: number }
+    const a = mount({ axis: 'x', limits: 'parent' }, el => { size = boxFixture(el) })
+    pressAndMove(a.el, { x: 80, y: 0 })
+    size!.width = 100
+    const count = a.writes.length
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(100)
+    expect(a.writes).toHaveLength(count)
+    pointer(a.el, 'pointermove', 100, 0)
+    expect(latest(a.writes).x).toBeGreaterThan(30)
+    pointer(a.el, 'pointerup', 100, 0)
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(30)
+    expect(a.properties.get('touch-action')).toBe('pan-y pinch-zoom')
+    a.destroy()
+  })
+
+  it('uses the injected window size observer, observes both boxes, and disconnects it', () => {
+    const el = document.body.appendChild(document.createElement('div'))
+    const size = boxFixture(el)
+    const observed: Element[] = []
+    const disconnect = vi.fn()
+    let notify = () => {}
+    class SizeObserver {
+      constructor(callback: () => void) { notify = callback }
+      observe(node: Element) { observed.push(node) }
+      disconnect = disconnect
+    }
+    const add = vi.fn()
+    const remove = vi.fn()
+    const { ctx, writes } = recordingCtx(el)
+    ctx.win = { ResizeObserver: SizeObserver, addEventListener: add, removeEventListener: remove } as unknown as Window
+    const instance = draggable.prepare!(el, createParams({ axis: 'x', limits: 'parent' }), ctx)
+    instance.activate()
+    try {
+      expect(observed).toEqual([el.parentElement, el])
+      drag(el, { x: 0, y: 0 }, { x: 120, y: 0 })
+      vi.advanceTimersByTime(SETTLE_MS)
+      size.width = 100
+      notify()
+      vi.advanceTimersByTime(SETTLE_MS)
+      expect(latest(writes).x).toBe(30)
+    } finally { instance.destroy() }
+    expect(disconnect).toHaveBeenCalledOnce()
+    expect(remove).toHaveBeenCalledWith('resize', add.mock.calls[0]![1])
+  })
+
+  it.each(['0', '-10', 'bad', '10 20 30', 'Infinity'])('rejects wrap:%s without breaking the opted-in drag or pinch zoom', wrap => {
+    const a = mount({ wrap, lock: 'dominant' })
+    drag(a.el, { x: 0, y: 0 }, { x: 50, y: 20 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(a.warn).toHaveBeenCalledOnce()
+    expect(latest(a.writes)).toEqual({ x: 50, y: 0 })
+    expect(a.properties.get('touch-action')).toBe('pinch-zoom')
+    a.destroy()
+  })
+
+  it.each(['#missing-box', '['])('warns once for limits:%s and keeps the drag usable', limits => {
+    const a = mount({ limits, lock: 'dominant' })
+    drag(a.el, { x: 0, y: 0 }, { x: 50, y: 20 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(a.warn).toHaveBeenCalledOnce()
+    expect(latest(a.writes)).toEqual({ x: 50, y: 0 })
+    expect(a.properties.get('touch-action')).toBe('pinch-zoom')
+    a.destroy()
+  })
+
+  it('warns for return:edge without limits and preserves the declared touch axis', () => {
+    const a = mount({ axis: 'y', return: 'edge' })
+    drag(a.el, { x: 0, y: 0 }, { x: 50, y: 20 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(a.warn).toHaveBeenCalledOnce()
+    expect(latest(a.writes)).toEqual({ x: 0, y: 20 })
+    expect(a.properties.get('touch-action')).toBe('pan-x pinch-zoom')
+    a.destroy()
+  })
+
+  it('resolves a selector box and handles zero layout metrics with unscaled edges', () => {
+    const a = mount({ limits: '#drag-box' }, el => {
+      boxFixture(el)
+      const box = el.parentElement!
+      box.id = 'drag-box'
+      vi.mocked(box.getBoundingClientRect).mockReturnValue({ left: 0, top: 0, width: 0, height: 0 } as DOMRect)
+      // Zero screen dimensions over non-zero layout dimensions yields the fallback scale of one.
+    })
+    drag(a.el, { x: 0, y: 0 }, { x: 250, y: -150 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)).toEqual({ x: 130, y: -30 })
+    expect(a.warn).not.toHaveBeenCalled()
+    expect(a.properties.get('touch-action')).toBe('pinch-zoom')
+    a.destroy()
+  })
+})
+
+describe('round 2 drag options', () => {
+  beforeEach(() => vi.useFakeTimers(FAKE_CLOCK))
+  afterEach(() => { vi.useRealTimers(); document.body.innerHTML = '' })
+
+  it.each([
+    'drag limits:parent return:edge',
+    'drag lock:dominant',
+    'drag-x limits:parent inertia:true',
+    'drag-x inertia:true wrap:320',
+    'drag inertia:true wrap:"320 240"',
+    'drag lock:dominant, fade-up on:enter',
+  ])('compiles exact batch markup without warnings: %s', source => {
+    expect(compile(parse(source), catalogRegistry(), 'time').warnings).toEqual([])
+  })
+
+  it('damps only outside uneven box edges and returns to the nearest valid offset', () => {
+    const a = mount({ limits: 'parent', return: 'edge' }, el => boxFixture(el))
+    pressAndMove(a.el, { x: 80, y: 40 })
+    expect(latest(a.writes)).toEqual({ x: 80, y: 40 })
+    pointer(a.el, 'pointermove', 250, -150)
+    const over = latest(a.writes)
+    expect(over.x).toBeGreaterThan(130)
+    expect(over.x).toBeLessThan(210)
+    expect(over.y).toBeLessThan(-30)
+    expect(over.y).toBeGreaterThan(-110)
+    pointer(a.el, 'pointerup', 250, -150)
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)).toEqual({ x: 130, y: -30 })
+    a.destroy()
+  })
+
+  it('clamps inertia targets at a wide track edge while allowing elastic overhang', () => {
+    const a = mount({ axis: 'x', limits: 'parent', inertia: 'true' }, el => boxFixture(el, true))
+    throwBy(a.el, a.writes, { x: -250, y: 0 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)).toEqual({ x: -300, y: 0 })
+    expect(Math.min(...a.writes.map(value => Number.parseFloat(value)))).toBeGreaterThan(-380)
+    a.destroy()
+  })
+
+  it('return:edge ignores momentum rather than springing to the origin or coasting', () => {
+    const a = mount({ axis: 'x', limits: 'parent', return: 'edge', inertia: 'true' }, el => boxFixture(el))
+    throwBy(a.el, a.writes, { x: 80, y: 0 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(80)
+    a.destroy()
+  })
+
+  it('remeasures resize while offset without treating the live translate as the rest position', () => {
+    let size: { width: number; height: number }
+    const a = mount({ axis: 'x', limits: 'parent', return: 'edge' }, el => { size = boxFixture(el) })
+    drag(a.el, { x: 0, y: 0 }, { x: 120, y: 0 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    size!.width = 100
+    window.dispatchEvent(new Event('resize'))
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(30)
+    a.destroy()
+  })
+
+  it('keeps the point under the pointer when picking up an elastic overhang', () => {
+    const a = mount({ limits: 'parent' }, el => boxFixture(el))
+    pressAndMove(a.el, { x: 200, y: 0 })
+    pointer(a.el, 'pointerup', 200, 0)
+    const before = latest(a.writes).x
+    pointer(a.el, 'pointerdown', 0, 0)
+    pointer(a.el, 'pointermove', 4, 0)
+    expect(latest(a.writes).x).toBeGreaterThan(before)
+    expect(latest(a.writes).x - before).toBeLessThan(4)
+    a.destroy()
+  })
+
+  it('locks a near diagonal once, filters release velocity, and chooses again on the next drag', () => {
+    const a = mount({ lock: 'dominant', inertia: 'true' })
+    pointer(a.el, 'pointerdown', 0, 0)
+    pointer(a.el, 'pointermove', 3.1, 3)
+    pointer(a.el, 'pointermove', 20, 100)
+    pointer(a.el, 'pointerup', 20, 100)
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).y).toBe(0)
+    const x = latest(a.writes).x
+    drag(a.el, { x: 0, y: 0 }, { x: 10, y: 40 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBe(x)
+    expect(latest(a.writes).y).toBeGreaterThan(0)
+    a.destroy()
+  })
+
+  it('wraps both signs on both axes and preserves the logical position across pickups', () => {
+    const a = mount({ wrap: '100 80' })
+    drag(a.el, { x: 0, y: 0 }, { x: -130, y: 175 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)).toEqual({ x: 70, y: 15 })
+    drag(a.el, { x: 0, y: 0 }, { x: 50, y: -40 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes)).toEqual({ x: 20, y: 55 })
+    a.destroy()
+  })
+
+  it('wraps every inertia write without a spring travelling backward at the seam', () => {
+    const a = mount({ axis: 'x', wrap: '100', inertia: 'true' })
+    throwBy(a.el, a.writes, { x: 90, y: 0 })
+    vi.advanceTimersByTime(SETTLE_MS)
+    expect(latest(a.writes).x).toBeCloseTo(70, 1)
+    expect(a.writes.every(value => { const x = Number.parseFloat(value); return x >= 0 && x < 100 })).toBe(true)
+    a.destroy()
+  })
+
+  it.each([{ axis: 'x', wrap: '100' }, { axis: 'y', limits: 'parent' }, { lock: 'dominant' }] as Record<string, string>[])('opts new hosts into touch-action: %j', params => {
+    const a = mount(params, el => { boxFixture(el) })
+    const expected = ({ x: 'pan-y pinch-zoom', y: 'pan-x pinch-zoom' } as Record<string, string>)[params.axis ?? 'both'] ?? 'pinch-zoom'
+    expect(a.properties.get('touch-action')).toBe(expected)
+    a.destroy()
+  })
+
+  it('leaves touch-action and measured geometry alone on a plain legacy host', () => {
+    const enabled = mount({ lock: 'dominant' })
+    expect(enabled.properties.get('touch-action')).toBe('pinch-zoom')
+    enabled.destroy()
+    const read = vi.fn()
+    const a = mount({}, el => { el.getBoundingClientRect = read })
+    drag(a.el, { x: 0, y: 0 }, { x: 80, y: 50 })
+    expect(a.properties.has('touch-action')).toBe(false)
+    expect(read).not.toHaveBeenCalled()
+    expect(latest(a.writes)).toEqual({ x: 80, y: 50 })
+    a.destroy()
+  })
+
+  it('pointercancel drops new-option momentum while a plain legacy drag keeps its release behavior', () => {
+    for (const enabled of [true, false]) {
+      const a = mount({ axis: 'x', inertia: 'true', ...(enabled ? { wrap: '1000' } : {}) })
+      pointer(a.el, 'pointerdown', 0, 0)
+      vi.advanceTimersByTime(100)
+      pointer(a.el, 'pointermove', 60, 0)
+      pointer(a.el, 'pointercancel', 60, 0)
+      vi.advanceTimersByTime(SETTLE_MS)
+      expect(latest(a.writes).x).toBeCloseTo(enabled ? 60 : 180, 1)
+      expect(a.el.getAttribute('data-kui-dragging')).toBe('false')
+      a.destroy()
+    }
   })
 })

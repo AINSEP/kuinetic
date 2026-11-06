@@ -18,6 +18,7 @@
 @import './tween.css';
 @import './motion-path.css';
 @import './view-transitions.css';
+@import './curtains.css';
 /* After interaction.css deliberately. `border-draw` seeds a transparent 2px `border` shorthand on
    the host, and `glass` sets the three border longhands on that same box; both live in
    `@layer kui.effects`, so source order decides, and the glass hairline is the one an author who

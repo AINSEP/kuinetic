@@ -1,0 +1,46 @@
+/* Live colour curtains. Every child is generated once; adjacent bands overlap by 2px. */
+@layer kui.effects {
+  .kui-curtain-panel {
+    position: fixed; inset: 0; width: auto; height: auto;
+    margin: 0; padding: 0; border: 0; overflow: hidden; pointer-events: none;
+    z-index: 2147483647; background: transparent; color: var(--kui-curtain-color);
+  }
+  .kui-curtain-panel[data-scope='true'] { position: absolute; border-radius: inherit; }
+  .kui-curtain-panel > i {
+    display: none; position: absolute; inset: 0; background: currentColor;
+    animation: var(--kui-cover) var(--kui-curtain-duration) ease-in-out both;
+  }
+  .kui-curtain-panel > i:first-child { display: block; }
+  .kui-curtain-panel[data-phase='reveal'] > i { animation-name: var(--kui-reveal); }
+  .kui-curtain-panel[data-shape='wipe'] { --kui-cover: kui-panel-wipe-in; --kui-reveal: kui-panel-wipe-out; }
+  .kui-curtain-panel[data-shape='clip-wipe'] { --kui-cover: kui-panel-curve-in; --kui-reveal: kui-panel-curve-out; }
+  .kui-curtain-panel[data-shape='fade'] { --kui-cover: kui-page-fade; --kui-reveal: kui-panel-fade-out; }
+  .kui-curtain-panel[data-shape='iris'] { --kui-cover: kui-panel-iris-in; --kui-reveal: kui-panel-iris-out; }
+  .kui-curtain-panel[data-shape='doors'] { --kui-cover: kui-panel-door-in; --kui-reveal: kui-panel-door-out; }
+  .kui-curtain-panel[data-shape='doors'] > i:nth-child(-n+2) { display: block; width: calc(50% + 2px); right: auto; --kui-door: -101% 0; }
+  .kui-curtain-panel[data-shape='doors'] > i:nth-child(2) { left: auto; right: 0; --kui-door: 101% 0; }
+  .kui-curtain-panel[data-shape='shutter'] { --kui-cover: kui-panel-door-in; --kui-reveal: kui-panel-door-out; }
+  .kui-curtain-panel[data-shape='shutter'] > i { display: block; left: calc(var(--kui-piece) * 100% / 12); width: calc(100% / 12 + 2px); right: auto; --kui-door: 0 -101%; }
+  .kui-curtain-panel[data-shape='shutter'] > i:nth-child(even) { --kui-door: 0 101%; }
+  .kui-curtain-panel:is([data-shape='blinds'], [data-shape='stagger-wipe']) > i {
+    display: block; animation-duration: calc(var(--kui-curtain-duration) * .7);
+    animation-delay: calc(var(--kui-piece) / 11 * var(--kui-curtain-duration) * .3);
+  }
+  .kui-curtain-panel[data-shape='blinds'] { --kui-cover: kui-panel-blind-in; --kui-reveal: kui-panel-blind-out; }
+  .kui-curtain-panel[data-shape='blinds'] > i { top: calc(var(--kui-piece) * 100% / 12); height: calc(100% / 12 + 2px); bottom: auto; }
+  .kui-curtain-panel[data-shape='stagger-wipe'] { --kui-cover: kui-panel-step-in; --kui-reveal: kui-panel-step-out; }
+  .kui-curtain-panel[data-shape='stagger-wipe'] > i { left: calc(var(--kui-piece) * 100% / 12); width: calc(100% / 12 + 2px); right: auto; top: -20px; bottom: auto; height: calc(100% + 40px); border-radius: 0 0 20px 0; }
+  @keyframes kui-panel-wipe-in { from { clip-path: polygon(0 0, -20% 0, 0 100%, 0 100%); } to { clip-path: polygon(0 0, 100% 0, 120% 100%, 0 100%); } }
+  @keyframes kui-panel-wipe-out { from { clip-path: polygon(-20% 0, 100% 0, 100% 100%, 0 100%); } to { clip-path: polygon(100% 0, 100% 0, 100% 100%, 120% 100%); } }
+  @keyframes kui-panel-curve-in { from { clip-path: ellipse(0% 100% at 0% 50%); } to { clip-path: ellipse(150% 150% at 0% 50%); } }
+  @keyframes kui-panel-curve-out { from { clip-path: ellipse(150% 150% at 100% 50%); } to { clip-path: ellipse(0% 100% at 100% 50%); } }
+  @keyframes kui-panel-fade-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes kui-panel-iris-in { from { clip-path: circle(0 at var(--kui-curtain-x) var(--kui-curtain-y)); } to { clip-path: circle(var(--kui-curtain-radius) at var(--kui-curtain-x) var(--kui-curtain-y)); } }
+  @keyframes kui-panel-iris-out { from { clip-path: circle(var(--kui-curtain-radius) at var(--kui-curtain-x) var(--kui-curtain-y)); } to { clip-path: circle(0 at var(--kui-curtain-x) var(--kui-curtain-y)); } }
+  @keyframes kui-panel-door-in { from { translate: var(--kui-door); } to { translate: 0 0; } }
+  @keyframes kui-panel-door-out { from { translate: 0 0; } to { translate: var(--kui-door); } }
+  @keyframes kui-panel-blind-in { from { scale: 1 0; } to { scale: 1 1; } }
+  @keyframes kui-panel-blind-out { from { scale: 1 1; } to { scale: 1 0; } }
+  @keyframes kui-panel-step-in { from { translate: 0 -102%; } to { translate: 0 0; } }
+  @keyframes kui-panel-step-out { from { translate: 0 0; } to { translate: 0 102%; } }
+}

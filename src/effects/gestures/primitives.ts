@@ -10,6 +10,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../co
 import { withTimingContract } from '../shared.js'
 import { announceSwipe } from '../swipe-event.js'
 import type { TimingToken } from '../shared.js'
+import { dragOptions } from './drag-options.js'
 
 /**
  * Gesture and physics primitives.
@@ -131,11 +132,15 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   const config = springFrom(params)
   const bounds = params.num('bounds', 0)
   const returns = params.is('return')
-  const inertia = params.is('inertia')
+  const inertia = params.is('inertia') && !params.is('return', 'edge')
   const resistance = params.num('resistance', 0.55)
   const momentum = params.num('momentum', 0.2)
+  const options = dragOptions(el, params, ctx)
 
   const offset = { x: 0, y: 0 }
+  const destination = { x: 0, y: 0 }
+  const target = (axis: 'x' | 'y', value: number) => (destination[axis] = options.target(axis, value))
+  let dragging = false
   /*
    * Where the element already was when this gesture picked it up.
    *
@@ -157,8 +162,11 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
   function write(next: { x: number; y: number }): void {
     offset.x = next.x
     offset.y = next.y
-    writeOffset(ctx, offset.x, offset.y)
+    const displayed = options.enabled ? options.render(offset) : offset
+    writeOffset(ctx, displayed.x, displayed.y)
   }
+
+  options.onResize(() => { if (!dragging) retarget(runners, destination, options.target) })
 
   const stopRecognising = recognise(
     el,
@@ -166,6 +174,8 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
       onStart() {
         runners.x.stop()
         runners.y.stop()
+        options.pickup()
+        dragging = true
         // Read after `stop()`: a drag begun mid-throw picks up from where the spring had got to,
         // which is the position under the cursor, not where the throw was heading.
         pickup.x = offset.x
@@ -176,16 +186,17 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
         // Resistance applies to total displacement from rest, not to this gesture's own delta —
         // a bounded element already pulled to its limit must not get a fresh budget on re-pickup.
         write({
-          x: resist(pickup.x + vector.dx, bounds, resistance),
-          y: resist(pickup.y + vector.dy, bounds, resistance),
+          x: resist(pickup.x + vector.dx, options.bounded ? 0 : bounds, resistance),
+          y: resist(pickup.y + vector.dy, options.bounded ? 0 : bounds, resistance),
         })
       },
       onEnd(vector) {
+        dragging = false
         el.setAttribute('data-kui-dragging', 'false')
-        settle(runners, offset, vector, { returns, inertia, momentum })
+        settle(runners, offset, vector, { returns, inertia, momentum, target })
       },
     },
-    { axis: params.text('axis', 'both') as 'x' | 'y' | 'both' },
+    { axis: params.text('axis', 'both') as 'x' | 'y' | 'both', lock: options.dominant ? 'dominant' : undefined, cancelVelocity: options.enabled },
   )
 
   ctx.invalidate()
@@ -194,6 +205,7 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
     stopRecognising()
     runners.x.stop()
     runners.y.stop()
+    options.destroy()
     el.removeAttribute('data-kui-dragging')
   }
 }
@@ -201,6 +213,16 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
 /** Past the bound, movement is damped rather than blocked; hard clamping reads as broken. */
 function resist(delta: number, bounds: number, tension: number): number {
   return bounds > 0 ? rubberBand(delta, bounds, tension) : delta
+}
+
+/** Only a changed limit retargets a release; SpringRunner.to preserves its live velocity. */
+function retarget(runners: DragRunners, destination: { x: number; y: number }, target: (axis: 'x' | 'y', value: number) => number): void {
+  for (const axis of ['x', 'y'] as const) {
+    const next = target(axis, destination[axis])
+    if (next === destination[axis]) continue
+    destination[axis] = next
+    runners[axis].to(next)
+  }
 }
 
 /**
@@ -213,14 +235,15 @@ function settle(
   runners: DragRunners,
   offset: { x: number; y: number },
   vector: GestureVector,
-  mode: { returns: boolean; inertia: boolean; momentum: number },
+  mode: { returns: boolean; inertia: boolean; momentum: number; target: (axis: 'x' | 'y', value: number) => number },
 ): void {
+  const { target } = mode
   runners.x.set(offset.x, mode.inertia ? vector.vx : 0)
   runners.y.set(offset.y, mode.inertia ? vector.vy : 0)
 
   if (mode.returns) {
-    runners.x.to(0)
-    runners.y.to(0)
+    runners.x.to(target('x', 0))
+    runners.y.to(target('y', 0))
     return
   }
   /*
@@ -235,8 +258,8 @@ function settle(
    * where it was released" against the one release speed where the bug cannot show.
    */
   const carry = mode.inertia ? mode.momentum : 0
-  runners.x.to(offset.x + vector.vx * carry)
-  runners.y.to(offset.y + vector.vy * carry)
+  runners.x.to(target('x', offset.x + vector.vx * carry))
+  runners.y.to(target('y', offset.y + vector.vy * carry))
 }
 
 /**
@@ -366,11 +389,14 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
       ...springParams,
       axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
       bounds: { type: 'number', default: '0', cssProperty: '--kui-bounds' },
+      limits: { type: 'text', default: '', cssProperty: '--kui-drag-limits' },
+      lock: { type: 'keyword', default: 'none', keywords: ['none', 'dominant'], cssProperty: '--kui-drag-lock' },
+      wrap: { type: 'text', default: '', cssProperty: '--kui-drag-wrap' },
       return: {
         type: 'keyword',
         default: 'false',
         cssProperty: '--kui-return',
-        keywords: ['true', 'false'],
+        keywords: ['true', 'false', 'edge'],
       },
       inertia: {
         type: 'keyword',

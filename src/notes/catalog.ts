@@ -2,7 +2,18 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/ambient.ts`, `media.ts`, `materials.ts`, `transforms.ts`, `view-transitions.ts`. */
 export const CATALOG_NOTES: ParamNotes = {
-  'feedback-wobble.y': 'Vertical displacement on the first wobble; negative values reverse its vertical motion. Direction is authored, not pointer-derived.',
+  'curtain.controls': 'Selector for the element whose state changes; defaults to aria-controls, as view-swap does.',
+  'curtain.attribute': 'Attribute to change only after the colour panel fully covers.',
+  'curtain.value': 'Destination value, or next to advance through values; omit to toggle attribute presence.',
+  'curtain.values': 'Quoted space-separated destination order, shared with view-swap.',
+  'curtain.cover': 'Shape bringing the solid colour in; independent of reveal.',
+  'curtain.reveal': 'Shape removing the solid colour after the state commits.',
+  'curtain.color': 'Fallback panel colour; defaults to var(--accent).',
+  'curtain.colors': 'Quoted space-separated value=colour pairs; colours must contain no whitespace.',
+  'curtain.origin': 'Use click for an iris centred on the pointer; keyboard activation uses centre.',
+  'curtain.scope': 'Keep the curtain inside the controlled element, following its rounded corners.',
+  'curtain.duration': 'Duration of each cover and reveal phase; zero commits synchronously.',
+  'feedback-wobble.y': 'Vertical displacement on the first wobble; negative values reverse its vertical direction.',
   'media-mask.direction': 'Direction the soft reveal edge travels: right by default, or left.',
   'ambient-float.duration': 'How long one full up-and-down drift takes, repeating forever.',
   'ambient-float.distance': 'How far the element drifts up and down.',

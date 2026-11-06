@@ -84,6 +84,11 @@ function cursorDot(name: CursorDotPreset): Bullets {
 }
 
 export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
+  'drop-open': ['Parent data-open, open or popover-open opens its direct children.'],
+  curtain: [
+    'Covers with a solid colour, commits one attribute change, then reveals. Cover and reveal shapes are independent.',
+    'Controls of the same target share one inert panel. Latest request wins; hidden tabs and reduced motion commit immediately.',
+  ],
   'flip-card': [
     'flip-card turns its first two child elements into the front and back faces, and flips between them. No special classes needed.',
     'Already using kui-face-front / kui-face-back classes? Those still work, and they win over the first-two-children rule.',

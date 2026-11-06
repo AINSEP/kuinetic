@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **305** named effects, **46 primitive families** — the table below enumerates all 46,
+**Counts:** **306** named effects, **47 primitive families** — the table below enumerates all 47,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -54,7 +54,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 
 ---
 
-## The 46 primitive families
+## The 47 primitive families
 
 | # | Primitive | Renderer | Channels | Powers |
 |---|---|---|---|---|
@@ -104,6 +104,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 | 44 | `scroll-story` | js | x | scrolling text steps paired with media |
 | 45 | `slow-mo` | js | x | playback-rate control for a subtree |
 | 46 | `spatial-stack` | js | o,f,x | cards receding diagonally into depth — the depth-stack carousel |
+| 47 | `curtain` | js | x | solid colour cover, one state commit, independent reveal shape |
 
 ---
 
@@ -822,14 +823,25 @@ Primitives 9, 10, 13, 15.
 
 ---
 
-## L. Page transitions — 7 names
+## L. Page transitions — 8 names
 
-Primitives 1, 5, 35, 36, plus the View Transitions API.
+Primitives 1, 5, 35, 36, 47, plus the View Transitions API.
 
 `page-fade` · `page-slide` · `curtain-wipe` · `loading-bar` · `smooth-scroll-to` ·
-`page-morph` · `view-swap`
+`page-morph` · `view-swap` · `curtain`
 
-> The first five are ordinary entrance effects that happen to look like a page arriving. The last
+> **Colour panel:** `curtain` shares `view-swap`'s `controls` / `aria-controls`, `attribute`,
+> `value` and quoted space-separated `values` grammar. The panel covers before the state changes.
+> `cover` and `reveal` independently accept `wipe`, `clip-wipe`, `doors`, `fade`, `iris`, `blinds`,
+> `stagger-wipe`, or `shutter`. `scope:true` confines it to the controlled element. `origin:click` follows
+> the pointer for an iris, falling back to centre for keyboard activation. `value:next` cycles
+> `values`; `colors:'one=var(--accent) two=var(--secondary)'` maps destination colours, falling back
+> to `color:var(--accent)`. Map entries cannot contain whitespace. `duration` sets each phase.
+> Controls share one panel per target; latest request wins. Hidden tabs and reduced motion commit
+> once immediately. No snapshots or component logic.
+> A static scope gets owned `position:relative` until teardown, which can reposition its absolute children.
+
+> The first five are ordinary entrance effects that happen to look like a page arriving. The next
 > two are the View Transitions API, which is a different thing entirely: it animates the
 > *relationship* between two states of the page, so a card can become the detail view it links to
 > rather than one thing fading out while another fades in. The browser does all of the work — it
@@ -1848,7 +1860,7 @@ need to track.
 | I Hover & pointer | 35 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
-| L Page transitions | 7 |
+| L Page transitions | 8 |
 | M Navigation | 8 |
 | N 3D & perspective | 12 (+2 planned) |
 | O Forms & inputs | 13 |
@@ -1858,10 +1870,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **305** |
+| **Total shipped** | **306** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **139 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **141 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -1871,6 +1883,19 @@ metadata row, and ships with zero runtime JS on browsers with native timelines.
 
 Fourteen names over four primitives (`draggable`, `swipeable`, `pressable`, `magnetic`), sitting
 outside the lettered A–T sections above. `js`.
+
+For uneven elastic edges, `limits:parent` or a box selector measures the container's inner box
+against the draggable element; a wider track can travel between its two ends. In this mode,
+the `bounds` parameter sets maximum elastic overhang (80px when omitted), while `resistance` keeps its existing
+meaning. Releases target the nearest valid offset, including inertia. `return:edge` ignores
+release momentum and settles to the nearest valid offset; `return:true` still targets the origin.
+`lock:dominant` freezes the stronger axis at the first threshold-crossing move, choosing x on a tie;
+an explicit `axis` takes priority. `wrap:320` or `wrap:'320 240'` gives positive pixel periods;
+only the rendered offset is taken modulo the period, preserving logical inertia across seams.
+The author supplies repeated content around the visible viewport; no items or copies are generated.
+Limits take priority when combined with wrap. Box geometry is read at setup, pickup and resize.
+These options alone opt into axis-based touch-action, preserving pinch zoom, and cancel without release inertia when the
+browser sends pointercancel; old hosts keep their existing touch-action and cancellation behavior.
 
 `drag` · `drag-x` · `drag-y` · `drag-inertia` · `throwable` · `elastic-pull` · `rubber-band` ·
 `snap-back` · `swipe` · `swipe-x` · `swipe-y` · `long-press` · `magnetic` · `magnetic-snap`

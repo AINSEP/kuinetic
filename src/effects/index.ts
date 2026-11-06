@@ -12,6 +12,7 @@ import { registerThreeD } from './three-d/index.js'
 import { registerCarousel } from './carousel/index.js'
 import { registerTween } from './tween/index.js'
 import { registerViewTransitions } from './catalog/view-transitions.js'
+import { registerCurtains } from './catalog/curtains.js'
 import { registerShowcase } from '../showcase/index.js'
 
 export { PRIMITIVES, PRESETS, COMBOS, registerCore } from './catalog/core.js'
@@ -52,6 +53,7 @@ export function createRegistry(): Registry {
   registerForms(registry)
   registerTween(registry)
   registerViewTransitions(registry)
+  registerCurtains(registry)
   registerShowcase(registry)
   return registry
 }
