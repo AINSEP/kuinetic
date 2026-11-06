@@ -719,6 +719,18 @@
       calc(var(--kui-label-swap-dy, 0%) * (var(--kui-label-swap-shown, 0) - 1));
   }
 
+  [data-kui-swap-split] {
+    translate: none;
+    --kui-label-copy: 0;
+  }
+  [data-kui-swap-split][data-kui-swap='to'] { --kui-label-copy: -1; }
+  .kui-label-letter {
+    translate: calc(var(--kui-label-swap-dx, 0%) * (var(--kui-label-swap-shown, 0) + var(--kui-label-copy, 0)))
+      calc(var(--kui-label-swap-dy, 0%) * (var(--kui-label-swap-shown, 0) + var(--kui-label-copy, 0)));
+    transition: translate var(--kui-label-swap-duration, 320ms) var(--kui-label-swap-ease, ease-out)
+      calc(var(--kui-label-swap-lag, 0ms) + var(--kui-i, 0) * var(--kui-label-stagger, 0ms));
+  }
+
   /*
    * `hover-intent`: the hint stays hidden until the pointer has rested, and an early leave cancels
    * it before anything is painted. See the block comment above for why the delay reaching this rule
@@ -840,11 +852,13 @@
      file" check pointed at a block that actually lists every one of them. */
   @media (prefers-reduced-motion: reduce) {
     [data-kui-swap],
+    .kui-label-letter,
     [data-kui-hint],
     [data-kui-preview],
     [data-kui-search-field] {
       transition-duration: 1ms;
     }
+    .kui-label-letter { transition-delay: var(--kui-label-swap-lag, 0ms); }
   }
 
   /* Fine-pointer hover mirrors every `:focus-visible` rule above, verbatim, so mouse and keyboard
@@ -968,6 +982,46 @@
   }
   .kui-cursor-dot-active {
     opacity: 1;
+  }
+
+  .kui-cursor-dot.kui-cursor-enhanced {
+    margin: 0;
+    transform: translate(-50%, -50%);
+    transition: opacity 160ms ease-out, width 160ms ease-out, height 160ms ease-out, border-radius 160ms ease-out;
+  }
+  .kui-cursor-dot[data-kui-cursor-match='rect'] {
+    border-radius: var(--kui-cursor-radius, 4px);
+    background: color-mix(in srgb, var(--accent, currentColor) 20%, transparent);
+  }
+  .kui-cursor-dot.kui-cursor-enhanced[data-kui-cursor-match='text'] {
+    width: 2px;
+    border-radius: 0;
+    background: var(--kui-cursor-color, var(--accent, currentColor));
+  }
+  .kui-cursor-dot.kui-cursor-media {
+    width: var(--kui-cursor-size, 160px);
+    height: auto;
+    aspect-ratio: 4 / 3;
+    border-radius: 0;
+    background: transparent;
+    clip-path: inset(50%);
+    transition: clip-path 200ms ease-out, opacity 160ms ease-out;
+  }
+  .kui-cursor-media[data-kui-cursor-target] { clip-path: inset(0); }
+  .kui-cursor-dot [data-kui-cursor-content] { display: block; width: 100%; }
+  .kui-cursor-media img { display: block; width: 100%; height: auto; }
+  .kui-cursor-dot.kui-cursor-ticker {
+    width: var(--kui-cursor-size, 96px);
+    height: var(--kui-cursor-size, 96px);
+    overflow: clip;
+    color: var(--accent-ink, CanvasText);
+    background: var(--accent, Canvas);
+  }
+  .kui-cursor-dot.kui-cursor-ticker:not([data-kui-cursor-target]) { opacity: 0; }
+  .kui-cursor-ticker [data-kui-cursor-content] {
+    width: max-content;
+    white-space: pre;
+    animation: kui-marquee var(--kui-cursor-period, 2s) linear infinite;
   }
 
   .kui-cursor-dot-follow,

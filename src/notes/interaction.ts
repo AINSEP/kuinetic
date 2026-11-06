@@ -5,6 +5,22 @@ import type { ParamNotes } from '../core/describe.js'
  * `notes/interaction-reveal.ts`), `interaction-states.ts` and `interaction-proximity.ts`.
  */
 export const INTERACTION_NOTES: ParamNotes = {
+  'cursor-follow.over': 'Which descendants supply the hovered shape and content.',
+  'cursor-follow.match': 'Keep the dot size, fit the target box, or match its text height.',
+  'cursor-follow.snap': 'Follow the pointer or spring to the hovered target centre.',
+  'cursor-follow.dot-class': 'Extra style classes on this follower, for size, paint or rich content.',
+  'cursor-lag.over': 'Which descendants supply the hovered shape and content.',
+  'cursor-lag.match': 'Keep the dot size, fit the target box, or match its text height.',
+  'cursor-lag.snap': 'Follow the pointer or spring to the hovered target centre.',
+  'cursor-lag.dot-class': 'Extra style classes on this follower, for size, paint or rich content.',
+  'cursor-label.over': 'Which descendants supply the hovered shape and content.',
+  'cursor-label.match': 'Keep the dot size, fit the target box, or match its text height.',
+  'cursor-label.snap': 'Follow the pointer or spring to the hovered target centre.',
+  'cursor-label.dot-class': 'Extra style classes on this follower, for size, paint or rich content.',
+  'cursor-invert.over': 'Which descendants supply the hovered shape and content.',
+  'cursor-invert.match': 'Keep the dot size, fit the target box, or match its text height.',
+  'cursor-invert.snap': 'Follow the pointer or spring to the hovered target centre.',
+  'cursor-invert.dot-class': 'Extra style classes on this follower, for size, paint or rich content.',
   'pop.press': 'Scale while pressed, including during hover; release returns to the hover or focus scale.',
   'cursor-spotlight.gradient': 'A soft radial glow or fixed conic sectors at the pointer; --kui-spotlight-colors sets the conic stops.',
   'anchored-preview.distance': 'How far the preview travels as it pops in.',
@@ -114,6 +130,7 @@ export const INTERACTION_NOTES: ParamNotes = {
   'label-swap.distance': {
     why: 'How far each label slides as it swaps; 100% is a full label height.',
   },
+  'label-swap.stagger': 'The pause between rolling letters; zero moves each whole label.',
 
   'lift.distance': 'How far the element rises on hover.',
   'lift-shadow.distance': 'How far the element rises on hover.',

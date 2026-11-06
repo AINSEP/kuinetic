@@ -1,8 +1,9 @@
 import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferPrepare } from '../../core/instances.js'
+import { continuousSetup, deferPrepare } from '../../core/instances.js'
 import { frameScheduler, watchElementSize } from '../../core/element-size.js'
+import { staggerRanks } from '../../core/stagger.js'
 import type { SetupResult } from '../../core/instances.js'
 import type { Registry } from '../../core/registry.js'
 import { cssPrimitive, TRIGGER_DELAY_PARAM } from './shared.js'
@@ -238,6 +239,7 @@ function jsTextPrimitive(id: string, channels: string[], options: JsTextPrimitiv
 }
 
 const splitTiming: ParameterSchema = {
+  hold: { type: 'keyword', default: 'false', keywords: ['false', 'true'], cssProperty: '--kui-split-hold' },
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
@@ -272,6 +274,8 @@ const motionParams: ParameterSchema = {
 }
 
 const typewriterParams: ParameterSchema = {
+  words: { type: 'text', default: '', cssProperty: '--kui-words' },
+  interval: { type: 'time', default: '1500ms', cssProperty: '--kui-interval' },
   step: { type: 'time', default: '55ms', cssProperty: '--kui-step' },
   loop: { type: 'keyword', default: 'false', cssProperty: '--kui-loop', keywords: ['true', 'false'] },
   ...TRIGGER_DELAY_PARAM,
@@ -299,6 +303,9 @@ const scrambleParams: ParameterSchema = {
 }
 
 const wordCyclerParams: ParameterSchema = {
+  swap: { type: 'keyword', default: 'fade', keywords: ['fade', 'scramble'], cssProperty: '--kui-word-swap' },
+  order: { type: 'keyword', default: 'start', keywords: ['start', 'end', 'center', 'edges'], cssProperty: '--kui-resolve-order' },
+  step: { type: 'time', default: '40ms', cssProperty: '--kui-step' },
   words: { type: 'text', default: '', cssProperty: '--kui-words' },
   interval: { type: 'time', default: '2200ms', cssProperty: '--kui-interval' },
   // Load-bearing here, not just for symmetry: a cycler has no authored `duration` — `interval:`
@@ -332,13 +339,18 @@ function prepareSplitText(el: Element, params: EffectParams, ctx: PrepareContext
   }
   const doc = el.ownerDocument
   const unit = params.text('unit', 'chars') as SplitUnit
-  if (unit === 'lines') return prepareResponsiveLines(el, params, ctx)
+  if (unit === 'lines' && !params.is('hold')) return prepareResponsiveLines(el, params, ctx)
   const direction = params.text('direction', 'fade')
   const layers = installSplitLayers(el, doc, true)
   layers.decorative.setAttribute('data-kui-split-fx', direction)
   applyStaggerVars(layers.decorative, params)
   const items = appendSpansFor(unit, layers.decorative, doc)
   applySplitMask(items, doc, direction)
+  if (params.is('hold')) {
+    layers.decorative.classList.add('kui-split-held')
+    layers.decorative.style.setProperty('--kui-split-count', String(items.length))
+    return continuousSetup(layers.restore)
+  }
 
   // A `Promise` executor runs synchronously, so `settle` is always assigned before the
   // `setTimeout` callback below or `finish` (both later closures) can ever run.
@@ -522,11 +534,16 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
     )
     return () => {}
   }
-  const loop = params.is('loop')
+  const words = params.text('words', '').split('|').map((word) => word.trim()).filter(Boolean)
+  const loop = params.is('loop') || words.length > 0
   const layers = installSplitLayers(el, el.ownerDocument)
   layers.decorative.classList.add('kui-typewriter')
-  const graphemes = segmentGraphemes(layers.originalText)
+  let wordIndex = 0
+  let graphemes = segmentGraphemes(words[0] ?? layers.originalText)
   let state: TypeState = { index: 0, deleting: false }
+  const requestedStep = stepMsFor(params, graphemes.length, 55)
+  const stepMs = words.length > 0 ? Math.max(1, requestedStep) : requestedStep
+  let rest = 0
   const render = (count: number): void => {
     layers.decorative.textContent = graphemes.slice(0, count).join('')
   }
@@ -537,10 +554,16 @@ function prepareTypewriter(el: Element, params: EffectParams, ctx: PrepareContex
   // `splitRevealFinishMs` already relies on.
   const run = createStepRunner(ctx.win, {
     delayMs: params.timing.delayMs ?? params.ms('delay', 0),
-    stepMs: stepMsFor(params, graphemes.length, 55),
+    stepMs,
     tick: () => {
+      if (rest > 0) { rest -= stepMs; return false }
+      if (state.deleting && state.index === 1 && words.length > 0) {
+        wordIndex = (wordIndex + 1) % words.length
+        graphemes = segmentGraphemes(words[wordIndex]!)
+      }
       const step = nextTypeState(state, graphemes.length, loop)
       state = step
+      if (words.length > 0 && step.deleting && step.index === graphemes.length) rest = params.ms('interval', 1500)
       render(step.index)
       return step.done
     },
@@ -710,6 +733,7 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
     .map((word) => word.trim())
     .filter(Boolean)
   if (words.length === 0) return () => {}
+  if (params.text('swap', 'fade') === 'scramble') return prepareScrambleCycle(el, params, ctx, words)
 
   const layers = installSplitLayers(el, el.ownerDocument)
   const swapMs = 150
@@ -772,6 +796,53 @@ function prepareWordCycler(el: Element, params: EffectParams, ctx: PrepareContex
       cancelPendingSwaps()
       el.classList.remove('kui-word-cycler-swap')
     },
+  }
+}
+
+function prepareScrambleCycle(el: Element, params: EffectParams, ctx: PrepareContext, words: string[]): SetupResult {
+  const layers = installSplitLayers(el, el.ownerDocument)
+  const order = params.text('order', 'start') as 'start' | 'end' | 'center' | 'edges'
+  let index = 0
+  let graphemes = segmentGraphemes(words[index]!)
+  let ranks = staggerRanks(graphemes.length, order)
+  let count = Math.max(...ranks) + 1
+  let resolved = 0
+  let outgoing = false
+  let rest = 0
+  const stepMs = Math.max(1, params.ms('step', 40))
+  const render = (): void => {
+    const frameRanks = outgoing ? ranks.map((rank) => count - 1 - rank) : ranks
+    layers.decorative.textContent = scrambledFrame(graphemes, resolved, SCRAMBLE_CHARSETS.symbols!, Math.random, frameRanks)
+  }
+  render()
+  const run = createStepRunner(ctx.win, {
+    delayMs: params.timing.delayMs ?? params.ms('delay', 0),
+    stepMs,
+    tick: () => {
+      if (rest > 0) rest -= stepMs
+      else {
+        resolved += outgoing ? -1 : 1
+        if (outgoing && resolved < 0) {
+          index = (index + 1) % words.length
+          graphemes = segmentGraphemes(words[index]!)
+          ranks = staggerRanks(graphemes.length, order)
+          count = Math.max(...ranks) + 1
+          resolved = 0
+          outgoing = false
+        }
+        render()
+        if (!outgoing && resolved >= count) {
+          outgoing = true
+          rest = params.ms('interval', 2200)
+        }
+      }
+      return false
+    },
+  })
+  return {
+    cleanup: () => { run.stop(); layers.restore() },
+    finished: run.finished,
+    finish: () => { run.stop(); layers.decorative.textContent = words[index]! },
   }
 }
 

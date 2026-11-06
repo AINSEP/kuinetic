@@ -330,6 +330,15 @@ Primitives 17–19, 13, 23, 24.
 | variable font | `var-weight` `var-width` `var-slant` `var-axis` |
 | structural | `word-cycler` `marquee` `marquee-scroll-linked` `redaction-reveal` `text-3d-extrude` |
 
+`typewriter words:'Websites|Apps|Games'` types and fully deletes each word before advancing, looping the list.
+Use `interval:1500ms` to set how long each completed list word rests before deletion.
+`word-cycler words:'Animate|Spring|Easing' swap:scramble step:40ms` replaces its fade with symbol scrambling.
+Its `order:start|end|center|edges` chooses where letters scramble and resolve, in both directions.
+`split-words hold:true on:load` keeps the split until teardown and lights each word from inherited `--kui-progress`.
+Place it inside `pin-section distance:150vh` to reuse its scroll progress; the held split installs no timers or listeners.
+Authored markup and the accessible reading copy are retained; `hold` uses an opacity scrub instead of timed direction and stagger.
+A held `split-lines` measures once and does not rewrap; prefer words for long text.
+
 > All splitting uses `Intl.Segmenter` (grapheme clusters, not code units), preserves one
 > accessible reading representation, and restores selectable text on cleanup.
 
@@ -597,6 +606,23 @@ Primitives 21, 22, plus CSS.
 | cursor | `cursor-follow` `cursor-lag` `cursor-label` `cursor-spotlight` `cursor-invert` |
 | proximity | `proximity-field` `proximity-glow` |
 
+The four dot followers accept `over:` for descendants supplying per-target shapes and content.
+`match:rect` fits the hovered box; `match:text` uses its font size for a thin caret; `snap:center` springs to its centre.
+Without these options the existing pointer tracking, focus placement, listeners and geometry reads are unchanged.
+The `dot-class:` option adds authors' classes for size and paint to this instance's generated dot.
+Library motion classes remain `kui-cursor-media` (clip reveal for pictures) and `kui-cursor-ticker` (clipped marquee rows).
+An authored class can set `--kui-cursor-size`, `--kui-cursor-radius`, `--kui-cursor-color` and `--kui-cursor-period` on the dot.
+Dots sit under body, so set these on the dot class rather than its host; percentage centering follows the dot's own size.
+Targets may carry `data-kui-cursor-label="View gallery"`, always assigned as plain text.
+For rich content use a live hidden child such as `<span hidden data-kui-cursor-content><img src="city.jpg" alt=""></span>`.
+That existing node moves into the decorative dot while selected, then returns to its authored position and hidden state.
+This is trusted page markup, not an HTML-string or template API; no attribute text is parsed as HTML.
+Keep it decorative: source controls and application behavior belong outside the follower.
+Use ordinary CSS animation on moved rich content; effects registered only inside a narrowly scoped animator root do not travel with it.
+Target rects update on pointer/focus events; text height and content are read on target entry, with no observer or continuous measurement.
+Touch and reduced motion keep the existing opt-out; keyboard focus on a matching descendant shows the follower at its centre.
+Three nested `cursor-lag` hosts with different stiffness/damping already give multifollow; no chain driver is needed.
+
 > Every hover effect ships a `:focus-visible` equivalent and a coarse-pointer fallback.
 
 > **`border-draw`** paints its ring on a masked pseudo-element, not with `border-image`. That is
@@ -625,6 +651,10 @@ Primitives 21, 22, plus CSS.
 > outgoing copy clears the clip exactly as the incoming one lands) plus duration/delay/ease. It
 > claims `discrete` (it pins `display: inline-grid` to stack the copies) and a `label-swap` box
 > channel of its own, so `lift, masked-label-swap` composes and two axes on one host do not.
+
+`masked-label-swap stagger:25ms` rolls grapheme clusters one after another on both hover and leave.
+The default `stagger:0ms` keeps whole-label motion; interactive descendants remain intact.
+The `stagger` option suits the vertical and diagonal presets; on `-x` each letter travels only its own width.
 
 > **`hover-intent`** reveals a hint only once the pointer has *rested* on the trigger — `delay:`
 > defaults to `1000ms` here, the one non-zero delay default in the catalog, because an instant

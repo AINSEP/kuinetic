@@ -5,6 +5,7 @@ import { deferredInstance } from '../../core/instances.js'
 import { createAttributeLedger } from '../../core/owned-styles.js'
 import { queryScoped, resolveTarget } from '../../core/target.js'
 import { attributeChannel } from '../../core/types.js'
+import { appendSpansFor, hasInteractiveDescendant, installSplitLayers } from './text-shared.js'
 import type {
   Cleanup,
   EffectParams,
@@ -133,7 +134,7 @@ function revealPrimitive(
   }: {
     perfClass?: Primitive['perfClass']
     placed?: PlacementSpec
-    setup?: (el: Element) => Cleanup
+    setup?: (el: Element, params: EffectParams, ctx: PrepareContext) => Cleanup
   } = {},
 ): Primitive {
   const contract: TimingContract = {
@@ -157,7 +158,7 @@ function revealPrimitive(
       ? withTimingContract(id, contract, (el, params, ctx) =>
           deferredInstance(() => {
             mirrorTimingToCss(id, ALL_TIMING_TOKENS, params, ctx)
-            return placed ? prepareReveal(el, params, placed, ctx) : setup!(el)
+            return placed ? prepareReveal(el, params, placed, ctx) : setup!(el, params, ctx)
           }),
         )
       : stylesheetTimingPrepare(id, contract),
@@ -640,6 +641,7 @@ function teaseOnEnter(
  * `scroll-progress-bar`/`-y`) and costs the author nothing.
  */
 const labelSwapParams: ParameterSchema = {
+  stagger: { type: 'time', default: '0ms', cssProperty: '--kui-label-stagger' },
   duration: { type: 'time', default: '320ms', cssProperty: '--kui-duration' },
   delay: { type: 'time', default: '0ms', cssProperty: '--kui-delay' },
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
@@ -694,14 +696,33 @@ const labelSwapParams: ParameterSchema = {
  */
 export const LABEL_SWAP_PRIMITIVES: Primitive[] = [
   revealPrimitive('label-swap', ['discrete', 'label-swap'], labelSwapParams, {
-    setup(el) {
+    setup(el, params, ctx) {
+      const restore: Cleanup[] = []
+      const interactive = params.ms('stagger', 0) > 0 && hasInteractiveDescendant(el)
+      if (params.ms('stagger', 0) > 0 && interactive) {
+        ctx.warn('label-swap would remove the link or control inside this element — apply it to a leaf element instead')
+      }
+      if (params.ms('stagger', 0) > 0 && !interactive) {
+        for (const copy of el.querySelectorAll('[data-kui-swap]')) {
+          const attrs = createAttributeLedger(copy)
+          attrs.set('data-kui-swap-split', '')
+          const layers = installSplitLayers(copy, el.ownerDocument, true)
+          for (const item of appendSpansFor('chars', layers.decorative, el.ownerDocument)) {
+            item.classList.add('kui-label-letter')
+          }
+          restore.push(() => { layers.restore(); attrs.restore() })
+        }
+      }
       // The incoming copy is visual only; keep the outgoing label as the accessible name.
       const copies = Array.from(el.querySelectorAll('[data-kui-swap="to"]'), (copy) => {
         const attrs = createAttributeLedger(copy)
         attrs.set('aria-hidden', 'true')
         return attrs
       })
-      return () => copies.forEach((attrs) => attrs.restore())
+      return () => {
+        copies.forEach((attrs) => attrs.restore())
+        restore.forEach((cleanup) => cleanup())
+      }
     },
   }),
 ]

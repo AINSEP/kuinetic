@@ -2,6 +2,7 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/text.ts`, `effects/catalog/numbers.ts`, `effects/catalog/discrete.ts` (this batch's families). */
 export const TEXT_NOTES: ParamNotes = {
+  'split-text.hold': 'Keep the split and light each piece using inherited scroll progress until teardown.',
   'text-gradient-sweep.fill': 'Fill dim glyphs with a hard edge from left to right, using the existing sweep animation.',
   'fade-open.enter-delay': 'Extra wait only when opening; match the outgoing duration for out-then-in order.',
   'fade-open.shape': 'Reveal through a circle or rounded inset in both directions; none keeps the ordinary fade.',
@@ -75,6 +76,8 @@ export const TEXT_NOTES: ParamNotes = {
   },
 
   'typewriter.step': 'How long each typed letter takes; ignored when a total duration is given.',
+  'typewriter.words': 'The words to type and fully delete in turn, separated by |.',
+  'typewriter.interval': 'How long each whole word stays before it deletes.',
   'typewriter.loop': {
     why: 'Delete the text and type it again, over and over.',
     whenOmitted: 'Off: it types once and stops.',
@@ -101,4 +104,7 @@ export const TEXT_NOTES: ParamNotes = {
     required: true,
   },
   'word-cycler.interval': 'How long each word stays before the next one swaps in.',
+  'word-cycler.swap': 'Whether words fade or scramble into the next word.',
+  'word-cycler.order': 'Where letters start scrambling and returning: start, end, centre or edges.',
+  'word-cycler.step': 'The pause between scramble steps.',
 }

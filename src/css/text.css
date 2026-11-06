@@ -55,6 +55,11 @@
     display: block;
   }
 
+  .kui-split-decorative.kui-split-held .kui-split-item {
+    animation: none;
+    opacity: clamp(0.2, calc(var(--kui-progress, 0) * var(--kui-split-count, 1) - var(--kui-i, 0)), 1);
+  }
+
   /* --- split-chars / split-words / split-lines / text-reveal-* --- */
 
   [data-kui-split-fx='fade'] .kui-split-item {

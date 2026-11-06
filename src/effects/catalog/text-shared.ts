@@ -680,18 +680,22 @@ export const SCRAMBLE_CHARSETS: Record<string, string> = {
  * @param resolved - Count of graphemes (from the start) considered final.
  * @param charset - Characters to draw unresolved positions from.
  * @param random - Source of randomness, injected so the frame is reproducible in tests.
+ * @param ranks - Optional per-grapheme resolve ranks; omitted keeps left-to-right resolution.
  * @complexity O(n) time and space in grapheme count.
  * @overallScore 100
  */
+// The optional fifth argument preserves the existing four-argument callers without a union API.
+// eslint-disable-next-line max-params
 export function scrambledFrame(
   graphemes: string[],
   resolved: number,
   charset: string,
   random: () => number,
+  ranks?: number[],
 ): string {
   return graphemes
     .map((grapheme, index) => {
-      if (index < resolved || grapheme.trim() === '') return grapheme
+      if ((ranks?.[index] ?? index) < resolved || grapheme.trim() === '') return grapheme
       return charset[Math.floor(random() * charset.length)] ?? charset[0] ?? grapheme
     })
     .join('')

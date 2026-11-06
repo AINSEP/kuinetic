@@ -9,7 +9,8 @@ import type {
 import type { PrepareContext } from '../../core/effect-context.js'
 import type { Registry } from '../../core/registry.js'
 import { deferPrepare } from '../../core/instances.js'
-import { createStyleLedger } from '../../core/owned-styles.js'
+import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
+import { resolveTarget } from '../../core/target.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import { DEFAULT_SPRING, createSpringRunner, defaultSpringDeps } from '../../core/spring.js'
 import type { SpringConfig, SpringDeps } from '../../core/spring.js'
@@ -521,6 +522,68 @@ function createCursorRunners(dot: HTMLElement, config: SpringConfig, deps: Sprin
   }
 }
 
+function cursorContent(target: Element, dot: HTMLElement): Cleanup {
+  const content = target.querySelector<HTMLElement>('[data-kui-cursor-content]')
+  if (!content) {
+    dot.textContent = target.getAttribute('data-kui-cursor-label') ?? dot.textContent
+    return () => {}
+  }
+  const marker = target.ownerDocument.createComment('cursor content')
+  content.before(marker)
+  const attrs = createAttributeLedger(content)
+  attrs.remove('hidden')
+  dot.replaceChildren(content)
+  return () => { marker.replaceWith(content); attrs.restore() }
+}
+
+function cursorOver(node: HTMLElement, dot: HTMLElement, params: EffectParams, ctx: PrepareContext) {
+  const selector = resolveTarget(params.text('over'), {
+    doc: ctx.doc,
+    warn: (message) => ctx.warn(message.replace(' target ', ' over ')),
+  }, 'cursor follower')
+  if (!selector) return undefined
+  const match = params.text('match', 'none')
+  const needsRect = match === 'rect' || params.text('snap', 'pointer') === 'center'
+  let active: Element | null = null
+  let restore: Cleanup = () => {}
+  dot.classList.add('kui-cursor-enhanced')
+  const reset = (): void => {
+    restore()
+    restore = () => {}
+    active = null
+    dot.textContent = params.text('label', '')
+    dot.removeAttribute('data-kui-cursor-target')
+    dot.removeAttribute('data-kui-cursor-match')
+    dot.style.removeProperty('width')
+    dot.style.removeProperty('height')
+  }
+  const select = (target: Element | null): void => {
+    reset()
+    active = target
+    if (!target) return
+    restore = cursorContent(target, dot)
+    dot.setAttribute('data-kui-cursor-target', '')
+    dot.setAttribute('data-kui-cursor-match', match)
+    if (match === 'text') dot.style.height = ctx.win.getComputedStyle(target).fontSize
+  }
+  return {
+    reset,
+    move(event: Event): DOMRect | undefined {
+      const found = (event.target as Element).closest(selector)
+      const target = found && node.contains(found) ? found : null
+      if (target !== active) select(target)
+      if (!target) return undefined
+      if (!needsRect && event.type === 'pointermove') return undefined
+      const rect = target.getBoundingClientRect()
+      if (match === 'rect') {
+        dot.style.width = `${rect.width}px`
+        dot.style.height = `${rect.height}px`
+      }
+      return rect
+    },
+  }
+}
+
 /**
  * Spring a synthetic dot toward the pointer while hovering, powering `cursor-follow` (tight
  * spring), `cursor-lag` (loose spring, a visible trail), `cursor-label` (same follow, with text),
@@ -536,9 +599,11 @@ function createCursorRunners(dot: HTMLElement, config: SpringConfig, deps: Sprin
  */
 function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext, dotClass: string): Cleanup {
   if (!supportsFineHover(ctx.win)) return () => {}
-  const doc = el.ownerDocument
   const node = el as HTMLElement
-  const dot = createCursorDot(doc, dotClass, params.text('label', ''))
+  const dot = createCursorDot(el.ownerDocument, dotClass, params.text('label', ''))
+  const extraClass = params.text('dot-class', '')
+  if (extraClass) dot.className += ` kui-cursor-enhanced ${extraClass}`
+  const over = cursorOver(node, dot, params, ctx)
   const runners = createCursorRunners(dot, springFrom(params), springDepsFor(ctx))
 
   function show(): void {
@@ -546,14 +611,17 @@ function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext
   }
   function hide(): void {
     dot.classList.remove('kui-cursor-dot-active')
+    over?.reset()
   }
   function onMove(event: PointerEvent): void {
     show()
-    runners.x.to(event.clientX)
-    runners.y.to(event.clientY)
+    const rect = over?.move(event)
+    const snap = rect && params.text('snap', 'pointer') === 'center'
+    runners.x.to(snap ? rect.left + rect.width / 2 : event.clientX)
+    runners.y.to(snap ? rect.top + rect.height / 2 : event.clientY)
   }
-  function onFocus(): void {
-    const rect = node.getBoundingClientRect()
+  function onFocus(event: Event): void {
+    const rect = over?.move(event) ?? node.getBoundingClientRect()
     const cx = rect.left + rect.width / 2
     const cy = rect.top + rect.height / 2
     show()
@@ -561,13 +629,28 @@ function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext
     runners.y.set(cy)
     writeDotPosition(dot, cx, cy)
   }
+  function onFocusOut(event: FocusEvent): void {
+    if (!node.contains(event.relatedTarget as Node | null)) hide()
+  }
+  function onFocusIn(event: FocusEvent): void {
+    if ((event.target as Element).matches(':focus-visible')) onFocus(event)
+  }
 
   node.addEventListener('pointermove', onMove, { passive: true })
   node.addEventListener('pointerleave', hide, { passive: true })
   node.addEventListener('focus', onFocus)
   node.addEventListener('blur', hide)
+  if (over) {
+    node.addEventListener('focusin', onFocusIn)
+    node.addEventListener('focusout', onFocusOut)
+  }
 
   return () => {
+    over?.reset()
+    if (over) {
+      node.removeEventListener('focusin', onFocusIn)
+      node.removeEventListener('focusout', onFocusOut)
+    }
     node.removeEventListener('pointermove', onMove)
     node.removeEventListener('pointerleave', hide)
     node.removeEventListener('focus', onFocus)
@@ -636,6 +719,10 @@ const parallaxParams: ParameterSchema = {
 const cursorDotParams: ParameterSchema = {
   ...springParams,
   label: { type: 'text', default: '', cssProperty: '--kui-label' },
+  over: { type: 'text', default: '', cssProperty: '--kui-cursor-over' },
+  match: { type: 'keyword', default: 'none', keywords: ['none', 'rect', 'text'], cssProperty: '--kui-cursor-match' },
+  snap: { type: 'keyword', default: 'pointer', keywords: ['pointer', 'center'], cssProperty: '--kui-cursor-snap' },
+  'dot-class': { type: 'text', default: '', cssProperty: '--kui-cursor-class' },
 }
 
 export const POINTER_PRIMITIVES: Primitive[] = [
