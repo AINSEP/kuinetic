@@ -341,6 +341,12 @@ function guardClicks(el: Element, enabled: boolean): { arm(): void; release: Cle
  * @returns Teardown for every listener and attribute this installs.
  * @complexity O(1) per pointer event and per key; O(1) space.
  */
+function stopCoastOnPress(coast: ReturnType<typeof freeCoast>): (pressed: boolean) => void {
+  return (pressed) => {
+    if (pressed) coast?.stop()
+  }
+}
+
 export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(): void } {
   const { el, ctx, enabled, travelPx, positionOf, moveTo, setDragging } = request
 
@@ -375,9 +381,7 @@ export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(
     ? recognise(
         el,
         {
-          onPress(pressed) {
-            if (pressed) coast?.stop()
-          },
+          onPress: stopCoastOnPress(coast),
           onStart() {
             beginPickup(request, coast)
             dragFrom = positionOf()

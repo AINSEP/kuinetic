@@ -8,7 +8,7 @@ import { parse } from '../src/core/parse.js'
 import { catalogRegistry } from './support/registry.js'
 
 let animator: Animator | undefined
-function mount(effect: string, count = 12, slide = '<a href="#art"><img alt="Art"></a>', after = '', hostStyle = '') {
+function mount(effect: string, { count = 12, slide = '<a href="#art"><img alt="Art"></a>', after = '', hostStyle = '' } = {}) {
   document.body.innerHTML = `<div data-kui="${effect}" style="${hostStyle}">${slide.repeat(count)}</div>${after}`
   const host = document.body.firstElementChild as HTMLElement
   Object.defineProperty(host, 'offsetWidth', { value: 600 })
@@ -60,7 +60,7 @@ it('places a line from measured centres, recycles only past its faded end, and r
 
 it('keeps a card that is still on the line through a long jump', () => {
   const buttons = Array.from({ length: 12 }, (_, i) => `<button class="dot">${i}</button>`).join('')
-  const { host } = mount('carousel-loop shape:line jump:.dot', 12, undefined, buttons)
+  const { host } = mount('carousel-loop shape:line jump:.dot', { after: buttons })
   const card = host.children[8] as HTMLElement
   expect(place(host, card)).toBe(-720)
   const cycle = card.style.getPropertyValue('--kui-row-cycle')
@@ -70,7 +70,7 @@ it('keeps a card that is still on the line through a long jump', () => {
 })
 
 it('stays a static line that never fades when too short to loop, and says so once', () => {
-  const { host, reporter } = mount('carousel-loop shape:line', 3)
+  const { host, reporter } = mount('carousel-loop shape:line', { count: 3 })
   expect(reporter.messages.join()).toContain('at least six cards')
   expect(host.getAttribute('data-kui-row-static')).toBe('true')
   expect(host.style.getPropertyValue('--kui-line-high')).toBe('1000000px')
@@ -94,15 +94,15 @@ it('fades near the camera before a card can reach it, on whichever end depth bri
 })
 
 it('names a property that flattens the line host', () => {
-  const { reporter } = mount('carousel-loop shape:line', 12, undefined, '', 'overflow: hidden')
+  const { reporter } = mount('carousel-loop shape:line', { hostStyle: 'overflow: hidden' })
   expect(reporter.messages.join()).toContain('shape:line overflow flattens the host')
 })
 
 it('copies far enough to cover the view twice', () => {
   const image = '<img src="/art.jpg" alt="Art">'
-  expect(mount('carousel-loop copies:auto', 3, image).host.querySelectorAll('[data-kui-row-copy]').length).toBe(3)
+  expect(mount('carousel-loop copies:auto', { count: 3, slide: image }).host.querySelectorAll('[data-kui-row-copy]').length).toBe(3)
   animator!.destroy()
-  const line = mount('carousel-loop shape:line copies:auto', 3, image).host
+  const line = mount('carousel-loop shape:line copies:auto', { count: 3, slide: image }).host
   expect(line.querySelectorAll('[data-kui-row-copy]').length).toBe(9)
   expect(line.getAttribute('data-kui-row-static')).toBe('false')
 })
