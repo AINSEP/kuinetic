@@ -599,4 +599,51 @@
   [data-kui-ring-shape='helix'] [data-kui-step-offset][data-kui-ring-wrap='true'] > * {
     transition: none;
   }
+  [data-kui-ring-shape='sphere'] {
+    scale: var(--kui-shape-fit, 1);
+    min-block-size: var(--kui-shape-height, calc(2 * var(--kui-sphere-radius, 200px) + var(--kui-item-height, 180px)));
+  }
+  [data-kui-ring-shape='sphere'] [data-kui-step-offset] {
+    --kui-ring-radius: var(--kui-sphere-radius, 200px);
+    backface-visibility: visible;
+    transform: rotateX(calc(var(--kui-ring-tilt) + var(--kui-sphere-pitch, 0deg))) rotateY(var(--kui-ring-angle))
+      rotateX(var(--kui-sphere-lat, 0deg)) translateZ(var(--kui-ring-radius));
+  }
+  [data-kui-ring-shape='sphere'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen']) [data-kui-step-offset] > * {
+    transform: rotateX(calc(-1 * var(--kui-sphere-lat, 0deg))) rotateY(calc(-1 * var(--kui-ring-angle)))
+      rotateX(calc(-1 * (var(--kui-ring-tilt) + var(--kui-sphere-pitch, 0deg))));
+  }
+  [data-kui-row-shape='line'] {
+    overflow: visible;
+    perspective: var(--kui-perspective, 1600px);
+    transform-style: preserve-3d;
+    align-items: center;
+    min-block-size: var(--kui-line-height, 300px);
+  }
+  [data-kui-fx~='carousel-loop'][data-kui-row-shape='line'][data-kui-row-static='true'] {
+    overflow: visible;
+  }
+  [data-kui-row-shape='line'] > :is([data-kui-step-offset], [data-kui-row-copy]) {
+    --kui-line-place: calc(var(--kui-row-centre) + var(--kui-row-cycle, 0px) + var(--kui-row-x, 0px) - var(--kui-row-width) / 2);
+    /* Distance to the nearer end of the line. tan(atan2()) divides two lengths in every browser. */
+    --kui-line-room: min(var(--kui-line-high) - var(--kui-line-place), var(--kui-line-place) - var(--kui-line-low));
+    /* The scale collapses a faded card, so it cannot take a click or reach the camera. */
+    transform: translate3d(calc(var(--kui-row-x, 0px) + var(--kui-row-cycle, 0px)),
+      calc(var(--kui-line-place) * var(--kui-line-rise-ratio)),
+      calc(-1 * var(--kui-line-place) * var(--kui-line-depth-ratio))) rotateY(var(--kui-line-yaw, -25deg))
+      scale(clamp(0, tan(atan2(var(--kui-line-room), 1px)), 1));
+    opacity: clamp(0, tan(atan2(var(--kui-line-room), var(--kui-line-fade))), 1);
+    transition-property: transform, opacity;
+  }
+  /* The line's function list, so a switch interpolates; the flex row stays the layout in both. */
+  [data-kui-row-arrangement='column'] > [data-kui-step-offset] {
+    transform: translate3d(calc(var(--kui-row-width) / 2 - var(--kui-row-centre)),
+      calc(var(--kui-column-place) - var(--kui-column-y)), 0px) rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+  [data-kui-row-flight='true']:not([data-kui-ring-wrap='true'], [data-kui-ring-dragging='true']) > [data-kui-step-offset]:not([data-kui-ring-wrap='true']) {
+    transition: transform var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease),
+      opacity var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease);
+    transition-delay: calc(var(--kui-flight-rank, 0) * 24ms);
+  }
 }

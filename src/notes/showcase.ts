@@ -6,7 +6,8 @@ import type { ParamNotes } from '../core/describe.js'
  * step-progress).
  */
 export const SHOWCASE_NOTES: ParamNotes = {
-  'spatial-ring.shape': 'Places cards on the usual ring or an outward vertical helix.',
+  'spatial-ring.shape': 'Places cards on the usual ring, an outward vertical helix or a sphere.',
+  'spatial-ring.drag-axis': 'Lets a drag also tumble a sphere vertically when set to both.',
   'spatial-ring.rise': 'The vertical distance between neighboring cards when shape is helix.',
   'spatial-ring.distance': 'How much scrolling moves the deck through one full cycle on a scroll timeline.',
   'spatial-ring.speed': 'Publishes signed movement speed in pixels per second when true.',
@@ -14,6 +15,12 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-stack.speed': 'Publishes signed movement speed in pixels per second when true.',
   'spatial-row.copies': 'Adds inert image copies to fill a short row when set to auto.',
   'spatial-row.release': 'Lets a dragged row coast freely instead of snapping when set to free.',
+  'spatial-row.shape': 'Places the row flat or along a diagonal depth line.',
+  'spatial-row.rise': 'The vertical distance per card stride along the line.',
+  'spatial-row.depth': 'The distance away from the camera per card stride along the line.',
+  'spatial-row.yaw': 'Turns every line card by the same angle.',
+  'spatial-row.perspective': 'How close the camera is to the line.',
+  'spatial-row.attribute': 'Host attribute whose value column moves the line into a bounded column.',
   'spatial-ring.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
   'spatial-stack.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
   'slideshow.enter-delay': 'Extra wait before a fade arrives; match duration for out-then-in order. Slide mode does not use it.',

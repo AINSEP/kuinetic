@@ -77,7 +77,24 @@ function verticalRoom(el: Element, ctx: PrepareContext): number | null {
   return height
 }
 
-interface ShapeFitRequest { el: Element; ctx: PrepareContext; styles: StyleLedger; params: EffectParams; arc: number; tilt: number }
+export interface ShapeFitRequest { el: Element; ctx: PrepareContext; styles: StyleLedger; params: EffectParams; arc: number; tilt: number; sphere?: boolean }
+
+/** A sphere's silhouette is a circle at any rotation, so it needs no sampling and stays right under a second axis. */
+export function projectSphere(g: HelixGeometry): ProjectedBounds {
+  const reach = Math.hypot(g.radius, g.width / 2, g.height / 2)
+  if (reach >= g.perspective - 1) return { minX: -Infinity, maxX: Infinity, minY: -Infinity, maxY: Infinity }
+  const edge = reach * g.perspective / Math.sqrt(g.perspective ** 2 - reach ** 2)
+  return { minX: -edge, maxX: edge, minY: -edge, maxY: edge }
+}
+
+/** Share of the sphere's surface the cards cover by default; more than this reads as a solid clump. */
+const SPHERE_COVERAGE = .3
+
+function derivedRadius(request: ShapeFitRequest, count: number, { width, height, gap }: { width: number; height: number; gap: number }): number {
+  if (request.sphere) return Math.sqrt(count * (width + gap) * (height + gap) / (4 * Math.PI * SPHERE_COVERAGE))
+  const spacing = Math.min(60, Math.max(.5, request.arc / count / 2))
+  return (width + gap) / (2 * Math.tan(spacing * RAD))
+}
 
 function helixGeometry(request: ShapeFitRequest, nodes: readonly Element[]): HelixGeometry | undefined {
   const { ctx, el, params } = request
@@ -89,8 +106,7 @@ function helixGeometry(request: ShapeFitRequest, nodes: readonly Element[]): Hel
     percentBasis: (el as HTMLElement).offsetWidth, fontSize: parseFloat(ctx.win.getComputedStyle(el).fontSize) || 16,
     rootFontSize: parseFloat(ctx.win.getComputedStyle(ctx.doc.documentElement).fontSize) || 16 }
   const length = (name: string): number => toPixels(params.text(name), basis, NaN)
-  const spacing = Math.min(60, Math.max(.5, request.arc / nodes.length / 2))
-  const radius = params.text('radius') ? length('radius') : (width + length('gap')) / (2 * Math.tan(spacing * RAD))
+  const radius = params.text('radius') ? length('radius') : derivedRadius(request, nodes.length, { width, height, gap: length('gap') })
   const geometry = { width, height, radius, rise: length('rise'), count: nodes.length, arc: request.arc,
     tilt: -Math.min(80, Math.max(-80, request.tilt)), perspective: length('perspective'),
     camera: params.is('facing', 'camera') && nodes.every(node => !!node.firstElementChild) }
@@ -102,24 +118,28 @@ export function createHelixFit(request: ShapeFitRequest) {
   const { el, ctx, styles } = request
   let nodes: readonly Element[] = []
   let warned = false
+  const publish = (geometry: HelixGeometry | undefined): void => {
+    if (geometry) {
+      styles.set('--kui-item-width', `${geometry.width}px`)
+      styles.set('--kui-item-height', `${geometry.height}px`)
+      if (request.sphere) styles.set('--kui-sphere-radius', `${geometry.radius}px`)
+    }
+    if (!request.sphere) styles.set('--kui-helix-centre', String(helixCentre(nodes.length)))
+  }
   const solve = (): void => {
     const horizontal = fitBounds(el, ctx.win)
     const height = verticalRoom(el, ctx)
     const geometry = helixGeometry(request, nodes)
-    if (geometry) {
-      styles.set('--kui-item-width', `${geometry.width}px`)
-      styles.set('--kui-item-height', `${geometry.height}px`)
-    }
-    styles.set('--kui-helix-centre', String(helixCentre(nodes.length)))
+    publish(geometry)
     styles.set('--kui-shape-fit', '1')
     styles.set('--kui-shape-height', '')
     if (!horizontal || height === null || !geometry) return
-    const bounds = projectHelix(geometry)
+    const bounds = request.sphere ? projectSphere(geometry) : projectHelix(geometry)
     const box = el.getBoundingClientRect()
     const centre = box.left + box.width / 2
     const scale = fitProjectedBounds(bounds, { left: centre - horizontal.left - 1, right: horizontal.right - centre - 1, height: height - 2 })
     if (scale === 0) {
-      if (!warned) ctx.warn('helix reaches the camera plane; increase perspective or reduce radius and rise.')
+      if (!warned) ctx.warn(`${request.sphere ? 'sphere' : 'helix'} reaches the camera plane; increase perspective or reduce radius and rise.`)
       warned = true
       return
     }
