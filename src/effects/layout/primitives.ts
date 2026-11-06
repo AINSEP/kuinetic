@@ -167,7 +167,9 @@ function flipVariant(spec: EffectSpec, warn: (message: string) => void): EffectV
   const nested = spec.params.nested === 'true'
   const leaving = spec.params.leave === 'fade'
   if (nested && leaving) warn('leave:fade requires direct children; remove nested:true to enable departures.')
-  const channels = nested ? ['transform-origin', SUBTREE_CHANNEL] : leaving ? ['position', SUBTREE_CHANNEL] : undefined
+  let channels: string[] | undefined
+  if (nested) channels = ['transform-origin', SUBTREE_CHANNEL]
+  else if (leaving) channels = ['position', SUBTREE_CHANNEL]
   return {
     // A plain host claims nothing: no `channels` key at all, not an empty list.
     ...(channels ? { channels } : {}),
