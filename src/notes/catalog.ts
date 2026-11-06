@@ -17,6 +17,7 @@ export const CATALOG_NOTES: ParamNotes = {
   'media-mask.direction': 'Direction the soft reveal edge travels: right by default, or left.',
   'media-mask.edges': 'Fade both horizontal scroll edges by this width and remove each fade at its matching end.',
   'media-wipe.start-inset': 'Set the horizontal inset at the start of curtain-reveal.',
+  'media-wipe.start-size': 'Open curtain-reveal from a centred crop of this size before scaling.',
   'ambient-float.duration': 'How long one full up-and-down drift takes, repeating forever.',
   'ambient-float.distance': 'How far the element drifts up and down.',
 

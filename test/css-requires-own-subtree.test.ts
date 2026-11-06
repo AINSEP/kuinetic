@@ -166,6 +166,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'device-frame',
         'flip-card',
         'group-dim',
+        'group-expand',
         'hamburger-to-x',
         'hotspots',
         'input-underline-grow',

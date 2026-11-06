@@ -39,10 +39,23 @@ const geometry = {
 // --- CSS-tier: wipes, masks, ken-burns, filters, parallax, lightbox ---
 
 export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
-  cssPrimitive('media-wipe', [CHANNEL.clip], {
-    timelines: ['time', 'view', 'scroll'],
-    parameters: { 'start-inset': { type: 'percentage', default: '50%', cssProperty: '--kui-wipe-start-inset' } },
-  }),
+  {
+    ...cssPrimitive('media-wipe', [CHANNEL.clip], {
+      timelines: ['time', 'view', 'scroll', 'pin'],
+      parameters: {
+        'start-inset': { type: 'percentage', default: '50%', cssProperty: '--kui-wipe-start-inset' },
+        'start-size': { type: 'length', default: '60vmin', cssProperty: '--kui-wipe-start-size' },
+      },
+    }),
+    variantFor(spec, warn): EffectVariant {
+      if (spec.params['start-size'] === undefined) return {}
+      if (spec.name !== 'curtain-reveal') {
+        warn('start-size: only applies to curtain-reveal')
+        return {}
+      }
+      return { keyframes: ['kui-curtain-square'] }
+    },
+  },
   {
     ...cssPrimitive('media-mask', ['mask'], { perfClass: 'paint', parameters: {
       direction: { type: 'keyword', default: 'right', keywords: ['right', 'left'], cssProperty: '--kui-mask-direction' },

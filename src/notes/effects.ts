@@ -25,6 +25,7 @@ const OWN_CHILDREN_PRESETS: readonly string[] = [
   'radio-fill',
   'step-progress',
   'group-dim',
+  'group-expand',
 ]
 
 function onOwnChildren(name: string): Bullets {

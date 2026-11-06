@@ -20,6 +20,17 @@
     to { clip-path: polygon(0 0, 200% 0, 0 200%); }
   }
   @keyframes kui-curtain-reveal { from { clip-path: inset(0 var(--kui-wipe-start-inset, 50%)); } to { clip-path: inset(0 0); } }
+  @keyframes kui-curtain-square {
+    from {
+      clip-path: inset(
+        max(0px, calc(50% - var(--kui-wipe-start-size, 60vmin) / 2))
+        max(0px, calc(50% - var(--kui-wipe-start-size, 60vmin) / 2))
+      );
+    }
+    to {
+      clip-path: inset(0 0);
+    }
+  }
   @keyframes kui-before-after-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
   @keyframes kui-mask-reveal {

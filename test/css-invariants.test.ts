@@ -83,8 +83,10 @@ describe('CSS keyframes', () => {
 
   it('every keyframe block is referenced by a preset or an inline animation', () => {
     const referenced = new Set(ALL_PRESETS.map((preset) => preset.keyframes))
-    const edges = compile(parse('mask-reveal edges:24px'), registry, 'scroll')
-    for (const name of edges.declarations['animation-name']!.split(', ')) referenced.add(name)
+    for (const source of ['mask-reveal edges:24px', 'curtain-reveal start-size:60vmin']) {
+      const plan = compile(parse(source), registry, 'scroll')
+      for (const name of plan.keyframeNames) referenced.add(name)
+    }
     const orphans = [...keyframes.keys()].filter(
       (name) => !referenced.has(name) && !inlineAnimationRefs.has(name),
     )

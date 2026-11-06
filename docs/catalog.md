@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **307** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **308** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -476,6 +476,13 @@ Primitives 5, 6, 7, 4, 30, 31.
 `before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
 `video-backdrop` · `video-hero`
 
+`curtain-reveal start-size:60vmin` opens a centred square crop to the full image;
+use a viewport or pixel length for a square, since percentages resolve separately on each axis.
+It beats `start-inset:`. Inside a viewport-sized
+`pin-section distance:150vh`, a viewport-sized image with `object-fit:cover` can use
+`curtain-reveal start-size:60vmin timeline:pin ease:linear, parallax-scale from:0.35 scale:1 timeline:pin ease:linear`.
+The initial visible square is about 21vmin.
+
 > **`bg`** and **`background`** are two names for one effect: they turn an element into its own
 > full-bleed backdrop and leave every child the author wrote rendering on top of it, untouched.
 > `src:` is the only required parameter, and it takes a path *or* a full URL — `/media/hero.mp4`,
@@ -632,7 +639,7 @@ the bottom. This is a one-shot animation; the application owns checked state and
 
 ---
 
-## I. Hover & pointer — 35 names
+## I. Hover & pointer — 36 names
 
 Primitives 21, 22, plus CSS.
 
@@ -644,7 +651,7 @@ Primitives 21, 22, plus CSS.
 | link | `underline-slide` `underline-center` |
 | icon | `icon-wiggle` `icon-spin` `icon-bounce` |
 | card | `tilt-3d` `tilt-parallax` |
-| group | `group-dim` |
+| group | `group-dim` `group-expand` |
 | label | `masked-label-swap` `masked-label-swap-x` `masked-label-swap-diagonal` |
 | intent | `hover-intent` |
 | preview | `anchored-preview` `anchored-preview-bottom` `anchored-preview-left` `anchored-preview-right` |
@@ -847,6 +854,18 @@ The `stagger` option suits the vertical and diagonal presets; on `-x` each lette
 > It claims a channel of its own (`group`) because it paints its children's opacity rather than
 > its own, so `fade-in, group-dim` on one container composes; a second `group-*` effect would not.
 > Because its rules reach past the element carrying them, `target:` refuses to relocate it.
+
+`group-expand grow:4 400ms` goes on a row of authored cards or links. Above 48rem on a
+fine pointer with hover, the hovered card grows to four shares and its neighbours keep
+one each. Keyboard focus always takes priority over hover; a mouse click does not pin a card open.
+Mark the detail image and text with `data-kui-expand-content`; titles stay outside that marker. With no hover
+or below 48rem, the cards stack with every detail visible and taps follow normal links.
+Reduced motion changes size and visibility immediately, including when a delay is authored.
+It refuses `target:` relocation.
+Keep a visible link or focusable card outside any hidden detail so keyboard users can reach it.
+Use wrapping content and responsive media; the library bounds card widths and breaks long words.
+Hidden details keep their box, so give the row a `min-height` taller than its tallest narrow card,
+or the page below moves on hover.
 
 ---
 
@@ -2001,7 +2020,7 @@ need to track.
 | F Numbers & data viz | 13 |
 | G Media & images | 22 |
 | H Layout & FLIP | 9 |
-| I Hover & pointer | 35 |
+| I Hover & pointer | 36 |
 | J Ambient backgrounds | 15 |
 | K Feedback & status | 17 |
 | L Page transitions | 8 |
@@ -2014,10 +2033,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **307** |
+| **Total shipped** | **308** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **142 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

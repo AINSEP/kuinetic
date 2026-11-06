@@ -5,6 +5,7 @@ import type { ParamNotes } from '../core/describe.js'
  * `notes/interaction-reveal.ts`), `interaction-states.ts` and `interaction-proximity.ts`.
  */
 export const INTERACTION_NOTES: ParamNotes = {
+  'group-expand.grow': 'How many shares of the row the hovered or focused card takes, compared with each neighbour.',
   'cursor-follow.over': 'Which descendants supply the hovered shape and content.',
   'cursor-follow.match': 'Keep the dot size, fit the target box, or match its text height.',
   'cursor-follow.snap': 'Follow the pointer or spring to the hovered target centre.',

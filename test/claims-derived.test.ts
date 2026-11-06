@@ -249,6 +249,7 @@ const SILENT: Record<string, string> = {
   'proximity-glow': HOVER_SHEET,
   press: 'its stylesheet paints :active; prepare writes only --kui-transition',
   'group-dim': 'its stylesheet dims the siblings of a hovered child; prepare writes only --kui-transition',
+  'group-expand': 'its stylesheet resizes authored cards; prepare only mirrors positional timing',
   'fade-open': OPEN_SHEET,
   'drop-open': OPEN_SHEET,
   'pop-open': OPEN_SHEET,
