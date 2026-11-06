@@ -1,4 +1,4 @@
-import { CHANNEL } from '../../core/types.js'
+import { attributeChannel, CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
@@ -94,6 +94,11 @@ const STACK_PARAMETERS: ParameterSchema = {
    * not only `opacity`, so a card nobody can see is also not a tab stop or a click target.
    */
   depth: { type: 'number', default: '3', cssProperty: '--kui-stack-depth', integer: true, minimum: 1, maximum: 8 },
+  leave: { type: 'keyword', default: 'depth', keywords: ['depth', 'swipe'], cssProperty: '--kui-stack-leave' },
+  'leave-x': { type: 'length', default: '300px', cssProperty: '--kui-stack-leave-x' },
+  'leave-rotate': { type: 'angle', default: '15deg', cssProperty: '--kui-stack-leave-rotate' },
+  'leave-fade': { type: 'number', default: '0', cssProperty: '--kui-stack-leave-fade', finite: true, minimum: 0, maximum: 2 },
+  'rest-rotate': { type: 'angle', default: '0deg', cssProperty: '--kui-stack-rest-rotate' },
 }
 
 /**
@@ -103,10 +108,17 @@ const STACK_PARAMETERS: ParameterSchema = {
  */
 function prepareSpatialStack(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   const depth = params.num('depth', 3)
+  const swipe = params.is('leave', 'swipe')
   return prepareSpatialDeck(el, params, ctx, {
     id: 'spatial-stack',
     label: 'carousel-stack',
-    faceOf: (place, offset, count) => stackFace(offset, offset - place, count, depth),
+    faceOf: (place, offset, count) => {
+      if (!swipe) return stackFace(offset, offset - place, count, depth)
+      const ahead = stackPlace(offset, count) - (offset - place)
+      return ahead > -1 && ahead < depth + 1 ? 'front' : 'back'
+    },
+    advanceBoth: swipe,
+    hostAttributes: swipe ? { 'data-kui-stack-leave': 'swipe' } : undefined,
     placeOf: stackPlace,
     measure: false,
   })
@@ -134,6 +146,8 @@ export const SPATIAL_STACK_PRIMITIVE: Primitive = {
   perfClass: 'compositor',
   reducedMotion: 'shorten',
   prepare: deferPrepare(prepareSpatialStack),
+  variantFor: spec => spec.params.leave === 'swipe'
+    ? { channels: [attributeChannel('data-kui-stack-leave'), '--kui-stack-swipe-sign'] } : {},
 }
 
 /**

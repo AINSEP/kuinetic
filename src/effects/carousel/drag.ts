@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { recognise } from '../../core/gesture.js'
+import type { GestureVector } from '../../core/gesture.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import type { Cleanup } from '../../core/types.js'
@@ -50,6 +51,7 @@ const MAX_FLICK_PLACES = 4
 const DRAG_THRESHOLD_PX = 6
 
 export interface RingDragRequest {
+  advanceBoth?: boolean
   el: Element
   ctx: PrepareContext
   /** `grab:false` still installs the keyboard half — that is accessibility, not decoration. */
@@ -142,6 +144,14 @@ export function snapTo(projected: number): number {
  */
 export function wrapPlace(place: number, total: number): number {
   return total > 0 ? ((place % total) + total) % total : 0
+}
+
+function releasePlace(request: RingDragRequest, from: number, vector: GestureVector, sign: number): number {
+  if (request.advanceBoth) return snapTo(from) + Number(Math.abs(vector.dx) >= request.travelPx / 4)
+  const projected = request.positionAt
+    ? request.positionOf()
+    : projectRelease(request.positionOf(), sign * vector.vx, request.travelPx)
+  return snapTo(projected)
 }
 
 /**
@@ -322,14 +332,18 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
             setDragging(true)
           },
           onMove(vector) {
+            if (request.advanceBoth) {
+              ctx.style.set('--kui-stack-swipe-sign', vector.dx < 0 ? '-1' : '1')
+              moveTo(dragFrom + Math.min(0.999, Math.abs(vector.dx) / travelPx))
+              return
+            }
             moveTo(request.positionAt?.(dragFrom, vector.dx) ?? dragFrom - (sign * vector.dx) / travelPx)
           },
           onEnd(vector) {
             selection.release()
             setDragging(false)
             clicks.arm()
-            const settled = snapTo(request.positionAt ? positionOf() : projectRelease(positionOf(), sign * vector.vx, travelPx))
-            moveTo(wrapPlace(settled, total()))
+            moveTo(wrapPlace(releasePlace(request, dragFrom, vector, sign), total()))
           },
         },
         // Locked to one axis: a ring spins about one pole, so vertical pointer movement is the

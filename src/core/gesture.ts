@@ -30,6 +30,7 @@ export type Axis = 'x' | 'y' | 'both'
 export type Direction = 'left' | 'right' | 'up' | 'down'
 
 export interface GestureHandlers {
+  onPress?(held: boolean): void
   onStart?(sample: Sample): void
   onMove?(vector: GestureVector, sample: Sample): void
   onEnd?(vector: GestureVector, sample: Sample): void
@@ -224,6 +225,7 @@ export function recognise(
     pointerId = event.pointerId
     captured = capturePointer === true && takeCapture(event.pointerId)
     if (!captured) listenOnDocument()
+    handlers.onPress?.(true)
     if (longPressMs > 0) {
       longPressTimer = deps.setTimer(() => {
         longPressFired = true
@@ -315,6 +317,7 @@ export function recognise(
       vector = lockVector(vector)
       active = true
       clearLongPress()
+      handlers.onPress?.(false)
       captureOnDrag(event)
       handlers.onStart?.(origin)
     }
@@ -368,6 +371,7 @@ export function recognise(
 
   /** Report the gesture's end at `sample` and forget it. `origin` is set. */
   function finish(sample: Sample, cancelled = false): void {
+    handlers.onPress?.(false)
     samples.push(sample)
     const vector = vectorNow(sample)
     if (cancelled && options.cancelVelocity) { vector.vx = 0; vector.vy = 0 }

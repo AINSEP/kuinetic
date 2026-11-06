@@ -74,17 +74,28 @@ describe('carousel.css reaches every deck preset the registry has', () => {
 
 describe('the stack’s stylesheet fallbacks are its parameter defaults', () => {
   const declared = Object.values(SPATIAL_STACK_PRIMITIVE.parameters).filter((spec) =>
-    spec.cssProperty?.startsWith('--kui-stack-'),
+    spec.cssProperty?.startsWith('--kui-stack-') && !spec.cssProperty.includes('leave'),
   )
 
-  it('has the six geometry parameters to check', () => {
-    expect(declared).toHaveLength(6)
+  it('has the six existing geometry parameters and optional resting rotation to check', () => {
+    expect(declared).toHaveLength(7)
   })
 
   it.each(declared.map((spec) => [spec.cssProperty!, spec.default]))('%s falls back to %s', (property, fallback) => {
     const uses = [...css.matchAll(new RegExp(`var\\(${property}, ([^)]+)\\)`, 'g'))].map((match) => match[1])
     expect(uses.length, `${property} is never read`).toBeGreaterThan(0)
     expect(new Set(uses)).toEqual(new Set([fallback]))
+  })
+
+  it('keeps swipe defaults in the opt-in selector and leaves legacy fallbacks intact', () => {
+    const swipe = /\[data-kui-stack-leave='swipe'\]\s*\{([^}]+)\}/.exec(css)![1]!
+    for (const name of ['leave-x', 'leave-rotate', 'leave-fade']) {
+      const spec = SPATIAL_STACK_PRIMITIVE.parameters[name]!
+      expect(swipe).toContain(`${spec.cssProperty}: ${spec.default};`)
+    }
+    expect(css).toContain('var(--kui-stack-leave-fade, 2)')
+    expect(css).toContain('var(--kui-stack-leave-rotate, 0deg)')
+    expect(SPATIAL_STACK_PRIMITIVE.parameters.leave!.default).toBe('depth')
   })
 })
 

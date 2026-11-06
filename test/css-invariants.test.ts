@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { BREAKPOINTS } from '../src/core/breakpoints.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
 import { cloakTokenForms, gateReleaseSelector } from '../src/core/cloak-selectors.js'
 import { SCROLL_PRESETS } from '../src/effects/scroll-mechanics/presets.js'
 import { CHANNEL_PROPERTIES } from './support/channel-properties.js'
@@ -81,6 +83,8 @@ describe('CSS keyframes', () => {
 
   it('every keyframe block is referenced by a preset or an inline animation', () => {
     const referenced = new Set(ALL_PRESETS.map((preset) => preset.keyframes))
+    const edges = compile(parse('mask-reveal edges:24px'), registry, 'scroll')
+    for (const name of edges.declarations['animation-name']!.split(', ')) referenced.add(name)
     const orphans = [...keyframes.keys()].filter(
       (name) => !referenced.has(name) && !inlineAnimationRefs.has(name),
     )

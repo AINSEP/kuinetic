@@ -11,6 +11,7 @@ import { withTimingContract } from '../shared.js'
 import { announceSwipe } from '../swipe-event.js'
 import type { TimingToken } from '../shared.js'
 import { dragOptions } from './drag-options.js'
+import { createAttributeLedger } from '../../core/owned-styles.js'
 
 /**
  * Gesture and physics primitives.
@@ -21,7 +22,7 @@ import { dragOptions } from './drag-options.js'
  *
  * All are `reducedMotion: 'disable'`: a gesture that responds to touch is not decoration, and
  * shortening it would break the interaction rather than calm it. Under reduced motion the element
- * still moves with the finger; only the physics settle is skipped.
+ * retains its native activation; decorative drag and hold output stays disabled.
  */
 
 const springParams: ParameterSchema = {
@@ -68,12 +69,13 @@ function gesturePrimitive(
   id: string,
   channels: string[],
   parameters: ParameterSchema,
-  prepare: NonNullable<Primitive['prepare']>,
+  ...setup: [prepare: NonNullable<Primitive['prepare']>, variantFor?: Primitive['variantFor']]
 ): Primitive {
   // Read off the schema rather than passed in, because for this category the schema is already the
   // honest record: `pressable` is the one member that declares `duration` and the one member that
   // reads it. Nothing here declares `delay` or `ease`, so both are always refused.
   const honours: readonly TimingToken[] = Object.hasOwn(parameters, 'duration') ? ['duration'] : []
+  const [prepare, variantFor] = setup
   return {
     id,
     renderer: 'javascript',
@@ -85,6 +87,7 @@ function gesturePrimitive(
     perfClass: 'continuous',
     reducedMotion: 'disable',
     prepare: withTimingContract(id, { honours, because: GESTURE_TIMING_REASON }, prepare),
+    ...(variantFor ? { variantFor } : {}),
   }
 }
 
@@ -110,8 +113,12 @@ function springDeps(ctx: PrepareContext): SpringDeps {
 }
 
 /** Write a translation without touching the `transform` shorthand, so channels stay honest. */
-function writeOffset(ctx: PrepareContext, x: number, y: number): void {
+function writeOffset(ctx: PrepareContext, x: number, y: number, publish = false): void {
   ctx.style.set('translate', `${x.toFixed(2)}px ${y.toFixed(2)}px`)
+  if (publish) {
+    ctx.style.set('--kui-drag-x', x.toFixed(2))
+    ctx.style.set('--kui-drag-y', y.toFixed(2))
+  }
 }
 
 interface DragRunners {
@@ -163,7 +170,7 @@ function prepareDraggable(el: Element, params: EffectParams, ctx: PrepareContext
     offset.x = next.x
     offset.y = next.y
     const displayed = options.enabled ? options.render(offset) : offset
-    writeOffset(ctx, displayed.x, displayed.y)
+    writeOffset(ctx, displayed.x, displayed.y, options.publish)
   }
 
   options.onResize(() => { if (!dragging) retarget(runners, destination, options.target) })
@@ -318,9 +325,13 @@ function prepareSwipeable(el: Element, params: EffectParams, ctx: PrepareContext
  * @overallScore 100
  */
 function preparePressable(el: Element, params: EffectParams): Cleanup {
+  const held = params.is('held')
+  const attributes = createAttributeLedger(el)
+  const pressing = (value: boolean) => attributes.set('data-kui-pressing', String(value))
   const stop = recognise(
     el,
     {
+      onPress: held ? pressing : undefined,
       onLongPress() {
         el.setAttribute('data-kui-pressed', 'true')
       },
@@ -328,11 +339,15 @@ function preparePressable(el: Element, params: EffectParams): Cleanup {
         el.setAttribute('data-kui-pressed', 'false')
       },
     },
-    { longPressMs: effectDurationMs(params, 500) },
+    {
+      longPressMs: effectDurationMs(params, 500),
+      accept: held ? event => event.button === 0 && event.isPrimary !== false : undefined,
+    },
   )
 
   return () => {
     stop()
+    attributes.restore()
     el.removeAttribute('data-kui-pressed')
   }
 }
@@ -387,6 +402,8 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
     ['translate', attributeChannel('data-kui-dragging')],
     {
       ...springParams,
+      publish: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-drag-publish' },
+      detents: { type: 'text', default: '', cssProperty: '--kui-drag-detents' },
       axis: { type: 'keyword', default: 'both', cssProperty: '--kui-axis', keywords: ['x', 'y', 'both'] },
       bounds: { type: 'number', default: '0', cssProperty: '--kui-bounds' },
       limits: { type: 'text', default: '', cssProperty: '--kui-drag-limits' },
@@ -415,6 +432,7 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
       momentum: { type: 'number', default: '0.2', cssProperty: '--kui-momentum', finite: true },
     },
     deferPrepare(prepareDraggable),
+    spec => spec.params.publish === 'true' ? { channels: ['--kui-drag-x', '--kui-drag-y'] } : {},
   ),
 
   gesturePrimitive(
@@ -430,11 +448,15 @@ export const GESTURE_PRIMITIVES: Primitive[] = [
   gesturePrimitive(
     'pressable',
     [attributeChannel('data-kui-pressed')],
-    { duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' } },
+    {
+      duration: { type: 'time', default: '500ms', cssProperty: '--kui-duration' },
+      held: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-held' },
+    },
     // `duration` here is the hold threshold, not a span of motion — `long-press 800ms` means
     // "count it once the finger has been down for 800ms". It is read (see `preparePressable`), so
     // declaring it is what stops the contract above from warning about it.
     deferPrepare(preparePressable),
+    spec => spec.params.held === 'true' ? { channels: [attributeChannel('data-kui-pressing')] } : {},
   ),
 
   gesturePrimitive(

@@ -15,7 +15,7 @@ export const KEY_NOTES: ParamNotes = {
     whenOmitted: 'It plays on the way in and nothing else.',
   },
   'data-kui.timeline': {
-    why: 'What drives it: the clock, or the scroll position so it moves as you scroll.',
+    why: 'Choose time, view or scroll, optionally followed by an axis and a CSS timeline name inside quotes.',
     whenOmitted: 'It plays over time, at its own speed.',
   },
   'data-kui.threshold': {

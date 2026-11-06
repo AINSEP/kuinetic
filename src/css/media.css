@@ -1,4 +1,14 @@
 /* Media and image effects (catalog section G). */
+@property --kui-edge-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --kui-edge-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
 @layer kui.effects {
   @keyframes kui-wipe-up { from { clip-path: inset(100% 0 0); } to { clip-path: inset(0 0 0); } }
   @keyframes kui-wipe-down { from { clip-path: inset(0 0 100%); } to { clip-path: inset(0 0 0); } }
@@ -9,7 +19,7 @@
     from { clip-path: polygon(0 0, 0 0, 0 0); }
     to { clip-path: polygon(0 0, 200% 0, 0 200%); }
   }
-  @keyframes kui-curtain-reveal { from { clip-path: inset(0 50%); } to { clip-path: inset(0 0); } }
+  @keyframes kui-curtain-reveal { from { clip-path: inset(0 var(--kui-wipe-start-inset, 50%)); } to { clip-path: inset(0 0); } }
   @keyframes kui-before-after-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
   @keyframes kui-mask-reveal {
@@ -18,8 +28,23 @@
   }
 
   [data-kui-fx~='mask-reveal'] {
-    mask-image: linear-gradient(var(--kui-mask-angle, 90deg), #000 0 45%, transparent 55% 100%);
-    mask-size: 220% 100%;
+    mask-image: var(--kui-edge-image, linear-gradient(var(--kui-mask-angle, 90deg), #000 0 45%, transparent 55% 100%));
+    mask-size: var(--kui-edge-size, 220% 100%);
+  }
+
+  @keyframes kui-scroll-edges {
+    from {
+      --kui-edge-start: 0px;
+      --kui-edge-end: var(--kui-edge-width, 24px);
+    }
+    5%, 95% {
+      --kui-edge-start: var(--kui-edge-width, 24px);
+      --kui-edge-end: var(--kui-edge-width, 24px);
+    }
+    to {
+      --kui-edge-start: var(--kui-edge-width, 24px);
+      --kui-edge-end: 0px;
+    }
   }
 
   @keyframes kui-ken-burns {

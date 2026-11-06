@@ -35,6 +35,8 @@ export const MECHANICS_NOTES: ParamNotes = {
   'draggable.damping': 'How quickly the spring wobble dies out; lower wobbles longer.',
   'draggable.mass': 'How heavy it feels; higher is slower and swingier.',
   'draggable.axis': 'Limit dragging to sideways only, up and down only, or both.',
+  'draggable.publish': 'Publish signed pixel numbers as --kui-drag-x and --kui-drag-y during dragging and settling.',
+  'draggable.detents': 'Set space-separated pixel stops for the nearest release position on each enabled axis.',
   'draggable.limits': 'Use parent or a box selector for uneven elastic edges, measured at pickup and resize.',
   'draggable.lock': 'Choose dominant to freeze the stronger axis after the drag threshold, with ties choosing sideways.',
   'draggable.wrap': 'One or two positive pixel periods wrap the final offset while the author repeats the content.',
@@ -122,6 +124,7 @@ export const MECHANICS_NOTES: ParamNotes = {
   'path-morph.delay': 'Wait this long after the pointer arrives before morphing; moving away is never delayed.',
 
   'pressable.duration': 'How long you must hold before it counts as a press.',
+  'pressable.held': 'Mark the host while a pointer is held and clear it on cancellation.',
 
   'rotate.angle': 'How far it is turned at the start, before straightening up.',
 

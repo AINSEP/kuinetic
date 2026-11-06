@@ -8,6 +8,16 @@ type Point = Record<Axis, number>
 const axes: Axis[] = ['x', 'y']
 const clamp = (value: number, range: number[]) => Math.max(range[0]!, Math.min(range[1]!, value))
 
+function publishesDrag(params: EffectParams, publish: boolean): boolean {
+  return publish || params.text('detents', '') !== ''
+}
+
+function nearestStop(stops: number[], value: number): number {
+  return stops.reduce((best, stop) => {
+    return Math.abs(stop - value) < Math.abs(best - value) ? stop : best
+  }, stops[0] ?? value)
+}
+
 function periods(value: string, ctx: PrepareContext): Point {
   if (!value) return { x: 0, y: 0 }
   const parts = value.trim().split(/\s+/).map(Number)
@@ -40,9 +50,14 @@ function settings(el: Element, params: EffectParams, ctx: PrepareContext) {
 /** Extra reads/listeners exist only on a host opting into the round-2 drag options. */
 export function dragOptions(el: Element, params: EffectParams, ctx: PrepareContext) {
   const { box, wrap, dominant, enabled } = settings(el, params, ctx)
+  const publish = params.is('publish')
   const axis = params.text('axis', 'both')
+  const detents = params.text('detents', '').trim().split(/\s+/).filter(Boolean).map(Number)
+  const validDetents = detents.every(Number.isFinite)
+  if (!validDetents) ctx.warn('draggable detents needs space-separated pixel numbers')
   const pan = axis === 'x' ? 'pan-y' : 'pan-x'
   if (enabled) ctx.style.set('touch-action', axis === 'both' ? 'pinch-zoom' : `${pan} pinch-zoom`)
+  if (publishesDrag(params, publish) && axis !== 'both') ctx.style.set('touch-action', `${pan} pinch-zoom`)
   const range = { x: [-Infinity, Infinity], y: [-Infinity, Infinity] }
   const displayed = { x: 0, y: 0 }
   const reach = params.num('bounds', 0) || 80
@@ -84,9 +99,12 @@ export function dragOptions(el: Element, params: EffectParams, ctx: PrepareConte
     measure()
   }
   return {
-    enabled, dominant, bounded: !!box, render, pickup: measure,
+    publish, enabled, dominant, bounded: !!box, render, pickup: measure,
     onResize(callback: () => void) { changed = callback },
-    target: (key: Axis, value: number) => clamp(value, range[key]),
+    target: (key: Axis, value: number) => {
+      const stops = validDetents && (axis === 'both' || axis === key) ? detents : []
+      return clamp(nearestStop(stops, value), range[key])
+    },
     destroy: () => watch?.disconnect(),
   }
 }

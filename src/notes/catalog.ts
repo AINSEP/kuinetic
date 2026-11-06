@@ -15,6 +15,8 @@ export const CATALOG_NOTES: ParamNotes = {
   'curtain.duration': 'Duration of each cover and reveal phase; zero commits synchronously.',
   'feedback-wobble.y': 'Vertical displacement on the first wobble; negative values reverse its vertical direction.',
   'media-mask.direction': 'Direction the soft reveal edge travels: right by default, or left.',
+  'media-mask.edges': 'Fade both horizontal scroll edges by this width and remove each fade at its matching end.',
+  'media-wipe.start-inset': 'Set the horizontal inset at the start of curtain-reveal.',
   'ambient-float.duration': 'How long one full up-and-down drift takes, repeating forever.',
   'ambient-float.distance': 'How far the element drifts up and down.',
 

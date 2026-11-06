@@ -143,6 +143,7 @@ function timelineMode(
   const useNativeTimeline =
     !scrubbed &&
     supportsTimeline(config.timeline, capabilities) &&
+    (!config.timelineName || capabilities.scrollTimelineName) &&
     plan.supportedTimelines.includes(config.timeline)
   return { scrubbed, useNativeTimeline }
 }
@@ -177,7 +178,7 @@ function timelineProperties(
 ): Record<string, string> {
   if (!useNativeTimeline) return {}
   const properties: Record<string, string> = {
-    'animation-timeline': config.timeline === 'scroll' ? 'scroll()' : 'view()',
+    'animation-timeline': config.timelineName ?? `${config.timeline}(${config.timelineAxis ?? ''})`,
   }
   if (capabilities.animationRange) {
     // Written unconditionally, not only when a range was authored: the default range previously

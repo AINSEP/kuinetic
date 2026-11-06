@@ -1,5 +1,5 @@
 import { CHANNEL, SUBTREE_CHANNEL } from '../../core/types.js'
-import type { EffectParams, ParameterSchema, Preset, Primitive } from '../../core/types.js'
+import type { EffectParams, EffectVariant, ParameterSchema, Preset, Primitive } from '../../core/types.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { continuousSetup, deferPrepare } from '../../core/instances.js'
 import type { SetupResult } from '../../core/instances.js'
@@ -39,12 +39,27 @@ const geometry = {
 // --- CSS-tier: wipes, masks, ken-burns, filters, parallax, lightbox ---
 
 export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
-  cssPrimitive('media-wipe', [CHANNEL.clip]),
+  cssPrimitive('media-wipe', [CHANNEL.clip], {
+    timelines: ['time', 'view', 'scroll'],
+    parameters: { 'start-inset': { type: 'percentage', default: '50%', cssProperty: '--kui-wipe-start-inset' } },
+  }),
   {
     ...cssPrimitive('media-mask', ['mask'], { perfClass: 'paint', parameters: {
       direction: { type: 'keyword', default: 'right', keywords: ['right', 'left'], cssProperty: '--kui-mask-direction' },
-    } }),
-    variantFor(spec) {
+      edges: { type: 'length', default: '24px', cssProperty: '--kui-edge-width' },
+    }, timelines: ['time', 'view', 'scroll'] }),
+    variantFor(spec): EffectVariant {
+      if (spec.params.edges !== undefined) {
+        const image = 'linear-gradient(90deg, transparent, #000 var(--kui-edge-start), #000 calc(100% - var(--kui-edge-end)), transparent)'
+        return {
+          keyframes: ['kui-scroll-edges'],
+          params: { ...spec.params, 'edge-image': image, 'edge-size': '100% 100%' },
+          schema: {
+            'edge-image': { type: 'keyword', default: image, keywords: [image], cssProperty: '--kui-edge-image' },
+            'edge-size': { type: 'keyword', default: '100% 100%', keywords: ['100% 100%'], cssProperty: '--kui-edge-size' },
+          },
+        }
+      }
       if (spec.params.direction !== 'left') return {}
       return { params: { ...spec.params, 'mask-from': '0%', 'mask-to': '100%', 'mask-angle': '270deg' }, schema: {
         'mask-from': { type: 'percentage', default: '0%', cssProperty: '--kui-mask-from' },

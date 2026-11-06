@@ -229,6 +229,7 @@ export const DECK_PARAMETERS: ParameterSchema = {
 
 /** What a deck's shape contributes; everything else is shared. */
 export interface DeckLayout {
+  advanceBoth?: boolean
   /** The primitive's id: names the mirrored timing properties (`--kui-<id>-duration`). */
   id: string
   /** Prefix for warnings, the word an author would recognise. */
@@ -540,6 +541,7 @@ export function prepareSpatialDeck(
     positionOf: () => position,
     travelSign: screenTravel,
     positionAt: layout.view?.positionAt,
+    advanceBoth: layout.advanceBoth,
     moveTo: goTo,
     setDragging: (dragging) => {
       hostAttributes.set(DRAGGING_ATTR, String(dragging))

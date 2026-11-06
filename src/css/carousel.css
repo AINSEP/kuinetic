@@ -444,6 +444,13 @@
     padding-left: max(0px, -1 * var(--kui-stack-reach-x));
   }
 
+  [data-kui-stack-leave='swipe'] {
+    --kui-stack-swipe-sign: -1;
+    --kui-stack-leave-x: 300px;
+    --kui-stack-leave-rotate: 15deg;
+    --kui-stack-leave-fade: 0;
+  }
+
   [data-kui-fx~='carousel-stack'] [data-kui-step-offset] {
     grid-area: 1 / 1;
     /*
@@ -460,11 +467,15 @@
     );
     --kui-stack-behind: max(0, var(--kui-stack-place));
     --kui-stack-gone: max(0, -1 * var(--kui-stack-place));
+    --kui-stack-card: mod(var(--kui-offset, 0) + var(--kui-step, 0), max(1, var(--kui-item-count, 1)));
     transform: translate(
-        calc(var(--kui-stack-place) * var(--kui-stack-shift, 48px)),
+        calc(var(--kui-stack-behind) * var(--kui-stack-shift, 48px) +
+          var(--kui-stack-gone) * var(--kui-stack-swipe-sign, 1) * var(--kui-stack-leave-x, calc(-1 * var(--kui-stack-shift, 48px)))),
         calc(-1 * var(--kui-stack-place) * var(--kui-stack-rise, 36px))
       )
-      scale(max(0.05, 1 - var(--kui-stack-place) * var(--kui-stack-shrink, 0.08)));
+      scale(max(0.05, 1 - var(--kui-stack-place) * var(--kui-stack-shrink, 0.08)))
+      rotate(calc((mod(var(--kui-stack-card), 3) - 1) * var(--kui-stack-rest-rotate, 0deg) +
+        var(--kui-stack-gone) * var(--kui-stack-swipe-sign, 1) * var(--kui-stack-leave-rotate, 0deg)));
     filter: blur(calc(var(--kui-stack-behind) * var(--kui-stack-blur, 2px)));
     /*
      * Three ramps, and the card shows at the faintest of them: `fade:` per place behind; out over
@@ -476,7 +487,7 @@
       min(
         1 - var(--kui-stack-behind) * var(--kui-stack-fade, 0.2),
         var(--kui-stack-depth, 3) + 1 - var(--kui-stack-place),
-        1 - 2 * var(--kui-stack-gone)
+        1 - var(--kui-stack-leave-fade, 2) * var(--kui-stack-gone)
       ),
       1
     );

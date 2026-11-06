@@ -28,6 +28,8 @@ export interface ElementConfig {
    */
   actions?: ToggleActions
   timeline: Timeline
+  timelineAxis?: string
+  timelineName?: string
   /** Trailing tokens of `data-kui-timeline`, e.g. `entry 0% cover 60%`. */
   range: string
   threshold: string
@@ -84,8 +86,18 @@ export function resolveConfig(attributes: ElementAttributes, parsed: ParsedValue
     // `actions:` refines `on:` and has only the inline spelling.
     ...(parsed.actions === undefined ? {} : { actions: parseToggleActions(parsed.actions) }),
     timeline: TIMELINES.has(head as Timeline) ? (head as Timeline) : 'time',
-    range: rest.join(' '),
+    ...timelineOptions(rest),
     threshold: parsed.threshold ?? attributes.threshold ?? '0%',
+  }
+}
+
+function timelineOptions(tokens: string[]): Pick<ElementConfig, 'range' | 'timelineAxis' | 'timelineName'> {
+  const timelineAxis = /^(block|inline|x|y)$/.test(tokens[0] ?? '') ? tokens.shift() : undefined
+  const timelineName = /^--[\w-]+$/.test(tokens[0] ?? '') ? tokens.shift() : undefined
+  return {
+    range: tokens.join(' '),
+    ...(timelineAxis ? { timelineAxis } : {}),
+    ...(timelineName ? { timelineName } : {}),
   }
 }
 
@@ -147,7 +159,9 @@ export function resolveGroupConfig(
   if (hoists.timeline !== undefined) {
     const [head = 'time', ...rest] = hoists.timeline.trim().split(/\s+/)
     config.timeline = TIMELINES.has(head as Timeline) ? (head as Timeline) : base.timeline
-    config.range = rest.join(' ')
+    delete config.timelineAxis
+    delete config.timelineName
+    Object.assign(config, timelineOptions(rest))
   }
   if (hoists.threshold !== undefined) config.threshold = hoists.threshold
   return config
