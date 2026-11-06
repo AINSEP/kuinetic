@@ -8,6 +8,7 @@ import type { ParamNotes } from '../core/describe.js'
 export const MECHANICS_NOTES: ParamNotes = {
   'flip-container.attribute': 'Also animate layout changes when this attribute changes on the host or its descendants.',
   'flip-container.nested': 'Include the host and descendants with corrected inherited translation and scale.',
+  'flip-container.leave': 'Fade marked direct children out of flow and emit kui:leave-end so the app can remove each row.',
   'auto-height.axis': 'Animate height or width from its displayed size when interrupted.',
   'tween.toggle': 'Click to transition between the resting style and a scalar destination.',
   'tween-from.toggle': 'Use toggle on tween to transition between two positions.',

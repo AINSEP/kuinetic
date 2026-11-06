@@ -2,6 +2,11 @@ import { createStyleLedger } from '../core/owned-styles.js'
 import type { StyleLedger } from '../core/owned-styles.js'
 import { announceViewer } from '../core/deck-viewer.js'
 
+export interface ModalMotion {
+  dismiss(): Promise<unknown> | undefined
+  cancel(): void
+}
+
 export interface ModalContent {
   node: HTMLElement
   label: string
@@ -22,6 +27,7 @@ export interface ModalContent {
    * pauses its own motion for exactly as long as the viewer shows one of its cards.
    */
   opener?: Element
+  motion?: (layer: HTMLElement) => ModalMotion
 }
 
 export interface ModalShell {
@@ -39,6 +45,7 @@ interface ShellState {
   lock?: StyleLedger
   style?: StyleLedger
   timer?: ReturnType<typeof setTimeout>
+  motion?: ModalMotion
   refs: number
 }
 
@@ -60,6 +67,10 @@ function lock(state: ShellState): void {
 }
 
 function clearContent(state: ShellState): void {
+  state.motion?.cancel()
+  if (state.motion) state.style!.set('--kui-flight-dim', '')
+  state.motion = undefined
+  state.dialog?.classList.remove('kui-lightbox-flight')
   const closing = state.current
   closing?.onClose?.()
   state.current = undefined
@@ -77,14 +88,14 @@ function onClose(state: ShellState): void {
 function dismiss(state: ShellState): void {
   const dialog = state.dialog
   if (!dialog?.open || state.timer !== undefined) return
+  const closing = state.current!
+  const motion = state.motion?.dismiss()
   dialog.classList.remove('is-open')
-  state.timer = setTimeout(() => {
-    state.timer = undefined
-    if (dialog.open) dialog.close()
-    // A close event is not guaranteed after cancellation/removal. Both paths are idempotent.
-    unlock(state)
-    clearContent(state)
-  }, state.current!.reducedMotion ? 0 : state.current!.duration)
+  const duration = closing.duration + (motion ? 50 : 0)
+  state.timer = setTimeout(() => closeNow(state), closing.reducedMotion ? 0 : duration)
+  if (motion) void motion.then(() => {
+    if (state.current === closing && state.timer !== undefined) closeNow(state)
+  })
 }
 
 function clickedOutside(state: ShellState, target: Element): boolean {
@@ -119,7 +130,11 @@ function build(state: ShellState): void {
     dismiss(state)
   })
   dialog.addEventListener('close', () => onClose(state))
-  dialog.addEventListener('keydown', (event) => state.current?.onKey?.(event))
+  dialog.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') { state.current?.onKey?.(event); return }
+    event.preventDefault()
+    dismiss(state)
+  })
   state.dialog = dialog
   state.slot = slot
   state.style = createStyleLedger(dialog)
@@ -140,11 +155,16 @@ function open(state: ShellState, content: ModalContent, owner: object): void {
   state.style!.set('--kui-lightbox-ease', content.ease)
   lock(state)
   if (!dialog.open) dialog.showModal()
+  if (content.motion) {
+    state.style!.set('--kui-flight-dim', state.doc.defaultView!.getComputedStyle(dialog).backgroundColor)
+    dialog.classList.add('kui-lightbox-flight')
+  }
   dialog.scrollTop = 0
   // A synchronous style flush makes the closed and open styles distinct even in background tabs;
   // requestAnimationFrame can be throttled there and leave an invisible modal blocking the page.
   forceReflow(dialog)
   dialog.classList.add('is-open')
+  if (content.motion) state.motion = content.motion(dialog)
   if (content.opener) announceViewer(state.doc, content.opener, true)
 }
 

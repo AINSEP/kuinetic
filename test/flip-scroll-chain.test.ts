@@ -35,6 +35,26 @@ afterEach(() => {
 })
 
 describe('FLIP scroll-chain coordinates', () => {
+  it('keeps a list inside a stuck ancestor in its host frame through page scroll and a real mutation', async () => {
+    const app = build('<aside style="position:sticky"><div data-kui="flip-reorder attribute:data-layout"><i>a</i></div></aside>')
+    const host = el()
+    const row = host.firstElementChild!
+    let offset = 0
+    place(host.parentElement!, () => 40)
+    place(host, () => 50)
+    place(row, () => 50 + offset)
+    const frames = capture(row)
+    app.start()
+    document.documentElement.scrollTop = 500
+    host.setAttribute('data-layout', 'unchanged')
+    await flush()
+    expect(frames).toHaveLength(0)
+    offset = 30
+    host.setAttribute('data-layout', 'moved')
+    await flush()
+    expect(frames[0]![0]!.translate).toBe('0px -30px')
+    app.destroy()
+  })
   it.each(['flip-reorder attribute:data-layout 600ms', 'flip-reorder attribute:data-layout nested:true 600ms'])(
     'converts cached boxes when docking, scrolling and undocking: %s', async (effect) => {
       const reporter = collectingReporter()

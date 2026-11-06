@@ -14,6 +14,7 @@ export interface PrepareJsEffectsRequest {
   plan: CompiledPlan
   signal: AbortSignal
   ledger: StyleLedger
+  cancel?: () => void
 }
 
 /**
@@ -80,7 +81,7 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
    * @complexity O(1) time, O(1) space.
    * @overallScore 100
    */
-  function contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger): PrepareContext {
+  function contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger, cancel?: () => void): PrepareContext {
     const doc = el.ownerDocument
     return {
       doc,
@@ -92,16 +93,17 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
       warn: (message: string) => reporter.warn(message, el),
       reducedMotion: respectReducedMotion && capabilities.reducedMotion,
       signal,
+      cancel,
       style: ledger,
     }
   }
 
   return {
-    prepare({ el, plan, signal, ledger }: PrepareJsEffectsRequest): EffectInstance[] {
+    prepare({ el, plan, signal, ledger, cancel }: PrepareJsEffectsRequest): EffectInstance[] {
       const instances: EffectInstance[] = []
       if (plan.jsEffects.length === 0) return instances
 
-      const ctx = contextFor(el, signal, ledger)
+      const ctx = contextFor(el, signal, ledger, cancel)
 
       for (const entry of plan.jsEffects) {
         const { spec, resolved } = entry

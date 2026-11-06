@@ -19,6 +19,7 @@ import {
   slatAssembleFinishMs,
 } from './media-shared.js'
 import type { SlatAxis, SlatFrom } from './media-shared.js'
+import { IMAGE_FLIGHT_PRIMITIVE } from './image-flight.js'
 
 /**
  * Media and image effects (catalog section G).
@@ -494,6 +495,7 @@ function prepareBackgroundMedia(
 }
 
 export const MEDIA_JS_PRIMITIVES: Primitive[] = [
+  IMAGE_FLIGHT_PRIMITIVE,
   {
     id: 'slat-assemble',
     renderer: 'javascript',
@@ -578,6 +580,7 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
 ]
 
 export const MEDIA_JS_PRESETS: Preset[] = [
+  { name: 'image-flight', primitive: 'image-flight' },
   { name: 'slat-assemble', primitive: 'slat-assemble', cloak: true },
   /*
    * Two names, one primitive — the alias shape the catalog already uses everywhere (`pin-until`,

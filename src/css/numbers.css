@@ -126,4 +126,6 @@
   }
   .kui-odometer-live .kui-odometer-col { flex: none; }
   .kui-odometer-live .kui-odometer-strip { transition: none; }
+  .kui-number-tokens { position: relative; white-space: pre; }
+  .kui-number-token { flex: none; }
 }

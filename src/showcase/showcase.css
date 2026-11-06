@@ -689,6 +689,18 @@
   /* Settle on `none`, not `1` / `0 0`: any other value keeps the gallery the containing block of its
      fixed prev/next buttons. */
   .kui-lightbox.is-open .kui-lightbox-gallery { opacity: 1; scale: none; translate: none; }
+  dialog.kui-lightbox.kui-lightbox-flight[open] {
+    opacity: 1;
+    background: transparent;
+    transition: none;
+  }
+  dialog.kui-lightbox.kui-lightbox-flight::backdrop { background: var(--kui-flight-dim); }
+  .kui-lightbox.kui-lightbox-flight .kui-lightbox-gallery {
+    opacity: 1;
+    scale: none;
+    translate: none;
+    transition: none;
+  }
   /*
    * Fit, not scroll: the media takes whatever height the caption and the counter leave, so both
    * stay on screen at any viewport height. The gallery fills the dialog's content box (a definite

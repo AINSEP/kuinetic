@@ -7,9 +7,9 @@ import { catalogRegistry } from './support/registry.js'
 const css = readFileSync(fileURLToPath(new URL('../src/css/media.css', import.meta.url)), 'utf8')
 
 describe('media catalog', () => {
-  it('registers all 22 section G names', () => {
+  it('registers all 23 section G names', () => {
     const registry = catalogRegistry()
-    expect(MEDIA_PRESETS).toHaveLength(22)
+    expect(MEDIA_PRESETS).toHaveLength(23)
     expect(MEDIA_PRESETS.every((preset) => registry.has(preset.name))).toBe(true)
   })
 

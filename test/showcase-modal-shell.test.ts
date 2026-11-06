@@ -25,6 +25,53 @@ afterEach(() => {
 })
 
 describe('shared modal shell', () => {
+  it('owns flight cleanup across re-entry and another owner releasing', () => {
+    const first = acquireModalShell(document)
+    const second = acquireModalShell(document)
+    const cancel = vi.fn()
+    const motion = vi.fn(() => ({ cancel, dismiss: () => new Promise(() => {}) }))
+    first.open({ ...content('Flight'), motion })
+    expect(motion).toHaveBeenCalledWith(document.querySelector('dialog'))
+    second.release()
+    expect(cancel).not.toHaveBeenCalled()
+    first.dismiss()
+    first.open(content('Plain'))
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(document.querySelector('.kui-lightbox-flight-layer')).toBeNull()
+    expect(document.querySelector<HTMLElement>('dialog')!.style.getPropertyValue('--kui-flight-dim')).toBe('')
+    vi.advanceTimersByTime(70)
+    expect(document.querySelector('dialog')!.open).toBe(true)
+    first.release()
+  })
+
+  it('bounds an unfinished flight close and cancels it exactly once', () => {
+    const shell = acquireModalShell(document)
+    const cancel = vi.fn()
+    shell.open({ ...content('Flight'), motion: () => ({ cancel, dismiss: () => new Promise(() => {}) }) })
+    shell.dismiss()
+    vi.advanceTimersByTime(69)
+    expect(document.querySelector('dialog')!.open).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(document.querySelector('dialog')!.open).toBe(false)
+    expect(cancel).toHaveBeenCalledOnce()
+    shell.release()
+  })
+
+  it('routes an actual Escape key through the same bounded dismiss for plain content', () => {
+    const shell = acquireModalShell(document)
+    shell.open(content('Plain'))
+    const dialog = document.querySelector('dialog')!
+    const key = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    dialog.dispatchEvent(key)
+    expect(key.defaultPrevented).toBe(true)
+    expect(dialog.open).toBe(true)
+    vi.advanceTimersByTime(19)
+    expect(dialog.open).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(dialog.open).toBe(false)
+    shell.release()
+  })
+
   it('keeps a reopened viewer open when the old close timer expires', () => {
     const shell = acquireModalShell(document)
     shell.open(content('First'))

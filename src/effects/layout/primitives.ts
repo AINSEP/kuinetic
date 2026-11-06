@@ -1,5 +1,6 @@
 import type { PrepareContext } from '../../core/effect-context.js'
-import { deferPrepare } from '../../core/instances.js'
+import { createJsInstance, deferPrepare } from '../../core/instances.js'
+import { departures, interruptedSnapshot, LEAVING } from './departures.js'
 import { effectDurationMs } from '../../core/js-params.js'
 import { timeScaleOf } from '../../core/time-scale.js'
 import { frameScheduler, watchElementSize } from '../../core/element-size.js'
@@ -7,7 +8,7 @@ import { createFlipEngine, domMeasure, measureWithin, mutationWatcher, observeLa
 import type { Box, FlipSnapshot } from '../../core/flip.js'
 import { waapiEasingValue } from '../../core/easing.js'
 import { SUBTREE_CHANNEL } from '../../core/types.js'
-import type { Cleanup, EffectParams, ParameterSchema, Primitive } from '../../core/types.js'
+import type { Cleanup, EffectParams, EffectSpec, EffectVariant, ParameterSchema, Primitive } from '../../core/types.js'
 import { effectDelayMs, effectEasing, TRIGGER_DELAY_PARAM } from '../shared.js'
 
 /**
@@ -86,9 +87,9 @@ function scrolled(chain: Element[]): { x: number; y: number } {
 
 /** Preserve viewport movement except scrolling, converting old boxes when the scroll chain changes. */
 function flipCoordinates(host: Element, win: Window): { measure(el: Element): Box; rebase(before: FlipSnapshot): FlipSnapshot } {
-  const pinned = win.getComputedStyle(host).position === 'sticky'
   const inHost = measureWithin(host)
   let chain = scrollChain(host, win)
+  const pinned = [host, ...chain].some((node) => win.getComputedStyle(node).position === 'sticky')
   let batch = scrolled(chain)
   return {
     measure(el) {
@@ -133,22 +134,50 @@ function prepareFlipContainer(el: Element, params: EffectParams, ctx: PrepareCon
   const attribute = params.text('attribute')
   const nested = params.is('nested')
   const { measure, rebase } = flipCoordinates(el, ctx.win)
-  const engine = createFlipEngine({ measure })
-  return observeLayout(
+  const engine = createFlipEngine({ measure, ...(ctx.reducedMotion ? { animate: () => null } : {}) })
+  const timing = {
+    durationMs: effectDurationMs(params, 400),
+    delayMs: effectDelayMs(params),
+    easing: waapiEasingValue(effectEasing(params), el, ctx.warn),
+  }
+  const leave = params.is('leave', 'fade') && !nested ? departures(el as HTMLElement, ctx, timing) : undefined
+  leave?.update()
+  const stop = observeLayout(
     el,
     engine,
     {
-      durationMs: effectDurationMs(params, 400),
-      delayMs: effectDelayMs(params),
-      easing: waapiEasingValue(effectEasing(params), el, ctx.warn),
+      ...timing,
       scale: params.is('scale'),
       nested,
       attribute,
       rebase,
       watchRest: hostSizeWatcher(el, ctx.win),
+      ...(leave ? {
+        interrupt: (before: FlipSnapshot) => { leave.hold(); return interruptedSnapshot(before, ctx.win) },
+        prepareChange: leave.update,
+        exclude: leave.excludes,
+      } : {}),
     },
-    mutationWatcher(el, attribute),
+    mutationWatcher(el, attribute, leave ? [LEAVING] : []),
   )
+  return () => { stop(); leave?.destroy() }
+}
+
+function flipVariant(spec: EffectSpec, warn: (message: string) => void): EffectVariant {
+  const nested = spec.params.nested === 'true'
+  const leaving = spec.params.leave === 'fade'
+  if (nested && leaving) warn('leave:fade requires direct children; remove nested:true to enable departures.')
+  let channels: string[] = []
+  if (nested) channels = ['transform-origin', SUBTREE_CHANNEL]
+  else if (leaving) channels = ['position', SUBTREE_CHANNEL]
+  return {
+    channels,
+    // App signals must complete even while activation is gated, including reduced motion.
+    ...(leaving && !nested ? { prepare: (el, params, ctx) => {
+      const stop = prepareFlipContainer(el, params, ctx)
+      return createJsInstance({ activate() {}, destroy: stop })
+    } } : {}),
+  }
 }
 
 /**
@@ -337,6 +366,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
     ['translate', 'scale'],
     {
       attribute: { type: 'text', default: '', cssProperty: '--kui-flip-attribute' },
+      leave: { type: 'keyword', default: 'none', keywords: ['none', 'fade'], cssProperty: '--kui-flip-leave' },
       nested: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-flip-nested' },
       scale: {
         type: 'keyword',
@@ -346,9 +376,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       },
     },
     deferPrepare(prepareFlipContainer),
-  ), variantFor: (spec) => spec.params.nested === 'true'
-    ? { channels: ['transform-origin', SUBTREE_CHANNEL] }
-    : {} },
+  ), variantFor: flipVariant },
 
   { ...layoutPrimitive(
     'auto-height',

@@ -40,11 +40,12 @@ export interface StyleLedger {
  * Create a ledger over one element's inline style.
  *
  * @param el - Element whose inline style is managed.
+ * @param restoreProperty - Optional guard for properties another owner may have restored first.
  * @returns A ledger that can restore the element to its pre-effect inline state.
  * @complexity O(1) per write; O(n) space and O(n) time to restore, in properties written.
  * @overallScore 100
  */
-export function createStyleLedger(el: Element): StyleLedger {
+export function createStyleLedger(el: Element, restoreProperty?: (property: string) => boolean): StyleLedger {
   const style = (el as HTMLElement).style
   // A property's priority (`''` or `'important'`) travels with its value, not beside it — restoring
   // `setProperty(property, value)` alone always writes a plain declaration, silently dropping an
@@ -75,6 +76,7 @@ export function createStyleLedger(el: Element): StyleLedger {
     claim: remember,
     restore() {
       for (const [property, previousValue] of previous) {
+        if (restoreProperty && !restoreProperty(property)) continue
         if (previousValue === undefined) style.removeProperty(property)
         else style.setProperty(property, previousValue.value, previousValue.priority)
       }

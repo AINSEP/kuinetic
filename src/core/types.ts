@@ -383,6 +383,8 @@ export type Cleanup = () => void
  * cancellation — is enforced here rather than re-implemented per renderer.
  */
 export interface EffectInstance {
+  /** Opt-in finite decoration: a new activation cancels and replaces the current run. */
+  readonly replaceOnActivate?: boolean
   /** Start. Called by the animator once its gate opens, never by `prepare`. */
   activate(): void
   /**
