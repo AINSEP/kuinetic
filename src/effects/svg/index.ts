@@ -15,6 +15,7 @@ import {
 } from '../shared.js'
 import { withIconParts } from './icon-parts.js'
 import { prepareMorphLoop } from './morph-loop.js'
+import { TEXT_PATH_PRIMITIVE } from './text-path.js'
 
 /**
  * SVG shape morphing.
@@ -199,6 +200,7 @@ const ICON_TOGGLE_PRIMITIVE: Primitive = {
 }
 
 export const SVG_PRIMITIVES: Primitive[] = [
+  TEXT_PATH_PRIMITIVE,
   {
     id: 'path-morph',
     renderer: 'javascript',
@@ -239,6 +241,7 @@ export const SVG_PRIMITIVES: Primitive[] = [
 ]
 
 export const SVG_PRESETS: Preset[] = [
+  { name: 'text-path', primitive: 'text-path' },
   { name: 'icon-morph', primitive: 'path-morph' },
   { name: 'blob-morph', primitive: 'path-morph', params: { duration: '800ms' } },
 

@@ -215,6 +215,7 @@ const FIXTURES: Record<string, [string, string]> = {
   'strength-meter': ['strength-meter', INPUT],
   'range-fill': ['range-fill', INPUT],
   'path-morph': [`icon-morph to:'M0 0 L20 20'`, `<svg><path ${HOST} d="M0 0 L10 10"></path></svg>`],
+  'text-path': ['text-path 0ms', `<svg><text><textPath ${HOST}>Curved letters</textPath></text></svg>`],
   'word-cycler': ['word-cycler words:one|two|three', 'zero'],
   'rotate-static': ['rotate-static angle:10deg', GENERIC],
   'flip-indicator': ['tab-indicator-slide follow:#tab', `<button id="tab">Tab</button>`],

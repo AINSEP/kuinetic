@@ -28,19 +28,19 @@
     overflow-x: auto;
     min-width: 0;
   }
-  [data-kui~='carousel-loop'] > *, [data-kui-fx~='carousel-loop'] > [data-kui-step-offset] {
+  [data-kui~='carousel-loop'] > *, [data-kui-fx~='carousel-loop'] > :is([data-kui-step-offset], [data-kui-row-copy]) {
     flex: 0 0 auto;
   }
   [data-kui-fx~='carousel-loop'] {
     overflow: clip;
     --kui-ring-drift: calc(var(--kui-step-position, 0) - var(--kui-step, 0));
   }
-  [data-kui-fx~='carousel-loop'] > [data-kui-step-offset] {
+  [data-kui-fx~='carousel-loop'] > :is([data-kui-step-offset], [data-kui-row-copy]) {
     transform: translateX(calc(var(--kui-row-x, 0px) + var(--kui-row-cycle, 0px)));
     transition: transform var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease) var(--kui-spatial-row-delay, 0ms);
   }
   [data-kui-fx~='carousel-loop'][data-kui-row-static='true'] { overflow-x: auto; }
-  [data-kui-fx~='carousel-loop'][data-kui-ring-wrap='true'] > [data-kui-step-offset] {
+  [data-kui-fx~='carousel-loop'][data-kui-ring-wrap='true'] > :is([data-kui-step-offset], [data-kui-row-copy]) {
     transition: none;
   }
   /*
@@ -567,9 +567,36 @@
    * Transitioned, it would sweep the long way round across every other card. `deck.ts` flags it for
    * exactly one style resolution, so it lands where it already visually was.
    */
+  [data-kui-ring-dragging='true'] [data-kui-row-copy],
+  [data-kui-ring-spinning='true'] [data-kui-row-copy],
   [data-kui-ring-dragging='true'] [data-kui-step-offset],
   [data-kui-ring-spinning='true'] [data-kui-step-offset],
   [data-kui-step-offset][data-kui-ring-wrap='true'] {
+    transition: none;
+  }
+
+  [data-kui-ring-shape='helix'] {
+    scale: var(--kui-shape-fit, 1);
+    min-block-size: var(--kui-shape-height, calc(var(--kui-item-count, 1) * max(var(--kui-helix-rise, 32px), -1 * var(--kui-helix-rise, 32px)) + var(--kui-item-height, 180px)));
+  }
+  [data-kui-ring-shape='helix'] [data-kui-step-offset] {
+    --kui-helix-place: calc(var(--kui-offset, 0) - var(--kui-ring-drift) - var(--kui-helix-centre, 0));
+    --kui-helix-fade: clamp(0, calc(var(--kui-item-count, 1) / 2 - 0.5 - max(var(--kui-helix-place), -1 * var(--kui-helix-place))), 1);
+    backface-visibility: visible;
+    opacity: var(--kui-helix-fade);
+    transform: rotateX(var(--kui-ring-tilt)) translateY(calc(var(--kui-helix-place) * var(--kui-helix-rise, 32px)))
+      rotateY(var(--kui-ring-angle)) translateZ(var(--kui-ring-radius));
+    transition-property: transform, opacity;
+  }
+  [data-kui-ring-shape='helix'][data-kui-ring-facing='camera'] [data-kui-step-offset]:has(> *) {
+    opacity: 1;
+  }
+  [data-kui-ring-shape='helix'][data-kui-ring-facing='camera'] [data-kui-step-offset] > * {
+    opacity: var(--kui-helix-fade);
+    transition: opacity var(--kui-spatial-ring-duration, 620ms) var(--kui-spatial-ring-ease, ease);
+  }
+  [data-kui-ring-shape='helix']:is([data-kui-ring-dragging='true'], [data-kui-ring-spinning='true']) [data-kui-step-offset] > *,
+  [data-kui-ring-shape='helix'] [data-kui-step-offset][data-kui-ring-wrap='true'] > * {
     transition: none;
   }
 }

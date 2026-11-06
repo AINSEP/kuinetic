@@ -773,6 +773,7 @@ export class Animator {
     }
     state.instances.push(
       ...this.jsEffectPreparer.prepare({
+        timeline: context.config.timeline,
         el: match,
         plan: target.plan,
         signal: context.signal,

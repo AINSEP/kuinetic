@@ -7,11 +7,13 @@ import { createAttributeLedger, createStyleLedger } from '../../core/owned-style
 import type { StyleLedger } from '../../core/owned-styles.js'
 import { queryControls, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepMarker } from '../step-marking.js'
-import { bindControl, countSteps, delegateControls, nextStep, prevStep } from '../step-index.js'
+import { bindControl, countSteps, delegateControls } from '../step-index.js'
 import type { ControlGroup } from '../step-index.js'
 import { ALL_TIMING_TOKENS, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
-import { createRingDrag, wrapPlace } from './drag.js'
+import { createRingDrag, nearestPlace, wrapPlace } from './drag.js'
 import { AUTOPLAY_PARAM, createDeckMotion, HOVER_PARAM, PAUSE_PARAM } from '../auto-motion.js'
+import { createDeckSpeed, deckMotionParams, trackDeckScroll } from './sources.js'
+import { distanceParam } from '../scroll-mechanics/params.js'
 
 /**
  * The spatial deck: the index, the continuous position, the controls, the grab and the auto-motion
@@ -177,6 +179,8 @@ export function snapPosition(position: number, total: number): { step: number; d
  * documented — once.
  */
 export const DECK_PARAMETERS: ParameterSchema = {
+  ...distanceParam,
+  speed: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-speed' },
   duration: { type: 'time', default: '620ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'cubic-bezier(0.22, 1, 0.36, 1)', cssProperty: '--kui-ease' },
@@ -229,6 +233,9 @@ export const DECK_PARAMETERS: ParameterSchema = {
 
 /** What a deck's shape contributes; everything else is shared. */
 export interface DeckLayout {
+  coastSpeed?(spinMs: number): number
+  unwrapped?: boolean
+  includeSlot?(node: Element): boolean
   advanceBoth?: boolean
   /** The primitive's id: names the mirrored timing properties (`--kui-<id>-duration`). */
   id: string
@@ -241,6 +248,9 @@ export interface DeckLayout {
     measure(nodes: readonly Element[]): void
     faceOf(place: number, count: number): Face | undefined
     travelSign(): 1 | -1 | undefined
+    keyboardSign?(): 1 | -1
+    pixelPosition?(): number
+    pickup?(position: number): number | undefined
     watch(refresh: () => void, goTo: (position: number) => void): Cleanup
     render?(position: number, settle: (nodes: readonly Element[]) => void): void
     positionAt?(from: number, dx: number): number
@@ -277,6 +287,10 @@ export interface DeckAttachment {
 /** Every per-slot ledger this instance has ever written, so teardown gives each element back. */
 interface SlotLedgers {
   attributes: Map<Element, ReturnType<typeof createAttributeLedger>>
+}
+
+function dragCoordinates(layout: DeckLayout) {
+  return { positionAt: layout.view?.positionAt, keyboardSign: layout.view?.keyboardSign }
 }
 
 /**
@@ -349,8 +363,10 @@ export function prepareSpatialDeck(
 
   const selector = resolveTarget(params.text('target'), ctx, label)
   const scope = scopeParam(params, 'self')
-  const resolveSlots = (): Iterable<Element> =>
-    selector ? queryScoped(el, ctx, selector, scope) : el.children
+  const resolveSlots = (): Iterable<Element> => {
+    const nodes = selector ? queryScoped(el, ctx, selector, scope) : el.children
+    return layout.includeSlot ? [...nodes].filter(layout.includeSlot) : nodes
+  }
   const marker = createStepMarker(resolveSlots, (message) => ctx.warn(`${label} ${message}`))
   const total = (): number => countSteps(params, resolveSlots)
 
@@ -360,6 +376,11 @@ export function prepareSpatialDeck(
   const slots: SlotLedgers = { attributes: new Map() }
   const ownedInert = new WeakSet<Element>()
   const attachment = layout.attach?.(hostStyles)
+  const speed = params.is('speed') ? createDeckSpeed(ctx, hostStyles) : undefined
+  let dragging = false
+  let discrete = false
+  let sampledPlace = 0
+  let sampledPixel = 0
 
   /*
    * The deck's position, in places, as a real number. The integer index everything else keys off is
@@ -420,6 +441,14 @@ export function prepareSpatialDeck(
     layout.view?.render?.(position, shifted => {
       for (const node of shifted) commitWithoutTransition(ctx.win, node)
     })
+    speed?.sample(layout.view?.pixelPosition?.() ?? physicalPosition(), discrete)
+  }
+
+  const physicalPosition = (): number => {
+    const delta = position - sampledPlace
+    sampledPixel -= (delta - Math.round(delta / rendered.count) * rendered.count) * params.num('travel', 220)
+    sampledPlace = position
+    return sampledPixel
   }
 
   const render = (): void => {
@@ -466,23 +495,24 @@ export function prepareSpatialDeck(
     markFaces(rendered.nodes, rendered.count, drift)
   }
 
+  const motionParams = deckMotionParams(params, ctx, label)
   const { motion, pause, release: releaseMotion } = createDeckMotion({
     el,
     ctx,
-    params,
+    params: motionParams,
     label,
     settleMs: effectDurationMs(params, 620),
     onAutoplayProgress: params.is('timer')
       ? (progress) => hostStyles.set('--kui-autoplay-progress', progress.toFixed(4)) : undefined,
     step(direction) {
-      const count = total()
-      const { step } = snapPosition(position, count)
-      position = direction > 0 ? nextStep(step, count) : prevStep(step, count)
+      const next = Math.round(position) + direction
+      position = layout.unwrapped ? next : wrapPlace(next, total())
       render()
     },
     spin: {
       advance(cycles) {
-        position = wrapPlace(position + cycles * rendered.count, rendered.count)
+        const next = position + cycles * rendered.count
+        position = layout.unwrapped ? next : wrapPlace(next, rendered.count)
         renderFrame()
       },
       setSpinning: (spinning) => hostAttributes.set(SPINNING_ATTR, String(spinning)),
@@ -491,10 +521,14 @@ export function prepareSpatialDeck(
 
   /** A person moved the deck. The motion yields first, so the stylesheet's transition is back. */
   const goTo = (next: number): void => {
+    releaseDrag.interrupt()
     motion.interrupt()
+    discrete = !dragging
+    if (ctx.timeline === 'scroll' && discrete) hostAttributes.set(SPINNING_ATTR, 'false')
     position = next
     if (layout.view?.render && total() === rendered.count) renderFrame()
     else render()
+    discrete = false
   }
 
   /*
@@ -503,11 +537,16 @@ export function prepareSpatialDeck(
    * the deck on that press as well would mean every abandoned drag also stepped it.
    */
   const request = { el, ctx, params, label }
-  const jump = bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(at) })
+  const atPlace = (at: number): number => layout.unwrapped ? nearestPlace(at, position, total()) : at
+  const stepTo = (direction: number): void => {
+    const next = Math.round(position) + direction
+    goTo(layout.unwrapped ? next : wrapPlace(next, total()))
+  }
+  const jump = bindControl(request, 'jump', (_node, at) => { if (at >= 0) goTo(atPlace(at)) })
   const jumpMarker = jump ? createStepMarker(() => queryControls(el, ctx, jump.selector), undefined, total) : null
   const groups = [
-    bindControl(request, 'next', () => goTo(nextStep(snapPosition(position, total()).step, total()))),
-    bindControl(request, 'prev', () => goTo(prevStep(snapPosition(position, total()).step, total()))),
+    bindControl(request, 'next', () => stepTo(1)),
+    bindControl(request, 'prev', () => stepTo(-1)),
     jump,
     pause,
   ].filter((group): group is ControlGroup => group !== null)
@@ -533,6 +572,14 @@ export function prepareSpatialDeck(
   }
 
   const releaseDrag = createRingDrag({
+    unwrapped: layout.unwrapped,
+    pickup: () => {
+      const next = layout.view?.pickup?.(position)
+      if (next !== undefined) { position = next; renderFrame() }
+    },
+    free: params.is('release', 'free'),
+    coastSpeed: () => layout.coastSpeed!(motionParams.ms('spin')),
+    moveFree: next => { position = next; renderFrame() },
     el,
     ctx,
     enabled: params.is('grab'),
@@ -540,12 +587,13 @@ export function prepareSpatialDeck(
     total,
     positionOf: () => position,
     travelSign: screenTravel,
-    positionAt: layout.view?.positionAt,
+    ...dragCoordinates(layout),
     advanceBoth: layout.advanceBoth,
     moveTo: goTo,
-    setDragging: (dragging) => {
-      hostAttributes.set(DRAGGING_ATTR, String(dragging))
-      motion.hold(dragging)
+    setDragging: (active) => {
+      dragging = active
+      hostAttributes.set(DRAGGING_ATTR, String(active))
+      motion.hold(active)
     },
   })
 
@@ -557,6 +605,7 @@ export function prepareSpatialDeck(
 
   render()
   const releaseView = layout.view?.watch(() => {
+    speed?.reset()
     if (layout.view?.render) {
       rendered.nodes = [...resolveSlots()]
       layout.view.measure(rendered.nodes)
@@ -565,13 +614,25 @@ export function prepareSpatialDeck(
     }
     layout.view!.measure(rendered.nodes)
     markFaces(rendered.nodes, rendered.count, snapPosition(position, rendered.count).drift)
-  }, goTo)
+  }, next => goTo(atPlace(next)))
+  const releaseScroll = trackDeckScroll({ el, ctx, params, count: total, position: () => position,
+    dragging: () => dragging, resetSpeed: () => speed?.reset(),
+    driving: active => hostAttributes.set(SPINNING_ATTR, String(active)),
+    move: next => {
+      releaseDrag.interrupt()
+      hostAttributes.set(SPINNING_ATTR, 'true')
+      position = next
+      renderFrame()
+    },
+  })
 
   return () => {
+    releaseScroll()
+    speed?.release()
     releaseView?.()
     releaseViewer()
-    releaseMotion()
     releaseDrag()
+    releaseMotion()
     releaseControls()
     jumpMarker?.restore()
     marker.restore()

@@ -6,10 +6,11 @@ import { readEffectParams, readEffectTiming } from './js-params.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Reporter } from './reporter.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
-import type { EffectInstance, EffectTiming } from './types.js'
+import type { EffectInstance, EffectTiming, Timeline } from './types.js'
 
 /** Everything `JsEffectPreparer.prepare` needs, grouped so the call site reads as one request. */
 export interface PrepareJsEffectsRequest {
+  timeline?: Timeline
   el: Element
   plan: CompiledPlan
   signal: AbortSignal
@@ -80,10 +81,11 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
    * @complexity O(1) time, O(1) space.
    * @overallScore 100
    */
-  function contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger): PrepareContext {
+  function contextFor(el: Element, signal: AbortSignal, ledger: StyleLedger, timeline: Timeline): PrepareContext {
     const doc = el.ownerDocument
     return {
       doc,
+      timeline,
       win: doc.defaultView ?? (globalThis as unknown as Window),
       scheduler,
       rootFor: rootResolver,
@@ -97,11 +99,11 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
   }
 
   return {
-    prepare({ el, plan, signal, ledger }: PrepareJsEffectsRequest): EffectInstance[] {
+    prepare({ el, plan, signal, ledger, timeline = 'time' }: PrepareJsEffectsRequest): EffectInstance[] {
       const instances: EffectInstance[] = []
       if (plan.jsEffects.length === 0) return instances
 
-      const ctx = contextFor(el, signal, ledger)
+      const ctx = contextFor(el, signal, ledger, timeline)
 
       for (const entry of plan.jsEffects) {
         const { spec, resolved } = entry

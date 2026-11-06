@@ -3,6 +3,7 @@ import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '
 import type { PrepareContext } from '../../core/effect-context.js'
 import { deferPrepare } from '../../core/instances.js'
 import { DECK_PARAMETERS, prepareSpatialDeck, SPATIAL_DECK_CHANNELS } from './deck.js'
+import { deckSourceVariant } from './sources.js'
 import type { Face } from './deck.js'
 import { wrapPlace } from './drag.js'
 
@@ -140,14 +141,14 @@ export const SPATIAL_STACK_PRIMITIVE: Primitive = {
   // What `deck.ts` writes on the host: the cards (the subtree), the step index, the drag.
   channels: [CHANNEL.skew, 'discrete', CHANNEL.opacity, CHANNEL.filter, ...SPATIAL_DECK_CHANNELS],
   parameters: STACK_PARAMETERS,
-  supportedTimelines: ['time'],
+  supportedTimelines: ['time', 'scroll'],
   supportedActivations: ['load', 'enter', 'click', 'manual'],
   defaultActivation: 'load',
   perfClass: 'compositor',
   reducedMotion: 'shorten',
   prepare: deferPrepare(prepareSpatialStack),
-  variantFor: spec => spec.params.leave === 'swipe'
-    ? { channels: [attributeChannel('data-kui-stack-leave'), '--kui-stack-swipe-sign'] } : {},
+  variantFor: spec => ({ channels: [...(deckSourceVariant(spec).channels ?? []),
+    ...(spec.params.leave === 'swipe' ? [attributeChannel('data-kui-stack-leave'), '--kui-stack-swipe-sign'] : [])] }),
 }
 
 /**

@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **307** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **308** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -73,7 +73,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 | 13 | `shimmer` | css | x | text/skeleton sweep |
 | 14 | `flip-3d` | css | r | card flip, cube, fold |
 | 15 | `stroke-draw` | css | x | SVG draw, checkmark, charts |
-| 16 | `path-morph` | js | x | arbitrary SVG `d` interpolation |
+| 16 | `path-morph`, `text-path` | js | x | SVG geometry interpolation and curved lettering offsets |
 | 17 | `split-text` | prep | — | chars/words/lines segmentation |
 | 18 | `type` | js | x | typewriter |
 | 19 | `scramble` | js | x | scramble, decode |
@@ -381,11 +381,11 @@ A held `split-lines` measures once and does not rewrap; prefer words for long te
 
 ---
 
-## E. SVG & icons — 17 names
+## E. SVG & icons — 18 names
 
-Primitives 15, 16. All CSS except the two morphs.
+Primitives 15, 16. CSS draws plus JavaScript morphs and text-path offsets.
 
-`draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
+`text-path` · `draw-stroke` · `draw-signature` · `draw-underline` · `checkmark-draw` · `cross-draw` ·
 `chart-line-draw` · `gradient-stroke` · `heart-fill` · `bookmark-fill` · `chart-area-fill` ·
 `chart-bar-grow` · `logo-build` · `hamburger-to-x` · `play-to-pause` · `plus-to-minus` ·
 `icon-morph` · `blob-morph`
@@ -1335,7 +1335,7 @@ Primitives 14, 22, 38, 46, 48.
 > No controls are generated. A loop needs one cycle at least as wide as the viewport plus its
 > widest slide and largest centre-to-centre step (room to recycle between animated steps).
 > Otherwise it becomes a static, locally scrollable strip with native touch scrolling;
-> resize rechecks coverage. No clones, RTL, vertical mode or free coast are provided.
+> resize rechecks coverage. Direct images can opt into inert copies with `copies:auto` and coast with `release:free`.
 > In that static fallback, deck arrow keys are consumed without visible motion, and spin/autoplay
 > still tick invisibly. While looping, keyboard-visible focus centres its slide without moving on
 > mouse focus. Measured relayouts and jumps beyond the recycling room land without a transition.
@@ -1991,7 +1991,7 @@ need to track.
 | B Scroll reveal & parallax | 12 (+1 planned) |
 | C Scroll mechanics | 12 |
 | D Text & typography | 27 |
-| E SVG & icons | 17 |
+| E SVG & icons | 18 |
 | F Numbers & data viz | 13 |
 | G Media & images | 22 |
 | H Layout & FLIP | 9 |
@@ -2008,10 +2008,10 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **307** |
+| **Total shipped** | **308** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **142 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
@@ -2155,3 +2155,20 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 > it is not guaranteed, since observers can report zero-area intersections. Use a small non-zero
 > scale, or `on:load`. The check follows axis overrides and recognizes percentages and signed
 > zero. It cannot evaluate stylesheet values or `calc()` expressions at compile time.
+
+`carousel-loop copies:auto` fills short rows with inert copies of direct images; copies are not links or slides.
+`release:free` adds a finite drag coast; ordinary rows still snap on release.
+True `dir="rtl"` reverses inline layout, drag mapping and horizontal keys; positive `spin:` travels right in RTL.
+
+`scroll-progress smooth:true` smooths only visual progress; step marks keep raw progress. Add `page:true` for document-length progress.
+
+Spatial decks accept `timeline:scroll distance:200vh`; the span moves one logical cycle and disables spin/autoplay.
+The timeline also scrubs composed effects on that host and `control()` refuses its scroll-owned playhead; put time effects on a wrapper.
+`speed:true` publishes signed physical pixels per second as `--kui-motion-speed` for drag, spin and scroll, with a finite decay to zero.
+
+`text-path` on an SVG `<textPath>` drives `startOffset` using native glyph layout; use `timeline:scroll` or a timed duration with optional `loop:true`. Offsets must share a numeric unit.
+
+`carousel-3d shape:helix rise:32px arc:540deg radius:240px` makes a fitted vertical helix with visible far backs and faded open ends; inside and screen rings warn and ignore shape.
+
+Keep scroll-driven text paths in a sticky stage for their full distance so the SVG stays visible throughout the travel.
+The clipped `gallery-backstage` recipe is a near match per the owner’s Chrome check: its flat cards have small gaps where the sheet’s trapezoids touch; it adds no parameters.

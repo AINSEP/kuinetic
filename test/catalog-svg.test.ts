@@ -61,6 +61,7 @@ function svgPath(d: string): SVGPathElement {
 describe('svg catalog registration', () => {
   it('registers every section E primitive, and every section E name resolves', () => {
     expect(SVG_PRIMITIVES.map((primitive) => primitive.id)).toEqual([
+      'text-path',
       'path-morph',
       'path-draw',
       'shape-fill',

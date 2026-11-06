@@ -84,6 +84,7 @@ function cursorDot(name: CursorDotPreset): Bullets {
 }
 
 export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
+  'text-path': ['Put text-path on an SVG textPath to drive startOffset on scroll or a native SVG timer.'],
   'carousel-loop': ['Mixed-width slides loop horizontally; give each direct child a width in CSS.',
     'A short row stays a static, locally scrollable strip until it can cover the viewport while recycling.'],
   'drop-open': ['Parent data-open, open or popover-open opens its direct children.'],

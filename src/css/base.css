@@ -430,6 +430,8 @@
     [data-kui-rm][data-kui-fx~='carousel-orbit'] [data-kui-step-offset],
     [data-kui-rm][data-kui-fx~='carousel-stack'] [data-kui-step-offset],
     [data-kui-rm][data-kui-fx~='carousel-loop'] [data-kui-step-offset],
+    [data-kui-rm][data-kui-fx~='carousel-loop'] [data-kui-row-copy],
+    [data-kui-rm][data-kui-ring-shape='helix'] [data-kui-step-offset] > *,
     /*
      * `step-progress`'s own segments. This one is a *descendant*, not a sibling satellite, so
      * `reduced-motion-coverage.test.ts` — which derives its allowlist from the `~` pattern the

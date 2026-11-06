@@ -1,6 +1,7 @@
 import type { Capabilities } from './capabilities.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
+import type { Timeline } from './types.js'
 
 /**
  * What a JS-rendered primitive receives.
@@ -15,6 +16,8 @@ import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
  * string.
  */
 export interface PrepareContext {
+  /** Resolved element-wide timeline; omitted by older embedding contexts means time. */
+  timeline?: Timeline
   doc: Document
   win: Window
   /** Shared frame source. One listener per scroll root, one rAF per dirtied frame. */

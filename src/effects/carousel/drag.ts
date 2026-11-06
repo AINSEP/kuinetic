@@ -4,6 +4,7 @@ import type { GestureVector } from '../../core/gesture.js'
 import { createStyleLedger } from '../../core/owned-styles.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import type { Cleanup } from '../../core/types.js'
+import { createCoast } from './coast.js'
 
 /**
  * Spinning a ring by hand.
@@ -51,6 +52,12 @@ const MAX_FLICK_PLACES = 4
 const DRAG_THRESHOLD_PX = 6
 
 export interface RingDragRequest {
+  unwrapped?: boolean
+  pickup?(): void
+  keyboardSign?(): 1 | -1
+  free?: boolean
+  coastSpeed(): number
+  moveFree?(position: number): void
   advanceBoth?: boolean
   el: Element
   ctx: PrepareContext
@@ -146,12 +153,50 @@ export function wrapPlace(place: number, total: number): number {
   return total > 0 ? ((place % total) + total) % total : 0
 }
 
+export function nearestPlace(place: number, current: number, total: number): number {
+  return place + Math.round((current - place) / total) * total
+}
+
+function dragPlace(request: RingDragRequest, place: number): number {
+  return request.unwrapped ? place : wrapPlace(place, request.total())
+}
+
 function releasePlace(request: RingDragRequest, from: number, vector: GestureVector, sign: number): number {
   if (request.advanceBoth) return snapTo(from) + Number(Math.abs(vector.dx) >= request.travelPx / 4)
   const projected = request.positionAt
     ? request.positionOf()
     : projectRelease(request.positionOf(), sign * vector.vx, request.travelPx)
   return snapTo(projected)
+}
+
+function freeCoast(request: RingDragRequest): ReturnType<typeof createCoast> | undefined {
+  if (!request.free) return undefined
+  return createCoast(request.el, request.ctx, dx => {
+    request.moveFree!(request.positionAt!(request.positionOf(), dx))
+  }, () => request.setDragging(false))
+}
+
+function beginPickup(request: RingDragRequest, coast: ReturnType<typeof createCoast> | undefined): void {
+  coast?.stop()
+  request.pickup?.()
+}
+
+function endDrag(request: RingDragRequest, coast: ReturnType<typeof createCoast> | undefined, vector: GestureVector, { from, sign }: { from: number; sign: number }): void {
+  if (coast) { coast.start(vector.vx, request.coastSpeed()); return }
+  request.setDragging(false)
+  request.moveTo(dragPlace(request, releasePlace(request, from, vector, sign)))
+}
+
+function keyDelta(request: RingDragRequest, key: string): number | null | undefined {
+  const delta = KEY_DELTAS[key]
+  if (delta === null || delta === undefined) return delta
+  return delta * (key === 'ArrowLeft' || key === 'ArrowRight' ? request.keyboardSign?.() ?? 1 : 1)
+}
+
+function keyPlace(request: RingDragRequest, key: string, delta: number | null): number {
+  if (delta !== null) return snapTo(request.positionOf()) + delta
+  const absolute = key === 'Home' ? 0 : request.total() - 1
+  return request.unwrapped ? nearestPlace(absolute, request.positionOf(), request.total()) : absolute
 }
 
 /**
@@ -292,8 +337,8 @@ function guardClicks(el: Element, enabled: boolean): { arm(): void; release: Cle
  * @returns Teardown for every listener and attribute this installs.
  * @complexity O(1) per pointer event and per key; O(1) space.
  */
-export function createRingDrag(request: RingDragRequest): Cleanup {
-  const { el, ctx, enabled, travelPx, total, positionOf, moveTo, setDragging } = request
+export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(): void } {
+  const { el, ctx, enabled, travelPx, positionOf, moveTo, setDragging } = request
 
   const clicks = guardClicks(el, enabled)
 
@@ -320,12 +365,17 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
   let sign: 1 | -1 = 1
 
   const selection = holdSelection(el.ownerDocument)
+  const coast = freeCoast(request)
 
   const stopRecognising = enabled
     ? recognise(
         el,
         {
+          onPress(pressed) {
+            if (pressed) coast?.stop()
+          },
           onStart() {
+            beginPickup(request, coast)
             dragFrom = positionOf()
             sign = request.travelSign()
             selection.hold()
@@ -341,9 +391,8 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
           },
           onEnd(vector) {
             selection.release()
-            setDragging(false)
             clicks.arm()
-            moveTo(wrapPlace(releasePlace(request, dragFrom, vector, sign), total()))
+            endDrag(request, coast, vector, { from: dragFrom, sign })
           },
         },
         // Locked to one axis: a ring spins about one pole, so vertical pointer movement is the
@@ -359,7 +408,7 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
         // link and button inside a card dead in a real browser while jsdom (which has no capture)
         // stayed green. The host never moves under the pointer — its cards do — so the press has
         // nothing to stay captured for until it is a drag, and a drag's click is swallowed above.
-        { axis: 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag' },
+        { axis: 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag', cancelVelocity: request.free },
       )
     : () => {}
 
@@ -373,22 +422,19 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
 
   const onKeyDown = (event: Event): void => {
     const keyboard = event as KeyboardEvent
-    const key = keyboard.key
     // Absent means unbound; `null` means bound to an absolute place. Read as one lookup rather than
     // an `in` check followed by a second one, so the two can never disagree about which keys exist.
-    const delta = KEY_DELTAS[key]
+    const delta = keyDelta(request, keyboard.key)
     if (delta === undefined) return
     // Modified presses belong to the browser and the OS — Home with a modifier is "top of
     // document", and stealing it would be worse than not binding the key at all.
     if (keyboard.altKey || keyboard.ctrlKey || keyboard.metaKey) return
 
-    const count = total()
     // `null` is the "names an absolute place" marker the table cannot resolve on its own, because
     // only the live count knows where the last place is.
-    const absolute = key === 'Home' ? 0 : count - 1
-    const next = delta === null ? absolute : snapTo(positionOf()) + delta
+    const next = keyPlace(request, keyboard.key, delta)
     event.preventDefault()
-    moveTo(wrapPlace(next, count))
+    moveTo(dragPlace(request, next))
   }
 
   /*
@@ -408,8 +454,9 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
   if (grantedFocus) el.setAttribute('tabindex', '0')
   el.addEventListener('keydown', onKeyDown)
 
-  return () => {
+  return Object.assign(() => {
     stopRecognising()
+    coast?.release()
     // A teardown mid-drag gets no `onEnd`; the page must not be left unselectable.
     selection.release()
     el.removeEventListener('keydown', onKeyDown)
@@ -418,5 +465,5 @@ export function createRingDrag(request: RingDragRequest): Cleanup {
     // elsewhere in this module enforce by remembering the prior value: a `tabindex` the author
     // wrote must survive teardown untouched.
     if (grantedFocus) el.removeAttribute('tabindex')
-  }
+  }, { interrupt: () => coast?.stop() })
 }

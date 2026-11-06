@@ -35,15 +35,17 @@ describe('row structure and runtime ownership', () => {
     expect(raw.some(rule => rule.body.includes('overflow-x: auto'))).toBe(true)
   })
 
-  it('clips looping overflow without scrolling, and moves only direct marked slides', () => {
+  it('clips looping overflow without scrolling, and moves only direct slides and inert copies', () => {
     const runtime = rules.filter(rule => rule.selectors.includes("[data-kui-fx~='carousel-loop']"))
     expect(runtime.some(rule => rule.body.includes('overflow: clip'))).toBe(true)
     const motion = runtime.filter(rule => /transform\s*:/.test(rule.body))
     expect(motion.length).toBeGreaterThan(0)
-    for (const rule of motion) expect(rule.selectors).toContain("[data-kui-fx~='carousel-loop'] > [data-kui-step-offset]")
+    for (const rule of motion) expect(rule.selectors).toContain("[data-kui-fx~='carousel-loop'] > :is([data-kui-step-offset], [data-kui-row-copy])")
     expect(runtime.some(rule => rule.selectors.includes("[data-kui-ring-wrap='true']") && rule.body.includes('transition: none'))).toBe(true)
     const base = readFileSync(fileURLToPath(new URL('../src/css/base.css', import.meta.url)), 'utf8')
     expect(base).toContain("[data-kui-rm][data-kui-fx~='carousel-loop'] [data-kui-step-offset]")
+    expect(base).toContain("[data-kui-rm][data-kui-fx~='carousel-loop'] [data-kui-row-copy],")
+    expect(base).toContain("[data-kui-rm][data-kui-ring-shape='helix'] [data-kui-step-offset] > *,")
   })
 })
 
@@ -139,5 +141,27 @@ describe('a depth ring’s radius is capped by its fit to the page', () => {
     const slot = block("[data-kui-fx~='carousel-3d'] [data-kui-step-offset],")
     expect(slot).toMatch(/--kui-ring-wanted: var\(\s*--kui-radius,/)
     expect(slot).toContain('--kui-ring-radius: min(var(--kui-ring-wanted), var(--kui-ring-fit, var(--kui-ring-wanted)));')
+  })
+})
+
+describe('helix paint safety', () => {
+  const bare = stripComments(css)
+  it('keeps radial far backs visible and fades the parity-adjusted open ends', () => {
+    const selector = "[data-kui-ring-shape='helix'] [data-kui-step-offset] {"
+    const start = bare.indexOf(selector)
+    expect(start).toBeGreaterThan(0)
+    const body = bare.slice(start, bare.indexOf('}', start))
+    expect(body).toContain('backface-visibility: visible')
+    expect(body).toContain('var(--kui-helix-centre, 0)')
+    expect(body).toContain('opacity: var(--kui-helix-fade)')
+    expect(body).toContain('/ 2 - 0.5 - max(')
+    expect(bare).not.toContain('abs(')
+  })
+
+  it('keeps the camera-facing slot opaque so the child counter-rotation is not flattened', () => {
+    const selector = "[data-kui-ring-shape='helix'][data-kui-ring-facing='camera'] [data-kui-step-offset]:has(> *)"
+    const start = bare.indexOf(selector)
+    expect(start).toBeGreaterThan(0)
+    expect(bare.slice(start, bare.indexOf('}', start))).toContain('opacity: 1')
   })
 })

@@ -558,6 +558,8 @@ export interface EffectParams {
  * primitive with no `variantFor` at all is unaffected.
  */
 export interface EffectVariant {
+  /** Reduced-motion behavior for this explicitly selected variant. */
+  reducedMotion?: ReducedMotionPolicy
   /** Setup needed only by this opt-in variant. */
   prepare?: Primitive['prepare']
   /**
