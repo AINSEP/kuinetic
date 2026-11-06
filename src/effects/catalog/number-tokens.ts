@@ -65,7 +65,7 @@ export function prepareNumberTokens(el: Element, params: EffectParams, ctx: Prep
     ctx.warn('number-formatting needs a leaf element without interactive children')
     return () => {}
   }
-  const authored = el.textContent ?? ''
+  const authored = el.textContent!
   const layers = installCountLayers(el, ctx.doc)
   const host = layers.decorative
   host.classList.add('kui-number-tokens')
