@@ -55,6 +55,14 @@ const EXCLUDED = new Map([
       'exclusion like card-toggle above: nothing anywhere asserts tilt-3d itself renders with ' +
       'depth. Left for a pointer-driven suite in the shape of gesture-sweep.test.mjs, not this one.',
   ],
+  [
+    'carousel-loop',
+    'primitive spatial-row, renderer: "javascript" — with shape:line it lays slots along a 3D line ' +
+      'with JS-written transforms, and the perspective is a --kui-perspective property on the row host ' +
+      'that the slots project through, not a perspective() term in a transform on an element this ' +
+      'suite can install-pause-read (there is no WAAPI Animation to find). Same uncovered-render gap ' +
+      'as the spatial-ring carousels below; needs a dedicated fixture comparing near and far slot sizes.',
+  ],
   ...['carousel-3d', 'carousel-3d-high', 'carousel-3d-low', 'carousel-3d-inside', 'carousel-orbit'].map((effect) => [
     effect,
     'primitive spatial-ring, renderer: "javascript" — the ring lays its slots out with JS-written ' +

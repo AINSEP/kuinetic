@@ -49,8 +49,8 @@ const SELF_STARTING = new Set([undefined, 'load', 'enter'])
  * This is a sample attribute, not an exclusion: the tween is swept exactly like everything else,
  * and has to install an animation, move across its timeline, interpolate rather than hard-cut, and
  * start by itself. What keeps the map from going stale is that it is checked in both directions
- * against the registry below: whether an effect needs parameters is derivable — its primitive
- * declares `variantFor` — so a third one arriving without an entry here fails the sweep rather than
+ * against the registry below: whether an effect needs parameters is derivable — its primitive's
+ * `variantFor`, given a bare spec, animates nothing — so a third one arriving without an entry here fails the sweep rather than
  * being silently driven bare, and an entry left behind by a removed effect fails it too.
  */
 const PARAMETERIZED = new Map([
@@ -60,15 +60,6 @@ const PARAMETERIZED = new Map([
   // font has. `from`/`to` are spelled out so the sample does not lean on the schema defaults.
   ['var-axis', 'axis:wght from:100 to:900'],
 ])
-
-/**
- * Effects whose primitive refines itself per spec (`variantFor`) but whose bare form is a complete,
- * animating effect: the refinement is an opt-in extra, not the effect. `gradient-sweep` animates
- * `--kui-sweep-*` vars that all carry fallbacks and only `fill:true` swaps the paint; `mask-reveal`
- * works bare and only `direction:left` / `edges:` reroute it. These are swept bare like everything
- * else, so a plain host is still required to animate. Entries are checked to still have `variantFor`.
- */
-const OPTIONAL_VARIANT = new Set(['gradient-sweep', 'mask-reveal'])
 
 /**
  * The effect this probe genuinely cannot read, with the reason. It was checked by hand
@@ -105,6 +96,21 @@ export async function run({ browser }) {
         // A primitive that refines itself per spec reads its properties off the attribute, so the
         // probe cannot drive it by name alone. See `PARAMETERIZED`.
         hasVariant: typeof entry.primitive.variantFor === 'function',
+        // Whether the bare name animates is asked of the primitive itself: compile a spec with no
+        // params through `variantFor`. A variant that returns `keyframes: []` is documented as "this
+        // spec animates nothing" (`EffectVariant.keyframes`), which is what `tween` does until the
+        // author names a property. Opt-in refinements (`parts:cube`, `fill:true`, ...) return
+        // `{}` bare and keep the preset's own keyframes. A variant that throws on a bare spec cannot
+        // be driven bare either.
+        needsParams: (() => {
+          if (typeof entry.primitive.variantFor !== 'function') return false
+          try {
+            const variant = entry.primitive.variantFor({ name: entry.effect, params: {} }, () => {})
+            return Array.isArray(variant?.keyframes) && variant.keyframes.length === 0
+          } catch {
+            return true
+          }
+        })(),
       }))
   })
   const cssNames = catalog.map((entry) => entry.effect)
@@ -114,26 +120,19 @@ export async function run({ browser }) {
 
   check('the fixture sees a populated CSS catalog to sweep', cssNames.length > 100, `${cssNames.length} css-keyframes effects`)
 
-  // Both directions, so the map can neither miss a new parameter-driven effect nor keep an entry
-  // for one that stopped being parameter-driven and should now be swept bare like everything else.
-  const parameterDriven = catalog
-    .filter((entry) => entry.hasVariant && !OPTIONAL_VARIANT.has(entry.effect))
-    .map((entry) => entry.effect)
-  const staleOptional = [...OPTIONAL_VARIANT].filter(
-    (effect) => !catalog.some((entry) => entry.effect === effect && entry.hasVariant),
-  )
-  check(
-    'every optional-variant effect still refines itself per spec',
-    staleOptional.length === 0,
-    staleOptional.length === 0 ? `${OPTIONAL_VARIANT.size} swept bare` : `stale entry: ${staleOptional.join(', ')}`,
-  )
+  // Both directions, so the map can neither miss an effect that cannot animate bare nor keep an
+  // entry for an effect without a `variantFor` at all. Required: the bare variant animates nothing
+  // (`needsParams`, derived from the primitive). Allowed beyond that: any other `variantFor` effect
+  // may carry a sample (`var-axis` does), and is then swept with it instead of bare.
+  const parameterDriven = catalog.filter((entry) => entry.needsParams).map((entry) => entry.effect)
+  const withVariant = new Set(catalog.filter((entry) => entry.hasVariant).map((entry) => entry.effect))
   const undriven = parameterDriven.filter((effect) => !PARAMETERIZED.has(effect))
-  const stale = [...PARAMETERIZED.keys()].filter((effect) => !parameterDriven.includes(effect))
+  const stale = [...PARAMETERIZED.keys()].filter((effect) => !withVariant.has(effect))
   check(
     'every parameter-driven effect has a sample attribute, and no entry outlives its effect',
     undriven.length === 0 && stale.length === 0 && parameterDriven.length > 0,
     undriven.length === 0 && stale.length === 0
-      ? `${parameterDriven.length} driven with sample properties`
+      ? `${parameterDriven.length} required, ${PARAMETERIZED.size} sampled`
       : `no sample for: ${undriven.join(', ') || 'none'}; stale entry: ${stale.join(', ') || 'none'}`,
   )
 
