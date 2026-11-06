@@ -208,7 +208,7 @@ export function pushTransitions(
   const { spec, resolved } = entry
   const { preset, primitive } = resolved
 
-  for (const segment of preset.transitions ?? []) {
+  for (const segment of [...(preset.transitions ?? []), ...(entry.variant?.transitions ?? [])]) {
     const previousOwner = owners.get(segment.property)
     if (previousOwner !== undefined && previousOwner !== preset.name) {
       warnings.push(

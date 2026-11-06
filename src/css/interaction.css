@@ -69,6 +69,11 @@
     --kui-tx-delay-pop: var(--kui-pop-delay, 0ms);
   }
 
+  [data-kui-fx~='pop'][style*='--kui-pop-press:']:active {
+    scale: var(--kui-pop-press);
+    --kui-tx-delay-pop: 0ms;
+  }
+
   [data-kui-fx~='lift-shadow']:focus-visible {
     translate: 0 calc(var(--kui-lift-distance, 6px) * -1);
     box-shadow: 0 14px 28px -12px rgb(0 0 0 / 0.45);
@@ -932,11 +937,11 @@
     pointer-events: none;
     opacity: var(--kui-spotlight-opacity, 0);
     transition: opacity 200ms ease-out;
-    background: radial-gradient(
+    background: var(--kui-spotlight-paint, radial-gradient(
       circle 160px at var(--kui-x, 50%) var(--kui-y, 50%),
       color-mix(in srgb, var(--accent, #d2691e) 30%, transparent),
       transparent 70%
-    );
+    ));
   }
 
   /* `forced-colors: active` — purely decorative, no boundary or state to preserve the way

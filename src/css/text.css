@@ -276,13 +276,13 @@
   }
 
   [data-kui-fx~='gradient-sweep'] {
-    background-image: linear-gradient(
+    background-image: var(--kui-sweep-paint, linear-gradient(
       100deg,
       transparent 30%,
       color-mix(in srgb, var(--kui-sweep-color, currentColor) 70%, transparent) 50%,
       transparent 70%
-    );
-    background-size: 260% 100%;
+    ));
+    background-size: var(--kui-sweep-size, 260%) 100%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -290,10 +290,10 @@
 
   @keyframes kui-gradient-sweep {
     from {
-      background-position: 220% 0;
+      background-position: var(--kui-sweep-start, 220%) 0;
     }
     to {
-      background-position: -60% 0;
+      background-position: var(--kui-sweep-end, -60%) 0;
     }
   }
 

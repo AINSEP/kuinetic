@@ -407,6 +407,7 @@
 
   :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
     opacity: 1;
+    transition-delay: var(--kui-slideshow-enter-delay, 0ms);
     pointer-events: auto;
   }
 

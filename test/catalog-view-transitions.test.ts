@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultCapabilities } from '../src/core/capabilities.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
 import { createParams } from '../src/core/js-params.js'
@@ -227,6 +227,8 @@ describe('view-swap starts a same-document transition', () => {
   afterEach(() => {
     delete (document as { startViewTransition?: unknown }).startViewTransition
     delete (window as { ViewTransition?: unknown }).ViewTransition
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   /** Install a `startViewTransition` that records its argument and runs the update immediately. */
@@ -265,6 +267,102 @@ describe('view-swap starts a same-document transition', () => {
     }
   }
 
+  function deferred() {
+    let resolve!: () => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<void>((yes, no) => { resolve = yes; reject = no })
+    return { promise, resolve, reject }
+  }
+
+  it('silences skipped ready and updateCallbackDone promises during six rapid keyed swaps and retains the final state', async () => {
+    stubApi(true)
+    const reported = vi.fn()
+    vi.stubGlobal('reportError', reported)
+    let previous: { skip(): void; finish(): void } | undefined
+    let skipped = 0
+    ;(document as { startViewTransition?: unknown }).startViewTransition = (arg: { update(): void }) => {
+      previous?.skip()
+      arg.update()
+      const ready = deferred()
+      const finished = deferred()
+      const done = deferred()
+      previous = {
+        skip() {
+          skipped++
+          const error = new DOMException('New ViewTransition started', 'AbortError')
+          ready.reject(error)
+          done.reject(error)
+          finished.resolve()
+        },
+        finish() { ready.resolve(); finished.resolve(); done.resolve() },
+      }
+      return { ready: ready.promise, finished: finished.promise, updateCallbackDone: done.promise }
+    }
+    const { control, panel } = swapPage()
+    const other = control.cloneNode() as HTMLElement
+    document.body.append(other)
+    const instances = [control, other].map((button, index) => run('view-swap', button, {
+      value: ['one', 'two'][index]!, values: 'one two', attribute: 'data-scene', type: 'kui-page-slide-x',
+    }).instance)
+    const unhandled: unknown[] = []
+    const onUnhandled = (error: unknown): void => { unhandled.push(error) }
+    process.on('unhandledRejection', onUnhandled)
+    try {
+      for (let i = 0; i < 6; i++) {
+        ;[control, other][i % 2]!.click()
+        await new Promise((resolve) => window.setTimeout(resolve, 40))
+      }
+      previous?.finish()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+      expect(skipped).toBe(5)
+      expect(panel.getAttribute('data-scene')).toBe('two')
+      expect(unhandled).toEqual([])
+      expect(reported).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', onUnhandled)
+      previous?.finish()
+      instances.forEach((instance) => instance.destroy())
+    }
+  })
+
+  it.each([new Error('update failed'), new DOMException('application update aborted', 'AbortError')])(
+    'reports a synchronous update exception once before settlement, including application AbortError: %s', async (error) => {
+      const reported = vi.fn()
+      let reportedDuringUpdate = false
+      vi.stubGlobal('reportError', reported)
+      ;(document as { startViewTransition?: unknown }).startViewTransition = (update: () => void) => {
+        const done = Promise.resolve().then(() => {
+          try { update() } catch (failure) {
+            reportedDuringUpdate = reported.mock.calls.length === 1
+            throw failure
+          }
+        })
+        return { ready: done.then(() => {}), finished: done.then(() => {}), updateCallbackDone: done }
+      }
+      const { control, panel } = swapPage()
+      vi.spyOn(panel, 'setAttribute').mockImplementation(() => { throw error })
+      const { instance } = run('view-swap', control, { value: 'one', attribute: 'data-scene' })
+      try {
+        control.click()
+        await new Promise((resolve) => window.setTimeout(resolve, 0))
+        expect(reportedDuringUpdate).toBe(true)
+        expect(reported).toHaveBeenCalledOnce()
+        expect(reported).toHaveBeenCalledWith(error)
+      } finally {
+        instance.destroy()
+      }
+    },
+  )
+
+  it.each([undefined, {}])('accepts a transition stub returning %s', (result) => {
+    ;(document as { startViewTransition?: unknown }).startViewTransition = (update: () => void) => { update(); return result }
+    const { control, panel } = swapPage()
+    const { instance } = run('view-swap', control)
+    control.click()
+    expect(panel.hasAttribute('data-open')).toBe(true)
+    instance.destroy()
+  })
+
   it('flips the aria-controls target inside a transition, and mirrors aria-expanded', () => {
     stubApi(false)
     const { control, panel } = swapPage()
@@ -302,6 +400,71 @@ describe('view-swap starts a same-document transition', () => {
     run('view-swap', control, { type: 'kui-page-slide' })
     control.click()
     expect(started[0]).toMatchObject({ types: ['kui-page-slide'] })
+  })
+
+  it('sets three named states, sends travel direction, and ignores the selected value', () => {
+    stubApi(true)
+    const { control, panel } = swapPage()
+    panel.setAttribute('data-scene', 'one')
+    const controls = ['one', 'two', 'three'].map((value) => {
+      const button = control.cloneNode() as HTMLElement
+      document.body.append(button)
+      run('view-swap', button, { attribute: 'data-scene', value, values: 'one two three', type: 'kui-page-slide-x' })
+      return button
+    })
+    controls[2]!.click()
+    expect(panel.getAttribute('data-scene')).toBe('three')
+    expect(started[0]).toMatchObject({ types: ['kui-page-slide-x'] })
+    controls[1]!.click()
+    expect(panel.getAttribute('data-scene')).toBe('two')
+    expect(started[1]).toMatchObject({ types: ['kui-page-slide-x', 'kui-backward'] })
+    controls[0]!.click()
+    expect(panel.getAttribute('data-scene')).toBe('one')
+    controls[0]!.click()
+    expect(started).toHaveLength(3)
+    expect(controls[0]!.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it.each([
+    { value: 'four', values: 'one two three' },
+    { value: '', values: 'one two three' },
+  ])('refuses invalid keyed grammar %j without changing state', (params) => {
+    stubApi(true)
+    const { control, panel } = swapPage()
+    const { warnings } = run('view-swap', control, params)
+    control.click()
+    expect(warnings.join()).toContain('view-swap value')
+    expect(started).toHaveLength(0)
+    expect(panel.hasAttribute('data-open')).toBe(false)
+  })
+
+  it.each([
+    { value: '1', values: '0 1 2' },
+    { value: 'bad value', values: '' },
+    { value: 'two', values: 'one one two' },
+  ])('sets valid attribute values without identifier or uniqueness restrictions: %j', (params) => {
+    stubApi(true)
+    const { control, panel } = swapPage()
+    const { warnings } = run('view-swap', control, { ...params, attribute: 'data-step' })
+    control.click()
+    expect(warnings).toEqual([])
+    expect(panel.getAttribute('data-step')).toBe(params.value)
+    expect(started).toHaveLength(1)
+  })
+
+  it('retains named-value updates without types and under reduced motion', () => {
+    stubApi(false)
+    const { control, panel } = swapPage()
+    run('view-swap', control, { value: 'verify', attribute: 'data-step' })
+    control.click()
+    expect(panel.getAttribute('data-step')).toBe('verify')
+    expect(typeof started[0]).toBe('function')
+    const other = control.cloneNode() as HTMLElement
+    document.body.append(other)
+    run('view-swap', other, { value: 'done', attribute: 'data-step' }, { reducedMotion: true })
+    other.click()
+    expect(panel.getAttribute('data-step')).toBe('done')
+    expect(started).toHaveLength(1)
   })
 
   it('omits the type when the browser has no types, rather than passing an argument it rejects', () => {
@@ -550,6 +713,25 @@ describe('view-transitions.css', () => {
     expect(defined.size).toBeGreaterThan(0)
     expect([...referenced].filter((name) => !defined.has(name))).toEqual([])
     expect([...defined].filter((name) => !referenced.has(name))).toEqual([])
+  })
+
+  it('shares horizontal slide keyframes, adding blur only for the blur-slide type', () => {
+    const frames = extractKeyframes(liveCss)
+    expect(frames.get('kui-vt-slide-x-in')).toEqual(new Set(['opacity', 'translate', 'filter']))
+    expect(liveCss).toContain('from { opacity: 0; translate: calc(var(--kui-vt-direction, 1) * var(--kui-vt-distance, 40px)) 0; filter: blur(var(--kui-vt-blur, 0px)); }')
+    expect(liveCss).toContain('to { opacity: 0; translate: calc(-1 * var(--kui-vt-direction, 1) * var(--kui-vt-distance, 40px)) 0; filter: blur(var(--kui-vt-blur, 0px)); }')
+    expect(liveCss).toContain(':active-view-transition-type(kui-backward) { --kui-vt-direction: -1; }')
+    expect(liveCss).toContain(':active-view-transition-type(kui-page-blur-slide) { --kui-vt-blur: 8px; }')
+    expect(liveCss).toContain(':active-view-transition-type(kui-page-slide-x), :active-view-transition-type(kui-page-blur-slide)')
+  })
+
+  it('reuses fade endpoints with an incoming-only wait equal to the outgoing duration', () => {
+    const old = liveCss.split(':active-view-transition-type(kui-page-fade-wait)::view-transition-old(root) {')[1]!.split('}')[0]!
+    const incoming = liveCss.split(':active-view-transition-type(kui-page-fade-wait)::view-transition-new(root) {')[1]!.split('}')[0]!
+    expect(old).toContain('animation-name: kui-vt-fade-out;')
+    expect(old).not.toContain('animation-delay')
+    expect(incoming).toContain('animation-name: kui-vt-fade-in;')
+    expect(incoming).toContain('animation-delay: calc(var(--kui-vt-delay, 0ms) + var(--kui-vt-duration, 400ms));')
   })
 
   it('shortens rather than removes the animation under reduced motion', () => {

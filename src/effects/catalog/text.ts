@@ -89,7 +89,22 @@ export const TEXT_CSS_PRIMITIVES: Primitive[] = [
   // core/channels.ts, to buy exactly what a second primitive already buys. Two presets writing a
   // different property set than the third is not a parameter difference, which is all a preset is
   // meant to express; it is what "different primitive" already means here.
-  cssPrimitive('text-gradient-sweep', [CHANNEL.background, CHANNEL.color], { parameters: textSweepParams }),
+  {
+    ...cssPrimitive('text-gradient-sweep', [CHANNEL.background, CHANNEL.color], { parameters: {
+      ...textSweepParams,
+      fill: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-sweep-fill' },
+    } }),
+    variantFor(spec) {
+      if (spec.params.fill !== 'true') return {}
+      const paint = 'linear-gradient(90deg, var(--kui-sweep-color, currentColor) 50%, color-mix(in srgb, var(--kui-sweep-color, currentColor) 20%, transparent) 50%)'
+      return { params: { ...spec.params, paint, 'fill-start': '100%', 'fill-end': '0%', 'fill-size': '200%' }, schema: {
+        paint: { type: 'keyword', default: paint, keywords: [paint], cssProperty: '--kui-sweep-paint' },
+        'fill-start': { type: 'percentage', default: '100%', cssProperty: '--kui-sweep-start' },
+        'fill-end': { type: 'percentage', default: '0%', cssProperty: '--kui-sweep-end' },
+        'fill-size': { type: 'percentage', default: '200%', cssProperty: '--kui-sweep-size' },
+      } }
+    },
+  },
   cssPrimitive('text-sweep', [CHANNEL.background], { parameters: textSweepParams }),
   cssPrimitive('text-outline-fill', [CHANNEL.stroke, CHANNEL.color]),
   /*

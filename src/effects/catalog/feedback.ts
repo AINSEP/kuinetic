@@ -218,6 +218,7 @@ export const FEEDBACK_PRIMITIVES: Primitive[] = [
     defaultActivation: 'manual',
   }),
   cssPrimitive('feedback-wobble', [CHANNEL.translate, CHANNEL.rotate], {
+    parameters: { y: { type: 'length', default: '0px', cssProperty: '--kui-wobble-y' } },
     defaultActivation: 'click',
   }),
   /**

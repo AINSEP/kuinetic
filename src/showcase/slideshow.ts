@@ -28,6 +28,7 @@ const slideshowParams: ParameterSchema = {
   swipe: { type: 'keyword', default: 'true', cssProperty: '--kui-slideshow-swipe', keywords: ['true', 'false'] },
   mute: { type: 'text', default: '', cssProperty: '--kui-slideshow-mute' },
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-slideshow-duration' },
+  'enter-delay': { type: 'time', default: '0ms', cssProperty: '--kui-slideshow-enter-delay' },
   ease: { type: 'easing', default: 'ease', cssProperty: '--kui-slideshow-ease' },
 }
 

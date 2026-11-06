@@ -13,12 +13,12 @@
   @keyframes kui-before-after-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
   @keyframes kui-mask-reveal {
-    from { mask-position: 100% 0; }
-    to { mask-position: 0 0; }
+    from { mask-position: var(--kui-mask-from, 100%) 0; }
+    to { mask-position: var(--kui-mask-to, 0%) 0; }
   }
 
   [data-kui-fx~='mask-reveal'] {
-    mask-image: linear-gradient(90deg, #000 0 45%, transparent 55% 100%);
+    mask-image: linear-gradient(var(--kui-mask-angle, 90deg), #000 0 45%, transparent 55% 100%);
     mask-size: 220% 100%;
   }
 

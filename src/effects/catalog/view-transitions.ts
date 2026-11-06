@@ -308,7 +308,7 @@ function supportsTransitionTypes(win: Window): boolean {
 /** The shape of `document.startViewTransition`, in both the callback and the options spelling. */
 type StartViewTransition = (
   update: (() => void) | { update: () => void; types?: string[] },
-) => unknown
+) => Partial<Pick<ViewTransition, 'ready' | 'finished' | 'updateCallbackDone'>> | void
 
 /**
  * The transition type this control will actually be able to send, decided once at install time.
@@ -356,10 +356,8 @@ function usableType(authored: string, ctx: PrepareContext): string {
 /**
  * Run one DOM change inside a view transition, or plainly when there cannot be one.
  *
- * This is the whole "lifecycle shim". Note what it does *not* do: it does not await the returned
- * `ViewTransition`, does not hold a reference to it, and does not drive a single frame. The
- * browser owns the animation from the moment `update` returns, which is the entire reason this
- * family costs the library nothing at runtime.
+ * The browser owns the animation. This shim reports synchronous update exceptions and consumes
+ * transition rejections without classifying them. It does not drive frames or retain a transition.
  *
  * Two ways to end up on the plain path, and both are the same non-event for the author — the
  * state changes, it just does not animate: the browser has no `startViewTransition`
@@ -373,7 +371,7 @@ function usableType(authored: string, ctx: PrepareContext): string {
  * @complexity O(1) time and space beyond the caller's own update.
  * @overallScore 100
  */
-function runSwap(update: () => void, type: string, ctx: PrepareContext): void {
+function runSwap(update: () => void, type: string, ctx: PrepareContext, backward = false): void {
   const start = (ctx.doc as Document & { startViewTransition?: StartViewTransition })
     .startViewTransition
 
@@ -382,8 +380,30 @@ function runSwap(update: () => void, type: string, ctx: PrepareContext): void {
     return
   }
 
-  if (type) start.call(ctx.doc, { update, types: [type] })
-  else start.call(ctx.doc, update)
+  const applyUpdate = (): void => {
+    try {
+      update()
+    } catch (error) {
+      ctx.win.reportError(error)
+      throw error
+    }
+  }
+  const transition = type
+    ? start.call(ctx.doc, { update: applyUpdate, types: backward ? [type, 'kui-backward'] : [type] })
+    : start.call(ctx.doc, applyUpdate)
+  if (!transition) return
+  void Promise.allSettled([transition.ready, transition.finished, transition.updateCallbackDone])
+}
+
+function resolveSwapValues(params: EffectParams, ctx: PrepareContext): { value: string; values: string[] } | undefined {
+  const value = params.text('value', '').trim()
+  const list = params.text('values', '').trim()
+  const values = list ? list.split(/\s+/) : []
+  if (list && !values.includes(value)) {
+    ctx.warn('view-swap value must occur in the space-separated values list')
+    return undefined
+  }
+  return { value, values }
 }
 
 /**
@@ -416,16 +436,26 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
   if (attribute === undefined) return () => {}
   const type = usableType(params.text('type', '').trim(), ctx)
   const delay = effectDelayMs(params)
+  const keyed = resolveSwapValues(params, ctx)
+  if (!keyed) return () => {}
 
   const flip = (): void => {
     const open = target.hasAttribute(attribute)
-    if (open) target.removeAttribute(attribute)
+    if (keyed.value) target.setAttribute(attribute, keyed.value)
+    else if (open) target.removeAttribute(attribute)
     else target.setAttribute(attribute, '')
     // Only when the control already carries it. Adding `aria-expanded` to a control that never
     // declared it would be inventing an accessibility contract on the author's behalf; keeping an
     // existing one in step with the attribute we just flipped is the opposite — it stops the
     // library from being the thing that makes the two disagree.
-    if (el.hasAttribute('aria-expanded')) el.setAttribute('aria-expanded', String(!open))
+    if (!keyed.value && el.hasAttribute('aria-expanded')) el.setAttribute('aria-expanded', String(!open))
+  }
+
+  const swap = (): void => {
+    const current = target.getAttribute(attribute)
+    if (keyed.value && current === keyed.value) return
+    const backward = keyed.values.indexOf(keyed.value) < keyed.values.indexOf(current ?? '')
+    runSwap(flip, type, ctx, backward)
   }
 
   /*
@@ -447,12 +477,12 @@ function prepareViewSwap(el: Element, params: EffectParams, ctx: PrepareContext)
 
   const onClick = (): void => {
     if (delay <= 0) {
-      runSwap(flip, type, ctx)
+      swap()
       return
     }
     const handle = ctx.win.setTimeout(() => {
       pendingSwaps.delete(handle)
-      runSwap(flip, type, ctx)
+      swap()
     }, delay)
     pendingSwaps.add(handle)
   }
@@ -499,6 +529,8 @@ const VIEW_SWAP: Primitive = {
      */
     controls: { type: 'text', default: '', cssProperty: '--kui-view-swap-controls' },
     attribute: { type: 'text', default: 'data-open', cssProperty: '--kui-view-swap-attribute' },
+    value: { type: 'text', default: '', cssProperty: '--kui-view-swap-value' },
+    values: { type: 'text', default: '', cssProperty: '--kui-view-swap-values' },
     /*
      * The view-transition *type* this swap runs under, which is what selects the motion in
      * `view-transitions.css` — and the same word the author puts in their `@view-transition`

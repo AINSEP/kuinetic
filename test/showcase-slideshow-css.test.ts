@@ -2,10 +2,24 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { atRuleBlocks, ruleBodies } from './support/css-scan.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
+import { catalogRegistry } from './support/registry.js'
 
 const css = readFileSync(fileURLToPath(new URL('../src/showcase/showcase.css', import.meta.url)), 'utf8')
 
 describe('slideshow CSS contract', () => {
+  it('compiles an incoming-only delay while outgoing slides retain the zero-delay shorthand', () => {
+    const plan = compile(parse('carousel-fade enter-delay:250ms'), catalogRegistry(), 'time')
+    expect(plan.warnings).toEqual([])
+    expect(plan.vars['--kui-slideshow-enter-delay']).toBe('250ms')
+    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > "
+    const outgoing = ruleBodies(css, hosts + '[data-kui-step-state]').join('')
+    const incoming = ruleBodies(css, hosts + "[data-kui-step-state='active']").join('')
+    expect(outgoing).toContain('transition: opacity var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);')
+    expect(outgoing).not.toContain('enter-delay')
+    expect(incoming).toContain('transition-delay: var(--kui-slideshow-enter-delay, 0ms);')
+  })
   it('gates fade and slide layout on the stamped mode, including authored overrides', () => {
     expect(css).toContain("[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list]")
     expect(css).toContain("[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list]")

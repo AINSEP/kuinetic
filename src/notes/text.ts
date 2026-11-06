@@ -2,6 +2,11 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/text.ts`, `effects/catalog/numbers.ts`, `effects/catalog/discrete.ts` (this batch's families). */
 export const TEXT_NOTES: ParamNotes = {
+  'text-gradient-sweep.fill': 'Fill dim glyphs with a hard edge from left to right, using the existing sweep animation.',
+  'fade-open.enter-delay': 'Extra wait only when opening; match the outgoing duration for out-then-in order.',
+  'fade-open.shape': 'Reveal through a circle or rounded inset in both directions; none keeps the ordinary fade.',
+  'fade-open.origin': 'Circle centre: center, top, bottom, left, right, or a quoted corner such as top left.',
+  'fade-open.radius': 'Corner radius throughout an inset reveal.',
   'count.from': 'The number the counter starts at.',
   'count.to': 'The number the counter ends on.',
   'count.decimals': 'How many digits to show after the decimal point; ignored by compact, which shows at most one.',
@@ -18,6 +23,9 @@ export const TEXT_NOTES: ParamNotes = {
   'count-odometer.to': 'The number the rolling digits land on; whole numbers from 0 up, so 2.5 rounds to 3.',
 
   'drop-open.distance': 'How far the element drops down into place as it opens.',
+  'drop-open.radius': 'Distance from the group centre; use distance:0px to fan out from that centre. Parent data-open, open or popover-open opens its direct children.',
+  'drop-open.angle': 'Angle of the first item, with -90deg pointing up. Existing cascade: assigns each child its index and stagger.',
+  'drop-open.step': 'Angle between items: 60deg gives six items a ring; a smaller step gives an arc.',
 
   'meter-bar.from': {
     why: 'How full the bar is when it starts, from 0 (empty) to 1 (full).',

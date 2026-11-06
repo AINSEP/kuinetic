@@ -6,6 +6,7 @@ import type { ParamNotes } from '../core/describe.js'
  * step-progress).
  */
 export const SHOWCASE_NOTES: ParamNotes = {
+  'slideshow.enter-delay': 'Extra wait before a fade arrives; match duration for out-then-in order. Slide mode does not use it.',
   'compare.position': 'Where the divider starts between two images, as a share of the width.',
   'compare.positions': {
     why: 'Where each divider starts when comparing three or more images, as one quoted list.',

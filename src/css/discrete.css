@@ -35,9 +35,25 @@
  * runtime, so there is nothing for the pre-JS cloak layer to hide a flash of.
  */
 @layer kui.effects {
+  /* Compiled overrides are inline; gate tint and blur separately to preserve native paint. */
+  [data-kui-fx][style*='--kui-open-backdrop:']::backdrop {
+    background: var(--kui-open-backdrop);
+  }
+  [data-kui-fx][style*='--kui-open-backdrop-blur:']::backdrop {
+    backdrop-filter: blur(var(--kui-open-backdrop-blur));
+  }
+  [data-kui-fx]:is([style*='--kui-open-backdrop:'], [style*='--kui-open-backdrop-blur:'])::backdrop {
+    opacity: 1;
+    transition: inherit;
+  }
+  @starting-style {
+    [data-kui-fx]:is([style*='--kui-open-backdrop:'], [style*='--kui-open-backdrop-blur:'])::backdrop { opacity: 0; }
+  }
+  [data-kui-fx]:is([style*='--kui-open-backdrop:'], [style*='--kui-open-backdrop-blur:']):not(:popover-open):not([open])::backdrop { opacity: 0; }
+
   [data-kui-fx~='fade-open'] {
     transition-behavior: allow-discrete;
-    --kui-tx-delay-fade-open: var(--kui-fade-open-delay, 0ms);
+    --kui-tx-delay-fade-open: calc(var(--kui-fade-open-delay, 0ms) + var(--kui-fade-open-enter-delay, 0ms));
     opacity: 1;
   }
   @starting-style {
@@ -46,8 +62,19 @@
     }
   }
   [data-kui-fx~='fade-open']:not(:popover-open):not([open]):not([data-open]) {
+    --kui-tx-delay-fade-open: var(--kui-fade-open-delay, 0ms);
     opacity: 0;
     display: none;
+  }
+
+  [data-kui-fx~='fade-open'][style*='--kui-open-clip-end:'] {
+    clip-path: var(--kui-open-clip-end);
+  }
+  @starting-style {
+    [data-kui-fx~='fade-open'][style*='--kui-open-clip-end:'] { clip-path: var(--kui-open-clip-start); }
+  }
+  [data-kui-fx~='fade-open'][style*='--kui-open-clip-end:']:not(:popover-open):not([open]):not([data-open]) {
+    clip-path: var(--kui-open-clip-start);
   }
 
   [data-kui-fx~='pop-open'] {
@@ -103,6 +130,29 @@
     opacity: 0;
     translate: 0 calc(var(--kui-drop-open-distance, 12px) * -1);
     display: none;
+  }
+
+  [data-kui-fx~='drop-open'][style*='--kui-fan-radius:'] {
+    --kui-fan-angle: calc(var(--kui-fan-start, -90deg) + var(--kui-i, 0) * var(--kui-fan-step, 60deg));
+    --kui-fan-translate: calc(cos(var(--kui-fan-angle)) * var(--kui-fan-radius)) calc(sin(var(--kui-fan-angle)) * var(--kui-fan-radius));
+    --kui-tx-delay-drop-open: calc(var(--kui-drop-open-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 0ms));
+    translate: var(--kui-fan-translate);
+  }
+  [data-kui-fx~='drop-open'][style*='--kui-fan-radius:']:not(:popover-open):not([open]):not([data-open]) {
+    --kui-tx-delay-drop-open: var(--kui-drop-open-delay, 0ms);
+  }
+  :is([data-open], [open], :popover-open) > [data-kui-fx~='drop-open'][style*='--kui-fan-radius:']:not(:popover-open):not([open]):not([data-open]) {
+    --kui-tx-delay-drop-open: calc(var(--kui-drop-open-delay, 0ms) + var(--kui-i, 0) * var(--kui-stagger, 0ms));
+    opacity: 1;
+    translate: var(--kui-fan-translate);
+    display: revert-layer;
+  }
+  @starting-style {
+    [data-kui-fx~='drop-open'][style*='--kui-fan-radius:'],
+    :is([data-open], [open], :popover-open) > [data-kui-fx~='drop-open'][style*='--kui-fan-radius:']:not(:popover-open):not([open]):not([data-open]) {
+      opacity: 0;
+      translate: 0 calc(var(--kui-drop-open-distance, 12px) * -1);
+    }
   }
 
   /* `slide-open-up`/`slide-open-down` name the direction of travel, the same convention

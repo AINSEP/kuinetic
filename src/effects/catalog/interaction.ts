@@ -98,6 +98,7 @@ const liftParams: ParameterSchema = {
 
 const popParams: ParameterSchema = {
   scale: { type: 'number', default: '1.06', cssProperty: '--kui-pop-scale', finite: true, minimum: 0 },
+  press: { type: 'number', default: '1', cssProperty: '--kui-pop-press', finite: true, minimum: 0 },
 }
 
 /**
@@ -651,12 +652,20 @@ export const POINTER_PRIMITIVES: Primitive[] = [
   // owns that box the same way the border family does. See `border-draw`'s comment in
   // `HOVER_PRIMITIVES` for what the token means and why it was added here in the same change.
   // `position`: the `relative` it gives an unpositioned host so that overlay has an anchor.
-  pointerPrimitive(
-    'cursor-spotlight',
-    ['spotlight', 'pseudo-before', 'position'],
-    {},
-    deferPrepare(prepareSpotlight),
-  ),
+  {
+    ...pointerPrimitive(
+      'cursor-spotlight', ['spotlight', 'pseudo-before', 'position'],
+      { gradient: { type: 'keyword', default: 'radial', keywords: ['radial', 'conic'], cssProperty: '--kui-spotlight-gradient' } },
+      deferPrepare(prepareSpotlight),
+    ),
+    variantFor(spec) {
+      if (spec.params.gradient !== 'conic') return {}
+      const paint = 'conic-gradient(at var(--kui-x, 50%) var(--kui-y, 50%), var(--kui-spotlight-colors, var(--accent, #d2691e), transparent, var(--accent, #d2691e)))'
+      return { params: { ...spec.params, paint }, schema: {
+        paint: { type: 'keyword', default: paint, keywords: [paint], cssProperty: '--kui-spotlight-paint' },
+      } }
+    },
+  },
 ]
 
 function prepareCursorFollow(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {

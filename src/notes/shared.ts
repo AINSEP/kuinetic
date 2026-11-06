@@ -5,6 +5,8 @@ import type { ParamNotes } from '../core/describe.js'
  * `duration` means something else (one cycle of a loop, say) overrides it under its own key.
  */
 export const SHARED_NOTES: ParamNotes = {
+  '*.backdrop': 'Tint the native dialog or popover backdrop; transparent leaves it clear.',
+  '*.backdrop-blur': 'Blur the page behind a native dialog or popover.',
   '*.duration': 'How long the motion takes from start to finish.',
   '*.delay': 'Wait this long after the trigger before starting.',
   '*.ease': 'The speed curve: slow start, slow finish, or a bounce.',

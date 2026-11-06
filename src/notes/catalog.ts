@@ -2,6 +2,8 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/ambient.ts`, `media.ts`, `materials.ts`, `transforms.ts`, `view-transitions.ts`. */
 export const CATALOG_NOTES: ParamNotes = {
+  'feedback-wobble.y': 'Vertical displacement on the first wobble; negative values reverse its vertical motion. Direction is authored, not pointer-derived.',
+  'media-mask.direction': 'Direction the soft reveal edge travels: right by default, or left.',
   'ambient-float.duration': 'How long one full up-and-down drift takes, repeating forever.',
   'ambient-float.distance': 'How far the element drifts up and down.',
 
@@ -119,6 +121,8 @@ export const CATALOG_NOTES: ParamNotes = {
     why: 'The marker added or removed on that element each time the control is clicked.',
     whenOmitted: 'Uses data-open.',
   },
+  'view-swap.value': 'Set this attribute value instead of toggling presence; repeated selection does nothing.',
+  'view-swap.values': 'Quoted, space-separated values in travel order, such as home activity more; value must occur in the list if supplied.',
   'view-swap.type': {
     why: 'Names the transition motion to run, like kui-page-slide; a browser without that feature cross-fades.',
     whenOmitted: 'The browser’s default cross-fade, or an instant swap where view transitions are missing.',

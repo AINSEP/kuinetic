@@ -566,6 +566,8 @@ export interface EffectVariant {
    * conflict detection, which is exactly backwards.
    */
   channels?: Channel[]
+  /** Extra transition properties for the channels this spec adds. */
+  transitions?: TransitionSegment[]
   /**
    * Keyframe blocks to compile, one animation track each, replacing the preset's single
    * `keyframes` name. Empty means this spec animates nothing and emits no `animation` declaration.

@@ -40,7 +40,19 @@ const geometry = {
 
 export const MEDIA_CSS_PRIMITIVES: Primitive[] = [
   cssPrimitive('media-wipe', [CHANNEL.clip]),
-  cssPrimitive('media-mask', ['mask'], { perfClass: 'paint' }),
+  {
+    ...cssPrimitive('media-mask', ['mask'], { perfClass: 'paint', parameters: {
+      direction: { type: 'keyword', default: 'right', keywords: ['right', 'left'], cssProperty: '--kui-mask-direction' },
+    } }),
+    variantFor(spec) {
+      if (spec.params.direction !== 'left') return {}
+      return { params: { ...spec.params, 'mask-from': '0%', 'mask-to': '100%', 'mask-angle': '270deg' }, schema: {
+        'mask-from': { type: 'percentage', default: '0%', cssProperty: '--kui-mask-from' },
+        'mask-to': { type: 'percentage', default: '100%', cssProperty: '--kui-mask-to' },
+        'mask-angle': { type: 'angle', default: '270deg', cssProperty: '--kui-mask-angle' },
+      } }
+    },
+  },
   // Not `reducedMotion: 'disable'` — that policy means "no finite duration would make sense,
   // because the animation never ends" (see `ambient.ts`/`feedback.ts`), and a Ken Burns pan/zoom
   // is the opposite of that: a one-shot cinematic move with a real, shortenable duration. The demo

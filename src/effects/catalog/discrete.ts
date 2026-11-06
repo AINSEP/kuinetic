@@ -55,6 +55,8 @@ const discreteTiming: ParameterSchema = {
   duration: { type: 'time', default: '240ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
   ease: { type: 'easing', default: 'ease-out', cssProperty: '--kui-ease' },
+  backdrop: { type: 'color', default: '', cssProperty: '--kui-open-backdrop' },
+  'backdrop-blur': { type: 'length', default: '', cssProperty: '--kui-open-backdrop-blur' },
 }
 
 /** Every primitive here honours all three timing tokens, so this reason is never actually shown. */
@@ -97,7 +99,29 @@ function discretePrimitive(id: string, channels: string[], extraParams: Paramete
 const DISCRETE_BASE: TransitionSegment[] = [{ property: 'display' }, { property: 'overlay' }]
 
 export const DISCRETE_PRIMITIVES: Primitive[] = [
-  discretePrimitive('fade-open', ['opacity', 'discrete']),
+  {
+    ...discretePrimitive('fade-open', ['opacity', 'discrete'], {
+      'enter-delay': { type: 'time', default: '0ms', cssProperty: '--kui-fade-open-enter-delay' },
+      shape: { type: 'keyword', default: 'none', keywords: ['none', 'circle', 'inset'], cssProperty: '--kui-open-shape' },
+      origin: { type: 'keyword', default: 'center', keywords: ['center', 'top', 'bottom', 'left', 'right', 'top left', 'top right', 'bottom left', 'bottom right'], cssProperty: '--kui-open-origin' },
+      radius: { type: 'length', default: '16px', cssProperty: '--kui-open-radius' },
+    }),
+    variantFor(spec) {
+      if (spec.params.shape !== 'circle' && spec.params.shape !== 'inset') return {}
+      const circle = spec.params.shape === 'circle'
+      const start = circle ? 'circle(0% at var(--kui-open-origin, center))' : 'inset(50% round var(--kui-open-radius, 16px))'
+      const end = circle ? 'circle(150% at var(--kui-open-origin, center))' : 'inset(0% round var(--kui-open-radius, 16px))'
+      return {
+        channels: ['clip'],
+        transitions: [{ property: 'clip-path' }],
+        params: { ...spec.params, 'clip-start': start, 'clip-end': end },
+        schema: {
+          'clip-start': { type: 'keyword', default: start, keywords: [start], cssProperty: '--kui-open-clip-start' },
+          'clip-end': { type: 'keyword', default: end, keywords: [end], cssProperty: '--kui-open-clip-end' },
+        },
+      }
+    },
+  },
   // Opacity + scale together, matching the real-world "popover/toast" pop-in — the plan's own
   // worked example. `scale-open` below is the scale-only sibling for an element that should grow
   // into place without also fading, the same split `core.ts` draws between `fade-in` and `zoom-in`.
@@ -110,7 +134,12 @@ export const DISCRETE_PRIMITIVES: Primitive[] = [
   discretePrimitive(
     'drop-open',
     ['opacity', 'translate', 'discrete'],
-    distanceParam('--kui-drop-open-distance', '12px'),
+    {
+      ...distanceParam('--kui-drop-open-distance', '12px'),
+      radius: { type: 'length', default: '0px', cssProperty: '--kui-fan-radius' },
+      angle: { type: 'angle', default: '-90deg', cssProperty: '--kui-fan-start' },
+      step: { type: 'angle', default: '60deg', cssProperty: '--kui-fan-step' },
+    },
   ),
   // "-up"/"-down" name the direction of travel, the same convention `core.ts`'s `fade-up`/
   // `fade-down` use: `slide-open-up` starts below rest and arrives travelling upward.

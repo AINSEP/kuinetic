@@ -1,5 +1,5 @@
 import type { Capabilities } from './capabilities.js'
-import { authoredParams } from './compile.js'
+import { authoredParams, schemaFor } from './compile.js'
 import type { CompiledPlan, Entry } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
 import { readEffectParams, readEffectTiming } from './js-params.js'
@@ -118,11 +118,10 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
         // whose schema does not happen to declare a look-alike `duration`/`delay`/`ease`.
         // `authoredParams`, not `spec.params`: a primitive with a `variantFor` may normalise what
         // the author wrote before it is validated, and the CSS path already reads it through the
-        // same accessor. No JS-rendered primitive declares one today; going through the accessor
-        // is what stops the first one that does from silently seeing different input here.
+        // same accessors for both the values and their per-spec schema.
         const params = readEffectParams(
           { ...resolved.preset.params, ...authoredParams(entry) },
-          resolved.primitive.parameters,
+          schemaFor(entry),
           warn,
           sequencedTiming(entry, warn),
         )
