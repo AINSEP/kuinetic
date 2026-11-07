@@ -5,6 +5,8 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-06
+
 ### Added
 
 - **`line-boil`.** A hand-drawn wobble on line art. The catalog is now 313 named effects.

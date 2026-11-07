@@ -61,6 +61,10 @@ library should own it. Never call something "not the library's job" without grep
       `label-float` and `input-underline-grow` refuse to compose, though they move different elements.
       `docs/catalog.md:1062` says `page-morph` is not implemented, but it runs.
       `curtain` on `reveals.html` shows only the pixels cover; its other covers are on no page.
+      `tab-indicator-slide` lands off its tab at every width, on load and on clicks, on `interactive.html`: it reads the box mid-slide and re-runs the move, adding the shift again (`src/effects/layout/primitives.ts:305,308,339-341`).
+      `play()` seems to drop `on:manual` from `data-kui` (`src/core/play.ts:199`).
+      `test/carousel-autoplay.test.ts` "real reinstall" test is weak: it waits on microtasks, but the watcher flushes on the next frame, so it passes on the old deck too.
+      `demo/assets/modeling/gold-white-face.jpg` has a "GEBO Galerie" watermark, used 4 times on `interactive.html`.
 - [ ] **Two library bugs from the cartoon page, 2026-11-06.** `flyImage` in `src/core/image-flight.ts` sets `objectFit: 'fill'`, so it stretches any picture whose shape differs from its source or landing box. And `group-expand` plus `lightbox`: closing with Esc returns keyboard focus to the card, so it stays wide and hover stops until focus moves.
 - [ ] **Motion back burner: heavy GPU work.** Owner, 2026-11-06: wait until lane D's three.js works, then decide.
       Watch them: `open ADS-memory/.local-artifacts/motion-examples/later.html`. Costs are in `ADS-memory/.local-artifacts/motion-examples/build/REST-PLAN.md`. Estimates, nothing built.
