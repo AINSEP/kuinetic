@@ -173,7 +173,9 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     }
     if (arriving) moveTo(nextPixel, nextPixel, true)
     else if (measured) commitWithoutTransition(ctx.win, el, () => moveTo(nextPixel, nextPixel, true))
-    else {
+    // A refresh that changed nothing, or a press on the place already headed for, is not a move:
+    // nothing to write, and no reason to force a style read to learn where the row stands.
+    else if (nextPixel !== pixelPosition) {
       const travelLimit = line ? visualCycle / 2 : visualCycle - viewportWidth - widest
       let shown = shownPixel()
       // Further than the cards can cover both ends of. The whole row closes the difference at once,

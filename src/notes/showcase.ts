@@ -245,7 +245,10 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-stack.leave': 'Use swipe for a sideways exit that advances one card when dragged either way.',
   'spatial-stack.leave-x': 'How far the leaving card moves sideways, multiplied by the swipe direction.',
   'spatial-stack.leave-rotate': 'How far the leaving card rotates, multiplied by the swipe direction.',
-  'spatial-stack.leave-fade': 'Opacity lost over one leaving place. 1 by default, so a swiped card fades as it goes; 0 keeps it opaque until the step ends.',
+  'spatial-stack.leave-fade': {
+    why: 'Opacity lost over one leaving place; 0 keeps the card opaque until the step ends.',
+    whenOmitted: 'A swiped card fades as it goes.',
+  },
   'spatial-stack.rest-rotate': 'Alternate resting card angles by stable card index using this angle.',
 
   'step-progress.duration': 'Passed to your slide styles; autoplay also waits this long after someone moves it.',

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createActivationBinder } from '../src/core/activation.js'
+import { Animator } from '../src/core/animator.js'
 import { claimDeckArrival, GLIDE_ATTR, matrixOf, recordDeckPoses } from '../src/effects/carousel/glide.js'
 import type { GlideTiming } from '../src/effects/carousel/glide.js'
+import { CAPS, fakeRoot, idleScheduler } from './support/js-effect-harness.js'
+import { catalogRegistry } from './support/registry.js'
 
 type Styles = Record<string, string>
 
@@ -9,8 +13,9 @@ const timing: GlideTiming = { durationMs: 620, easing: 'linear', reducedMotion: 
 
 function fakeAnimation() {
   let settle = (): void => {}
-  const finished = new Promise<void>((resolve) => { settle = resolve })
-  return { finished, playbackRate: 1, pause: vi.fn(), play: vi.fn(), cancel: vi.fn(), settle: () => settle() }
+  let fail: (reason: Error) => void = () => {}
+  const finished = new Promise<void>((resolve, reject) => { settle = resolve; fail = reject })
+  return { finished, playbackRate: 1, pause: vi.fn(), play: vi.fn(), cancel: vi.fn(), settle: () => settle(), fail: () => fail(new Error('cancelled')) }
 }
 
 /** A window whose computed styles are whatever the test says the stylesheet resolved to. */
@@ -38,6 +43,7 @@ function setup(cardCount = 1) {
 afterEach(() => {
   Reflect.deleteProperty(HTMLElement.prototype, 'animate')
   Reflect.deleteProperty(HTMLElement.prototype, 'offsetLeft')
+  document.body.replaceChildren()
 })
 
 describe('matrixOf', () => {
@@ -93,6 +99,18 @@ describe('a switch of effect on one host', () => {
     await vi.waitFor(() => expect(host.hasAttribute(GLIDE_ATTR)).toBe(false))
   })
 
+  it('still lands when something else cancels a card’s animation, which rejects its promise', async () => {
+    const { host, cards, styles, started, win } = setup()
+    const card = cards[0]!
+    styles.set(card, { transform: 'matrix(1, 0, 0, 1, 50, 0)' })
+    recordDeckPoses(host, cards, win)
+    const land = claimDeckArrival(host)!
+    styles.set(card, { transform: 'none' })
+    land(cards, timing, win)
+    started[0]!.animation.fail()
+    await vi.waitFor(() => expect(host.hasAttribute(GLIDE_ATTR)).toBe(false))
+  })
+
   it('does not take the attribute from the next deck when a stopped glide settles late', async () => {
     const { host, cards, styles, started, win } = setup()
     styles.set(cards[0]!, { transform: 'matrix(1, 0, 0, 1, 50, 0)' })
@@ -124,9 +142,13 @@ describe('a switch of effect on one host', () => {
     recordDeckPoses(host, cards, win)
     const land = claimDeckArrival(host)!
     styles.set(cards[0]!, { transform: 'none' })
-    land(cards, { ...timing, reducedMotion: true }, win)
+    const stop = land(cards, { ...timing, reducedMotion: true }, win)
     expect(started).toHaveLength(0)
     expect(host.hasAttribute(GLIDE_ATTR)).toBe(false)
+    // Nothing flew, so the deck's teardown has nothing to stop and nothing to set back.
+    host.setAttribute(GLIDE_ATTR, 'arriving')
+    stop()
+    expect(host.getAttribute(GLIDE_ATTR)).toBe('arriving')
   })
 
   it('fades a card the new shape hides, and ignores one hidden at both ends', () => {
@@ -252,6 +274,8 @@ describe('a row, its edge and its copies', () => {
 
   it('cross-fades copies: the old row’s fade out and go, the new row’s fade in or stay unseen', async () => {
     const { host, cards, styles, started, win } = setup()
+    // In the document: whether a copy is still there is what this test is about.
+    document.body.append(host)
     clipHost(host)
     styles.set(host, { 'overflow-x': 'hidden' })
     styles.set(cards[0]!, { transform: 'matrix(1, 0, 0, 1, 50, 0)', opacity: '1' })
@@ -310,6 +334,40 @@ describe('a row, its edge and its copies', () => {
     styles.set(cards[0]!, { transform: 'none' })
     land(cards, timing, win)
     expect(started.map(run => run.el)).toEqual([cards[0]])
+  })
+})
+
+describe('a real change of data-kui on a deck', () => {
+  it('records the old deck, lands the new one, and records nothing when the deck just goes away', async () => {
+    const { host, cards, started } = setup(2)
+    // A row lays its cards out somewhere else, which is the move there is to see.
+    Object.defineProperty(HTMLElement.prototype, 'offsetLeft', {
+      configurable: true,
+      get(this: HTMLElement) { return this.parentElement?.hasAttribute('data-kui-row-static') ? 300 : 100 },
+    })
+    host.setAttribute('data-kui', 'carousel-stack')
+    document.body.append(host)
+    const animator = new Animator({
+      root: document.body,
+      registry: catalogRegistry(),
+      capabilities: CAPS,
+      binder: createActivationBinder({ createObserver: undefined }),
+      scheduler: idleScheduler,
+      rootResolver: () => fakeRoot,
+      observe: true,
+    }).start()
+    expect(started).toHaveLength(0)
+
+    host.setAttribute('data-kui', 'carousel-loop')
+    // The watcher flushes a mutation record on the next animation frame, not in this microtask.
+    await vi.waitFor(() => expect(host.getAttribute(GLIDE_ATTR)).toBe('flying'))
+    const glides = started.filter(run => cards.includes(run.el as HTMLElement))
+    expect(glides.map(run => run.el)).toEqual(cards)
+    for (const { frames } of glides) expect(matrixOf(String(frames[0]!.transform))[12]).toBeCloseTo(-200)
+
+    animator.destroy()
+    expect(host.hasAttribute(GLIDE_ATTR)).toBe(false)
+    expect(claimDeckArrival(host)).toBeUndefined()
   })
 })
 

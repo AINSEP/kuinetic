@@ -23,6 +23,9 @@ const centres = (): number[] => widths.map((width, i) => widths.slice(0, i).redu
 const visual = (): number[] => centres().map((centre, i) => centre + x() + cycle(i))
 const period = (): number => widths.reduce((sum, w) => sum + w + 20, 0)
 
+/** The row's offset at one write of it, and where every card stood once it was written. */
+interface RowFrame { x: number; positions: number[] }
+
 function pointer(type: string, clientX: number, clientY = 0): Event {
   const event = Object.assign(new Event(type, { bubbles: true, cancelable: true }), { clientX, clientY, pointerId: 1 })
   host.dispatchEvent(event)
@@ -65,8 +68,8 @@ function stubSlide(slide: HTMLElement): void {
   })
 }
 
-function expectCoverage(): void {
-  const boxes = visual().map((centre, i) => [centre - widths[i]! / 2, centre + widths[i]! / 2])
+function expectCoverage(positions = visual()): void {
+  const boxes = positions.map((centre, i) => [centre - widths[i]! / 2, centre + widths[i]! / 2])
     .filter(([left, right]) => right! > 0 && left! < viewport).sort((a, b) => a[0]! - b[0]!)
   expect(boxes.length).toBeGreaterThan(0)
   expect(boxes[0]![0]).toBeLessThanOrEqual(20.001)
@@ -309,11 +312,14 @@ it.each(['carousel-3d', 'carousel-stack'])('preserves the existing composed %s d
 describe('round 6 review regressions', () => {
   const wideSlides = [160, 200, 180, 240, 160, 200, 180, 240]
 
-  function recordRowWrites(): boolean[] {
+  /** Whether each row write was flagged, and optionally where every card stood once it landed. */
+  function recordRowWrites(frames: RowFrame[] = []): boolean[] {
     const flags: boolean[] = []
     cssWrites.mockImplementation(function (this: CSSStyleDeclaration, name, value, priority) {
-      if (this === host.style && name === '--kui-row-x') flags.push(host.getAttribute('data-kui-ring-wrap') === 'true')
+      const rowWrite = this === host.style && name === '--kui-row-x'
+      if (rowWrite) flags.push(host.getAttribute('data-kui-ring-wrap') === 'true')
       nativeSetProperty.call(this, name, value, priority)
+      if (rowWrite) frames.push({ x: x(), positions: visual() })
     })
     return flags
   }
@@ -359,11 +365,19 @@ describe('round 6 review regressions', () => {
       document.body.insertAdjacentHTML('beforeend', buttons)
     })
     for (let step = 0; step < 4; step++) key('ArrowRight')
-    const flags = recordRowWrites()
+    const frames: RowFrame[] = []
+    const flags = recordRowWrites(frames)
     if (action === 'jump') document.querySelector<HTMLButtonElement>('.jump')!.click()
     else key(action)
     expectCoverage()
-    expect(flags).toEqual([true])
+    // Further than these cards can cover both ends of, so the row closes the difference at once and
+    // travels the rest. Neither the frame it leaps to nor anywhere on the way may show a blank.
+    expect(flags).toEqual([true, false])
+    const [leap, arrival] = frames as [RowFrame, RowFrame]
+    expectCoverage(leap.positions)
+    const rest = leap.x - arrival.x
+    expect(Math.abs(rest)).toBeCloseTo(period() - viewport - Math.max(...widths))
+    for (const share of [1, 0.75, 0.5, 0.25]) expectCoverage(arrival.positions.map(place => place + rest * share))
   })
 
   it.each(['ArrowRight', 'ArrowLeft'])('measures and observes an added slide before moving %s', direction => {
