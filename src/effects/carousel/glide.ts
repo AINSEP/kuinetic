@@ -68,7 +68,7 @@ function multiply(a: Matrix, b: Matrix): Matrix {
   })
 }
 
-const compose = (...matrices: Matrix[]): Matrix => matrices.reduce(multiply)
+const compose = (...matrices: Matrix[]): Matrix => matrices.reduce(multiply, IDENTITY)
 
 const translation = (x: number, y: number, z = 0): Matrix => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1]
 
@@ -251,6 +251,16 @@ export interface GlideTiming {
 /** A deck taking over from another: land its cards once they are placed. */
 export type DeckArrival = (nodes: readonly Element[], timing: GlideTiming, win: Window) => Cleanup
 
+/** What every animation of one arrival shares. */
+interface Scene {
+  host: HTMLElement
+  camera: Camera
+  /** The box a row will clip to again, when the new shape is a row that clips. */
+  clip: DOMRect | undefined
+  options: KeyframeAnimationOptions
+  win: Window
+}
+
 /**
  * The keyframes that carry one card from a recorded pose to wherever the stylesheet now puts it.
  *
@@ -262,14 +272,14 @@ export type DeckArrival = (nodes: readonly Element[], timing: GlideTiming, win: 
  * @returns Empty when there is nothing to see: the card is unmoved, or hidden at both ends.
  * @complexity O(1) time and space.
  */
-function keyframesFor(pose: Pose, node: HTMLElement, style: CSSStyleDeclaration, camera: Camera, clip: DOMRect | undefined): Keyframe[] {
+function keyframesFor(scene: Scene, pose: Pose, node: HTMLElement, style: CSSStyleDeclaration): Keyframe[] {
   const [x, y, z] = originOf(node, style)
-  const start = compose(translation(-x, -y, -z), camera.inverse, pose.placed, turnsChild(style) ? IDENTITY : pose.billboard)
+  const start = compose(translation(-x, -y, -z), scene.camera.inverse, pose.placed, turnsChild(style) ? IDENTITY : pose.billboard)
   const from: Keyframe = { offset: 0 }
   if (!samePlace(start, matrixOf(style.getPropertyValue('transform')))) from.transform = asTransform(start)
   if (pose.opacity !== style.getPropertyValue('opacity')) from.opacity = pose.opacity
   if (pose.filter !== style.getPropertyValue('filter')) from.filter = pose.filter
-  const past = pastEdge(node, clip)
+  const past = pastEdge(node, scene.clip)
   if (past || style.getPropertyValue('visibility') === 'hidden') {
     if (pose.shown) return [{ ...from, visibility: 'visible' }, { offset: 1, opacity: 0 }]
     return past ? UNSEEN : []
@@ -285,7 +295,7 @@ const UNSEEN: Keyframe[] = [{ offset: 0, opacity: 0 }, { offset: 1, opacity: 0 }
  *
  * @complexity O(n) time in copies, with one layout read each.
  */
-function fadeCopiesIn(host: HTMLElement, clip: DOMRect | undefined, options: KeyframeAnimationOptions): Animation[] {
+function fadeCopiesIn({ host, clip, options }: Scene): Animation[] {
   return copiesIn(host).map(copy => copy.animate(pastEdge(copy, clip) ? UNSEEN : [{ offset: 0, opacity: 0 }], options))
 }
 
@@ -312,7 +322,7 @@ function wipeRowClip(host: HTMLElement, clipped: { before: boolean; after: boole
  *
  * @complexity O(d) time in its offset ancestors.
  */
-function fadeCopyOut(host: HTMLElement, copy: HTMLElement, pose: Pose, camera: Camera, options: KeyframeAnimationOptions, win: Window): Animation {
+function fadeCopyOut({ host, camera, options, win }: Scene, copy: HTMLElement, pose: Pose): Animation {
   Object.assign(copy.style, { position: 'absolute', left: '0', top: '0', margin: '0' })
   host.append(copy)
   const [x, y, z] = originOf(copy, win.getComputedStyle(copy))
@@ -325,15 +335,81 @@ function fadeCopyOut(host: HTMLElement, copy: HTMLElement, pose: Pose, camera: C
  *
  * @complexity O(1) time and space, with up to two style reads.
  */
-function glideCard(node: HTMLElement, pose: Pose, camera: Camera, clip: DOMRect | undefined, options: KeyframeAnimationOptions, win: Window): Animation[] {
+function glideCard(scene: Scene, node: HTMLElement, pose: Pose): Animation[] {
+  const { options, win } = scene
   const style = win.getComputedStyle(node)
-  const keyframes = keyframesFor(pose, node, style, camera, clip)
+  const keyframes = keyframesFor(scene, pose, node, style)
   const started = keyframes.length > 0 ? [node.animate(keyframes, options)] : []
   const child = node.firstElementChild
   if (child && turnsChild(style) && !samePlace(pose.billboard, matrixOf(win.getComputedStyle(child).getPropertyValue('transform')))) {
     started.push(child.animate([{ offset: 0, transform: asTransform(pose.billboard) }], options))
   }
   return started
+}
+
+/**
+ * What the new shape's cards and copies glide within.
+ *
+ * @complexity O(1) time and space; one layout read when the shape clips.
+ */
+function sceneOf(host: HTMLElement, camera: Camera, timing: GlideTiming, win: Window): Scene {
+  // The glide's own rule takes the row's clip away, so its box is read from what it will clip again.
+  const rowClips = host.getAttribute('data-kui-row-static') === 'false' && host.getAttribute('data-kui-row-shape') !== 'line'
+  return {
+    host,
+    camera,
+    clip: rowClips ? host.getBoundingClientRect() : undefined,
+    options: { duration: timing.durationMs, easing: timing.easing },
+    win,
+  }
+}
+
+/**
+ * Start everything one arrival animates: the cards, both rows' copies, and the clip coming back.
+ *
+ * @complexity O(n) time and space in cards and copies.
+ */
+function startGlide(scene: Scene, recording: Recording, nodes: readonly Element[], durationMs: number): Animation[] {
+  const running: Animation[] = []
+  for (const node of nodes) {
+    const pose = recording.poses.get(node)
+    if (pose) running.push(...glideCard(scene, node as HTMLElement, pose))
+  }
+  running.push(...fadeCopiesIn(scene))
+  for (const [copy, pose] of recording.copies) running.push(fadeCopyOut(scene, copy, pose))
+  if (running.length > 0) running.push(...wipeRowClip(scene.host, { before: recording.clipped, after: !!scene.clip }, durationMs))
+  return running
+}
+
+/**
+ * Hand a started glide to the clock, and land when the last of it finishes.
+ *
+ * @returns Stops the glide where it is and lands at once.
+ * @complexity O(n) time in animations.
+ */
+function fly(host: HTMLElement, running: readonly Animation[], land: () => void, win: Window): Cleanup {
+  const rate = timeScaleOf(host)
+  // Held at the start for the frame this install is part of. That frame can be long (blurred
+  // cards, first raster), and a clock running through it would land the card far along its way
+  // on the first thing the viewer sees.
+  for (const animation of running) {
+    animation.playbackRate = rate
+    animation.pause()
+  }
+  const release = win.requestAnimationFrame(() => {
+    for (const animation of running) animation.play()
+  })
+  host.setAttribute(GLIDE_ATTR, 'flying')
+  let live = true
+  void Promise.all(running.map(animation => animation.finished.catch(() => undefined))).then(() => {
+    if (live) land()
+  })
+  return () => {
+    live = false
+    win.cancelAnimationFrame(release)
+    for (const animation of running) animation.cancel()
+    land()
+  }
 }
 
 /**
@@ -360,45 +436,13 @@ export function claimDeckArrival(host: HTMLElement): DeckArrival | undefined {
     // it is released. Needed even with no glide to play.
     for (const node of nodes) commitStyle(node, win)
     const camera = cameraOf(host, win)
-    const options = { duration: timing.durationMs, easing: timing.easing }
-    const running: Animation[] = []
-    if (!timing.reducedMotion) {
-      // The glide's own rule takes the row's clip away, so its box is read from what it will clip again.
-      const rowClips = host.getAttribute('data-kui-row-static') === 'false' && host.getAttribute('data-kui-row-shape') !== 'line'
-      const clip = rowClips ? host.getBoundingClientRect() : undefined
-      for (const node of nodes) {
-        const pose = recording.poses.get(node)
-        if (pose) running.push(...glideCard(node as HTMLElement, pose, camera, clip, options, win))
-      }
-      running.push(...fadeCopiesIn(host, clip, options))
-      for (const [copy, pose] of recording.copies) running.push(fadeCopyOut(host, copy, pose, camera, options, win))
-      if (running.length > 0) running.push(...wipeRowClip(host, { before: recording.clipped, after: rowClips }, timing.durationMs))
-    }
+    const running = timing.reducedMotion
+      ? []
+      : startGlide(sceneOf(host, camera, timing, win), recording, nodes, timing.durationMs)
     if (running.length === 0) {
       land()
       return () => {}
     }
-    const rate = timeScaleOf(host)
-    // Held at the start for the frame this install is part of. That frame can be long (blurred
-    // cards, first raster), and a clock running through it would land the card far along its way
-    // on the first thing the viewer sees.
-    for (const animation of running) {
-      animation.playbackRate = rate
-      animation.pause()
-    }
-    const release = win.requestAnimationFrame(() => {
-      for (const animation of running) animation.play()
-    })
-    host.setAttribute(GLIDE_ATTR, 'flying')
-    let live = true
-    void Promise.all(running.map(animation => animation.finished.catch(() => undefined))).then(() => {
-      if (live) land()
-    })
-    return () => {
-      live = false
-      win.cancelAnimationFrame(release)
-      for (const animation of running) animation.cancel()
-      land()
-    }
+    return fly(host, running, land, win)
   }
 }

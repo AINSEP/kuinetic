@@ -21,6 +21,11 @@ function rowGap({ lefts, widths }: { lefts: number[]; widths: number[] }, host: 
   return parseFloat(style.columnGap || style.gap) || 0
 }
 
+/** Whether any place in the new list holds a different node. A shorter list shows in the geometry. */
+function replacesSlides(next: readonly Element[], current: readonly Element[]): boolean {
+  return next.some((slide, index) => slide !== current[index])
+}
+
 // One layout closes over its measured geometry and per-slot ownership, like the ring view.
 // eslint-disable-next-line max-lines-per-function
 function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
@@ -184,37 +189,48 @@ function prepareRow(el: Element, params: EffectParams, ctx: PrepareContext) {
     arriving = false
   }
 
+  /** Read the row off the page: the longest step, and a record of everything a remeasure depends on. */
+  const readGeometry = (): { stride: number; geometry: string } => {
+    viewportWidth = host.offsetWidth
+    inlineSign = ctx.win.getComputedStyle(host).direction === 'rtl' ? -1 : 1
+    slideWidths = slides.map(slide => slide.offsetWidth)
+    const lefts = slides.map((slide, i) => inlineSign === 1 ? slide.offsetLeft : -slide.offsetLeft - slideWidths[i]!)
+    centres = lefts.map((left, index) => left + slideWidths[index]! / 2)
+    const gap = rowGap({ lefts, widths: slideWidths }, host, ctx, !!copies)
+    cycleLength = slides.length ? lefts.at(-1)! + slideWidths.at(-1)! - lefts[0]! + gap : 0
+    widest = Math.max(...slideWidths)
+    const stride = Math.max(...centres.map((centre, index) => (centres[index + 1] ?? centres[0]! + cycleLength) - centre))
+    const geometry = [viewportWidth, inlineSign, cycleLength, ...lefts, ...slideWidths, ...slides.map(slide =>
+      `${slide.offsetHeight} ${slide.getAttribute('src')} ${(slide as HTMLImageElement).currentSrc}`)].join()
+    return { stride, geometry }
+  }
+
+  /** Rebuild the copies from what was read, then decide whether the row loops. */
+  const applyGeometry = (stride: number): void => {
+    measureCopies(stride)
+    lineReach = measureLine(stride)
+    // Viewport coverage, a recycled slide's width, and one animated step must all fit.
+    const covers = line ? lineReach > 0 : visualCycle - widest - stride >= viewportWidth
+    looping = visuals.length > 1 && covers && viewportWidth > 0
+    attributes.set('data-kui-row-static', String(!looping))
+    if (looping) host.scrollLeft = 0
+    ctx.style.set('touch-action', looping ? 'pan-y' : 'auto')
+    measured = true
+  }
+
   const view = {
     measure(elements) {
       observeSlides(elements)
-      const replaced = elements.some((slide, index) => slide !== slides[index])
+      const replaced = replacesSlides(elements, slides)
       slides = elements as readonly HTMLElement[]
       archive?.measure(slides, slideStyles)
-      viewportWidth = host.offsetWidth
-      inlineSign = ctx.win.getComputedStyle(host).direction === 'rtl' ? -1 : 1
-      slideWidths = slides.map(slide => slide.offsetWidth)
-      const lefts = slides.map((slide, i) => inlineSign === 1 ? slide.offsetLeft : -slide.offsetLeft - slideWidths[i]!)
-      centres = lefts.map((left, index) => left + slideWidths[index]! / 2)
-      const gap = rowGap({ lefts, widths: slideWidths }, host, ctx, !!copies)
-      cycleLength = slides.length ? lefts.at(-1)! + slideWidths.at(-1)! - lefts[0]! + gap : 0
-      widest = Math.max(...slideWidths)
-      const stride = Math.max(...centres.map((centre, index) => (centres[index + 1] ?? centres[0]! + cycleLength) - centre))
+      const { stride, geometry } = readGeometry()
       // A window resize can leave this row as it was (a phone's address bar only changes the height).
       // Then a card in flight flies on, instead of snapping home with every copy rebuilt under it.
       // A line also spends the window's size on its depth, so it measures every time.
-      const geometry = [viewportWidth, inlineSign, cycleLength, ...lefts, ...slideWidths, ...slides.map(slide =>
-        `${slide.offsetHeight} ${slide.getAttribute('src')} ${(slide as HTMLImageElement).currentSrc}`)].join()
       if (!line && !replaced && geometry === measuredGeometry) return
       measuredGeometry = geometry
-      measureCopies(stride)
-      lineReach = measureLine(stride)
-      // Viewport coverage, a recycled slide's width, and one animated step must all fit.
-      const covers = line ? lineReach > 0 : visualCycle - widest - stride >= viewportWidth
-      looping = visuals.length > 1 && covers && viewportWidth > 0
-      attributes.set('data-kui-row-static', String(!looping))
-      if (looping) host.scrollLeft = 0
-      ctx.style.set('touch-action', looping ? 'pan-y' : 'auto')
-      measured = true
+      applyGeometry(stride)
     },
     render,
     bound: archive?.bound,

@@ -304,6 +304,11 @@ function dragCoordinates(layout: DeckLayout) {
     bound: layout.view?.bound }
 }
 
+/** The view of a shape that places its cards frame by frame, rather than leaving that to CSS. */
+function frameViewOf(layout: DeckLayout) {
+  return layout.view?.render ? layout.view : undefined
+}
+
 /**
  * The attribute ledger for one slot, created on first write.
  *
@@ -369,7 +374,7 @@ export function prepareSpatialDeck(
   // teardown can tell a switch of effect (it changed) from the deck going away or replaying.
   const arrival = claimDeckArrival(el as HTMLElement)
   const authored = el.getAttribute(ATTR.source)
-  const frameView = layout.view?.render ? layout.view : undefined
+  const frameView = frameViewOf(layout)
   // Only the `key:value` spelling of a timing token reaches CSS on its own — `pushTrack` writes the
   // positional tokens for `css-keyframes` primitives and no others, and these render through
   // JavaScript. Without this, `carousel-3d 900ms` would travel at the 620ms default while

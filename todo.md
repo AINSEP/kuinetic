@@ -57,6 +57,10 @@ library should own it. Never call something "not the library's job" without grep
       `video-scrub` with no `frames:` never scrubs: it skips the seek when the frame number has not changed, and `frames:` defaults to 1 (`src/effects/scroll-mechanics/primitives.ts:587`, `:787`). Seen in Chrome: progress .21 to .80, video stayed at 0s. Scroll page uses `frames:120`. This one looks like a real bug in a shipped effect.
       `scroll-story` on phones: steps ride over the picture at 45% opacity, though the catalog says they scroll beneath it, and their `Canvas` background is not the page's black in dark mode (`src/showcase/showcase.css:486-520`; scroll page overrides it).
       `video-hero` and `video-backdrop` have no `pause:` setting; scroll page added Pause buttons with a small script.
+      `focus-ring-grow` never takes its ring down after blur (`src/css/forms.css:39`, `src/effects/forms/primitives.ts:122`; interactive page resets it on blur). In a comma chain after `label-float` and `strength-meter` it plays at load.
+      `label-float` and `input-underline-grow` refuse to compose, though they move different elements.
+      `docs/catalog.md:1062` says `page-morph` is not implemented, but it runs.
+      `curtain` on `reveals.html` shows only the pixels cover; its other covers are on no page.
 - [ ] **Two library bugs from the cartoon page, 2026-11-06.** `flyImage` in `src/core/image-flight.ts` sets `objectFit: 'fill'`, so it stretches any picture whose shape differs from its source or landing box. And `group-expand` plus `lightbox`: closing with Esc returns keyboard focus to the card, so it stays wide and hover stops until focus moves.
 - [ ] **Motion back burner: heavy GPU work.** Owner, 2026-11-06: wait until lane D's three.js works, then decide.
       Watch them: `open ADS-memory/.local-artifacts/motion-examples/later.html`. Costs are in `ADS-memory/.local-artifacts/motion-examples/build/REST-PLAN.md`. Estimates, nothing built.
