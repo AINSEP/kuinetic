@@ -23,7 +23,7 @@ import { catalogRegistry } from './support/registry.js'
 let animator: Animator | undefined
 let reporter: ReturnType<typeof collectingReporter>
 
-function start(html: string, reducedMotion = false): void {
+function start(html: string, reducedMotion = false, observe = false): void {
   document.body.innerHTML = html
   reporter = collectingReporter()
   animator = new Animator({
@@ -34,6 +34,7 @@ function start(html: string, reducedMotion = false): void {
     scheduler: idleScheduler,
     rootResolver: () => fakeRoot,
     reporter,
+    observe,
   })
   animator.start()
 }
@@ -179,6 +180,22 @@ describe('carousel pause:', () => {
     animator!.destroy()
     start(`<div id="deck" data-kui="carousel autoplay:3s pause:.nope">${SLIDES}</div>`)
     expect(reporter.messages).toContain('step-progress pause ".nope" matched nothing')
+  })
+
+  it('stays paused when its data-kui changes, through the real reinstall, and still resumes', async () => {
+    start(`<div id="deck" data-kui="carousel autoplay:3s pause:.pp">${SLIDES}<button class="pp">Pause</button></div>`, false, true)
+    const control = document.querySelector('.pp')!
+    click(control)
+    deck().setAttribute('data-kui', 'carousel autoplay:4s pause:.pp')
+    // The watcher's mutation record arrives as a microtask, and only setTimeout is faked here.
+    for (let turn = 0; turn < 5; turn++) await Promise.resolve()
+    expect(control.getAttribute('aria-pressed')).toBe('true')
+    vi.advanceTimersByTime(10_000)
+    expect(step()).toBe('0')
+    click(control)
+    expect(control.getAttribute('aria-pressed')).toBe('false')
+    vi.advanceTimersByTime(4000)
+    expect(step()).toBe('1')
   })
 
   it('gives the control back and stops the timer on teardown', () => {

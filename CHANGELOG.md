@@ -5,8 +5,31 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+### Added
+
+- **`line-boil`.** A hand-drawn wobble on line art. The catalog is now 313 named effects.
+- **`hover:none` on `carousel-fade`, `carousel-slide` and `video-hero-slideshow`.** A resting pointer
+  no longer stops the slides. Keyboard focus and the pause button still do.
+
+### Changed
+
+- **Changing `data-kui` on a live carousel now glides.** Cards fly from where they were to their
+  new places, including into and out of `carousel-loop`, with no first-frame jump.
+- **A pause survives that change.** A deck paused with `pause:` stays paused when `data-kui` is
+  rewritten on the same element.
+- **`carousel-stack leave:swipe` now fades the card as it leaves.** `leave-fade` defaults to `1`, so
+  a swiped card no longer sits solid and then blinks out. Set `leave-fade:0` for the old look.
+- **`marquee-scroll-linked` defaults to `ease: linear`,** so it keeps moving all the way down a long
+  page.
+- **The lightbox fits tall photos on screen.** Only a picture more than 2.5 times as tall as it is
+  wide now scrolls; before, anything taller than 3:2 did.
+
 ### Fixed
 
+- **`carousel-loop` rows no longer fly a card across the row when stepping.** A wrapped copy keeps
+  no transition, fast clicks no longer pop a visible card, and a resize that changes nothing no
+  longer rebuilds copies mid-flight.
+- **`video-scrub` scrubs with no `frames:`.** With the default it never seeked at all.
 - **Text effects no longer flash the finished text on load.** `split-chars`, `split-words`,
   `split-lines`, `typewriter`, `typewriter-loop`, `scramble`, `decode` and `glitch` are now
   `cloak: true`: under `<html data-kui-cloak>` they stay hidden until the effect starts, instead of

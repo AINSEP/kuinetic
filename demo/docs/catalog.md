@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **312** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **313** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -474,7 +474,7 @@ Primitive 20, plus 15 and 26.
 
 ---
 
-## G. Media & images — 23 names
+## G. Media & images — 24 names
 
 Primitives 5, 6, 7, 4, 30, 31.
 
@@ -482,7 +482,7 @@ Primitives 5, 6, 7, 4, 30, 31.
 `mask-reveal` · `curtain-reveal` · `ken-burns` · `ken-burns-out` · `blur-up` ·
 `duotone-hover` · `grayscale-hover` · `saturate-hover` · `image-parallax-frame` ·
 `before-after-wipe` · `lightbox-open` · `slat-assemble` · `bg` · `background` ·
-`video-backdrop` · `video-hero` · `image-flight`
+`video-backdrop` · `video-hero` · `image-flight` · `line-boil`
 
 > **Measured image flight:** put a button inside an authored `data-kui-flight-source` wrapper
 > holding its product image, with `data-kui="image-flight image:img destination:#basket lift:60px on:click"`.
@@ -494,6 +494,18 @@ Primitives 5, 6, 7, 4, 30, 31.
 > A basket with `data-kui="ripple extent:2 startScale:1 450ms"`
 > and `data-kui-on="kui:finish from:.add-to-basket"` supplies the landing response; override its
 > `::after` to a transparent square with a border in `var(--accent)` for a square outline.
+
+> **`line-boil`** makes a still drawing's lines wiggle a few times a second, like hand-drawn animation
+> filmed frame by frame: `<img data-kui="line-boil amount:3 fps:10" src="drawing.png" alt="">`.
+> `amount:` is the furthest a line can wander, in pixels (default `3`); `fps:` is how many new
+> drawings play each second (default `10`, 1 to 30). It looks best on bold line art and flat colour
+> and works on any element, including `<video>`. It is an SVG displacement filter applied with CSS
+> `filter`, so it claims the filter channel and replaces an author filter on the same box while it
+> runs. Hosts with the same two settings share one filter and one clock, so they repaint together.
+> It stops changing off screen and in a hidden tab, removes its SVG on teardown, and does not run
+> under reduced motion: the image stays still and undistorted. The drawn edge moves too, so inside
+> an `overflow: hidden` frame make the image a few pixels larger than the frame. Displacement is
+> repainted in full on every tick, so cost scales with the filtered area.
 
 `curtain-reveal start-size:60vmin` opens a centred square crop to the full image;
 use a viewport or pixel length for a square, since percentages resolve separately on each axis.
@@ -1315,7 +1327,8 @@ provide the ring recipe; these are flat strokes with no tube shading.
 > `pause:` names that control. It toggles the motion and carries `aria-pressed` (true while paused).
 > The library does not invent the button, as it does not invent the arrows — but add one: moving
 > content that starts by itself and lasts more than five seconds needs a way to stop it (WCAG
-> 2.2.2), and hover and focus only cover some visitors.
+> 2.2.2), and hover and focus only cover some visitors. A paused deck stays paused when you change
+> its `data-kui`, as long as the new value names a `pause:` control too.
 
 > **Open the cards in the lightbox: `lightbox:true`.** A click on a card opens the shared lightbox
 > gallery at that card, with every card of the deck in it — prev/next buttons, the arrow, Home and
@@ -1403,6 +1416,11 @@ provide the ring recipe; these are flat strokes with no tube shading.
 >
 > With at least `depth + 3` cards, a card going from the front to the back of the deck is never seen
 > crossing it. With fewer, it appears at the back as it arrives.
+>
+> `leave:swipe` throws the front card sideways instead, and a drag either way advances one card. It
+> goes by `leave-x:` (`300px`) and `leave-rotate:` (`15deg`) and fades as it goes, by `leave-fade:`
+> (opacity lost over the throw, `1`). `leave-fade:0` keeps the card opaque until the step's `duration`
+> ends, when it disappears at once. `rest-rotate:` gives the cards loose resting angles.
 
 > **`carousel-loop` is a horizontal flex row with mixed-width slides.** Author slide widths and
 > the host's `gap` in CSS; direct children are the slides unless `target:` selects direct children.
@@ -1906,7 +1924,7 @@ need to track.
 > else holding an image is an image. A native video pauses when you leave it and resumes when you come back; an
 > embed stops when you leave it. Modified clicks keep the link's normal browser behavior. Every
 > item fits the screen with its caption and counter in view, keeping its aspect ratio; only a
-> picture taller than 3:2 portrait is shown full-width and scrolled.
+> picture more than 2.5 times as tall as it is wide is shown full-width and scrolled.
 >
 > ```html
 > <div data-kui="lightbox">
@@ -2036,8 +2054,9 @@ need to track.
 > are authored, `autoplay:` sets an interval of at least two seconds, `swipe:` toggles touch
 > navigation, `mute:` names a button for the active slide's video, and `duration:` / `ease:`
 > tune the transition. A pause button is built whenever autoplay runs; autoplay is disabled with
-> `controls:none` or authored controls because there would be no pause button. Reduced-motion
-> visitors start paused; a user pause stays in effect until they press Play.
+> `controls:none` or authored controls because there would be no pause button. `hover:none` keeps
+> it running under a resting pointer; keyboard focus and the pause button still stop it.
+> Reduced-motion visitors start paused; a user pause stays in effect until they press Play.
 >
 > **No-JS:** Slides remain a plain visible list in document order, with no inserted controls.
 
@@ -2085,7 +2104,7 @@ need to track.
 | D Text & typography | 27 |
 | E SVG & icons | 18 |
 | F Numbers & data viz | 14 |
-| G Media & images | 23 |
+| G Media & images | 24 |
 | H Layout & FLIP | 9 |
 | I Hover & pointer | 37 |
 | J Ambient backgrounds | 15 |
@@ -2100,7 +2119,7 @@ need to track.
 | S Materials | 1 |
 | T Showcase | 10 |
 | Generic tween | 2 |
-| **Total shipped** | **312** |
+| **Total shipped** | **313** |
 | Documented but not yet shipped | 3 |
 
 Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
@@ -2249,6 +2268,8 @@ Two names over one primitive family, sitting outside the lettered A–T sections
 > zero. It cannot evaluate stylesheet values or `calc()` expressions at compile time.
 
 `carousel-loop copies:auto` fills short rows with inert copies of direct images; copies are not links or slides.
+
+Changing `data-kui` from one carousel to another on a live host glides each card from where it stands to its new place, using the new effect's `duration:` and `ease:`. Reduced motion lands at once. Row copies do not glide: they appear and leave with the row.
 `release:free` adds a finite drag coast; ordinary rows still snap on release.
 True `dir="rtl"` reverses inline layout, drag mapping and horizontal keys; positive `spin:` travels right in RTL.
 

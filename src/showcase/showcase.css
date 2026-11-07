@@ -708,8 +708,9 @@
    * everything fits the rows are content-sized and centred as one group, caption right under the
    * media; when it does not, the free space runs out in the media row and nowhere else, because the
    * caption and counter rows are plain `auto`. The media then reads that row's definite height as
-   * `100%`. A tall image (`is-tall`, taller than 3:2 portrait) is the one exception: it is meant
-   * to be read by scrolling, so its gallery sizes to content and the dialog scrolls.
+   * `100%`. A long page screenshot (`is-tall`, more than 2.5 times as tall as it is wide) is the
+   * one exception: it is meant to be read by scrolling, so its gallery sizes to content and the
+   * dialog scrolls.
    */
   .kui-lightbox-gallery {
     display: grid;

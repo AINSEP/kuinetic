@@ -360,6 +360,32 @@ describe('media-scrub', () => {
     expect(video.getAttribute('src')).toBeNull()
   })
 
+  it('scrubs a video smoothly with no frames: authored, and skips a seek to an unchanged time', () => {
+    const animator = build('<video data-kui="video-scrub distance:400px"></video>')
+    const video = el('video') as HTMLVideoElement
+    Object.defineProperty(video, 'duration', { value: 10, configurable: true })
+    let currentTime = 0
+    let writes = 0
+    Object.defineProperty(video, 'currentTime', {
+      get: () => currentTime,
+      set: (v) => {
+        currentTime = v
+        writes++
+      },
+      configurable: true,
+    })
+    stubRect(video, -80)
+    animator.start()
+    scheduler.emit(80)
+    expect(currentTime).toBeCloseTo(2)
+    stubRect(video, -320)
+    scheduler.emit(320)
+    expect(currentTime).toBeCloseTo(8)
+    const before = writes
+    scheduler.emit(320)
+    expect(writes).toBe(before)
+  })
+
   it('leaves currentTime untouched while a video\'s duration is not yet known (NaN)', () => {
     const animator = build('<video data-kui="video-scrub distance:400px"></video>')
     const video = el('video') as HTMLVideoElement

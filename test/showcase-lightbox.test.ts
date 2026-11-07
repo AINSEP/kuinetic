@@ -87,6 +87,14 @@ describe('lightbox', () => {
     expect(dialog().querySelector('img')?.classList.contains('is-tall')).toBe(true)
   })
 
+  it('fits a 2:1 portrait photo on screen instead of scrolling it', () => {
+    start('<img data-kui="lightbox" src="/portrait.jpg" alt="Portrait">')
+    const image = document.querySelector('img')!
+    Object.defineProperties(image, { naturalWidth: { value: 800 }, naturalHeight: { value: 1600 } })
+    click(image)
+    expect(dialog().querySelector('img')?.classList.contains('is-fit')).toBe(true)
+  })
+
   it('navigates a gallery by keys, wraps, and chooses figcaption over alt', () => {
     start('<div data-kui="lightbox"><figure><a href="/a.jpg"><img src="/a-small.jpg" alt="Alt A"></a><figcaption>Caption A</figcaption></figure><a href="/b.jpg"><img src="/b-small.jpg" alt="Alt B"></a></div>')
     click(document.querySelector('a')!)

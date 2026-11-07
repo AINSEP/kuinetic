@@ -122,6 +122,8 @@ export interface AutoMotionRequest {
   onPausedChange(paused: boolean): void
   /** Optional elapsed share of the current autoplay period; absent means no timer frames. */
   onAutoplayProgress?(progress: number): void
+  /** Begin as if the author's pause control were already pressed. See {@link createDeckMotion}. */
+  startPaused?: boolean
 }
 
 export interface AutoMotion {
@@ -193,7 +195,7 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
    * nothing moves on its own, and a visitor who presses the author's play control has asked for
    * motion explicitly — a request the preference exists to respect, not to overrule.
    */
-  let userPaused = ctx.reducedMotion
+  let userPaused = ctx.reducedMotion || request.startPaused === true
   let hovered = false
   let focused = false
   let onscreen = true
@@ -496,6 +498,27 @@ function motionPeriods(request: DeckMotionRequest): { spin: number; autoplay: nu
   return { spin, autoplay }
 }
 
+/*
+ * Elements whose deck went away paused, for a deck that takes over the same element in this task.
+ *
+ * Setting `data-kui` tears one effect down and installs the next synchronously, and the pause dies
+ * with the old deck's closures, so without this a visitor who stopped the motion (WCAG 2.2.2) has it
+ * start again because they chose another arrangement. It lives here rather than beside the poses in
+ * `carousel/glide.ts` because the pause belongs to every deck on this scheduler, the flat `carousel`
+ * included, and because a glide's record is skipped where it could not play and when a deck replays.
+ *
+ * The microtask is the expiry, as it is for those poses: an entry still here afterwards means nothing
+ * replaced the deck, and a deck installed on this element later must start fresh. Reduced motion needs
+ * nothing from this, since a deck starts paused under it anyway.
+ */
+const carriedPauses = new WeakSet<Element>()
+
+/** Hand this element's pause to whichever deck replaces it in this task. O(1). */
+function carryPause(el: Element): void {
+  carriedPauses.add(el)
+  queueMicrotask(() => carriedPauses.delete(el))
+}
+
 /**
  * A deck's `autoplay:` (and, for a spatial deck, `spin:`) with its `pause:` control: the periods,
  * the floor and its warning, the scheduler, and the `aria-pressed` the control carries.
@@ -503,6 +526,9 @@ function motionPeriods(request: DeckMotionRequest): { spin: number; autoplay: nu
  * The deck-facing half of {@link createAutoMotion}, so the spatial decks and the flat `carousel`
  * read the same parameters, warn the same way and reflect pause the same way — the only things a
  * deck supplies are how it steps and, if it spins, how it advances.
+ *
+ * A pause carried over from the deck this one replaced is taken up only if there is a control to lift
+ * it: a deck left stopped with no way to restart it would be worse than one that moves.
  *
  * @complexity O(1) at setup plus one scoped query for a named `pause:`; O(m) per pause toggle in the
  *   matched controls.
@@ -512,7 +538,10 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
   const { spin, autoplay } = motionPeriods(request)
   const ledgers = new Map<Element, AttributeLedger>()
   const pauseSelector = resolveTarget(params.text('pause'), ctx, `${label} pause`)
-  const reflectPaused = (paused: boolean): void => {
+  const startPaused = carriedPauses.delete(el) && pauseSelector !== '' && queryControls(el, ctx, pauseSelector).length > 0
+  let paused = startPaused
+  const reflectPaused = (next: boolean): void => {
+    paused = next
     if (!pauseSelector) return
     for (const node of queryControls(el, ctx, pauseSelector)) {
       let ledger = ledgers.get(node)
@@ -520,7 +549,7 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
         ledger = createAttributeLedger(node)
         ledgers.set(node, ledger)
       }
-      ledger.set('aria-pressed', String(paused))
+      ledger.set('aria-pressed', String(next))
     }
   }
 
@@ -536,6 +565,7 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
     setSpinning: request.spin?.setSpinning,
     onAutoplayProgress: autoplay !== 0 ? request.onAutoplayProgress : undefined,
     onPausedChange: reflectPaused,
+    startPaused,
   })
 
   let pause: ControlGroup | null = null
@@ -553,6 +583,7 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
       motion.release()
       for (const ledger of ledgers.values()) ledger.restore()
       ledgers.clear()
+      if (paused) carryPause(el)
     },
   }
 }

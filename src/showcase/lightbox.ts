@@ -170,11 +170,17 @@ function modalOptions(params: EffectParams, ctx: PrepareContext): Pick<ModalCont
   }
 }
 
+/**
+ * Height over width past which a picture is a long page to scroll through, not a photo to fit.
+ * A phone portrait is 16:9 (1.78) and a tall poster is 2:1, and both must fit on screen.
+ */
+const SCROLL_READ_RATIO = 2.5
+
 function showImage(item: ImageItem, view: HTMLImageElement): void {
   view.src = item.src
   view.alt = item.image.alt
   const ratio = item.image.naturalWidth ? item.image.naturalHeight / item.image.naturalWidth : 1
-  view.className = ratio > 1.5 ? 'is-tall' : 'is-fit'
+  view.className = ratio > SCROLL_READ_RATIO ? 'is-tall' : 'is-fit'
 }
 
 function videoFrame(item: VideoItem, aspect: string, doc: Document): HTMLElement {

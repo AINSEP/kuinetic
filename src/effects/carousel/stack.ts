@@ -98,7 +98,12 @@ const STACK_PARAMETERS: ParameterSchema = {
   leave: { type: 'keyword', default: 'depth', keywords: ['depth', 'swipe'], cssProperty: '--kui-stack-leave' },
   'leave-x': { type: 'length', default: '300px', cssProperty: '--kui-stack-leave-x' },
   'leave-rotate': { type: 'angle', default: '15deg', cssProperty: '--kui-stack-leave-rotate' },
-  'leave-fade': { type: 'number', default: '0', cssProperty: '--kui-stack-leave-fade', finite: true, minimum: 0, maximum: 2 },
+  /*
+   * Opacity lost over the one place a card leaves by. It defaults to fully gone, because `visibility`
+   * only hides a card when the step's whole duration is over. At `0` the card waits at the end of its
+   * throw until then, still opaque, and blinks out.
+   */
+  'leave-fade': { type: 'number', default: '1', cssProperty: '--kui-stack-leave-fade', finite: true, minimum: 0, maximum: 2 },
   'rest-rotate': { type: 'angle', default: '0deg', cssProperty: '--kui-stack-rest-rotate' },
 }
 

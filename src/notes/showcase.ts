@@ -127,6 +127,10 @@ export const SHOWCASE_NOTES: ParamNotes = {
     why: 'How long each slide shows before moving on by itself; 2s at least.',
     whenOmitted: 'Off. It also stays off with controls:none or your own next, prev or jump buttons.',
   },
+  'slideshow.hover': {
+    why: 'Whether resting the mouse on the slideshow pauses autoplay. none keeps it moving.',
+    whenOmitted: 'Hovering pauses it. Keyboard focus and the pause button always pause.',
+  },
   'slideshow.transition': 'Whether slides cross-fade or slide sideways.',
   'slideshow.swipe': 'Whether a left or right swipe changes the slide.',
   'slideshow.mute': {
@@ -241,7 +245,7 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-stack.leave': 'Use swipe for a sideways exit that advances one card when dragged either way.',
   'spatial-stack.leave-x': 'How far the leaving card moves sideways, multiplied by the swipe direction.',
   'spatial-stack.leave-rotate': 'How far the leaving card rotates, multiplied by the swipe direction.',
-  'spatial-stack.leave-fade': 'Opacity lost over one leaving place, with zero keeping a swipe opaque.',
+  'spatial-stack.leave-fade': 'Opacity lost over one leaving place. 1 by default, so a swiped card fades as it goes; 0 keeps it opaque until the step ends.',
   'spatial-stack.rest-rotate': 'Alternate resting card angles by stable card index using this angle.',
 
   'step-progress.duration': 'Passed to your slide styles; autoplay also waits this long after someone moves it.',

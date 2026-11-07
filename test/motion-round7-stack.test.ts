@@ -106,9 +106,15 @@ it('returns a short swipe, keeps a long swipe visible until release, and recycle
   destroy()
 })
 
+it('a swiped card fades by default, an explicit zero keeps it opaque', () => {
+  const css = readFileSync('src/css/carousel.css', 'utf8')
+  expect(css).toMatch(/\[data-kui-stack-leave='swipe'\][\s\S]*?--kui-stack-leave-fade: 1;/)
+  expect(SPATIAL_STACK_PRIMITIVE.parameters['leave-fade']!.default).toBe('1')
+  expect(compile(parse('carousel-stack leave:swipe leave-fade:0'), catalogRegistry(), 'time').vars['--kui-stack-leave-fade']).toBe('0')
+})
+
 it('keeps fade optional and resting tilt tied to card index rather than current stack place', () => {
   const css = readFileSync('src/css/carousel.css', 'utf8')
-  expect(css).toMatch(/\[data-kui-stack-leave='swipe'\][\s\S]*?--kui-stack-leave-fade: 0;/)
   expect(css).toContain('1 - var(--kui-stack-leave-fade, 2) * var(--kui-stack-gone)')
   expect(css).toContain('mod(var(--kui-offset, 0) + var(--kui-step, 0), max(1, var(--kui-item-count, 1)))')
   expect(css).toContain('var(--kui-stack-rest-rotate, 0deg)')

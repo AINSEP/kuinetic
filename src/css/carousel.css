@@ -21,7 +21,8 @@
  * ordinary CSS on properties the `skew` channel covers (`transform`).
  */
 @layer kui.effects {
-  [data-kui~='carousel-loop'], [data-kui-fx~='carousel-loop'] {
+  /* `:not([data-kui-fx])`: only until the runtime arrives. See "before the runtime" below. */
+  [data-kui~='carousel-loop']:not([data-kui-fx]), [data-kui-fx~='carousel-loop'] {
     display: flex;
     position: relative;
     gap: 24px;
@@ -448,7 +449,7 @@
     --kui-stack-swipe-sign: -1;
     --kui-stack-leave-x: 300px;
     --kui-stack-leave-rotate: 15deg;
-    --kui-stack-leave-fade: 0;
+    --kui-stack-leave-fade: 1;
   }
 
   [data-kui-fx~='carousel-stack'] [data-kui-step-offset] {
@@ -529,13 +530,19 @@
    * whitespace-separated tokens, so this holds for `carousel-3d tilt:20deg` and for a composed
    * `fade-up, carousel-3d` alike. Same technique, same reasoning, as `flip-card`'s pre-JS block in
    * `three-d.css`.
+   *
+   * `:not([data-kui-fx])` on the host, because this block really is only for before the runtime. An
+   * edit of `data-kui` on a live deck is seen by the stylesheet at once, and by the runtime only at
+   * the next frame. Without it, the new name's `display` would already have moved the cards when the
+   * old deck records where they stand (`glide.ts`). The cell rule needs no such guard: `grid-area`
+   * means nothing to a flex row.
    */
-  [data-kui~='carousel-3d'],
-  [data-kui~='carousel-3d-high'],
-  [data-kui~='carousel-3d-low'],
-  [data-kui~='carousel-3d-inside'],
-  [data-kui~='carousel-orbit'],
-  [data-kui~='carousel-stack'] {
+  [data-kui~='carousel-3d']:not([data-kui-fx]),
+  [data-kui~='carousel-3d-high']:not([data-kui-fx]),
+  [data-kui~='carousel-3d-low']:not([data-kui-fx]),
+  [data-kui~='carousel-3d-inside']:not([data-kui-fx]),
+  [data-kui~='carousel-orbit']:not([data-kui-fx]),
+  [data-kui~='carousel-stack']:not([data-kui-fx]) {
     display: grid;
     place-items: center;
   }
@@ -571,6 +578,7 @@
   [data-kui-ring-spinning='true'] [data-kui-row-copy],
   [data-kui-ring-dragging='true'] [data-kui-step-offset],
   [data-kui-ring-spinning='true'] [data-kui-step-offset],
+  [data-kui-row-copy][data-kui-ring-wrap='true'],
   [data-kui-step-offset][data-kui-ring-wrap='true'] {
     transition: none;
   }
@@ -645,5 +653,29 @@
     transition: transform var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease),
       opacity var(--kui-spatial-row-duration, 620ms) var(--kui-spatial-row-ease, ease);
     transition-delay: calc(var(--kui-flight-rank, 0) * 24ms);
+  }
+  /*
+   * --- changing a live deck's effect (channels: skew, opacity, filter) ---
+   *
+   * `effects/carousel/glide.ts` owns that move. These are the conditions it needs, on a host that
+   * has just changed shape, and all of them are gone when the last card lands.
+   *
+   * `arriving` lasts one task: an install's own transition would stack on the glide, so none may
+   * start while the new shape is stamped.
+   *
+   * The rest keep the first frame what the viewer last saw. A ring's cards stand outside a row's
+   * box, so a row must not clip them yet. They are at different depths, so they still sort by depth.
+   * A card turned away stays unseen until it comes round, instead of showing its back on arrival.
+   * A helix or sphere shows its backs on purpose. A static row is a real scroller, so it stays one.
+   */
+  [data-kui-deck-glide='arriving'] :is([data-kui-step-offset], [data-kui-row-copy]) {
+    transition-property: none;
+  }
+  [data-kui-deck-glide]:not([data-kui-row-static='true']) {
+    overflow: visible;
+    transform-style: preserve-3d;
+  }
+  [data-kui-deck-glide]:not([data-kui-ring-shape]) [data-kui-step-offset] {
+    backface-visibility: hidden;
   }
 }

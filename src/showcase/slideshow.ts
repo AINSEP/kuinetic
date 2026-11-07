@@ -7,6 +7,7 @@ import type { AttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
 import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
+import { HOVER_PARAM } from '../effects/auto-motion.js'
 import { createStepIndex } from '../effects/step-index.js'
 import type { StepIndex } from '../effects/step-index.js'
 import { withTimingContract } from '../effects/shared.js'
@@ -24,6 +25,7 @@ const slideshowParams: ParameterSchema = {
   jump: { type: 'text', default: '', cssProperty: '--kui-jump' },
   controls: { type: 'keyword', default: 'auto', cssProperty: '--kui-slideshow-controls', keywords: [...controlsValues] },
   autoplay: { type: 'time', default: '0s', cssProperty: '--kui-slideshow-autoplay' },
+  hover: HOVER_PARAM,
   transition: { type: 'keyword', default: 'fade', cssProperty: '--kui-slideshow-transition', keywords: ['fade', 'slide'] },
   swipe: { type: 'keyword', default: 'true', cssProperty: '--kui-slideshow-swipe', keywords: ['true', 'false'] },
   mute: { type: 'text', default: '', cssProperty: '--kui-slideshow-mute' },
@@ -219,10 +221,12 @@ interface AutoplayOptions {
   controls: Controls
   liveList: Element
   interval: number
+  /** False under `hover:none`: a resting pointer keeps the slides moving. */
+  pauseOnHover: boolean
 }
 
 function bindAutoplay(options: AutoplayOptions): () => void {
-  const { el, ctx, index, controls, liveList, interval } = options
+  const { el, ctx, index, controls, liveList, interval, pauseOnHover } = options
   const listAttrs = createAttributeLedger(liveList)
   if (interval === 0) {
     listAttrs.set('aria-live', 'polite')
@@ -243,7 +247,7 @@ function bindAutoplay(options: AutoplayOptions): () => void {
     pauseAttrs.set('aria-label', userPaused ? 'Play slideshow' : 'Pause slideshow')
     if (active()) timer = setTimeout(() => { index.next(); update() }, interval)
   }
-  const enter = (): void => { hovered = true; update() }
+  const enter = (): void => { hovered = pauseOnHover; update() }
   const leave = (): void => { hovered = false; update() }
   const focus = (): void => { focused = true; update() }
   const blur = (): void => { focused = el.contains(ctx.doc.activeElement); update() }
@@ -333,7 +337,9 @@ function prepareSlideshow(el: Element, params: EffectParams, ctx: PrepareContext
   const releaseSwipe = bindSwipe(el, params, index)
   const mute = bindMute({ el, params, ctx, index, slides })
   renderMute = mute.render
-  const releaseAutoplay = bindAutoplay({ el, ctx, index, controls, liveList: decorations.liveList, interval })
+  const releaseAutoplay = bindAutoplay({
+    el, ctx, index, controls, liveList: decorations.liveList, interval, pauseOnHover: !params.is('hover', 'none'),
+  })
   return continuousSetup(() => {
     releaseAutoplay()
     mute.release()

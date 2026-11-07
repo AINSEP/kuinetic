@@ -113,6 +113,8 @@ describe('the rules that suspend the transition', () => {
     const block = css.slice(suspend, css.indexOf('}', suspend))
     expect(block).toContain("[data-kui-ring-spinning='true'] [data-kui-step-offset]")
     expect(block).toContain("[data-kui-step-offset][data-kui-ring-wrap='true']")
+    // A row's copy is recycled too, and has no step offset: without this it flies across the row.
+    expect(block).toContain("[data-kui-row-copy][data-kui-ring-wrap='true']")
     expect(block).toContain('transition: none')
   })
 

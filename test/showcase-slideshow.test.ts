@@ -273,6 +273,17 @@ describe('showcase slideshow', () => {
     instance.cancel()
   })
 
+  it('keeps moving under a resting pointer with hover:none, and still stops for focus', () => {
+    vi.useFakeTimers()
+    const { host } = mount('video-hero-slideshow', 'autoplay:2s hover:none')
+    host.dispatchEvent(new Event('pointerenter'))
+    vi.advanceTimersByTime(2000)
+    expect(host.getAttribute('data-kui-step')).toBe('1')
+    host.dispatchEvent(new Event('focusin'))
+    vi.advanceTimersByTime(3000)
+    expect(host.getAttribute('data-kui-step')).toBe('1')
+  })
+
   it('autoplays, pauses for pointer and focus, and keeps a user pause sticky', () => {
     vi.useFakeTimers()
     const { animator, host } = mount('video-hero-slideshow', 'autoplay:2s')

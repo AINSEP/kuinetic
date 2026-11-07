@@ -209,7 +209,9 @@ export const TEXT_CSS_PRESETS: Preset[] = [
   { name: 'var-slant', primitive: 'var-slant', keyframes: 'kui-var-slant' },
   { name: 'var-axis', primitive: 'var-axis', keyframes: 'kui-var-axis' },
   { name: 'marquee', phase: 'idle', primitive: 'text-marquee', keyframes: 'kui-marquee' },
-  { name: 'marquee-scroll-linked', primitive: 'text-marquee', keyframes: 'kui-marquee' },
+  // Linear: scroll position is already the clock, so a curve would only make the strip run out of
+  // travel early and sit nearly still for the rest of the page.
+  { name: 'marquee-scroll-linked', primitive: 'text-marquee', keyframes: 'kui-marquee', params: { ease: 'linear' } },
   { name: 'redaction-reveal', primitive: 'redaction-reveal', keyframes: 'kui-redaction-reveal' },
   { name: 'text-3d-extrude', primitive: 'text-3d-extrude', keyframes: 'kui-text-3d-extrude', cloak: true },
 ]

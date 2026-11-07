@@ -442,6 +442,7 @@ describe('FLIP effects honour a delay without showing the finished layout first'
  */
 const TIMING_REFUSALS: Record<string, string> = {
   'cursor-trail': 'pointer distance',
+  'line-boil': 'a loop with no start moment, span or curve',
   // Pointer-driven: the effect is a function of where the pointer is right now.
   'tilt-3d': 'pointer position',
   'tilt-parallax': 'pointer position',

@@ -85,6 +85,8 @@ function cursorDot(name: CursorDotPreset): Bullets {
 }
 
 export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
+  'line-boil': ['Makes the lines of a still drawing wiggle a few times a second, like hand-drawn animation. It works best on bold line art and flat colour.',
+    'It uses the filter property, so it replaces any filter on the same box. It pauses off screen and is skipped under reduced motion.'],
   'image-flight': ['Put this on the trigger button inside data-kui-flight-source; the app owns purchases and basket state.',
     'image: searches the closest source wrapper and destination: searches the page; target: would relocate the effect.'],
   'number-formatting': ['The app writes the formatted string to data-value; matching characters keep their identity without rolling digits.'],

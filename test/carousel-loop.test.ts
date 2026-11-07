@@ -113,7 +113,7 @@ describe('mixed-width flex loop', () => {
     const committed: number[][] = []
     const commit = vi.spyOn(window, 'getComputedStyle').mockImplementation(node => {
       const i = slides.indexOf(node as HTMLElement)
-      committed.push([i, centres()[i]! + x() + cycle(i)])
+      if (node.hasAttribute('data-kui-ring-wrap')) committed.push([i, centres()[i]! + x() + cycle(i)])
       return read(node)
     })
     let previous = visual()
@@ -708,4 +708,102 @@ it('can pick up a freely resting row while a large authored gap occupies the vie
   pointer('pointerdown', 0)
   pointer('pointermove', -20)
   expect(x()).toBeCloseTo(initial - 340)
+})
+
+describe('a step that lands while the row is still travelling', () => {
+  /** Reports the row `behind` pixels short of where it is headed, as a running transition would. */
+  function rowShownBehind(behind: number): void {
+    const nativeStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(node => {
+      const style = nativeStyle(node)
+      if (node.isSameNode(slides[0]!)) {
+        Object.defineProperty(style, 'transform', { value: `matrix(1, 0, 0, 1, ${x() + cycle(0) + behind}, 0)` })
+      }
+      return style
+    })
+  }
+
+  it('lands a recycled card where the row is showing, so it stays in step with its neighbours', () => {
+    mount()
+    rowShownBehind(30)
+    const committed: { slide: number; value: number }[] = []
+    cssWrites.mockImplementation(function (this: CSSStyleDeclaration, name, value, priority) {
+      const slide = slides.findIndex(node => node.style === this)
+      if (slide >= 0 && name === '--kui-row-cycle' && slides[slide]!.hasAttribute('data-kui-ring-wrap')) {
+        committed.push({ slide, value: parseFloat(value!) })
+      }
+      nativeSetProperty.call(this, name, value, priority)
+    })
+    for (let step = 0; step < 8 && !committed.length; step++) key('ArrowRight')
+    expect(committed.length).toBeGreaterThan(0)
+    for (const { slide, value } of committed) expect(value - cycle(slide)).toBeCloseTo(30)
+  })
+
+  it.each([1, -1])('closes what the cards cannot cover at once, as one row, in direction %s', direction => {
+    mount()
+    const limit = period() - viewport - Math.max(...widths)
+    rowShownBehind(direction * 2 * limit)
+    const writes: { flagged: boolean; value: number }[] = []
+    cssWrites.mockImplementation(function (this: CSSStyleDeclaration, name, value, priority) {
+      if (this === host.style && name === '--kui-row-x') {
+        writes.push({ flagged: host.getAttribute('data-kui-ring-wrap') === 'true', value: parseFloat(value!) })
+      }
+      nativeSetProperty.call(this, name, value, priority)
+    })
+    key(direction > 0 ? 'ArrowRight' : 'ArrowLeft')
+    expect(writes.map(write => write.flagged)).toEqual([true, false])
+    expect(writes[0]!.value - writes[1]!.value).toBeCloseTo(direction * limit)
+    expect(host.hasAttribute('data-kui-ring-wrap')).toBe(false)
+    expectCoverage()
+  })
+
+  it('leaves a card in flight alone when a resize changed nothing about the row', () => {
+    mount('carousel-loop copies:auto', [120, 180], 1000)
+    const copies = [...host.querySelectorAll('[data-kui-row-copy]')]
+    key('ArrowRight')
+    const flagged: boolean[] = []
+    cssWrites.mockImplementation(function (this: CSSStyleDeclaration, name, value, priority) {
+      if (this === host.style && name === '--kui-row-x') flagged.push(host.hasAttribute('data-kui-ring-wrap'))
+      nativeSetProperty.call(this, name, value, priority)
+    })
+    reads.mockClear()
+    resize!()
+    expect(reads).toHaveBeenCalled()
+    expect(flagged.includes(true)).toBe(false)
+    expect([...host.querySelectorAll('[data-kui-row-copy]')]).toEqual(copies)
+  })
+
+  it('remeasures a replaced slide that happens to have the same geometry', () => {
+    mount('carousel-loop copies:auto', [120, 180], 1000)
+    const replacement = document.createElement('img')
+    replacement.src = slides[0]!.getAttribute('src')!
+    stubSlide(replacement)
+    slides[0]!.replaceWith(replacement)
+    slides[0] = replacement
+    const before = [...host.querySelectorAll('[data-kui-row-copy]')]
+    resize!()
+    expect(before.some(copy => copy.isConnected)).toBe(false)
+  })
+
+  it('makes enough copies for the furthest jump to travel rather than snap', () => {
+    const sizes = Array.from({ length: 8 }, () => 200)
+    mount('carousel-loop copies:auto jump:.b-jump', sizes, 1120, () => {
+      for (let i = 0; i < 8; i++) {
+        const button = document.createElement('button')
+        button.className = 'b-jump'
+        document.body.append(button)
+      }
+    })
+    // One stride of room would need none: 1120 + 200 + 220 fits in the 1760 of the originals.
+    expect(host.querySelectorAll('[data-kui-row-copy]')).toHaveLength(8)
+    const flags: boolean[] = []
+    cssWrites.mockImplementation(function (this: CSSStyleDeclaration, name, value, priority) {
+      if (this === host.style && name === '--kui-row-x') flags.push(host.hasAttribute('data-kui-ring-wrap'))
+      nativeSetProperty.call(this, name, value, priority)
+    })
+    const before = x()
+    document.querySelectorAll<HTMLButtonElement>('.b-jump')[4]!.click()
+    expect(flags).toEqual([false])
+    expect(Math.abs(x() - before)).toBeCloseTo(880)
+  })
 })

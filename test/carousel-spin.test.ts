@@ -257,6 +257,115 @@ describe('continuous spin', () => {
     instance.destroy()
   })
 
+  describe('a pause across a reinstall on the same element', () => {
+    /** Install on an element already in the document, as a `data-kui` change does. */
+    const install = (host: HTMLElement, params: Record<string, string>, options: MountOptions = {}): EffectInstance => {
+      const instance = SPATIAL_RING_PRIMITIVE.prepare!(
+        host,
+        readEffectParams({ target: '.slide', ...params }, SPATIAL_RING_PRIMITIVE.parameters, () => {}),
+        fakeCtx(host, options),
+      )
+      instance.activate()
+      return instance
+    }
+    const press = (node: Element): void => {
+      node.dispatchEvent(new Event('click', { bubbles: true }))
+    }
+    /** Lets the hand-off's microtask run, which is what ends the task the reinstall happens in. */
+    const endTask = (): Promise<void> => Promise.resolve()
+
+    it('keeps the deck stopped and the control pressed, and the control still resumes it', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      const toggle = host.querySelector('.toggle')!
+      press(toggle)
+      instance.destroy()
+      const next = install(host, { spin: '30s', pause: '.toggle' })
+      expect(toggle.getAttribute('aria-pressed')).toBe('true')
+      vi.advanceTimersByTime(10_000)
+      expect(placeOf(host)).toBe(0)
+
+      press(toggle)
+      expect(toggle.getAttribute('aria-pressed')).toBe('false')
+      vi.advanceTimersByTime(10_000)
+      expect(placeOf(host)).toBeGreaterThan(0)
+
+      // Resumed, so the next reinstall has nothing to carry.
+      next.destroy()
+      const moving = install(host, { spin: '30s', pause: '.toggle' })
+      expect(toggle.getAttribute('aria-pressed')).toBe('false')
+      moving.destroy()
+      expect(toggle.hasAttribute('aria-pressed')).toBe(false)
+    })
+
+    it('survives a run of reinstalls, not only the first', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      const toggle = host.querySelector('.toggle')!
+      press(toggle)
+      instance.destroy()
+      const second = install(host, { autoplay: '3s', pause: '.toggle' })
+      second.destroy()
+      const third = install(host, { spin: '30s', pause: '.toggle' })
+      expect(toggle.getAttribute('aria-pressed')).toBe('true')
+      third.destroy()
+    })
+
+    it('does not reach a deck on another element', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      press(host.querySelector('.toggle')!)
+      instance.destroy()
+      const other = document.createElement('div')
+      other.innerHTML = '<div class="slide">a</div><div class="slide">b</div><button class="other" type="button"></button>'
+      document.body.append(other)
+      const fresh = install(other, { spin: '40s', pause: '.other' })
+      expect(other.querySelector('.other')!.getAttribute('aria-pressed')).toBe('false')
+      fresh.destroy()
+    })
+
+    it('expires with the task, so a later install on the same element starts fresh', async () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      const toggle = host.querySelector('.toggle')!
+      press(toggle)
+      instance.destroy()
+      await endTask()
+      const later = install(host, { spin: '40s', pause: '.toggle' })
+      expect(toggle.getAttribute('aria-pressed')).toBe('false')
+      later.destroy()
+    })
+
+    it('moves when the new deck names no pause control, since nothing could restart it', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      press(host.querySelector('.toggle')!)
+      instance.destroy()
+      const next = install(host, { spin: '40s' })
+      vi.advanceTimersByTime(10_000)
+      expect(placeOf(host)).toBeGreaterThan(0)
+      next.destroy()
+    })
+
+    it('moves when the named control does not exist, since nothing could restart it', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' })
+      press(host.querySelector('.toggle')!)
+      instance.destroy()
+      const next = install(host, { spin: '40s', pause: '.missing' })
+      vi.advanceTimersByTime(10_000)
+      expect(placeOf(host)).toBeGreaterThan(0)
+      next.destroy()
+    })
+
+    it('leaves reduced motion as it was: a visitor who pressed play starts paused again', () => {
+      const { host, instance } = mount({ spin: '40s', pause: '.toggle' }, { reducedMotion: true })
+      const toggle = host.querySelector('.toggle')!
+      press(toggle)
+      expect(toggle.getAttribute('aria-pressed')).toBe('false')
+      instance.destroy()
+      const next = install(host, { spin: '40s', pause: '.toggle' }, { reducedMotion: true })
+      expect(toggle.getAttribute('aria-pressed')).toBe('true')
+      vi.advanceTimersByTime(10_000)
+      expect(placeOf(host)).toBe(0)
+      next.destroy()
+    })
+  })
+
   it('warns about a pause control with nothing to pause', () => {
     const warnings: string[] = []
     const { instance } = mount({ pause: '.toggle' }, { warn: (m) => warnings.push(m) })

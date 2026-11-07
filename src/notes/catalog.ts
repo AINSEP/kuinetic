@@ -2,6 +2,8 @@ import type { ParamNotes } from '../core/describe.js'
 
 /** `effects/catalog/ambient.ts`, `media.ts`, `materials.ts`, `transforms.ts`, `view-transitions.ts`. */
 export const CATALOG_NOTES: ParamNotes = {
+  'line-boil.amount': 'How far a line can wander, in pixels; 3 is a gentle wiggle.',
+  'line-boil.fps': 'How many new drawings play each second; 8 to 12 looks hand-animated.',
   'image-flight.image': 'Find this image inside the button’s closest data-kui-flight-source wrapper, without moving the original.',
   'image-flight.destination': 'Fly toward the first page element matching this selector, while the app owns basket state.',
   'image-flight.lift': 'How far the flight lifts above its straight path, in absolute length units such as pixels.',

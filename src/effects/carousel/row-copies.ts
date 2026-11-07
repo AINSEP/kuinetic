@@ -1,10 +1,13 @@
 import type { PrepareContext } from '../../core/effect-context.js'
 import { frameScheduler } from '../../core/element-size.js'
 
+/** Marks a row's extra image. It is never a slide, whatever selector the deck was given. */
+export const ROW_COPY_ATTR = 'data-kui-row-copy'
+
 /** Image sources can change without changing a fixed-size image's observed box. */
 export function watchCopySources(host: Element, ctx: PrepareContext, refresh: () => void) {
   const frame = frameScheduler(ctx.win, refresh)
-  const original = (node: Element): boolean => !node.hasAttribute('data-kui-row-copy')
+  const original = (node: Element): boolean => !node.hasAttribute(ROW_COPY_ATTR)
   const Observer = (ctx.win as Window & { MutationObserver?: typeof MutationObserver }).MutationObserver
   const observer = Observer ? new Observer(records => {
     if (records.some(record => original(record.target as Element))) frame.request()
@@ -54,7 +57,7 @@ export function createRowCopies(host: Element, ctx: PrepareContext) {
           copy.alt = ''
           copy.inert = true
           copy.setAttribute('aria-hidden', 'true')
-          copy.setAttribute('data-kui-row-copy', '')
+          copy.setAttribute(ROW_COPY_ATTR, '')
           host.append(copy)
           copies.push(copy)
         })

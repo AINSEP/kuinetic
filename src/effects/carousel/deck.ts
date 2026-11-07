@@ -1,19 +1,23 @@
+import { ATTR } from '../../core/attrs.js'
 import { attributeChannel, SUBTREE_CHANNEL } from '../../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema } from '../../core/types.js'
 import { DECK_LIGHTBOX_PARAM, deckLightbox } from '../../core/deck-viewer.js'
 import type { PrepareContext } from '../../core/effect-context.js'
 import { effectDurationMs } from '../../core/js-params.js'
+import { waapiEasingValue } from '../../core/easing.js'
 import { createAttributeLedger, createStyleLedger } from '../../core/owned-styles.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import { queryControls, queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import { createStepMarker } from '../step-marking.js'
 import { bindControl, countSteps, delegateControls } from '../step-index.js'
 import type { ControlGroup } from '../step-index.js'
-import { ALL_TIMING_TOKENS, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
+import { ALL_TIMING_TOKENS, effectEasing, mirrorTimingToCss, TRIGGER_DELAY_PARAM } from '../shared.js'
 import { createRingDrag, nearestPlace, wrapPlace } from './drag.js'
 import { AUTOPLAY_PARAM, createDeckMotion, HOVER_PARAM, PAUSE_PARAM } from '../auto-motion.js'
 import { createDeckSpeed, deckMotionParams, trackDeckScroll } from './sources.js'
 import { distanceParam } from '../scroll-mechanics/params.js'
+import { claimDeckArrival, GLIDE_ATTR, recordDeckPoses } from './glide.js'
+import { ROW_COPY_ATTR } from './row-copies.js'
 
 /**
  * The spatial deck: the index, the continuous position, the controls, the grab and the auto-motion
@@ -43,6 +47,7 @@ export const SPATIAL_DECK_CHANNELS: readonly string[] = [
   attributeChannel('data-kui-step'),
   attributeChannel(DRAGGING_ATTR),
   attributeChannel('tabindex'),
+  attributeChannel(GLIDE_ATTR),
 ]
 
 /**
@@ -172,6 +177,8 @@ export function snapPosition(position: number, total: number): { step: number; d
   return { step: ((nearest % total) + total) % total, drift: position - nearest }
 }
 
+const DEFAULT_DECK_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+
 /**
  * The parameters every spatial deck takes, whatever its shape.
  *
@@ -183,7 +190,7 @@ export const DECK_PARAMETERS: ParameterSchema = {
   speed: { type: 'keyword', default: 'false', keywords: ['true', 'false'], cssProperty: '--kui-speed' },
   duration: { type: 'time', default: '620ms', cssProperty: '--kui-duration' },
   ...TRIGGER_DELAY_PARAM,
-  ease: { type: 'easing', default: 'cubic-bezier(0.22, 1, 0.36, 1)', cssProperty: '--kui-ease' },
+  ease: { type: 'easing', default: DEFAULT_DECK_EASE, cssProperty: '--kui-ease' },
   /** Whether a pointer can move the deck by hand. */
   grab: { type: 'keyword', default: 'true', cssProperty: '--kui-grab', keywords: ['true', 'false'] },
   /*
@@ -235,7 +242,6 @@ export const DECK_PARAMETERS: ParameterSchema = {
 export interface DeckLayout {
   coastSpeed?(spinMs: number): number
   unwrapped?: boolean
-  includeSlot?(node: Element): boolean
   advanceBoth?: boolean
   /** The primitive's id: names the mirrored timing properties (`--kui-<id>-duration`). */
   id: string
@@ -252,7 +258,7 @@ export interface DeckLayout {
     pixelPosition?(): number
     pickup?(position: number): number | undefined
     watch(refresh: () => void, goTo: (position: number) => void, hold: (holding: boolean) => void): Cleanup
-    render?(position: number, settle: (nodes: readonly Element[]) => void): void
+    render?(position: number): void
     positionAt?(from: number, dx: number, dy?: number): number
     /** A shape with real ends clamps a place; `undefined` means it is circular right now. */
     bound?(position: number): number | undefined
@@ -359,6 +365,10 @@ export function prepareSpatialDeck(
   layout: DeckLayout,
 ): Cleanup {
   const { label } = layout
+  // First, before this deck writes anything: see `glide.ts`. The attribute is read here so that
+  // teardown can tell a switch of effect (it changed) from the deck going away or replaying.
+  const arrival = claimDeckArrival(el as HTMLElement)
+  const authored = el.getAttribute(ATTR.source)
   const frameView = layout.view?.render ? layout.view : undefined
   // Only the `key:value` spelling of a timing token reaches CSS on its own — `pushTrack` writes the
   // positional tokens for `css-keyframes` primitives and no others, and these render through
@@ -370,7 +380,8 @@ export function prepareSpatialDeck(
   const scope = scopeParam(params, 'self')
   const resolveSlots = (): Iterable<Element> => {
     const nodes = selector ? queryScoped(el, ctx, selector, scope) : el.children
-    return layout.includeSlot ? [...nodes].filter(layout.includeSlot) : nodes
+    // Any deck, not only a row: copies leaving after a switch are still in the host (`glide.ts`).
+    return [...nodes].filter(node => !node.hasAttribute(ROW_COPY_ATTR))
   }
   const marker = createStepMarker(resolveSlots, (message) => ctx.warn(`${label} ${message}`))
   const total = (): number => countSteps(params, resolveSlots)
@@ -443,9 +454,7 @@ export function prepareSpatialDeck(
      * value CSS subtracts (`--kui-step-position - --kui-step`) inside half a place either way.
      */
     hostStyles.set('--kui-step-position', (step + drift).toFixed(4))
-    layout.view?.render?.(position, shifted => {
-      for (const node of shifted) commitWithoutTransition(ctx.win, node)
-    })
+    layout.view?.render?.(position)
     speed?.sample(layout.view?.pixelPosition?.() ?? physicalPosition(), discrete)
   }
 
@@ -633,8 +642,16 @@ export function prepareSpatialDeck(
       renderFrame()
     },
   })
+  const releaseGlide = arrival?.(rendered.nodes, {
+    durationMs: effectDurationMs(params, 620),
+    easing: waapiEasingValue(effectEasing(params, DEFAULT_DECK_EASE), el, ctx.warn)!,
+    reducedMotion: ctx.reducedMotion,
+  }, ctx.win)
 
   return () => {
+    // While every card still stands where the viewer sees it, and before the glide lets go of it.
+    if (el.getAttribute(ATTR.source) !== authored) recordDeckPoses(el as HTMLElement, rendered.nodes, ctx.win)
+    releaseGlide?.()
     releaseScroll()
     speed?.release()
     releaseView?.()

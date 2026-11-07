@@ -817,9 +817,9 @@
   }
 
   [data-kui-fx~='marquee-scroll-linked'] {
+    --kui-text-marquee-ease: linear;
     --kui-text-marquee-duration: 600ms;
     --kui-text-marquee-delay: 0ms;
-    --kui-text-marquee-ease: ease-out;
   }
 
   [data-kui-fx~='mask-reveal'] {

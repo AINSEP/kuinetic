@@ -580,11 +580,14 @@ function prepareSrcScrub(
   const pattern = mediaSrcPattern(params.text('src'), ctx)
   const media = el as HTMLMediaElement & HTMLImageElement
   let lastIndex = -1
+  // A video with no `frames:` (the default is 1) has one "frame", so index gating would never
+  // seek. It scrubs smoothly instead; `applyFrame` skips the seek when the time is unchanged.
+  const smooth = frames <= 1 && media.tagName === 'VIDEO'
 
   const untrack = trackProgress(el, ctx, { distance: params.text('distance'), contentAnchor, stickyEl }, (progress) => {
     writeProgress(ctx, progress)
     const index = Math.min(frames - 1, Math.floor(progress * frames))
-    if (index === lastIndex) return
+    if (!smooth && index === lastIndex) return
     lastIndex = index
     applyFrame(media, { index, frames, progress, pattern })
   })
@@ -626,7 +629,8 @@ function applyFrame(media: HTMLMediaElement & HTMLImageElement, write: FrameWrit
   const { index, frames, progress, pattern } = write
   if (media.tagName === 'VIDEO') {
     const duration = Number.isFinite(media.duration) ? media.duration : 0
-    if (duration > 0) media.currentTime = duration * progress
+    const time = duration * progress
+    if (duration > 0 && media.currentTime !== time) media.currentTime = time
     return
   }
   // Only <img> is a safe `src` target for an author-supplied pattern. Anything else — an
