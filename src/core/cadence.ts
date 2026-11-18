@@ -104,7 +104,7 @@ export function everyToMs(every: string): number {
  * the group replays instead.
  *
  * @param el - The element the cadence is on (the host).
- * @param document - The element's compiled document; `targets[0]` is the host group.
+ * @param document - The element's compiled document; an empty selector identifies its host group.
  * @param warn - The element's warning sink.
  * @returns One thunk per host-group entry whose primitive declares `cycle`; empty when none do.
  * @complexity O(e) time and space in composed effects.
@@ -114,7 +114,8 @@ export function cycleThunks(el: Element, document: CompiledDocument, warn: (mess
   const doc = el.ownerDocument
   const ctx = { doc, win: doc.defaultView ?? (globalThis as unknown as Window), warn }
   const thunks: Array<() => void> = []
-  for (const entry of document.targets[0]!.plan.jsEffects) {
+  const host = document.targets.find((target) => target.selector === '')
+  for (const entry of host?.plan.jsEffects ?? []) {
     const cycle = entry.resolved.primitive.cycle
     if (!cycle) continue
     const params = readEffectParams(
@@ -144,7 +145,7 @@ export function cycleThunks(el: Element, document: CompiledDocument, warn: (mess
  * @overallScore 100
  */
 export function hasGroupedCycle(document: CompiledDocument): boolean {
-  return document.targets
-    .slice(1)
-    .some((target) => target.plan.jsEffects.some((entry) => entry.resolved.primitive.cycle))
+  return document.targets.some(
+    (target) => target.selector !== '' && target.plan.jsEffects.some((entry) => entry.resolved.primitive.cycle),
+  )
 }

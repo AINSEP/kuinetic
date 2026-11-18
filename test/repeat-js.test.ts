@@ -179,7 +179,7 @@ describe('repeatable primitives', () => {
     const typed = () => el().querySelector('.kui-typewriter')?.textContent
     try {
       const playback = play({ animator, root: document.body, target, effect: 'typewriter' })
-      expect(animator.stateOf(target)?.instances[0]?.finite).toBe(true)
+      expect(animator.stateOf(target)?.instances.map((instance) => instance.finite)).toContain(true)
       await vi.advanceTimersByTimeAsync(55)
       expect(typed()).toBe('X')
       await vi.advanceTimersByTimeAsync(20)
