@@ -40,6 +40,18 @@
  * `transition:` did.
  */
 @layer kui.effects {
+  /*
+   * Read both of these as a bare `var(--kui-border-angle)` / `var(--kui-border-pct)` — never with a
+   * fallback. They are registered with an `initial-value`, so a fallback can never be reached and
+   * adds nothing; and in Chrome (measured, 151) it actively breaks them: on any element inside an
+   * `<a href>`, a `var(--registered, fallback)` stops seeing the *animated* or *transitioning*
+   * value. `getComputedStyle` reports `--kui-border-angle` advancing (0 -> 90 -> 180deg) while the
+   * `background-image` that reads it stays pinned at the initial value — `beam-border-auto` on the
+   * index catalog's "Materials" tile (an `<a class="slice">`) painted a dead, motionless arc. The
+   * same declaration with the fallback removed, same link, animates correctly; outside a link both
+   * forms work, which is why every unit-level probe passed. `border-draw`'s `--kui-border-pct`
+   * transition has the identical failure. `css-composition-invariants.test.ts` guards the rule.
+   */
   @property --kui-border-angle {
     syntax: '<angle>';
     inherits: false;
@@ -248,9 +260,11 @@
     inset: calc(-1 * var(--kui-border-draw-outset, 0px));
     border-radius: inherit;
     padding: var(--kui-border-draw-width, 2px);
+    /* No fallback on `--kui-border-pct` — same `<a href>` freeze as `beam-border`; see the
+       `@property` block at the top of this file. */
     background: conic-gradient(
       from -90deg,
-      var(--kui-border-draw-color, var(--accent, #d2691e)) 0 var(--kui-border-pct, 0%),
+      var(--kui-border-draw-color, var(--accent, #d2691e)) 0 var(--kui-border-pct),
       transparent 0
     );
     /* Both spellings, not a progressive-enhancement pair: Safari needs the `-webkit-` forms and
@@ -344,8 +358,10 @@
     --kui-beam-arc-stop1: calc(var(--kui-beam-arc-start) + var(--kui-beam-arc-ramp));
     --kui-beam-arc-stop4: calc(360deg - var(--kui-beam-arc-span) * 0.06);
     --kui-beam-arc-step: calc((var(--kui-beam-arc-stop4) - var(--kui-beam-arc-stop1)) / 3);
+    /* `var(--kui-border-angle)` with NO fallback, on purpose — see the `@property` block at the
+       top of this file. A fallback here froze the beam on any host inside an `<a href>`. */
     background: conic-gradient(
-      from var(--kui-border-angle, 0deg),
+      from var(--kui-border-angle),
       transparent 0deg,
       transparent var(--kui-beam-arc-start),
       var(--kui-beam-border-c1, #ff5f6d) var(--kui-beam-arc-stop1),

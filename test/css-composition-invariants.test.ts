@@ -4,7 +4,7 @@
 // declared channels are disjoint. Split out of `css-invariants.test.ts` once that file hit its own
 // 400-line lint ceiling — see `css-scan.ts`'s file comment for the first time this exact split
 // happened, for the same reason.
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
@@ -300,5 +300,35 @@ describe('comment-stripped keyframe scanning', () => {
     // back empty (or the block would vanish entirely) instead of holding exactly `translate`.
     expect(scanned.get('kui-live-unreferenced')).toEqual(new Set(['translate']))
     expect(scanned.get('kui-live-referenced')).toEqual(new Set(['opacity']))
+  })
+})
+
+describe('registered custom properties are read without a fallback', () => {
+  // Chrome (measured, 151): inside an `<a href>`, `var(--registered, fallback)` stops tracking the
+  // property's animated/transitioning value — `beam-border-auto` froze on the index catalog's
+  // "Materials" tile (an `<a class="slice">`) while `getComputedStyle` showed the angle advancing.
+  // A bare `var(--registered)` works everywhere, and a property with an `initial-value` can never
+  // reach its fallback anyway. `syntax: '*'` registrations with no `initial-value` (the
+  // `--kui-gate-*` chain in `ready-gates.css`) are excluded: their fallback is load-bearing.
+  const allCss = stripComments(
+    readdirSync(fileURLToPath(new URL('../src/css/', import.meta.url)))
+      .filter((file) => file.endsWith('.css'))
+      .map((file) => readFileSync(fileURLToPath(new URL(`../src/css/${file}`, import.meta.url)), 'utf8'))
+      .join('\n'),
+  )
+  const withInitialValue = [...allCss.matchAll(/@property\s+(--[\w-]+)\s*\{([^}]*)\}/g)]
+    .filter(([, , body]) => /initial-value\s*:/.test(body ?? ''))
+    .map(([, name]) => name as string)
+
+  it('finds registered properties with an initial-value, so this suite cannot pass vacuously', () => {
+    expect(withInitialValue).toContain('--kui-border-angle')
+    expect(withInitialValue).toContain('--kui-border-pct')
+  })
+
+  it('never reads one of them through var() with a fallback', () => {
+    const offenders = withInitialValue.filter((name) =>
+      new RegExp(`var\\(\\s*${name}\\s*,`).test(allCss),
+    )
+    expect(offenders).toEqual([])
   })
 })
