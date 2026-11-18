@@ -268,6 +268,7 @@ const SILENT: Record<string, string> = {
   'label-swap': HOVER_SHEET,
   'search-expand': 'its stylesheet widens it on focus; prepare writes only --kui-transition',
   'flip-container': 'animates a layout change the page makes (FLIP); none happens here',
+  'pause-scope': 'starts unpaused and has no pause button in this fixture',
 }
 
 /** Inline properties a family channel covers beyond its own name. */

@@ -893,7 +893,7 @@
           })
         })
 
-        // reset + process re-opens an effect's gate: `on:enter` plays again, `on:manual` rearms.
+        // Reset and process reinstall the effect, leaving the toast ready for its next click.
         // The style read between them ends the finished animation. Without it the browser keeps
         // that animation, and the effect rearms on its last frame instead of its first.
         function replay(el) {
@@ -904,7 +904,9 @@
 
         document.querySelectorAll('.icon-stage:not(.fill-toggle)').forEach(function (stage) {
           stage.addEventListener('click', function () {
-            replay(stage.querySelector('[data-kui]'))
+            var icon = stage.querySelector('[data-kui]')
+            replay(icon)
+            kui.activate(icon)
           })
         })
 

@@ -489,6 +489,7 @@ const TIMING_REFUSALS: Record<string, string> = {
   slideshow: 'its controls and index are live on load; it has no delayed start',
   curtain: 'the panel must answer the click at once; its cover and reveal phases use duration only',
   'slow-mo': 'it controls existing playheads on load and has no animation timeline to delay',
+  'pause-scope': 'it pauses and resumes existing motion immediately and has no animation timeline to delay',
 
   // A start moment exists, but the shipped stylesheet pins the timing and the motion lands on a
   // sibling an inline custom property cannot reach. See `forms/primitives.ts`.

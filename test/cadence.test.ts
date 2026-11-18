@@ -64,6 +64,7 @@ function probeRegistry(probe: Probe, options: { cycle?: () => void } = {}): Regi
     supportedActivations: ['load', 'enter', 'click', 'manual'],
     perfClass: 'continuous',
     reducedMotion: 'shorten',
+    repeatable: true,
     ...(options.cycle ? { cycle: options.cycle } : {}),
     prepare(): EffectInstance {
       probe.prepares++
@@ -269,8 +270,11 @@ describe('every: gating', () => {
   it('never arms under reduced motion', async () => {
     const probe = newProbe()
     const { animator } = mount('probe-effect on:manual every:3s', probeRegistry(probe), { reducedMotion: true })
+    // Reduced motion runs the shortened effect immediately. Finish it so a stray tick could replay it.
+    expect(probe.activates).toBe(1)
+    probe.finish()
     await elapse(12000)
-    expect(probe.activates).toBe(0)
+    expect(probe.activates).toBe(1)
     animator.destroy()
   })
 
@@ -320,7 +324,7 @@ describe('every: period and grammar', () => {
 
   it('refuses a scroll-driven element', () => {
     const probe = newProbe()
-    const { animator, reporter } = mount('probe-effect timeline:view every:3s', probeRegistry(probe))
+    const { animator, reporter } = mount('probe-effect timeline:view on:load every:3s', probeRegistry(probe))
     expect(reporter.messages.join('\n')).toContain('every: needs a clock timeline')
     expect(watchers.all).toHaveLength(0)
     animator.destroy()
@@ -330,6 +334,7 @@ describe('every: period and grammar', () => {
     const probe = newProbe()
     const { animator, reporter } = mount('probe-effect repeat:infinite on:manual every:3s', probeRegistry(probe))
     expect(reporter.messages.join('\n')).toContain('nothing to replay')
+    expect(watchers.all).toHaveLength(0)
     animator.destroy()
   })
 

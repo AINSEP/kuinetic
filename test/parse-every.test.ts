@@ -36,7 +36,7 @@ describe('every: replay cadence', () => {
   it('is never segment-scoped: a target: segment still writes it element-wide', () => {
     const parsed = parse('menu-stagger-open target:li cascade:80ms every:3.9s')
     expect(parsed.every).toBe('3.9s')
-    expect(parsed.specs[0]!.hoists).toBeUndefined()
+    expect(parsed.specs[0]!.hoists).toEqual({ cascade: '80ms' })
     expect(parsed.specs[0]!.params).not.toHaveProperty('every')
   })
 

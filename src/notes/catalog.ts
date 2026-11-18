@@ -26,6 +26,14 @@ export const CATALOG_NOTES: ParamNotes = {
   'media-mask.edges': 'Fade both horizontal scroll edges by this width and remove each fade at its matching end.',
   'media-wipe.start-inset': 'Set the horizontal inset at the start of curtain-reveal.',
   'media-wipe.start-size': 'Open curtain-reveal from a centred crop of this size before scaling.',
+  'pause-scope.pause': {
+    why: 'Which button pauses and resumes motion inside this section.',
+    whenOmitted: 'No pause button is connected.',
+  },
+  'pause-scope.paused': {
+    why: 'Set to true to start with motion paused inside this section.',
+    whenOmitted: 'The section starts unpaused.',
+  },
   'ambient-float.duration': 'How long one full up-and-down drift takes, repeating forever.',
   'ambient-float.distance': 'How far the element drifts up and down.',
 

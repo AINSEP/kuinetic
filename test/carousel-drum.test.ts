@@ -4,10 +4,16 @@ import type { HelixGeometry } from '../src/effects/carousel/shape-fit.js'
 
 const base: HelixGeometry = { width: 300, height: 180, radius: 400, rise: 0, count: 12, arc: 360, tilt: 0, perspective: 1600, camera: false }
 
-it('keeps the front card at its true width and the drum symmetric about the middle', () => {
+it('keeps the front card at its true width and fits the full, symmetric silhouette', () => {
+  const front = projectDrum({ ...base, arc: 0 })
+  expect(front.maxX - front.minX).toBeCloseTo(base.width, 3)
+
   const bounds = projectDrum(base)
-  expect(bounds.maxX).toBeCloseTo(base.width / 2, 3)
-  expect(bounds.minX).toBeCloseTo(-base.width / 2, 3)
+  // A tilted corner reaches closer to the camera than the face-on card does.
+  const depth = Math.hypot(base.radius, base.height / 2) - base.radius
+  const halfWidth = (base.width / 2) * base.perspective / (base.perspective - depth)
+  expect(bounds.maxX).toBeCloseTo(halfWidth, 3)
+  expect(bounds.minX).toBeCloseTo(-halfWidth, 3)
   expect(bounds.minY).toBeCloseTo(-bounds.maxY, 3)
 })
 

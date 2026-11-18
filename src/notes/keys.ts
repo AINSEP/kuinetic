@@ -50,6 +50,10 @@ export const KEY_NOTES: ParamNotes = {
     why: 'The name of a page function to call when the effects finish.',
     whenOmitted: 'Nothing is called.',
   },
+  'data-kui.every': {
+    why: 'How often this element starts, cycles or replays its effects, with a minimum of two seconds.',
+    whenOmitted: 'The element has no automatic replay timer.',
+  },
   'data-kui.at': {
     why: 'Start this step relative to the one before: with it, after it, or a time off.',
     whenOmitted: 'It starts at the same moment as the other steps.',

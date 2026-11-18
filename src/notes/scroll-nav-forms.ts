@@ -100,6 +100,18 @@ export const SCROLL_NAV_FORMS_NOTES: ParamNotes = {
     why: 'Whether the snap items are looked for only inside this element or anywhere on the page.',
     whenOmitted: 'Looks only inside this element.',
   },
+  'scroll-snap.autoplay': {
+    why: 'How long to wait between items, at least two seconds, with negative times stepping backwards.',
+    whenOmitted: 'The strip moves only when scrolled.',
+  },
+  'scroll-snap.pause': {
+    why: 'Which button pauses and resumes autoplay.',
+    whenOmitted: 'No pause button is connected.',
+  },
+  'scroll-snap.hover': {
+    why: 'Set to none to keep autoplay moving while the pointer rests on the strip.',
+    whenOmitted: 'Hovering pauses autoplay.',
+  },
 
   'scroll-spy.distance': {
     why: 'How much scrolling this section counts as being the current one.',
