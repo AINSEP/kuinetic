@@ -1822,9 +1822,10 @@
   .slice-toast i { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; }
   .slice-flip { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; width: 100%; height: 100%; padding: 0.6rem 0.6rem 3.2rem; }
   .slice-flip img { width: 100%; height: 100%; min-height: 0; border-radius: 8px; object-fit: cover; }
+  .slice-show, .slice-show [data-kui-slideshow-list], .slice-show ul, .slice-show li { width: 100%; height: 100%; margin: 0; padding: 0; list-style: none; }
   .slice-show { position: absolute; inset: 0; }
+  .slice-show li { position: relative; overflow: clip; }
   .slice-show img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
-  .slice-show img + img { object-position: 50% 32%; }
   .slice-cube { --kui-cube-size: 96px; width: var(--kui-cube-size); height: var(--kui-cube-size); margin-bottom: 1.2rem; }
   .slice-cube > div { background-size: cover; background-position: center; }
   @media (min-width: 1020px) { .slice-cube { --kui-cube-size: 110px; } }
@@ -3118,17 +3119,22 @@
             </span>
           </a>
 
-          <!-- Showcase -->
+          <!-- Showcase. Not an <a>: the slideshow's own controls are buttons. -->
           <span class="slice slice--wide">
             <span class="slice-media">
-              <span class="slice-show" data-kui="flip-card trigger:hover">
-                <img src="./assets/astronaut/editorial-15.jpg" alt="An astronaut in red floats under a bunch of planet-shaped balloons" loading="lazy" />
-                <img src="./assets/astronaut/editorial-17.jpg" alt="An astronaut in a pink suit drifts through a mossy pink-and-green arch" loading="lazy" />
+              <span class="slice-show" aria-label="Astronauts in dreamscapes" data-kui="carousel-fade autoplay:3s hover:none target:'ul > li'">
+                <ul>
+                  <li><img src="./assets/astronaut/editorial-15.jpg" alt="An astronaut in red floats under a bunch of planet-shaped balloons" loading="lazy" /></li>
+                  <li><img src="./assets/astronaut/editorial-17.jpg" alt="An astronaut in a pink suit drifts through a mossy pink-and-green arch" loading="lazy" /></li>
+                  <li><img src="./assets/astronaut/editorial-14.jpg" alt="An astronaut sits alone on a sea of pink-lit clouds" loading="lazy" /></li>
+                  <li><img src="./assets/astronaut/editorial-16.jpg" alt="A woman asleep inside a teal helmet full of wildflowers" loading="lazy" /></li>
+                  <li><img src="./assets/astronaut/editorial-13.jpg" alt="A chrome helmet glowing with a galaxy across its visor" loading="lazy" /></li>
+                </ul>
               </span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Showcase <b>12</b></span>
-              <span class="slice-fx"><a href="./showcase.html">flip-card</a></span>
+              <span class="slice-fx"><a href="./showcase.html">carousel-fade</a></span>
             </span>
           </span>
 
