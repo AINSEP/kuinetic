@@ -37,6 +37,17 @@ describe('pause scope marker', () => {
 })
 
 describe('watchPauseScope', () => {
+  it('announces in a document without a window', () => {
+    const doc = document.implementation.createHTMLDocument('')
+    const scope = doc.body.appendChild(doc.createElement('section'))
+    const heard = vi.fn()
+    doc.addEventListener(PAUSE_SCOPE_EVENT, heard)
+
+    announcePauseScope(doc, scope)
+
+    expect(heard).toHaveBeenCalledOnce()
+  })
+
   it('reports only edges, re-evaluated on every announced event', () => {
     const { scope, inner } = scene()
     const onChange = vi.fn()

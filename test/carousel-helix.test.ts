@@ -60,6 +60,15 @@ it.each(['carousel-orbit shape:helix rise:32px', 'carousel-3d-inside shape:helix
   expect(host.hasAttribute('data-kui-ring-shape')).toBe(false)
 })
 
+it.each(['carousel-orbit', 'carousel-3d-inside', 'carousel-3d shape:helix'])(
+  'warns and keeps the vertical rotation axis when %s requests axis:x',
+  effect => {
+    const { host, reporter } = mount(`${effect} axis:x`)
+    expect(reporter.messages.join()).toContain('carousel axis:x needs an outward depth ring')
+    expect(host.getAttribute('data-kui-ring-axis')).toBe('y')
+  },
+)
+
 it('claims optional scale and opacity only for the helix and diagnoses rise without it', () => {
   const registry = catalogRegistry()
   expect(compile(parse('carousel-3d, pop'), registry, 'time').warnings).toEqual([])

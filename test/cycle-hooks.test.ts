@@ -91,6 +91,19 @@ describe('*-open cycle', () => {
     expect(el.hasAttribute('open')).toBe(false)
   })
 
+  it('uses the dialog methods when the DOM provides them', () => {
+    const dialog = html('<dialog></dialog>') as HTMLDialogElement
+    dialog.show = vi.fn(function (this: HTMLDialogElement) { this.open = true })
+    dialog.close = vi.fn(function (this: HTMLDialogElement) { this.open = false })
+
+    cycle(dialog, params(), ctx)
+    expect(dialog.show).toHaveBeenCalledOnce()
+    expect(dialog.open).toBe(true)
+    cycle(dialog, params(), ctx)
+    expect(dialog.close).toHaveBeenCalledOnce()
+    expect(dialog.open).toBe(false)
+  })
+
   it('calls togglePopover on a [popover]', () => {
     const el = html('<div popover></div>') as HTMLElement
     const toggle = vi.fn()

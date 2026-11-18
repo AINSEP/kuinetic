@@ -113,6 +113,13 @@ describe('scroll-snap autoplay:', () => {
     expect(strip().style.scrollSnapType).toContain('x')
   })
 
+  it('leaves snapping enabled when there is only one item to autoplay', () => {
+    start('<div id="strip" data-kui="scroll-snap-x autoplay:2s"><div>Only item</div></div>')
+    expect(reporter.messages).toContain('scroll-snap autoplay: needs at least 2 items')
+    expect(strip().style.scrollSnapType).toContain('x')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('a pointerdown on the strip holds the motion for the settle period, then resumes', () => {
     let spy!: ReturnType<typeof vi.fn>
     start(`<div id="strip" data-kui="scroll-snap-x target:.s autoplay:3s">${ITEMS}</div>`, false, (s) => { spy = stub(s, 'x') })

@@ -69,11 +69,20 @@ describe('flip-indicator', () => {
     expect(observeCalls).toBe(disconnectCalls)
   })
 
-  it('still follows its target on a working selector', () => {
+  it('follows its target from the indicator’s untransformed offset', () => {
+    const parent = document.createElement('div')
     const el = document.createElement('div')
     const target = document.createElement('button')
     target.id = 'active-tab'
-    document.body.append(el, target)
+    parent.append(el, target)
+    document.body.append(parent)
+    parent.getBoundingClientRect = () => ({ left: 100 }) as DOMRect
+    target.getBoundingClientRect = () => ({ left: 170, width: 40 }) as DOMRect
+    Object.defineProperty(parent, 'clientLeft', { value: 2 })
+    Object.defineProperties(el, {
+      offsetParent: { value: parent },
+      offsetLeft: { value: 10 },
+    })
 
     const params = createParams({
       follow: '#active-tab',
@@ -89,11 +98,10 @@ describe('flip-indicator', () => {
 
     const instance = flipIndicator.prepare!(el, params, ctx)
     expect(() => instance.activate()).not.toThrow()
-    expect(setSpy).toHaveBeenCalledWith('translate', expect.any(String))
+    expect(setSpy).toHaveBeenCalledWith('translate', '58px 0')
 
     instance.destroy()
-    target.remove()
-    el.remove()
+    parent.remove()
   })
 
   // The duration is varied because the leak is a dropped handle, not a long timer: a 60ms slide

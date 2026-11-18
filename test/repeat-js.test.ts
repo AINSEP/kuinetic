@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { repeatedInstance } from '../src/core/instances.js'
+import { play } from '../src/core/play.js'
 import type { EffectInstance } from '../src/core/types.js'
+import { build, el } from './support/js-effect-harness.js'
 import { catalogRegistry } from './support/registry.js'
 
 /**
@@ -68,7 +70,11 @@ beforeEach(() => {
   } as unknown as Window
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 const flushFrame = (): void => {
   const queued = frames
@@ -165,6 +171,30 @@ describe('repeatedInstance', () => {
 })
 
 describe('repeatable primitives', () => {
+  it('repeats on a timer when frames are unavailable and clears the pending replay on finish', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('requestAnimationFrame', undefined)
+    const animator = build('<p data-kui="typewriter step:50ms repeat:3">X</p>')
+    const target = el()
+    const typed = () => el().querySelector('.kui-typewriter')?.textContent
+    try {
+      const playback = play({ animator, root: document.body, target, effect: 'typewriter' })
+      expect(animator.stateOf(target)?.instances[0]?.finite).toBe(true)
+      await vi.advanceTimersByTimeAsync(55)
+      expect(typed()).toBe('X')
+      await vi.advanceTimersByTimeAsync(20)
+      expect(typed()).toBe('')
+      await vi.advanceTimersByTimeAsync(50)
+      expect(typed()).toBe('X')
+      expect(vi.getTimerCount()).toBe(1)
+      playback.finish()
+      expect(vi.getTimerCount()).toBe(0)
+      await playback.finished
+    } finally {
+      animator.destroy()
+    }
+  })
+
   it('every repeatable primitive is JS-rendered and has a prepare', () => {
     const registry = catalogRegistry()
     const primitives = new Map(

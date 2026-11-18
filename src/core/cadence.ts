@@ -75,9 +75,8 @@ export function createCadence(request: CadenceRequest): { release: Cleanup } {
 /**
  * Read an `every:` value into milliseconds.
  *
- * `parse.ts` has already validated the token (a non-negative `s`/`ms` time), so a value that still
- * fails here can only come from a hand-built `ParsedValue`; it reads as `NaN`, which
- * {@link createCadence} refuses with its own message.
+ * `parse.ts` validates the token as a non-negative `s`/`ms` time.
+ * {@link createCadence} rejects periods that overflow when converted to milliseconds.
  *
  * @complexity O(n) time in the token length; O(1) space.
  * @overallScore 100
@@ -86,9 +85,7 @@ export function everyToMs(every: string): number {
   const token = every.trim()
   const milliseconds = token.endsWith('ms')
   if (!milliseconds && !token.endsWith('s')) return Number.NaN
-  // `Number` rejects anything that is not a plain decimal, so no pattern is needed to vet it.
   const value = Number(token.slice(0, milliseconds ? -2 : -1))
-  if (!Number.isFinite(value) || value < 0) return Number.NaN
   return value * (milliseconds ? 1 : 1000)
 }
 

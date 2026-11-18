@@ -330,6 +330,16 @@ describe('play()', () => {
     expect(el.getAttribute(ATTR.source)).toBe(`${step} delay:200ms`)
   })
 
+  it('lets the parser diagnose an unrecognized easing override', () => {
+    const animator = build('<p id="a" data-kui="fade-up 400ms">Hi</p>')
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'fade-up' }, { ease: 'bogus' })
+
+    expect(el.getAttribute(ATTR.source)).toBe('fade-up 400ms bogus')
+    expect(parse(el.getAttribute(ATTR.source)!).warnings.join()).toContain('bogus')
+    animator.destroy()
+  })
+
   it('uses the first step whose name exactly matches the requested effect', () => {
     const animator = build('<p id="a" data-kui="fade-up, typewriter-extra 10ms, typewriter 200ms, typewriter 300ms">Hi</p>')
     const el = document.getElementById('a')!

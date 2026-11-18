@@ -1,5 +1,5 @@
 import { createCssControl } from './control.js'
-import { isInfiniteRepeat, repeatCount } from './repeat.js'
+import { isInfiniteRepeat } from './repeat.js'
 import { timeScaleOf } from './time-scale.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Cleanup, EffectInstance } from './types.js'
@@ -542,7 +542,7 @@ function nextFrame(win: Window, fn: () => void): { cancel: () => void } {
  * @overallScore 100
  */
 export function repeatedInstance(inner: EffectInstance, repeat: string, win: Window): EffectInstance {
-  const total = isInfiniteRepeat(repeat) ? Infinity : (repeatCount(repeat) ?? 1)
+  const total = isInfiniteRepeat(repeat) ? Infinity : Number(repeat)
   let generation = 0
   let stopped = true
   let pending: { cancel: () => void } | undefined

@@ -87,11 +87,6 @@ export function startSnapAutoplay(request: {
       host.scrollTo({ [axis === 'x' ? 'left' : 'top']: targets[next]!, behavior: 'smooth' })
     },
   })
-  if (!motion.enabled) {
-    releaseMotion()
-    return null
-  }
-
   // A person taking over. Not `scroll`: our own `scrollTo` fires it.
   const takeOver = (): void => motion.interrupt()
   const opts = { passive: true } as const

@@ -94,11 +94,12 @@ function newProbe(): Probe {
   return { prepares: 0, activates: 0, cycles: 0, finish: () => {} }
 }
 
-function mount(source: string, registry: Registry, extra: { reducedMotion?: boolean } = {}) {
-  document.body.innerHTML = `<div id="host" data-kui="${source}"></div>`
+function mount(source: string, registry: Registry, extra: { reducedMotion?: boolean; content?: string; doc?: Document } = {}) {
+  const doc = extra.doc ?? document
+  doc.body.innerHTML = `<div id="host" data-kui="${source}">${extra.content ?? ''}</div>`
   const reporter = collectingReporter()
   const animator = new Animator({
-    root: document.body,
+    root: doc.body,
     registry,
     capabilities: defaultCapabilities({
       individualTransforms: true,
@@ -113,7 +114,7 @@ function mount(source: string, registry: Registry, extra: { reducedMotion?: bool
     observe: false,
   })
   animator.start()
-  return { animator, reporter, host: document.getElementById('host') as HTMLElement }
+  return { animator, reporter, host: doc.getElementById('host') as HTMLElement }
 }
 
 /** Advance the clock and let the promise chains the tick started settle. */
@@ -303,6 +304,27 @@ describe('every: gating', () => {
 })
 
 describe('every: period and grammar', () => {
+  it.each(['0s', `${'9'.repeat(309)}ms`])('refuses an unusable period (%s)', async (period) => {
+    const probe = newProbe()
+    const { animator, reporter } = mount(`probe-effect on:manual every:${period}`, probeRegistry(probe))
+    expect(reporter.messages.join('\n')).toContain('every: needs a period above zero')
+    await elapse(6000)
+    expect(probe.activates).toBe(0)
+    animator.destroy()
+  })
+
+  it('warns when a target group has a cycle hook', () => {
+    const probe = newProbe()
+    const { animator, host, reporter } = mount(
+      'probe-effect target:span every:3s',
+      probeRegistry(probe, { cycle: () => probe.cycles++ }),
+      { content: '<span></span>', doc: document.implementation.createHTMLDocument('') },
+    )
+    expect(animator.derivedOf(host)).toEqual([host.firstElementChild])
+    expect(reporter.messages.join('\n')).toContain('a target: group with a cycle hook replays instead')
+    animator.destroy()
+  })
+
   it('clamps a period under two seconds, with a warning', async () => {
     const probe = newProbe()
     const { animator, reporter } = mount('probe-effect on:manual every:1s', probeRegistry(probe))

@@ -25,8 +25,9 @@ describe('pause-scope', () => {
     )
     const host = el()
     const scripted = script({ playState: 'running' })
+    const alreadyPaused = script({ playState: 'paused' })
     const stylesheet = css()
-    host.getAnimations = vi.fn(() => [scripted, stylesheet])
+    host.getAnimations = vi.fn(() => [scripted, alreadyPaused, stylesheet])
     const heard = vi.fn()
     document.addEventListener(PAUSE_SCOPE_EVENT, heard)
     animator.start()
@@ -40,6 +41,7 @@ describe('pause-scope', () => {
     expect(isPausedByScope(host.querySelector('.child')!)).toBe(true)
     expect(button.getAttribute('aria-pressed')).toBe('true')
     expect(scripted.pause).toHaveBeenCalledTimes(1)
+    expect(alreadyPaused.pause).not.toHaveBeenCalled()
     expect(stylesheet.pause).not.toHaveBeenCalled()
     expect(heard).toHaveBeenCalledTimes(1)
 
@@ -47,6 +49,7 @@ describe('pause-scope', () => {
     expect(host.hasAttribute(PAUSE_SCOPE_ATTR)).toBe(false)
     expect(button.getAttribute('aria-pressed')).toBe('false')
     expect(scripted.play).toHaveBeenCalledTimes(1)
+    expect(alreadyPaused.play).not.toHaveBeenCalled()
     expect(heard).toHaveBeenCalledTimes(2)
 
     document.removeEventListener(PAUSE_SCOPE_EVENT, heard)
@@ -57,9 +60,8 @@ describe('pause-scope', () => {
     const animator = build(
       '<button class="outside">Pause</button><section data-kui="pause-scope pause:.outside paused:true"></section>',
     )
-    const host = el()
-    host.getAnimations = vi.fn(() => [])
     animator.start()
+    const host = el()
     const button = document.querySelector('.outside') as HTMLButtonElement
     expect(host.hasAttribute(PAUSE_SCOPE_ATTR)).toBe(true)
     expect(button.getAttribute('aria-pressed')).toBe('true')

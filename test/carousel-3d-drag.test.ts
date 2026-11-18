@@ -31,14 +31,14 @@ import { SPATIAL_RING_PRIMITIVE } from '../src/effects/carousel/index.js'
  * none. This builds the smallest thing that is indistinguishable from a real pointer to the code
  * under test.
  */
-function pointer(type: string, clientX: number): Event {
+function pointer(type: string, clientX: number, clientY = 0): Event {
   const event = new Event(type, { bubbles: true }) as Event & {
     clientX: number
     clientY: number
     pointerId: number
   }
   event.clientX = clientX
-  event.clientY = 0
+  event.clientY = clientY
   event.pointerId = 1
   return event
 }
@@ -131,6 +131,25 @@ describe('release physics', () => {
 })
 
 describe('dragging', () => {
+  it('advances a drum downwards and snaps to a card on release', () => {
+    vi.useFakeTimers({ toFake: ['performance'] })
+    const { host, instance } = mount({ axis: 'x', travel: '200' })
+    try {
+      const position = () => Number(host.style.getPropertyValue('--kui-step-position'))
+      host.dispatchEvent(pointer('pointerdown', 0))
+      host.dispatchEvent(pointer('pointermove', 100))
+      expect(position()).toBe(0)
+      host.dispatchEvent(pointer('pointermove', 100, 150))
+      expect(position()).toBeCloseTo(0.75)
+      host.dispatchEvent(pointer('pointerup', 100, 150))
+      expect(position()).toBe(1)
+      expect(host.getAttribute('data-kui-ring-dragging')).toBe('false')
+    } finally {
+      instance.destroy()
+      vi.useRealTimers()
+    }
+  })
+
   it('moves the ring between two places while the pointer is down', () => {
     const { host, instance } = mount({ target: '.slide', travel: '200' })
     host.dispatchEvent(pointer('pointerdown', 0))

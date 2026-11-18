@@ -196,7 +196,8 @@ describe('repeat: — refusals the renderer forces', () => {
   })
 
   it('names yoyo on a JavaScript-rendered effect too', () => {
-    expect(warnings('typewriter yoyo:true')).toContain('yoyo:true')
+    expect(warnings('word-cycler yoyo:true')).toContain('yoyo:true does nothing')
+    expect(warnings('word-cycler repeat:3 yoyo:false')).toContain('repeat:3 and yoyo:false does nothing')
   })
 
   it('says nothing when neither key was written', () => {
