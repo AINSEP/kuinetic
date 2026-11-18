@@ -833,6 +833,46 @@ const HOISTS: Record<string, (result: ParsedValue, value: string) => void> = {
   func(result, value) {
     assignOnce(result, 'func', value, 'callbacks')
   },
+  /**
+   * Replay cadence — `every:2.6s` performs one demonstration step per period while the element is
+   * on screen and nothing pauses it (the runtime lives in `animator.ts`/`cadence.ts`).
+   *
+   * Element-wide always: it is deliberately absent from `SEGMENT_SCOPABLE_HOISTS`, because one
+   * element has one cadence whatever its `target:` groups do — the `rm:`/`func:` rule. Validated
+   * here as a non-negative time token, since the value is only ever a period; the floor that stops
+   * a 50ms loop is a runtime concern and warns there. The word is `every` rather than
+   * `loop`/`interval`/`autoplay`/`pause`/`hold`/`rest` because every one of those is already a
+   * primitive parameter, and a hoisted key never reaches `spec.params` — hoisting one would make
+   * those effects unwritable (the `from:`→`order:` collision above).
+   */
+  every(result, value) {
+    if (!TIME_RE.test(value) || value.startsWith('-')) {
+      result.warnings.push(`unrecognised "every:${value}" — expected a positive time such as 2.6s or 900ms`)
+      return
+    }
+    assignOnce(result, 'every', value, 'replay cadences')
+  },
+}
+
+/**
+ * Every element-scoped key word the parser hoists, in the author's spelling (`on`, not
+ * `activation`). Exported so `play()`'s attribute overlay can tell an element-wide key from a
+ * per-effect parameter without keeping a second list that drifts when a hoist is added.
+ */
+export const ELEMENT_HOIST_KEYS: readonly string[] = Object.keys(HOISTS)
+
+/**
+ * What kind of token one whitespace-separated piece of a `data-kui` segment is.
+ *
+ * Exported for the same reason as {@link ELEMENT_HOIST_KEYS}: `play()` rewrites a single token of
+ * an authored segment and must classify it with the parser's own rules (`cubic-bezier(.2,.8,.2,1)`
+ * is an easing, `600ms` is a time, `a:b` is a pair), not a regex that copies them.
+ *
+ * @complexity O(n) time in token length; O(1) space.
+ * @overallScore 100
+ */
+export function tokenKind(token: string): 'pair' | 'time' | 'easing' | 'unknown' {
+  return classify(token).kind
 }
 
 /**
@@ -882,7 +922,8 @@ export function assignOnce<
     | 'cols'
     | 'along'
     | 'rm'
-    | 'func',
+    | 'func'
+    | 'every',
 >(
   result: ParsedValue,
   key: K,

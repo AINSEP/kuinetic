@@ -15,7 +15,9 @@
  * What this actually checks, per class used in a `class="..."` attribute on a given page: is there
  * a rule for it in *that page's own* inline `<style>` block, or in one of demo/style.css,
  * demo/system.css, demo/kuinetic.css, demo/tailwind.css *that page's own `<head>` actually links*?
- * If none of those own it, the class is either a typo, a page that forgot to style something, a
+ * Classes referenced by the page's `data-kui` attributes, or by quoted selectors in its own inline
+ * `<script>`, count as deliberate JS hooks, not missing styles.
+ * Otherwise, an uncovered class is either a typo, a page that forgot to style something, a
  * page that forgot to link the sheet its class lives in, or — the case this was actually built for
  * — a Tailwind/daisyUI class that source detection failed to pick up. This check does not attempt
  * to guess *which* stylesheet a class "should" live in; it only proves a rule is actually reachable
@@ -143,6 +145,8 @@ const used = new Map()
 // never another page's, so this is per-file, not pooled. (It used to be pooled; see the header
 // comment — that's what hid `.btn-primary` on landing-studio.html.)
 const inlineStyledByFile = new Map()
+// Classes referenced as hooks in each page's own data-kui attributes.
+const hooksByFile = new Map()
 // Which local stylesheet(s) each page's <head> actually links, by basename (e.g. `system.css`).
 const linkedByFile = new Map()
 
@@ -151,6 +155,17 @@ for (const file of htmlFiles) {
   for (const m of html.matchAll(/\sclass\s*=\s*"([^"]*)"/g)) {
     for (const c of m[1].split(/\s+/)) recordUsage(used, c, file)
   }
+  const hooks = new Set()
+  for (const attribute of html.matchAll(/\sdata-kui\s*=\s*"([^"]*)"/g)) {
+    for (const cls of classSelectorsIn(attribute[1])) hooks.add(cls)
+  }
+  // Selectors the page's own inline scripts look up (`querySelectorAll('.x')`, `kui.control('.x')`).
+  // Only quoted strings, so `.forEach` and other property access never count as a class.
+  const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n')
+  for (const literal of scripts.matchAll(/(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/g)) {
+    for (const cls of classSelectorsIn(literal[2])) hooks.add(cls)
+  }
+  hooksByFile.set(file, hooks)
   const ownInlineClasses = new Set()
   for (const styleBlock of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)) {
     for (const c of classSelectorsIn(styleBlock[1])) ownInlineClasses.add(c)
@@ -183,12 +198,11 @@ const stylesheetClasses = Object.fromEntries(
 )
 
 /**
- * Whether `cls` actually resolves to a rule reachable from `file`: a rule in that same file's own
- * inline `<style>` block, or in one of tailwind.css/style.css/system.css/kuinetic.css that `file`'s
- * own `<head>` links. Nothing here is pooled across pages — see the header comment for why that
- * was the bug.
+ * Whether `cls` is a JS hook or resolves to a CSS rule reachable from `file`. Nothing here is
+ * pooled across pages — see the header comment for why that was the bug.
  */
 function isCoveredForFile(cls, file) {
+  if (hooksByFile.get(file)?.has(cls)) return true
   if (inlineStyledByFile.get(file)?.has(cls)) return true
   for (const sheet of linkedByFile.get(file) ?? []) {
     if (stylesheetClasses[sheet]?.has(cls)) return true

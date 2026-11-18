@@ -182,6 +182,8 @@ export interface PlaybackInput {
   timeline: Timeline
   repeat?: string
   yoyo?: boolean
+  /** Whether a JS primitive declares it can replay from its from-state. See `Primitive.repeatable`. */
+  repeatable?: boolean
 }
 
 /** The playback settings that survived, plus anything the author needs told. */
@@ -207,7 +209,7 @@ export function resolvePlayback(input: PlaybackInput): PlaybackResolution {
   const warnings: string[] = []
   if (input.repeat === undefined && input.yoyo === undefined) return { warnings }
 
-  if (input.renderer !== 'css-keyframes') return { warnings: [rendererRefusal(input)] }
+  if (input.renderer !== 'css-keyframes') return resolveJsPlayback(input)
 
   if (input.repeat === INFINITE && PROGRESS_DRIVEN.has(input.timeline)) {
     warnings.push(infiniteTimelineRefusal(input.name, input.timeline))
@@ -217,6 +219,45 @@ export function resolvePlayback(input: PlaybackInput): PlaybackResolution {
   const hidden = endsHidden(input)
   if (hidden) warnings.push(hidden)
   return { repeat: input.repeat, yoyo: input.yoyo, warnings }
+}
+
+/**
+ * Decide `repeat:`/`yoyo:` for a JS-rendered segment.
+ *
+ * A repeatable primitive replays whole runs, so only a positive whole count (or `infinite`) is
+ * honest; `yoyo` is always refused because a JS effect has no playhead to run backwards.
+ * A non-repeatable one keeps the original refusal, now naming which effects can repeat.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function resolveJsPlayback(input: PlaybackInput): PlaybackResolution {
+  if (input.repeatable !== true) return { warnings: [rendererRefusal(input)] }
+  const warnings: string[] = []
+  let repeat = input.repeat
+  if (repeat !== undefined && repeat !== INFINITE) {
+    const count = Number(repeat)
+    if (count === 0) {
+      warnings.push(
+        `"${input.name}" has repeat:0, which would never start. Dropping the repeat so it plays ` +
+          `once — remove the key, or write repeat:infinite to loop.`,
+      )
+      repeat = undefined
+    } else if (!Number.isInteger(count)) {
+      warnings.push(
+        `"${input.name}" has repeat:${repeat}, but a JS-rendered effect repeats whole runs. ` +
+          `Dropping the repeat so it plays once — use a whole number such as repeat:3.`,
+      )
+      repeat = undefined
+    }
+  }
+  if (input.yoyo !== undefined) {
+    warnings.push(
+      `"${input.name}" is rendered in JavaScript, which has no playhead to run backwards, so ` +
+        `yoyo:${input.yoyo} has nothing to alternate and is ignored. repeat: still replays it.`,
+    )
+  }
+  return { repeat, warnings }
 }
 
 /**
@@ -260,8 +301,9 @@ function rendererRefusal(input: PlaybackInput): string {
     .join(' and ')
   return (
     `"${input.name}" is rendered in JavaScript and compiles no animation-iteration-count, so ` +
-    `${authored} does nothing — it plays once. Repeat is a CSS-keyframes capability; a JS-rendered ` +
-    `effect that loops does it through a parameter of its own (typewriter's "loop:"), if it has one.`
+    `${authored} does nothing — it plays once. Finite JS effects such as slat-assemble, count-up and ` +
+    `split-text can repeat; this one is continuous or stateful, so a replay would mean nothing. ` +
+    `A CSS effect repeats and yoyos natively.`
   )
 }
 

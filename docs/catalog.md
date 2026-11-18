@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **314** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **315** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -38,7 +38,7 @@ kuinetic.describe('carousel-3d', { notes: kuineticNotes.PARAM_NOTES })
 Pass `registry: window.__kuinetic.registry` to include effects registered by a tier.
 
 `kuinetic.describeElement('fade-up on:click, lift at:-200ms')` also lists the reserved keys —
-`on:`, `timeline:`, `cascade:`, `rm:` apply to the whole element, `at:`, `repeat:`, `above:` to
+`on:`, `timeline:`, `cascade:`, `rm:`, `every:` apply to the whole element, `at:`, `repeat:`, `above:` to
 their own step — and what the markup set: `written` per step, with bare values under their name.
 A bare timing slot an effect cannot use is marked `honoured: false`, with the reason.
 
@@ -102,7 +102,7 @@ A bare timing slot an effect cannot use is marked `honoured: false`, with the re
 | 42 | `hotspots` | js | x | image markers with popover notes |
 | 43 | `slideshow` | js | x | fade, slide, and video hero carousels |
 | 44 | `scroll-story` | js | x | scrolling text steps paired with media |
-| 45 | `slow-mo` | js | x | playback-rate control for a subtree |
+| 45 | `slow-mo`, `pause-scope` | js | x | subtree playback controls |
 | 46 | `spatial-stack` | js | o,f,x | cards receding diagonally into depth — the depth-stack carousel |
 | 47 | `curtain` | js | x | solid colour cover, one state commit, independent reveal shape |
 | 48 | `spatial-row` | js | x | measured mixed-width flex slides with seamless horizontal looping |
@@ -177,8 +177,9 @@ Primitives 27, 29. `js`. This is the JS-heaviest group in the catalog.
 `stacking-cards` · `horizontal-scroll` · `sequence-scrub` · `video-scrub` · `scroll-snap-x` ·
 `scroll-snap-y` · `scroll-spy`
 
-> `scroll-snap-*` are thin CSS passthroughs. Everything else needs the orchestrator:
-> measurement, resize invalidation, nested scroll containers, cleanup.
+> `scroll-snap-x target:img autoplay:3s` steps through an inner snap strip with at least two items.
+> `autoplay:` defaults to off and takes a period with a 2s minimum. Use `pause:<selector>` to
+> connect a pause button and `hover:none` to keep autoplay running on hover.
 
 > **`--kui-pin-offset` — set once, and every pin clears your header.**
 >
@@ -621,6 +622,8 @@ The initial visible square is about 21vmin.
 > `random-ish` (a deterministic scatter, not `Math.random`) — independent of which side each slat
 > flies in from, which always alternates by position. `fold:true` adds a `rotateY`/`rotateX` hinge
 > for an accordion-fold look instead of a flat slide.
+> Use `slat-assemble slats:8 repeat:3` for consecutive runs or `slat-assemble slats:8 every:5s`
+> to assemble, hold, and replay.
 >
 > ```html
 > <figure data-kui="slat-assemble slats:8 axis:vertical from:alternate">
@@ -1920,7 +1923,7 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 11 names
+## T. Showcase — 12 names
 
 The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
@@ -1931,7 +1934,7 @@ need to track.
 
 `device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
 `carousel-fade` · `carousel-slide` · `carousel-warp` · `video-hero-slideshow` · `scroll-story`
-· `slow-mo`
+· `slow-mo` · `pause-scope`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
 > video in a browser bezel, a phone notch, a tablet frame, or a laptop lid — no cropping, no
@@ -2152,6 +2155,11 @@ need to track.
 > **Limit:** rAF-driven JavaScript effects such as count-up, typewriter, proximity, and springs
 > have no `Animation` handle and are not slowed. Without JavaScript, content renders as authored.
 
+> **Subtree pause (`pause-scope`).** The catalog uses `pause-scope` to pause its tiles. Use
+> `<section data-kui="pause-scope pause:.btn">` with an authored button whose `aria-pressed` state
+> tracks the pause. Set `paused:true` to start paused. The scope covers CSS animations, JavaScript
+> animations with a Web Animations handle, and participating schedulers.
+
 ---
 
 ## Totals
@@ -2177,12 +2185,12 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 11 |
+| T Showcase | 12 |
 | Generic tween | 2 |
-| **Total shipped** | **314** |
+| **Total shipped** | **315** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **149 `javascript`** (including setup-only widgets).
+Registry renderer split: **165 `css-keyframes`** · **150 `javascript`** (including setup-only widgets).
 That ratio is the whole architecture — over half of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 

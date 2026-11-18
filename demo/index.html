@@ -16,7 +16,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic CSS3 Animations</title>
-<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 314 named effects from 48 primitive families. CSS where CSS can do it, JavaScript where it can't." />
+<meta name="description" content="Declarative web animation compiled from HTML attributes into real CSS keyframes and native scroll-driven timelines. 315 named effects from 48 primitive families. CSS where CSS can do it, JavaScript where it can't." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -1764,8 +1764,6 @@
   .slice--accent .slice-num-note { color: var(--accent-ink); }
   .slice--dark .slice-media { background: linear-gradient(160deg, #15171a, #0b0c0d); }
 
-  /* Motion pause for the whole section. The carousel-fade tile's `pause:` hands the library this
-     button, which flips `aria-pressed`; this rule freezes every CSS loop in the grid to match. */
   .motion-pause {
     display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 1.1rem;
     padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
@@ -1775,9 +1773,6 @@
   .motion-pause:hover { border-color: var(--fg); }
   .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
-  #catalog[data-paused] .slices *,
-  #catalog[data-paused] .slices *::before,
-  #catalog[data-paused] .slices *::after { animation-play-state: paused !important; }
   /* Reduced motion: lean on the library's own policy; this is only the safety net so a tile that
      would otherwise be left scaled or shifted rests flat. */
   @media (prefers-reduced-motion: reduce) { .slices img { transform: none; } }
@@ -1827,12 +1822,9 @@
   .slice-toast i { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; }
   .slice-flip { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; width: 100%; height: 100%; padding: 0.6rem 0.6rem 3.2rem; }
   .slice-flip img { width: 100%; height: 100%; min-height: 0; border-radius: 8px; object-fit: cover; }
-  .slice-show, .slice-show [data-kui-slideshow-list], .slice-show ul, .slice-show li { width: 100%; height: 100%; margin: 0; padding: 0; list-style: none; }
   .slice-show { position: absolute; inset: 0; }
-  /* The picture is pinned to the item's box (not left to its natural 4:5 height), and centred on
-     the canopy, which sits at ~50% of the frame — a wide tile crops to a thin band of it. */
-  .slice-show li { position: relative; overflow: clip; }
   .slice-show img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
+  .slice-show img + img { object-position: 50% 32%; }
   .slice-cube { --kui-cube-size: 96px; width: var(--kui-cube-size); height: var(--kui-cube-size); margin-bottom: 1.2rem; }
   .slice-cube > div { background-size: cover; background-position: center; }
   @media (min-width: 1020px) { .slice-cube { --kui-cube-size: 110px; } }
@@ -2908,7 +2900,7 @@
            Deliberately small and deliberately many. Each tile is built from the assets of the demo
            page it links to, so following the link is a continuation rather than a jump somewhere
            unrelated — the picture you clicked is the picture you land next to. -->
-      <section id="catalog" data-od-id="catalog">
+      <section id="catalog" data-od-id="catalog" data-kui="pause-scope pause:.slices-pause">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">A slice of every category</h2>
           <button type="button" class="motion-pause slices-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause motion</button>
@@ -2918,8 +2910,7 @@
              tile below and the dense grid closes the gap. Size is a class (`slice--big`, `--tall`,
              `--wide`), never a position. Counts are copied from docs/catalog.md "Totals". Effects sit
              on a child, never on `.slice` itself, and exactly one tile (`slice-live`, the gesture
-             puck) is not an `<a>`-or-static tile. Every tile keeps moving: a CSS loop, a replay on
-             re-entry, or the small script at the bottom of the page. -->
+             puck) is not an `<a>`-or-static tile. -->
         <div class="slices" data-kui="cascade:60ms, tween-from y:44px scale:0.94 opacity:0 800ms spring on:enter target:'.slice:not(.slice-live)'">
 
           <!-- Media & images -->
@@ -2949,7 +2940,7 @@
             <span class="slice-media is-composed">
               <!-- A real gesture, not a picture of one: pull the puck and the spring returns it.
                    Deliberately not an <a>: a drag inside a link fights the link on every release. -->
-              <span class="slice-puck" data-kui="elastic-pull"><img src="./assets/pastel-surreal/pastel-12.jpg" alt="" draggable="false" /></span>
+              <span class="slice-puck" data-kui="elastic-pull"><img src="./assets/pastel-surreal/pastel-12.jpg" alt="" draggable="false" data-kui="spinner 18s" /></span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Gestures &amp; physics <b>14</b></span>
@@ -2961,7 +2952,7 @@
           <a class="slice slice--wide" href="./scroll.html">
             <span class="slice-media">
               <!-- A real snap container, not a picture of one: drag it sideways and it catches. -->
-              <span class="slice-snap" data-kui="scroll-snap-x target:img">
+              <span class="slice-snap" data-kui="scroll-snap-x target:img autoplay:3s">
                 <img src="./assets/candy-architecture/candy-01.jpg" alt="A pink and pastel city avenue lined with candy-coloured towers" loading="lazy" />
                 <img src="./assets/candy-architecture/candy-06.jpg" alt="A wide street striped like a crosswalk in pink and blue, with blossom trees" loading="lazy" />
                 <img src="./assets/candy-architecture/candy-14.jpg" alt="Pink apartment blocks tumbling through a pale blue sky" loading="lazy" />
@@ -2977,7 +2968,7 @@
                JS split-text that does not loop on its own. -->
           <a class="slice slice--wide" href="./text.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-10.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/candy-architecture/candy-10.jpg" alt="" loading="lazy" data-kui="ken-burns-out 10000ms repeat:infinite yoyo:true scale:1.2" />
               <span class="slice-shade" aria-hidden="true"></span>
               <span class="slice-word" data-kui="gradient-shimmer on:load">DECLARATIVE</span>
             </span>
@@ -2990,7 +2981,7 @@
           <!-- SVG & icons -->
           <a class="slice" href="./icons-transitions.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-04.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/candy-architecture/candy-04.jpg" alt="" loading="lazy" data-kui="ken-burns 12000ms repeat:infinite yoyo:true scale:1.3" />
               <!-- pathLength="100" so the library's `--kui-path-length` default of 100 is exactly
                    right without measuring the path in JS. -->
               <svg class="slice-svg" viewBox="0 0 100 60" fill="none" aria-hidden="true">
@@ -3019,7 +3010,7 @@
                   <circle class="meter-value" cx="50" cy="50" r="43" stroke-width="7" transform="rotate(-90 50 50)" style="--kui-path-length: 270" data-kui="donut-sweep 2400ms repeat:infinite yoyo:true" />
                 </svg>
                 <span class="slice-stack">
-                  <span class="slice-num" data-kui="count-up 1600ms to:314, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
+                  <span class="slice-num" data-kui="count-up 1600ms to:315, tween-from y:30px scale:0.9 900ms spring on:enter">0</span>
                   <span class="slice-num-note">effects</span>
                 </span>
               </span>
@@ -3030,10 +3021,10 @@
             </span>
           </a>
 
-          <!-- Layout & FLIP. The page script re-appends these four every 2.6s; flip-shuffle animates it. -->
+          <!-- Layout & FLIP -->
           <a class="slice" href="./interactive.html">
             <span class="slice-media">
-              <span class="slice-flip" data-kui="flip-shuffle">
+              <span class="slice-flip" data-kui="flip-shuffle every:2.6s">
                 <img src="./assets/candy-architecture/candy-05.jpg" alt="A curling terracotta staircase wrapping a pale dome" loading="lazy" />
                 <img src="./assets/candy-architecture/candy-08.jpg" alt="A pastel pool with a potted succulent on the ledge" loading="lazy" />
                 <img src="./assets/candy-architecture/candy-13.jpg" alt="Stacked pastel apartment balconies in mint and butter yellow" loading="lazy" />
@@ -3050,7 +3041,7 @@
           <a class="slice slice--tall" href="./data-hover.html">
             <span class="slice-media" style="background: linear-gradient(160deg, #cdeee0, #f7c6dd)" data-kui="beam-border-auto">
               <span class="slice-tilt" data-kui="tilt-3d maxAngle:18 perspective:600px">
-                <img src="./assets/pastel-surreal/pastel-01.jpg" alt="A pink hot-air balloon where a head should be, above a mint-green suit holding a flower" loading="lazy" />
+                <img src="./assets/pastel-surreal/pastel-01.jpg" alt="A pink hot-air balloon where a head should be, above a mint-green suit holding a flower" loading="lazy" data-kui="ken-burns 10000ms repeat:infinite yoyo:true scale:1.2" />
               </span>
             </span>
             <span class="slice-body">
@@ -3094,11 +3085,11 @@
                box is where `tween-from` starts and the solid one is rest: one fact written twice. -->
           <a class="slice" href="./tween.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/pastel-surreal/pastel-11.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/pastel-surreal/pastel-11.jpg" alt="" loading="lazy" data-kui="ken-burns-out 9000ms repeat:infinite yoyo:true scale:1.3" />
               <span class="slice-shade" aria-hidden="true"></span>
               <span class="slice-tween">
                 <span class="slice-tween-ghost" aria-hidden="true"></span>
-                <span class="slice-tween-block" aria-hidden="true" data-kui="tween-from x:-44px rotate:-12deg scale:0.88 900ms spring on:enter actions:restart/none/restart/none">
+                <span class="slice-tween-block" aria-hidden="true" data-kui="tween-from x:-44px rotate:-12deg scale:0.88 900ms spring repeat:infinite yoyo:true">
                   <img src="./assets/pastel-surreal/pastel-11.jpg" alt="A pink desert with tall blue cacti and lavender spiky spheres" loading="lazy" />
                 </span>
               </span>
@@ -3127,22 +3118,17 @@
             </span>
           </a>
 
-          <!-- Showcase. Not an <a>: the slideshow's own controls are buttons. -->
+          <!-- Showcase -->
           <span class="slice slice--wide">
             <span class="slice-media">
-              <span class="slice-show" aria-label="Astronauts in dreamscapes" data-kui="carousel-fade autoplay:3s hover:none pause:.slices-pause target:'ul > li'">
-                <ul>
-                  <li><img src="./assets/astronaut/editorial-15.jpg" alt="An astronaut in red floats under a bunch of planet-shaped balloons" loading="lazy" /></li>
-                  <li><img src="./assets/astronaut/editorial-17.jpg" alt="An astronaut in a pink suit drifts through a mossy pink-and-green arch" loading="lazy" /></li>
-                  <li><img src="./assets/astronaut/editorial-14.jpg" alt="An astronaut sits alone on a sea of pink-lit clouds" loading="lazy" /></li>
-                  <li><img src="./assets/astronaut/editorial-16.jpg" alt="A woman asleep inside a teal helmet full of wildflowers" loading="lazy" /></li>
-                  <li><img src="./assets/astronaut/editorial-13.jpg" alt="A chrome helmet glowing with a galaxy across its visor" loading="lazy" /></li>
-                </ul>
+              <span class="slice-show" data-kui="flip-card trigger:hover">
+                <img src="./assets/astronaut/editorial-15.jpg" alt="An astronaut in red floats under a bunch of planet-shaped balloons" loading="lazy" />
+                <img src="./assets/astronaut/editorial-17.jpg" alt="An astronaut in a pink suit drifts through a mossy pink-and-green arch" loading="lazy" />
               </span>
             </span>
             <span class="slice-body">
-              <span class="slice-cat">Showcase <b>11</b></span>
-              <span class="slice-fx"><a href="./showcase.html">carousel-fade</a></span>
+              <span class="slice-cat">Showcase <b>12</b></span>
+              <span class="slice-fx"><a href="./showcase.html">flip-card</a></span>
             </span>
           </span>
 
@@ -3160,7 +3146,7 @@
           <!-- Motion paths -->
           <a class="slice slice--dark" href="./motion-lab.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-14.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/candy-architecture/candy-14.jpg" alt="" loading="lazy" data-kui="ken-burns-out 13000ms repeat:infinite yoyo:true scale:1.25" />
               <span class="slice-shade" aria-hidden="true"></span>
               <span class="slice-path">
                 <svg viewBox="0 0 800 800" aria-hidden="true"><ellipse cx="400" cy="400" rx="215" ry="160" transform="rotate(14 400 400)" /></svg>
@@ -3176,7 +3162,7 @@
           <!-- Page transitions -->
           <a class="slice slice--wide" href="./icons-transitions.html">
             <span class="slice-media">
-              <span class="slice-curtain" data-kui="curtain-wipe 1400ms on:enter actions:restart/none/restart/none">
+              <span class="slice-curtain" data-kui="curtain-wipe 1400ms repeat:infinite yoyo:true">
                 <img src="./assets/candy-architecture/candy-11.jpg" alt="A pink staircase sweeping up a magenta wall with an orange light strip" loading="lazy" />
               </span>
             </span>
@@ -3186,12 +3172,12 @@
             </span>
           </a>
 
-          <!-- Navigation. Replayed by the page script. -->
+          <!-- Navigation -->
           <a class="slice" href="./interactive.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/pastel-surreal/pastel-08.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/pastel-surreal/pastel-08.jpg" alt="" loading="lazy" data-kui="ken-burns 8000ms repeat:infinite yoyo:true scale:1.3" />
               <span class="slice-shade" aria-hidden="true"></span>
-              <ul class="slice-nav" data-kui="menu-stagger-open target:li cascade:80ms on:manual">
+              <ul class="slice-nav" data-kui="menu-stagger-open target:li cascade:80ms every:3.9s">
                 <li>Work</li><li>Shop</li><li>Journal</li><li>About</li>
               </ul>
             </span>
@@ -3201,25 +3187,27 @@
             </span>
           </a>
 
-          <!-- Forms & inputs. Replayed by the page script. -->
+          <!-- Forms & inputs -->
           <a class="slice" href="./interactive.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-15.jpg" alt="" loading="lazy" />
+              <span class="slice-fill" data-kui="slat-assemble slats:8 every:5s">
+                <img src="./assets/candy-architecture/candy-15.jpg" alt="" loading="lazy" />
+              </span>
               <span class="slice-shade" aria-hidden="true"></span>
-              <span class="slice-form" data-kui="validate-shake on:manual"><span class="slice-input">name@</span></span>
+              <span class="slice-form" data-kui="validate-shake on:manual every:3.9s"><span class="slice-input">name@</span></span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Forms &amp; inputs <b>13</b></span>
-              <span class="slice-fx">validate-shake</span>
+              <span class="slice-fx">slat-assemble, validate-shake</span>
             </span>
           </a>
 
-          <!-- Discrete open/close. The page script flips [data-open]. -->
+          <!-- Discrete open/close -->
           <a class="slice" href="./tween.html">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-06.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/candy-architecture/candy-06.jpg" alt="" loading="lazy" data-kui="ken-burns-out 10000ms repeat:infinite yoyo:true scale:1.3" />
               <span class="slice-shade" aria-hidden="true"></span>
-              <span class="slice-pop" data-kui="pop-open 320ms" data-open>Opened</span>
+              <span class="slice-pop" data-kui="pop-open 320ms every:2.6s" data-open>Opened</span>
             </span>
             <span class="slice-body">
               <span class="slice-cat">Discrete open/close <b>6</b></span>
@@ -3230,7 +3218,7 @@
           <!-- Static transforms. The tilt is the resting state; the float keeps the tile alive. -->
           <a class="slice" href="./docs.html?doc=catalog">
             <span class="slice-media is-composed">
-              <img class="slice-fill" src="./assets/candy-architecture/candy-09.jpg" alt="" loading="lazy" />
+              <img class="slice-fill" src="./assets/candy-architecture/candy-09.jpg" alt="" loading="lazy" data-kui="ken-burns 9000ms repeat:infinite yoyo:true scale:1.3" />
               <span class="slice-shade" aria-hidden="true"></span>
               <span class="slice-tilt" data-kui="float">
                 <img src="./assets/candy-architecture/candy-09.jpg" alt="A tower of stacked pastel houses balanced on one another" loading="lazy" data-kui="rotate-static angle:-8deg" />
@@ -4012,64 +4000,6 @@ kuinetic({ observe: true }).start()</code></pre>
         document.addEventListener('click', function (event) {
           if (!menu.contains(event.target)) setOpen(false)
         })
-      }
-
-      // The bento's own loops: tiles whose effect needs a state change the author owns (the FLIP
-      // reorder, the validate shake, the menu opening, the popover toggling). They run only while the
-      // grid is on screen, the tab is visible, "Pause motion" is not pressed and the visitor has not
-      // asked for reduced motion. The CSS loops and the carousel are paused by their own rules.
-      var grid = document.querySelector('.slices')
-      if (grid) {
-        var onScreen = false
-        var opened = false
-        var nav = grid.querySelector('.slice-nav')
-        var play = function (el, name) {
-          if (el && window.__kui && typeof window.__kui.play === 'function') window.__kui.play(el, name)
-        }
-        if ('IntersectionObserver' in window) {
-          new IntersectionObserver(function (entries) {
-            onScreen = entries[0].isIntersecting
-            // Open the nav tile as soon as it can be seen, rather than waiting for the first tick.
-            if (onScreen && !opened) { opened = true; setTimeout(function () { play(nav, 'menu-stagger-open') }, 600) }
-          }).observe(grid)
-        }
-        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
-        var pauseBtn = document.querySelector('.slices-pause')
-        // "Pause motion" is owned here, not by any one tile: it flips `data-paused` on the section
-        // (the CSS freezes every loop under it) and gates the replays below. If a carousel tile still
-        // points its `pause:` at this button the library toggles it too; the deferred write makes
-        // `aria-pressed` agree with this state whichever handler ran first.
-        var paused = false
-        var catalog = document.getElementById('catalog')
-        if (pauseBtn) {
-          pauseBtn.addEventListener('click', function () {
-            paused = !paused
-            if (catalog) { if (paused) catalog.setAttribute('data-paused', ''); else catalog.removeAttribute('data-paused') }
-            setTimeout(function () { pauseBtn.setAttribute('aria-pressed', String(paused)) }, 0)
-          })
-        }
-        var live = function () { return onScreen && !document.hidden && !reduce.matches && !paused }
-        var flip = grid.querySelector('.slice-flip')
-        var shake = grid.querySelector('.slice-form')
-        var pop = grid.querySelector('.slice-pop')
-        var tick = 0
-        setInterval(function () {
-          if (!live()) return
-          tick += 1
-          if (flip && tick % 2 === 0) {
-            var kids = Array.prototype.slice.call(flip.children)
-            for (var i = kids.length - 1; i > 0; i--) {
-              var j = Math.floor(Math.random() * (i + 1))
-              var tmp = kids[i]; kids[i] = kids[j]; kids[j] = tmp
-            }
-            kids.forEach(function (k) { flip.appendChild(k) })
-          }
-          if (pop && tick % 2 === 1) {
-            if (pop.hasAttribute('data-open')) pop.removeAttribute('data-open')
-            else pop.setAttribute('data-open', '')
-          }
-          if (tick % 3 === 0) { play(shake, 'validate-shake'); play(nav, 'menu-stagger-open') }
-        }, 1300)
       }
     })()
   </script>

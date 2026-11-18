@@ -803,6 +803,21 @@ function refuseContainerGate(entry: Entry, warnings: string[]): Entry {
 }
 
 /**
+ * The reduced-motion policy one entry asks for.
+ *
+ * An authored `repeat:infinite` is ambient motion, and `shorten` would turn it into a 1ms loop (a
+ * strobe), so it is treated as `disable`, which is what every ambient preset already declares.
+ * Reads the post-`refusePlayback` spec: a refused repeat must not escalate.
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function entryPolicy(entry: Entry): ReducedMotionPolicy {
+  const declared = entry.variant?.reducedMotion ?? entry.resolved.primitive.reducedMotion
+  return entry.spec.repeat === 'infinite' ? strictestPolicy(declared, 'disable') : declared
+}
+
+/**
  * Strip a `repeat:`/`yoyo:` the compiled output cannot honour, warning by name.
  *
  * Deliberately the same shape as {@link refuseContainerGate} above it, and mapped in the same pass:
@@ -827,6 +842,7 @@ function refusePlayback(entry: Entry, timeline: Timeline, warnings: string[]): E
     timeline,
     repeat: spec.repeat,
     yoyo: spec.yoyo,
+    repeatable: resolved.primitive.repeatable === true,
   })
   warnings.push(...raised)
   return { ...entry, spec: { ...spec, repeat, yoyo } }
@@ -1025,7 +1041,8 @@ function buildPlan(
     // the time an entry reaches here: every caller of `buildPlan` sequences first.
     const step = entry.step!
     plan.fxNames.push(preset.name)
-    plan.reducedMotion = strictestPolicy(plan.reducedMotion, entry.variant?.reducedMotion ?? primitive.reducedMotion)
+    // See `entryPolicy`: an authored infinite repeat counts as `disable`, never `shorten`.
+    plan.reducedMotion = strictestPolicy(plan.reducedMotion, entryPolicy(entry))
     // `defaultActivation` is deliberately absent from this loop. It is the one element-scoped fact
     // that cannot be folded per group and then merged — see `resolveDefaultActivation`, which
     // decides it once over every group's composed entries, and `mergeHostFacts`, which writes the

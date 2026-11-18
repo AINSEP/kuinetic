@@ -35,6 +35,7 @@ import { breakpointsIn, createGateWatcher, gateMatches } from './breakpoints.js'
 import type { Breakpoint, EffectGate, GateWatcher } from './breakpoints.js'
 import { BundleTable } from './bundles.js'
 import { bindCallback } from './callback.js'
+import { createCadence, cycleThunks, everyToMs, hasGroupedCycle } from './cadence.js'
 import { detect, unsupportedChannelWarnings } from './capabilities.js'
 import type { Capabilities } from './capabilities.js'
 import { compileTargets, scopeHoists } from './compile.js'
@@ -55,6 +56,7 @@ import type { ElementAttributes, ElementConfig } from './element-config.js'
 import { createJsEffectPreparer } from './js-effect-preparer.js'
 import type { JsEffectPreparer, JsEffectPreparerOptions } from './js-effect-preparer.js'
 import { EASING_KEYWORDS, parse } from './parse.js'
+import { isInfiniteRepeat } from './repeat.js'
 import { createRootResolver, createScrollScheduler } from './scroll-scheduler.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
 import { play } from './play.js'
@@ -73,6 +75,7 @@ import { applyToggleVerb, warnAboutToggleActions } from './toggle-actions.js'
 import type { Crossing, ToggleActions } from './toggle-actions.js'
 import type {
   Activation,
+  Cleanup,
   EffectInstance,
   EffectSpec,
   InstanceControl,
@@ -266,6 +269,17 @@ export class Animator {
    */
   private gateWatcher: GateWatcher | undefined
   private started = false
+  /**
+   * Live `every:` cadences, one per element that authors one.
+   *
+   * Deliberately NOT part of `InstanceState`: `replay()` is `reset()` → `process()` → `activate()`,
+   * and `reset()` releases that state. A cadence stored there would kill itself on the first tick
+   * that replays. Reconciled by `syncCadence` on every `process()` and dropped only when the
+   * element is removed, its `every:` goes away, or the animator is destroyed — never in `release()`.
+   * `thunks` is replaced on each reconcile so a recompile's fresh cycle hooks are the ones a later
+   * tick calls, while the scheduler (and its one IntersectionObserver) is kept.
+   */
+  private readonly cadences = new Map<Element, { every: string; release: Cleanup; thunks: Array<() => void> }>()
   /** This animator's derived-host bookkeeping — see `DerivedBook`. */
   private readonly book: DerivedBook = createDerivedBook()
   /** The narrow window the `derived/*` modules get onto this animator — see `AnimatorPort`. */
@@ -429,10 +443,125 @@ export class Animator {
       // Deliberately does NOT stamp the normalized attribute: an effect registered later must
       // still be able to claim this element on a rescan.
       el.setAttribute(ATTR.state, facts.unknown.length > 0 ? 'pending' : 'failed')
+      this.dropCadence(el)
       return
     }
 
     this.install({ el, fingerprint, parsed, config, baseConfig, document })
+    this.syncCadence(el, parsed, config, document)
+  }
+
+  /**
+   * Make this element's `every:` cadence match what its attribute now says.
+   *
+   * Runs after `install` on every `process()`, including the one `replay()` triggers — which is why
+   * an unchanged `every:` keeps the running scheduler (and its observer) and only swaps in the fresh
+   * cycle hooks; see `cadences`. Refusals warn and leave no cadence: a scroll-driven element is
+   * already driven by scroll (an `every:` replays clock time), and an element whose every effect is
+   * `repeat:infinite` never finishes, so every tick would be skipped.
+   *
+   * @complexity O(e) time in composed effects; O(1) space.
+   * @overallScore 100
+   */
+  private syncCadence(el: Element, parsed: ParsedValue, config: ElementConfig, document: CompiledDocument): void {
+    const every = parsed.every
+    if (every === undefined) {
+      this.dropCadence(el)
+      return
+    }
+    const warn = (message: string): void => this.reporter.warn(message, el)
+    const specs = document.targets.flatMap((target) => target.specs)
+    if (config.timeline !== 'time') {
+      this.dropCadence(el)
+      warn('every: needs a clock timeline; a scroll-driven element is already driven by scroll, so no cadence started')
+      return
+    }
+    if (specs.length > 0 && specs.every((spec) => isInfiniteRepeat(spec.repeat))) {
+      this.dropCadence(el)
+      warn('every: has nothing to replay; every effect is repeat:infinite and never finishes, so no cadence started')
+      return
+    }
+    const thunks = cycleThunks(el, document, warn)
+    const existing = this.cadences.get(el)
+    if (existing && existing.every === every) {
+      existing.thunks = thunks
+      return
+    }
+    this.dropCadence(el)
+    if (hasGroupedCycle(document)) {
+      warn("every: cycles only the host element's own effects; a target: group with a cycle hook replays instead")
+    }
+    const win = el.ownerDocument.defaultView ?? (globalThis as unknown as Window)
+    const entry = { every, release: (() => {}) as Cleanup, thunks }
+    entry.release = createCadence({
+      el,
+      periodMs: everyToMs(every),
+      host: { win, doc: el.ownerDocument, reducedMotion: this.respectReducedMotion && this.capabilities.reducedMotion },
+      tick: () => this.cadenceTick(el, entry.thunks),
+      warn,
+    }).release
+    this.cadences.set(el, entry)
+  }
+
+  /** Release and forget one element's cadence, if it has one. O(1). */
+  private dropCadence(el: Element): void {
+    const entry = this.cadences.get(el)
+    if (!entry) return
+    this.cadences.delete(el)
+    entry.release()
+  }
+
+  /**
+   * One `every:` step. In order, and exactly one of them:
+   *
+   * 1. never activated (`ready`, e.g. `on:manual`) → `activate`. A tick never both activates and
+   *    cycles: a FLIP watcher needs its first snapshot before a reorder means anything.
+   * 2. any composed primitive has a cycle hook → run them all. A DOM state change the primitive's
+   *    own watcher animates; replaying would reset the very state being demonstrated.
+   * 3. still `running` → skip. A tick never interrupts a run in progress.
+   * 4. otherwise → `replay`, the route `play()` shares.
+   *
+   * A state that is none of those (`pending`/`failed`, or no state because the element was
+   * recompiled away) skips: there is nothing installed to step.
+   *
+   * @complexity O(c) time in cycle hooks; O(1) space.
+   * @overallScore 100
+   */
+  private cadenceTick(el: Element, thunks: ReadonlyArray<() => void>): void {
+    const status = this.states.get(el)?.status
+    if (status === 'ready') {
+      this.activate(el)
+      return
+    }
+    if (status === undefined || status === 'pending' || status === 'failed') return
+    if (thunks.length > 0) {
+      for (const thunk of thunks) thunk()
+      return
+    }
+    if (status === 'running') return
+    this.replay(el)
+  }
+
+  /**
+   * Run an element's effects again from their from-state: reset, recompile, activate.
+   *
+   * The one replay route. A second `activate()` of a finished CSS element *reverses* it (toggle
+   * semantics), and `process()` short-circuits on an unchanged fingerprint, so neither alone starts
+   * the effect over; tearing down first is what makes both honest. `play()` and the `every:` cadence
+   * share it so "replay" cannot mean two things. The cadence survives the round trip because it
+   * lives outside the state `reset()` releases (see `cadences`).
+   *
+   * Restores whatever the effects wrote, so a JS-rendered effect that restores on finish
+   * (`slat-assemble`) starts again from the author's own markup. A cycle hook's DOM change is the
+   * exception: it is a state change the author asked for, and nothing here undoes it.
+   *
+   * @complexity O(e) time in composed effects; O(e) space for the recompiled plan.
+   * @overallScore 100
+   */
+  replay(el: Element): void {
+    this.reset(el)
+    this.process(el)
+    this.activate(el)
   }
 
   /**
@@ -1562,6 +1691,8 @@ export class Animator {
     const candidates = [node, ...node.querySelectorAll('*')]
     for (const el of candidates) {
       if (this.liveElements.has(el)) this.release(el)
+      // A cadence outlives `release()` on purpose (see `cadences`), so removal is its own exit.
+      this.dropCadence(el)
     }
     restageAfterRemoval(candidates, this.reporter)
     // The derived-host analogue of the line above: re-index any surviving host that lost a
@@ -1576,6 +1707,7 @@ export class Animator {
     // The group ledger snapshotted whatever the effect ledger had already written, so unwinding
     // it second would put a library value back on top of the author's own.
     releaseStagger(this.root)
+    for (const el of [...this.cadences.keys()]) this.dropCadence(el)
     for (const el of [...this.liveElements]) this.release(el)
     this.gateWatcher?.destroy()
     this.binder.destroy()

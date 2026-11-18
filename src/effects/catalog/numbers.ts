@@ -529,8 +529,8 @@ function prepareOdometer(el: Element, params: EffectParams, ctx: PrepareContext)
 }
 
 export const COUNT_PRIMITIVES: Primitive[] = [
-  countPrimitive('count', countParams, deferPrepare(prepareCount)),
-  { ...countPrimitive('count-odometer', odometerParams, deferPrepare(prepareOdometer)), perfClass: 'layout' },
+  { ...countPrimitive('count', countParams, deferPrepare(prepareCount)), repeatable: true },
+  { ...countPrimitive('count-odometer', odometerParams, deferPrepare(prepareOdometer)), perfClass: 'layout', repeatable: true },
   { ...countPrimitive('number-tokens', {
     attribute: { type: 'text', default: 'data-value', cssProperty: '--kui-number-attribute' },
     duration: { type: 'time', default: '400ms', cssProperty: '--kui-duration' },

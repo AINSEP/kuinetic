@@ -78,6 +78,26 @@ function distanceParam(cssProperty: string, defaultValue: string): ParameterSche
   return { distance: { type: 'length', default: defaultValue, cssProperty } }
 }
 
+/**
+ * One `every:` step of the `*-open` family: flip the host between open and closed through whatever
+ * mechanism it already has, so the `@starting-style` transition runs. `[popover]` toggles the
+ * popover; `<dialog>` shows or closes (modeless `show`, never `showModal`, so a loop does not trap
+ * focus); `<details>` toggles `open`; anything else toggles `data-open`. Not undone by `reset()`.
+ */
+function cycleDialog(dialog: HTMLDialogElement): void {
+  const open = dialog.hasAttribute('open')
+  const native = open ? dialog.close : dialog.show
+  if (typeof native === 'function') native.call(dialog)
+  else dialog.toggleAttribute('open')
+}
+
+function cycleOpen(el: Element): void {
+  if (el.hasAttribute('popover') && typeof (el as HTMLElement).togglePopover === 'function') {
+    ;(el as HTMLElement).togglePopover()
+  } else if (el.localName === 'dialog') cycleDialog(el as HTMLDialogElement)
+  else el.toggleAttribute(el.localName === 'details' ? 'open' : 'data-open')
+}
+
 function discretePrimitive(id: string, channels: string[], extraParams: ParameterSchema = {}): Primitive {
   return {
     id,
@@ -92,6 +112,7 @@ function discretePrimitive(id: string, channels: string[], extraParams: Paramete
     // change, not a vestibular trigger the way parallax or an infinite ambient loop is — same
     // reasoning `hoverPrimitive` gives interaction.ts's family.
     reducedMotion: 'shorten',
+    cycle: cycleOpen,
     prepare: stylesheetTimingPrepare(id, { honours: ALL_TIMING_TOKENS, because: PINNED_REASON }),
   }
 }

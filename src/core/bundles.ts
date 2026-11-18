@@ -63,9 +63,9 @@ import type { EffectSpec, ParsedValue } from './types.js'
  * Element-scoped keys a bundle carries to its usage site. The stagger-group keys are excluded — see
  * `readBundle`.
  */
-type BundleHoists = Pick<ParsedValue, 'activation' | 'timeline' | 'threshold' | 'rm' | 'func'>
+type BundleHoists = Pick<ParsedValue, 'activation' | 'timeline' | 'threshold' | 'rm' | 'func' | 'every'>
 
-const HOIST_KEYS = ['activation', 'timeline', 'threshold', 'rm', 'func'] as const
+const HOIST_KEYS = ['activation', 'timeline', 'threshold', 'rm', 'func', 'every'] as const
 
 type HoistKey = (typeof HOIST_KEYS)[number]
 
@@ -76,6 +76,7 @@ const HOIST_LABELS: Record<HoistKey, string> = {
   threshold: 'threshold',
   rm: 'rm',
   func: 'func',
+  every: 'every',
 }
 
 interface Bundle {
@@ -294,7 +295,7 @@ function readBundle(name: string, source: string, el: Element, reporter: Reporte
  * A conflict *between* bundles is warned; a conflict between a bundle and the element's own
  * `on:`/`timeline:`/… is not, because that is the documented precedence rather than a mistake.
  *
- * @complexity O(k) time in the five hoist keys; O(1) space.
+ * @complexity O(k) time in the hoist keys; O(1) space.
  * @overallScore 100
  */
 function takeHoists(bundle: Bundle, name: string, sink: Sink): void {

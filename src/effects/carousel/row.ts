@@ -10,7 +10,7 @@ import type { DeckLayout } from './deck.js'
 import { wrapPlace } from './drag.js'
 import { createRowCopies, ROW_COPY_ATTR, watchCopySources } from './row-copies.js'
 import { deckSourceVariant } from './sources.js'
-import { clampPeriod } from '../auto-motion.js'
+import { clampPeriod } from '../../core/auto-motion.js'
 import { createLine } from './line.js'
 import { createArchive } from './archive.js'
 

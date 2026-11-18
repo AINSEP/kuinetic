@@ -297,6 +297,55 @@ describe('play()', () => {
     expect(animator.stateOf(el)?.status).toBe('running')
   })
 
+  it('preserves authored parameters byte-for-byte and starts the derived effects', () => {
+    const source = 'menu-stagger-open target:li cascade:80ms on:manual'
+    const animator = build(`<ul id="menu" data-kui="${source}"><li>Work</li><li>Shop</li></ul>`)
+    const menu = document.getElementById('menu')!
+    const items = [...menu.querySelectorAll('li')]
+    play({ animator, root: document.body, target: menu, effect: 'menu-stagger-open' })
+
+    expect(menu.getAttribute(ATTR.source)).toBe(source)
+    expect(animator.derivedOf(menu)).toEqual(items)
+    expect(items.map((item) => animator.stateOf(item)?.status)).toEqual(['running', 'running'])
+  })
+
+  it('writes explicit target and cascade overrides while keeping other authored options', () => {
+    const animator = build('<ul data-kui="menu-stagger-open target:li cascade:80ms on:manual"><li class="work">Work</li><li>Shop</li></ul>')
+    const menu = document.querySelector('ul')!
+    play(
+      { animator, root: document.body, target: menu, effect: 'menu-stagger-open' },
+      { target: '.work', cascade: '120ms' },
+    )
+
+    expect(menu.getAttribute(ATTR.source)).toBe('menu-stagger-open on:manual target:.work cascade:120ms')
+    expect(animator.derivedOf(menu)).toEqual([menu.querySelector('.work')])
+  })
+
+  it('overrides a delay without adding a duration or rewriting a selector or easing', () => {
+    const step = "fade-up target:'.a > span, .b > span' cubic-bezier(.2, .8, .2, 1)"
+    const animator = build(`<div id="a" data-kui="${step} delay:100ms"><div class="a"><span>Hi</span></div></div>`)
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'fade-up' }, { delay: 200 })
+
+    expect(el.getAttribute(ATTR.source)).toBe(`${step} delay:200ms`)
+  })
+
+  it('uses the first step whose name exactly matches the requested effect', () => {
+    const animator = build('<p id="a" data-kui="fade-up, typewriter-extra 10ms, typewriter 200ms, typewriter 300ms">Hi</p>')
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'typewriter' })
+
+    expect(el.getAttribute(ATTR.source)).toBe('typewriter 200ms')
+  })
+
+  it('replaces the attribute with the serialized effect when the name is absent', () => {
+    const animator = build('<p id="a" data-kui="fade-up distance:30px">Hi</p>')
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'typewriter' }, { duration: 200 })
+
+    expect(el.getAttribute(ATTR.source)).toBe('typewriter 200ms')
+  })
+
   it('replays: a second play() call on the same element restarts rather than silently no-opping', () => {
     // `process()` short-circuits on an unchanged configuration fingerprint, so playing the exact
     // same effect twice needs `animator.reset()` first or the second call is a silent no-op.

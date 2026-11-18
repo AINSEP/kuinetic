@@ -1,7 +1,7 @@
 # Getting Started
 
 This page is the fast path: install it, write one attribute, see it move. For the full list of
-314 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
+315 named effects see the [Catalog](?doc=catalog); for why the library is built the way it is —
 the channel model, activation vs. timeline, the packaging strategy — see
 [Architecture](?doc=design).
 
@@ -274,6 +274,7 @@ Every effect accepts these; individual effects add their own on top (`distance:`
 | `at:` | position this effect relative to the previous one in the comma list | `blur-in at:-200ms` |
 | `repeat:` | how many times this effect plays — a number, or `infinite` | `shake-error repeat:3` |
 | `yoyo:` | alternate direction between plays, so it goes there and comes back | `bob repeat:4 yoyo:true` |
+| `every:` | replay on a cadence with a 2s minimum period | `flip-shuffle every:2.6s` |
 | `above:` | run this effect only from a breakpoint up | `parallax-y above:md` |
 | `below:` | run this effect only below a breakpoint | `fade-up below:md` |
 | `on:` | activation: a library name, any DOM event, or a `start/end` pair | `fade-up on:hover` |
@@ -293,6 +294,8 @@ Only the element-scoped settings have longhand attribute forms — `data-kui-on`
 `data-kui-timeline`, `data-kui-threshold`, and `data-kui-stagger`. Where an inline key also exists
 it wins (`on:hover` beats `data-kui-on="click"`, `cascade:60ms` beats `data-kui-stagger="90ms"`).
 Timing has no longhand: duration, delay, and easing are read from the `data-kui` value only.
+
+Cadence runs while the element and tab are visible, and respects pause scopes and reduced motion.
 
 ---
 
@@ -405,9 +408,8 @@ Five things worth knowing:
 - **`at:after` measures the whole playback.** `fade-up 400ms repeat:3, blur-in at:after` starts the
   blur at 1200ms, not 400ms. Anchoring to the end of a `repeat:infinite` effect is refused with a
   warning — it has no end — so use `at:with` to start alongside it instead.
-- **JavaScript-rendered effects cannot repeat.** `count-up`, `typewriter`, `pin-section` and the
-  rest compile no `animation-iteration-count` at all. Writing one warns by name rather than doing
-  nothing quietly; a couple of them carry their own loop parameter instead (`typewriter loop:true`).
+- Repeatable JavaScript effects such as `slat-assemble` and `count-up` accept positive whole counts
+  or `infinite`. They replay whole runs. `yoyo:` is ignored.
 
 ---
 
@@ -896,6 +898,9 @@ hero.progress // 0..1, the least-advanced element in the selection
 hero.state    // 'idle' | 'running' | 'paused' | 'finished'
 ```
 
+`play()` takes authored parameters from the first step with the requested name and writes explicit
+overrides back to `data-kui`.
+
 To slow a whole section with a button, wrap it in `data-kui="slow-mo rate:0.25"`.
 Use `controls:none` to start slowed without a button; see [slow-mo](?doc=catalog#t-showcase--10-names).
 
@@ -1167,7 +1172,7 @@ Without JavaScript, these examples retain their authored HTML. Linked lightbox i
 
 ## Where next
 
-- **[Catalog](?doc=catalog)** — all 314 named effects, grouped by category, with renderer and
+- **[Catalog](?doc=catalog)** — all 315 named effects, grouped by category, with renderer and
   channel metadata for each.
 - **[Architecture](?doc=design)** — the attribute grammar, the composition model, and why the
   library is built the way it is.

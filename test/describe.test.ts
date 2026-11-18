@@ -237,6 +237,7 @@ describe('reserved keys', () => {
     expect(scopes).toEqual({
       on: 'element', actions: 'element', timeline: 'element', threshold: 'element', cascade: 'element',
       spread: 'element', order: 'element', cols: 'element', along: 'element', rm: 'element', func: 'element',
+      every: 'element',
       at: 'step', above: 'step', below: 'step', wide: 'step', narrow: 'step', repeat: 'step', yoyo: 'step',
     })
     // Proved against the parser, not restated: an element key lands on the ParsedValue whichever

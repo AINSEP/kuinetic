@@ -222,6 +222,7 @@ interface JsTextPrimitiveOptions {
   parameters: ParameterSchema
   prepare: Primitive['prepare']
   perfClass?: Primitive['perfClass']
+  repeatable?: true
 }
 
 function jsTextPrimitive(id: string, channels: string[], options: JsTextPrimitiveOptions): Primitive {
@@ -242,6 +243,7 @@ function jsTextPrimitive(id: string, channels: string[], options: JsTextPrimitiv
     // — which is the only place that actually works for a timer- or DOM-surgery-driven effect.
     reducedMotion: 'disable',
     prepare: options.prepare,
+    ...(options.repeatable ? { repeatable: true as const } : {}),
   }
 }
 
@@ -866,6 +868,9 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
   // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
   jsTextPrimitive('split-text', [CHANNEL.opacity, CHANNEL.translate, CHANNEL.clip, 'content'], {
     parameters: splitTiming,
+    // A timed reveal restores the markup on finish, so a replay starts clean (`hold` bails to a
+    // continuous setup, which stops the loop after one run).
+    repeatable: true,
     prepare: deferPrepare(prepareSplitText),
   }),
   // `'content'`: rewrites the element's DOM content, so two of these on one element must conflict.
@@ -878,6 +883,7 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
   {
     ...jsTextPrimitive('typewriter', [CHANNEL.clip, 'content'], {
       parameters: typewriterParams,
+      repeatable: true,
       prepare: deferPrepare(prepareTypewriter),
       perfClass: 'continuous',
     }),
@@ -888,6 +894,7 @@ export const TEXT_JS_PRIMITIVES: Primitive[] = [
   // `min-width`/`min-height`: the rest box it pins while the glyphs churn (`prepareScramble`).
   jsTextPrimitive('scramble-text', ['content', 'min-width', 'min-height'], {
     parameters: scrambleParams,
+    repeatable: true,
     prepare: deferPrepare(prepareScramble),
     perfClass: 'continuous',
   }),

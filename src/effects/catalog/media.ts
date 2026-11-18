@@ -531,6 +531,8 @@ export const MEDIA_JS_PRIMITIVES: Primitive[] = [
     // `prepareSlatAssemble`'s `land()`. Declared, not assumed: see `restoresOnFinish`'s own comment
     // in `core/types.ts` for why the catalog's default is the opposite of this.
     restoresOnFinish: true,
+    // Normal path returns `{ cleanup, finished }` and a re-run rebuilds the stage from the from-state.
+    repeatable: true,
     prepare: deferPrepare(prepareSlatAssemble),
   },
   {

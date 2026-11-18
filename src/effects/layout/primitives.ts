@@ -365,6 +365,34 @@ function watchAttribute(root: Element, attribute: string, onChange: () => void):
   return () => observer.disconnect()
 }
 
+/**
+ * One `every:` demonstration step of `flip-container`: permute the host's element children and
+ * re-append them in the new order — the same DOM write an author's own shuffle makes, which the
+ * FLIP watcher then animates. Prefers a derangement (never leaves the order unchanged when there
+ * are two or more children). `Math.random` on purpose: a demo, not layout. Nothing is restored;
+ * `reset()` does not undo a cycle.
+ */
+function cycleFlipContainer(el: Element): void {
+  const kids = Array.from(el.children)
+  if (kids.length < 2) return
+  const order = kids.slice()
+  for (let i = order.length - 1; i > 0; i--) {
+    // eslint-disable-next-line sonarjs/pseudo-random -- a demo shuffle, not security or layout
+    const j = Math.floor(Math.random() * (i + 1))
+    const held = order[i] as Element
+    order[i] = order[j] as Element
+    order[j] = held
+  }
+  if (order.every((node, i) => node === kids[i])) order.push(order.shift() as Element)
+  for (const node of order) el.appendChild(node)
+}
+
+/** One `every:` step of `auto-height`: toggle the watched attribute (default `data-open`). Not undone by reset. */
+function cycleAutoHeight(el: Element, params: EffectParams): void {
+  const attribute = params.text('attribute', 'data-open')
+  if (attribute) el.toggleAttribute(attribute)
+}
+
 export const LAYOUT_PRIMITIVES: Primitive[] = [
   { ...layoutPrimitive(
     'flip-container',
@@ -381,7 +409,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       },
     },
     deferPrepare(prepareFlipContainer),
-  ), variantFor: flipVariant },
+  ), variantFor: flipVariant, cycle: cycleFlipContainer },
 
   { ...layoutPrimitive(
     'auto-height',
@@ -392,7 +420,7 @@ export const LAYOUT_PRIMITIVES: Primitive[] = [
       axis: { type: 'keyword', default: 'height', keywords: ['height', 'width'], cssProperty: '--kui-size-axis' },
     },
     deferPrepare(prepareAutoHeight),
-  ), variantFor: (spec) => spec.params.axis === 'width'
+  ), cycle: cycleAutoHeight, variantFor: (spec) => spec.params.axis === 'width'
     ? { channels: ['width', 'white-space'], params: { ...spec.params, 'closed[width]': 'auto' },
       schema: { 'closed[width]': { type: 'keyword', default: '0', keywords: ['0', 'auto'], cssProperty: '--kui-auto-height-closed' } } }
     : { channels: ['height'] } },

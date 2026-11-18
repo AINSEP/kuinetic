@@ -375,6 +375,7 @@ const ELEMENT_KEYS: Record<ElementField, KeySpec> = {
   along: { key: 'along', type: 'keyword', default: '', spellings: ['x', 'y'], keywords: ['x', 'y'] },
   rm: { key: 'rm', type: 'keyword', default: '', spellings: RM_POLICIES, keywords: RM_POLICIES },
   func: { key: 'func', type: 'text', default: '', spellings: ['onRevealDone'] },
+  every: { key: 'every', type: 'time', default: '', spellings: ['2.6s', '900ms'] },
 }
 
 /** Every field of {@link EffectSpec} a reserved key writes into. */

@@ -494,6 +494,18 @@
     }
   }
 
+  /*
+   * `pause-scope`: a paused container freezes every CSS animation beneath it, library-made or not
+   * (WCAG 2.2.2 is about what the visitor sees). `!important` is required because the animator's own
+   * gate writes `animation-play-state: running` inline, and a normal rule loses to inline style.
+   */
+  [data-kui-paused],
+  [data-kui-paused] *,
+  [data-kui-paused] *::before,
+  [data-kui-paused] *::after {
+    animation-play-state: paused !important;
+  }
+
   @media print {
     [data-kui-fx],
     [data-kui-reveal] {

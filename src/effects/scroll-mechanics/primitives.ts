@@ -9,6 +9,8 @@ import { createAttributeLedger, createStyleLedger } from '../../core/owned-style
 import { createMeasureCache } from '../../core/scroll-scheduler.js'
 import { TIMELINE_AGNOSTIC, withTimingContract } from '../shared.js'
 import { createStepMarker } from '../step-marking.js'
+import { AUTOPLAY_PARAM, HOVER_PARAM, PAUSE_PARAM } from '../auto-motion.js'
+import { startSnapAutoplay } from './snap-autoplay.js'
 import { queryScoped, resolveTarget, SCOPE_PARAM, scopeParam } from '../../core/target.js'
 import type { TargetScope } from '../../core/target.js'
 import { prepareScrollSpy } from './scroll-spy.js'
@@ -672,7 +674,7 @@ function prepareSmoothScroll(el: Element, params: EffectParams, ctx: PrepareCont
  * @complexity O(n) time in the number of children; O(1) space.
  * @overallScore 100
  */
-function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
+function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup | ContinuousSetup {
   const axis = params.is('axis', 'x') ? 'x' : 'y'
   ctx.style.set('scroll-snap-type', `${axis} ${params.text('strictness', 'mandatory')}`)
 
@@ -691,9 +693,11 @@ function prepareSnap(el: Element, params: EffectParams, ctx: PrepareContext): Cl
   const childLedgers = items.map((child) => createStyleLedger(child))
   for (const ledger of childLedgers) ledger.set('scroll-snap-align', params.text('align', 'start'))
 
-  return () => {
+  const restore: Cleanup = () => {
     for (const ledger of childLedgers) ledger.restore()
   }
+  // `autoplay:` steps the strip on the carousel's scheduler; without it the result is unchanged.
+  return startSnapAutoplay({ el, items, params, ctx, release: restore }) ?? restore
 }
 
 /**
@@ -878,6 +882,10 @@ export const SCROLL_PRIMITIVES: Primitive[] = [
       // Which tree `target:` is searched in. Unset means this primitive's own historical answer —
       // see `prepareSnap`. One declaration, shared: `effects/step-marking.ts`.
       scope: SCOPE_PARAM,
+      // Steps through the items on a timer; see `snap-autoplay.ts`.
+      autoplay: AUTOPLAY_PARAM,
+      pause: PAUSE_PARAM,
+      hover: HOVER_PARAM,
     },
     prepare: deferPrepare(prepareSnap),
     perfClass: 'layout',

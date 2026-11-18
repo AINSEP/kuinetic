@@ -260,11 +260,10 @@ describe('docs/catalog.md against the live registry', () => {
     expect(wrong).toEqual([])
   })
 
-  it('keeps the landing counter destination and its printed label aligned with the registry', () => {
+  it('keeps the landing meta description and counter destination aligned with the registry', () => {
     const index = read('demo/index.html')
     expect(index).toContain(`${registered.size} named effects from 48 primitive families`)
     expect(index).toContain(`data-kui="count-up 1600ms to:${registered.size},`)
-    expect(index).toContain(`count-up to:${registered.size}, tween-from spring</span>`)
   })
 
   it('design.md enumerates exactly the channels the source declares', () => {

@@ -4,6 +4,7 @@ import type { CompiledPlan, Entry } from './compile.js'
 import type { PrepareContext } from './effect-context.js'
 import { readEffectParams, readEffectTiming } from './js-params.js'
 import type { StyleLedger } from './owned-styles.js'
+import { repeatedInstance } from './instances.js'
 import type { Reporter } from './reporter.js'
 import type { ScrollRoot, ScrollScheduler } from './scroll-scheduler.js'
 import type { EffectInstance, EffectTiming, Timeline } from './types.js'
@@ -65,6 +66,20 @@ function sequencedTiming(entry: Entry, warn: (message: string) => void): EffectT
   const timing = readEffectTiming(entry.spec, warn)
   if (entry.sequencedDelayMs !== undefined) timing.delayMs = entry.sequencedDelayMs
   return timing
+}
+
+/**
+ * Wrap an instance in the replay loop when the segment asked for more than one run.
+ *
+ * Under reduced motion a tween is instant, so repeating it is pointless (and an infinite repeat
+ * has already been escalated to `disable` by the compiler).
+ *
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function withRepeat(instance: EffectInstance, repeat: string | undefined, ctx: PrepareContext): EffectInstance {
+  if (repeat === undefined || repeat === '1' || ctx.reducedMotion) return instance
+  return repeatedInstance(instance, repeat, ctx.win)
 }
 
 /**
@@ -130,7 +145,7 @@ export function createJsEffectPreparer(options: JsEffectPreparerOptions): JsEffe
           sequencedTiming(entry, warn),
         )
         try {
-          instances.push(prepare(el, params, ctx))
+          instances.push(withRepeat(prepare(el, params, ctx), spec.repeat, ctx))
         } catch (error) {
           reporter.warn(`"${spec.name}" failed to initialise: ${String(error)}`, el)
         }

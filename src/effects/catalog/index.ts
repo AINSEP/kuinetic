@@ -7,6 +7,7 @@ import { registerInteractionProximity } from './interaction-proximity.js'
 import { registerMaterials } from './materials.js'
 import { registerMedia } from './media.js'
 import { registerNumbers } from './numbers.js'
+import { registerPauseScope } from './pause-scope.js'
 import { registerText } from './text.js'
 import { registerTransforms } from './transforms.js'
 
@@ -34,5 +35,6 @@ export function registerCatalog(registry: Registry): Registry {
   registerDiscrete(registry)
   registerTransforms(registry)
   registerMaterials(registry)
+  registerPauseScope(registry)
   return registry
 }

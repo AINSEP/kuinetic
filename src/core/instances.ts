@@ -1,4 +1,5 @@
 import { createCssControl } from './control.js'
+import { isInfiniteRepeat, repeatCount } from './repeat.js'
 import { timeScaleOf } from './time-scale.js'
 import type { StyleLedger } from './owned-styles.js'
 import type { Cleanup, EffectInstance } from './types.js'
@@ -355,6 +356,7 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
   let running: SetupResult | undefined
   let settle: (() => void) | undefined
   let finished = Promise.resolve()
+  let finite = false
 
   const teardown = (): void => {
     cleanupOf(running)?.()
@@ -371,6 +373,7 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
       // would never come back. Cancelling already clears this, so the ordinary path is a no-op.
       if (running !== undefined) teardown()
       running = setup()
+      finite = typeof running === 'object' && 'finished' in running
       if (typeof running === 'function' || 'continuous' in running) return
       // Installed here rather than at construction because whether this effect finishes at all is
       // only knowable once its setup has actually started it.
@@ -392,6 +395,7 @@ export function deferredInstance(setup: () => SetupResult): EffectInstance {
     // Only an explicit marker counts. A bare `Cleanup` deliberately does not — see
     // `ContinuousSetup` above for why the two cannot be told apart by shape.
     continuous: () => typeof running === 'object' && 'continuous' in running,
+    finite: () => finite,
   })
 }
 
@@ -431,6 +435,8 @@ export interface JsInstanceHooks {
    * deferred setup only learns which kind it is once it has run. See `EffectInstance.continuous`.
    */
   continuous?(): boolean
+  /** Whether the last run produced a real completion. See `EffectInstance.finite`. */
+  finite?(): boolean
 }
 
 /**
@@ -491,9 +497,105 @@ export function createJsInstance(hooks: JsInstanceHooks): EffectInstance {
     get continuous() {
       return hooks.continuous?.() ?? false
     },
+    get finite() {
+      return hooks.finite?.()
+    },
     destroy() {
       active = false
       hooks.destroy()
     },
+  }
+}
+
+/**
+ * Run `fn` on the next frame, falling back to a 16ms timer where there is no animation frame.
+ *
+ * @returns A handle that cancels the pending call.
+ * @complexity O(1) time and space.
+ * @overallScore 100
+ */
+function nextFrame(win: Window, fn: () => void): { cancel: () => void } {
+  if (typeof win.requestAnimationFrame === 'function') {
+    const id = win.requestAnimationFrame(fn)
+    return { cancel: () => win.cancelAnimationFrame?.(id) }
+  }
+  const id = setTimeout(fn, 16)
+  return { cancel: () => clearTimeout(id) }
+}
+
+/**
+ * Replay a finite JS instance `repeat:` times, or forever.
+ *
+ * Each iteration is `inner.activate()` again: `deferredInstance` re-runs a finished setup from a
+ * clean slate, so replay needs no new mechanism, only a loop. The next iteration is scheduled on
+ * the next animation frame, never a microtask, so a run that completes instantly cannot starve the
+ * event loop. The loop stops when `inner.finite` is not `true` — a setup that bailed out with a
+ * bare cleanup is indistinguishable by shape from a real run, and looping it would spin.
+ *
+ * Rejected: inferring repeatability at runtime for every JS instance — the compile-time warning
+ * would then lie for continuous effects. Repeatability is declared on the primitive instead.
+ *
+ * @param inner - The instance to replay.
+ * @param repeat - The validated `repeat:` value: a positive whole number or `infinite`.
+ * @param win - Window supplying `requestAnimationFrame`.
+ * @complexity O(1) time and space per iteration.
+ * @overallScore 100
+ */
+export function repeatedInstance(inner: EffectInstance, repeat: string, win: Window): EffectInstance {
+  const total = isInfiniteRepeat(repeat) ? Infinity : (repeatCount(repeat) ?? 1)
+  let generation = 0
+  let stopped = true
+  let pending: { cancel: () => void } | undefined
+  let finished = Promise.resolve()
+  let settle: (() => void) | undefined
+
+  const halt = (): void => {
+    generation++
+    pending?.cancel()
+    pending = undefined
+  }
+  const stop = (): void => {
+    stopped = true
+    halt()
+    settle?.()
+  }
+
+  const run = (done: number, gen: number): void => {
+    inner.activate()
+    void inner.finished.then(() => {
+      if (gen !== generation || stopped) return
+      if (inner.finite !== true || done + 1 >= total) return stop()
+      pending = nextFrame(win, () => {
+        pending = undefined
+        if (gen === generation && !stopped) run(done + 1, gen)
+      })
+    })
+  }
+
+  return {
+    activate() {
+      // A second activation while looping restarts the count, like a re-click does today.
+      halt()
+      if (!stopped) inner.cancel()
+      settle?.()
+      stopped = false
+      finished = new Promise<void>((resolve) => {
+        settle = resolve
+      })
+      run(0, generation)
+    },
+    cancel: () => { stop(); inner.cancel() },
+    finish: () => { stop(); inner.finish() },
+    destroy: () => { stop(); inner.destroy() },
+    get finished() {
+      return finished
+    },
+    get continuous() {
+      return inner.continuous
+    },
+    get finite() {
+      return inner.finite
+    },
+    replaceOnActivate: inner.replaceOnActivate,
   }
 }

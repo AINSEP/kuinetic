@@ -1,6 +1,6 @@
 import type { Animator } from './animator.js'
 import { ATTR } from './attrs.js'
-import { splitTopLevel } from './parse.js'
+import { splitTopLevel, tokenKind } from './parse.js'
 
 export type Target = string | Element | Iterable<Element>
 
@@ -165,11 +165,49 @@ export interface PlayRequest {
   effect: string
 }
 
+function mergeAuthoredStep(source: string, effect: string, fallback: string): string {
+  const steps = splitTopLevel(source, ',')
+  const step = steps.find((candidate) => splitTopLevel(candidate, ' ')[0] === effect)
+  if (!step) return fallback
+
+  const [, ...overrides] = splitTopLevel(fallback, ' ')
+  if (overrides.length === 0) return steps.length === 1 ? source : step
+
+  const [, ...authored] = splitTopLevel(step, ' ')
+  const timeSlots = ['duration', 'delay']
+  let overrideTime = 0
+  const replacements = new Map<string | symbol, string>(overrides.map((token) => {
+    const kind = tokenKind(token)
+    if (kind === 'time') return [timeSlots[overrideTime++] ?? Symbol(), token]
+    if (kind === 'easing') return ['ease', token]
+    if (kind === 'pair') return [token.split(':', 1)[0]!, token]
+    return [Symbol(), token]
+  }))
+  const overridden = new Set(replacements.keys())
+  const hasDuration = overridden.has('duration') || authored.some((token) => tokenKind(token) === 'time')
+  const delay = replacements.get('delay')
+  if (hasDuration && delay?.startsWith('delay:')) replacements.set('delay', delay.slice('delay:'.length))
+
+  let authoredTime = 0
+  const merged = authored.flatMap((token) => {
+    const kind = tokenKind(token)
+    if (kind === 'pair') return overridden.has(token.split(':', 1)[0]!) ? [] : [token]
+    let key: string | undefined
+    if (kind === 'time') key = timeSlots[authoredTime++]
+    if (kind === 'easing') key = 'ease'
+    if (key === undefined || !overridden.has(key)) return [token]
+    const replacement = replacements.get(key)
+    replacements.delete(key)
+    return replacement === undefined ? [] : [replacement]
+  })
+  return [effect, ...merged, ...replacements.values()].join(' ')
+}
+
 /**
  * Play an effect on a selection, returning a handle rather than a bare promise.
  *
- * Options are compiled into the same attribute string an author would write, so the declarative
- * and programmatic surfaces share one execution path instead of drifting apart.
+ * Keep the first authored step with the requested name and write explicit overrides back to
+ * `data-kui`. If no step matches, serialize the effect and options as a new attribute value.
  *
  * @param request - Animator, root, target selection, and effect name.
  * @param options - Timing and effect parameters.
@@ -181,24 +219,18 @@ export function play(request: PlayRequest, options: PlayOptions = {}): PlaybackH
   const { animator, root, target, effect } = request
   const elements = resolveTargets(target, root)
   const stagger = time(options.stagger)
-  const source = toAttributeValue(effect, options)
+  const fallback = toAttributeValue(effect, options)
 
   for (const [index, el] of elements.entries()) {
     if (stagger) {
       ;(el as HTMLElement).style.setProperty('--kui-stagger', stagger)
       ;(el as HTMLElement).style.setProperty('--kui-i', String(index))
     }
-    // Replay: `process()` short-circuits on an unchanged configuration, so playing the same
-    // effect twice was a silent no-op without an explicit reset.
-    animator.reset(el)
-    // Only default to `manual` when the element never declared a trigger of its own — an
-    // element authored `on:hover`/`on:click`/`on:load` keeps that activation across a
-    // programmatic `play()` (e.g. the replay-all FAB), so a natural hover/click still works
-    // afterward. `activate()` below still fires it immediately either way.
+    const authored = el.getAttribute(ATTR.source)
+    const source = mergeAuthoredStep(authored ?? '', effect, fallback)
     if (!el.hasAttribute(ATTR.on)) el.setAttribute(ATTR.on, 'manual')
-    el.setAttribute(ATTR.source, source)
-    animator.process(el)
-    animator.activate(el)
+    if (source !== authored) el.setAttribute(ATTR.source, source)
+    animator.replay(el)
   }
 
   // Every renderer exposes the same lifecycle handle, so a JS-driven effect is awaited and

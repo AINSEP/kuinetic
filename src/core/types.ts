@@ -442,6 +442,16 @@ export interface EffectInstance {
    * once it has actually run.
    */
   readonly continuous?: boolean
+  /**
+   * Whether the run that `activate()` started was a bounded one that will resolve `finished` and
+   * can be started again from its from-state — set after `activate()` by deferred JS instances,
+   * `true` only when the setup returned a timed handle.
+   *
+   * Exists for the `repeat:` decorator: a setup that took an early "nothing to do" bail-out (a bare
+   * cleanup, `finished` already resolved) is indistinguishable by shape from a real finite run, and
+   * looping it would spin. Absent means "not known to be finite", never "infinite".
+   */
+  readonly finite?: boolean
   /** Release every listener, observer, subscription, and inserted node. */
   destroy(): void
 }
@@ -542,6 +552,9 @@ export interface EffectParams {
    */
   readonly timing: EffectTiming
 }
+
+/** What a {@link Primitive.cycle} hook may touch: the host's window and document, and the warning sink. */
+export type CycleContext = Pick<PrepareContext, 'win' | 'doc' | 'warn'>
 
 /**
  * A primitive's refinement of itself for one authored spec.
@@ -674,6 +687,25 @@ export interface Primitive {
    * DOM nodes for a whole debugging session.
    */
   restoresOnFinish?: boolean
+  /**
+   * A finite JS primitive whose setup, re-run after it completes, starts again from its from-state —
+   * so `repeat:` is honoured by replaying it (see `repeatedInstance`).
+   *
+   * Declared, not inferred: whether a setup returns a timed handle is only knowable at runtime, and
+   * compile must decide statically so the refusal warning for a continuous effect is truthful.
+   * Meaningless for `css-keyframes` primitives, which repeat through `animation-iteration-count`.
+   */
+  repeatable?: true
+  /**
+   * What one demonstration step of this primitive changes — called by an `every:` cadence instead of
+   * replaying the element, for primitives whose animation is driven by a DOM state change (a FLIP
+   * container's reorder, a discrete `*-open` toggle).
+   *
+   * The hook performs the same DOM write the author's page would (re-append children, toggle
+   * `data-open`); the primitive's own watcher animates it. Cycles are state changes the author asked
+   * for: `reset()` does not undo them.
+   */
+  cycle?(el: Element, params: EffectParams, ctx: CycleContext): void
   /**
    * JS-side setup. Returns a lifecycle handle, **not** a teardown function.
    *
@@ -1081,6 +1113,13 @@ export interface ParsedValue {
    * the note on why this key must not be built from untrusted input.
    */
   func?: string
+  /**
+   * Replay cadence from the reserved `every:` key — a time token, verbatim (`2.6s`, `900ms`).
+   * "While this element is on screen and nothing pauses it, perform one demonstration step every
+   * period." Element-wide always, like `rm:`/`func:` (never in `SEGMENT_HOIST_KEYS`): one element
+   * has one cadence, whatever its `target:` groups do. The animator owns the clamp and the runtime.
+   */
+  every?: string
   warnings: string[]
 }
 

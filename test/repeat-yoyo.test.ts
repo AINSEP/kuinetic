@@ -168,13 +168,31 @@ describe('yoyo: — what it compiles to', () => {
 })
 
 describe('repeat: — refusals the renderer forces', () => {
-  it('names a JavaScript-rendered effect rather than ignoring the key', () => {
-    // The silent-no-op failure this whole feature had to avoid: `count-up` compiles no
-    // `animation-iteration-count`, so there is nothing for a repeat to set.
-    const message = warnings('count-up repeat:3')
-    expect(message).toContain('"count-up"')
+  it('names a non-repeatable JavaScript-rendered effect rather than ignoring the key', () => {
+    // The silent-no-op failure this whole feature had to avoid: `word-cycler` cycles on its own
+    // interval and has no run to replay, so the key must be refused by name.
+    const message = warnings('word-cycler repeat:3')
+    expect(message).toContain('"word-cycler"')
     expect(message).toContain('rendered in JavaScript')
     expect(message).toContain('repeat:3')
+    expect(message).toContain('slat-assemble')
+  })
+
+  it('accepts repeat on a repeatable JavaScript-rendered effect', () => {
+    expect(warnings('count-up repeat:3')).toBe('')
+    expect(run('count-up repeat:3').jsEffects[0]!.spec.repeat).toBe('3')
+  })
+
+  it('drops a fractional or zero repeat on a repeatable JS effect and says why', () => {
+    expect(warnings('count-up repeat:1.5')).toContain('whole runs')
+    expect(run('count-up repeat:1.5').jsEffects[0]!.spec.repeat).toBeUndefined()
+    expect(warnings('count-up repeat:0')).toContain('never start')
+    expect(run('count-up repeat:0').jsEffects[0]!.spec.repeat).toBeUndefined()
+  })
+
+  it('refuses yoyo on a repeatable JS effect: there is no playhead to run backwards', () => {
+    expect(warnings('count-up yoyo:true')).toContain('no playhead')
+    expect(run('count-up yoyo:true repeat:2').jsEffects[0]!.spec.repeat).toBe('2')
   })
 
   it('names yoyo on a JavaScript-rendered effect too', () => {
