@@ -553,67 +553,6 @@
   }
   .parallax-notes strong { color: var(--fg); font-weight: 600; }
 
-  /* ---------- section-head notes: bullets that arrive from the right ---------- */
-  .head-notes { margin-top: 0.9rem; }
-  .head-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.9rem; max-width: 64ch; }
-  .head-notes li { position: relative; padding-left: 1.2rem; line-height: 1.6; color: var(--muted); }
-  .head-notes li::before {
-    content: ''; position: absolute; left: 0; top: 0.6em;
-    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-  }
-  .head-notes strong { color: var(--fg); font-weight: 600; }
-
-  /* ---------- reversing notes ----------
-     These use view timelines rather than on:enter. An `on:enter` reveal fires once and stays
-     fired — scroll back up and it is simply still there. A view timeline maps the element's
-     travel through the viewport onto the animation, so scrolling up literally runs it backwards
-     and the note leaves again. The `entry 0% cover 35%` range in data-kui-timeline is what keeps
-     that readable: the effect finishes early instead of only reaching full opacity as the text
-     leaves the top of the screen. */
-  .rev-notes { margin: -0.2rem 0 0.9rem; max-width: 62ch; }
-  /* The -0.2rem above is tuned for notes that sit under a `.matrix-group-label`, where pulling
-     them up tightens the pair. Directly after a figure it does the opposite: the caption bar is a
-     full-bleed black slab, and a negative margin slides the first bullet's line box up underneath
-     it so the text renders clipped behind the bar. Reset it, and give the bar real clearance —
-     it is the heaviest element on the page and needs to not touch what follows. */
-  /* An effect boundary, not just clearance. Every one of these selectors is the same relationship:
-     one effect's demo ending, and the next effect's notes beginning, inside a single group. Margin
-     alone left `stacking-cards`' notes reading as a caption on the `pin-spacer` video above them —
-     which is what the owner reported, and it was worst there because that demo ends on a full-bleed
-     dark video with no bottom edge of its own.
-
-     `.pin-spacer-demo` and `.track-stage` were missing from this list entirely, so those two kept
-     the -0.2rem *negative* margin tuned for notes under a group label, and were actively pulled up
-     into the demo above them.
-
-     Same vocabulary as `.matrix-group + .matrix-group`, one step lighter — that divides families,
-     this divides effects within one. `max-width` is lifted so the rule spans the column instead of
-     stopping at 62ch, and the measure moves to the list, which is the thing that actually needs
-     it. */
-  figure + .rev-notes,
-  .pin-until-layout + .rev-notes,
-  .pin-spacer-demo + .rev-notes,
-  .track-stage ~ .rev-notes,
-  .stack-group + .rev-notes {
-    max-width: none;
-    margin-top: 3.75rem;
-    padding-top: 2.5rem;
-    border-top: 1px solid var(--border);
-  }
-  figure + .rev-notes ul,
-  .pin-until-layout + .rev-notes ul,
-  .pin-spacer-demo + .rev-notes ul,
-  .track-stage ~ .rev-notes ul,
-  .stack-group + .rev-notes ul { max-width: 62ch; }
-  .rev-notes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
-  .rev-notes li { position: relative; padding-left: 1.15rem; line-height: 1.6; font-size: 0.9rem; color: var(--muted); }
-  .rev-notes li::before {
-    content: ''; position: absolute; left: 0; top: 0.6em;
-    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
-  }
-  .rev-notes strong { color: var(--fg); font-weight: 600; }
-  .rev-notes code { font-size: 0.86em; }
-
   /* ---------- pinned rotate finale ----------
      Layout only. The half-turn is `parallax-rotate from:-180deg angle:0deg timeline:pin` on the
      element itself — a view timeline stalls the moment an element is pinned, and `timeline:pin`
@@ -1688,18 +1627,6 @@
       <section id="matrix" data-od-id="reveal-parallax">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Scroll reveal &amp; parallax</h2>
-          <div class="head-notes">
-            <ul>
-              <!-- Four entrances cycle through the list, so it samples the catalog again — safe this
-                   time because a keyframe lands on the resting state, unlike parallax's ±travel that
-                   never settles. Reversal comes from data-kui-timeline, not the effect. -->
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">13 names in catalog section B, 12 of them shipped. All 12 are on this page.</li>
-              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong>One is not shipped yet</strong></li>
-              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong><code>reveal-repeat</code> was dropped</strong></li>
-              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>Scroll effects are progress-linked</strong></li>
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%"><strong>Everything below reverses</strong></li>
-            </ul>
-          </div>
         </div>
 
         <div class="matrix-group">
@@ -1880,12 +1807,6 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Pinning</p>
 
-                    <div class="rev-notes">
-            <ul>
-              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-section</code></strong> holds an element still while the page keeps moving under it.</li>
-              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">It inserts a spacer automatically, so a pin longer than its own container still reserves the scroll room it needs.</li>
-            </ul>
-          </div>
           <figure class="pin-section-figure" data-show-code>
             <!-- Used to sit here, above the stage, on the reasoning that a control naming an effect
                  has to be next to that effect. True, but incomplete: "next to" only got the reader
@@ -1944,11 +1865,6 @@
             </div>
           </figure>
 
-                    <div class="rev-notes">
-            <ul>
-              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-until</code></strong> is the sticky-sidebar pattern — no spacer inserted.</li>
-            </ul>
-          </div>
           <!-- One "Show code" for the whole pattern, in the sticky panel, directly under the
                data-kui line it belongs to. Each block used to carry its own `data-show-code`,
                which mounted three identical toggles into three otherwise-empty caption bars —
@@ -1978,12 +1894,6 @@
             </div>
           </div>
 
-                    <div class="rev-notes">
-            <ul>
-              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>pin-spacer</code></strong> is the same primitive as <code>pin-section</code>, named for what it does.</li>
-              <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%">The dashed box below is the real <code>&lt;div data-kui-spacer&gt;</code> — an actual node in the DOM, not a drawing of one.</li>
-            </ul>
-          </div>
           <!-- This demo had the attribute on screen — the typewriter line inside the card — but no
                way to open its source at all, which made it the one pinning demo you could not copy.
                The bar goes above the stage for the same reason as `pin-section`'s. -->
@@ -2009,12 +1919,6 @@
             </div>
           </div>
 
-                    <div class="rev-notes">
-            <ul>
-              <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong><code>stacking-cards</code></strong> is the pin primitive applied once per card.</li>
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">Each card pins at its own <code>offset</code>, so the deck builds itself as you scroll.</li>
-            </ul>
-          </div>
           <!-- One motif for the whole deck: four portfolio sites. The previous four were a car
                configurator, an agency, a dev portfolio and an AI landing page — four unrelated
                subjects, so the deck read as a pile of screenshots rather than a set.
@@ -2051,11 +1955,6 @@
 
         <div class="matrix-group">
           <p class="matrix-group-label">Scrollytelling</p>
-                    <div class="rev-notes">
-            <ul>
-              <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong><code>scrollytelling-step</code></strong> writes <strong><code>data-kui-step</code></strong> onto the section as you pass through it.</li>
-            </ul>
-          </div>
           <p class="kui-contract"><code>data-kui="scrollytelling-step distance:200vh steps:4 target:'.story-lines &gt; li, .story-dots &gt; span'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="story-demo">Show code</button></p>
           <!-- The copy is four stops through one real page and the frame shows the matching screen,
                so the words and the picture are never describing different things. The image is a
