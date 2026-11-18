@@ -100,6 +100,30 @@ describe('scroll-snap autoplay:', () => {
     expect(spy).toHaveBeenLastCalledWith({ left: 100, behavior: 'smooth' })
   })
 
+  it('aligns the end of the next item with the end of the viewport', () => {
+    let spy!: ReturnType<typeof vi.fn>
+    start(`<div id="strip" data-kui="scroll-snap-x target:.s align:end autoplay:2s">${ITEMS}</div>`, false, (s) => {
+      spy = stub(s, 'x')
+      s.children[1]!.getBoundingClientRect = () => rect(100, 0, 75, 100)
+    })
+    vi.advanceTimersByTime(2000)
+    expect(spy).toHaveBeenLastCalledWith({ left: 75, behavior: 'smooth' })
+  })
+
+  it('skips a step when the strip has no scrollable range', () => {
+    let spy!: ReturnType<typeof vi.fn>
+    start(`<div id="strip" data-kui="scroll-snap-x target:.s autoplay:2s">${ITEMS}</div>`, false, (s) => {
+      spy = stub(s, 'x')
+      Object.defineProperty(s, 'scrollWidth', { value: s.clientWidth })
+    })
+    vi.advanceTimersByTime(2000)
+    expect(spy).not.toHaveBeenCalled()
+
+    Object.defineProperty(strip(), 'scrollWidth', { value: 300 })
+    vi.advanceTimersByTime(2000)
+    expect(spy).toHaveBeenCalledWith({ left: 100, behavior: 'smooth' })
+  })
+
   it('floors the period at two seconds, and says so', () => {
     start(`<div id="strip" data-kui="scroll-snap-x target:.s autoplay:1s">${ITEMS}</div>`, false, (s) => stub(s, 'x'))
     expect(reporter.messages).toContain('scroll-snap autoplay: minimum is 2s; clamped to 2s')

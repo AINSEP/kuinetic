@@ -330,6 +330,26 @@ describe('play()', () => {
     expect(el.getAttribute(ATTR.source)).toBe(`${step} delay:200ms`)
   })
 
+  it('overrides a positional delay and replaces duplicate authored easing tokens', () => {
+    const animator = build('<p id="a" data-kui="fade-up 400ms 100ms ease-in ease-out">Hi</p>')
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'fade-up' }, { delay: 200, ease: 'linear' })
+
+    expect(el.getAttribute(ATTR.source)).toBe('fade-up 400ms 200ms linear')
+    animator.destroy()
+  })
+
+  it('lets the parser diagnose a third positional time passed as easing', () => {
+    const animator = build('<p id="a" data-kui="fade-up 400ms">Hi</p>')
+    const el = document.getElementById('a')!
+    play({ animator, root: document.body, target: el, effect: 'fade-up' }, { duration: 300, delay: 100, ease: '50ms' })
+
+    const source = el.getAttribute(ATTR.source)!
+    expect(source).toBe('fade-up 300ms 100ms 50ms')
+    expect(parse(source).warnings.join()).toContain('third time value "50ms" ignored')
+    animator.destroy()
+  })
+
   it('lets the parser diagnose an unrecognized easing override', () => {
     const animator = build('<p id="a" data-kui="fade-up 400ms">Hi</p>')
     const el = document.getElementById('a')!

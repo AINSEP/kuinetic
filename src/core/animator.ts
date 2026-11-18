@@ -492,14 +492,14 @@ export class Animator {
       warn("every: cycles only the host element's own effects; a target: group with a cycle hook replays instead")
     }
     const win = el.ownerDocument.defaultView ?? (globalThis as unknown as Window)
-    const entry = { every, release: (() => {}) as Cleanup, thunks }
-    entry.release = createCadence({
+    const { release } = createCadence({
       el,
       periodMs: everyToMs(every),
       host: { win, doc: el.ownerDocument, reducedMotion: this.respectReducedMotion && this.capabilities.reducedMotion },
       tick: () => this.cadenceTick(el, entry.thunks),
       warn,
-    }).release
+    })
+    const entry = { every, release, thunks }
     this.cadences.set(el, entry)
   }
 
